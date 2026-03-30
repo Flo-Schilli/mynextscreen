@@ -1418,15 +1418,15 @@ export class Playlists implements OnInit {
   }
 
   getThumbUrl(item: PlaylistItem): string {
-    return `/api/content/${item.contentId}/file/transcoded`;
+    return this.contentService.getTranscodedUrl(item.contentId);
   }
 
   getPreviewUrl(item: PlaylistItem): string {
-    return `/api/content/${item.contentId}/file/transcoded`;
+    return this.contentService.getTranscodedUrl(item.contentId);
   }
 
   getContentThumbUrl(content: Content): string {
-    return `/api/content/${content.id}/file/transcoded`;
+    return this.contentService.getTranscodedUrl(content.id);
   }
 
   getPlaylistDuration(playlist: Playlist): number {

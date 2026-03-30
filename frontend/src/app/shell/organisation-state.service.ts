@@ -21,6 +21,12 @@ export interface OrgWithRole {
   role: string;
 }
 
+interface UserProfile {
+  userId: string;
+  email: string;
+  isSuperAdmin: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class OrganisationStateService {
   private http = inject(HttpClient);
@@ -34,9 +40,16 @@ export class OrganisationStateService {
     return this.organisations().find((o) => o.id === id) ?? null;
   });
   readonly loading = signal(false);
+  readonly isSuperAdmin = signal(false);
 
   loadOrganisations(): void {
     this.loading.set(true);
+
+    this.http.get<UserProfile>('/api/me/profile').subscribe({
+      next: (profile) => this.isSuperAdmin.set(profile.isSuperAdmin),
+      error: () => this.isSuperAdmin.set(false),
+    });
+
     this.http.get<OrgMembership[]>('/api/me/memberships').subscribe({
       next: (memberships) => {
         const orgs: OrgWithRole[] = memberships.map((m) => ({

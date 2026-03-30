@@ -73,20 +73,20 @@ Build a standalone Angular application that acts as a virtual screen player, all
 **Parallel:** yes — can run alongside TASK-017-002
 
 **Acceptance Criteria:**
-- [ ] `PlayerService` pulls full state from `GET /api/screens/:id/state` on connect
+- [x] `PlayerService` pulls full state from `GET /api/screens/:id/state` on connect
   - Parses `ScreenState` response: screen info, currentPlaylist, scheduleEntries, activeLiveStream, fallbackPlaylist
-- [ ] SSE connection to `/api/screens/:id/events` with API key auth
+- [x] SSE connection to `/api/screens/:id/events` with API key auth
   - Handles event types: `schedule_update`, `playlist_update`, `content_update`, `live_stream_start`, `live_stream_stop`, `group_play`, `pending`
   - On `schedule_update` / `playlist_update` / `content_update`: re-fetches full state
   - On `live_stream_start`: switches to live stream mode with HLS URL
   - On `live_stream_stop`: returns to scheduled playlist
   - On `group_play`: plays the specified content (uses sliced URL if split mode)
-- [ ] Heartbeat sent via `POST /api/screens/:id/heartbeat` every 30 seconds
-- [ ] Auto-reconnect SSE on connection drop (exponential backoff, max 30s)
-- [ ] Clean disconnect on window close / user disconnect
-- [ ] State exposed as signals/observables for the playback component to consume
-- [ ] Unit tests for state parsing and event handling logic
-- [ ] Typecheck/lint passes
+- [x] Heartbeat sent via `POST /api/screens/:id/heartbeat` every 30 seconds
+- [x] Auto-reconnect SSE on connection drop (exponential backoff, max 30s)
+- [x] Clean disconnect on window close / user disconnect
+- [x] State exposed as signals/observables for the playback component to consume
+- [x] Unit tests for state parsing and event handling logic
+- [x] Typecheck/lint passes
 
 ### TASK-017-004: Playlist Playback Engine
 **Description:** As a virtual screen, I want to display playlist content (images and videos) in sequence with correct durations and automatic looping so that playback matches a real screen.

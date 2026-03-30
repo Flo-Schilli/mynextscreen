@@ -76,6 +76,26 @@ interface NavItem {
             }
           </a>
         }
+
+        @if (orgState.isSuperAdmin()) {
+          <div class="nav-divider"></div>
+          <a
+            class="nav-item admin-nav-item"
+            routerLink="/admin/organisations"
+            routerLinkActive="active"
+            (click)="mobileOpen.set(false)"
+            [attr.title]="collapsed() ? 'Admin' : null"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M10 1l2.5 3.5H17l-1.5 4L18 13h-4l-2 4h-4l-2-4H2l2.5-4.5L3 5h4.5L10 1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            @if (!collapsed()) {
+              <span class="nav-label">Admin</span>
+            }
+          </a>
+        }
       </nav>
 
       <div class="sidebar-footer">
@@ -148,11 +168,18 @@ interface NavItem {
           <app-notification-bell />
 
           <!-- User avatar -->
-          <div class="user-avatar" aria-label="Current user">
+          <div class="user-avatar" [class.super-admin]="orgState.isSuperAdmin()" [attr.aria-label]="orgState.isSuperAdmin() ? 'Super Admin' : 'Current user'">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <circle cx="10" cy="8" r="3" stroke="currentColor" stroke-width="1.5"/>
               <path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
+            @if (orgState.isSuperAdmin()) {
+              <span class="admin-badge" title="Super Admin">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M5 0.5L6.1 3.5H9.3L6.6 5.3L7.7 8.5L5 6.5L2.3 8.5L3.4 5.3L0.7 3.5H3.9L5 0.5Z" fill="currentColor"/>
+                </svg>
+              </span>
+            }
           </div>
         </div>
       </header>
@@ -277,6 +304,23 @@ interface NavItem {
       text-overflow: ellipsis;
     }
 
+    .nav-divider {
+      height: 1px;
+      background: var(--color-border);
+      margin: 0.5rem 0.75rem;
+    }
+    .admin-nav-item {
+      color: #f59e0b;
+    }
+    .admin-nav-item:hover {
+      background: rgba(245, 158, 11, 0.1);
+      color: #fbbf24;
+    }
+    .admin-nav-item.active {
+      background: #f59e0b;
+      color: #fff;
+    }
+
     .sidebar-footer {
       padding: 0.5rem;
       border-top: 1px solid var(--color-border);
@@ -374,6 +418,7 @@ interface NavItem {
     }
 
     .user-avatar {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -383,6 +428,24 @@ interface NavItem {
       background: var(--color-bg-tertiary);
       color: var(--color-text-secondary);
       border: 1px solid var(--color-border);
+    }
+    .user-avatar.super-admin {
+      border-color: #f59e0b;
+      box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3);
+    }
+    .admin-badge {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      background: #f59e0b;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.5px solid var(--color-bg-secondary);
     }
 
     /* ── Content ── */

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { OrganisationController } from './organisation.controller';
 import { OrganisationService } from './organisation.service';
+import { MembershipService } from '../user/membership.service';
 import { Organisation } from './organisation.entity';
 
 describe('OrganisationController', () => {
@@ -22,6 +23,13 @@ describe('OrganisationController', () => {
     updatedAt: new Date(),
   };
 
+  const mockMembershipService = {
+    listMembers: jest.fn(),
+    addMember: jest.fn(),
+    updateRole: jest.fn(),
+    removeMember: jest.fn(),
+  };
+
   beforeEach(async () => {
     service = {
       create: jest.fn(),
@@ -34,6 +42,7 @@ describe('OrganisationController', () => {
       controllers: [OrganisationController],
       providers: [
         { provide: OrganisationService, useValue: service },
+        { provide: MembershipService, useValue: mockMembershipService },
         {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue('admin-1') },
@@ -54,9 +63,10 @@ describe('OrganisationController', () => {
       };
       service.create.mockResolvedValue(mockOrganisation);
 
-      const result = await controller.create(dto);
+      const mockReq = { user: { userId: 'user-1', email: 'admin@test.com' } } as any;
+      const result = await controller.create(dto, mockReq);
 
-      expect(service.create).toHaveBeenCalledWith(dto);
+      expect(service.create).toHaveBeenCalledWith(dto, mockReq.user);
       expect(result).toEqual(mockOrganisation);
     });
   });
