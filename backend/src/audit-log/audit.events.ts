@@ -24,6 +24,9 @@ export class AuditContentEvent {
 export const AUDIT_PLAYLIST_CREATED = 'audit.playlist.created';
 export const AUDIT_PLAYLIST_UPDATED = 'audit.playlist.updated';
 export const AUDIT_PLAYLIST_DELETED = 'audit.playlist.deleted';
+export const AUDIT_PLAYLIST_BULK_DELETED = 'audit.playlist.bulk_deleted';
+export const AUDIT_PLAYLIST_BULK_SCREEN_ASSIGNED =
+  'audit.playlist.bulk_screen_assigned';
 
 export class AuditPlaylistEvent {
   constructor(

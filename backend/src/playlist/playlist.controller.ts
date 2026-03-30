@@ -7,6 +7,7 @@ import {
   Delete,
   Param,
   Body,
+  Req,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { PlaylistService } from './playlist.service';
@@ -14,7 +15,10 @@ import { CreatePlaylistDto } from './dto/create-playlist.dto';
 import { UpdatePlaylistDto } from './dto/update-playlist.dto';
 import { AddPlaylistItemDto } from './dto/add-playlist-item.dto';
 import { ReorderPlaylistItemsDto } from './dto/reorder-playlist-items.dto';
+import { BulkDeletePlaylistsDto } from './dto/bulk-delete-playlists.dto';
+import { BulkAssignScreenDto } from './dto/bulk-assign-screen.dto';
 import { Roles } from '../auth/roles.decorator';
+import { AuthenticatedRequest } from '../auth';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { Playlist } from './playlist.entity';
@@ -64,6 +68,35 @@ export class PlaylistController {
     @Body() dto: UpdatePlaylistDto,
   ): Promise<Playlist> {
     return this.playlistService.update(id, organisationId, dto);
+  }
+
+  @Post('bulk-delete')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
+  bulkDelete(
+    @CurrentOrganisation() organisationId: string,
+    @Body() dto: BulkDeletePlaylistsDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ deleted: number; notFound: string[] }> {
+    return this.playlistService.bulkDelete(
+      organisationId,
+      dto.ids,
+      req.user.userId,
+    );
+  }
+
+  @Post('bulk-assign-screen')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
+  bulkAssignScreen(
+    @CurrentOrganisation() organisationId: string,
+    @Body() dto: BulkAssignScreenDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ assigned: number; notFound: string[] }> {
+    return this.playlistService.bulkAssignScreen(
+      organisationId,
+      dto.ids,
+      dto.screenId,
+      req.user.userId,
+    );
   }
 
   @Delete(':id')

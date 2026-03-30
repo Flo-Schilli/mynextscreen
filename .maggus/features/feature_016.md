@@ -109,15 +109,15 @@ Allow users to select multiple items at once on the Screens, Content Library, an
 **Parallel:** yes — can run alongside TASK-016-001, TASK-016-002, TASK-016-003, TASK-016-004
 
 **Acceptance Criteria:**
-- [ ] `POST /api/playlists/bulk-delete` — body: `{ ids: string[] }` — deletes specified playlists; returns `{ deleted: number, notFound: string[] }`
-- [ ] `POST /api/playlists/bulk-assign-screen` — body: `{ ids: string[], screenId: string }` — assigns all specified playlists to a screen (replaces that screen's current active playlist with each playlist in sequence, or sets all as candidates — clarify with domain model: if a screen has one active playlist, this sets the first playlist and returns a warning about the rest); returns `{ assigned: number, notFound: string[] }`
+- [x] `POST /api/playlists/bulk-delete` — body: `{ ids: string[] }` — deletes specified playlists; returns `{ deleted: number, notFound: string[] }`
+- [x] `POST /api/playlists/bulk-assign-screen` — body: `{ ids: string[], screenId: string }` — assigns all specified playlists to a screen (replaces that screen's current active playlist with each playlist in sequence, or sets all as candidates — clarify with domain model: if a screen has one active playlist, this sets the first playlist and returns a warning about the rest); returns `{ assigned: number, notFound: string[] }`
   - Implementation note: if the domain model does not support multiple playlists per screen, treat this as "assign selected playlist(s) to screen(s)" via `bulk-assign-to-screens` — body: `{ playlistIds: string[], screenIds: string[] }` (assign each playlist to each screen); consult the existing screen/playlist relationship model and adjust accordingly. Document the chosen interpretation in the PR.
-- [ ] All endpoints scoped to `organisationId`; 400 on foreign IDs
-- [ ] Guarded by JWT auth + Org Admin or Editor role
-- [ ] Each affected playlist produces an individual audit log event
-- [ ] Input validation DTOs; `ids` non-empty array, max 200 items
-- [ ] Unit tests covering auth, org scoping, and the multi-assign scenario
-- [ ] Typecheck and lint pass
+- [x] All endpoints scoped to `organisationId`; 400 on foreign IDs
+- [x] Guarded by JWT auth + Org Admin or Editor role
+- [x] Each affected playlist produces an individual audit log event
+- [x] Input validation DTOs; `ids` non-empty array, max 200 items
+- [x] Unit tests covering auth, org scoping, and the multi-assign scenario
+- [x] Typecheck and lint pass
 
 ### TASK-016-006: BulkActionToolbarComponent
 **Description:** As a frontend developer, I want a reusable bulk action toolbar component that appears when items are selected and presents the relevant actions for the current entity type, so that the UI pattern is consistent across pages.
