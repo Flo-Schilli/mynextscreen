@@ -51,19 +51,19 @@ Live Streams allow an Org Admin or Editor to configure stream sources (RTMP or R
 **Parallel:** yes — can run alongside TASK-014-003
 
 **Acceptance Criteria:**
-- [ ] `LiveStreamController` routes (all scoped to current org via `X-Organisation-Id`):
+- [x] `LiveStreamController` routes (all scoped to current org via `X-Organisation-Id`):
   - `POST /api/live-streams` — create stream source (Org Admin or Editor)
   - `GET /api/live-streams` — list all stream sources for the org
   - `GET /api/live-streams/:id` — get single stream source
   - `PATCH /api/live-streams/:id` — update name, sourceUrl, protocol (Org Admin or Editor); forbidden if status is `active`
   - `DELETE /api/live-streams/:id` — delete stream source (Org Admin only); forbidden if status is `active`
-- [ ] Request DTOs with validation (`class-validator`): `name` (string, 1–100 chars), `sourceUrl` (valid URL string), `protocol` (enum `rtmp` | `rtp`)
-- [ ] Response DTO includes all entity fields; `sourceUrl` is included (not sensitive)
-- [ ] Deleting a stream in `active` state returns HTTP 409 with descriptive error message
-- [ ] Updating a stream in `active` state returns HTTP 409
-- [ ] Viewers (non-editor/non-admin roles) receive HTTP 403 on write operations
-- [ ] Unit tests for each endpoint: success path, access control, conflict scenarios
-- [ ] Typecheck and lint pass
+- [x] Request DTOs with validation (`class-validator`): `name` (string, 1–100 chars), `sourceUrl` (valid URL string), `protocol` (enum `rtmp` | `rtp`)
+- [x] Response DTO includes all entity fields; `sourceUrl` is included (not sensitive)
+- [x] Deleting a stream in `active` state returns HTTP 409 with descriptive error message
+- [x] Updating a stream in `active` state returns HTTP 409
+- [x] Viewers (non-editor/non-admin roles) receive HTTP 403 on write operations
+- [x] Unit tests for each endpoint: success path, access control, conflict scenarios
+- [x] Typecheck and lint pass
 
 ---
 
