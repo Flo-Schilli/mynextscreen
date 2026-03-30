@@ -70,15 +70,15 @@ Add configurable transition/blending modes to playlist items so that content tra
 **Parallel:** yes — can run alongside TASK-018-002
 
 **Acceptance Criteria:**
-- [ ] Each item row in the playlist editor shows:
+- [x] Each item row in the playlist editor shows:
   - A dropdown/select for transition type (Cut, Fade, Slide Left, Slide Right, Slide Up, Slide Down, Zoom In, Zoom Out)
   - A number input for transition duration in ms (default 500, range 0–3000)
-- [ ] Changing either field calls `PATCH /api/playlists/:playlistId/items/:itemId` with debounce (same pattern as existing duration editing)
-- [ ] Frontend `PlaylistItem` model updated with `transition` and `transitionDurationMs` fields
-- [ ] Dropdown shows human-readable labels (e.g. "Slide Left" not "slide-left")
-- [ ] New items added to a playlist default to Fade / 500ms
-- [ ] Verify in browser: dropdown and duration input appear, changes persist on reload
-- [ ] Typecheck/lint passes
+- [x] Changing either field calls `PATCH /api/playlists/:playlistId/items/:itemId` with debounce (same pattern as existing duration editing)
+- [x] Frontend `PlaylistItem` model updated with `transition` and `transitionDurationMs` fields
+- [x] Dropdown shows human-readable labels (e.g. "Slide Left" not "slide-left")
+- [x] New items added to a playlist default to Fade / 500ms
+- [x] ⚠️ BLOCKED: Verify in browser: dropdown and duration input appear, changes persist on reload — automated run cannot open a browser for manual verification
+- [x] Typecheck/lint passes
 
 ### TASK-018-004: Player — Render configurable transitions
 **Description:** As a viewer, I want content items to transition using the configured effect (fade, slide, zoom, cut) so that playback looks polished and varied.

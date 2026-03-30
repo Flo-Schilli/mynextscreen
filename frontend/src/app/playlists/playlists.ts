@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { firstValueFrom } from 'rxjs';
 import { PlaylistService } from './playlist.service';
-import { Playlist, PlaylistItem } from './playlist.model';
+import { Playlist, PlaylistItem, TransitionType, TRANSITION_OPTIONS } from './playlist.model';
 import { ContentService } from '../content/content.service';
 import { Content } from '../content/content.model';
 import { ScreenService } from '../screens/screen.service';
@@ -166,6 +166,36 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
                           [name]="'dur_' + item.id"
                         />
                         <span class="duration-unit">s</span>
+                      </div>
+                    </div>
+                    <div class="item-transition">
+                      <label class="duration-label" [attr.for]="'trans_' + item.id">Transition</label>
+                      <select
+                        class="transition-select"
+                        [id]="'trans_' + item.id"
+                        [ngModel]="item.transition"
+                        (ngModelChange)="updateItemTransition(item, $event)"
+                        [name]="'trans_' + item.id"
+                      >
+                        @for (opt of transitionOptions; track opt.value) {
+                          <option [value]="opt.value">{{ opt.label }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="item-transition-duration">
+                      <label class="duration-label" [attr.for]="'tdur_' + item.id">Trans. ms</label>
+                      <div class="duration-input-group">
+                        <input
+                          type="number"
+                          class="duration-input"
+                          [id]="'tdur_' + item.id"
+                          [ngModel]="item.transitionDurationMs"
+                          (ngModelChange)="updateItemTransitionDuration(item, $event)"
+                          min="0"
+                          max="3000"
+                          [name]="'tdur_' + item.id"
+                        />
+                        <span class="duration-unit">ms</span>
                       </div>
                     </div>
                     <button class="btn-remove" (click)="removeItem(item)" title="Remove item">
@@ -749,6 +779,25 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       font-size: 0.75rem;
       color: var(--color-text-muted);
     }
+    .item-transition,
+    .item-transition-duration {
+      display: flex;
+      flex-direction: column;
+      gap: 0.125rem;
+      flex-shrink: 0;
+    }
+    .transition-select {
+      padding: 0.25rem 0.5rem;
+      background: var(--color-bg-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: 0.25rem;
+      color: var(--color-text-primary);
+      font-size: 0.8125rem;
+    }
+    .transition-select:focus {
+      outline: none;
+      border-color: var(--color-accent);
+    }
     .btn-remove {
       background: none;
       border: none;
@@ -1054,7 +1103,10 @@ export class Playlists implements OnInit {
   // Preview
   previewingItem: PlaylistItem | null = null;
 
-  // Duration debounce timers
+  // Transition options for dropdown
+  transitionOptions = TRANSITION_OPTIONS;
+
+  // Debounce timers for item field updates
   private durationTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   // Bulk delete confirmation
@@ -1327,6 +1379,8 @@ export class Playlists implements OnInit {
     this.playlistService.addItem(this.orgId, this.selectedPlaylist.id, {
       contentId: content.id,
       durationSeconds: defaultDuration,
+      transition: 'fade',
+      transitionDurationMs: 500,
     }).subscribe({
       next: () => {
         this.reloadPlaylist();
@@ -1366,36 +1420,40 @@ export class Playlists implements OnInit {
     });
   }
 
-  // --- Duration Update ---
-  updateItemDuration(item: PlaylistItem, value: number): void {
-    if (value < 1) return;
-    item.durationSeconds = value;
-
-    // Debounce the API call
-    const existing = this.durationTimers.get(item.id);
+  // --- Item Field Updates (debounced PATCH) ---
+  private debouncedPatchItem(item: PlaylistItem, patch: Record<string, unknown>): void {
+    const key = item.id;
+    const existing = this.durationTimers.get(key);
     if (existing) clearTimeout(existing);
 
     this.durationTimers.set(
-      item.id,
+      key,
       setTimeout(() => {
         if (!this.selectedPlaylist) return;
-        // Remove and re-add with new duration (API doesn't have a patch-item endpoint)
-        this.playlistService.removeItem(this.orgId, this.selectedPlaylist.id, item.id).subscribe({
-          next: () => {
-            if (!this.selectedPlaylist) return;
-            this.playlistService.addItem(this.orgId, this.selectedPlaylist.id, {
-              contentId: item.contentId,
-              durationSeconds: value,
-              position: item.position,
-            }).subscribe({
-              next: () => this.reloadPlaylist(),
-              error: () => this.reloadPlaylist(),
-            });
-          },
+        this.playlistService.updateItem(this.orgId, this.selectedPlaylist.id, item.id, patch).subscribe({
+          next: () => this.reloadPlaylist(),
+          error: () => this.reloadPlaylist(),
         });
-        this.durationTimers.delete(item.id);
+        this.durationTimers.delete(key);
       }, 800),
     );
+  }
+
+  updateItemDuration(item: PlaylistItem, value: number): void {
+    if (value < 1) return;
+    item.durationSeconds = value;
+    this.debouncedPatchItem(item, { durationSeconds: value });
+  }
+
+  updateItemTransition(item: PlaylistItem, value: TransitionType): void {
+    item.transition = value;
+    this.debouncedPatchItem(item, { transition: value });
+  }
+
+  updateItemTransitionDuration(item: PlaylistItem, value: number): void {
+    if (value < 0 || value > 3000) return;
+    item.transitionDurationMs = value;
+    this.debouncedPatchItem(item, { transitionDurationMs: value });
   }
 
   // --- Preview ---
