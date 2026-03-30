@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Patch,
   Delete,
   Param,
@@ -9,11 +10,12 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { ScreenGroupService } from './screen-group.service';
-import { CreateScreenGroupDto, UpdateScreenGroupDto } from './dto';
+import { CreateScreenGroupDto, UpdateScreenGroupDto, AssignScreenDto } from './dto';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { ScreenGroup } from './screen-group.entity';
+import { Screen } from '../screen/screen.entity';
 
 @Controller('screen-groups')
 export class ScreenGroupController {
@@ -70,5 +72,35 @@ export class ScreenGroupController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     return this.screenGroupService.removeGroup(organisationId, id);
+  }
+
+  @Put(':groupId/screens/:screenId')
+  @Roles(OrganisationRole.OrgAdmin)
+  assignScreen(
+    @CurrentOrganisation() organisationId: string,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Param('screenId', ParseUUIDPipe) screenId: string,
+    @Body() dto: AssignScreenDto,
+  ): Promise<Screen> {
+    return this.screenGroupService.assignScreen(
+      organisationId,
+      groupId,
+      screenId,
+      dto,
+    );
+  }
+
+  @Delete(':groupId/screens/:screenId')
+  @Roles(OrganisationRole.OrgAdmin)
+  removeScreen(
+    @CurrentOrganisation() organisationId: string,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Param('screenId', ParseUUIDPipe) screenId: string,
+  ): Promise<Screen> {
+    return this.screenGroupService.removeScreen(
+      organisationId,
+      groupId,
+      screenId,
+    );
   }
 }

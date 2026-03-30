@@ -85,14 +85,14 @@ This feature completes the core playback model described in VISION.md and unlock
 **Parallel:** yes — can run alongside TASK-012-002
 
 **Acceptance Criteria:**
-- [ ] `PUT /screen-groups/:groupId/screens/:screenId` assigns the screen to the group; sets `gridRow` and `gridColumn` if provided in body (required for `mode=split` groups).
-- [ ] `DELETE /screen-groups/:groupId/screens/:screenId` removes the screen from the group, nullifying its `groupId`, `gridRow`, and `gridColumn`.
-- [ ] Assigning a screen that already belongs to another group returns HTTP 409.
-- [ ] Assigning a screen to a split-mode group without specifying a grid position returns HTTP 400.
-- [ ] Assigning two screens to the same grid cell within a group returns HTTP 409.
-- [ ] Both endpoints are scoped by `organisationId` (screen and group must belong to the same organisation).
-- [ ] Both endpoints require authentication.
-- [ ] Unit tests are written and successful.
+- [x] `PUT /screen-groups/:groupId/screens/:screenId` assigns the screen to the group; sets `gridRow` and `gridColumn` if provided in body (required for `mode=split` groups).
+- [x] `DELETE /screen-groups/:groupId/screens/:screenId` removes the screen from the group, nullifying its `groupId`, `gridRow`, and `gridColumn`.
+- [x] Assigning a screen that already belongs to another group returns HTTP 409.
+- [x] Assigning a screen to a split-mode group without specifying a grid position returns HTTP 400.
+- [x] Assigning two screens to the same grid cell within a group returns HTTP 409.
+- [x] Both endpoints are scoped by `organisationId` (screen and group must belong to the same organisation).
+- [x] Both endpoints require authentication.
+- [x] Unit tests are written and successful.
 
 ---
 

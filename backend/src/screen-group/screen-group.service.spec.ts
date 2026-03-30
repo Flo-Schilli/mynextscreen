@@ -42,6 +42,8 @@ describe('ScreenGroupService', () => {
 
     screenRepository = {
       count: jest.fn(),
+      findOne: jest.fn(),
+      save: jest.fn(),
     };
 
     service = new ScreenGroupService(
@@ -301,6 +303,177 @@ describe('ScreenGroupService', () => {
       await expect(service.removeGroup(orgId, groupId)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('assignScreen', () => {
+    const screenId = '770e8400-e29b-41d4-a716-446655440000';
+    const mockScreen: Screen = {
+      id: screenId,
+      organisationId: orgId,
+      name: 'Lobby Display',
+      resolution: '1920x1080',
+      location: 'Lobby',
+      apiKeyHash: 'hash',
+      lastHeartbeat: null,
+      isOnline: false,
+      groupId: null,
+      group: null,
+      gridRow: null,
+      gridColumn: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      organisation: {} as Organisation,
+    };
+
+    it('should assign a screen to a mirror-mode group', async () => {
+      const mirrorGroup = { ...mockGroup, mode: ScreenGroupMode.Mirror, gridColumns: null, gridRows: null };
+      repository.findOne.mockResolvedValue(mirrorGroup);
+      screenRepository.findOne.mockResolvedValue({ ...mockScreen });
+      screenRepository.save.mockImplementation(async (s: Screen) => s);
+
+      const result = await service.assignScreen(orgId, groupId, screenId, {});
+
+      expect(result.groupId).toBe(groupId);
+      expect(result.gridRow).toBeNull();
+      expect(result.gridColumn).toBeNull();
+    });
+
+    it('should assign a screen to a split-mode group with grid position', async () => {
+      repository.findOne.mockResolvedValue({ ...mockGroup });
+      screenRepository.findOne
+        .mockResolvedValueOnce({ ...mockScreen }) // findOne for the screen
+        .mockResolvedValueOnce(null); // findOne for cell occupancy check
+      screenRepository.save.mockImplementation(async (s: Screen) => s);
+
+      const result = await service.assignScreen(orgId, groupId, screenId, {
+        gridRow: 0,
+        gridColumn: 1,
+      });
+
+      expect(result.groupId).toBe(groupId);
+      expect(result.gridRow).toBe(0);
+      expect(result.gridColumn).toBe(1);
+    });
+
+    it('should throw NotFoundException when screen not found', async () => {
+      repository.findOne.mockResolvedValue(mockGroup);
+      screenRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.assignScreen(orgId, groupId, screenId, {}),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ConflictException when screen belongs to another group', async () => {
+      repository.findOne.mockResolvedValue(mockGroup);
+      screenRepository.findOne.mockResolvedValue({
+        ...mockScreen,
+        groupId: 'other-group-id',
+      });
+
+      await expect(
+        service.assignScreen(orgId, groupId, screenId, {}),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw BadRequestException when split-mode group lacks grid position', async () => {
+      repository.findOne.mockResolvedValue({ ...mockGroup });
+      screenRepository.findOne.mockResolvedValue({ ...mockScreen });
+
+      await expect(
+        service.assignScreen(orgId, groupId, screenId, {}),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw ConflictException when grid cell is already occupied', async () => {
+      repository.findOne.mockResolvedValue({ ...mockGroup });
+      const existingScreen = { ...mockScreen };
+      const occupyingScreen = { ...mockScreen, id: 'other-screen-id', name: 'Other Screen' };
+      screenRepository.findOne
+        .mockResolvedValueOnce(existingScreen)
+        .mockResolvedValueOnce(occupyingScreen);
+
+      await expect(
+        service.assignScreen(orgId, groupId, screenId, {
+          gridRow: 0,
+          gridColumn: 0,
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should allow re-assigning a screen to the same group (idempotent)', async () => {
+      repository.findOne.mockResolvedValue({ ...mockGroup });
+      screenRepository.findOne
+        .mockResolvedValueOnce({ ...mockScreen, groupId }) // screen already in this group
+        .mockResolvedValueOnce(null); // no cell conflict
+      screenRepository.save.mockImplementation(async (s: Screen) => s);
+
+      const result = await service.assignScreen(orgId, groupId, screenId, {
+        gridRow: 1,
+        gridColumn: 0,
+      });
+
+      expect(result.groupId).toBe(groupId);
+      expect(result.gridRow).toBe(1);
+    });
+
+    it('should throw NotFoundException when group not found', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.assignScreen(orgId, groupId, screenId, {}),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('removeScreen', () => {
+    const screenId = '770e8400-e29b-41d4-a716-446655440000';
+    const mockScreen: Screen = {
+      id: screenId,
+      organisationId: orgId,
+      name: 'Lobby Display',
+      resolution: '1920x1080',
+      location: 'Lobby',
+      apiKeyHash: 'hash',
+      lastHeartbeat: null,
+      isOnline: false,
+      groupId: groupId,
+      group: null,
+      gridRow: 0,
+      gridColumn: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      organisation: {} as Organisation,
+    };
+
+    it('should remove a screen from the group and clear grid position', async () => {
+      repository.findOne.mockResolvedValue(mockGroup);
+      screenRepository.findOne.mockResolvedValue({ ...mockScreen });
+      screenRepository.save.mockImplementation(async (s: Screen) => s);
+
+      const result = await service.removeScreen(orgId, groupId, screenId);
+
+      expect(result.groupId).toBeNull();
+      expect(result.gridRow).toBeNull();
+      expect(result.gridColumn).toBeNull();
+    });
+
+    it('should throw NotFoundException when screen not in group', async () => {
+      repository.findOne.mockResolvedValue(mockGroup);
+      screenRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.removeScreen(orgId, groupId, screenId),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException when group not found', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.removeScreen(orgId, groupId, screenId),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });
