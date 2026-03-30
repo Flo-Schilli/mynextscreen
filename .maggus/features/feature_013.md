@@ -142,20 +142,20 @@ Deliver a complete notification system so that users are alerted to important sy
 **Model:** —
 
 **Acceptance Criteria:**
-- [ ] `InAppNotificationChannel` service:
+- [x] `InAppNotificationChannel` service:
   - Saves a new `Notification` record to the DB for the target user
   - Emits a Socket.IO event to the user's session via `DashboardGateway`
   - Socket.IO event type: `notification.new`, payload: `{ id, eventType, title, message, read: false, createdAt }`
-- [ ] `DashboardGateway` extended to support per-user rooms in addition to org rooms:
+- [x] `DashboardGateway` extended to support per-user rooms in addition to org rooms:
   - On connection, client also joins a room named `user:{userId}`
   - `InAppNotificationChannel` emits to `user:{userId}` room
-- [ ] REST endpoints added to `NotificationModule`:
+- [x] REST endpoints added to `NotificationModule`:
   - `GET /api/notifications` — returns the 50 most recent notifications for the current user in the current org, ordered by `createdAt` desc; query param `unreadOnly=true` to filter
   - `PATCH /api/notifications/:id/read` — marks a single notification as read
   - `PATCH /api/notifications/read-all` — marks all unread notifications for the current user + org as read
   - `GET /api/notifications/unread-count` — returns `{ count: number }` for badge display
-- [ ] Unit tests for channel send, REST endpoints, Socket.IO emit
-- [ ] Typecheck and lint pass
+- [x] Unit tests for channel send, REST endpoints, Socket.IO emit
+- [x] Typecheck and lint pass
 
 ---
 

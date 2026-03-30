@@ -9,7 +9,11 @@ import { OrgNotificationConfigService } from './org-notification-config.service'
 import { NotificationHub } from './notification-hub.service';
 import { NotificationPreferencesController } from './notification-preferences.controller';
 import { OrgNotificationConfigController } from './org-notification-config.controller';
+import { NotificationController } from './notification.controller';
+import { InAppNotificationChannel } from './channels/in-app-notification-channel.service';
+import { IN_APP_CHANNEL } from './channels';
 import { UserModule } from '../user/user.module';
+import { DashboardModule } from '../dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -19,16 +23,23 @@ import { UserModule } from '../user/user.module';
       OrganisationNotificationConfig,
     ]),
     UserModule,
+    DashboardModule,
   ],
   controllers: [
     NotificationPreferencesController,
     OrgNotificationConfigController,
+    NotificationController,
   ],
   providers: [
     NotificationService,
     UserNotificationPreferenceService,
     OrgNotificationConfigService,
     NotificationHub,
+    InAppNotificationChannel,
+    {
+      provide: IN_APP_CHANNEL,
+      useExisting: InAppNotificationChannel,
+    },
   ],
   exports: [
     NotificationService,
