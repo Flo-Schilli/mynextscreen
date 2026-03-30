@@ -52,15 +52,15 @@ Allow users to select multiple items at once on the Screens, Content Library, an
 **Parallel:** yes — can run alongside TASK-016-003, TASK-016-004
 
 **Acceptance Criteria:**
-- [ ] `SelectionCheckboxComponent` standalone component with inputs: `itemId: string`, `itemIndex: number` (for shift-click range calculation)
-- [ ] Injects `SelectionService` from parent provider context
-- [ ] Renders a styled checkbox (Tailwind, dark theme consistent with existing UI) that reflects `isSelected(itemId)` signal
-- [ ] Clicking the checkbox calls `toggle(itemId)`
-- [ ] Shift-clicking calls `selectRange()` based on the last-clicked index tracked in the service
-- [ ] "Select all" row-level checkbox (separate `SelectAllCheckboxComponent` or an `[all]` input flag) that calls `selectAll(allIds)` / `clearAll()` depending on current state; shows indeterminate state when some but not all items are selected
-- [ ] Accessible: `aria-label`, keyboard-navigable
-- [ ] Unit tests for click and shift-click behaviour
-- [ ] Typecheck and lint pass
+- [x] `SelectionCheckboxComponent` standalone component with inputs: `itemId: string`, `itemIndex: number` (for shift-click range calculation)
+- [x] Injects `SelectionService` from parent provider context
+- [x] Renders a styled checkbox (Tailwind, dark theme consistent with existing UI) that reflects `isSelected(itemId)` signal
+- [x] Clicking the checkbox calls `toggle(itemId)`
+- [x] Shift-clicking calls `selectRange()` based on the last-clicked index tracked in the service
+- [x] "Select all" row-level checkbox (separate `SelectAllCheckboxComponent` or an `[all]` input flag) that calls `selectAll(allIds)` / `clearAll()` depending on current state; shows indeterminate state when some but not all items are selected
+- [x] Accessible: `aria-label`, keyboard-navigable
+- [x] Unit tests for click and shift-click behaviour
+- [x] Typecheck and lint pass
 
 ### TASK-016-003: Backend Bulk Endpoints — Screens
 **Description:** As a backend developer, I want bulk operation endpoints for screens so that the frontend can execute multi-item actions in a single API call.
