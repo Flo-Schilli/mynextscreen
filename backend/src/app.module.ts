@@ -17,6 +17,7 @@ import { AuditLogModule } from './audit-log';
 import { ScreenGroupModule } from './screen-group/screen-group.module';
 import { SliceContentModule } from './slice-content';
 import { NotificationModule } from './notification';
+import { LiveStreamModule } from './live-stream';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -59,6 +60,7 @@ import { HealthController } from './health.controller';
     ScreenGroupModule,
     SliceContentModule,
     NotificationModule,
+    LiveStreamModule,
   ],
   controllers: [HealthController],
 })
