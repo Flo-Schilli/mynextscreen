@@ -18,4 +18,10 @@ export enum AuditAction {
   UserRemoved = 'user.removed',
   OrganisationCreated = 'organisation.created',
   OrganisationUpdated = 'organisation.updated',
+  GroupCreated = 'group.created',
+  GroupUpdated = 'group.updated',
+  GroupDeleted = 'group.deleted',
+  GroupScreenAdded = 'group.screen_added',
+  GroupScreenRemoved = 'group.screen_removed',
+  GroupModeChanged = 'group.mode_changed',
 }

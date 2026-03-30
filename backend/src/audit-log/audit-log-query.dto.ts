@@ -15,6 +15,10 @@ export class AuditLogQueryDto {
   resourceType?: string;
 
   @IsOptional()
+  @IsUUID()
+  resourceId?: string;
+
+  @IsOptional()
   @IsString()
   from?: string;
 

@@ -14,6 +14,7 @@ export interface AuditLogFilters {
   action?: AuditAction;
   userId?: string;
   resourceType?: string;
+  resourceId?: string;
   from?: Date;
   to?: Date;
   limit?: number;
@@ -85,6 +86,10 @@ export class AuditLogService {
 
     if (filters.resourceType) {
       where.resourceType = filters.resourceType;
+    }
+
+    if (filters.resourceId) {
+      where.resourceId = filters.resourceId;
     }
 
     if (filters.from && filters.to) {

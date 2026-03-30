@@ -84,3 +84,20 @@ export class AuditOrganisationEvent {
     public readonly details: Record<string, unknown> | null,
   ) {}
 }
+
+// ── Screen Group ────────────────────────────────────────────────────────────
+export const AUDIT_GROUP_CREATED = 'audit.group.created';
+export const AUDIT_GROUP_UPDATED = 'audit.group.updated';
+export const AUDIT_GROUP_DELETED = 'audit.group.deleted';
+export const AUDIT_GROUP_SCREEN_ADDED = 'audit.group.screen_added';
+export const AUDIT_GROUP_SCREEN_REMOVED = 'audit.group.screen_removed';
+export const AUDIT_GROUP_MODE_CHANGED = 'audit.group.mode_changed';
+
+export class AuditGroupEvent {
+  constructor(
+    public readonly groupId: string,
+    public readonly organisationId: string,
+    public readonly userId: string | null,
+    public readonly details: Record<string, unknown> | null,
+  ) {}
+}

@@ -7,6 +7,7 @@ import {
   Delete,
   Param,
   Body,
+  Req,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { ScreenGroupService } from './screen-group.service';
@@ -14,6 +15,7 @@ import { CreateScreenGroupDto, UpdateScreenGroupDto, AssignScreenDto } from './d
 import { Roles } from '../auth/roles.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
+import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { ScreenGroup } from './screen-group.entity';
 import { Screen } from '../screen/screen.entity';
 
@@ -26,8 +28,9 @@ export class ScreenGroupController {
   create(
     @CurrentOrganisation() organisationId: string,
     @Body() dto: CreateScreenGroupDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<ScreenGroup> {
-    return this.screenGroupService.createGroup(organisationId, dto);
+    return this.screenGroupService.createGroup(organisationId, dto, req.user.userId);
   }
 
   @Get()
@@ -61,8 +64,9 @@ export class ScreenGroupController {
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateScreenGroupDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<ScreenGroup> {
-    return this.screenGroupService.updateGroup(organisationId, id, dto);
+    return this.screenGroupService.updateGroup(organisationId, id, dto, req.user.userId);
   }
 
   @Delete(':id')
@@ -70,8 +74,9 @@ export class ScreenGroupController {
   remove(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest,
   ): Promise<void> {
-    return this.screenGroupService.removeGroup(organisationId, id);
+    return this.screenGroupService.removeGroup(organisationId, id, req.user.userId);
   }
 
   @Put(':groupId/screens/:screenId')
@@ -81,12 +86,14 @@ export class ScreenGroupController {
     @Param('groupId', ParseUUIDPipe) groupId: string,
     @Param('screenId', ParseUUIDPipe) screenId: string,
     @Body() dto: AssignScreenDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<Screen> {
     return this.screenGroupService.assignScreen(
       organisationId,
       groupId,
       screenId,
       dto,
+      req.user.userId,
     );
   }
 
@@ -96,11 +103,13 @@ export class ScreenGroupController {
     @CurrentOrganisation() organisationId: string,
     @Param('groupId', ParseUUIDPipe) groupId: string,
     @Param('screenId', ParseUUIDPipe) screenId: string,
+    @Req() req: AuthenticatedRequest,
   ): Promise<Screen> {
     return this.screenGroupService.removeScreen(
       organisationId,
       groupId,
       screenId,
+      req.user.userId,
     );
   }
 }

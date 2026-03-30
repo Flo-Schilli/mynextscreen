@@ -171,11 +171,11 @@ This feature completes the core playback model described in VISION.md and unlock
 **Parallel:** yes — after predecessors
 
 **Acceptance Criteria:**
-- [ ] Audit events emitted for: `group.created`, `group.updated`, `group.deleted`, `group.screen_added`, `group.screen_removed`, `group.mode_changed`.
-- [ ] Each event includes: `organisationId`, `actorId`, `targetId` (group UUID), `payload` (relevant diff or membership change).
-- [ ] `group.mode_changed` captures `previousMode` and `newMode` in payload.
-- [ ] Audit log entries are retrievable via the existing API filtered by `targetId`.
-- [ ] No audit events are emitted for read-only operations.
+- [x] Audit events emitted for: `group.created`, `group.updated`, `group.deleted`, `group.screen_added`, `group.screen_removed`, `group.mode_changed`.
+- [x] Each event includes: `organisationId`, `actorId`, `targetId` (group UUID), `payload` (relevant diff or membership change).
+- [x] `group.mode_changed` captures `previousMode` and `newMode` in payload.
+- [x] Audit log entries are retrievable via the existing API filtered by `targetId`.
+- [x] No audit events are emitted for read-only operations.
 
 ---
 

@@ -28,6 +28,13 @@ import {
   AUDIT_ORGANISATION_CREATED,
   AUDIT_ORGANISATION_UPDATED,
   AuditOrganisationEvent,
+  AUDIT_GROUP_CREATED,
+  AUDIT_GROUP_UPDATED,
+  AUDIT_GROUP_DELETED,
+  AUDIT_GROUP_SCREEN_ADDED,
+  AUDIT_GROUP_SCREEN_REMOVED,
+  AUDIT_GROUP_MODE_CHANGED,
+  AuditGroupEvent,
 } from './audit.events';
 
 @Injectable()
@@ -270,6 +277,80 @@ export class AuditListener {
       AuditAction.OrganisationUpdated,
       'organisation',
       event.organisationId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  // ── Screen Group ─────────────────────────────────────────────────────────
+
+  @OnEvent(AUDIT_GROUP_CREATED, { async: true })
+  handleGroupCreated(event: AuditGroupEvent): void {
+    this.record(
+      AuditAction.GroupCreated,
+      'screen-group',
+      event.groupId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_GROUP_UPDATED, { async: true })
+  handleGroupUpdated(event: AuditGroupEvent): void {
+    this.record(
+      AuditAction.GroupUpdated,
+      'screen-group',
+      event.groupId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_GROUP_DELETED, { async: true })
+  handleGroupDeleted(event: AuditGroupEvent): void {
+    this.record(
+      AuditAction.GroupDeleted,
+      'screen-group',
+      event.groupId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_GROUP_SCREEN_ADDED, { async: true })
+  handleGroupScreenAdded(event: AuditGroupEvent): void {
+    this.record(
+      AuditAction.GroupScreenAdded,
+      'screen-group',
+      event.groupId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_GROUP_SCREEN_REMOVED, { async: true })
+  handleGroupScreenRemoved(event: AuditGroupEvent): void {
+    this.record(
+      AuditAction.GroupScreenRemoved,
+      'screen-group',
+      event.groupId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_GROUP_MODE_CHANGED, { async: true })
+  handleGroupModeChanged(event: AuditGroupEvent): void {
+    this.record(
+      AuditAction.GroupModeChanged,
+      'screen-group',
+      event.groupId,
       event.organisationId,
       event.userId,
       event.details,
