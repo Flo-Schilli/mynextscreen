@@ -15,9 +15,6 @@ import { ContentType } from '../content/content-type.enum';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 
 // Mock child_process
-const mockOn = jest.fn();
-const mockStderrOn = jest.fn();
-const mockStdoutOn = jest.fn();
 const mockSpawn = jest.fn();
 jest.mock('child_process', () => ({
   spawn: (...args: unknown[]) => mockSpawn(...args),
@@ -76,7 +73,6 @@ function setupSpawnSuccess(stdoutData?: string): void {
         }
       }
       if (!isProbe) {
-        // FFmpeg stderr data
         const dataCallback = proc.stderr.on.mock.calls.find(
           (c: unknown[]) => c[0] === 'data',
         );
@@ -127,6 +123,28 @@ function setupSpawnFailure(): void {
       );
       if (closeCallback) {
         closeCallback[1](isProbe ? 0 : 1);
+      }
+    }, 10);
+
+    return proc;
+  });
+}
+
+function setupProbeFailure(): void {
+  mockSpawn.mockImplementation((_cmd: string, _args: string[]) => {
+    const proc = {
+      stderr: { on: jest.fn() },
+      stdout: { on: jest.fn() },
+      on: jest.fn(),
+      stdin: null,
+    };
+
+    setTimeout(() => {
+      const closeCallback = proc.on.mock.calls.find(
+        (c: unknown[]) => c[0] === 'close',
+      );
+      if (closeCallback) {
+        closeCallback[1](1); // probe fails
       }
     }, 10);
 
@@ -231,7 +249,6 @@ describe('SliceContentProcessor', () => {
 
       await processor.process(job);
 
-      // Should create renditions for each screen
       expect(renditionRepo.create).toHaveBeenCalledTimes(2);
       expect(renditionRepo.save).toHaveBeenCalledTimes(2);
     });
@@ -242,16 +259,16 @@ describe('SliceContentProcessor', () => {
 
       await processor.process(job);
 
-      // FFmpeg should be called: 1 probe + 2 crops
+      // FFmpeg: 1 probe + 2 crops
       expect(mockSpawn).toHaveBeenCalledTimes(3);
 
-      // Second call (first crop for screen at 0,0)
+      // First crop (screen at 0,0)
       const secondCall = mockSpawn.mock.calls[1];
       expect(secondCall[0]).toBe('ffmpeg');
       expect(secondCall[1]).toContain('-vf');
       expect(secondCall[1]).toContain('crop=960:540:0:0');
 
-      // Third call (second crop for screen at 0,1)
+      // Second crop (screen at 0,1)
       const thirdCall = mockSpawn.mock.calls[2];
       expect(thirdCall[1]).toContain('crop=960:540:960:0');
     });
@@ -264,6 +281,36 @@ describe('SliceContentProcessor', () => {
 
       expect(job.updateProgress).toHaveBeenCalledWith(50); // 1/2
       expect(job.updateProgress).toHaveBeenCalledWith(100); // 2/2
+    });
+
+    it('should store rendition with correct output path', async () => {
+      setupSpawnSuccess('1920x1080\n');
+      const job = createMockJob();
+
+      await processor.process(job);
+
+      expect(renditionRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organisationId: 'org-1',
+          groupId: 'group-1',
+          screenId: 'screen-1',
+          contentItemId: 'content-1',
+          sourceHash: 'abc123hash',
+          filePath: expect.stringContaining('slices/group-1/screen-1/content-1.mp4'),
+        }),
+      );
+    });
+
+    it('should create output directories', async () => {
+      setupSpawnSuccess('1920x1080\n');
+      const job = createMockJob();
+
+      await processor.process(job);
+
+      expect(mockMkdir).toHaveBeenCalledWith(
+        expect.stringContaining('slices/group-1/screen-1'),
+        { recursive: true },
+      );
     });
   });
 
@@ -281,8 +328,6 @@ describe('SliceContentProcessor', () => {
       const job = createMockJob();
       await processor.process(job);
 
-      // Probe is called once, then skips because hash matches
-      // Only 1 probe call + 0 crop calls (both screens match)
       expect(renditionRepo.create).not.toHaveBeenCalled();
     });
 
@@ -300,14 +345,30 @@ describe('SliceContentProcessor', () => {
       const job = createMockJob();
       await processor.process(job);
 
-      // Should update existing renditions
+      // Should update existing renditions (not create new ones)
       expect(renditionRepo.save).toHaveBeenCalled();
+      const savedEntity = renditionRepo.save.mock.calls[0][0];
+      expect(savedEntity.sourceHash).toBe('abc123hash');
     });
   });
 
   describe('process — edge cases', () => {
     it('should throw when group is not found', async () => {
       groupRepo.findOne.mockResolvedValue(null);
+      const job = createMockJob();
+
+      await expect(processor.process(job)).rejects.toThrow(
+        'Group group-1 not found or missing grid configuration',
+      );
+    });
+
+    it('should throw when group has no grid configuration', async () => {
+      groupRepo.findOne.mockResolvedValue({
+        id: 'group-1',
+        organisationId: 'org-1',
+        gridColumns: null,
+        gridRows: null,
+      });
       const job = createMockJob();
 
       await expect(processor.process(job)).rejects.toThrow(
@@ -324,7 +385,16 @@ describe('SliceContentProcessor', () => {
       expect(mockSpawn).not.toHaveBeenCalled();
     });
 
-    it('should return early when playlist is empty', async () => {
+    it('should return early when playlist is not found', async () => {
+      playlistRepo.findOne.mockResolvedValue(null);
+      const job = createMockJob();
+
+      await processor.process(job);
+
+      expect(mockSpawn).not.toHaveBeenCalled();
+    });
+
+    it('should return early when playlist has no items', async () => {
       playlistRepo.findOne.mockResolvedValue({ id: 'playlist-1', items: [] });
       const job = createMockJob();
 
@@ -342,8 +412,31 @@ describe('SliceContentProcessor', () => {
       const job = createMockJob();
       await processor.process(job);
 
-      // Probe once, but no crop calls since screen has no position
       expect(renditionRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('should skip content items with no content', async () => {
+      setupSpawnSuccess('1920x1080\n');
+      playlistRepo.findOne.mockResolvedValue({
+        id: 'playlist-1',
+        items: [{ id: 'item-1', content: null }],
+      });
+
+      const job = createMockJob();
+      await processor.process(job);
+
+      expect(renditionRepo.create).not.toHaveBeenCalled();
+      expect(job.updateProgress).toHaveBeenCalledWith(100);
+    });
+
+    it('should skip content when probe resolution fails', async () => {
+      setupProbeFailure();
+
+      const job = createMockJob();
+      await processor.process(job);
+
+      expect(renditionRepo.create).not.toHaveBeenCalled();
+      expect(job.updateProgress).toHaveBeenCalledWith(100);
     });
   });
 
@@ -359,7 +452,7 @@ describe('SliceContentProcessor', () => {
   });
 
   describe('process — image slicing', () => {
-    it('should slice images using FFmpeg crop', async () => {
+    it('should slice images using FFmpeg crop with webp extension', async () => {
       setupSpawnSuccess('800x600\n');
       const imageContent = { ...mockContent, type: ContentType.Image };
       playlistRepo.findOne.mockResolvedValue({
@@ -379,9 +472,75 @@ describe('SliceContentProcessor', () => {
       const job = createMockJob();
       await processor.process(job);
 
-      // Should have called ffmpeg for probe + 2 crops
-      expect(mockSpawn).toHaveBeenCalledTimes(3);
+      expect(mockSpawn).toHaveBeenCalledTimes(3); // 1 probe + 2 crops
       expect(renditionRepo.create).toHaveBeenCalledTimes(2);
+
+      // Check output path uses .webp extension
+      expect(renditionRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filePath: expect.stringContaining('.webp'),
+        }),
+      );
+    });
+
+    it('should use correct crop for image at non-square resolution', async () => {
+      setupSpawnSuccess('800x600\n');
+      screenRepo.find.mockResolvedValue([
+        { id: 'screen-1', organisationId: 'org-1', groupId: 'group-1', gridRow: 1, gridColumn: 1 },
+      ]);
+      const imageContent = { ...mockContent, type: ContentType.Image };
+      playlistRepo.findOne.mockResolvedValue({
+        id: 'playlist-1',
+        organisationId: 'org-1',
+        items: [
+          { id: 'item-1', contentId: 'content-1', content: imageContent, position: 0 },
+        ],
+      });
+
+      const job = createMockJob();
+      await processor.process(job);
+
+      // 800/2=400, 600/2=300, at (1,1): crop=400:300:400:300
+      const cropCall = mockSpawn.mock.calls[1]; // second call is the crop
+      expect(cropCall[1]).toContain('crop=400:300:400:300');
+    });
+  });
+
+  describe('process — multiple content items', () => {
+    it('should process all items in the playlist', async () => {
+      setupSpawnSuccess('1920x1080\n');
+      playlistRepo.findOne.mockResolvedValue({
+        id: 'playlist-1',
+        organisationId: 'org-1',
+        items: [
+          { id: 'item-1', contentId: 'content-1', content: { ...mockContent, id: 'content-1' }, position: 0 },
+          { id: 'item-2', contentId: 'content-2', content: { ...mockContent, id: 'content-2' }, position: 1 },
+        ],
+      });
+
+      const job = createMockJob();
+      await processor.process(job);
+
+      // 2 items * 2 screens = 4 renditions, plus 2 probes
+      expect(renditionRepo.create).toHaveBeenCalledTimes(4);
+      expect(mockSpawn).toHaveBeenCalledTimes(6); // 2 probes + 4 crops
+    });
+  });
+
+  describe('process — file hash for idempotency', () => {
+    it('should handle file hash computation failure gracefully', async () => {
+      setupSpawnSuccess('1920x1080\n');
+      mockReadFile.mockRejectedValue(new Error('ENOENT'));
+
+      const job = createMockJob();
+      await processor.process(job);
+
+      // Should still create renditions (with empty hash)
+      expect(renditionRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceHash: expect.any(String),
+        }),
+      );
     });
   });
 });

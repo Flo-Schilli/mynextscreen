@@ -867,6 +867,77 @@ describe('ScheduleService', () => {
       expect(overlapCalls).toHaveLength(0);
     });
 
+    it('should enqueue slice-content job on update when group mode is split', async () => {
+      const existingEntry = {
+        id: 'entry-1',
+        screenId: null,
+        groupId: 'group-1',
+        organisationId: 'org-1',
+        playlistId: 'playlist-1',
+        startTime: new Date('2026-04-01T10:00:00Z'),
+        endTime: new Date('2026-04-01T12:00:00Z'),
+        rrule: null,
+        colour: '#FF5733',
+        playlist: { id: 'playlist-1', name: 'Test' },
+      };
+      scheduleRepo.findOne.mockResolvedValue(existingEntry);
+      scheduleRepo.save.mockResolvedValue({
+        ...existingEntry,
+        endTime: new Date('2026-04-01T14:00:00Z'),
+      });
+
+      screenGroupRepo.findOne.mockResolvedValue({
+        id: 'group-1',
+        organisationId: 'org-1',
+        mode: ScreenGroupMode.Split,
+      });
+
+      await service.update('entry-1', 'org-1', {
+        endTime: '2026-04-01T14:00:00Z',
+      });
+
+      expect(sliceContentQueue.add).toHaveBeenCalledWith(
+        'slice',
+        expect.objectContaining({
+          groupId: 'group-1',
+          playlistId: 'playlist-1',
+          organisationId: 'org-1',
+        }),
+      );
+    });
+
+    it('should not enqueue slice-content job on update when group mode is mirror', async () => {
+      const existingEntry = {
+        id: 'entry-1',
+        screenId: null,
+        groupId: 'group-1',
+        organisationId: 'org-1',
+        playlistId: 'playlist-1',
+        startTime: new Date('2026-04-01T10:00:00Z'),
+        endTime: new Date('2026-04-01T12:00:00Z'),
+        rrule: null,
+        colour: '#FF5733',
+        playlist: { id: 'playlist-1', name: 'Test' },
+      };
+      scheduleRepo.findOne.mockResolvedValue(existingEntry);
+      scheduleRepo.save.mockResolvedValue({
+        ...existingEntry,
+        endTime: new Date('2026-04-01T14:00:00Z'),
+      });
+
+      screenGroupRepo.findOne.mockResolvedValue({
+        id: 'group-1',
+        organisationId: 'org-1',
+        mode: ScreenGroupMode.Mirror,
+      });
+
+      await service.update('entry-1', 'org-1', {
+        endTime: '2026-04-01T14:00:00Z',
+      });
+
+      expect(sliceContentQueue.add).not.toHaveBeenCalled();
+    });
+
     it('should emit GROUP_SCHEDULE_CHANGED on update when entry has groupId', async () => {
       const existingEntry = {
         id: 'entry-1',
