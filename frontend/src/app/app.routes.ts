@@ -25,6 +25,10 @@ export const routes: Routes = [
         loadComponent: () => import('./screens/screens').then(m => m.Screens),
       },
       {
+        path: 'screen-groups',
+        loadComponent: () => import('./screen-groups/screen-groups').then(m => m.ScreenGroups),
+      },
+      {
         path: 'content',
         loadComponent: () => import('./content/content-library').then(m => m.ContentLibrary),
       },

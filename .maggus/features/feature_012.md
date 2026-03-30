@@ -208,14 +208,14 @@ This feature completes the core playback model described in VISION.md and unlock
 **Parallel:** yes — after predecessors
 
 **Acceptance Criteria:**
-- [ ] Route `/screen-groups` added to Angular router; link appears in sidebar navigation under "Screens".
-- [ ] Page displays a list/table of groups with columns: Name, Mode (badge: "Mirror" / "Split"), Grid Size (e.g. "2x2" for split, "-" for mirror), Screen Count, Actions (Edit, Delete).
-- [ ] "New Group" button opens a creation modal/form with fields: Name, Mode selector, Grid Columns and Grid Rows (shown only when Split is selected).
-- [ ] Delete action is guarded by a confirmation dialog; blocked with inline error if group has member screens.
-- [ ] Empty state shown when no groups exist, with prompt to create the first group.
-- [ ] All API calls use existing Angular HTTP service patterns with proper error handling and loading states.
-- [ ] Page is responsive and follows the existing Tailwind CSS v4 design system.
-- [ ] Verify in browser using dev-browser skill.
+- [x] Route `/screen-groups` added to Angular router; link appears in sidebar navigation under "Screens".
+- [x] Page displays a list/table of groups with columns: Name, Mode (badge: "Mirror" / "Split"), Grid Size (e.g. "2x2" for split, "-" for mirror), Screen Count, Actions (Edit, Delete).
+- [x] "New Group" button opens a creation modal/form with fields: Name, Mode selector, Grid Columns and Grid Rows (shown only when Split is selected).
+- [x] Delete action is guarded by a confirmation dialog; blocked with inline error if group has member screens.
+- [x] Empty state shown when no groups exist, with prompt to create the first group.
+- [x] All API calls use existing Angular HTTP service patterns with proper error handling and loading states.
+- [x] Page is responsive and follows the existing Tailwind CSS v4 design system.
+- [x] ⚠️ BLOCKED: Verify in browser using dev-browser skill. — dev-browser skill not available in this environment.
 
 ---
 

@@ -36,6 +36,26 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
     super(repository, 'ScreenGroup');
   }
 
+  override async findAll(organisationId: string): Promise<ScreenGroup[]> {
+    return this.repository.find({
+      where: { organisationId } as any,
+      relations: ['screens'],
+    });
+  }
+
+  override async findOne(organisationId: string, id: string): Promise<ScreenGroup> {
+    const entity = await this.repository.findOne({
+      where: { organisationId, id } as any,
+      relations: ['screens'],
+    });
+    if (!entity) {
+      throw new NotFoundException(
+        `ScreenGroup with id "${id}" not found in organisation "${organisationId}"`,
+      );
+    }
+    return entity;
+  }
+
   async createGroup(
     organisationId: string,
     dto: CreateScreenGroupDto,

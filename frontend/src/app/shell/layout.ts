@@ -511,6 +511,11 @@ export class Layout implements OnInit {
       icon: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="3" width="16" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M7 17h6M10 14v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
     },
     {
+      label: 'Screen Groups',
+      route: '/screen-groups',
+      icon: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="7" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="2" width="7" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="13" width="7" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="13" width="7" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><path d="M9 7v2.5a1 1 0 001 1h0a1 1 0 001-1V7M10 10.5V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    },
+    {
       label: 'Content Library',
       route: '/content',
       icon: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="14" height="14" rx="1.5" stroke="currentColor" stroke-width="1.5"/><circle cx="7.5" cy="7.5" r="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M3 13l4-4 3 3 2-2 5 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',

@@ -167,6 +167,7 @@ describe('ScreenGroupService', () => {
 
       expect(repository.find).toHaveBeenCalledWith({
         where: { organisationId: orgId },
+        relations: ['screens'],
       });
       expect(result).toEqual([mockGroup]);
     });
@@ -188,6 +189,7 @@ describe('ScreenGroupService', () => {
 
       expect(repository.findOne).toHaveBeenCalledWith({
         where: { organisationId: orgId, id: groupId },
+        relations: ['screens'],
       });
       expect(result).toEqual(mockGroup);
     });
