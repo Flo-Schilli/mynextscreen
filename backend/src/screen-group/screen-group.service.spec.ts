@@ -482,5 +482,143 @@ describe('ScreenGroupService', () => {
         service.removeScreen(orgId, groupId, screenId),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('should reject cross-org removal (screen in different org)', async () => {
+      const otherOrgId = '990e8400-e29b-41d4-a716-446655440000';
+      repository.findOne.mockResolvedValue(null); // findOne scoped to otherOrgId won't find the group
+
+      await expect(
+        service.removeScreen(otherOrgId, groupId, screenId),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('assignScreen — cross-org rejection', () => {
+    const screenId = '770e8400-e29b-41d4-a716-446655440000';
+
+    it('should reject assignment when screen belongs to different organisation', async () => {
+      const otherOrgId = '990e8400-e29b-41d4-a716-446655440000';
+      // Group won't be found when scoped to the wrong org
+      repository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.assignScreen(otherOrgId, groupId, screenId, {}),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('audit events', () => {
+    it('should emit audit event on group creation', async () => {
+      const dto = {
+        name: 'Audit Test',
+        mode: ScreenGroupMode.Mirror,
+      };
+      const mirrorGroup = {
+        ...mockGroup,
+        mode: ScreenGroupMode.Mirror,
+        gridColumns: null,
+        gridRows: null,
+        name: 'Audit Test',
+      };
+      repository.create.mockReturnValue(mirrorGroup);
+      repository.save.mockResolvedValue(mirrorGroup);
+
+      await service.createGroup(orgId, dto, 'user-1');
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'audit.group.created',
+        expect.objectContaining({
+          groupId: groupId,
+          organisationId: orgId,
+          userId: 'user-1',
+        }),
+      );
+    });
+
+    it('should emit mode_changed event when mode changes', async () => {
+      const existing = { ...mockGroup, mode: ScreenGroupMode.Split };
+      repository.findOne.mockResolvedValue(existing);
+      repository.save.mockImplementation(async (e) => e);
+
+      await service.updateGroup(orgId, groupId, {
+        mode: ScreenGroupMode.Mirror,
+      }, 'user-1');
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'audit.group.mode_changed',
+        expect.objectContaining({
+          groupId: groupId,
+          details: expect.objectContaining({
+            previousMode: ScreenGroupMode.Split,
+            newMode: ScreenGroupMode.Mirror,
+          }),
+        }),
+      );
+    });
+
+    it('should emit audit event on group deletion', async () => {
+      repository.findOne.mockResolvedValue({ ...mockGroup });
+      screenRepository.count.mockResolvedValue(0);
+      repository.remove.mockResolvedValue(undefined);
+
+      await service.removeGroup(orgId, groupId, 'user-1');
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'audit.group.deleted',
+        expect.objectContaining({
+          groupId: groupId,
+          organisationId: orgId,
+        }),
+      );
+    });
+
+    it('should emit audit event on screen assignment', async () => {
+      const screenId = '770e8400-e29b-41d4-a716-446655440000';
+      const mirrorGroup = { ...mockGroup, mode: ScreenGroupMode.Mirror, gridColumns: null, gridRows: null };
+      repository.findOne.mockResolvedValue(mirrorGroup);
+      screenRepository.findOne.mockResolvedValue({
+        id: screenId,
+        organisationId: orgId,
+        name: 'Lobby',
+        groupId: null,
+        gridRow: null,
+        gridColumn: null,
+      });
+      screenRepository.save.mockImplementation(async (s: Screen) => s);
+
+      await service.assignScreen(orgId, groupId, screenId, {}, 'user-1');
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'audit.group.screen_added',
+        expect.objectContaining({
+          groupId: groupId,
+          details: expect.objectContaining({ screenId }),
+        }),
+      );
+    });
+
+    it('should emit audit event on screen removal', async () => {
+      const screenId = '770e8400-e29b-41d4-a716-446655440000';
+      repository.findOne.mockResolvedValue(mockGroup);
+      screenRepository.findOne.mockResolvedValue({
+        id: screenId,
+        organisationId: orgId,
+        name: 'Lobby',
+        groupId: groupId,
+        gridRow: 0,
+        gridColumn: 0,
+      });
+      screenRepository.save.mockImplementation(async (s: Screen) => s);
+
+      await service.removeScreen(orgId, groupId, screenId, 'user-1');
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'audit.group.screen_removed',
+        expect.objectContaining({
+          groupId: groupId,
+          details: expect.objectContaining({ screenId }),
+        }),
+      );
+    });
   });
 });

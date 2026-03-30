@@ -189,12 +189,12 @@ This feature completes the core playback model described in VISION.md and unlock
 **Parallel:** yes
 
 **Acceptance Criteria:**
-- [ ] `ScreenGroupService` tests cover: create (valid/invalid), update (mode switch validation), delete (conflict when screens assigned), findAll (org scoping).
-- [ ] Membership service tests cover: assign (happy path, duplicate group conflict, duplicate cell conflict, missing position for split), remove (happy path, cross-org rejection).
-- [ ] Crop computation tests cover: 2x2 grid all four cells, 3x1 grid, 1x3 grid, non-square content resolutions, odd pixel dimensions (floor rounding).
-- [ ] `ScheduleService` group-path tests cover: enqueues slice job on split-mode create/update, does not enqueue on mirror-mode.
-- [ ] All tests use Jest with mocked TypeORM repositories and mocked BullMQ queues.
-- [ ] Test coverage for new modules >= 80%.
+- [x] `ScreenGroupService` tests cover: create (valid/invalid), update (mode switch validation), delete (conflict when screens assigned), findAll (org scoping).
+- [x] Membership service tests cover: assign (happy path, duplicate group conflict, duplicate cell conflict, missing position for split), remove (happy path, cross-org rejection).
+- [x] Crop computation tests cover: 2x2 grid all four cells, 3x1 grid, 1x3 grid, non-square content resolutions, odd pixel dimensions (floor rounding).
+- [x] `ScheduleService` group-path tests cover: enqueues slice job on split-mode create/update, does not enqueue on mirror-mode.
+- [x] All tests use Jest with mocked TypeORM repositories and mocked BullMQ queues.
+- [x] Test coverage for new modules >= 80%.
 
 ---
 
