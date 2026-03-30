@@ -3,6 +3,10 @@ export type ScreenGroupMode = 'mirror' | 'split';
 export interface ScreenGroupScreen {
   id: string;
   name: string;
+  location: string;
+  groupId: string | null;
+  gridRow: number | null;
+  gridColumn: number | null;
 }
 
 export interface ScreenGroup {
@@ -29,4 +33,9 @@ export interface UpdateScreenGroupRequest {
   mode?: ScreenGroupMode;
   gridColumns?: number;
   gridRows?: number;
+}
+
+export interface AssignScreenRequest {
+  gridRow?: number;
+  gridColumn?: number;
 }

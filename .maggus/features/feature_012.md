@@ -230,16 +230,16 @@ This feature completes the core playback model described in VISION.md and unlock
 **Model:** opus
 
 **Acceptance Criteria:**
-- [ ] Route `/screen-groups/:id` renders a detail page showing group name, mode badge, and member screens.
-- [ ] For split-mode groups: a visual grid is rendered with the configured columns and rows; each cell displays either the assigned screen's name or an "Empty" placeholder.
-- [ ] Unassigned screens are listed in a sidebar panel; they can be dragged onto empty grid cells.
-- [ ] Dropping a screen onto a cell calls `PUT /screen-groups/:groupId/screens/:screenId` with the cell's `gridRow` and `gridColumn`.
-- [ ] Screens in a cell can be dragged to a different empty cell or back to the sidebar to remove them.
-- [ ] For mirror-mode groups: a simpler list of assigned screens with an "Add Screen" button (no grid positioning).
-- [ ] A "Switch Mode" control allows toggling between mirror and split; switching from split to mirror warns that grid positions will be cleared.
-- [ ] Inline validation prevents assigning a screen that already belongs to another group.
-- [ ] All interactions provide loading states and error toasts.
-- [ ] Verify in browser using dev-browser skill.
+- [x] Route `/screen-groups/:id` renders a detail page showing group name, mode badge, and member screens.
+- [x] For split-mode groups: a visual grid is rendered with the configured columns and rows; each cell displays either the assigned screen's name or an "Empty" placeholder.
+- [x] Unassigned screens are listed in a sidebar panel; they can be dragged onto empty grid cells.
+- [x] Dropping a screen onto a cell calls `PUT /screen-groups/:groupId/screens/:screenId` with the cell's `gridRow` and `gridColumn`.
+- [x] Screens in a cell can be dragged to a different empty cell or back to the sidebar to remove them.
+- [x] For mirror-mode groups: a simpler list of assigned screens with an "Add Screen" button (no grid positioning).
+- [x] A "Switch Mode" control allows toggling between mirror and split; switching from split to mirror warns that grid positions will be cleared.
+- [x] Inline validation prevents assigning a screen that already belongs to another group.
+- [x] All interactions provide loading states and error toasts.
+- [x] ⚠️ BLOCKED: Verify in browser using dev-browser skill. — dev-browser skill not available in this environment.
 
 ---
 

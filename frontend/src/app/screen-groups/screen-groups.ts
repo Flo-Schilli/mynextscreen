@@ -117,7 +117,7 @@ import { MyMembership } from '../settings/users/member.model';
             <tbody>
               @for (group of groups; track group.id) {
                 <tr>
-                  <td class="name-cell">{{ group.name }}</td>
+                  <td class="name-cell"><a class="group-link" tabindex="0" role="link" (click)="viewGroup(group)" (keydown.enter)="viewGroup(group)">{{ group.name }}</a></td>
                   <td>
                     <span class="mode-badge" [class.mirror]="group.mode === 'mirror'" [class.split]="group.mode === 'split'">
                       {{ group.mode === 'mirror' ? 'Mirror' : 'Split' }}
@@ -364,6 +364,14 @@ import { MyMembership } from '../settings/users/member.model';
     }
     .name-cell {
       font-weight: 500;
+    }
+    .group-link {
+      color: var(--color-accent);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .group-link:hover {
+      text-decoration: underline;
     }
     .actions-cell {
       display: flex;
@@ -713,6 +721,10 @@ export class ScreenGroups implements OnInit {
         this.deleting = false;
       },
     });
+  }
+
+  viewGroup(group: ScreenGroup): void {
+    this.router.navigate(['/screen-groups', group.id]);
   }
 
   goBack(): void {
