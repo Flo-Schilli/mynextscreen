@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { getQueueToken } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotFoundException, ConflictException } from '@nestjs/common';
 import { ScheduleService } from './schedule.service';
@@ -7,7 +8,9 @@ import { ScheduleEntry } from './schedule-entry.entity';
 import { Organisation } from '../organisation/organisation.entity';
 import { Screen } from '../screen/screen.entity';
 import { Playlist } from '../playlist/playlist.entity';
+import { ScreenGroup } from '../screen-group/screen-group.entity';
 import { SCHEDULE_ENTRY_CHANGED } from './schedule.event';
+import { SLICE_CONTENT_QUEUE } from '../slice-content';
 
 describe('ScheduleService', () => {
   let service: ScheduleService;
@@ -15,6 +18,8 @@ describe('ScheduleService', () => {
   let organisationRepo: Record<string, jest.Mock>;
   let screenRepo: Record<string, jest.Mock>;
   let playlistRepo: Record<string, jest.Mock>;
+  let screenGroupRepo: Record<string, jest.Mock>;
+  let sliceContentQueue: Record<string, jest.Mock>;
   let eventEmitter: Record<string, jest.Mock>;
 
   beforeEach(async () => {
@@ -45,6 +50,14 @@ describe('ScheduleService', () => {
       }),
     };
 
+    screenGroupRepo = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
+    sliceContentQueue = {
+      add: jest.fn().mockResolvedValue(undefined),
+    };
+
     eventEmitter = {
       emit: jest.fn(),
     };
@@ -62,6 +75,8 @@ describe('ScheduleService', () => {
         },
         { provide: getRepositoryToken(Screen), useValue: screenRepo },
         { provide: getRepositoryToken(Playlist), useValue: playlistRepo },
+        { provide: getRepositoryToken(ScreenGroup), useValue: screenGroupRepo },
+        { provide: getQueueToken(SLICE_CONTENT_QUEUE), useValue: sliceContentQueue },
         { provide: EventEmitter2, useValue: eventEmitter },
       ],
     }).compile();

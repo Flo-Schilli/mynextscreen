@@ -34,11 +34,10 @@ describe('ScheduleEntry entity validation', () => {
     expect(errors.some((e) => e.property === 'organisationId')).toBe(true);
   });
 
-  it('should fail validation when screenId is empty', async () => {
-    const entry = createEntry({ screenId: '' });
+  it('should pass validation when screenId is null (group-targeted schedule)', async () => {
+    const entry = createEntry({ screenId: null });
     const errors = await validate(entry);
-    expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some((e) => e.property === 'screenId')).toBe(true);
+    expect(errors).toHaveLength(0);
   });
 
   it('should fail validation when playlistId is empty', async () => {

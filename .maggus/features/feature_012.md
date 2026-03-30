@@ -107,15 +107,15 @@ This feature completes the core playback model described in VISION.md and unlock
 **Model:** opus
 
 **Acceptance Criteria:**
-- [ ] `SliceContentJob` is defined with payload: `{ groupId, scheduleId, playlistId, organisationId }`.
-- [ ] Job processor iterates over all content items in the playlist and, for each screen in the group, computes the FFmpeg `crop` filter parameters from the screen's `gridRow`, `gridColumn`, `gridRows`, `gridColumns`, and the source content's resolution.
-- [ ] FFmpeg command uses `crop=w:h:x:y` filter; output files are stored at `media/slices/{groupId}/{screenId}/{contentItemId}.mp4` (or appropriate extension).
-- [ ] Sliced rendition metadata is recorded in the database (new `SlicedRendition` entity: `id`, `groupId`, `screenId`, `contentItemId`, `filePath`, `organisationId`).
-- [ ] If a sliced rendition already exists and the source file has not changed, the job skips re-slicing (idempotent).
-- [ ] Job is enqueued by `ScheduleService` when a schedule is created or updated with a `groupId` and `mode=split`.
-- [ ] Images in a playlist are also sliced (using FFmpeg's image crop capability).
-- [ ] Job failures are logged; BullMQ retry policy set to 3 attempts with exponential backoff.
-- [ ] Unit tests cover crop coordinate computation logic in isolation.
+- [x] `SliceContentJob` is defined with payload: `{ groupId, scheduleId, playlistId, organisationId }`.
+- [x] Job processor iterates over all content items in the playlist and, for each screen in the group, computes the FFmpeg `crop` filter parameters from the screen's `gridRow`, `gridColumn`, `gridRows`, `gridColumns`, and the source content's resolution.
+- [x] FFmpeg command uses `crop=w:h:x:y` filter; output files are stored at `media/slices/{groupId}/{screenId}/{contentItemId}.mp4` (or appropriate extension).
+- [x] Sliced rendition metadata is recorded in the database (new `SlicedRendition` entity: `id`, `groupId`, `screenId`, `contentItemId`, `filePath`, `organisationId`).
+- [x] If a sliced rendition already exists and the source file has not changed, the job skips re-slicing (idempotent).
+- [x] Job is enqueued by `ScheduleService` when a schedule is created or updated with a `groupId` and `mode=split`.
+- [x] Images in a playlist are also sliced (using FFmpeg's image crop capability).
+- [x] Job failures are logged; BullMQ retry policy set to 3 attempts with exponential backoff.
+- [x] Unit tests cover crop coordinate computation logic in isolation.
 
 ---
 
