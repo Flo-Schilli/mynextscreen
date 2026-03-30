@@ -104,7 +104,7 @@ Live Streams allow an Org Admin or Editor to configure stream sources (RTMP or R
 **Parallel:** no
 
 **Acceptance Criteria:**
-- [ ] `POST /api/live-streams/:id/activate` endpoint (Org Admin or Editor):
+- [x] `POST /api/live-streams/:id/activate` endpoint (Org Admin or Editor):
   - Request body: `{ targetScreenIds?: string[], targetGroupId?: string }` — exactly one of the two must be provided
   - If `targetGroupId` is provided, resolves to the group's member screen IDs (via `ScreenGroupsService` from Feature 012)
   - Validates all target screens belong to the current org
@@ -114,11 +114,11 @@ Live Streams allow an Org Admin or Editor to configure stream sources (RTMP or R
     - Event type: `live-stream-start`
     - Payload: `{ streamId, hlsUrl: '/api/live-streams/:id/hls/index.m3u8' }`
   - Returns HTTP 200 with the updated stream object
-- [ ] A screen can only have one active live stream override at a time; activating a second stream on a screen that is already overriding deactivates the previous stream for that screen first
-- [ ] If `FfmpegLiveService.start()` fails (e.g. FFmpeg binary not found), the endpoint returns HTTP 502 with a descriptive error and does not update the stream status
-- [ ] Audit log event emitted: `live_stream.activated` with `{ streamId, streamName, targetScreenIds }`
-- [ ] Unit tests for activation: screen resolution from group, duplicate override handling, FFmpeg start failure path
-- [ ] Typecheck and lint pass
+- [x] A screen can only have one active live stream override at a time; activating a second stream on a screen that is already overriding deactivates the previous stream for that screen first
+- [x] If `FfmpegLiveService.start()` fails (e.g. FFmpeg binary not found), the endpoint returns HTTP 502 with a descriptive error and does not update the stream status
+- [x] Audit log event emitted: `live_stream.activated` with `{ streamId, streamName, targetScreenIds }`
+- [x] Unit tests for activation: screen resolution from group, duplicate override handling, FFmpeg start failure path
+- [x] Typecheck and lint pass
 
 ---
 

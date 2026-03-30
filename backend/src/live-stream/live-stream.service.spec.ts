@@ -1,10 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { LiveStreamService } from './live-stream.service';
 import { LiveStream } from './live-stream.entity';
+import { LiveStreamActivation } from './live-stream-activation.entity';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
+import { FfmpegLiveService } from './ffmpeg-live.service';
+import { ScreenGroupService } from '../screen-group/screen-group.service';
+import { Screen } from '../screen/screen.entity';
 
 describe('LiveStreamService', () => {
   let service: LiveStreamService;
@@ -31,12 +36,36 @@ describe('LiveStreamService', () => {
       create: jest.fn(),
       save: jest.fn(),
       remove: jest.fn(),
+      update: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LiveStreamService,
         { provide: getRepositoryToken(LiveStream), useValue: repository },
+        {
+          provide: getRepositoryToken(LiveStreamActivation),
+          useValue: {
+            find: jest.fn().mockResolvedValue([]),
+            save: jest.fn(),
+            remove: jest.fn(),
+            count: jest.fn().mockResolvedValue(0),
+          },
+        },
+        {
+          provide: getRepositoryToken(Screen),
+          useValue: { find: jest.fn().mockResolvedValue([]) },
+        },
+        {
+          provide: FfmpegLiveService,
+          useValue: {
+            start: jest.fn(),
+            stop: jest.fn(),
+            isRunning: jest.fn(),
+          },
+        },
+        { provide: ScreenGroupService, useValue: { findOne: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
 

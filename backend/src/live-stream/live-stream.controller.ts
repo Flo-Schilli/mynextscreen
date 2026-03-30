@@ -15,7 +15,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { LiveStreamService } from './live-stream.service';
 import { FfmpegLiveService } from './ffmpeg-live.service';
-import { CreateLiveStreamDto, UpdateLiveStreamDto } from './dto';
+import {
+  CreateLiveStreamDto,
+  UpdateLiveStreamDto,
+  ActivateLiveStreamDto,
+} from './dto';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
@@ -79,6 +83,16 @@ export class LiveStreamController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     return this.liveStreamService.removeLiveStream(organisationId, id);
+  }
+
+  @Post(':id/activate')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
+  activate(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ActivateLiveStreamDto,
+  ): Promise<LiveStream> {
+    return this.liveStreamService.activateStream(organisationId, id, dto);
   }
 
   @Get(':id/hls/index.m3u8')

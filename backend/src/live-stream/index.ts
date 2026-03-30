@@ -1,4 +1,5 @@
 export { LiveStream } from './live-stream.entity';
+export { LiveStreamActivation } from './live-stream-activation.entity';
 export { LiveStreamProtocol } from './live-stream-protocol.enum';
 export { LiveStreamStatus } from './live-stream-status.enum';
 export { LiveStreamModule } from './live-stream.module';

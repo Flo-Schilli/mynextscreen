@@ -6,7 +6,7 @@ import { LiveStream } from './live-stream.entity';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
 import { Organisation } from '../organisation/organisation.entity';
-import { ConflictException } from '@nestjs/common';
+import { BadGatewayException, ConflictException } from '@nestjs/common';
 
 describe('LiveStreamController', () => {
   let controller: LiveStreamController;
@@ -34,6 +34,7 @@ describe('LiveStreamController', () => {
       findOne: jest.fn(),
       updateLiveStream: jest.fn(),
       removeLiveStream: jest.fn(),
+      activateStream: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -136,6 +137,34 @@ describe('LiveStreamController', () => {
 
       await expect(controller.remove(orgId, streamId)).rejects.toThrow(
         ConflictException,
+      );
+    });
+  });
+
+  describe('activate', () => {
+    it('should activate a live stream with target screen IDs', async () => {
+      const dto = {
+        targetScreenIds: ['770e8400-e29b-41d4-a716-446655440001'],
+      };
+      const activeStream = { ...mockStream, status: LiveStreamStatus.Active };
+      service.activateStream.mockResolvedValue(activeStream);
+
+      const result = await controller.activate(orgId, streamId, dto);
+
+      expect(service.activateStream).toHaveBeenCalledWith(orgId, streamId, dto);
+      expect(result.status).toBe(LiveStreamStatus.Active);
+    });
+
+    it('should propagate BadGatewayException when FFmpeg fails', async () => {
+      const dto = {
+        targetScreenIds: ['770e8400-e29b-41d4-a716-446655440001'],
+      };
+      service.activateStream.mockRejectedValue(
+        new BadGatewayException('Failed to start FFmpeg transcoding'),
+      );
+
+      await expect(controller.activate(orgId, streamId, dto)).rejects.toThrow(
+        BadGatewayException,
       );
     });
   });

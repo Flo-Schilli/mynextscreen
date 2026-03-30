@@ -35,6 +35,8 @@ import {
   AUDIT_GROUP_SCREEN_REMOVED,
   AUDIT_GROUP_MODE_CHANGED,
   AuditGroupEvent,
+  AUDIT_LIVE_STREAM_ACTIVATED,
+  AuditLiveStreamEvent,
 } from './audit.events';
 
 @Injectable()
@@ -351,6 +353,20 @@ export class AuditListener {
       AuditAction.GroupModeChanged,
       'screen-group',
       event.groupId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  // ── Live Stream ──────────────────────────────────────────────────────────
+
+  @OnEvent(AUDIT_LIVE_STREAM_ACTIVATED, { async: true })
+  handleLiveStreamActivated(event: AuditLiveStreamEvent): void {
+    this.record(
+      AuditAction.LiveStreamActivated,
+      'live-stream',
+      event.streamId,
       event.organisationId,
       event.userId,
       event.details,
