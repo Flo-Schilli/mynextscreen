@@ -9,9 +9,17 @@ export class AddGroupIdToScheduleEntry1711700010000
   implements MigrationInterface
 {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Make screenId nullable
-    // SQLite doesn't support ALTER COLUMN, so we recreate via TypeORM's change
-    // For SQLite, we add the new column and leave screenId as-is (already varchar)
+    // Make screenId nullable — group-targeted entries have no screenId
+    await queryRunner.changeColumn(
+      'schedule_entries',
+      'screenId',
+      new TableColumn({
+        name: 'screenId',
+        type: 'varchar',
+        isNullable: true,
+      }),
+    );
+
     await queryRunner.addColumn(
       'schedule_entries',
       new TableColumn({
@@ -39,5 +47,15 @@ export class AddGroupIdToScheduleEntry1711700010000
       'FK_schedule_entry_group',
     );
     await queryRunner.dropColumn('schedule_entries', 'groupId');
+
+    await queryRunner.changeColumn(
+      'schedule_entries',
+      'screenId',
+      new TableColumn({
+        name: 'screenId',
+        type: 'varchar',
+        isNullable: false,
+      }),
+    );
   }
 }

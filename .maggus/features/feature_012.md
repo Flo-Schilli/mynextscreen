@@ -150,14 +150,14 @@ This feature completes the core playback model described in VISION.md and unlock
 **Parallel:** yes — after TASK-012-004
 
 **Acceptance Criteria:**
-- [ ] `ScheduleEntry` entity gains nullable `groupId` FK; existing `screenId` FK remains nullable.
-- [ ] Validation ensures exactly one of `screenId` or `groupId` is set on any schedule entry.
-- [ ] `ScheduleService` validates that the referenced group belongs to the same organisation.
-- [ ] When a schedule with `groupId` is created/updated and the group mode is `split`, the service enqueues a `SliceContentJob`.
-- [ ] `GET /schedules` returns entries for both screens and groups; response includes `targetType` (`screen` | `group`) and `targetId`.
-- [ ] Existing per-screen scheduling tests continue to pass.
-- [ ] Migration for `schedule_entries` table adds `groupId` column cleanly.
-- [ ] Unit tests are written and successful.
+- [x] `ScheduleEntry` entity gains nullable `groupId` FK; existing `screenId` FK remains nullable.
+- [x] Validation ensures exactly one of `screenId` or `groupId` is set on any schedule entry.
+- [x] `ScheduleService` validates that the referenced group belongs to the same organisation.
+- [x] When a schedule with `groupId` is created/updated and the group mode is `split`, the service enqueues a `SliceContentJob`.
+- [x] `GET /schedules` returns entries for both screens and groups; response includes `targetType` (`screen` | `group`) and `targetId`.
+- [x] Existing per-screen scheduling tests continue to pass.
+- [x] Migration for `schedule_entries` table adds `groupId` column cleanly.
+- [x] Unit tests are written and successful.
 
 ---
 

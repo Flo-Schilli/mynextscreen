@@ -37,30 +37,38 @@ export class ScheduleController {
     OrganisationRole.Editor,
     OrganisationRole.Viewer,
   )
-  find(
+  async find(
     @CurrentOrganisation() organisationId: string,
     @Query('screenId') screenId?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
-  ): Promise<ScheduleEntry[]> {
+  ): Promise<Record<string, unknown>[]> {
     const fromDate = from ? new Date(from) : new Date();
     const toDate = to
       ? new Date(to)
       : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
+    let entries: ScheduleEntry[];
     if (screenId) {
-      return this.scheduleService.findByScreen(
+      entries = await this.scheduleService.findByScreen(
         screenId,
         organisationId,
         fromDate,
         toDate,
       );
+    } else {
+      entries = await this.scheduleService.findByOrganisation(
+        organisationId,
+        fromDate,
+        toDate,
+      );
     }
-    return this.scheduleService.findByOrganisation(
-      organisationId,
-      fromDate,
-      toDate,
-    );
+
+    return entries.map((entry) => ({
+      ...entry,
+      targetType: entry.targetType,
+      targetId: entry.targetId,
+    }));
   }
 
   @Get('current')

@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -56,24 +57,34 @@ export class ScheduleService {
     organisationId: string,
     dto: CreateScheduleEntryDto,
   ): Promise<ScheduleEntry> {
-    await this.validateScreen(dto.screenId, organisationId);
+    this.validateTarget(dto.screenId, dto.groupId);
+
+    if (dto.screenId) {
+      await this.validateScreen(dto.screenId, organisationId);
+    }
+    if (dto.groupId) {
+      await this.validateGroup(dto.groupId, organisationId);
+    }
     await this.validatePlaylist(dto.playlistId, organisationId);
 
     const startTime = new Date(dto.startTime);
     const endTime = new Date(dto.endTime);
 
-    await this.checkOverlap(
-      dto.screenId,
-      organisationId,
-      startTime,
-      endTime,
-      dto.rrule ?? null,
-      null,
-    );
+    if (dto.screenId) {
+      await this.checkOverlap(
+        dto.screenId,
+        organisationId,
+        startTime,
+        endTime,
+        dto.rrule ?? null,
+        null,
+      );
+    }
 
     const entry = this.scheduleEntryRepository.create({
       organisationId,
-      screenId: dto.screenId,
+      screenId: dto.screenId ?? null,
+      groupId: dto.groupId ?? null,
       playlistId: dto.playlistId,
       startTime,
       endTime,
@@ -82,8 +93,8 @@ export class ScheduleService {
     });
 
     const saved = await this.scheduleEntryRepository.save(entry);
-    if (dto.screenId) {
-      this.emitScheduleChanged(dto.screenId, organisationId);
+    if (saved.screenId) {
+      this.emitScheduleChanged(saved.screenId, organisationId);
     }
     if (saved.groupId) {
       this.emitGroupScheduleChanged(saved.groupId, organisationId, saved.playlistId);
@@ -91,7 +102,8 @@ export class ScheduleService {
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_CREATED,
       new AuditScheduleEvent(saved.id, organisationId, null, {
-        screenId: dto.screenId,
+        screenId: dto.screenId ?? null,
+        groupId: dto.groupId ?? null,
         playlistId: dto.playlistId,
       }),
     );
@@ -190,7 +202,7 @@ export class ScheduleService {
       where: {
         organisationId,
       },
-      relations: ['playlist', 'screen'],
+      relations: ['playlist', 'screen', 'group'],
       order: { startTime: 'ASC' },
     });
   }
@@ -328,6 +340,36 @@ export class ScheduleService {
       );
     }
     return entry;
+  }
+
+  private validateTarget(
+    screenId?: string,
+    groupId?: string,
+  ): void {
+    if (screenId && groupId) {
+      throw new BadRequestException(
+        'Exactly one of screenId or groupId must be set, not both',
+      );
+    }
+    if (!screenId && !groupId) {
+      throw new BadRequestException(
+        'Exactly one of screenId or groupId must be set',
+      );
+    }
+  }
+
+  private async validateGroup(
+    groupId: string,
+    organisationId: string,
+  ): Promise<void> {
+    const group = await this.screenGroupRepository.findOne({
+      where: { id: groupId, organisationId },
+    });
+    if (!group) {
+      throw new NotFoundException(
+        `Screen group with id "${groupId}" not found in organisation "${organisationId}"`,
+      );
+    }
   }
 
   private async validateScreen(

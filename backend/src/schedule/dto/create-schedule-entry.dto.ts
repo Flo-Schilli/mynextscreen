@@ -8,9 +8,13 @@ import {
 } from 'class-validator';
 
 export class CreateScheduleEntryDto {
-  @IsNotEmpty()
+  @IsOptional()
   @IsUUID()
-  screenId!: string;
+  screenId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  groupId?: string;
 
   @IsNotEmpty()
   @IsUUID()
