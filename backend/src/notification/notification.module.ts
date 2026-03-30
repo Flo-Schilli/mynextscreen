@@ -6,8 +6,10 @@ import { OrganisationNotificationConfig } from './organisation-notification-conf
 import { NotificationService } from './notification.service';
 import { UserNotificationPreferenceService } from './user-notification-preference.service';
 import { OrgNotificationConfigService } from './org-notification-config.service';
+import { NotificationHub } from './notification-hub.service';
 import { NotificationPreferencesController } from './notification-preferences.controller';
 import { OrgNotificationConfigController } from './org-notification-config.controller';
+import { UserModule } from '../user/user.module';
 
 @Module({
   imports: [
@@ -16,6 +18,7 @@ import { OrgNotificationConfigController } from './org-notification-config.contr
       UserNotificationPreference,
       OrganisationNotificationConfig,
     ]),
+    UserModule,
   ],
   controllers: [
     NotificationPreferencesController,
@@ -25,11 +28,13 @@ import { OrgNotificationConfigController } from './org-notification-config.contr
     NotificationService,
     UserNotificationPreferenceService,
     OrgNotificationConfigService,
+    NotificationHub,
   ],
   exports: [
     NotificationService,
     UserNotificationPreferenceService,
     OrgNotificationConfigService,
+    NotificationHub,
     TypeOrmModule,
   ],
 })
