@@ -9,6 +9,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { AuthService } from '../auth/auth.service';
 import { OrganisationStateService } from './organisation-state.service';
 import { ThemeService } from './theme.service';
+import { NotificationBell } from '../notifications/notification-bell';
 
 const SIDEBAR_KEY = 'signage_sidebar_collapsed';
 
@@ -20,7 +21,7 @@ interface NavItem {
 
 @Component({
   selector: 'app-layout',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, NotificationBell],
   template: `
     <!-- Mobile overlay -->
     @if (mobileOpen()) {
@@ -153,13 +154,8 @@ interface NavItem {
             }
           </button>
 
-          <!-- Notification bell placeholder -->
-          <button class="topbar-btn notification-btn" aria-label="Notifications">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M10 2a5 5 0 00-5 5v3l-1.5 2h13L15 10V7a5 5 0 00-5-5zM8.5 17a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span class="badge">0</span>
-          </button>
+          <!-- Notification bell -->
+          <app-notification-bell />
 
           <!-- User avatar -->
           <div class="user-avatar" aria-label="Current user">
@@ -415,26 +411,6 @@ interface NavItem {
     .topbar-btn:hover {
       background: var(--color-bg-tertiary);
       color: var(--color-text-primary);
-    }
-
-    .notification-btn {
-      position: relative;
-    }
-    .badge {
-      position: absolute;
-      top: 4px;
-      right: 4px;
-      min-width: 16px;
-      height: 16px;
-      background: var(--color-accent);
-      color: #fff;
-      font-size: 0.625rem;
-      font-weight: 600;
-      border-radius: 999px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 3px;
     }
 
     .user-avatar {

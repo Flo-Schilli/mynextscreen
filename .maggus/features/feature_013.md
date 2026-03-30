@@ -274,13 +274,13 @@ Deliver a complete notification system so that users are alerted to important sy
 **Model:** —
 
 **Acceptance Criteria:**
-- [ ] `NotificationBellComponent` in the top bar (replaces the existing placeholder bell):
+- [x] `NotificationBellComponent` in the top bar (replaces the existing placeholder bell):
   - Displays a bell icon with an unread count badge (hidden if count is 0)
   - Badge number capped at display of "99+" if count exceeds 99
   - Clicking the bell opens/closes a `NotificationDropdownComponent`
   - On mount: calls `GET /api/notifications/unread-count` to initialise badge
   - Subscribes to `notification.new` Socket.IO events: increments badge, prepends notification to dropdown list
-- [ ] `NotificationDropdownComponent` (shown as a panel anchored below the bell):
+- [x] `NotificationDropdownComponent` (shown as a panel anchored below the bell):
   - Lists the 50 most recent notifications, ordered newest first
   - Each row: event type icon (coloured), title, message (truncated to ~80 chars), relative timestamp (e.g. "3 minutes ago")
   - Unread notifications have a subtle highlighted background; read ones are visually muted
@@ -288,14 +288,14 @@ Deliver a complete notification system so that users are alerted to important sy
   - Clicking a notification row marks it as read (`PATCH /api/notifications/:id/read`) and navigates to the relevant resource if applicable (e.g. clicking a `screen.offline` notification navigates to `/screens/{resourceId}`)
   - Clicking outside the dropdown closes it
   - Shows "No notifications yet" empty state when list is empty
-- [ ] `NotificationService` (Angular service):
+- [x] `NotificationService` (Angular service):
   - Fetches notification list and unread count
   - Exposes an observable/signal for unread count
   - Handles `notification.new` Socket.IO event and updates state
-- [ ] All API calls use the existing HTTP interceptor (auth headers, org header)
-- [ ] Dark-themed, consistent with existing top bar styling
-- [ ] Unit tests for `NotificationService` (mock HTTP and Socket.IO)
-- [ ] Typecheck and lint pass
+- [x] All API calls use the existing HTTP interceptor (auth headers, org header)
+- [x] Dark-themed, consistent with existing top bar styling
+- [x] Unit tests for `NotificationService` (mock HTTP and Socket.IO)
+- [x] Typecheck and lint pass
 
 ---
 

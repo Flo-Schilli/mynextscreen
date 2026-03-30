@@ -22,6 +22,7 @@ export class DashboardSocketService implements OnDestroy {
   readonly transcodingProgress$ = new Subject<DashboardEvent>();
   readonly transcodingComplete$ = new Subject<DashboardEvent>();
   readonly transcodingFailed$ = new Subject<DashboardEvent>();
+  readonly notificationNew$ = new Subject<DashboardEvent>();
 
   connect(): void {
     this.disconnect();
@@ -55,6 +56,9 @@ export class DashboardSocketService implements OnDestroy {
     );
     this.socket.on('transcoding.failed', (payload: DashboardEvent) =>
       this.transcodingFailed$.next(payload),
+    );
+    this.socket.on('notification.new', (payload: DashboardEvent) =>
+      this.notificationNew$.next(payload),
     );
   }
 
