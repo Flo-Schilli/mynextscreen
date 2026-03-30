@@ -16,6 +16,10 @@ import * as path from 'path';
 import { LiveStreamService } from './live-stream.service';
 import { FfmpegLiveService } from './ffmpeg-live.service';
 import {
+  StreamHealthService,
+  StreamHealthState,
+} from './stream-health.service';
+import {
   CreateLiveStreamDto,
   UpdateLiveStreamDto,
   ActivateLiveStreamDto,
@@ -24,12 +28,18 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { LiveStream } from './live-stream.entity';
+import { LiveStreamStatus } from './live-stream-status.enum';
+
+export interface LiveStreamWithHealth extends LiveStream {
+  health?: StreamHealthState;
+}
 
 @Controller('live-streams')
 export class LiveStreamController {
   constructor(
     private readonly liveStreamService: LiveStreamService,
     private readonly ffmpegLiveService: FfmpegLiveService,
+    private readonly streamHealthService: StreamHealthService,
   ) {}
 
   @Post()
@@ -47,10 +57,48 @@ export class LiveStreamController {
     OrganisationRole.Editor,
     OrganisationRole.Viewer,
   )
-  findAll(
+  async findAll(
     @CurrentOrganisation() organisationId: string,
-  ): Promise<LiveStream[]> {
-    return this.liveStreamService.findAll(organisationId);
+  ): Promise<LiveStreamWithHealth[]> {
+    const streams = await this.liveStreamService.findAll(organisationId);
+
+    return streams.map((stream) => {
+      const result: LiveStreamWithHealth = { ...stream };
+      if (stream.status === LiveStreamStatus.Active) {
+        const health = this.streamHealthService.getHealth(stream.id);
+        if (health) {
+          result.health = health;
+        }
+      }
+      return result;
+    });
+  }
+
+  @Get(':id/health')
+  @Roles(
+    OrganisationRole.OrgAdmin,
+    OrganisationRole.Editor,
+    OrganisationRole.Viewer,
+  )
+  async getHealth(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<StreamHealthState> {
+    // Verify the stream exists and belongs to the org
+    const stream = await this.liveStreamService.findOne(organisationId, id);
+
+    const health = this.streamHealthService.getHealth(id);
+    if (health) {
+      return health;
+    }
+
+    // Return a default state if no health check has run yet
+    return {
+      streamId: id,
+      status: stream.status,
+      health: stream.status === LiveStreamStatus.Active ? 'healthy' : 'stopped',
+      checkedAt: new Date().toISOString(),
+    };
   }
 
   @Get(':id')

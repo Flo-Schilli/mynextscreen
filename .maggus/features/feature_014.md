@@ -157,19 +157,19 @@ Live Streams allow an Org Admin or Editor to configure stream sources (RTMP or R
 **Parallel:** no
 
 **Acceptance Criteria:**
-- [ ] `StreamHealthService` (within `LiveStreamModule`) runs a periodic health check (every 10 seconds via `setInterval` or NestJS `@Cron`):
+- [x] `StreamHealthService` (within `LiveStreamModule`) runs a periodic health check (every 10 seconds via `setInterval` or NestJS `@Cron`):
   - For each stream with `status === 'active'`: calls `FfmpegLiveService.isRunning()` to check process liveness
   - Additionally, checks that the HLS output directory contains a recent segment file (modified within the last 15 seconds) — if segments are stale, the stream is considered unhealthy even if the process is alive
   - Result: `healthy` (process running + fresh segments), `degraded` (process running but segments stale), `stopped` (process not running)
-- [ ] Health state stored in memory (no DB persistence needed — ephemeral); exposed via:
+- [x] Health state stored in memory (no DB persistence needed — ephemeral); exposed via:
   - `GET /api/live-streams/:id/health` — returns `{ streamId, status, health: 'healthy' | 'degraded' | 'stopped', checkedAt: ISO timestamp }`
   - `GET /api/live-streams` response augmented with `health` field per stream (injected by `StreamHealthService`)
-- [ ] On `degraded` or `stopped` health detection: emit a Socket.IO event to the org's dashboard room via `DashboardGateway`:
+- [x] On `degraded` or `stopped` health detection: emit a Socket.IO event to the org's dashboard room via `DashboardGateway`:
   - Event type: `live-stream-health`
   - Payload: `{ streamId, streamName, health, checkedAt }`
-- [ ] If health check detects `stopped` for a stream that was not explicitly deactivated, trigger the fallback flow from TASK-014-005 (call `LiveStreamService.handleUnplannedExit()`)
-- [ ] Unit tests for `StreamHealthService`: healthy path, stale segment detection, stopped detection, dashboard event emission
-- [ ] Typecheck and lint pass
+- [x] If health check detects `stopped` for a stream that was not explicitly deactivated, trigger the fallback flow from TASK-014-005 (call `LiveStreamService.handleUnplannedExit()`)
+- [x] Unit tests for `StreamHealthService`: healthy path, stale segment detection, stopped detection, dashboard event emission
+- [x] Typecheck and lint pass
 
 ---
 
