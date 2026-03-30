@@ -17,6 +17,10 @@ export const routes: Routes = [
         loadComponent: () => import('./admin/organisations/organisations').then(m => m.Organisations),
       },
       {
+        path: 'settings/user',
+        loadComponent: () => import('./settings/user/user-settings').then(m => m.UserSettings),
+      },
+      {
         path: 'settings/users',
         loadComponent: () => import('./settings/users/users').then(m => m.Users),
       },
