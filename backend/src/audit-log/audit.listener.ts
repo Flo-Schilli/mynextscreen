@@ -14,6 +14,8 @@ import {
   AUDIT_PLAYLIST_CREATED,
   AUDIT_PLAYLIST_UPDATED,
   AUDIT_PLAYLIST_DELETED,
+  AUDIT_PLAYLIST_BULK_DELETED,
+  AUDIT_PLAYLIST_BULK_SCREEN_ASSIGNED,
   AuditPlaylistEvent,
   AUDIT_SCHEDULE_CREATED,
   AUDIT_SCHEDULE_UPDATED,
@@ -172,6 +174,30 @@ export class AuditListener {
   handlePlaylistDeleted(event: AuditPlaylistEvent): void {
     this.record(
       AuditAction.PlaylistDelete,
+      'playlist',
+      event.playlistId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_PLAYLIST_BULK_DELETED, { async: true })
+  handlePlaylistBulkDeleted(event: AuditPlaylistEvent): void {
+    this.record(
+      AuditAction.PlaylistBulkDeleted,
+      'playlist',
+      event.playlistId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_PLAYLIST_BULK_SCREEN_ASSIGNED, { async: true })
+  handlePlaylistBulkScreenAssigned(event: AuditPlaylistEvent): void {
+    this.record(
+      AuditAction.PlaylistBulkScreenAssigned,
       'playlist',
       event.playlistId,
       event.organisationId,

@@ -36,4 +36,6 @@ export enum AuditAction {
   ContentBulkTagged = 'content.bulk_tagged',
   ContentBulkUntagged = 'content.bulk_untagged',
   ContentBulkAddedToPlaylist = 'content.bulk_added_to_playlist',
+  PlaylistBulkDeleted = 'playlist.bulk_deleted',
+  PlaylistBulkScreenAssigned = 'playlist.bulk_screen_assigned',
 }
