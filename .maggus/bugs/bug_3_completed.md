@@ -75,9 +75,9 @@ ngOnDestroy(): void {
 **Description:** As a developer, I want the Socket.IO service to defensively prevent ghost connections so that even edge cases (rapid org switching, network flaps) don't leak sockets.
 
 **Acceptance Criteria:**
-- [ ] `connect()` removes all listeners from the old socket before calling `socket.disconnect()` (use `socket.removeAllListeners()` before `socket.disconnect()` at `dashboard-socket.service.ts:66-69`)
-- [ ] `connect()` disables reconnection on the old socket before disconnecting (`socket.io.opts.reconnection = false`) to prevent reconnection attempts racing with the new connection
-- [ ] If `connect()` is called while a connection is already active for the same `orgId`, it returns early without creating a new socket
-- [ ] If `connect()` is called with a different `orgId`, it cleanly tears down the old connection before creating the new one
-- [ ] No regression in real-time dashboard updates (screen online/offline, transcoding progress, notifications)
-- [ ] Typecheck/lint passes
+- [x] `connect()` removes all listeners from the old socket before calling `socket.disconnect()` (use `socket.removeAllListeners()` before `socket.disconnect()` at `dashboard-socket.service.ts:66-69`)
+- [x] `connect()` disables reconnection on the old socket before disconnecting (`socket.io.opts.reconnection = false`) to prevent reconnection attempts racing with the new connection
+- [x] If `connect()` is called while a connection is already active for the same `orgId`, it returns early without creating a new socket
+- [x] If `connect()` is called with a different `orgId`, it cleanly tears down the old connection before creating the new one
+- [x] No regression in real-time dashboard updates (screen online/offline, transcoding progress, notifications)
+- [x] Typecheck/lint passes
