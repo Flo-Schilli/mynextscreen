@@ -30,7 +30,7 @@ Allow users to select multiple items at once on the Screens, Content Library, an
 **Parallel:** yes — can run alongside TASK-016-003, TASK-016-004
 
 **Acceptance Criteria:**
-- [ ] `SelectionService` (injectable, not provided in root — instantiated per page) with:
+- [x] `SelectionService` (injectable, not provided in root — instantiated per page) with:
   - `selectedIds: Signal<Set<string>>`
   - `toggle(id: string): void`
   - `selectRange(ids: string[], fromId: string, toId: string): void` — selects all IDs between the two anchor points in the current ordered list
@@ -39,9 +39,9 @@ Allow users to select multiple items at once on the Screens, Content Library, an
   - `isSelected(id: string): Signal<boolean>` (computed)
   - `count: Signal<number>` (computed)
   - `hasSelection: Signal<boolean>` (computed)
-- [ ] Service is provided at component level (`providers: [SelectionService]`) on each host page so state is isolated per page
-- [ ] Unit tests for toggle, range select, select-all, clear, and count
-- [ ] Typecheck and lint pass
+- [x] Service is provided at component level (`providers: [SelectionService]`) on each host page so state is isolated per page
+- [x] Unit tests for toggle, range select, select-all, clear, and count
+- [x] Typecheck and lint pass
 
 ### TASK-016-002: SelectionCheckboxComponent
 **Description:** As a frontend developer, I want a reusable checkbox component that integrates with SelectionService so that I can drop it into any list/grid row with minimal wiring.
