@@ -7,6 +7,8 @@ import {
   CreatePlaylistRequest,
   AddPlaylistItemRequest,
   ReorderPlaylistItemsRequest,
+  BulkDeletePlaylistsResponse,
+  BulkAssignScreenResponse,
 } from './playlist.model';
 
 @Injectable({ providedIn: 'root' })
@@ -69,6 +71,18 @@ export class PlaylistService {
 
   setAsDefault(orgId: string, playlistId: string | null): Observable<unknown> {
     return this.http.patch(`/api/organisations/${orgId}/default-playlist`, { playlistId }, {
+      headers: this.orgHeader(orgId),
+    });
+  }
+
+  bulkDelete(orgId: string, ids: string[]): Observable<BulkDeletePlaylistsResponse> {
+    return this.http.post<BulkDeletePlaylistsResponse>('/api/playlists/bulk-delete', { ids }, {
+      headers: this.orgHeader(orgId),
+    });
+  }
+
+  bulkAssignScreen(orgId: string, ids: string[], screenId: string): Observable<BulkAssignScreenResponse> {
+    return this.http.post<BulkAssignScreenResponse>('/api/playlists/bulk-assign-screen', { ids, screenId }, {
       headers: this.orgHeader(orgId),
     });
   }
