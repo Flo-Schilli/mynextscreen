@@ -363,17 +363,17 @@ Deliver a complete notification system so that users are alerted to important sy
 **Model:** —
 
 **Acceptance Criteria:**
-- [ ] Test suite for `NotificationHub.dispatch()` covering:
+- [x] Test suite for `NotificationHub.dispatch()` covering:
   - User with all channels enabled and org fully configured → all three channels called
   - User with only in-app enabled → only `InAppNotificationChannel.send()` called
   - Email enabled but org SMTP not configured → email channel skipped, in-app called
   - ntfy enabled but org ntfy URL missing → ntfy channel skipped
   - Multiple users in org with different preferences → each user's channels called independently
   - Channel throws an error → error is caught and logged, other channels still called
-- [ ] Test suite for `NotificationEventListener` event handlers:
+- [x] Test suite for `NotificationEventListener` event handlers:
   - Each event type (`screen.offline`, `screen.online`, `transcoding.complete`, `transcoding.failed`) dispatches the correct `NotificationEvent` payload to the hub
-- [ ] All tests use Jest with NestJS testing module; no real DB or HTTP calls
-- [ ] Typecheck and lint pass
+- [x] All tests use Jest with NestJS testing module; no real DB or HTTP calls
+- [x] Typecheck and lint pass
 
 ## Task Dependency Graph
 
