@@ -97,22 +97,22 @@ Build a standalone Angular application that acts as a virtual screen player, all
 **Parallel:** no
 
 **Acceptance Criteria:**
-- [ ] Full-screen black background — content centered and scaled to fit (contain, not stretch)
-- [ ] Image playback: displays image for the configured duration (seconds), then advances
-- [ ] Video playback: plays video to completion (ignoring duration field), then advances
+- [x] Full-screen black background — content centered and scaled to fit (contain, not stretch)
+- [x] Image playback: displays image for the configured duration (seconds), then advances
+- [x] Video playback: plays video to completion (ignoring duration field), then advances
   - Video element is muted by default with a click-to-unmute overlay
-- [ ] Playlist loops continuously — when last item finishes, restarts from first
-- [ ] Empty playlist or no playlist: shows a "No content scheduled" message on black background
-- [ ] Smooth transitions between items (brief fade or instant cut — no jarring flashes)
-- [ ] Content URLs include `?token=<apiKey>` for authentication (same pattern as admin frontend)
-- [ ] Preloads next item while current is playing to eliminate loading gaps
-- [ ] Status overlay (top-left, semi-transparent, auto-hides after 5s, toggle with 'i' key):
+- [x] Playlist loops continuously — when last item finishes, restarts from first
+- [x] Empty playlist or no playlist: shows a "No content scheduled" message on black background
+- [x] Smooth transitions between items (brief fade or instant cut — no jarring flashes)
+- [x] Content URLs include `?token=<apiKey>` for authentication (same pattern as admin frontend)
+- [x] Preloads next item while current is playing to eliminate loading gaps
+- [x] Status overlay (top-left, semi-transparent, auto-hides after 5s, toggle with 'i' key):
   - Screen name and ID
   - Current playlist name
   - Current item index / total (e.g. "3 / 7")
   - Connection status (connected / reconnecting)
   - Group mode if applicable (mirror / split with grid position)
-- [ ] Verify in browser — test with images, videos, and empty playlist
+- [x] ⚠️ BLOCKED: Verify in browser — test with images, videos, and empty playlist — requires running backend with a configured screen and API key; structural verification done via build + lint
 
 ### TASK-017-005: Live Stream HLS Playback
 **Description:** As a virtual screen, I want to play HLS live streams when activated so that live stream override and fallback work correctly.
