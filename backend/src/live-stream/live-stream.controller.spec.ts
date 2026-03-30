@@ -7,6 +7,7 @@ import { LiveStream } from './live-stream.entity';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
 import { Organisation } from '../organisation/organisation.entity';
+import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { BadGatewayException, ConflictException } from '@nestjs/common';
 
 describe('LiveStreamController', () => {
@@ -15,7 +16,9 @@ describe('LiveStreamController', () => {
   let streamHealthService: Record<string, jest.Mock>;
 
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
+  const userId = '880e8400-e29b-41d4-a716-446655440000';
   const streamId = '660e8400-e29b-41d4-a716-446655440000';
+  const mockReq = { user: { userId } } as unknown as AuthenticatedRequest;
 
   const mockStream: LiveStream = {
     id: streamId,
@@ -69,9 +72,9 @@ describe('LiveStreamController', () => {
       };
       service.createLiveStream.mockResolvedValue(mockStream);
 
-      const result = await controller.create(orgId, dto);
+      const result = await controller.create(orgId, dto, mockReq);
 
-      expect(service.createLiveStream).toHaveBeenCalledWith(orgId, dto);
+      expect(service.createLiveStream).toHaveBeenCalledWith(orgId, dto, userId);
       expect(result).toEqual(mockStream);
     });
   });
@@ -172,12 +175,13 @@ describe('LiveStreamController', () => {
       const updated = { ...mockStream, name: 'Updated Camera' };
       service.updateLiveStream.mockResolvedValue(updated);
 
-      const result = await controller.update(orgId, streamId, dto);
+      const result = await controller.update(orgId, streamId, dto, mockReq);
 
       expect(service.updateLiveStream).toHaveBeenCalledWith(
         orgId,
         streamId,
         dto,
+        userId,
       );
       expect(result).toEqual(updated);
     });
@@ -190,9 +194,9 @@ describe('LiveStreamController', () => {
         ),
       );
 
-      await expect(controller.update(orgId, streamId, dto)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        controller.update(orgId, streamId, dto, mockReq),
+      ).rejects.toThrow(ConflictException);
     });
   });
 
@@ -200,9 +204,13 @@ describe('LiveStreamController', () => {
     it('should delete a live stream', async () => {
       service.removeLiveStream.mockResolvedValue(undefined);
 
-      await controller.remove(orgId, streamId);
+      await controller.remove(orgId, streamId, mockReq);
 
-      expect(service.removeLiveStream).toHaveBeenCalledWith(orgId, streamId);
+      expect(service.removeLiveStream).toHaveBeenCalledWith(
+        orgId,
+        streamId,
+        userId,
+      );
     });
 
     it('should propagate ConflictException when stream is active', async () => {
@@ -212,7 +220,7 @@ describe('LiveStreamController', () => {
         ),
       );
 
-      await expect(controller.remove(orgId, streamId)).rejects.toThrow(
+      await expect(controller.remove(orgId, streamId, mockReq)).rejects.toThrow(
         ConflictException,
       );
     });
@@ -226,9 +234,14 @@ describe('LiveStreamController', () => {
       const activeStream = { ...mockStream, status: LiveStreamStatus.Active };
       service.activateStream.mockResolvedValue(activeStream);
 
-      const result = await controller.activate(orgId, streamId, dto);
+      const result = await controller.activate(orgId, streamId, dto, mockReq);
 
-      expect(service.activateStream).toHaveBeenCalledWith(orgId, streamId, dto);
+      expect(service.activateStream).toHaveBeenCalledWith(
+        orgId,
+        streamId,
+        dto,
+        userId,
+      );
       expect(result.status).toBe(LiveStreamStatus.Active);
     });
 
@@ -240,9 +253,9 @@ describe('LiveStreamController', () => {
         new BadGatewayException('Failed to start FFmpeg transcoding'),
       );
 
-      await expect(controller.activate(orgId, streamId, dto)).rejects.toThrow(
-        BadGatewayException,
-      );
+      await expect(
+        controller.activate(orgId, streamId, dto, mockReq),
+      ).rejects.toThrow(BadGatewayException);
     });
   });
 
@@ -251,9 +264,13 @@ describe('LiveStreamController', () => {
       const deactivated = { ...mockStream, status: LiveStreamStatus.Idle };
       service.deactivateStream.mockResolvedValue(deactivated);
 
-      const result = await controller.deactivate(orgId, streamId);
+      const result = await controller.deactivate(orgId, streamId, mockReq);
 
-      expect(service.deactivateStream).toHaveBeenCalledWith(orgId, streamId);
+      expect(service.deactivateStream).toHaveBeenCalledWith(
+        orgId,
+        streamId,
+        userId,
+      );
       expect(result.status).toBe(LiveStreamStatus.Idle);
     });
   });

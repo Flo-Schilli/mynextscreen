@@ -30,6 +30,9 @@ import {
   ScreenStateChangeEvent,
 } from '../screen/screen-state.event';
 import {
+  AUDIT_LIVE_STREAM_CREATED,
+  AUDIT_LIVE_STREAM_UPDATED,
+  AUDIT_LIVE_STREAM_DELETED,
   AUDIT_LIVE_STREAM_ACTIVATED,
   AUDIT_LIVE_STREAM_DEACTIVATED,
   AUDIT_LIVE_STREAM_FAILED,
@@ -57,14 +60,28 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
   async createLiveStream(
     organisationId: string,
     dto: CreateLiveStreamDto,
+    userId: string | null = null,
   ): Promise<LiveStream> {
-    return this.create(organisationId, dto);
+    const stream = await this.create(organisationId, dto);
+
+    this.eventEmitter.emit(
+      AUDIT_LIVE_STREAM_CREATED,
+      new AuditLiveStreamEvent(stream.id, organisationId, userId, {
+        streamId: stream.id,
+        streamName: stream.name,
+        sourceUrl: stream.sourceUrl,
+        protocol: stream.protocol,
+      }),
+    );
+
+    return stream;
   }
 
   async updateLiveStream(
     organisationId: string,
     id: string,
     dto: UpdateLiveStreamDto,
+    userId: string | null = null,
   ): Promise<LiveStream> {
     const stream = await this.findOne(organisationId, id);
 
@@ -75,10 +92,26 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     }
 
     Object.assign(stream, dto);
-    return this.repository.save(stream);
+    const saved = await this.repository.save(stream);
+
+    this.eventEmitter.emit(
+      AUDIT_LIVE_STREAM_UPDATED,
+      new AuditLiveStreamEvent(id, organisationId, userId, {
+        streamId: id,
+        streamName: saved.name,
+        sourceUrl: saved.sourceUrl,
+        protocol: saved.protocol,
+      }),
+    );
+
+    return saved;
   }
 
-  async removeLiveStream(organisationId: string, id: string): Promise<void> {
+  async removeLiveStream(
+    organisationId: string,
+    id: string,
+    userId: string | null = null,
+  ): Promise<void> {
     const stream = await this.findOne(organisationId, id);
 
     if (stream.status === LiveStreamStatus.Active) {
@@ -87,7 +120,22 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       );
     }
 
+    const streamId = stream.id;
+    const streamName = stream.name;
+    const sourceUrl = stream.sourceUrl;
+    const protocol = stream.protocol;
+
     await this.repository.remove(stream);
+
+    this.eventEmitter.emit(
+      AUDIT_LIVE_STREAM_DELETED,
+      new AuditLiveStreamEvent(streamId, organisationId, userId, {
+        streamId,
+        streamName,
+        sourceUrl,
+        protocol,
+      }),
+    );
   }
 
   async activateStream(
@@ -214,7 +262,9 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       new AuditLiveStreamEvent(id, organisationId, userId, {
         streamId: id,
         streamName: stream.name,
+        protocol: stream.protocol,
         targetScreenIds,
+        ...(dto.targetGroupId ? { targetGroupId: dto.targetGroupId } : {}),
       }),
     );
 
