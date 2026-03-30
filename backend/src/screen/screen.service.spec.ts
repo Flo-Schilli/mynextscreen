@@ -30,6 +30,10 @@ describe('ScreenService', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     organisation: {} as Organisation,
+    groupId: null,
+    group: null,
+    gridRow: null,
+    gridColumn: null,
   };
 
   beforeEach(() => {
