@@ -79,14 +79,14 @@ Provide a global search input in the top bar that lets users quickly find screen
 **Parallel:** yes — can run alongside nothing once 002 is done (UI shell can be built before wiring results)
 
 **Acceptance Criteria:**
-- [ ] `GlobalSearch` component added to the top bar, visually consistent with the existing dark theme
-- [ ] Input placeholder: "Search…" with a search icon on the left
-- [ ] Keyboard shortcut: pressing `Ctrl+K` or `/` (when focus is not already in a text input) focuses the search input
-- [ ] Pressing `Escape` clears the input and closes the results dropdown
-- [ ] Input is debounced (300 ms) before triggering an API call to avoid request spam
-- [ ] API call is only made when the trimmed query is at least 2 characters
-- [ ] Loading state shows a spinner inside the input while the request is in flight
-- [ ] Typecheck and lint pass
+- [x] `GlobalSearch` component added to the top bar, visually consistent with the existing dark theme
+- [x] Input placeholder: "Search…" with a search icon on the left
+- [x] Keyboard shortcut: pressing `Ctrl+K` or `/` (when focus is not already in a text input) focuses the search input
+- [x] Pressing `Escape` clears the input and closes the results dropdown
+- [x] Input is debounced (300 ms) before triggering an API call to avoid request spam
+- [x] API call is only made when the trimmed query is at least 2 characters
+- [x] Loading state shows a spinner inside the input while the request is in flight
+- [x] Typecheck and lint pass
 
 ### TASK-015-004: Frontend — Search Results Dropdown
 **Description:** As a user, I want to see categorised search results in a dropdown so that I can quickly identify and navigate to the entity I am looking for.

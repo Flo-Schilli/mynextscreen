@@ -10,6 +10,7 @@ import { AuthService } from '../auth/auth.service';
 import { OrganisationStateService } from './organisation-state.service';
 import { ThemeService } from './theme.service';
 import { NotificationBell } from '../notifications/notification-bell';
+import { GlobalSearch } from '../search/global-search';
 
 const SIDEBAR_KEY = 'signage_sidebar_collapsed';
 
@@ -21,7 +22,7 @@ interface NavItem {
 
 @Component({
   selector: 'app-layout',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, NotificationBell],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, NotificationBell, GlobalSearch],
   template: `
     <!-- Mobile overlay -->
     @if (mobileOpen()) {
@@ -122,19 +123,8 @@ interface NavItem {
         </div>
 
         <div class="topbar-right">
-          <!-- Global search placeholder -->
-          <div class="search-box">
-            <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/>
-              <path d="M11 11l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-            <input
-              type="text"
-              class="search-input"
-              placeholder="Search..."
-              disabled
-            />
-          </div>
+          <!-- Global search -->
+          <app-global-search />
 
           <!-- Theme toggle -->
           <button
@@ -365,36 +355,6 @@ interface NavItem {
       cursor: default;
     }
 
-    /* ── Search ── */
-    .search-box {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      background: var(--color-bg-tertiary);
-      border: 1px solid var(--color-border);
-      border-radius: 6px;
-      padding: 0.375rem 0.75rem;
-    }
-    .search-icon {
-      color: var(--color-text-muted);
-      flex-shrink: 0;
-    }
-    .search-input {
-      background: transparent;
-      border: none;
-      color: var(--color-text-primary);
-      font-size: 0.875rem;
-      width: 160px;
-      outline: none;
-    }
-    .search-input::placeholder {
-      color: var(--color-text-muted);
-    }
-    .search-input:disabled {
-      cursor: not-allowed;
-      opacity: 0.5;
-    }
-
     /* ── Top bar buttons ── */
     .topbar-btn {
       display: flex;
@@ -461,7 +421,7 @@ interface NavItem {
         margin-left: 0;
       }
       .mobile-only { display: flex; }
-      .search-box { display: none; }
+      app-global-search { display: none; }
       .content { padding: 1rem; }
     }
   `,
