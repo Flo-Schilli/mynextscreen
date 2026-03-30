@@ -16,6 +16,7 @@ import { ScheduleEntryModule } from './schedule';
 import { AuditLogModule } from './audit-log';
 import { ScreenGroupModule } from './screen-group/screen-group.module';
 import { SliceContentModule } from './slice-content';
+import { NotificationModule } from './notification';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -57,6 +58,7 @@ import { HealthController } from './health.controller';
     AuditLogModule,
     ScreenGroupModule,
     SliceContentModule,
+    NotificationModule,
   ],
   controllers: [HealthController],
 })
