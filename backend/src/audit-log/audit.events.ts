@@ -85,6 +85,18 @@ export class AuditOrganisationEvent {
   ) {}
 }
 
+// ── Live Stream ─────────────────────────────────────────────────────────────
+export const AUDIT_LIVE_STREAM_ACTIVATED = 'audit.live_stream.activated';
+
+export class AuditLiveStreamEvent {
+  constructor(
+    public readonly streamId: string,
+    public readonly organisationId: string,
+    public readonly userId: string | null,
+    public readonly details: Record<string, unknown> | null,
+  ) {}
+}
+
 // ── Screen Group ────────────────────────────────────────────────────────────
 export const AUDIT_GROUP_CREATED = 'audit.group.created';
 export const AUDIT_GROUP_UPDATED = 'audit.group.updated';

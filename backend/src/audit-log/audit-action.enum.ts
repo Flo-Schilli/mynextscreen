@@ -24,4 +24,5 @@ export enum AuditAction {
   GroupScreenAdded = 'group.screen_added',
   GroupScreenRemoved = 'group.screen_removed',
   GroupModeChanged = 'group.mode_changed',
+  LiveStreamActivated = 'live_stream.activated',
 }
