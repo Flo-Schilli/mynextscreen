@@ -1,7 +1,10 @@
+import { ScreenGroupMode } from '../screen-groups/screen-group.model';
+
 export interface ScheduleEntry {
   id: string;
   organisationId: string;
-  screenId: string;
+  screenId: string | null;
+  groupId: string | null;
   playlistId: string;
   startTime: string;
   endTime: string;
@@ -17,10 +20,16 @@ export interface ScheduleEntry {
     id: string;
     name: string;
   };
+  group?: {
+    id: string;
+    name: string;
+    mode: ScreenGroupMode;
+  };
 }
 
 export interface CreateScheduleEntryRequest {
-  screenId: string;
+  screenId?: string;
+  groupId?: string;
   playlistId: string;
   startTime: string;
   endTime: string;
