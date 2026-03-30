@@ -34,7 +34,7 @@ Deliver a complete notification system so that users are alerted to important sy
 **Model:** —
 
 **Acceptance Criteria:**
-- [ ] `Notification` entity with fields:
+- [x] `Notification` entity with fields:
   - `id` — UUID, primary key
   - `userId` — UUID, FK to users table, not nullable
   - `organisationId` — UUID, FK to organisations table, not nullable
@@ -43,10 +43,10 @@ Deliver a complete notification system so that users are alerted to important sy
   - `message` — string, longer description (e.g. "Screen 'Main Hall Left' has gone offline")
   - `read` — boolean, default `false`
   - `createdAt` — datetime, default now
-- [ ] TypeORM migration creates the `notifications` table with indexes on `(userId, read)` and `(userId, createdAt)`
-- [ ] `NotificationRepository` or TypeORM repository injection set up in `NotificationModule`
-- [ ] Unit tests for entity creation and basic repository queries (find unread by user, mark as read)
-- [ ] Typecheck and lint pass
+- [x] TypeORM migration creates the `notifications` table with indexes on `(userId, read)` and `(userId, createdAt)`
+- [x] `NotificationRepository` or TypeORM repository injection set up in `NotificationModule`
+- [x] Unit tests for entity creation and basic repository queries (find unread by user, mark as read)
+- [x] Typecheck and lint pass
 
 ---
 
