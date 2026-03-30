@@ -29,6 +29,10 @@ export const routes: Routes = [
         loadComponent: () => import('./screen-groups/screen-groups').then(m => m.ScreenGroups),
       },
       {
+        path: 'screen-groups/:id',
+        loadComponent: () => import('./screen-groups/screen-group-detail').then(m => m.ScreenGroupDetail),
+      },
+      {
         path: 'content',
         loadComponent: () => import('./content/content-library').then(m => m.ContentLibrary),
       },

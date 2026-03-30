@@ -3,8 +3,10 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
   ScreenGroup,
+  ScreenGroupScreen,
   CreateScreenGroupRequest,
   UpdateScreenGroupRequest,
+  AssignScreenRequest,
 } from './screen-group.model';
 
 @Injectable({ providedIn: 'root' })
@@ -37,6 +39,18 @@ export class ScreenGroupService {
 
   delete(orgId: string, id: string): Observable<void> {
     return this.http.delete<void>(`/api/screen-groups/${id}`, {
+      headers: this.orgHeader(orgId),
+    });
+  }
+
+  assignScreen(orgId: string, groupId: string, screenId: string, dto: AssignScreenRequest): Observable<ScreenGroupScreen> {
+    return this.http.put<ScreenGroupScreen>(`/api/screen-groups/${groupId}/screens/${screenId}`, dto, {
+      headers: this.orgHeader(orgId),
+    });
+  }
+
+  removeScreen(orgId: string, groupId: string, screenId: string): Observable<ScreenGroupScreen> {
+    return this.http.delete<ScreenGroupScreen>(`/api/screen-groups/${groupId}/screens/${screenId}`, {
       headers: this.orgHeader(orgId),
     });
   }
