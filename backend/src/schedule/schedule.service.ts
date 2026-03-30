@@ -4,12 +4,16 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
+import { Queue } from 'bullmq';
 import { ScheduleEntry } from './schedule-entry.entity';
 import { Organisation } from '../organisation/organisation.entity';
 import { Screen } from '../screen/screen.entity';
 import { Playlist } from '../playlist/playlist.entity';
+import { ScreenGroup } from '../screen-group/screen-group.entity';
+import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { CreateScheduleEntryDto } from './dto/create-schedule-entry.dto';
 import { UpdateScheduleEntryDto } from './dto/update-schedule-entry.dto';
 import { getOccurrences, DateRange } from './rrule.util';
@@ -23,6 +27,8 @@ import {
   AUDIT_SCHEDULE_DELETED,
   AuditScheduleEvent,
 } from '../audit-log/audit.events';
+import { SLICE_CONTENT_QUEUE } from '../slice-content';
+import { SliceContentJobData } from '../slice-content/slice-content.processor';
 
 const OVERLAP_WINDOW_DAYS = 365;
 
@@ -37,6 +43,10 @@ export class ScheduleService {
     private readonly screenRepository: Repository<Screen>,
     @InjectRepository(Playlist)
     private readonly playlistRepository: Repository<Playlist>,
+    @InjectRepository(ScreenGroup)
+    private readonly screenGroupRepository: Repository<ScreenGroup>,
+    @InjectQueue(SLICE_CONTENT_QUEUE)
+    private readonly sliceContentQueue: Queue<SliceContentJobData>,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -70,7 +80,9 @@ export class ScheduleService {
     });
 
     const saved = await this.scheduleEntryRepository.save(entry);
-    this.emitScheduleChanged(dto.screenId, organisationId);
+    if (dto.screenId) {
+      this.emitScheduleChanged(dto.screenId, organisationId);
+    }
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_CREATED,
       new AuditScheduleEvent(saved.id, organisationId, null, {
@@ -78,6 +90,9 @@ export class ScheduleService {
         playlistId: dto.playlistId,
       }),
     );
+
+    await this.enqueueSliceJobIfNeeded(saved);
+
     return saved;
   }
 
@@ -96,7 +111,7 @@ export class ScheduleService {
       await this.validatePlaylist(dto.playlistId, organisationId);
     }
 
-    if (dto.startTime || dto.endTime || dto.rrule !== undefined) {
+    if (entry.screenId && (dto.startTime || dto.endTime || dto.rrule !== undefined)) {
       await this.checkOverlap(
         entry.screenId,
         organisationId,
@@ -114,13 +129,18 @@ export class ScheduleService {
     if (dto.colour !== undefined) entry.colour = dto.colour;
 
     const saved = await this.scheduleEntryRepository.save(entry);
-    this.emitScheduleChanged(entry.screenId, organisationId);
+    if (entry.screenId) {
+      this.emitScheduleChanged(entry.screenId, organisationId);
+    }
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_UPDATED,
       new AuditScheduleEvent(saved.id, organisationId, null, {
         screenId: entry.screenId,
       }),
     );
+
+    await this.enqueueSliceJobIfNeeded(saved);
+
     return saved;
   }
 
@@ -128,7 +148,9 @@ export class ScheduleService {
     const entry = await this.findOneOrFail(id, organisationId);
     const screenId = entry.screenId;
     await this.scheduleEntryRepository.remove(entry);
-    this.emitScheduleChanged(screenId, organisationId);
+    if (screenId) {
+      this.emitScheduleChanged(screenId, organisationId);
+    }
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_DELETED,
       new AuditScheduleEvent(id, organisationId, null, { screenId }),
@@ -330,5 +352,22 @@ export class ScheduleService {
       SCHEDULE_ENTRY_CHANGED,
       new ScheduleEntryChangedEvent(screenId, organisationId),
     );
+  }
+
+  private async enqueueSliceJobIfNeeded(entry: ScheduleEntry): Promise<void> {
+    if (!entry.groupId) return;
+
+    const group = await this.screenGroupRepository.findOne({
+      where: { id: entry.groupId },
+    });
+
+    if (!group || group.mode !== ScreenGroupMode.Split) return;
+
+    await this.sliceContentQueue.add('slice', {
+      groupId: entry.groupId,
+      scheduleId: entry.id,
+      playlistId: entry.playlistId,
+      organisationId: entry.organisationId,
+    });
   }
 }

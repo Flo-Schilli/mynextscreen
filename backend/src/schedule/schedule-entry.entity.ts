@@ -11,6 +11,7 @@ import { IsNotEmpty, IsString, IsOptional, Matches } from 'class-validator';
 import { Organisation } from '../organisation/organisation.entity';
 import { Screen } from '../screen/screen.entity';
 import { Playlist } from '../playlist/playlist.entity';
+import { ScreenGroup } from '../screen-group/screen-group.entity';
 
 @Entity('schedule_entries')
 export class ScheduleEntry {
@@ -26,14 +27,23 @@ export class ScheduleEntry {
   @JoinColumn({ name: 'organisationId' })
   organisation!: Organisation;
 
-  @Column({ type: 'varchar', nullable: false })
-  @IsNotEmpty()
+  @Column({ type: 'varchar', nullable: true })
+  @IsOptional()
   @IsString()
-  screenId!: string;
+  screenId!: string | null;
 
-  @ManyToOne(() => Screen, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Screen, { onDelete: 'CASCADE', nullable: true })
   @JoinColumn({ name: 'screenId' })
-  screen!: Screen;
+  screen!: Screen | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  @IsOptional()
+  @IsString()
+  groupId!: string | null;
+
+  @ManyToOne(() => ScreenGroup, { onDelete: 'CASCADE', nullable: true })
+  @JoinColumn({ name: 'groupId' })
+  group!: ScreenGroup | null;
 
   @Column({ type: 'varchar', nullable: false })
   @IsNotEmpty()
