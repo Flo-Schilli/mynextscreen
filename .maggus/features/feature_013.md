@@ -235,7 +235,7 @@ Deliver a complete notification system so that users are alerted to important sy
 **Model:** —
 
 **Acceptance Criteria:**
-- [ ] `NotificationEventListener` service in `NotificationModule` decorated with `@OnEvent()` handlers:
+- [x] `NotificationEventListener` service in `NotificationModule` decorated with `@OnEvent()` handlers:
   - `@OnEvent('screen.offline')` → dispatch notification:
     - `eventType: 'screen.offline'`
     - `title: 'Screen offline'`
@@ -256,11 +256,11 @@ Deliver a complete notification system so that users are alerted to important sy
     - `title: 'Transcoding failed'`
     - `message: 'Content "{contentTitle}" failed to transcode. Please re-upload the file.'`
     - `resourceId: contentId`
-- [ ] Each handler extracts the `orgId` from the event payload (all existing events must carry `orgId`)
-- [ ] If an existing event payload does not include `orgId`, update the emitting service to include it (minimal change)
-- [ ] Handlers call `NotificationHub.dispatch()` and await; errors are caught and logged
-- [ ] Unit tests: mock `NotificationHub`, assert `dispatch()` called with correct payload for each event type
-- [ ] Typecheck and lint pass
+- [x] Each handler extracts the `orgId` from the event payload (all existing events must carry `orgId`)
+- [x] If an existing event payload does not include `orgId`, update the emitting service to include it (minimal change)
+- [x] Handlers call `NotificationHub.dispatch()` and await; errors are caught and logged
+- [x] Unit tests: mock `NotificationHub`, assert `dispatch()` called with correct payload for each event type
+- [x] Typecheck and lint pass
 
 ---
 

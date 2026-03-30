@@ -4,6 +4,7 @@ export { NotificationEvent } from './notification-event.interface';
 export { NotificationModule } from './notification.module';
 export { NotificationService } from './notification.service';
 export { NotificationHub } from './notification-hub.service';
+export { NotificationEventListener } from './notification-event-listener.service';
 export { UserNotificationPreference } from './user-notification-preference.entity';
 export { UserNotificationPreferenceService } from './user-notification-preference.service';
 export { OrganisationNotificationConfig } from './organisation-notification-config.entity';
