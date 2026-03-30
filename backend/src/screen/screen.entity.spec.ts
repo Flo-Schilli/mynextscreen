@@ -10,6 +10,9 @@ function createScreen(overrides: Partial<Screen> = {}): Screen {
   screen.apiKeyHash = '$2b$10$somehashvalue';
   screen.isOnline = false;
   screen.lastHeartbeat = null;
+  screen.groupId = null;
+  screen.gridRow = null;
+  screen.gridColumn = null;
   Object.assign(screen, overrides);
   return screen;
 }

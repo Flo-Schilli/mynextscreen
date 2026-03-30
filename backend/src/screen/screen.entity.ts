@@ -7,8 +7,9 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { IsNotEmpty, IsString, IsOptional, IsBoolean } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsBoolean, IsInt, Min } from 'class-validator';
 import { Organisation } from '../organisation/organisation.entity';
+import { ScreenGroup } from '../screen-group/screen-group.entity';
 
 @Entity('screens')
 export class Screen {
@@ -51,6 +52,30 @@ export class Screen {
   @Column({ type: 'boolean', default: false })
   @IsBoolean()
   isOnline!: boolean;
+
+  @Column({ type: 'varchar', nullable: true })
+  @IsOptional()
+  @IsString()
+  groupId!: string | null;
+
+  @ManyToOne(() => ScreenGroup, (group) => group.screens, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'groupId' })
+  group!: ScreenGroup | null;
+
+  @Column({ type: 'integer', nullable: true })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  gridRow!: number | null;
+
+  @Column({ type: 'integer', nullable: true })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  gridColumn!: number | null;
 
   @CreateDateColumn()
   createdAt!: Date;

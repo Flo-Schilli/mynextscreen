@@ -31,6 +31,10 @@ describe('ScreenStateService', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     organisation: {} as Organisation,
+    groupId: null,
+    group: null,
+    gridRow: null,
+    gridColumn: null,
   };
 
   const mockPlaylist: Playlist = {
