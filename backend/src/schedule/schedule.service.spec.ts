@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { NotFoundException, ConflictException } from '@nestjs/common';
+import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { ScheduleService } from './schedule.service';
 import { ScheduleEntry } from './schedule-entry.entity';
 import { Organisation } from '../organisation/organisation.entity';
@@ -556,24 +556,31 @@ describe('ScheduleService', () => {
   describe('group schedule events', () => {
     it('should emit GROUP_SCHEDULE_CHANGED when creating entry with groupId', async () => {
       const dto = {
-        screenId: 'screen-1',
+        groupId: 'group-1',
         playlistId: 'playlist-1',
         startTime: '2026-04-01T10:00:00Z',
         endTime: '2026-04-01T12:00:00Z',
         colour: '#FF5733',
       };
 
-      // Make the saved entry have a groupId
+      screenGroupRepo.findOne.mockResolvedValue({
+        id: 'group-1',
+        organisationId: 'org-1',
+        mode: ScreenGroupMode.Mirror,
+      });
+
       scheduleRepo.create.mockReturnValue({
         id: 'entry-1',
-        ...dto,
         groupId: 'group-1',
+        screenId: null,
+        playlistId: 'playlist-1',
         organisationId: 'org-1',
       });
       scheduleRepo.save.mockResolvedValue({
         id: 'entry-1',
-        ...dto,
         groupId: 'group-1',
+        screenId: null,
+        playlistId: 'playlist-1',
         organisationId: 'org-1',
       });
 
@@ -658,6 +665,243 @@ describe('ScheduleService', () => {
       );
 
       expect(result).toEqual(entries);
+    });
+
+    it('should include group relation in query', async () => {
+      scheduleRepo.find.mockResolvedValue([]);
+
+      await service.findByOrganisation(
+        'org-1',
+        new Date('2026-04-01'),
+        new Date('2026-04-30'),
+      );
+
+      expect(scheduleRepo.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          relations: expect.arrayContaining(['group']),
+        }),
+      );
+    });
+  });
+
+  describe('target validation (screenId / groupId)', () => {
+    it('should throw BadRequestException when neither screenId nor groupId is set', async () => {
+      const dto = {
+        playlistId: 'playlist-1',
+        startTime: '2026-04-01T10:00:00Z',
+        endTime: '2026-04-01T12:00:00Z',
+        colour: '#FF5733',
+      };
+
+      await expect(service.create('org-1', dto)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException when both screenId and groupId are set', async () => {
+      const dto = {
+        screenId: 'screen-1',
+        groupId: 'group-1',
+        playlistId: 'playlist-1',
+        startTime: '2026-04-01T10:00:00Z',
+        endTime: '2026-04-01T12:00:00Z',
+        colour: '#FF5733',
+      };
+
+      await expect(service.create('org-1', dto)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('group-based scheduling', () => {
+    it('should create a schedule entry targeting a group', async () => {
+      const dto = {
+        groupId: 'group-1',
+        playlistId: 'playlist-1',
+        startTime: '2026-04-01T10:00:00Z',
+        endTime: '2026-04-01T12:00:00Z',
+        colour: '#FF5733',
+      };
+
+      screenGroupRepo.findOne.mockResolvedValue({
+        id: 'group-1',
+        organisationId: 'org-1',
+        mode: ScreenGroupMode.Mirror,
+      });
+
+      const result = await service.create('org-1', dto);
+
+      expect(scheduleRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organisationId: 'org-1',
+          groupId: 'group-1',
+          screenId: null,
+          playlistId: 'playlist-1',
+        }),
+      );
+      expect(result).toBeDefined();
+    });
+
+    it('should throw NotFoundException when group not found in organisation', async () => {
+      screenGroupRepo.findOne.mockResolvedValue(null);
+
+      const dto = {
+        groupId: 'bad-group',
+        playlistId: 'playlist-1',
+        startTime: '2026-04-01T10:00:00Z',
+        endTime: '2026-04-01T12:00:00Z',
+        colour: '#FF5733',
+      };
+
+      await expect(service.create('org-1', dto)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should enqueue slice-content job when group mode is split', async () => {
+      const dto = {
+        groupId: 'group-1',
+        playlistId: 'playlist-1',
+        startTime: '2026-04-01T10:00:00Z',
+        endTime: '2026-04-01T12:00:00Z',
+        colour: '#FF5733',
+      };
+
+      screenGroupRepo.findOne
+        .mockResolvedValueOnce({
+          id: 'group-1',
+          organisationId: 'org-1',
+          mode: ScreenGroupMode.Split,
+        })
+        .mockResolvedValueOnce({
+          id: 'group-1',
+          organisationId: 'org-1',
+          mode: ScreenGroupMode.Split,
+        });
+
+      scheduleRepo.create.mockReturnValue({
+        id: 'entry-1',
+        groupId: 'group-1',
+        screenId: null,
+        playlistId: 'playlist-1',
+        organisationId: 'org-1',
+      });
+      scheduleRepo.save.mockResolvedValue({
+        id: 'entry-1',
+        groupId: 'group-1',
+        screenId: null,
+        playlistId: 'playlist-1',
+        organisationId: 'org-1',
+      });
+
+      await service.create('org-1', dto);
+
+      expect(sliceContentQueue.add).toHaveBeenCalledWith(
+        'slice',
+        expect.objectContaining({
+          groupId: 'group-1',
+          playlistId: 'playlist-1',
+          organisationId: 'org-1',
+        }),
+      );
+    });
+
+    it('should not enqueue slice-content job when group mode is mirror', async () => {
+      const dto = {
+        groupId: 'group-1',
+        playlistId: 'playlist-1',
+        startTime: '2026-04-01T10:00:00Z',
+        endTime: '2026-04-01T12:00:00Z',
+        colour: '#FF5733',
+      };
+
+      screenGroupRepo.findOne.mockResolvedValue({
+        id: 'group-1',
+        organisationId: 'org-1',
+        mode: ScreenGroupMode.Mirror,
+      });
+
+      scheduleRepo.create.mockReturnValue({
+        id: 'entry-1',
+        groupId: 'group-1',
+        screenId: null,
+        playlistId: 'playlist-1',
+        organisationId: 'org-1',
+      });
+      scheduleRepo.save.mockResolvedValue({
+        id: 'entry-1',
+        groupId: 'group-1',
+        screenId: null,
+        playlistId: 'playlist-1',
+        organisationId: 'org-1',
+      });
+
+      await service.create('org-1', dto);
+
+      expect(sliceContentQueue.add).not.toHaveBeenCalled();
+    });
+
+    it('should not run overlap check for group-targeted entries', async () => {
+      const dto = {
+        groupId: 'group-1',
+        playlistId: 'playlist-1',
+        startTime: '2026-04-01T10:00:00Z',
+        endTime: '2026-04-01T12:00:00Z',
+        colour: '#FF5733',
+      };
+
+      screenGroupRepo.findOne.mockResolvedValue({
+        id: 'group-1',
+        organisationId: 'org-1',
+        mode: ScreenGroupMode.Mirror,
+      });
+
+      await service.create('org-1', dto);
+
+      // find is only called by save/create, not by checkOverlap
+      // checkOverlap calls find with { screenId, organisationId } — should not be called
+      const overlapCalls = scheduleRepo.find.mock.calls.filter(
+        (c: any) => c[0]?.where?.screenId !== undefined,
+      );
+      expect(overlapCalls).toHaveLength(0);
+    });
+
+    it('should emit GROUP_SCHEDULE_CHANGED on update when entry has groupId', async () => {
+      const existingEntry = {
+        id: 'entry-1',
+        screenId: null,
+        groupId: 'group-1',
+        organisationId: 'org-1',
+        playlistId: 'playlist-1',
+        startTime: new Date('2026-04-01T10:00:00Z'),
+        endTime: new Date('2026-04-01T12:00:00Z'),
+        rrule: null,
+        colour: '#FF5733',
+        playlist: { id: 'playlist-1', name: 'Test' },
+      };
+      scheduleRepo.findOne.mockResolvedValue(existingEntry);
+      scheduleRepo.save.mockResolvedValue({
+        ...existingEntry,
+        endTime: new Date('2026-04-01T14:00:00Z'),
+      });
+
+      screenGroupRepo.findOne.mockResolvedValue({
+        id: 'group-1',
+        mode: ScreenGroupMode.Mirror,
+      });
+
+      await service.update('entry-1', 'org-1', {
+        endTime: '2026-04-01T14:00:00Z',
+      });
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        GROUP_SCHEDULE_CHANGED,
+        expect.objectContaining({
+          groupId: 'group-1',
+          organisationId: 'org-1',
+        }),
+      );
     });
   });
 });

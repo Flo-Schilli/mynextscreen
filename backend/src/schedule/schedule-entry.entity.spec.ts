@@ -66,4 +66,21 @@ describe('ScheduleEntry entity validation', () => {
     const errors = await validate(entry);
     expect(errors).toHaveLength(0);
   });
+
+  describe('targetType and targetId computed properties', () => {
+    it('should return targetType "screen" when screenId is set', () => {
+      const entry = createEntry({ screenId: 'screen-1', groupId: null });
+      expect(entry.targetType).toBe('screen');
+      expect(entry.targetId).toBe('screen-1');
+    });
+
+    it('should return targetType "group" when groupId is set', () => {
+      const entry = createEntry({
+        screenId: null,
+        groupId: 'group-1',
+      });
+      expect(entry.targetType).toBe('group');
+      expect(entry.targetId).toBe('group-1');
+    });
+  });
 });

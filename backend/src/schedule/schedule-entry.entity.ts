@@ -78,4 +78,12 @@ export class ScheduleEntry {
 
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  get targetType(): 'screen' | 'group' {
+    return this.groupId ? 'group' : 'screen';
+  }
+
+  get targetId(): string | null {
+    return this.groupId ?? this.screenId;
+  }
 }
