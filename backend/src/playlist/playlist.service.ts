@@ -133,10 +133,20 @@ export class PlaylistService {
       position = maxItem ? maxItem.position + 1 : 0;
     }
 
+    // Determine duration: for videos, prefer Content.durationSeconds; for images, default to 10
+    let durationSeconds: number;
+    if (content.type === ContentType.Video && content.durationSeconds != null) {
+      durationSeconds = content.durationSeconds;
+    } else if (dto.durationSeconds != null) {
+      durationSeconds = dto.durationSeconds;
+    } else {
+      durationSeconds = content.type === ContentType.Video ? 30 : 10;
+    }
+
     const item = this.playlistItemRepository.create({
       playlistId: playlist.id,
       contentId: dto.contentId,
-      durationSeconds: dto.durationSeconds,
+      durationSeconds,
       position,
       ...(dto.transition !== undefined && { transition: dto.transition }),
       ...(dto.transitionDurationMs !== undefined && {
@@ -428,12 +438,12 @@ export class PlaylistService {
     let total = 0;
 
     for (const item of playlist.items) {
-      if (item.content && item.content.type === ContentType.Video) {
-        // For videos, use the item's durationSeconds as a fallback
-        // but prefer the video's actual duration if available
-        // (Content entity does not currently store video duration,
-        //  so we use the playlist item's durationSeconds)
-        total += item.durationSeconds;
+      if (
+        item.content &&
+        item.content.type === ContentType.Video &&
+        item.content.durationSeconds != null
+      ) {
+        total += item.content.durationSeconds;
       } else {
         total += item.durationSeconds;
       }

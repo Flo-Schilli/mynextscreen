@@ -178,7 +178,7 @@ describe('PlaylistService', () => {
   });
 
   describe('addItem', () => {
-    it('should add an item to the playlist', async () => {
+    it('should add an image item with DTO duration', async () => {
       const mockPlaylist = {
         id: 'p1',
         organisationId: 'org-1',
@@ -189,6 +189,8 @@ describe('PlaylistService', () => {
       contentRepo.findOne.mockResolvedValue({
         id: 'content-1',
         organisationId: 'org-1',
+        type: ContentType.Image,
+        durationSeconds: null,
       });
 
       // Mock createQueryBuilder for max position
@@ -217,6 +219,132 @@ describe('PlaylistService', () => {
       );
     });
 
+    it('should use Content.durationSeconds for video when available', async () => {
+      const mockPlaylist = {
+        id: 'p1',
+        organisationId: 'org-1',
+        name: 'Test',
+        items: [],
+      };
+      playlistRepo.findOne.mockResolvedValue(mockPlaylist);
+      contentRepo.findOne.mockResolvedValue({
+        id: 'content-1',
+        organisationId: 'org-1',
+        type: ContentType.Video,
+        durationSeconds: 58,
+      });
+
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      };
+      playlistItemRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.addItem('p1', 'org-1', {
+        contentId: 'content-1',
+        durationSeconds: 30,
+      });
+
+      expect(playlistItemRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ durationSeconds: 58 }),
+      );
+    });
+
+    it('should fall back to DTO duration for video when Content.durationSeconds is null', async () => {
+      const mockPlaylist = {
+        id: 'p1',
+        organisationId: 'org-1',
+        name: 'Test',
+        items: [],
+      };
+      playlistRepo.findOne.mockResolvedValue(mockPlaylist);
+      contentRepo.findOne.mockResolvedValue({
+        id: 'content-1',
+        organisationId: 'org-1',
+        type: ContentType.Video,
+        durationSeconds: null,
+      });
+
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      };
+      playlistItemRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.addItem('p1', 'org-1', {
+        contentId: 'content-1',
+        durationSeconds: 25,
+      });
+
+      expect(playlistItemRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ durationSeconds: 25 }),
+      );
+    });
+
+    it('should default to 10 for images when durationSeconds omitted from DTO', async () => {
+      const mockPlaylist = {
+        id: 'p1',
+        organisationId: 'org-1',
+        name: 'Test',
+        items: [],
+      };
+      playlistRepo.findOne.mockResolvedValue(mockPlaylist);
+      contentRepo.findOne.mockResolvedValue({
+        id: 'content-1',
+        organisationId: 'org-1',
+        type: ContentType.Image,
+        durationSeconds: null,
+      });
+
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      };
+      playlistItemRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.addItem('p1', 'org-1', {
+        contentId: 'content-1',
+      });
+
+      expect(playlistItemRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ durationSeconds: 10 }),
+      );
+    });
+
+    it('should default to 30 for videos when durationSeconds omitted and Content has no duration', async () => {
+      const mockPlaylist = {
+        id: 'p1',
+        organisationId: 'org-1',
+        name: 'Test',
+        items: [],
+      };
+      playlistRepo.findOne.mockResolvedValue(mockPlaylist);
+      contentRepo.findOne.mockResolvedValue({
+        id: 'content-1',
+        organisationId: 'org-1',
+        type: ContentType.Video,
+        durationSeconds: null,
+      });
+
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      };
+      playlistItemRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.addItem('p1', 'org-1', {
+        contentId: 'content-1',
+      });
+
+      expect(playlistItemRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ durationSeconds: 30 }),
+      );
+    });
+
     it('should append after existing items when no position given', async () => {
       const mockPlaylist = {
         id: 'p1',
@@ -228,6 +356,8 @@ describe('PlaylistService', () => {
       contentRepo.findOne.mockResolvedValue({
         id: 'content-1',
         organisationId: 'org-1',
+        type: ContentType.Image,
+        durationSeconds: null,
       });
 
       const qb = {
@@ -258,6 +388,8 @@ describe('PlaylistService', () => {
       contentRepo.findOne.mockResolvedValue({
         id: 'content-1',
         organisationId: 'org-1',
+        type: ContentType.Image,
+        durationSeconds: null,
       });
 
       await service.addItem('p1', 'org-1', {
@@ -282,6 +414,8 @@ describe('PlaylistService', () => {
       contentRepo.findOne.mockResolvedValue({
         id: 'content-1',
         organisationId: 'org-1',
+        type: ContentType.Image,
+        durationSeconds: null,
       });
 
       const qb = {
@@ -319,6 +453,8 @@ describe('PlaylistService', () => {
       contentRepo.findOne.mockResolvedValue({
         id: 'content-1',
         organisationId: 'org-1',
+        type: ContentType.Image,
+        durationSeconds: null,
       });
 
       const qb = {
@@ -626,17 +762,17 @@ describe('PlaylistService', () => {
           {
             id: 'i1',
             durationSeconds: 10,
-            content: { type: ContentType.Image },
+            content: { type: ContentType.Image, durationSeconds: null },
           },
           {
             id: 'i2',
             durationSeconds: 30,
-            content: { type: ContentType.Video },
+            content: { type: ContentType.Video, durationSeconds: null },
           },
           {
             id: 'i3',
             durationSeconds: 15,
-            content: { type: ContentType.Image },
+            content: { type: ContentType.Image, durationSeconds: null },
           },
         ],
       };
@@ -644,6 +780,49 @@ describe('PlaylistService', () => {
 
       const total = await service.getTotalDuration('p1', 'org-1');
       expect(total).toBe(55);
+    });
+
+    it('should prefer Content.durationSeconds for videos', async () => {
+      const mockPlaylist = {
+        id: 'p1',
+        organisationId: 'org-1',
+        name: 'Test',
+        items: [
+          {
+            id: 'i1',
+            durationSeconds: 10,
+            content: { type: ContentType.Image, durationSeconds: null },
+          },
+          {
+            id: 'i2',
+            durationSeconds: 30,
+            content: { type: ContentType.Video, durationSeconds: 58 },
+          },
+        ],
+      };
+      playlistRepo.findOne.mockResolvedValue(mockPlaylist);
+
+      const total = await service.getTotalDuration('p1', 'org-1');
+      expect(total).toBe(68); // 10 (image) + 58 (video real duration)
+    });
+
+    it('should fall back to item.durationSeconds when video Content.durationSeconds is null', async () => {
+      const mockPlaylist = {
+        id: 'p1',
+        organisationId: 'org-1',
+        name: 'Test',
+        items: [
+          {
+            id: 'i1',
+            durationSeconds: 30,
+            content: { type: ContentType.Video, durationSeconds: null },
+          },
+        ],
+      };
+      playlistRepo.findOne.mockResolvedValue(mockPlaylist);
+
+      const total = await service.getTotalDuration('p1', 'org-1');
+      expect(total).toBe(30);
     });
 
     it('should return 0 for empty playlist', async () => {

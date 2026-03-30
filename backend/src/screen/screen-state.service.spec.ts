@@ -151,6 +151,63 @@ describe('ScreenStateService', () => {
       expect(items[0].transitionDurationMs).toBe(1000);
     });
 
+    it('should use Content.durationSeconds for video items when available', async () => {
+      const playlistWithVideoDuration = {
+        ...mockPlaylist,
+        items: [
+          {
+            contentId: 'content-1',
+            durationSeconds: 30,
+            position: 0,
+            transition: TransitionType.Fade,
+            transitionDurationMs: 500,
+            content: { type: 'video', durationSeconds: 58 } as Content,
+          } as PlaylistItem,
+        ],
+      } as Playlist;
+      playlistRepository.findOne.mockResolvedValue(playlistWithVideoDuration);
+      const state = await service.assembleState(orgId, screenId);
+      expect(state.currentPlaylist!.items[0].duration).toBe(58);
+    });
+
+    it('should fall back to item.durationSeconds for video when Content.durationSeconds is null', async () => {
+      const playlistWithNullDuration = {
+        ...mockPlaylist,
+        items: [
+          {
+            contentId: 'content-1',
+            durationSeconds: 30,
+            position: 0,
+            transition: TransitionType.Fade,
+            transitionDurationMs: 500,
+            content: { type: 'video', durationSeconds: null } as Content,
+          } as PlaylistItem,
+        ],
+      } as Playlist;
+      playlistRepository.findOne.mockResolvedValue(playlistWithNullDuration);
+      const state = await service.assembleState(orgId, screenId);
+      expect(state.currentPlaylist!.items[0].duration).toBe(30);
+    });
+
+    it('should use item.durationSeconds for image items regardless of Content.durationSeconds', async () => {
+      const playlistWithImage = {
+        ...mockPlaylist,
+        items: [
+          {
+            contentId: 'content-1',
+            durationSeconds: 15,
+            position: 0,
+            transition: TransitionType.Fade,
+            transitionDurationMs: 500,
+            content: { type: 'image', durationSeconds: null } as Content,
+          } as PlaylistItem,
+        ],
+      } as Playlist;
+      playlistRepository.findOne.mockResolvedValue(playlistWithImage);
+      const state = await service.assembleState(orgId, screenId);
+      expect(state.currentPlaylist!.items[0].duration).toBe(15);
+    });
+
     it('should return null for currentPlaylist when no playlists exist', async () => {
       scheduleService.getCurrentPlaylist.mockResolvedValue({
         playlist: null,
