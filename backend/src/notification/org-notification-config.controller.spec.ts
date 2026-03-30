@@ -1,10 +1,23 @@
+import { UnprocessableEntityException } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { of, throwError } from 'rxjs';
 import { OrgNotificationConfigController } from './org-notification-config.controller';
 import { OrgNotificationConfigService } from './org-notification-config.service';
 import { OrganisationNotificationConfig } from './organisation-notification-config.entity';
+import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
+
+// Mock SmtpEmailProvider
+const mockSendMail = jest.fn();
+jest.mock('./channels/smtp-email-provider', () => ({
+  SmtpEmailProvider: jest.fn().mockImplementation(() => ({
+    sendMail: mockSendMail,
+  })),
+}));
 
 describe('OrgNotificationConfigController', () => {
   let controller: OrgNotificationConfigController;
   let configService: Record<string, jest.Mock>;
+  let httpService: Record<string, jest.Mock>;
 
   const orgId = 'org-1';
 
@@ -23,14 +36,25 @@ describe('OrgNotificationConfigController', () => {
     organisation: {} as OrganisationNotificationConfig['organisation'],
   };
 
+  const mockReq = {
+    user: { userId: 'user-1', email: 'admin@example.com' },
+  } as unknown as AuthenticatedRequest;
+
   beforeEach(() => {
     configService = {
       getForOrg: jest.fn(),
       upsert: jest.fn(),
     };
 
+    httpService = {
+      post: jest.fn(),
+    };
+
+    mockSendMail.mockReset();
+
     controller = new OrgNotificationConfigController(
       configService as unknown as OrgNotificationConfigService,
+      httpService as unknown as HttpService,
     );
   });
 
@@ -84,6 +108,152 @@ describe('OrgNotificationConfigController', () => {
       });
       expect(result.smtpPassword).toBe('••••••••');
       expect(result.ntfyToken).toBe('••••••••');
+    });
+  });
+
+  describe('testEmail', () => {
+    it('should send a test email and return success', async () => {
+      configService.getForOrg.mockResolvedValue(mockConfig);
+      mockSendMail.mockResolvedValue(undefined);
+
+      const result = await controller.testEmail(orgId, mockReq);
+
+      expect(configService.getForOrg).toHaveBeenCalledWith(orgId);
+      expect(mockSendMail).toHaveBeenCalledWith({
+        to: 'admin@example.com',
+        subject: 'Signage — Test Email',
+        text: expect.stringContaining('test email'),
+      });
+      expect(result.message).toBe('Test email sent successfully.');
+    });
+
+    it('should throw 422 if SMTP is not configured', async () => {
+      configService.getForOrg.mockResolvedValue(null);
+
+      await expect(controller.testEmail(orgId, mockReq)).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+    });
+
+    it('should throw 422 if SMTP host is missing', async () => {
+      configService.getForOrg.mockResolvedValue({
+        ...mockConfig,
+        smtpHost: null,
+      });
+
+      await expect(controller.testEmail(orgId, mockReq)).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+    });
+
+    it('should throw 422 if sending fails', async () => {
+      configService.getForOrg.mockResolvedValue(mockConfig);
+      mockSendMail.mockRejectedValue(new Error('Connection refused'));
+
+      await expect(controller.testEmail(orgId, mockReq)).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+    });
+  });
+
+  describe('testNtfy', () => {
+    it('should send a test ntfy notification and return success', async () => {
+      configService.getForOrg.mockResolvedValue(mockConfig);
+      httpService.post.mockReturnValue(of({ status: 200, data: 'ok' }));
+
+      const result = await controller.testNtfy(orgId);
+
+      expect(configService.getForOrg).toHaveBeenCalledWith(orgId);
+      expect(httpService.post).toHaveBeenCalledWith(
+        'https://ntfy.sh/my-topic',
+        expect.stringContaining('test notification'),
+        {
+          headers: {
+            'Content-Type': 'text/plain',
+            Title: 'Signage — Test Notification',
+            Authorization: 'Bearer token123',
+          },
+        },
+      );
+      expect(result.message).toBe('Test notification sent successfully.');
+    });
+
+    it('should not include Authorization header if no token', async () => {
+      configService.getForOrg.mockResolvedValue({
+        ...mockConfig,
+        ntfyToken: null,
+      });
+      httpService.post.mockReturnValue(of({ status: 200, data: 'ok' }));
+
+      await controller.testNtfy(orgId);
+
+      expect(httpService.post).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        {
+          headers: {
+            'Content-Type': 'text/plain',
+            Title: 'Signage — Test Notification',
+          },
+        },
+      );
+    });
+
+    it('should throw 422 if ntfy is not configured', async () => {
+      configService.getForOrg.mockResolvedValue(null);
+
+      await expect(controller.testNtfy(orgId)).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+    });
+
+    it('should throw 422 if ntfy URL is missing', async () => {
+      configService.getForOrg.mockResolvedValue({
+        ...mockConfig,
+        ntfyUrl: null,
+      });
+
+      await expect(controller.testNtfy(orgId)).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+    });
+
+    it('should throw 422 if ntfy topic is missing', async () => {
+      configService.getForOrg.mockResolvedValue({
+        ...mockConfig,
+        ntfyTopic: null,
+      });
+
+      await expect(controller.testNtfy(orgId)).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+    });
+
+    it('should throw 422 if HTTP request fails', async () => {
+      configService.getForOrg.mockResolvedValue(mockConfig);
+      httpService.post.mockReturnValue(
+        throwError(() => new Error('Network error')),
+      );
+
+      await expect(controller.testNtfy(orgId)).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+    });
+
+    it('should strip trailing slashes from ntfy URL', async () => {
+      configService.getForOrg.mockResolvedValue({
+        ...mockConfig,
+        ntfyUrl: 'https://ntfy.sh///',
+      });
+      httpService.post.mockReturnValue(of({ status: 200, data: 'ok' }));
+
+      await controller.testNtfy(orgId);
+
+      expect(httpService.post).toHaveBeenCalledWith(
+        'https://ntfy.sh/my-topic',
+        expect.any(String),
+        expect.any(Object),
+      );
     });
   });
 });

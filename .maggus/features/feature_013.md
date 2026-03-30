@@ -334,7 +334,7 @@ Deliver a complete notification system so that users are alerted to important sy
 **Model:** —
 
 **Acceptance Criteria:**
-- [ ] Notification configuration section added to the Org Settings page (Org Admin only):
+- [x] Notification configuration section added to the Org Settings page (Org Admin only):
   - **SMTP section:**
     - Fields: Host, Port (number input), Username, Password (password input, shows "••••••••" if saved), From address, Secure (checkbox — enables TLS; unchecked = STARTTLS)
     - "Save SMTP Settings" button — calls `PATCH /api/organisations/:id/notification-config`
@@ -346,10 +346,10 @@ Deliver a complete notification system so that users are alerted to important sy
     - "Send test notification" button — calls `POST /api/organisations/:id/notification-config/test-ntfy` which sends a test ntfy push
   - Both sections show success/error toast on save
   - Both sections show current saved values on load (password shown as placeholder only)
-- [ ] Backend: add `POST /api/organisations/:id/notification-config/test-email` endpoint — sends a test email to the requesting user's address using the org's SMTP config; returns 200 on success, 422 with error details if SMTP config is incomplete or sending fails
-- [ ] Backend: add `POST /api/organisations/:id/notification-config/test-ntfy` endpoint — sends a test ntfy message; returns 200 on success, 422 on failure
-- [ ] Unit tests for both test endpoints (mock email provider and HTTP client)
-- [ ] Typecheck and lint pass
+- [x] Backend: add `POST /api/organisations/:id/notification-config/test-email` endpoint — sends a test email to the requesting user's address using the org's SMTP config; returns 200 on success, 422 with error details if SMTP config is incomplete or sending fails
+- [x] Backend: add `POST /api/organisations/:id/notification-config/test-ntfy` endpoint — sends a test ntfy message; returns 200 on success, 422 on failure
+- [x] Unit tests for both test endpoints (mock email provider and HTTP client)
+- [x] Typecheck and lint pass
 
 ---
 
