@@ -1,0 +1,144 @@
+import { Injectable, inject } from '@angular/core';
+import { HttpClient, HttpHeaders, HttpEventType } from '@angular/common/http';
+import { Observable, map, filter } from 'rxjs';
+import { Content, StorageInfo } from './content.model';
+
+export interface UploadProgress {
+  type: 'progress' | 'complete';
+  progress?: number;
+  content?: Content;
+}
+
+@Injectable({ providedIn: 'root' })
+export class ContentService {
+  private http = inject(HttpClient);
+
+  getAll(
+    orgId: string,
+    filters?: { type?: string; tags?: string },
+  ): Observable<Content[]> {
+    let url = '/api/content';
+    const params: string[] = [];
+    if (filters?.type) params.push(`type=${filters.type}`);
+    if (filters?.tags) params.push(`tags=${filters.tags}`);
+    if (params.length) url += '?' + params.join('&');
+    return this.http.get<Content[]>(url, {
+      headers: this.orgHeader(orgId),
+    });
+  }
+
+  getOne(orgId: string, id: string): Observable<Content> {
+    return this.http.get<Content>(`/api/content/${id}`, {
+      headers: this.orgHeader(orgId),
+    });
+  }
+
+  upload(
+    orgId: string,
+    file: File,
+    title: string,
+    description: string,
+    tags: string[],
+  ): Observable<UploadProgress> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('title', title);
+    if (description) formData.append('description', description);
+    if (tags.length) formData.append('tags', JSON.stringify(tags));
+
+    return this.http
+      .post<Content>('/api/content/upload', formData, {
+        headers: this.orgHeader(orgId),
+        reportProgress: true,
+        observe: 'events',
+      })
+      .pipe(
+        filter(
+          (event) =>
+            event.type === HttpEventType.UploadProgress ||
+            event.type === HttpEventType.Response,
+        ),
+        map((event) => {
+          if (event.type === HttpEventType.UploadProgress) {
+            return {
+              type: 'progress' as const,
+              progress: event.total
+                ? Math.round((event.loaded / event.total) * 100)
+                : 0,
+            };
+          }
+          return {
+            type: 'complete' as const,
+            content: (event as { body: Content }).body,
+          };
+        }),
+      );
+  }
+
+  updateMetadata(
+    orgId: string,
+    id: string,
+    dto: { title?: string; description?: string; tags?: string[] },
+  ): Observable<Content> {
+    return this.http.patch<Content>(`/api/content/${id}`, dto, {
+      headers: this.orgHeader(orgId),
+    });
+  }
+
+  delete(orgId: string, id: string): Observable<void> {
+    return this.http.delete<void>(`/api/content/${id}`, {
+      headers: this.orgHeader(orgId),
+    });
+  }
+
+  reUpload(orgId: string, id: string, file: File): Observable<UploadProgress> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return this.http
+      .post<Content>(`/api/content/${id}/reupload`, formData, {
+        headers: this.orgHeader(orgId),
+        reportProgress: true,
+        observe: 'events',
+      })
+      .pipe(
+        filter(
+          (event) =>
+            event.type === HttpEventType.UploadProgress ||
+            event.type === HttpEventType.Response,
+        ),
+        map((event) => {
+          if (event.type === HttpEventType.UploadProgress) {
+            return {
+              type: 'progress' as const,
+              progress: event.total
+                ? Math.round((event.loaded / event.total) * 100)
+                : 0,
+            };
+          }
+          return {
+            type: 'complete' as const,
+            content: (event as { body: Content }).body,
+          };
+        }),
+      );
+  }
+
+  getStorage(orgId: string): Observable<StorageInfo> {
+    return this.http.get<StorageInfo>(`/api/organisations/${orgId}/storage`, {
+      headers: this.orgHeader(orgId),
+    });
+  }
+
+  getOriginalUrl(id: string): string {
+    return `/api/content/${id}/file/original`;
+  }
+
+  getTranscodedUrl(id: string): string {
+    return `/api/content/${id}/file/transcoded`;
+  }
+
+  private orgHeader(orgId: string): HttpHeaders {
+    return new HttpHeaders({ 'X-Organisation-Id': orgId });
+  }
+}
