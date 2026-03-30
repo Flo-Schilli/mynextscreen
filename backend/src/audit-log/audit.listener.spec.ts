@@ -540,6 +540,165 @@ describe('AuditListener', () => {
     });
   });
 
+  // ── Bulk Content Events ──────────────────────────────────────────────
+
+  it('should map content.bulk_deleted to ContentBulkDeleted audit entry', () => {
+    const event = new AuditContentEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 5,
+      filename: 'old.mp4',
+    });
+
+    listener.handleContentBulkDeleted(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.ContentBulkDeleted,
+      resourceType: 'content',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 5, filename: 'old.mp4' },
+      organisation: null,
+    });
+  });
+
+  it('should map content.bulk_tagged to ContentBulkTagged audit entry', () => {
+    const event = new AuditContentEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 3,
+      tags: ['promo', 'summer'],
+    });
+
+    listener.handleContentBulkTagged(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.ContentBulkTagged,
+      resourceType: 'content',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 3, tags: ['promo', 'summer'] },
+      organisation: null,
+    });
+  });
+
+  it('should map content.bulk_untagged to ContentBulkUntagged audit entry', () => {
+    const event = new AuditContentEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 4,
+      tags: ['outdated'],
+    });
+
+    listener.handleContentBulkUntagged(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.ContentBulkUntagged,
+      resourceType: 'content',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 4, tags: ['outdated'] },
+      organisation: null,
+    });
+  });
+
+  it('should map content.bulk_added_to_playlist to ContentBulkAddedToPlaylist audit entry', () => {
+    const playlistId = '880e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditContentEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 10,
+      playlistId,
+    });
+
+    listener.handleContentBulkAddedToPlaylist(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.ContentBulkAddedToPlaylist,
+      resourceType: 'content',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 10, playlistId },
+      organisation: null,
+    });
+  });
+
+  // ── Bulk Screen Events ──────────────────────────────────────────────
+
+  it('should map screen.bulk_deleted to ScreenBulkDeleted audit entry', () => {
+    const event = new AuditScreenEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 8,
+    });
+
+    listener.handleScreenBulkDeleted(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.ScreenBulkDeleted,
+      resourceType: 'screen',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 8 },
+      organisation: null,
+    });
+  });
+
+  it('should map screen.bulk_group_assigned to ScreenBulkGroupAssigned audit entry', () => {
+    const groupId = '880e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditScreenEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 6,
+      groupId,
+    });
+
+    listener.handleScreenBulkGroupAssigned(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.ScreenBulkGroupAssigned,
+      resourceType: 'screen',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 6, groupId },
+      organisation: null,
+    });
+  });
+
+  // ── Bulk Playlist Events ────────────────────────────────────────────
+
+  it('should map playlist.bulk_deleted to PlaylistBulkDeleted audit entry', () => {
+    const event = new AuditPlaylistEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 3,
+    });
+
+    listener.handlePlaylistBulkDeleted(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.PlaylistBulkDeleted,
+      resourceType: 'playlist',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 3 },
+      organisation: null,
+    });
+  });
+
+  it('should map playlist.bulk_screen_assigned to PlaylistBulkScreenAssigned audit entry', () => {
+    const screenId = '880e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditPlaylistEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 5,
+      screenId,
+    });
+
+    listener.handlePlaylistBulkScreenAssigned(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.PlaylistBulkScreenAssigned,
+      resourceType: 'playlist',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 5, screenId },
+      organisation: null,
+    });
+  });
+
   // ── Error Handling ─────────────────────────────────────────────────────
 
   it('should not throw when record() rejects (fire-and-forget)', () => {
