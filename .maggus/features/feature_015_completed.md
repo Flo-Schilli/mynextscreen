@@ -97,16 +97,16 @@ Provide a global search input in the top bar that lets users quickly find screen
 **Parallel:** no
 
 **Acceptance Criteria:**
-- [ ] Results dropdown appears below the search input when results are available
-- [ ] Results are grouped into sections with headings: "Screens", "Content", "Playlists", "Schedules"
-- [ ] Sections with zero results are hidden entirely
-- [ ] Each result item displays the entity's `label`; a subtle secondary line may show additional context (e.g. screen location, content type) if available
-- [ ] Clicking a result item navigates to the entity's `url` and closes the dropdown
-- [ ] Keyboard navigation: `ArrowDown` / `ArrowUp` moves focus between items; `Enter` activates the focused item
-- [ ] "No results found" empty state is shown when all four arrays are empty
-- [ ] Clicking outside the dropdown closes it
-- [ ] Dropdown is dismissed when navigation occurs (route change)
-- [ ] Typecheck and lint pass
+- [x] Results dropdown appears below the search input when results are available
+- [x] Results are grouped into sections with headings: "Screens", "Content", "Playlists", "Schedules"
+- [x] Sections with zero results are hidden entirely
+- [x] Each result item displays the entity's `label`; a subtle secondary line may show additional context (e.g. screen location, content type) if available
+- [x] Clicking a result item navigates to the entity's `url` and closes the dropdown
+- [x] Keyboard navigation: `ArrowDown` / `ArrowUp` moves focus between items; `Enter` activates the focused item
+- [x] "No results found" empty state is shown when all four arrays are empty
+- [x] Clicking outside the dropdown closes it
+- [x] Dropdown is dismissed when navigation occurs (route change)
+- [x] Typecheck and lint pass
 
 ## Task Dependency Graph
 
