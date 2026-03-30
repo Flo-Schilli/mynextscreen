@@ -89,16 +89,16 @@ Allow users to select multiple items at once on the Screens, Content Library, an
 **Parallel:** yes — can run alongside TASK-016-001, TASK-016-002, TASK-016-003
 
 **Acceptance Criteria:**
-- [ ] `POST /api/content/bulk-delete` — body: `{ ids: string[] }` — deletes specified content items; also removes associated files; returns `{ deleted: number, notFound: string[] }`
-- [ ] `POST /api/content/bulk-tag` — body: `{ ids: string[], tags: string[] }` — adds the given tags to all specified content items (additive, does not remove existing tags); returns `{ updated: number, notFound: string[] }`
-- [ ] `POST /api/content/bulk-untag` — body: `{ ids: string[], tags: string[] }` — removes the given tags from all specified content items; returns `{ updated: number, notFound: string[] }`
-- [ ] `POST /api/content/bulk-add-to-playlist` — body: `{ ids: string[], playlistId: string }` — appends all specified content items to the given playlist (in order of selection, deduplicating items already in the playlist); returns `{ added: number, alreadyPresent: number, notFound: string[] }`
-- [ ] All endpoints scoped to `organisationId`; 400 on foreign IDs
-- [ ] Guarded by JWT auth; viewer role cannot bulk-delete (must be Org Admin or Editor)
-- [ ] Each affected content item produces an individual audit log event
-- [ ] Input validation DTOs; `ids` non-empty array, max 200 items
-- [ ] Unit tests covering auth, org scoping, deduplication in add-to-playlist, and tag operations
-- [ ] Typecheck and lint pass
+- [x] `POST /api/content/bulk-delete` — body: `{ ids: string[] }` — deletes specified content items; also removes associated files; returns `{ deleted: number, notFound: string[] }`
+- [x] `POST /api/content/bulk-tag` — body: `{ ids: string[], tags: string[] }` — adds the given tags to all specified content items (additive, does not remove existing tags); returns `{ updated: number, notFound: string[] }`
+- [x] `POST /api/content/bulk-untag` — body: `{ ids: string[], tags: string[] }` — removes the given tags from all specified content items; returns `{ updated: number, notFound: string[] }`
+- [x] `POST /api/content/bulk-add-to-playlist` — body: `{ ids: string[], playlistId: string }` — appends all specified content items to the given playlist (in order of selection, deduplicating items already in the playlist); returns `{ added: number, alreadyPresent: number, notFound: string[] }`
+- [x] All endpoints scoped to `organisationId`; 400 on foreign IDs
+- [x] Guarded by JWT auth; viewer role cannot bulk-delete (must be Org Admin or Editor)
+- [x] Each affected content item produces an individual audit log event
+- [x] Input validation DTOs; `ids` non-empty array, max 200 items
+- [x] Unit tests covering auth, org scoping, deduplication in add-to-playlist, and tag operations
+- [x] Typecheck and lint pass
 
 ### TASK-016-005: Backend Bulk Endpoints — Playlists
 **Description:** As a backend developer, I want bulk operation endpoints for playlists so that the frontend can execute multi-item actions in a single API call.

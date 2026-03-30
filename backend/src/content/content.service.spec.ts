@@ -7,7 +7,10 @@ import { ContentService } from './content.service';
 import { Content } from './content.entity';
 import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
+import { Playlist } from '../playlist/playlist.entity';
+import { PlaylistItem } from '../playlist/playlist-item.entity';
 import { StorageService } from '../organisation/storage.service';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 jest.mock('fs/promises', () => ({
   mkdir: jest.fn().mockResolvedValue(undefined),
@@ -68,9 +71,12 @@ describe('ContentService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
+      imports: [EventEmitterModule.forRoot()],
       providers: [
         ContentService,
         { provide: getRepositoryToken(Content), useValue: contentRepo },
+        { provide: getRepositoryToken(Playlist), useValue: {} },
+        { provide: getRepositoryToken(PlaylistItem), useValue: {} },
         { provide: StorageService, useValue: storageService },
         { provide: getQueueToken('transcoding'), useValue: queue },
         {
