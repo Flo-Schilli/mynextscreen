@@ -6,6 +6,10 @@ import {
   AUDIT_CONTENT_UPLOADED,
   AUDIT_CONTENT_DELETED,
   AUDIT_CONTENT_REUPLOADED,
+  AUDIT_CONTENT_BULK_DELETED,
+  AUDIT_CONTENT_BULK_TAGGED,
+  AUDIT_CONTENT_BULK_UNTAGGED,
+  AUDIT_CONTENT_BULK_ADDED_TO_PLAYLIST,
   AuditContentEvent,
   AUDIT_PLAYLIST_CREATED,
   AUDIT_PLAYLIST_UPDATED,
@@ -82,6 +86,54 @@ export class AuditListener {
   handleContentReuploaded(event: AuditContentEvent): void {
     this.record(
       AuditAction.ContentReupload,
+      'content',
+      event.contentId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_CONTENT_BULK_DELETED, { async: true })
+  handleContentBulkDeleted(event: AuditContentEvent): void {
+    this.record(
+      AuditAction.ContentBulkDeleted,
+      'content',
+      event.contentId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_CONTENT_BULK_TAGGED, { async: true })
+  handleContentBulkTagged(event: AuditContentEvent): void {
+    this.record(
+      AuditAction.ContentBulkTagged,
+      'content',
+      event.contentId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_CONTENT_BULK_UNTAGGED, { async: true })
+  handleContentBulkUntagged(event: AuditContentEvent): void {
+    this.record(
+      AuditAction.ContentBulkUntagged,
+      'content',
+      event.contentId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_CONTENT_BULK_ADDED_TO_PLAYLIST, { async: true })
+  handleContentBulkAddedToPlaylist(event: AuditContentEvent): void {
+    this.record(
+      AuditAction.ContentBulkAddedToPlaylist,
       'content',
       event.contentId,
       event.organisationId,

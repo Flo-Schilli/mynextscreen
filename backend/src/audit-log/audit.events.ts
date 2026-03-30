@@ -5,6 +5,11 @@
 export const AUDIT_CONTENT_UPLOADED = 'audit.content.uploaded';
 export const AUDIT_CONTENT_DELETED = 'audit.content.deleted';
 export const AUDIT_CONTENT_REUPLOADED = 'audit.content.reuploaded';
+export const AUDIT_CONTENT_BULK_DELETED = 'audit.content.bulk_deleted';
+export const AUDIT_CONTENT_BULK_TAGGED = 'audit.content.bulk_tagged';
+export const AUDIT_CONTENT_BULK_UNTAGGED = 'audit.content.bulk_untagged';
+export const AUDIT_CONTENT_BULK_ADDED_TO_PLAYLIST =
+  'audit.content.bulk_added_to_playlist';
 
 export class AuditContentEvent {
   constructor(

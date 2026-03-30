@@ -6,7 +6,10 @@ export { ContentService } from './content.service';
 export { ContentController } from './content.controller';
 export { getOriginalPath, getTranscodedPath } from './content-storage.util';
 export { UploadContentDto, UpdateContentDto } from './dto';
-export { TranscodingProcessor, TranscodeJobData } from './transcoding.processor';
+export {
+  TranscodingProcessor,
+  TranscodeJobData,
+} from './transcoding.processor';
 export {
   parseDuration,
   parseProgressTime,
