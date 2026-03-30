@@ -25,6 +25,10 @@ export const routes: Routes = [
         loadComponent: () => import('./settings/users/users').then(m => m.Users),
       },
       {
+        path: 'settings/org/notifications',
+        loadComponent: () => import('./settings/org/org-notification-config').then(m => m.OrgNotificationConfig),
+      },
+      {
         path: 'screens',
         loadComponent: () => import('./screens/screens').then(m => m.Screens),
       },
