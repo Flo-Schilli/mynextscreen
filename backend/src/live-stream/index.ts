@@ -9,3 +9,10 @@ export {
   LIVE_STREAM_PROCESS_EXITED,
   LiveStreamProcessExitedEvent,
 } from './ffmpeg-live.service';
+export { StreamHealthService } from './stream-health.service';
+export type { StreamHealthState } from './stream-health.service';
+export {
+  LIVE_STREAM_HEALTH_CHANGED,
+  LiveStreamHealthChangedEvent,
+} from './stream-health.event';
+export type { StreamHealthStatus } from './stream-health.event';

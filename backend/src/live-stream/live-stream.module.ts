@@ -5,6 +5,7 @@ import { LiveStreamActivation } from './live-stream-activation.entity';
 import { LiveStreamService } from './live-stream.service';
 import { LiveStreamController } from './live-stream.controller';
 import { FfmpegLiveService } from './ffmpeg-live.service';
+import { StreamHealthService } from './stream-health.service';
 import { Screen } from '../screen/screen.entity';
 import { ScreenGroupModule } from '../screen-group/screen-group.module';
 
@@ -14,7 +15,12 @@ import { ScreenGroupModule } from '../screen-group/screen-group.module';
     ScreenGroupModule,
   ],
   controllers: [LiveStreamController],
-  providers: [LiveStreamService, FfmpegLiveService],
-  exports: [LiveStreamService, FfmpegLiveService, TypeOrmModule],
+  providers: [LiveStreamService, FfmpegLiveService, StreamHealthService],
+  exports: [
+    LiveStreamService,
+    FfmpegLiveService,
+    StreamHealthService,
+    TypeOrmModule,
+  ],
 })
 export class LiveStreamModule {}

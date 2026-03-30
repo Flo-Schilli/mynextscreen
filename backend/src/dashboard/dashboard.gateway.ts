@@ -25,6 +25,10 @@ import {
   SCHEDULE_ENTRY_CHANGED,
   ScheduleEntryChangedEvent,
 } from '../schedule/schedule.event';
+import {
+  LIVE_STREAM_HEALTH_CHANGED,
+  LiveStreamHealthChangedEvent,
+} from '../live-stream/stream-health.event';
 
 export interface DashboardEventPayload {
   type: string;
@@ -154,6 +158,16 @@ export class DashboardGateway
   handleScheduleChanged(event: ScheduleEntryChangedEvent): void {
     this.emitToOrg(event.organisationId, 'schedule.updated', {
       screenId: event.screenId,
+    });
+  }
+
+  @OnEvent(LIVE_STREAM_HEALTH_CHANGED)
+  handleLiveStreamHealthChanged(event: LiveStreamHealthChangedEvent): void {
+    this.emitToOrg(event.organisationId, 'live-stream-health', {
+      streamId: event.streamId,
+      streamName: event.streamName,
+      health: event.health,
+      checkedAt: event.checkedAt,
     });
   }
 }
