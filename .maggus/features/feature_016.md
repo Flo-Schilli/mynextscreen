@@ -165,15 +165,15 @@ Allow users to select multiple items at once on the Screens, Content Library, an
 **Parallel:** yes — can run alongside TASK-016-007, TASK-016-009
 
 **Acceptance Criteria:**
-- [ ] `ContentLibraryComponent` (grid layout) provides `SelectionService` at component level
-- [ ] Each content card includes a `SelectionCheckboxComponent` overlaid in the top-left corner (only fully visible on hover or when any item is selected); a "select all" checkbox/button above the grid
-- [ ] `BulkActionToolbarComponent` is embedded with actions: "Delete selected" (danger), "Add tags" (default), "Remove tags" (default), "Add to playlist" (default)
-- [ ] "Delete selected" opens a confirmation dialog; on success shows toast "X item(s) deleted" and refreshes the grid
-- [ ] "Add tags" / "Remove tags" opens a tag-entry modal (tag input field, existing tag suggestions if available); calls the appropriate bulk endpoint; on success shows toast
-- [ ] "Add to playlist" opens a playlist picker modal (list of the org's playlists with radio or single-select); calls `POST /api/content/bulk-add-to-playlist`; on success shows "X item(s) added to [playlist name]" toast
-- [ ] If response contains `alreadyPresent > 0`, add a note to the success toast: "(X were already in the playlist)"
-- [ ] `notFound` handling: non-blocking warning as in TASK-016-007
-- [ ] Typecheck and lint pass
+- [x] `ContentLibraryComponent` (grid layout) provides `SelectionService` at component level
+- [x] Each content card includes a `SelectionCheckboxComponent` overlaid in the top-left corner (only fully visible on hover or when any item is selected); a "select all" checkbox/button above the grid
+- [x] `BulkActionToolbarComponent` is embedded with actions: "Delete selected" (danger), "Add tags" (default), "Remove tags" (default), "Add to playlist" (default)
+- [x] "Delete selected" opens a confirmation dialog; on success shows toast "X item(s) deleted" and refreshes the grid
+- [x] "Add tags" / "Remove tags" opens a tag-entry modal (tag input field, existing tag suggestions if available); calls the appropriate bulk endpoint; on success shows toast
+- [x] "Add to playlist" opens a playlist picker modal (list of the org's playlists with radio or single-select); calls `POST /api/content/bulk-add-to-playlist`; on success shows "X item(s) added to [playlist name]" toast
+- [x] If response contains `alreadyPresent > 0`, add a note to the success toast: "(X were already in the playlist)"
+- [x] `notFound` handling: non-blocking warning as in TASK-016-007
+- [x] Typecheck and lint pass
 
 ### TASK-016-009: Integrate Bulk Operations into Playlists List
 **Description:** As an Org Admin or Editor, I want to select multiple playlists and perform bulk actions (delete, assign to screen) so that I can manage scheduling at scale.
