@@ -209,7 +209,7 @@ Deliver a complete notification system so that users are alerted to important sy
 **Model:** —
 
 **Acceptance Criteria:**
-- [ ] `NtfyNotificationChannel` service:
+- [x] `NtfyNotificationChannel` service:
   - On `send(orgId, notification)`:
     1. Load org notification config — if `ntfyUrl` or `ntfyTopic` is missing, skip silently
     2. HTTP POST to `{ntfyUrl}/{ntfyTopic}` with:
@@ -219,9 +219,9 @@ Deliver a complete notification system so that users are alerted to important sy
        - Body: `notification.message`
     3. Use NestJS `HttpModule` (`@nestjs/axios`) for the HTTP call
     4. Non-2xx responses are logged as warnings but do not throw
-- [ ] `HttpModule` (from `@nestjs/axios`) imported in `NotificationModule` if not already present
-- [ ] Unit tests for `NtfyNotificationChannel`: mock HTTP client, verify correct URL construction, headers, and body; verify missing config skips gracefully
-- [ ] Typecheck and lint pass
+- [x] `HttpModule` (from `@nestjs/axios`) imported in `NotificationModule` if not already present
+- [x] Unit tests for `NtfyNotificationChannel`: mock HTTP client, verify correct URL construction, headers, and body; verify missing config skips gracefully
+- [x] Typecheck and lint pass
 
 ---
 
