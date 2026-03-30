@@ -11,7 +11,8 @@ import { NotificationPreferencesController } from './notification-preferences.co
 import { OrgNotificationConfigController } from './org-notification-config.controller';
 import { NotificationController } from './notification.controller';
 import { InAppNotificationChannel } from './channels/in-app-notification-channel.service';
-import { IN_APP_CHANNEL } from './channels';
+import { EmailNotificationChannel } from './channels/email-notification-channel.service';
+import { IN_APP_CHANNEL, EMAIL_CHANNEL } from './channels';
 import { UserModule } from '../user/user.module';
 import { DashboardModule } from '../dashboard/dashboard.module';
 
@@ -39,6 +40,11 @@ import { DashboardModule } from '../dashboard/dashboard.module';
     {
       provide: IN_APP_CHANNEL,
       useExisting: InAppNotificationChannel,
+    },
+    EmailNotificationChannel,
+    {
+      provide: EMAIL_CHANNEL,
+      useExisting: EmailNotificationChannel,
     },
   ],
   exports: [
