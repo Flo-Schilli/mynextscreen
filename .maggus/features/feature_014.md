@@ -77,21 +77,21 @@ Live Streams allow an Org Admin or Editor to configure stream sources (RTMP or R
 **Model:** opus
 
 **Acceptance Criteria:**
-- [ ] `FfmpegLiveService` (within `LiveStreamModule`) that manages FFmpeg child processes:
+- [x] `FfmpegLiveService` (within `LiveStreamModule`) that manages FFmpeg child processes:
   - `start(stream: LiveStream): Promise<void>` — spawns an FFmpeg child process that ingests from `sourceUrl` (RTMP or RTP) and outputs HLS segments to `<hlsOutputDir>/<streamId>/index.m3u8`
   - `stop(streamId: string): Promise<void>` — terminates the FFmpeg child process for the given stream
   - `isRunning(streamId: string): boolean` — returns whether a process is currently running
   - Internal map `Map<string, ChildProcess>` tracks running processes keyed by stream ID
-- [ ] FFmpeg command construction:
+- [x] FFmpeg command construction:
   - RTMP source: `ffmpeg -i rtmp://<url> -c:v libx264 -preset ultrafast -tune zerolatency -c:a aac -f hls -hls_time 2 -hls_list_size 5 -hls_flags delete_segments+append_list <outputPath>`
   - RTP source: same output flags; input uses `-protocol_whitelist file,rtp,udp -i <sdpFileOrUrl>`
   - HLS segment duration: 2 seconds; playlist size: 5 segments (low-latency tuning)
   - HLS output directory created if not existing; segments cleaned up on stop
-- [ ] HLS output served via a static HTTP route: `GET /api/live-streams/:id/hls/index.m3u8` and `GET /api/live-streams/:id/hls/:segment` — served from the output directory using NestJS static file serving or `res.sendFile`
-- [ ] FFmpeg stderr captured to structured logs (log level `verbose` in development, `error` in production); do not surface raw FFmpeg output to API consumers
-- [ ] If FFmpeg process exits with a non-zero code before being explicitly stopped, the exit is treated as an unplanned source disconnect (see TASK-014-005 for fallback logic)
-- [ ] Unit tests for `FfmpegLiveService`: mock child process, verify start/stop/isRunning behaviour, verify command construction for RTMP and RTP protocols
-- [ ] Typecheck and lint pass
+- [x] HLS output served via a static HTTP route: `GET /api/live-streams/:id/hls/index.m3u8` and `GET /api/live-streams/:id/hls/:segment` — served from the output directory using NestJS static file serving or `res.sendFile`
+- [x] FFmpeg stderr captured to structured logs (log level `verbose` in development, `error` in production); do not surface raw FFmpeg output to API consumers
+- [x] If FFmpeg process exits with a non-zero code before being explicitly stopped, the exit is treated as an unplanned source disconnect (see TASK-014-005 for fallback logic)
+- [x] Unit tests for `FfmpegLiveService`: mock child process, verify start/stop/isRunning behaviour, verify command construction for RTMP and RTP protocols
+- [x] Typecheck and lint pass
 
 ---
 
