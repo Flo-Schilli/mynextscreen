@@ -2,6 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpEventType } from '@angular/common/http';
 import { Observable, map, filter } from 'rxjs';
 import { Content, StorageInfo } from './content.model';
+import { AuthService } from '../auth/auth.service';
+import { OrganisationStateService } from '../shell/organisation-state.service';
 
 export interface UploadProgress {
   type: 'progress' | 'complete';
@@ -12,6 +14,8 @@ export interface UploadProgress {
 @Injectable({ providedIn: 'root' })
 export class ContentService {
   private http = inject(HttpClient);
+  private authService = inject(AuthService);
+  private orgState = inject(OrganisationStateService);
 
   getAll(
     orgId: string,
@@ -155,11 +159,24 @@ export class ContentService {
   }
 
   getOriginalUrl(id: string): string {
-    return `/api/content/${id}/file/original`;
+    return this.buildMediaUrl(`/api/content/${id}/file/original`);
   }
 
   getTranscodedUrl(id: string): string {
-    return `/api/content/${id}/file/transcoded`;
+    return this.buildMediaUrl(`/api/content/${id}/file/transcoded`);
+  }
+
+  private buildMediaUrl(base: string): string {
+    const params = new URLSearchParams();
+    const token = this.authService.getToken();
+    if (token) {
+      params.set('token', token);
+    }
+    const orgId = this.orgState.selectedOrgId();
+    if (orgId) {
+      params.set('organisationId', orgId);
+    }
+    return `${base}?${params.toString()}`;
   }
 
   private orgHeader(orgId: string): HttpHeaders {

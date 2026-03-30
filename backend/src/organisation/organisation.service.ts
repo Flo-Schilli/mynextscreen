@@ -8,7 +8,11 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { Organisation } from './organisation.entity';
 import { Playlist } from '../playlist/playlist.entity';
+import { User } from '../user/user.entity';
+import { UserOrganisationMembership } from '../user/user-organisation-membership.entity';
+import { OrganisationRole } from '../user/organisation-role.enum';
 import { CreateOrganisationDto, UpdateOrganisationDto } from './dto';
+import { AuthenticatedUser } from '../auth/jwt-auth.guard';
 import {
   AUDIT_ORGANISATION_CREATED,
   AUDIT_ORGANISATION_UPDATED,
@@ -22,16 +26,44 @@ export class OrganisationService {
     private readonly organisationRepository: Repository<Organisation>,
     @InjectRepository(Playlist)
     private readonly playlistRepository: Repository<Playlist>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(UserOrganisationMembership)
+    private readonly membershipRepository: Repository<UserOrganisationMembership>,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async create(dto: CreateOrganisationDto): Promise<Organisation> {
+  async create(
+    dto: CreateOrganisationDto,
+    creator?: AuthenticatedUser,
+  ): Promise<Organisation> {
     const organisation = this.organisationRepository.create(dto);
     const saved = await this.organisationRepository.save(organisation);
     this.eventEmitter.emit(
       AUDIT_ORGANISATION_CREATED,
       new AuditOrganisationEvent(saved.id, null, { name: dto.name }),
     );
+
+    // Auto-add the creator as OrgAdmin
+    if (creator) {
+      let user = await this.userRepository.findOne({
+        where: { id: creator.userId },
+      });
+      if (!user) {
+        user = this.userRepository.create({
+          id: creator.userId,
+          email: creator.email,
+        });
+        user = await this.userRepository.save(user);
+      }
+      const membership = this.membershipRepository.create({
+        userId: creator.userId,
+        organisationId: saved.id,
+        role: OrganisationRole.OrgAdmin,
+      });
+      await this.membershipRepository.save(membership);
+    }
+
     return saved;
   }
 
