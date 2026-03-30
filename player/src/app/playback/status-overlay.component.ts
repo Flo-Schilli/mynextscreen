@@ -34,6 +34,12 @@ const AUTO_HIDE_MS = 5_000;
           <span class="status-label">Status</span>
           <span [class]="statusClass()">{{ connectionStatus() }}</span>
         </div>
+        @if (streamHealthLabel()) {
+          <div class="status-row">
+            <span class="status-label">Stream</span>
+            <span [class]="streamHealthClass()">{{ streamHealthLabel() }}</span>
+          </div>
+        }
         @if (groupInfo()) {
           <div class="status-row">
             <span class="status-label">Group</span>
@@ -84,6 +90,18 @@ const AUTO_HIDE_MS = 5_000;
       }
 
       .status-disconnected {
+        color: #f87171;
+      }
+
+      .stream-healthy {
+        color: #4ade80;
+      }
+
+      .stream-degraded {
+        color: #fbbf24;
+      }
+
+      .stream-stopped {
         color: #f87171;
       }
 
@@ -146,6 +164,33 @@ export class StatusOverlayComponent implements OnInit, OnDestroy {
         return 'status-reconnecting';
       default:
         return 'status-disconnected';
+    }
+  });
+
+  readonly streamHealthLabel = computed((): string => {
+    const health = this.playbackState.streamHealth();
+    if (!health) return '';
+    switch (health) {
+      case 'healthy':
+        return 'Healthy';
+      case 'degraded':
+        return 'Degraded';
+      case 'stopped':
+        return 'Stopped';
+    }
+  });
+
+  readonly streamHealthClass = computed((): string => {
+    const health = this.playbackState.streamHealth();
+    switch (health) {
+      case 'healthy':
+        return 'stream-healthy';
+      case 'degraded':
+        return 'stream-degraded';
+      case 'stopped':
+        return 'stream-stopped';
+      default:
+        return '';
     }
   });
 

@@ -14,6 +14,7 @@ import { PlayerService } from '../player/player.service';
 import { ConnectionService } from '../connection/connection.service';
 import { PlaylistItem } from '../player/player.models';
 import { PlaybackStateService } from './playback-state.service';
+import { HlsService } from './hls.service';
 import { StatusOverlayComponent } from './status-overlay.component';
 
 @Component({
@@ -21,7 +22,34 @@ import { StatusOverlayComponent } from './status-overlay.component';
   imports: [StatusOverlayComponent],
   template: `
     <div class="playback-container">
-      @if (noContent()) {
+      @if (isLiveStreaming()) {
+        <div class="content-layer content-visible">
+          @if (hlsError()) {
+            <div class="no-content">
+              <p class="text-red-400 text-lg">Live stream unavailable</p>
+            </div>
+          } @else {
+            <video
+              #hlsVideo
+              class="content-media"
+              autoplay
+              muted
+              playsinline
+            ></video>
+          }
+        </div>
+
+        @if (isMuted()) {
+          <button
+            class="unmute-overlay"
+            (click)="unmuteHls()"
+            (keydown.enter)="unmuteHls()"
+          >
+            <span class="unmute-icon">🔇</span>
+            <span class="text-sm">Click to unmute</span>
+          </button>
+        }
+      } @else if (noContent()) {
         <div class="no-content">
           <p class="text-text-muted text-lg">No content scheduled</p>
         </div>
@@ -162,19 +190,27 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   private readonly playerService = inject(PlayerService);
   private readonly connectionService = inject(ConnectionService);
   private readonly playbackState = inject(PlaybackStateService);
+  private readonly hlsService = inject(HlsService);
   private readonly zone = inject(NgZone);
 
   private readonly currentVideo = viewChild<ElementRef<HTMLVideoElement>>('currentVideo');
+  private readonly hlsVideo = viewChild<ElementRef<HTMLVideoElement>>('hlsVideo');
 
   private readonly _currentIndex = signal(0);
   private readonly _showCurrent = signal(true);
   private readonly _isMuted = signal(true);
+  private readonly _hlsError = signal(false);
 
   private advanceTimer: ReturnType<typeof setTimeout> | null = null;
+  private hlsFallbackTimer: ReturnType<typeof setTimeout> | null = null;
   private destroyed = false;
+  private currentHlsStreamId: string | null = null;
 
   readonly showCurrent = this._showCurrent.asReadonly();
   readonly isMuted = this._isMuted.asReadonly();
+  readonly hlsError = this._hlsError.asReadonly();
+
+  readonly isLiveStreaming = computed(() => this.playerService.isLiveStreaming());
 
   readonly items = computed(() => {
     const playlist = this.playerService.activePlaylist();
@@ -225,6 +261,16 @@ export class PlaybackComponent implements OnInit, OnDestroy {
       this.playbackState.setCurrentIndex(this._currentIndex());
       this.playbackState.setTotalItems(this.items().length);
     });
+
+    // React to live stream changes — attach/detach HLS
+    effect(() => {
+      const liveStream = this.playerService.activeLiveStream();
+      if (liveStream && liveStream.id) {
+        this.startHls(liveStream.id);
+      } else {
+        this.stopHls();
+      }
+    });
   }
 
   ngOnInit(): void {
@@ -234,6 +280,8 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroyed = true;
     this.clearAdvanceTimer();
+    this.clearHlsFallbackTimer();
+    this.hlsService.destroy();
     this.playerService.disconnect();
   }
 
@@ -258,6 +306,68 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     const videoEl = this.currentVideo()?.nativeElement;
     if (videoEl) {
       videoEl.muted = false;
+    }
+  }
+
+  unmuteHls(): void {
+    this._isMuted.set(false);
+    const videoEl = this.hlsVideo()?.nativeElement;
+    if (videoEl) {
+      videoEl.muted = false;
+    }
+  }
+
+  private startHls(streamId: string): void {
+    if (this.currentHlsStreamId === streamId) return;
+    this.currentHlsStreamId = streamId;
+    this._hlsError.set(false);
+    this._isMuted.set(true);
+    this.clearHlsFallbackTimer();
+
+    // Wait for the template to render the video element
+    setTimeout(() => {
+      if (this.destroyed) return;
+      const videoEl = this.hlsVideo()?.nativeElement;
+      if (videoEl) {
+        this.hlsService.attach(videoEl, streamId);
+        this.monitorHlsHealth();
+      } else {
+        this._hlsError.set(true);
+      }
+    }, 0);
+  }
+
+  private stopHls(): void {
+    this.currentHlsStreamId = null;
+    this.clearHlsFallbackTimer();
+    this.hlsService.destroy();
+    this._hlsError.set(false);
+  }
+
+  private monitorHlsHealth(): void {
+    this.clearHlsFallbackTimer();
+
+    // If stream health becomes 'stopped', show error after a short grace period
+    const checkHealth = () => {
+      if (this.destroyed || !this.isLiveStreaming()) return;
+      const health = this.playbackState.streamHealth();
+      if (health === 'stopped') {
+        this.zone.run(() => {
+          this._hlsError.set(true);
+          this.hlsService.destroy();
+        });
+      } else {
+        this.hlsFallbackTimer = setTimeout(checkHealth, 2000);
+      }
+    };
+
+    this.hlsFallbackTimer = setTimeout(checkHealth, 2000);
+  }
+
+  private clearHlsFallbackTimer(): void {
+    if (this.hlsFallbackTimer !== null) {
+      clearTimeout(this.hlsFallbackTimer);
+      this.hlsFallbackTimer = null;
     }
   }
 

@@ -10,7 +10,6 @@ import {
   LiveStream,
   ScreenInfo,
   ScheduleEntry,
-  LiveStreamStartEvent,
   GroupPlayEvent,
   PendingEvent,
 } from './player.models';
@@ -127,15 +126,10 @@ export class PlayerService implements OnDestroy {
         this.fetchState().catch(() => undefined);
         break;
 
-      case 'live_stream_start': {
-        const data = event.data as unknown as LiveStreamStartEvent;
-        this._activeLiveStream.set({
-          id: '',
-          streamUrl: data.streamUrl,
-          startedAt: event.timestamp,
-        });
+      case 'live_stream_start':
+        // Refetch full state to get the live stream ID needed for HLS URL construction
+        this.fetchState().catch(() => undefined);
         break;
-      }
 
       case 'live_stream_stop':
         this._activeLiveStream.set(null);
