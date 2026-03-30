@@ -20,6 +20,8 @@ import {
   AUDIT_SCREEN_KEY_REGENERATED,
   AUDIT_SCREEN_ONLINE,
   AUDIT_SCREEN_OFFLINE,
+  AUDIT_SCREEN_BULK_DELETED,
+  AUDIT_SCREEN_BULK_GROUP_ASSIGNED,
   AuditScreenEvent,
   AUDIT_USER_INVITED,
   AUDIT_USER_ROLE_CHANGED,
@@ -222,6 +224,30 @@ export class AuditListener {
       event.screenId,
       event.organisationId,
       null,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_SCREEN_BULK_DELETED, { async: true })
+  handleScreenBulkDeleted(event: AuditScreenEvent): void {
+    this.record(
+      AuditAction.ScreenBulkDeleted,
+      'screen',
+      event.screenId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_SCREEN_BULK_GROUP_ASSIGNED, { async: true })
+  handleScreenBulkGroupAssigned(event: AuditScreenEvent): void {
+    this.record(
+      AuditAction.ScreenBulkGroupAssigned,
+      'screen',
+      event.screenId,
+      event.organisationId,
+      event.userId,
       event.details,
     );
   }
