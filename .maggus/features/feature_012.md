@@ -64,14 +64,14 @@ This feature completes the core playback model described in VISION.md and unlock
 **Parallel:** yes — can run alongside TASK-012-003
 
 **Acceptance Criteria:**
-- [ ] `ScreenGroupModule` registered in `AppModule`.
-- [ ] `ScreenGroupService` implements `create`, `findAll`, `findOne`, `update`, `remove`, all scoped by `organisationId`.
-- [ ] `ScreenGroupController` exposes: `POST /screen-groups`, `GET /screen-groups`, `GET /screen-groups/:id`, `PATCH /screen-groups/:id`, `DELETE /screen-groups/:id`.
-- [ ] Create and update DTOs validate: `name` (non-empty string), `mode` (enum), `gridColumns` / `gridRows` (positive integers, required when `mode=split`), grid dimensions not required when `mode=mirror`.
-- [ ] Attempting to set `mode=split` without `gridColumns` and `gridRows` returns HTTP 400.
-- [ ] Attempting to delete a group that still has member screens returns HTTP 409 with a descriptive message.
-- [ ] All endpoints require authentication (JWT guard).
-- [ ] Unit tests are written and successful.
+- [x] `ScreenGroupModule` registered in `AppModule`.
+- [x] `ScreenGroupService` implements `create`, `findAll`, `findOne`, `update`, `remove`, all scoped by `organisationId`.
+- [x] `ScreenGroupController` exposes: `POST /screen-groups`, `GET /screen-groups`, `GET /screen-groups/:id`, `PATCH /screen-groups/:id`, `DELETE /screen-groups/:id`.
+- [x] Create and update DTOs validate: `name` (non-empty string), `mode` (enum), `gridColumns` / `gridRows` (positive integers, required when `mode=split`), grid dimensions not required when `mode=mirror`.
+- [x] Attempting to set `mode=split` without `gridColumns` and `gridRows` returns HTTP 400.
+- [x] Attempting to delete a group that still has member screens returns HTTP 409 with a descriptive message.
+- [x] All endpoints require authentication (JWT guard).
+- [x] Unit tests are written and successful.
 
 ---
 

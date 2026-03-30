@@ -14,6 +14,7 @@ import { DashboardModule } from './dashboard';
 import { PlaylistModule } from './playlist';
 import { ScheduleEntryModule } from './schedule';
 import { AuditLogModule } from './audit-log';
+import { ScreenGroupModule } from './screen-group/screen-group.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -53,6 +54,7 @@ import { HealthController } from './health.controller';
     PlaylistModule,
     ScheduleEntryModule,
     AuditLogModule,
+    ScreenGroupModule,
   ],
   controllers: [HealthController],
 })
