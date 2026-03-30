@@ -4,6 +4,7 @@ import { ScreenGroupService } from './screen-group.service';
 import { ScreenGroup } from './screen-group.entity';
 import { ScreenGroupMode } from './screen-group-mode.enum';
 import { Organisation } from '../organisation/organisation.entity';
+import { Screen } from '../screen/screen.entity';
 
 describe('ScreenGroupController', () => {
   let controller: ScreenGroupController;
@@ -32,6 +33,8 @@ describe('ScreenGroupController', () => {
       findOne: jest.fn(),
       updateGroup: jest.fn(),
       removeGroup: jest.fn(),
+      assignScreen: jest.fn(),
+      removeScreen: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -101,6 +104,47 @@ describe('ScreenGroupController', () => {
       await controller.remove(orgId, groupId);
 
       expect(service.removeGroup).toHaveBeenCalledWith(orgId, groupId);
+    });
+  });
+
+  describe('assignScreen', () => {
+    const screenId = '770e8400-e29b-41d4-a716-446655440000';
+    const mockScreen = {
+      id: screenId,
+      organisationId: orgId,
+      groupId,
+      gridRow: 0,
+      gridColumn: 1,
+    } as Screen;
+
+    it('should call assignScreen with all parameters', async () => {
+      const dto = { gridRow: 0, gridColumn: 1 };
+      service.assignScreen.mockResolvedValue(mockScreen);
+
+      const result = await controller.assignScreen(orgId, groupId, screenId, dto);
+
+      expect(service.assignScreen).toHaveBeenCalledWith(orgId, groupId, screenId, dto);
+      expect(result).toEqual(mockScreen);
+    });
+  });
+
+  describe('removeScreen', () => {
+    const screenId = '770e8400-e29b-41d4-a716-446655440000';
+    const mockScreen = {
+      id: screenId,
+      organisationId: orgId,
+      groupId: null,
+      gridRow: null,
+      gridColumn: null,
+    } as unknown as Screen;
+
+    it('should call removeScreen with organisationId, groupId, and screenId', async () => {
+      service.removeScreen.mockResolvedValue(mockScreen);
+
+      const result = await controller.removeScreen(orgId, groupId, screenId);
+
+      expect(service.removeScreen).toHaveBeenCalledWith(orgId, groupId, screenId);
+      expect(result).toEqual(mockScreen);
     });
   });
 });
