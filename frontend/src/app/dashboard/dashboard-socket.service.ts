@@ -30,8 +30,8 @@ export class DashboardSocketService implements OnDestroy {
     const orgId = this.orgState.selectedOrgId();
     if (!token || !orgId) return;
 
-    // No-op if already connected for the same org
-    if (this.socket?.connected && this.connectedOrgId === orgId) return;
+    // No-op if a socket already exists for the same org (connected or connecting)
+    if (this.socket && this.connectedOrgId === orgId) return;
 
     this.disconnect();
 
@@ -69,6 +69,7 @@ export class DashboardSocketService implements OnDestroy {
 
   disconnect(): void {
     if (this.socket) {
+      this.socket.io.opts.reconnection = false;
       this.socket.removeAllListeners();
       this.socket.disconnect();
       this.socket = null;
