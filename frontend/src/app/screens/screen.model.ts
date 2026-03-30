@@ -29,3 +29,13 @@ export interface ScreenWithApiKey {
   screen: Screen;
   apiKey: string;
 }
+
+export interface BulkDeleteResponse {
+  deleted: number;
+  notFound: string[];
+}
+
+export interface BulkAssignGroupResponse {
+  updated: number;
+  notFound: string[];
+}
