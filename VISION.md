@@ -1,0 +1,169 @@
+# Signage Server
+
+A **multi-tenant digital signage platform** for concert venues. Organisations manage screens (TVs) distributed across their venue, upload and transcode images and videos into a shared content library, build playlists, schedule them across screens, and stream live video — all controlled from an Angular web dashboard. Screens communicate via **SMIL**, with the architecture designed to support additional protocols in the future.
+
+## Core Concepts
+
+### Organisations
+
+- Provisioned by a **super-admin** — no self-registration
+- Each organisation is fully isolated: own screens, content, playlists, schedules, and users
+- An organisation maps to a single venue (or logical unit)
+- Each organisation has a configurable **default/fallback playlist** shown when no playlist is scheduled
+- **Storage limits** are enforced per organisation, separately for original files and transcoded files
+- All screens within an organisation share a single **time zone** (tied to the venue's physical location)
+
+### Users & Roles
+
+- Authenticated via **Hanko**
+- A user can belong to **multiple organisations**, with a separate role per organisation
+- Three roles per organisation:
+  - **Org Admin** — full control within the organisation (users, screens, content, schedules, live streams)
+  - **Editor** — manage content, playlists, schedules, and live streams; no access to user or screen management
+  - **Viewer** — read-only dashboard access
+- Super-admin is a separate system-level role, not tied to an organisation
+- Each user configures their own **notification preferences** (in-app, email, ntfy — independently toggleable)
+
+### Screens
+
+- Registered manually by an Org Admin with:
+  - Name / label
+  - Resolution or aspect ratio
+  - Physical location description (e.g. "Main Hall Entrance Left")
+- On registration, the system generates an **API key** (shown once, can be regenerated)
+- Screens authenticate all requests using their API key
+- Screens communicate via a **SMIL interface** (first protocol; architecture allows adding more)
+  - On startup, the screen **pulls** its full state from the server
+  - Afterwards, the server **pushes** updates in real time
+- Each screen sends a **heartbeat** to report online/offline status
+- Screens **cache content locally** — if the server connection drops, playback continues from cache
+
+### Screen Groups
+
+- Screens can be grouped for synchronised playback
+- Two modes:
+  - **Mirror mode** — all screens in the group display identical content, frame-synced
+  - **Split mode (video wall)** — the admin defines a grid layout (e.g. 2x2, 3x1) and assigns each screen a row/column position; the server automatically slices content to fit each screen's portion; transitions and playback are frame-synced across the group
+- Live streams on a group always display the same feed on all screens (mirror behaviour), even in split mode
+- A screen can belong to at most one group
+
+### Content Library
+
+- Per-organisation library of uploaded images and videos
+- Metadata per item: title, description, tags/categories, target resolution/format
+- On upload, the server **transcodes** to a single target format optimised for playback
+  - Default video format: **H.264 MP4**
+  - Default image format: **WebP** (with JPEG fallback)
+- **Original files are kept** alongside transcoded versions (allows re-transcoding if target formats change)
+- Transcoded files are stored on the **filesystem**, not in the database
+- Storage usage is tracked and enforced against per-organisation limits (original and transcoded separately)
+- Re-uploading a content item **overwrites** the previous version (no versioning)
+
+### Playlists
+
+- Ordered list of content items from the library
+- Each item has a **display duration** (relevant for images; videos play their full length)
+- Playlists are reusable and can be assigned to multiple screens or groups
+
+### Schedules
+
+- **Calendar-style interface** (day / week / month views) — similar to Google Calendar
+- Each screen or screen group has its own calendar
+- Playlists are added by clicking a time slot or dragging to select a time range, then picking a playlist from a dropdown
+- Playlist blocks are **resizable** by dragging edges (adjust start/end time) and **movable** by drag-and-drop to a different slot
+- Colour-coded blocks per playlist for quick visual identification
+- Visual indicators for **gaps** in the schedule (highlighted in a subtle warning colour, showing that the fallback playlist will play)
+- **Recurring schedules** — option to repeat a playlist block daily, weekly, or on specific weekdays
+- Side panel showing a summary of the selected day's schedule as a simple timeline list
+- No overlapping time slots allowed
+- If no playlist is scheduled for the current time, the organisation's **default/fallback playlist** is shown
+
+### Live Streams
+
+- A live stream is a separate mode, **not** part of a playlist
+- Admin or Editor provides a stream URL (e.g. RTP — exact protocol to be defined)
+- The server performs **live transcoding** and distributes to the target screen(s)
+- Activating a live stream on a screen overrides the current playlist/schedule
+- When the stream source stops, the screen **automatically falls back** to the scheduled playlist
+
+### Audit Log
+
+- All significant actions are recorded from the start:
+  - Content uploads, deletions, and replacements
+  - Playlist creation, modification, and deletion
+  - Schedule changes
+  - Live stream activation and deactivation
+  - Screen registration, API key regeneration, and status changes
+  - User role changes and invitations
+- Each entry records: timestamp, user, organisation, action, and affected resource
+- Viewable by Org Admins within their organisation; super-admin sees all
+
+### Notifications & Monitoring
+
+- The system tracks screen online/offline status via heartbeat
+- Three notification channels:
+  - **In-app** — badge/alert in the dashboard
+  - **Email** — via external email service (e.g. SendGrid, SES)
+  - **ntfy** — configurable URL and token per organisation
+- Each user configures which channels they receive notifications on
+
+## Admin Panel
+
+### Layout
+
+- **Sidebar navigation** — collapsible, dark-themed, always visible on desktop; hamburger menu on mobile
+- **Top bar** — organisation switcher (dropdown), current user avatar, notification bell with unread badge, global search
+- **Main content area** — full-width, card-based layouts with consistent spacing
+
+### Navigation Structure
+
+- **Dashboard** — overview landing page
+  - Screen status grid: colour-coded tiles (green = online, red = offline, grey = unregistered) with screen name and location
+  - Storage usage bar (original / transcoded against limit)
+  - Upcoming schedule timeline (next 24h)
+  - Recent activity feed (uploads, schedule changes, screen events)
+- **Screens** — list/grid view of all registered screens
+  - Detail view: live preview thumbnail (if supported), status, heartbeat history, assigned group, current playlist, API key management (regenerate)
+  - Register new screen form
+- **Screen Groups** — list of groups with mode indicator (mirror / split)
+  - Visual grid editor for split mode: drag screens onto a grid layout, assign row/column positions
+  - Preview of how content will be sliced across the wall
+- **Content Library** — grid view with thumbnails, filterable by tags/categories
+  - Upload area with drag-and-drop, showing transcoding progress
+  - Detail view: preview, metadata editing, transcoding status, file sizes (original + transcoded)
+- **Playlists** — list of playlists
+  - Playlist editor: drag-and-drop reordering of items, per-item duration input, total duration display, inline preview
+- **Schedules** — calendar view (day / week / month)
+  - Drag-and-drop playlist blocks onto time slots per screen or group
+  - Colour-coded by playlist, visual gap detection (shows where fallback would activate)
+  - Recurring schedule support (daily, weekly, specific weekdays)
+  - Side panel with day summary as a timeline list
+- **Live Streams** — list of configured stream sources
+  - One-click activate/deactivate per screen or group
+  - Stream health indicator
+- **Audit Log** — searchable, filterable log of all actions within the organisation
+- **Settings** (Org Admin only)
+  - Organisation details and time zone
+  - User management: invite, assign roles, remove
+  - Default/fallback playlist selection
+  - Storage limits display
+  - Notification channel configuration (email service, ntfy URL/token)
+- **User Settings** (all roles)
+  - Personal notification preferences (toggle per channel)
+  - Organisation switcher / list of memberships
+
+### Design Principles
+
+- **Dark mode first** — optimised for control-room and backstage environments; light mode available
+- **Status at a glance** — screen health and schedule state visible without drilling down
+- **Bulk actions** — multi-select on screens, content, and playlists for assign/delete/tag operations
+- **Real-time updates** — dashboard and screen status update live via push (no manual refresh)
+- **Responsive** — fully usable on tablet for on-site management; mobile for monitoring only
+
+## Tech Stack
+
+- **Frontend:** Angular 21, Tailwind CSS v4, PostCSS
+- **Backend:** NestJS, TypeORM, SQLite3 (initial database)
+- **Authentication:** Hanko (users), API keys (screens)
+- **Storage:** Filesystem for transcoded and original media
+- **Screen protocol:** SMIL (extensible to additional protocols)

@@ -1,0 +1,29 @@
+# Maggus configuration
+# See https://github.com/Leberkas-org/maggus for documentation.
+
+# AI agent to use: "claude" or "opencode"
+# agent: claude
+
+# Model alias or full model ID (e.g. sonnet, opus, haiku)
+# model: sonnet
+
+# Run tasks in isolated git worktrees
+# worktree: false
+
+# Additional context files to include in prompts
+# include:
+#   - docs/ARCHITECTURE.md
+#   - docs/VISION.md
+
+# Git workflow settings
+# git:
+#   auto_branch: true
+#   check_sync: true
+#   protected_branches:
+#     - main
+#     - master
+#     - dev
+
+# Sound notifications
+# notifications:
+#   sound: false

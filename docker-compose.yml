@@ -1,0 +1,36 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend/src:/app/src
+      - db-data:/app/data
+      - media-data:/app/media
+    environment:
+      - DATABASE_PATH=/app/data/signage.db
+      - REDIS_URL=redis://redis:6379
+      - MEDIA_BASE_PATH=/app/media
+    depends_on:
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/proxy.conf.docker.json:/app/proxy.conf.docker.json
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  db-data:
+  media-data:

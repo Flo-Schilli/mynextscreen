@@ -1,0 +1,92 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { UserController } from './user.controller';
+import { UserService } from './user.service';
+import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
+import { OrganisationRole } from './organisation-role.enum';
+import { UserOrganisationMembership } from './user-organisation-membership.entity';
+
+describe('UserController', () => {
+  let controller: UserController;
+  let userService: Record<string, jest.Mock>;
+
+  const userId = 'u-1';
+
+  const mockMemberships: UserOrganisationMembership[] = [
+    {
+      id: 'm-1',
+      userId,
+      organisationId: 'org-1',
+      role: OrganisationRole.OrgAdmin,
+      user: {} as any,
+      organisation: {
+        id: 'org-1',
+        name: 'Org Alpha',
+        timeZone: 'Europe/Vienna',
+      } as any,
+      createdAt: new Date(),
+    },
+    {
+      id: 'm-2',
+      userId,
+      organisationId: 'org-2',
+      role: OrganisationRole.Viewer,
+      user: {} as any,
+      organisation: {
+        id: 'org-2',
+        name: 'Org Beta',
+        timeZone: 'UTC',
+      } as any,
+      createdAt: new Date(),
+    },
+  ];
+
+  beforeEach(async () => {
+    userService = {
+      getMemberships: jest.fn(),
+      findOrCreate: jest.fn(),
+      getMembership: jest.fn(),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [UserController],
+      providers: [{ provide: UserService, useValue: userService }],
+    }).compile();
+
+    controller = module.get<UserController>(UserController);
+  });
+
+  describe('GET /me/memberships', () => {
+    it('should return all memberships for the authenticated user', async () => {
+      userService.getMemberships.mockResolvedValue(mockMemberships);
+
+      const req = { user: { userId, email: 'test@example.com' } } as AuthenticatedRequest;
+      const result = await controller.getMemberships(req);
+
+      expect(userService.getMemberships).toHaveBeenCalledWith(userId);
+      expect(result).toEqual(mockMemberships);
+      expect(result).toHaveLength(2);
+    });
+
+    it('should return empty array if user has no memberships', async () => {
+      userService.getMemberships.mockResolvedValue([]);
+
+      const req = { user: { userId, email: 'test@example.com' } } as AuthenticatedRequest;
+      const result = await controller.getMemberships(req);
+
+      expect(userService.getMemberships).toHaveBeenCalledWith(userId);
+      expect(result).toEqual([]);
+    });
+
+    it('should include organisation relations in returned memberships', async () => {
+      userService.getMemberships.mockResolvedValue(mockMemberships);
+
+      const req = { user: { userId, email: 'test@example.com' } } as AuthenticatedRequest;
+      const result = await controller.getMemberships(req);
+
+      expect(result[0].organisation.name).toBe('Org Alpha');
+      expect(result[0].role).toBe(OrganisationRole.OrgAdmin);
+      expect(result[1].organisation.name).toBe('Org Beta');
+      expect(result[1].role).toBe(OrganisationRole.Viewer);
+    });
+  });
+});

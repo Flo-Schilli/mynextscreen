@@ -1,0 +1,55 @@
+.maggus/runs
+.maggus/MEMORY.md
+.maggus/RELEASE_NOTES.md
+.maggus/usage*.csv
+.maggus/usage_*.jsonl
+COMMIT.md
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment
+.env
+.env*.local
+
+# SQLite
+*.db
+*.db-journal
+*.db-wal
+
+# Redis
+dump.rdb
+
+# Media
+media/
+
+# Angular
+.angular/
+
+# Docker
+docker-compose.override.yml
+
+# FFmpeg / HLS segments
+*.m3u8
+hls/
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/

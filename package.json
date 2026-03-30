@@ -1,0 +1,12 @@
+{
+  "name": "signage-server",
+  "version": "0.0.1",
+  "description": "Multi-tenant digital signage platform",
+  "private": true,
+  "scripts": {
+    "dev": "docker compose up --build",
+    "lint": "npm run lint --prefix backend && npm run lint --prefix frontend",
+    "test": "npm run test --prefix frontend",
+    "typecheck": "npm run typecheck --prefix backend"
+  }
+}

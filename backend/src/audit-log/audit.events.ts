@@ -1,0 +1,86 @@
+// Audit-specific event constants and payload classes.
+// These events are emitted by domain services and consumed by AuditListener.
+
+// ── Content ──────────────────────────────────────────────────────────────────
+export const AUDIT_CONTENT_UPLOADED = 'audit.content.uploaded';
+export const AUDIT_CONTENT_DELETED = 'audit.content.deleted';
+export const AUDIT_CONTENT_REUPLOADED = 'audit.content.reuploaded';
+
+export class AuditContentEvent {
+  constructor(
+    public readonly contentId: string,
+    public readonly organisationId: string,
+    public readonly userId: string | null,
+    public readonly details: Record<string, unknown> | null,
+  ) {}
+}
+
+// ── Playlist ─────────────────────────────────────────────────────────────────
+export const AUDIT_PLAYLIST_CREATED = 'audit.playlist.created';
+export const AUDIT_PLAYLIST_UPDATED = 'audit.playlist.updated';
+export const AUDIT_PLAYLIST_DELETED = 'audit.playlist.deleted';
+
+export class AuditPlaylistEvent {
+  constructor(
+    public readonly playlistId: string,
+    public readonly organisationId: string,
+    public readonly userId: string | null,
+    public readonly details: Record<string, unknown> | null,
+  ) {}
+}
+
+// ── Schedule ─────────────────────────────────────────────────────────────────
+export const AUDIT_SCHEDULE_CREATED = 'audit.schedule.created';
+export const AUDIT_SCHEDULE_UPDATED = 'audit.schedule.updated';
+export const AUDIT_SCHEDULE_DELETED = 'audit.schedule.deleted';
+
+export class AuditScheduleEvent {
+  constructor(
+    public readonly scheduleEntryId: string,
+    public readonly organisationId: string,
+    public readonly userId: string | null,
+    public readonly details: Record<string, unknown> | null,
+  ) {}
+}
+
+// ── Screen ───────────────────────────────────────────────────────────────────
+export const AUDIT_SCREEN_REGISTERED = 'audit.screen.registered';
+export const AUDIT_SCREEN_UPDATED = 'audit.screen.updated';
+export const AUDIT_SCREEN_KEY_REGENERATED = 'audit.screen.key_regenerated';
+export const AUDIT_SCREEN_ONLINE = 'audit.screen.online';
+export const AUDIT_SCREEN_OFFLINE = 'audit.screen.offline';
+
+export class AuditScreenEvent {
+  constructor(
+    public readonly screenId: string,
+    public readonly organisationId: string,
+    public readonly userId: string | null,
+    public readonly details: Record<string, unknown> | null,
+  ) {}
+}
+
+// ── User / Membership ────────────────────────────────────────────────────────
+export const AUDIT_USER_INVITED = 'audit.user.invited';
+export const AUDIT_USER_ROLE_CHANGED = 'audit.user.role_changed';
+export const AUDIT_USER_REMOVED = 'audit.user.removed';
+
+export class AuditUserEvent {
+  constructor(
+    public readonly targetUserId: string,
+    public readonly organisationId: string,
+    public readonly userId: string | null,
+    public readonly details: Record<string, unknown> | null,
+  ) {}
+}
+
+// ── Organisation ─────────────────────────────────────────────────────────────
+export const AUDIT_ORGANISATION_CREATED = 'audit.organisation.created';
+export const AUDIT_ORGANISATION_UPDATED = 'audit.organisation.updated';
+
+export class AuditOrganisationEvent {
+  constructor(
+    public readonly organisationId: string,
+    public readonly userId: string | null,
+    public readonly details: Record<string, unknown> | null,
+  ) {}
+}
