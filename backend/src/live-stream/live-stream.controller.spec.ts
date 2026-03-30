@@ -35,6 +35,7 @@ describe('LiveStreamController', () => {
       updateLiveStream: jest.fn(),
       removeLiveStream: jest.fn(),
       activateStream: jest.fn(),
+      deactivateStream: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -166,6 +167,18 @@ describe('LiveStreamController', () => {
       await expect(controller.activate(orgId, streamId, dto)).rejects.toThrow(
         BadGatewayException,
       );
+    });
+  });
+
+  describe('deactivate', () => {
+    it('should deactivate a live stream', async () => {
+      const deactivated = { ...mockStream, status: LiveStreamStatus.Idle };
+      service.deactivateStream.mockResolvedValue(deactivated);
+
+      const result = await controller.deactivate(orgId, streamId);
+
+      expect(service.deactivateStream).toHaveBeenCalledWith(orgId, streamId);
+      expect(result.status).toBe(LiveStreamStatus.Idle);
     });
   });
 });

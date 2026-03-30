@@ -87,6 +87,8 @@ export class AuditOrganisationEvent {
 
 // ── Live Stream ─────────────────────────────────────────────────────────────
 export const AUDIT_LIVE_STREAM_ACTIVATED = 'audit.live_stream.activated';
+export const AUDIT_LIVE_STREAM_DEACTIVATED = 'audit.live_stream.deactivated';
+export const AUDIT_LIVE_STREAM_FAILED = 'audit.live_stream.failed';
 
 export class AuditLiveStreamEvent {
   constructor(

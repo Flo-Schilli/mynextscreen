@@ -131,20 +131,20 @@ Live Streams allow an Org Admin or Editor to configure stream sources (RTMP or R
 **Parallel:** no
 
 **Acceptance Criteria:**
-- [ ] `POST /api/live-streams/:id/deactivate` endpoint (Org Admin or Editor):
+- [x] `POST /api/live-streams/:id/deactivate` endpoint (Org Admin or Editor):
   - Calls `FfmpegLiveService.stop()` for the stream
   - Sends SSE event `live-stream-stop` to all previously targeted screens (resolved from `activeTargetScreenIds`)
   - Clears the activation record and sets `LiveStream.status` back to `idle`
   - Returns HTTP 200
   - Audit log event emitted: `live_stream.deactivated` with `{ streamId, streamName, reason: 'manual' }`
-- [ ] Automatic fallback on unplanned FFmpeg process exit:
+- [x] Automatic fallback on unplanned FFmpeg process exit:
   - `FfmpegLiveService` emits an internal event `live-stream.process-exited` (via NestJS EventEmitter) when a process exits without an explicit `stop()` call
   - `LiveStreamService` listens to this event: sends SSE event `live-stream-stop` to all active target screens, sets stream `status` to `error`, clears activation record
   - Audit log event emitted: `live_stream.failed` with `{ streamId, streamName, reason: 'source_disconnected' }`
-- [ ] Screen client behaviour on receiving `live-stream-stop` SSE: resume normal playlist/schedule (this is handled by the existing ScreenProtocolModule — verify the event type is handled or add handler)
-- [ ] If the stream has no active targets at deactivation time (e.g. all screens were individually overridden by another stream), deactivation still cleans up the FFmpeg process and returns 200
-- [ ] Unit tests: manual deactivation, unplanned exit event flow, no-targets edge case
-- [ ] Typecheck and lint pass
+- [x] Screen client behaviour on receiving `live-stream-stop` SSE: resume normal playlist/schedule (this is handled by the existing ScreenProtocolModule — verify the event type is handled or add handler)
+- [x] If the stream has no active targets at deactivation time (e.g. all screens were individually overridden by another stream), deactivation still cleans up the FFmpeg process and returns 200
+- [x] Unit tests: manual deactivation, unplanned exit event flow, no-targets edge case
+- [x] Typecheck and lint pass
 
 ---
 

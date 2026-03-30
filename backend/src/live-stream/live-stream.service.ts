@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { OnEvent } from '@nestjs/event-emitter';
 import { In, Repository } from 'typeorm';
 import { OrganisationScopedService } from '../organisation/organisation-scope.service';
 import { LiveStream } from './live-stream.entity';
@@ -16,15 +17,22 @@ import { LiveStreamStatus } from './live-stream-status.enum';
 import { CreateLiveStreamDto } from './dto/create-live-stream.dto';
 import { UpdateLiveStreamDto } from './dto/update-live-stream.dto';
 import { ActivateLiveStreamDto } from './dto/activate-live-stream.dto';
-import { FfmpegLiveService } from './ffmpeg-live.service';
+import {
+  FfmpegLiveService,
+  LIVE_STREAM_PROCESS_EXITED,
+  LiveStreamProcessExitedEvent,
+} from './ffmpeg-live.service';
 import { ScreenGroupService } from '../screen-group/screen-group.service';
 import { Screen } from '../screen/screen.entity';
 import {
   LIVE_STREAM_STARTED,
+  LIVE_STREAM_STOPPED,
   ScreenStateChangeEvent,
 } from '../screen/screen-state.event';
 import {
   AUDIT_LIVE_STREAM_ACTIVATED,
+  AUDIT_LIVE_STREAM_DEACTIVATED,
+  AUDIT_LIVE_STREAM_FAILED,
   AuditLiveStreamEvent,
 } from '../audit-log/audit.events';
 
@@ -211,5 +219,103 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     );
 
     return saved;
+  }
+
+  async deactivateStream(
+    organisationId: string,
+    id: string,
+    userId: string | null = null,
+  ): Promise<LiveStream> {
+    const stream = await this.findOne(organisationId, id);
+
+    // Stop FFmpeg process (safe even if not running)
+    await this.ffmpegLiveService.stop(id);
+
+    // Resolve active target screens before clearing
+    const activations = await this.activationRepository.find({
+      where: { streamId: id },
+    });
+    const targetScreenIds = activations.map((a) => a.screenId);
+
+    // Clear activation records
+    if (activations.length > 0) {
+      await this.activationRepository.remove(activations);
+    }
+
+    // Set status back to idle
+    stream.status = LiveStreamStatus.Idle;
+    const saved = await this.repository.save(stream);
+
+    // Send SSE stop events to previously targeted screens
+    for (const screenId of targetScreenIds) {
+      this.eventEmitter.emit(
+        LIVE_STREAM_STOPPED,
+        new ScreenStateChangeEvent(screenId, organisationId),
+      );
+    }
+
+    // Emit audit event
+    this.eventEmitter.emit(
+      AUDIT_LIVE_STREAM_DEACTIVATED,
+      new AuditLiveStreamEvent(id, organisationId, userId, {
+        streamId: id,
+        streamName: stream.name,
+        reason: 'manual',
+      }),
+    );
+
+    return saved;
+  }
+
+  @OnEvent(LIVE_STREAM_PROCESS_EXITED)
+  async handleUnplannedExit(
+    event: LiveStreamProcessExitedEvent,
+  ): Promise<void> {
+    this.logger.warn(
+      `Handling unplanned exit for stream ${event.streamId} (exit code: ${event.exitCode})`,
+    );
+
+    // Find the stream — it may have been deleted between the exit and this handler
+    const stream = await this.repository.findOne({
+      where: { id: event.streamId },
+    });
+
+    if (!stream) {
+      return;
+    }
+
+    // Resolve active target screens
+    const activations = await this.activationRepository.find({
+      where: { streamId: event.streamId },
+    });
+    const targetScreenIds = activations.map((a) => a.screenId);
+
+    // Clear activation records
+    if (activations.length > 0) {
+      await this.activationRepository.remove(activations);
+    }
+
+    // Set status to error
+    stream.status = LiveStreamStatus.Error;
+    await this.repository.save(stream);
+
+    // Send SSE stop events to previously targeted screens
+    for (const screenId of targetScreenIds) {
+      this.eventEmitter.emit(
+        LIVE_STREAM_STOPPED,
+        new ScreenStateChangeEvent(screenId, stream.organisationId),
+      );
+    }
+
+    // Emit audit event
+    this.eventEmitter.emit(
+      AUDIT_LIVE_STREAM_FAILED,
+      new AuditLiveStreamEvent(event.streamId, stream.organisationId, null, {
+        streamId: event.streamId,
+        streamName: stream.name,
+        reason: 'source_disconnected',
+        exitCode: event.exitCode,
+      }),
+    );
   }
 }

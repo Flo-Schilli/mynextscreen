@@ -36,6 +36,8 @@ import {
   AUDIT_GROUP_MODE_CHANGED,
   AuditGroupEvent,
   AUDIT_LIVE_STREAM_ACTIVATED,
+  AUDIT_LIVE_STREAM_DEACTIVATED,
+  AUDIT_LIVE_STREAM_FAILED,
   AuditLiveStreamEvent,
 } from './audit.events';
 
@@ -365,6 +367,30 @@ export class AuditListener {
   handleLiveStreamActivated(event: AuditLiveStreamEvent): void {
     this.record(
       AuditAction.LiveStreamActivated,
+      'live-stream',
+      event.streamId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_LIVE_STREAM_DEACTIVATED, { async: true })
+  handleLiveStreamDeactivated(event: AuditLiveStreamEvent): void {
+    this.record(
+      AuditAction.LiveStreamDeactivated,
+      'live-stream',
+      event.streamId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_LIVE_STREAM_FAILED, { async: true })
+  handleLiveStreamFailed(event: AuditLiveStreamEvent): void {
+    this.record(
+      AuditAction.LiveStreamFailed,
       'live-stream',
       event.streamId,
       event.organisationId,
