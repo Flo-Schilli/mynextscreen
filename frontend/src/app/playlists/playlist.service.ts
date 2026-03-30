@@ -6,6 +6,7 @@ import {
   PlaylistItem,
   CreatePlaylistRequest,
   AddPlaylistItemRequest,
+  UpdatePlaylistItemRequest,
   ReorderPlaylistItemsRequest,
   BulkDeletePlaylistsResponse,
   BulkAssignScreenResponse,
@@ -47,6 +48,12 @@ export class PlaylistService {
 
   addItem(orgId: string, playlistId: string, dto: AddPlaylistItemRequest): Observable<PlaylistItem> {
     return this.http.post<PlaylistItem>(`/api/playlists/${playlistId}/items`, dto, {
+      headers: this.orgHeader(orgId),
+    });
+  }
+
+  updateItem(orgId: string, playlistId: string, itemId: string, dto: UpdatePlaylistItemRequest): Observable<PlaylistItem> {
+    return this.http.patch<PlaylistItem>(`/api/playlists/${playlistId}/items/${itemId}`, dto, {
       headers: this.orgHeader(orgId),
     });
   }
