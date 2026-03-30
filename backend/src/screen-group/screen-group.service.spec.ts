@@ -4,6 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { Repository } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ScreenGroupService } from './screen-group.service';
 import { ScreenGroup } from './screen-group.entity';
 import { ScreenGroupMode } from './screen-group-mode.enum';
@@ -14,6 +15,7 @@ describe('ScreenGroupService', () => {
   let service: ScreenGroupService;
   let repository: Record<string, jest.Mock>;
   let screenRepository: Record<string, jest.Mock>;
+  let eventEmitter: Record<string, jest.Mock>;
 
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
   const groupId = '660e8400-e29b-41d4-a716-446655440000';
@@ -46,9 +48,14 @@ describe('ScreenGroupService', () => {
       save: jest.fn(),
     };
 
+    eventEmitter = {
+      emit: jest.fn(),
+    };
+
     service = new ScreenGroupService(
       repository as unknown as Repository<ScreenGroup>,
       screenRepository as unknown as Repository<Screen>,
+      eventEmitter as unknown as EventEmitter2,
     );
   });
 

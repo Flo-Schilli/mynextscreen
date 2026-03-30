@@ -19,6 +19,9 @@ function buildFilters(query: AuditLogQueryDto): AuditLogFilters {
   if (query.resourceType) {
     filters.resourceType = query.resourceType;
   }
+  if (query.resourceId) {
+    filters.resourceId = query.resourceId;
+  }
   if (query.from) {
     filters.from = new Date(query.from);
   }

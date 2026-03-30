@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OrganisationScopedService } from '../organisation/organisation-scope.service';
 import { ScreenGroup } from './screen-group.entity';
 import { ScreenGroupMode } from './screen-group-mode.enum';
@@ -13,6 +14,15 @@ import { CreateScreenGroupDto } from './dto/create-screen-group.dto';
 import { UpdateScreenGroupDto } from './dto/update-screen-group.dto';
 import { AssignScreenDto } from './dto/assign-screen.dto';
 import { Screen } from '../screen/screen.entity';
+import {
+  AUDIT_GROUP_CREATED,
+  AUDIT_GROUP_UPDATED,
+  AUDIT_GROUP_DELETED,
+  AUDIT_GROUP_SCREEN_ADDED,
+  AUDIT_GROUP_SCREEN_REMOVED,
+  AUDIT_GROUP_MODE_CHANGED,
+  AuditGroupEvent,
+} from '../audit-log/audit.events';
 
 @Injectable()
 export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
@@ -21,6 +31,7 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
     repository: Repository<ScreenGroup>,
     @InjectRepository(Screen)
     private readonly screenRepository: Repository<Screen>,
+    private readonly eventEmitter: EventEmitter2,
   ) {
     super(repository, 'ScreenGroup');
   }
@@ -28,6 +39,7 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
   async createGroup(
     organisationId: string,
     dto: CreateScreenGroupDto,
+    userId: string | null = null,
   ): Promise<ScreenGroup> {
     if (dto.mode === ScreenGroupMode.Split) {
       if (!dto.gridColumns || !dto.gridRows) {
@@ -37,20 +49,34 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
       }
     }
 
-    return this.create(organisationId, {
+    const group = await this.create(organisationId, {
       name: dto.name,
       mode: dto.mode,
       gridColumns: dto.mode === ScreenGroupMode.Split ? dto.gridColumns : null,
       gridRows: dto.mode === ScreenGroupMode.Split ? dto.gridRows : null,
     });
+
+    this.eventEmitter.emit(
+      AUDIT_GROUP_CREATED,
+      new AuditGroupEvent(group.id, organisationId, userId, {
+        name: group.name,
+        mode: group.mode,
+        gridColumns: group.gridColumns,
+        gridRows: group.gridRows,
+      }),
+    );
+
+    return group;
   }
 
   async updateGroup(
     organisationId: string,
     id: string,
     dto: UpdateScreenGroupDto,
+    userId: string | null = null,
   ): Promise<ScreenGroup> {
     const group = await this.findOne(organisationId, id);
+    const previousMode = group.mode;
 
     const effectiveMode = dto.mode ?? group.mode;
 
@@ -75,10 +101,37 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
       if (dto.gridRows !== undefined) group.gridRows = dto.gridRows;
     }
 
-    return this.repository.save(group);
+    const saved = await this.repository.save(group);
+
+    // Emit mode_changed event if mode actually changed
+    if (dto.mode !== undefined && dto.mode !== previousMode) {
+      this.eventEmitter.emit(
+        AUDIT_GROUP_MODE_CHANGED,
+        new AuditGroupEvent(saved.id, organisationId, userId, {
+          previousMode,
+          newMode: dto.mode,
+        }),
+      );
+    }
+
+    this.eventEmitter.emit(
+      AUDIT_GROUP_UPDATED,
+      new AuditGroupEvent(saved.id, organisationId, userId, {
+        name: saved.name,
+        mode: saved.mode,
+        gridColumns: saved.gridColumns,
+        gridRows: saved.gridRows,
+      }),
+    );
+
+    return saved;
   }
 
-  async removeGroup(organisationId: string, id: string): Promise<void> {
+  async removeGroup(
+    organisationId: string,
+    id: string,
+    userId: string | null = null,
+  ): Promise<void> {
     const group = await this.findOne(organisationId, id);
 
     const memberCount = await this.screenRepository.count({
@@ -91,7 +144,16 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
       );
     }
 
+    const groupId = group.id;
+    const groupName = group.name;
     await this.repository.remove(group);
+
+    this.eventEmitter.emit(
+      AUDIT_GROUP_DELETED,
+      new AuditGroupEvent(groupId, organisationId, userId, {
+        name: groupName,
+      }),
+    );
   }
 
   async assignScreen(
@@ -99,6 +161,7 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
     groupId: string,
     screenId: string,
     dto: AssignScreenDto,
+    userId: string | null = null,
   ): Promise<Screen> {
     const group = await this.findOne(organisationId, groupId);
 
@@ -145,13 +208,26 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
     screen.gridRow = group.mode === ScreenGroupMode.Split ? (dto.gridRow ?? null) : null;
     screen.gridColumn = group.mode === ScreenGroupMode.Split ? (dto.gridColumn ?? null) : null;
 
-    return this.screenRepository.save(screen);
+    const saved = await this.screenRepository.save(screen);
+
+    this.eventEmitter.emit(
+      AUDIT_GROUP_SCREEN_ADDED,
+      new AuditGroupEvent(groupId, organisationId, userId, {
+        screenId,
+        screenName: saved.name,
+        gridRow: saved.gridRow,
+        gridColumn: saved.gridColumn,
+      }),
+    );
+
+    return saved;
   }
 
   async removeScreen(
     organisationId: string,
     groupId: string,
     screenId: string,
+    userId: string | null = null,
   ): Promise<Screen> {
     await this.findOne(organisationId, groupId);
 
@@ -164,10 +240,21 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
       );
     }
 
+    const screenName = screen.name;
     screen.groupId = null;
     screen.gridRow = null;
     screen.gridColumn = null;
 
-    return this.screenRepository.save(screen);
+    const saved = await this.screenRepository.save(screen);
+
+    this.eventEmitter.emit(
+      AUDIT_GROUP_SCREEN_REMOVED,
+      new AuditGroupEvent(groupId, organisationId, userId, {
+        screenId,
+        screenName,
+      }),
+    );
+
+    return saved;
   }
 }
