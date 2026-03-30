@@ -51,6 +51,8 @@ export class DashboardGateway
   server!: Server;
 
   async handleConnection(client: Socket): Promise<void> {
+    let sub: string | undefined;
+
     try {
       const token =
         (client.handshake.auth?.token as string) ??
@@ -63,7 +65,10 @@ export class DashboardGateway
       }
 
       const jwks = this.getJwks();
-      await jwtVerify(token, jwks, { issuer: this.hankoApiUrl });
+      const { payload } = await jwtVerify(token, jwks, {
+        issuer: this.hankoApiUrl,
+      });
+      sub = payload.sub;
     } catch {
       this.logger.warn('Connection rejected: invalid JWT');
       client.disconnect(true);
@@ -77,6 +82,10 @@ export class DashboardGateway
     if (orgId) {
       client.join(`org:${orgId}`);
     }
+
+    if (sub) {
+      client.join(`user:${sub}`);
+    }
   }
 
   handleDisconnect(): void {
@@ -89,6 +98,15 @@ export class DashboardGateway
       this.jwks = createRemoteJWKSet(jwksUrl);
     }
     return this.jwks;
+  }
+
+  emitToUser(userId: string, type: string, data: unknown): void {
+    const payload: DashboardEventPayload = {
+      type,
+      data,
+      timestamp: new Date().toISOString(),
+    };
+    this.server.to(`user:${userId}`).emit(type, payload);
   }
 
   private emitToOrg(organisationId: string, type: string, data: unknown): void {

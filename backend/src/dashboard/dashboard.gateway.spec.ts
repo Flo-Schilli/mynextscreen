@@ -55,9 +55,9 @@ describe('DashboardGateway', () => {
       };
     }
 
-    it('should authenticate and join org room', async () => {
+    it('should authenticate and join org room and user room', async () => {
       mockedJwtVerify.mockResolvedValue({
-        payload: {},
+        payload: { sub: 'user-123' },
         protectedHeader: {},
       } as any);
       const client = makeClient();
@@ -68,6 +68,7 @@ describe('DashboardGateway', () => {
         issuer: 'https://hanko.example.com',
       });
       expect(client.join).toHaveBeenCalledWith(`org:${orgId}`);
+      expect(client.join).toHaveBeenCalledWith('user:user-123');
       expect(client.disconnect).not.toHaveBeenCalled();
     });
 
@@ -94,7 +95,7 @@ describe('DashboardGateway', () => {
 
     it('should read token from query if not in auth', async () => {
       mockedJwtVerify.mockResolvedValue({
-        payload: {},
+        payload: { sub: 'user-456' },
         protectedHeader: {},
       } as any);
       const client = makeClient({
@@ -110,11 +111,12 @@ describe('DashboardGateway', () => {
         expect.any(Object),
       );
       expect(client.join).toHaveBeenCalledWith(`org:${orgId}`);
+      expect(client.join).toHaveBeenCalledWith('user:user-456');
     });
 
-    it('should not join room if no organisationId provided', async () => {
+    it('should not join org room if no organisationId provided but still join user room', async () => {
       mockedJwtVerify.mockResolvedValue({
-        payload: {},
+        payload: { sub: 'user-789' },
         protectedHeader: {},
       } as any);
       const client = makeClient({
@@ -123,7 +125,27 @@ describe('DashboardGateway', () => {
 
       await gateway.handleConnection(client as any);
 
-      expect(client.join).not.toHaveBeenCalled();
+      expect(client.join).toHaveBeenCalledTimes(1);
+      expect(client.join).toHaveBeenCalledWith('user:user-789');
+    });
+  });
+
+  describe('emitToUser', () => {
+    it('should emit to user-specific room with DashboardEventPayload', () => {
+      gateway.emitToUser('user-123', 'notification.new', {
+        id: 'notif-1',
+        title: 'Test',
+      });
+
+      expect(toFn).toHaveBeenCalledWith('user:user-123');
+      expect(emitFn).toHaveBeenCalledWith(
+        'notification.new',
+        expect.objectContaining({
+          type: 'notification.new',
+          data: { id: 'notif-1', title: 'Test' },
+          timestamp: expect.any(String),
+        }),
+      );
     });
   });
 
