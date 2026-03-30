@@ -2,15 +2,23 @@ import { Component, inject, OnInit } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { ScreenService } from './screen.service';
 import { Screen } from './screen.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
+import { ScreenGroupService } from '../screen-groups/screen-group.service';
+import { ScreenGroup } from '../screen-groups/screen-group.model';
+import { SelectionService } from '../shared/selection/selection.service';
+import { SelectionCheckboxComponent } from '../shared/selection/selection-checkbox';
+import { SelectAllCheckboxComponent } from '../shared/selection/select-all-checkbox';
+import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk-action-toolbar';
 
 @Component({
   selector: 'app-screens',
   standalone: true,
-  imports: [DatePipe, FormsModule],
+  imports: [DatePipe, FormsModule, SelectionCheckboxComponent, SelectAllCheckboxComponent, BulkActionToolbarComponent],
+  providers: [SelectionService],
   template: `
     <div class="page">
       <header class="page-header">
@@ -195,11 +203,22 @@ import { MyMembership } from '../settings/users/member.model';
 
       <!-- Screen Grid -->
       @if (!loading && !selectedScreen && !showCreateForm && !editingScreen && screens.length > 0) {
+        <div class="select-all-row">
+          <app-select-all-checkbox [allIds]="screenIds" />
+          <span class="select-all-label">Select all</span>
+        </div>
         <div class="screen-grid">
-          @for (screen of screens; track screen.id) {
-            <div class="screen-card" (click)="selectScreen(screen)" tabindex="0" role="button"
+          @for (screen of screens; track screen.id; let i = $index) {
+            <div class="screen-card" [class.selected]="selectionService.selectedIds().has(screen.id)"
+                 (click)="selectScreen(screen)" tabindex="0" role="button"
                  (keydown.enter)="selectScreen(screen)" (keydown.space)="selectScreen(screen)">
               <div class="card-header">
+                <app-selection-checkbox
+                  [itemId]="screen.id"
+                  [itemIndex]="i"
+                  [orderedIds]="screenIds"
+                  (click)="$event.stopPropagation()"
+                />
                 <span class="screen-name">{{ screen.name }}</span>
                 <span class="status-dot" [class.online]="screen.isOnline" [class.offline]="!screen.isOnline"
                       [attr.title]="screen.isOnline ? 'Online' : 'Offline'"></span>
@@ -223,6 +242,8 @@ import { MyMembership } from '../settings/users/member.model';
             </div>
           }
         </div>
+
+        <app-bulk-action-toolbar [actions]="bulkActions" />
       }
 
       @if (!loading && !selectedScreen && !showCreateForm && screens.length === 0 && !loadError) {
@@ -275,6 +296,59 @@ import { MyMembership } from '../settings/users/member.model';
           </div>
         </div>
       }
+
+      <!-- Bulk Delete Confirmation Modal -->
+      @if (showBulkDeleteConfirm) {
+        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Confirm bulk delete"
+             tabindex="0" (click)="cancelBulkDelete()" (keydown.escape)="cancelBulkDelete()">
+          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+            <h2>Delete Screens</h2>
+            <p>You are about to permanently delete <strong>{{ selectionService.count() }} screen(s)</strong>. This cannot be undone.</p>
+            <div class="form-actions">
+              <button class="btn btn-secondary" (click)="cancelBulkDelete()">Cancel</button>
+              <button class="btn btn-danger" (click)="executeBulkDelete()">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Assign to Group Modal -->
+      @if (showAssignGroupModal) {
+        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Assign to group"
+             tabindex="0" (click)="cancelAssignGroup()" (keydown.escape)="cancelAssignGroup()">
+          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+            <h2>Assign to Group</h2>
+            <p>Select a group to assign <strong>{{ selectionService.count() }} screen(s)</strong> to:</p>
+            <div class="form-group">
+              <label for="groupSelect">Group</label>
+              <select id="groupSelect" [(ngModel)]="selectedGroupId" name="groupSelect">
+                <option value="">-- No group (remove from group) --</option>
+                @for (group of groups; track group.id) {
+                  <option [value]="group.id">{{ group.name }}</option>
+                }
+              </select>
+            </div>
+            @if (groupsLoadError) {
+              <p class="error">{{ groupsLoadError }}</p>
+            }
+            <div class="form-actions">
+              <button class="btn btn-secondary" (click)="cancelAssignGroup()">Cancel</button>
+              <button class="btn btn-primary" (click)="executeAssignGroup()" [disabled]="groupsLoading">
+                {{ groupsLoading ? 'Loading...' : 'Assign' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Toast -->
+      @if (toastMessage) {
+        <div class="toast" [class.toast-error]="toastType === 'error'" [class.toast-success]="toastType === 'success'" [class.toast-warning]="toastType === 'warning'">
+          {{ toastMessage }}
+        </div>
+      }
     </div>
   `,
   styles: `
@@ -283,6 +357,7 @@ import { MyMembership } from '../settings/users/member.model';
       background: var(--color-bg-primary);
       color: var(--color-text-primary);
       padding: 2rem;
+      padding-bottom: 5rem;
     }
     .page-header {
       display: flex;
@@ -350,6 +425,19 @@ import { MyMembership } from '../settings/users/member.model';
       background: #b91c1c;
     }
 
+    /* Select All Row */
+    .select-all-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      padding: 0.25rem 0;
+    }
+    .select-all-label {
+      font-size: 0.8125rem;
+      color: var(--color-text-secondary);
+    }
+
     /* Screen Grid */
     .screen-grid {
       display: grid;
@@ -369,15 +457,20 @@ import { MyMembership } from '../settings/users/member.model';
       background: var(--color-bg-tertiary);
       outline: none;
     }
+    .screen-card.selected {
+      border-color: var(--color-accent);
+      background: color-mix(in srgb, var(--color-accent) 10%, var(--color-bg-secondary));
+    }
     .card-header {
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      gap: 0.5rem;
       margin-bottom: 1rem;
     }
     .screen-name {
       font-size: 1rem;
       font-weight: 600;
+      flex: 1;
     }
     .status-dot {
       width: 0.625rem;
@@ -618,15 +711,50 @@ import { MyMembership } from '../settings/users/member.model';
       color: var(--color-text-muted);
       font-size: 0.875rem;
     }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      padding: 0.75rem 1.25rem;
+      border-radius: 0.375rem;
+      font-size: 0.875rem;
+      z-index: 2000;
+      animation: toast-in 0.3s ease;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
+    .toast-error {
+      background: #991b1b;
+      color: #fecaca;
+      border: 1px solid #b91c1c;
+    }
+    .toast-success {
+      background: #166534;
+      color: #bbf7d0;
+      border: 1px solid #22c55e;
+    }
+    .toast-warning {
+      background: #92400e;
+      color: #fef3c7;
+      border: 1px solid #d97706;
+    }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(1rem); }
+      to { opacity: 1; transform: translateY(0); }
+    }
   `,
 })
 export class Screens implements OnInit {
   private screenService = inject(ScreenService);
   private memberService = inject(MemberService);
+  private screenGroupService = inject(ScreenGroupService);
   private router = inject(Router);
+  readonly selectionService = inject(SelectionService);
 
   orgId = '';
   screens: Screen[] = [];
+  screenIds: string[] = [];
   loading = true;
   loadError = '';
   actionError = '';
@@ -659,6 +787,37 @@ export class Screens implements OnInit {
   // Regenerate confirmation
   showRegenerateConfirm = false;
   regenerating = false;
+
+  // Bulk delete confirmation
+  showBulkDeleteConfirm = false;
+  private bulkDeleteResolve: ((value: boolean) => void) | null = null;
+
+  // Assign to group modal
+  showAssignGroupModal = false;
+  groups: ScreenGroup[] = [];
+  selectedGroupId = '';
+  groupsLoading = false;
+  groupsLoadError = '';
+  private assignGroupResolve: ((value: boolean) => void) | null = null;
+
+  // Toast
+  toastMessage = '';
+  toastType: 'error' | 'success' | 'warning' = 'success';
+  private toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Bulk actions
+  bulkActions: BulkAction[] = [
+    {
+      label: 'Delete selected',
+      variant: 'danger',
+      handler: () => this.handleBulkDelete(),
+    },
+    {
+      label: 'Assign to group',
+      variant: 'default',
+      handler: () => this.handleBulkAssignGroup(),
+    },
+  ];
 
   ngOnInit(): void {
     this.loadCurrentOrg();
@@ -694,6 +853,7 @@ export class Screens implements OnInit {
     this.screenService.getAll(this.orgId).subscribe({
       next: (screens) => {
         this.screens = screens;
+        this.screenIds = screens.map((s) => s.id);
         this.loading = false;
       },
       error: (err) => {
@@ -845,6 +1005,101 @@ export class Screens implements OnInit {
       this.copied = true;
       setTimeout(() => { this.copied = false; }, 2000);
     });
+  }
+
+  // --- Bulk Delete ---
+  async handleBulkDelete(): Promise<void> {
+    const confirmed = await this.openBulkDeleteConfirm();
+    if (!confirmed) throw new Error('cancelled');
+
+    const ids = [...this.selectionService.selectedIds()];
+    const result = await firstValueFrom(this.screenService.bulkDelete(this.orgId, ids));
+
+    this.showToast(`${result.deleted} screen(s) deleted`, 'success');
+    if (result.notFound.length > 0) {
+      this.showToast(`${result.notFound.length} item(s) could not be found and were skipped`, 'warning');
+    }
+    this.loadScreens();
+  }
+
+  private openBulkDeleteConfirm(): Promise<boolean> {
+    this.showBulkDeleteConfirm = true;
+    return new Promise<boolean>((resolve) => {
+      this.bulkDeleteResolve = resolve;
+    });
+  }
+
+  cancelBulkDelete(): void {
+    this.showBulkDeleteConfirm = false;
+    this.bulkDeleteResolve?.(false);
+    this.bulkDeleteResolve = null;
+  }
+
+  executeBulkDelete(): void {
+    this.showBulkDeleteConfirm = false;
+    this.bulkDeleteResolve?.(true);
+    this.bulkDeleteResolve = null;
+  }
+
+  // --- Bulk Assign Group ---
+  async handleBulkAssignGroup(): Promise<void> {
+    const confirmed = await this.openAssignGroupModal();
+    if (!confirmed) throw new Error('cancelled');
+
+    const ids = [...this.selectionService.selectedIds()];
+    const groupId = this.selectedGroupId || null;
+    const result = await firstValueFrom(this.screenService.bulkAssignGroup(this.orgId, ids, groupId));
+
+    const groupName = groupId
+      ? this.groups.find((g) => g.id === groupId)?.name ?? 'selected group'
+      : 'no group';
+    this.showToast(`${result.updated} screen(s) assigned to ${groupName}`, 'success');
+    if (result.notFound.length > 0) {
+      this.showToast(`${result.notFound.length} item(s) could not be found and were skipped`, 'warning');
+    }
+    this.loadScreens();
+  }
+
+  private openAssignGroupModal(): Promise<boolean> {
+    this.showAssignGroupModal = true;
+    this.selectedGroupId = '';
+    this.groupsLoadError = '';
+    this.groupsLoading = true;
+    this.screenGroupService.getAll(this.orgId).subscribe({
+      next: (groups) => {
+        this.groups = groups;
+        this.groupsLoading = false;
+      },
+      error: () => {
+        this.groupsLoadError = 'Failed to load groups.';
+        this.groupsLoading = false;
+      },
+    });
+    return new Promise<boolean>((resolve) => {
+      this.assignGroupResolve = resolve;
+    });
+  }
+
+  cancelAssignGroup(): void {
+    this.showAssignGroupModal = false;
+    this.assignGroupResolve?.(false);
+    this.assignGroupResolve = null;
+  }
+
+  executeAssignGroup(): void {
+    this.showAssignGroupModal = false;
+    this.assignGroupResolve?.(true);
+    this.assignGroupResolve = null;
+  }
+
+  // --- Toast ---
+  showToast(message: string, type: 'error' | 'success' | 'warning'): void {
+    this.toastMessage = message;
+    this.toastType = type;
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => {
+      this.toastMessage = '';
+    }, 4000);
   }
 
   goBack(): void {

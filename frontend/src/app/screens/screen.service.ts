@@ -6,6 +6,8 @@ import {
   CreateScreenRequest,
   UpdateScreenRequest,
   ScreenWithApiKey,
+  BulkDeleteResponse,
+  BulkAssignGroupResponse,
 } from './screen.model';
 
 @Injectable({ providedIn: 'root' })
@@ -38,6 +40,18 @@ export class ScreenService {
 
   regenerateApiKey(orgId: string, id: string): Observable<ScreenWithApiKey> {
     return this.http.post<ScreenWithApiKey>(`/api/screens/${id}/regenerate-key`, {}, {
+      headers: this.orgHeader(orgId),
+    });
+  }
+
+  bulkDelete(orgId: string, ids: string[]): Observable<BulkDeleteResponse> {
+    return this.http.post<BulkDeleteResponse>('/api/screens/bulk-delete', { ids }, {
+      headers: this.orgHeader(orgId),
+    });
+  }
+
+  bulkAssignGroup(orgId: string, ids: string[], groupId: string | null): Observable<BulkAssignGroupResponse> {
+    return this.http.post<BulkAssignGroupResponse>('/api/screens/bulk-assign-group', { ids, groupId }, {
       headers: this.orgHeader(orgId),
     });
   }

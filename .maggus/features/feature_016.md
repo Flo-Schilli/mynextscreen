@@ -147,14 +147,14 @@ Allow users to select multiple items at once on the Screens, Content Library, an
 **Parallel:** yes — can run alongside TASK-016-008, TASK-016-009
 
 **Acceptance Criteria:**
-- [ ] `ScreensListComponent` provides `SelectionService` at component level
-- [ ] Each screen row includes a `SelectionCheckboxComponent` as the first column; a "select all" checkbox in the table header
-- [ ] `BulkActionToolbarComponent` is embedded with actions: "Delete selected" (danger), "Assign to group" (default)
-- [ ] "Delete selected" opens a confirmation dialog (see TASK-016-011) before calling `POST /api/screens/bulk-delete`; on success shows a toast "X screen(s) deleted" and refreshes the list
-- [ ] "Assign to group" opens a modal with a group picker dropdown (reuse the existing group selector if one exists, otherwise a simple `<select>`) and calls `POST /api/screens/bulk-assign-group`; on success shows "X screen(s) assigned to [group name]" toast
-- [ ] If the response contains `notFound` IDs, display a non-blocking warning: "X item(s) could not be found and were skipped"
-- [ ] Visual indication (row highlight or checkbox column) that selected rows are selected
-- [ ] Typecheck and lint pass
+- [x] `ScreensListComponent` provides `SelectionService` at component level
+- [x] Each screen row includes a `SelectionCheckboxComponent` as the first column; a "select all" checkbox in the table header
+- [x] `BulkActionToolbarComponent` is embedded with actions: "Delete selected" (danger), "Assign to group" (default)
+- [x] "Delete selected" opens a confirmation dialog (see TASK-016-011) before calling `POST /api/screens/bulk-delete`; on success shows a toast "X screen(s) deleted" and refreshes the list
+- [x] "Assign to group" opens a modal with a group picker dropdown (reuse the existing group selector if one exists, otherwise a simple `<select>`) and calls `POST /api/screens/bulk-assign-group`; on success shows "X screen(s) assigned to [group name]" toast
+- [x] If the response contains `notFound` IDs, display a non-blocking warning: "X item(s) could not be found and were skipped"
+- [x] Visual indication (row highlight or checkbox column) that selected rows are selected
+- [x] Typecheck and lint pass
 
 ### TASK-016-008: Integrate Bulk Operations into Content Library
 **Description:** As an Org Admin or Editor, I want to select multiple content items and perform bulk actions (delete, tag, add to playlist) so that I can organise my media library without repetitive clicks.
