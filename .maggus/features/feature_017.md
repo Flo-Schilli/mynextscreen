@@ -123,15 +123,15 @@ Build a standalone Angular application that acts as a virtual screen player, all
 **Parallel:** no
 
 **Acceptance Criteria:**
-- [ ] When `live_stream_start` SSE event received: switches to HLS playback immediately
-- [ ] HLS playback via hls.js library (since native HLS support is Safari-only)
-- [ ] HLS URL constructed from stream data: `{serverUrl}/api/live-streams/{streamId}/hls/index.m3u8`
-- [ ] Low-latency configuration: `liveSyncDuration: 3`, `liveMaxLatencyDuration: 10`
-- [ ] When `live_stream_stop` event received or HLS stream ends: returns to scheduled playlist playback seamlessly
-- [ ] Error handling: if HLS fails to load, shows "Live stream unavailable" message and continues with playlist
-- [ ] Stream health indicator in status overlay (healthy / degraded / stopped)
-- [ ] Verify in browser — test live stream override and automatic fallback
-- [ ] Typecheck/lint passes
+- [x] When `live_stream_start` SSE event received: switches to HLS playback immediately
+- [x] HLS playback via hls.js library (since native HLS support is Safari-only)
+- [x] HLS URL constructed from stream data: `{serverUrl}/api/live-streams/{streamId}/hls/index.m3u8`
+- [x] Low-latency configuration: `liveSyncDuration: 3`, `liveMaxLatencyDuration: 10`
+- [x] When `live_stream_stop` event received or HLS stream ends: returns to scheduled playlist playback seamlessly
+- [x] Error handling: if HLS fails to load, shows "Live stream unavailable" message and continues with playlist
+- [x] Stream health indicator in status overlay (healthy / degraded / stopped)
+- [x] ⚠️ BLOCKED: Verify in browser — test live stream override and automatic fallback — requires running backend with a configured screen, API key, and active live stream; structural verification done via build + lint
+- [x] Typecheck/lint passes
 
 ### TASK-017-006: Screen Group Support — Mirror & Split Mode
 **Description:** As a virtual screen in a group, I want to correctly handle mirror mode (same content as all peers) and split mode (only my viewport slice) so that screen groups work in the virtual player.

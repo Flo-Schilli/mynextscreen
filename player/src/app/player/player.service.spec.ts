@@ -103,15 +103,11 @@ function handleEvent(state: PlayerState, event: ScreenEvent): PlayerState {
       next.refetchTriggered = true;
       break;
 
-    case 'live_stream_start': {
-      const data = event.data as { streamUrl?: string };
-      next.activeLiveStream = {
-        id: '',
-        streamUrl: data.streamUrl ?? '',
-        startedAt: event.timestamp,
-      };
+    case 'live_stream_start':
+      // In the real service, this triggers a full state refetch.
+      // For test purposes, we flag it the same as schedule_update.
+      next.refetchTriggered = true;
       break;
-    }
 
     case 'live_stream_stop':
       next.activeLiveStream = null;
@@ -354,19 +350,16 @@ describe('Event Handling Logic', () => {
     expect(next.refetchTriggered).toBe(true);
   });
 
-  it('should set activeLiveStream on live_stream_start', () => {
+  it('should trigger refetch on live_stream_start', () => {
     const state = createEmptyState();
     const event: ScreenEvent = {
       type: 'live_stream_start',
       timestamp: '2026-03-30T10:00:00Z',
-      data: { streamUrl: 'rtmp://stream.example.com/live', screenId: 's1' },
+      data: { screenId: 's1', organisationId: 'o1' },
     };
 
     const next = handleEvent(state, event);
-    expect(next.activeLiveStream).not.toBeNull();
-    expect(next.activeLiveStream!.streamUrl).toBe('rtmp://stream.example.com/live');
-    expect(next.activeLiveStream!.startedAt).toBe('2026-03-30T10:00:00Z');
-    expect(next.refetchTriggered).toBe(false);
+    expect(next.refetchTriggered).toBe(true);
   });
 
   it('should clear activeLiveStream on live_stream_stop', () => {
