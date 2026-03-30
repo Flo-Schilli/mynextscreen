@@ -25,6 +25,8 @@ describe('ScreenState', () => {
     duration: 30,
     type: 'video',
     order: 0,
+    transition: 'fade',
+    transitionDurationMs: 500,
   };
 
   const playlist: Playlist = {

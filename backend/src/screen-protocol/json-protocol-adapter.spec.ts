@@ -30,6 +30,8 @@ describe('JsonProtocolAdapter', () => {
     duration: 30,
     type: 'video',
     order: 0,
+    transition: 'fade',
+    transitionDurationMs: 500,
   };
 
   const playlistItemImage: PlaylistItem = {
@@ -38,6 +40,8 @@ describe('JsonProtocolAdapter', () => {
     duration: 10,
     type: 'image',
     order: 1,
+    transition: 'slide-left',
+    transitionDurationMs: 1000,
   };
 
   const playlist: Playlist = {
@@ -98,11 +102,15 @@ describe('JsonProtocolAdapter', () => {
             url: `/api/media/${screenInfo.organisationId}/${playlistItem.contentId}`,
             duration: 30,
             type: 'video',
+            transition: 'fade',
+            transitionDurationMs: 500,
           },
           {
             url: `/api/media/${screenInfo.organisationId}/${playlistItemImage.contentId}`,
             duration: 10,
             type: 'image',
+            transition: 'slide-left',
+            transitionDurationMs: 1000,
           },
         ],
       });
@@ -123,6 +131,8 @@ describe('JsonProtocolAdapter', () => {
             url: `/api/media/${screenInfo.organisationId}/${playlistItem.contentId}`,
             duration: 30,
             type: 'video',
+            transition: 'fade',
+            transitionDurationMs: 500,
           },
         ],
       });
@@ -159,6 +169,8 @@ describe('JsonProtocolAdapter', () => {
         expect(item).toHaveProperty('url');
         expect(item).toHaveProperty('duration');
         expect(item).toHaveProperty('type');
+        expect(item).toHaveProperty('transition');
+        expect(item).toHaveProperty('transitionDurationMs');
         expect(item).not.toHaveProperty('contentId');
         expect(item).not.toHaveProperty('contentUrl');
         expect(item).not.toHaveProperty('order');

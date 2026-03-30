@@ -7,6 +7,9 @@ import { Organisation } from '../organisation/organisation.entity';
 import { ScreenStateChangeEvent } from './screen-state.event';
 import { ScheduleEntryChangedEvent, ScheduleService } from '../schedule';
 import { Playlist } from '../playlist/playlist.entity';
+import { PlaylistItem } from '../playlist/playlist-item.entity';
+import { TransitionType } from '../playlist/transition-type.enum';
+import { Content } from '../content/content.entity';
 import { firstValueFrom, take } from 'rxjs';
 
 describe('ScreenStateService', () => {
@@ -39,6 +42,15 @@ describe('ScreenStateService', () => {
     gridColumn: null,
   };
 
+  const mockPlaylistItem: Partial<PlaylistItem> = {
+    contentId: 'content-1',
+    durationSeconds: 30,
+    position: 0,
+    transition: TransitionType.SlideLeft,
+    transitionDurationMs: 1000,
+    content: { type: 'video' } as Content,
+  };
+
   const mockPlaylist: Playlist = {
     id: playlistId,
     organisationId: orgId,
@@ -47,6 +59,11 @@ describe('ScreenStateService', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     organisation: {} as Organisation,
+  } as Playlist;
+
+  const mockPlaylistWithItems: Playlist = {
+    ...mockPlaylist,
+    items: [mockPlaylistItem as PlaylistItem],
   } as Playlist;
 
   beforeEach(() => {
@@ -125,6 +142,15 @@ describe('ScreenStateService', () => {
       expect(state.fallbackPlaylist).toBeNull();
     });
 
+    it('should map transition fields from playlist items to protocol model', async () => {
+      playlistRepository.findOne.mockResolvedValue(mockPlaylistWithItems);
+      const state = await service.assembleState(orgId, screenId);
+      const items = state.currentPlaylist!.items;
+      expect(items).toHaveLength(1);
+      expect(items[0].transition).toBe('slide-left');
+      expect(items[0].transitionDurationMs).toBe(1000);
+    });
+
     it('should return null for currentPlaylist when no playlists exist', async () => {
       scheduleService.getCurrentPlaylist.mockResolvedValue({
         playlist: null,
@@ -186,7 +212,11 @@ describe('ScreenStateService', () => {
           gridRow: null,
           gridColumn: null,
         },
-        currentPlaylist: { id: playlistId, name: 'Morning Playlist', items: [] },
+        currentPlaylist: {
+          id: playlistId,
+          name: 'Morning Playlist',
+          items: [],
+        },
         schedule: [],
         fallbackPlaylist: null,
         liveStream: null,
