@@ -14,6 +14,7 @@ import { PlaylistService } from './playlist.service';
 import { CreatePlaylistDto } from './dto/create-playlist.dto';
 import { UpdatePlaylistDto } from './dto/update-playlist.dto';
 import { AddPlaylistItemDto } from './dto/add-playlist-item.dto';
+import { UpdatePlaylistItemDto } from './dto/update-playlist-item.dto';
 import { ReorderPlaylistItemsDto } from './dto/reorder-playlist-items.dto';
 import { BulkDeletePlaylistsDto } from './dto/bulk-delete-playlists.dto';
 import { BulkAssignScreenDto } from './dto/bulk-assign-screen.dto';
@@ -116,6 +117,17 @@ export class PlaylistController {
     @Body() dto: AddPlaylistItemDto,
   ): Promise<PlaylistItem> {
     return this.playlistService.addItem(id, organisationId, dto);
+  }
+
+  @Patch(':id/items/:itemId')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
+  updateItem(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @Body() dto: UpdatePlaylistItemDto,
+  ): Promise<PlaylistItem> {
+    return this.playlistService.updateItem(id, itemId, organisationId, dto);
   }
 
   @Delete(':id/items/:itemId')

@@ -1,5 +1,6 @@
 import { validate } from 'class-validator';
 import { PlaylistItem } from './playlist-item.entity';
+import { TransitionType } from './transition-type.enum';
 
 function createPlaylistItem(
   overrides: Partial<PlaylistItem> = {},
@@ -9,6 +10,8 @@ function createPlaylistItem(
   item.contentId = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
   item.position = 0;
   item.durationSeconds = 10;
+  item.transition = TransitionType.Fade;
+  item.transitionDurationMs = 500;
   Object.assign(item, overrides);
   return item;
 }
@@ -78,5 +81,50 @@ describe('PlaylistItem entity validation', () => {
     const errors = await validate(item);
     expect(errors.length).toBeGreaterThan(0);
     expect(errors.some((e) => e.property === 'durationSeconds')).toBe(true);
+  });
+
+  it('should pass validation with a valid transition type', async () => {
+    const item = createPlaylistItem({ transition: TransitionType.SlideLeft });
+    const errors = await validate(item);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('should fail validation with an invalid transition type', async () => {
+    const item = createPlaylistItem({
+      transition: 'invalid' as TransitionType,
+    });
+    const errors = await validate(item);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some((e) => e.property === 'transition')).toBe(true);
+  });
+
+  it('should pass validation when transitionDurationMs is 0', async () => {
+    const item = createPlaylistItem({ transitionDurationMs: 0 });
+    const errors = await validate(item);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('should pass validation when transitionDurationMs is 3000', async () => {
+    const item = createPlaylistItem({ transitionDurationMs: 3000 });
+    const errors = await validate(item);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('should fail validation when transitionDurationMs exceeds 3000', async () => {
+    const item = createPlaylistItem({ transitionDurationMs: 3001 });
+    const errors = await validate(item);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some((e) => e.property === 'transitionDurationMs')).toBe(
+      true,
+    );
+  });
+
+  it('should fail validation when transitionDurationMs is negative', async () => {
+    const item = createPlaylistItem({ transitionDurationMs: -1 });
+    const errors = await validate(item);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some((e) => e.property === 'transitionDurationMs')).toBe(
+      true,
+    );
   });
 });

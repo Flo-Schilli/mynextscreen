@@ -8,6 +8,9 @@ import { PlaylistItem } from './playlist-item.entity';
 import { Organisation } from '../organisation/organisation.entity';
 import { Content } from '../content/content.entity';
 import { ContentType } from '../content/content-type.enum';
+import { Screen } from '../screen/screen.entity';
+import { ScheduleEntry } from '../schedule/schedule-entry.entity';
+import { TransitionType } from './transition-type.enum';
 import { PLAYLIST_UPDATED } from './playlist.event';
 
 describe('PlaylistService', () => {
@@ -16,6 +19,8 @@ describe('PlaylistService', () => {
   let playlistItemRepo: Record<string, jest.Mock>;
   let organisationRepo: Record<string, jest.Mock>;
   let contentRepo: Record<string, jest.Mock>;
+  let screenRepo: Record<string, jest.Mock>;
+  let scheduleEntryRepo: Record<string, jest.Mock>;
   let eventEmitter: Record<string, jest.Mock>;
 
   beforeEach(async () => {
@@ -50,6 +55,15 @@ describe('PlaylistService', () => {
       findOne: jest.fn().mockResolvedValue(null),
     };
 
+    screenRepo = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
+    scheduleEntryRepo = {
+      create: jest.fn((data) => ({ id: 'entry-1', ...data })),
+      save: jest.fn((entity) => Promise.resolve({ ...entity })),
+    };
+
     eventEmitter = {
       emit: jest.fn(),
     };
@@ -67,6 +81,11 @@ describe('PlaylistService', () => {
           useValue: organisationRepo,
         },
         { provide: getRepositoryToken(Content), useValue: contentRepo },
+        { provide: getRepositoryToken(Screen), useValue: screenRepo },
+        {
+          provide: getRepositoryToken(ScheduleEntry),
+          useValue: scheduleEntryRepo,
+        },
         { provide: EventEmitter2, useValue: eventEmitter },
       ],
     }).compile();
@@ -252,6 +271,76 @@ describe('PlaylistService', () => {
       );
     });
 
+    it('should add an item with transition fields', async () => {
+      const mockPlaylist = {
+        id: 'p1',
+        organisationId: 'org-1',
+        name: 'Test',
+        items: [],
+      };
+      playlistRepo.findOne.mockResolvedValue(mockPlaylist);
+      contentRepo.findOne.mockResolvedValue({
+        id: 'content-1',
+        organisationId: 'org-1',
+      });
+
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      };
+      playlistItemRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.addItem('p1', 'org-1', {
+        contentId: 'content-1',
+        durationSeconds: 10,
+        transition: TransitionType.SlideLeft,
+        transitionDurationMs: 1000,
+      });
+
+      expect(playlistItemRepo.create).toHaveBeenCalledWith({
+        playlistId: 'p1',
+        contentId: 'content-1',
+        durationSeconds: 10,
+        position: 0,
+        transition: TransitionType.SlideLeft,
+        transitionDurationMs: 1000,
+      });
+    });
+
+    it('should not include transition fields when omitted', async () => {
+      const mockPlaylist = {
+        id: 'p1',
+        organisationId: 'org-1',
+        name: 'Test',
+        items: [],
+      };
+      playlistRepo.findOne.mockResolvedValue(mockPlaylist);
+      contentRepo.findOne.mockResolvedValue({
+        id: 'content-1',
+        organisationId: 'org-1',
+      });
+
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      };
+      playlistItemRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.addItem('p1', 'org-1', {
+        contentId: 'content-1',
+        durationSeconds: 10,
+      });
+
+      expect(playlistItemRepo.create).toHaveBeenCalledWith({
+        playlistId: 'p1',
+        contentId: 'content-1',
+        durationSeconds: 10,
+        position: 0,
+      });
+    });
+
     it('should throw when content not found in org', async () => {
       const mockPlaylist = {
         id: 'p1',
@@ -268,6 +357,91 @@ describe('PlaylistService', () => {
           durationSeconds: 10,
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('updateItem', () => {
+    it('should update transition fields on an item', async () => {
+      const mockPlaylist = {
+        id: 'p1',
+        organisationId: 'org-1',
+        name: 'Test',
+        items: [],
+      };
+      playlistRepo.findOne.mockResolvedValue(mockPlaylist);
+
+      const mockItem = {
+        id: 'item-1',
+        playlistId: 'p1',
+        transition: TransitionType.Fade,
+        transitionDurationMs: 500,
+        durationSeconds: 10,
+      };
+      playlistItemRepo.findOne.mockResolvedValue(mockItem);
+
+      await service.updateItem('p1', 'item-1', 'org-1', {
+        transition: TransitionType.ZoomIn,
+        transitionDurationMs: 2000,
+      });
+
+      expect(playlistItemRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          transition: TransitionType.ZoomIn,
+          transitionDurationMs: 2000,
+          durationSeconds: 10,
+        }),
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        PLAYLIST_UPDATED,
+        expect.objectContaining({ playlistId: 'p1' }),
+      );
+    });
+
+    it('should update only provided fields', async () => {
+      const mockPlaylist = {
+        id: 'p1',
+        organisationId: 'org-1',
+        name: 'Test',
+        items: [],
+      };
+      playlistRepo.findOne.mockResolvedValue(mockPlaylist);
+
+      const mockItem = {
+        id: 'item-1',
+        playlistId: 'p1',
+        transition: TransitionType.Fade,
+        transitionDurationMs: 500,
+        durationSeconds: 10,
+      };
+      playlistItemRepo.findOne.mockResolvedValue(mockItem);
+
+      await service.updateItem('p1', 'item-1', 'org-1', {
+        transition: TransitionType.Cut,
+      });
+
+      expect(playlistItemRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          transition: TransitionType.Cut,
+          transitionDurationMs: 500,
+        }),
+      );
+    });
+
+    it('should throw when item not found', async () => {
+      const mockPlaylist = {
+        id: 'p1',
+        organisationId: 'org-1',
+        name: 'Test',
+        items: [],
+      };
+      playlistRepo.findOne.mockResolvedValue(mockPlaylist);
+      playlistItemRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.updateItem('p1', 'missing', 'org-1', {
+          transition: TransitionType.Fade,
+        }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

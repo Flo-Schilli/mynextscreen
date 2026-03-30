@@ -34,16 +34,16 @@ Add configurable transition/blending modes to playlist items so that content tra
 **Parallel:** yes — can run alongside nothing (first task)
 
 **Acceptance Criteria:**
-- [ ] `PlaylistItem` entity gets two new columns:
+- [x] `PlaylistItem` entity gets two new columns:
   - `transition` — varchar, default `'fade'`, validated against an enum of allowed values: `cut`, `fade`, `slide-left`, `slide-right`, `slide-up`, `slide-down`, `zoom-in`, `zoom-out`
   - `transitionDurationMs` — integer, default `500`, min `0`, max `3000`
-- [ ] `AddPlaylistItemDto` accepts optional `transition` and `transitionDurationMs` fields
-- [ ] A new `UpdatePlaylistItemDto` is created (or existing update mechanism extended) to allow patching `transition` and `transitionDurationMs` on an existing item
-- [ ] Playlist service `addItem` and update methods handle the new fields
-- [ ] Controller exposes a `PATCH /api/playlists/:playlistId/items/:itemId` endpoint for updating transition settings (same auth as existing item endpoints)
-- [ ] TypeORM migration or schema sync adds the columns with defaults (existing items get `fade` / `500`)
-- [ ] Unit tests cover: adding item with transition, updating transition, default values applied when omitted
-- [ ] Typecheck/lint passes
+- [x] `AddPlaylistItemDto` accepts optional `transition` and `transitionDurationMs` fields
+- [x] A new `UpdatePlaylistItemDto` is created (or existing update mechanism extended) to allow patching `transition` and `transitionDurationMs` on an existing item
+- [x] Playlist service `addItem` and update methods handle the new fields
+- [x] Controller exposes a `PATCH /api/playlists/:playlistId/items/:itemId` endpoint for updating transition settings (same auth as existing item endpoints)
+- [x] TypeORM migration or schema sync adds the columns with defaults (existing items get `fade` / `500`)
+- [x] Unit tests cover: adding item with transition, updating transition, default values applied when omitted
+- [x] Typecheck/lint passes
 
 ### TASK-018-002: Backend — Expose transition in screen protocol
 **Description:** As a player, I want the screen state response to include transition type and duration per playlist item so that I can render the correct transition.
