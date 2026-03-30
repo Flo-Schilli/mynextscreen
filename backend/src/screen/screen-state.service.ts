@@ -1,4 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
 import {
   Observable,
@@ -15,9 +17,12 @@ import {
   ScreenProtocolAdapter,
   ScreenState,
   ScreenInfo,
+  GroupInfo,
   ScreenEvent,
   ScreenEventType,
+  Playlist as ProtocolPlaylist,
 } from '../screen-protocol';
+import { Playlist } from '../playlist/playlist.entity';
 import {
   SCHEDULE_CHANGED,
   PLAYLIST_CHANGED,
@@ -31,6 +36,7 @@ import {
   ScheduleEntryChangedEvent,
   ScheduleService,
 } from '../schedule';
+import { ScreenGroup } from '../screen-group/screen-group.entity';
 
 interface MessageEvent {
   data: unknown;
@@ -52,6 +58,10 @@ export class ScreenStateService implements OnModuleDestroy {
     @Inject(SCREEN_PROTOCOL_ADAPTER)
     private readonly protocolAdapter: ScreenProtocolAdapter,
     private readonly scheduleService: ScheduleService,
+    @InjectRepository(ScreenGroup)
+    private readonly screenGroupRepository: Repository<ScreenGroup>,
+    @InjectRepository(Playlist)
+    private readonly playlistRepository: Repository<Playlist>,
   ) {}
 
   onModuleDestroy(): void {
@@ -75,11 +85,79 @@ export class ScreenStateService implements OnModuleDestroy {
       organisationId: screen.organisationId,
       resolution: screen.resolution,
       location: screen.location,
+      groupId: screen.groupId,
+      gridRow: screen.gridRow,
+      gridColumn: screen.gridColumn,
     };
 
-    // Playlists, schedules, and live streams are not yet implemented.
-    // Return empty/null placeholders — future modules will populate these.
-    return new ScreenState(screenInfo, null, [], null, null);
+    let groupInfo: GroupInfo | null = null;
+    if (screen.groupId) {
+      const group = await this.screenGroupRepository.findOne({
+        where: { id: screen.groupId },
+      });
+      if (group) {
+        groupInfo = {
+          id: group.id,
+          name: group.name,
+          mode: group.mode,
+          gridRows: group.gridRows,
+          gridColumns: group.gridColumns,
+        };
+      }
+    }
+
+    let currentPlaylist: ProtocolPlaylist | null = null;
+    let fallbackPlaylist: ProtocolPlaylist | null = null;
+
+    try {
+      const result = await this.scheduleService.getCurrentPlaylist(screenId);
+      if (result.playlist) {
+        const full = await this.loadPlaylistWithItems(result.playlist.id);
+        const mapped = full ? this.mapPlaylist(full) : null;
+        if (result.isDefault) {
+          fallbackPlaylist = mapped;
+        } else {
+          currentPlaylist = mapped;
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to resolve playlist for screen ${screenId}: ${error}`,
+      );
+    }
+
+    return new ScreenState(
+      screenInfo,
+      currentPlaylist,
+      [],
+      null,
+      fallbackPlaylist,
+      groupInfo,
+    );
+  }
+
+  private async loadPlaylistWithItems(
+    playlistId: string,
+  ): Promise<Playlist | null> {
+    return this.playlistRepository.findOne({
+      where: { id: playlistId },
+      relations: ['items', 'items.content'],
+      order: { items: { position: 'ASC' } },
+    });
+  }
+
+  private mapPlaylist(entity: Playlist): ProtocolPlaylist {
+    return {
+      id: entity.id,
+      name: entity.name,
+      items: (entity.items ?? []).map((item) => ({
+        contentId: item.contentId,
+        contentUrl: '',
+        duration: item.durationSeconds,
+        type: item.content?.type ?? 'unknown',
+        order: item.position,
+      })),
+    };
   }
 
   async getRenderedState(

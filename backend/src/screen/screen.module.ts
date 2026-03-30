@@ -10,10 +10,11 @@ import { ScreenProtocolService } from '../screen-protocol/screen-protocol.servic
 import { ScheduleEntryModule } from '../schedule';
 import { ScreenGroup } from '../screen-group/screen-group.entity';
 import { SlicedRendition } from '../slice-content/sliced-rendition.entity';
+import { Playlist } from '../playlist/playlist.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Screen, ScreenGroup, SlicedRendition]),
+    TypeOrmModule.forFeature([Screen, ScreenGroup, SlicedRendition, Playlist]),
     ScreenProtocolModule,
     ScheduleEntryModule,
   ],

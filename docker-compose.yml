@@ -13,6 +13,7 @@ services:
       - DATABASE_PATH=/app/data/signage.db
       - REDIS_URL=redis://redis:6379
       - MEDIA_BASE_PATH=/app/media
+      - MAX_FILE_SIZE_BYTES=1073741824
       - HANKO_API_URL=https://d4c70f6b-088c-4080-96c7-f53645649006.hanko.io
       - SUPER_ADMIN_USER_IDS=3dd344f0-6349-405b-8710-2905aefdac30
     depends_on:

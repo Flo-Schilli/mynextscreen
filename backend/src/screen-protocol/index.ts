@@ -5,6 +5,7 @@ export {
 export { ScreenState } from './screen-state.model';
 export type {
   ScreenInfo,
+  GroupInfo,
   Playlist,
   PlaylistItem,
   ScheduleEntry,

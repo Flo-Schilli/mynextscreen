@@ -51,16 +51,23 @@ export class ApiKeyAuthGuard implements CanActivate {
 
   private extractToken(request: {
     headers: Record<string, string>;
+    query?: Record<string, string>;
   }): string | null {
     const authorization = request.headers['authorization'];
-    if (!authorization) {
-      return null;
+    if (authorization) {
+      const [scheme, token] = authorization.split(' ');
+      if (scheme === 'Bearer' && token) {
+        return token;
+      }
     }
-    const [scheme, token] = authorization.split(' ');
-    if (scheme !== 'Bearer' || !token) {
-      return null;
+
+    // Fallback: token query param (for media URLs in img/video src)
+    const queryToken = request.query?.['token'];
+    if (queryToken) {
+      return queryToken;
     }
-    return token;
+
+    return null;
   }
 
   private async findScreenByApiKey(apiKey: string): Promise<Screen | null> {

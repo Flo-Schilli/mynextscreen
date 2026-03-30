@@ -49,6 +49,36 @@ import { StatusOverlayComponent } from './status-overlay.component';
             <span class="text-sm">Click to unmute</span>
           </button>
         }
+      } @else if (isPending()) {
+        <div class="no-content">
+          <p class="text-text-muted text-lg">Preparing content…</p>
+        </div>
+      } @else if (isSplitGroupPlay()) {
+        <div
+          class="content-layer"
+          [class.content-visible]="showCurrent()"
+          [class.content-hidden]="!showCurrent()"
+        >
+          @if (groupPlayContentType() === 'video') {
+            <video
+              [src]="groupPlayMediaUrl()"
+              class="content-media"
+              autoplay
+              muted
+              playsinline
+              (ended)="onGroupPlayVideoEnded()"
+              (error)="onMediaError()"
+            ></video>
+          } @else {
+            <img
+              [src]="groupPlayMediaUrl()"
+              class="content-media"
+              alt=""
+              (load)="onGroupPlayImageLoaded()"
+              (error)="onMediaError()"
+            />
+          }
+        </div>
       } @else if (noContent()) {
         <div class="no-content">
           <p class="text-text-muted text-lg">No content scheduled</p>
@@ -200,6 +230,9 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   private readonly _showCurrent = signal(true);
   private readonly _isMuted = signal(true);
   private readonly _hlsError = signal(false);
+  private readonly _groupPlayContentUrl = signal<string | null>(null);
+  private readonly _groupPlayContentType = signal<string>('image');
+  private readonly _isPending = signal(false);
 
   private advanceTimer: ReturnType<typeof setTimeout> | null = null;
   private hlsFallbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -209,8 +242,18 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   readonly showCurrent = this._showCurrent.asReadonly();
   readonly isMuted = this._isMuted.asReadonly();
   readonly hlsError = this._hlsError.asReadonly();
+  readonly groupPlayContentUrl = this._groupPlayContentUrl.asReadonly();
+  readonly groupPlayContentType = this._groupPlayContentType.asReadonly();
+  readonly isPending = this._isPending.asReadonly();
 
   readonly isLiveStreaming = computed(() => this.playerService.isLiveStreaming());
+  readonly isSplitGroupPlay = computed(() => this._groupPlayContentUrl() !== null);
+
+  readonly groupPlayMediaUrl = computed(() => {
+    const url = this._groupPlayContentUrl();
+    if (!url) return '';
+    return this.buildMediaUrl(url);
+  });
 
   readonly items = computed(() => {
     const playlist = this.playerService.activePlaylist();
@@ -269,6 +312,25 @@ export class PlaybackComponent implements OnInit, OnDestroy {
         this.startHls(liveStream.id);
       } else {
         this.stopHls();
+      }
+    });
+
+    // React to group_play events — display sliced content in split mode
+    effect(() => {
+      const event = this.playerService.groupPlayEvent();
+      if (event && this.playerService.isSplitMode()) {
+        this._isPending.set(false);
+        this._groupPlayContentUrl.set(event.contentUrl);
+        this._groupPlayContentType.set(this.inferContentType(event.contentUrl));
+        this._showCurrent.set(true);
+      }
+    });
+
+    // React to pending events — show "preparing content" in split mode
+    effect(() => {
+      const event = this.playerService.pendingEvent();
+      if (event && this.playerService.isSplitMode()) {
+        this._isPending.set(true);
       }
     });
   }
@@ -395,19 +457,43 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     const list = this.items();
     if (list.length === 0) return;
 
+    const prevIndex = this._currentIndex();
+    const nextIndex = (prevIndex + 1) % list.length;
+    const isWrapping = nextIndex === prevIndex;
+
     // Brief fade out
     this._showCurrent.set(false);
 
     setTimeout(() => {
       if (this.destroyed) return;
       this.zone.run(() => {
-        this._currentIndex.update((idx) => (idx + 1) % this.items().length);
-        // For images, showCurrent is set in onImageLoaded
-        // For videos, show immediately since autoplay handles it
+        this._currentIndex.set(nextIndex);
+
         const next = this.currentItem();
-        if (next?.type === 'video') {
-          this._showCurrent.set(true);
-          this._isMuted.set(true); // Reset mute for each new video
+        if (!next) return;
+
+        if (isWrapping) {
+          // Same item — re-trigger playback manually
+          if (next.type === 'video') {
+            const videoEl = this.currentVideo()?.nativeElement;
+            if (videoEl) {
+              videoEl.currentTime = 0;
+              videoEl.play().catch(() => undefined);
+            }
+            this._showCurrent.set(true);
+            this._isMuted.set(true);
+          } else {
+            // Same image — (load) won't fire again, so schedule directly
+            this._showCurrent.set(true);
+            this.scheduleAdvance();
+          }
+        } else {
+          // Different item
+          if (next.type === 'video') {
+            this._showCurrent.set(true);
+            this._isMuted.set(true);
+          }
+          // For images, showCurrent is set in onImageLoaded
         }
       });
     }, 300); // Match CSS transition duration
@@ -418,5 +504,21 @@ export class PlaybackComponent implements OnInit, OnDestroy {
       clearTimeout(this.advanceTimer);
       this.advanceTimer = null;
     }
+  }
+
+  private inferContentType(url: string): string {
+    const lower = url.toLowerCase();
+    if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.mov')) {
+      return 'video';
+    }
+    return 'image';
+  }
+
+  onGroupPlayImageLoaded(): void {
+    this._showCurrent.set(true);
+  }
+
+  onGroupPlayVideoEnded(): void {
+    // In split mode group_play, content stays until the next group_play event
   }
 }
