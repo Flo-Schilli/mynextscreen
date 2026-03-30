@@ -15,6 +15,10 @@ import { ScreenGroupService } from '../screen-group/screen-group.service';
 import { Screen } from '../screen/screen.entity';
 import { LIVE_STREAM_STOPPED } from '../screen/screen-state.event';
 import {
+  AUDIT_LIVE_STREAM_CREATED,
+  AUDIT_LIVE_STREAM_UPDATED,
+  AUDIT_LIVE_STREAM_DELETED,
+  AUDIT_LIVE_STREAM_ACTIVATED,
   AUDIT_LIVE_STREAM_DEACTIVATED,
   AUDIT_LIVE_STREAM_FAILED,
 } from '../audit-log/audit.events';
@@ -27,6 +31,7 @@ describe('LiveStreamService', () => {
   let eventEmitter: Record<string, jest.Mock>;
 
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
+  const userId = '880e8400-e29b-41d4-a716-446655440000';
   const streamId = '660e8400-e29b-41d4-a716-446655440000';
   const screenId1 = '770e8400-e29b-41d4-a716-446655440001';
   const screenId2 = '770e8400-e29b-41d4-a716-446655440002';
@@ -110,6 +115,34 @@ describe('LiveStreamService', () => {
       expect(repository.save).toHaveBeenCalledWith(mockStream);
       expect(result).toEqual(mockStream);
     });
+
+    it('should emit audit event on creation', async () => {
+      const dto = {
+        name: 'Studio Camera',
+        sourceUrl: 'rtmp://example.com/live/stream1',
+        protocol: LiveStreamProtocol.Rtmp,
+      };
+      repository.create.mockReturnValue(mockStream);
+      repository.save.mockResolvedValue(mockStream);
+
+      await service.createLiveStream(orgId, dto, userId);
+
+      const auditCalls = eventEmitter.emit.mock.calls.filter(
+        (c: unknown[]) => c[0] === AUDIT_LIVE_STREAM_CREATED,
+      );
+      expect(auditCalls).toHaveLength(1);
+      expect(auditCalls[0][1]).toMatchObject({
+        streamId: mockStream.id,
+        organisationId: orgId,
+        userId,
+        details: {
+          streamId: mockStream.id,
+          streamName: 'Studio Camera',
+          sourceUrl: 'rtmp://example.com/live/stream1',
+          protocol: LiveStreamProtocol.Rtmp,
+        },
+      });
+    });
   });
 
   describe('updateLiveStream', () => {
@@ -140,6 +173,31 @@ describe('LiveStreamService', () => {
         service.updateLiveStream(orgId, streamId, { name: 'New Name' }),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('should emit audit event on update', async () => {
+      const dto = { name: 'Updated Camera' };
+      const updated = { ...mockStream, name: 'Updated Camera' };
+      repository.findOne.mockResolvedValue({ ...mockStream });
+      repository.save.mockResolvedValue(updated);
+
+      await service.updateLiveStream(orgId, streamId, dto, userId);
+
+      const auditCalls = eventEmitter.emit.mock.calls.filter(
+        (c: unknown[]) => c[0] === AUDIT_LIVE_STREAM_UPDATED,
+      );
+      expect(auditCalls).toHaveLength(1);
+      expect(auditCalls[0][1]).toMatchObject({
+        streamId,
+        organisationId: orgId,
+        userId,
+        details: {
+          streamId,
+          streamName: 'Updated Camera',
+          sourceUrl: updated.sourceUrl,
+          protocol: updated.protocol,
+        },
+      });
+    });
   });
 
   describe('removeLiveStream', () => {
@@ -167,6 +225,133 @@ describe('LiveStreamService', () => {
       await expect(service.removeLiveStream(orgId, streamId)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('should emit audit event on deletion', async () => {
+      repository.findOne.mockResolvedValue({ ...mockStream });
+      repository.remove.mockResolvedValue(undefined);
+
+      await service.removeLiveStream(orgId, streamId, userId);
+
+      const auditCalls = eventEmitter.emit.mock.calls.filter(
+        (c: unknown[]) => c[0] === AUDIT_LIVE_STREAM_DELETED,
+      );
+      expect(auditCalls).toHaveLength(1);
+      expect(auditCalls[0][1]).toMatchObject({
+        streamId,
+        organisationId: orgId,
+        userId,
+        details: {
+          streamId,
+          streamName: 'Studio Camera',
+          sourceUrl: 'rtmp://example.com/live/stream1',
+          protocol: LiveStreamProtocol.Rtmp,
+        },
+      });
+    });
+  });
+
+  describe('activateStream', () => {
+    it('should emit audit event with protocol and targetScreenIds on activation', async () => {
+      const dto = { targetScreenIds: [screenId1, screenId2] };
+      repository.findOne.mockResolvedValue({ ...mockStream });
+      repository.save.mockResolvedValue({
+        ...mockStream,
+        status: LiveStreamStatus.Active,
+      });
+
+      // Mock screen validation
+      const module = await Test.createTestingModule({
+        providers: [
+          LiveStreamService,
+          { provide: getRepositoryToken(LiveStream), useValue: repository },
+          {
+            provide: getRepositoryToken(LiveStreamActivation),
+            useValue: activationRepository,
+          },
+          {
+            provide: getRepositoryToken(Screen),
+            useValue: {
+              find: jest.fn().mockResolvedValue([
+                { id: screenId1, organisationId: orgId },
+                { id: screenId2, organisationId: orgId },
+              ]),
+            },
+          },
+          { provide: FfmpegLiveService, useValue: ffmpegLiveService },
+          { provide: ScreenGroupService, useValue: { findOne: jest.fn() } },
+          { provide: EventEmitter2, useValue: eventEmitter },
+        ],
+      }).compile();
+
+      const svc = module.get<LiveStreamService>(LiveStreamService);
+      await svc.activateStream(orgId, streamId, dto, userId);
+
+      const auditCalls = eventEmitter.emit.mock.calls.filter(
+        (c: unknown[]) => c[0] === AUDIT_LIVE_STREAM_ACTIVATED,
+      );
+      expect(auditCalls).toHaveLength(1);
+      expect(auditCalls[0][1].details).toMatchObject({
+        streamId,
+        streamName: 'Studio Camera',
+        protocol: LiveStreamProtocol.Rtmp,
+        targetScreenIds: [screenId1, screenId2],
+      });
+      expect(auditCalls[0][1].details.targetGroupId).toBeUndefined();
+    });
+
+    it('should include targetGroupId in audit event when activating via group', async () => {
+      const groupId = '990e8400-e29b-41d4-a716-446655440000';
+      const dto = { targetGroupId: groupId };
+      repository.findOne.mockResolvedValue({ ...mockStream });
+      repository.save.mockResolvedValue({
+        ...mockStream,
+        status: LiveStreamStatus.Active,
+      });
+
+      const mockGroupService = {
+        findOne: jest.fn().mockResolvedValue({
+          id: groupId,
+          screens: [{ id: screenId1 }],
+        }),
+      };
+
+      const module = await Test.createTestingModule({
+        providers: [
+          LiveStreamService,
+          { provide: getRepositoryToken(LiveStream), useValue: repository },
+          {
+            provide: getRepositoryToken(LiveStreamActivation),
+            useValue: activationRepository,
+          },
+          {
+            provide: getRepositoryToken(Screen),
+            useValue: {
+              find: jest
+                .fn()
+                .mockResolvedValue([{ id: screenId1, organisationId: orgId }]),
+            },
+          },
+          { provide: FfmpegLiveService, useValue: ffmpegLiveService },
+          { provide: ScreenGroupService, useValue: mockGroupService },
+          { provide: EventEmitter2, useValue: eventEmitter },
+        ],
+      }).compile();
+
+      const svc = module.get<LiveStreamService>(LiveStreamService);
+      await svc.activateStream(orgId, streamId, dto, userId);
+
+      const auditCalls = eventEmitter.emit.mock.calls.filter(
+        (c: unknown[]) => c[0] === AUDIT_LIVE_STREAM_ACTIVATED,
+      );
+      expect(auditCalls).toHaveLength(1);
+      expect(auditCalls[0][1].details).toMatchObject({
+        streamId,
+        streamName: 'Studio Camera',
+        protocol: LiveStreamProtocol.Rtmp,
+        targetScreenIds: [screenId1],
+        targetGroupId: groupId,
+      });
     });
   });
 

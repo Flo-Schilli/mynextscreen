@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Body,
+  Req,
   Res,
   ParseUUIDPipe,
   NotFoundException,
@@ -24,6 +25,7 @@ import {
   UpdateLiveStreamDto,
   ActivateLiveStreamDto,
 } from './dto';
+import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
@@ -47,8 +49,13 @@ export class LiveStreamController {
   create(
     @CurrentOrganisation() organisationId: string,
     @Body() dto: CreateLiveStreamDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<LiveStream> {
-    return this.liveStreamService.createLiveStream(organisationId, dto);
+    return this.liveStreamService.createLiveStream(
+      organisationId,
+      dto,
+      req.user.userId,
+    );
   }
 
   @Get()
@@ -120,8 +127,14 @@ export class LiveStreamController {
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateLiveStreamDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<LiveStream> {
-    return this.liveStreamService.updateLiveStream(organisationId, id, dto);
+    return this.liveStreamService.updateLiveStream(
+      organisationId,
+      id,
+      dto,
+      req.user.userId,
+    );
   }
 
   @Delete(':id')
@@ -129,8 +142,13 @@ export class LiveStreamController {
   remove(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest,
   ): Promise<void> {
-    return this.liveStreamService.removeLiveStream(organisationId, id);
+    return this.liveStreamService.removeLiveStream(
+      organisationId,
+      id,
+      req.user.userId,
+    );
   }
 
   @Post(':id/activate')
@@ -139,8 +157,14 @@ export class LiveStreamController {
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ActivateLiveStreamDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<LiveStream> {
-    return this.liveStreamService.activateStream(organisationId, id, dto);
+    return this.liveStreamService.activateStream(
+      organisationId,
+      id,
+      dto,
+      req.user.userId,
+    );
   }
 
   @Post(':id/deactivate')
@@ -148,8 +172,13 @@ export class LiveStreamController {
   deactivate(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest,
   ): Promise<LiveStream> {
-    return this.liveStreamService.deactivateStream(organisationId, id);
+    return this.liveStreamService.deactivateStream(
+      organisationId,
+      id,
+      req.user.userId,
+    );
   }
 
   @Get(':id/hls/index.m3u8')

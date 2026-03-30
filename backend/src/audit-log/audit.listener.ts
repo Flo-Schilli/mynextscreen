@@ -35,6 +35,9 @@ import {
   AUDIT_GROUP_SCREEN_REMOVED,
   AUDIT_GROUP_MODE_CHANGED,
   AuditGroupEvent,
+  AUDIT_LIVE_STREAM_CREATED,
+  AUDIT_LIVE_STREAM_UPDATED,
+  AUDIT_LIVE_STREAM_DELETED,
   AUDIT_LIVE_STREAM_ACTIVATED,
   AUDIT_LIVE_STREAM_DEACTIVATED,
   AUDIT_LIVE_STREAM_FAILED,
@@ -362,6 +365,42 @@ export class AuditListener {
   }
 
   // ── Live Stream ──────────────────────────────────────────────────────────
+
+  @OnEvent(AUDIT_LIVE_STREAM_CREATED, { async: true })
+  handleLiveStreamCreated(event: AuditLiveStreamEvent): void {
+    this.record(
+      AuditAction.LiveStreamCreated,
+      'live-stream',
+      event.streamId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_LIVE_STREAM_UPDATED, { async: true })
+  handleLiveStreamUpdated(event: AuditLiveStreamEvent): void {
+    this.record(
+      AuditAction.LiveStreamUpdated,
+      'live-stream',
+      event.streamId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_LIVE_STREAM_DELETED, { async: true })
+  handleLiveStreamDeleted(event: AuditLiveStreamEvent): void {
+    this.record(
+      AuditAction.LiveStreamDeleted,
+      'live-stream',
+      event.streamId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
 
   @OnEvent(AUDIT_LIVE_STREAM_ACTIVATED, { async: true })
   handleLiveStreamActivated(event: AuditLiveStreamEvent): void {

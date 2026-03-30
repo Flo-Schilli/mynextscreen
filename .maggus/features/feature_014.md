@@ -182,15 +182,15 @@ Live Streams allow an Org Admin or Editor to configure stream sources (RTMP or R
 **Parallel:** yes — can run alongside TASK-014-006
 
 **Acceptance Criteria:**
-- [ ] Extend the `AuditEntry` action enum (from Feature 011) with: `live_stream.created`, `live_stream.updated`, `live_stream.deleted`, `live_stream.activated`, `live_stream.deactivated`, `live_stream.failed`
-- [ ] `LiveStreamService` emits EventEmitter events for each action; `AuditListener` (from Feature 011) maps them to audit entries
-- [ ] `details` JSON for each event:
+- [x] Extend the `AuditEntry` action enum (from Feature 011) with: `live_stream.created`, `live_stream.updated`, `live_stream.deleted`, `live_stream.activated`, `live_stream.deactivated`, `live_stream.failed`
+- [x] `LiveStreamService` emits EventEmitter events for each action; `AuditListener` (from Feature 011) maps them to audit entries
+- [x] `details` JSON for each event:
   - `live_stream.activated`: `{ streamId, streamName, protocol, targetScreenIds, targetGroupId? }`
   - `live_stream.deactivated`: `{ streamId, streamName, reason: 'manual' | 'source_disconnected' }`
   - `live_stream.failed`: `{ streamId, streamName, reason: 'source_disconnected', exitCode? }`
   - `live_stream.created/updated/deleted`: `{ streamId, streamName, sourceUrl, protocol }`
-- [ ] Unit tests: verify each event produces a correctly shaped audit entry
-- [ ] Typecheck and lint pass
+- [x] Unit tests: verify each event produces a correctly shaped audit entry
+- [x] Typecheck and lint pass
 
 ---
 

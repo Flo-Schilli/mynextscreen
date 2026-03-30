@@ -9,6 +9,7 @@ import {
   AuditScreenEvent,
   AuditUserEvent,
   AuditOrganisationEvent,
+  AuditLiveStreamEvent,
 } from './audit.events';
 
 describe('AuditListener', () => {
@@ -375,6 +376,166 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: null,
+      organisation: null,
+    });
+  });
+
+  // ── Live Stream Events ───────────────────────────────────────────────
+
+  it('should map live_stream.created to LiveStreamCreated audit entry', () => {
+    const streamId = '990e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditLiveStreamEvent(streamId, orgId, userId, {
+      streamId,
+      streamName: 'Studio Camera',
+      sourceUrl: 'rtmp://example.com/live/stream1',
+      protocol: 'rtmp',
+    });
+
+    listener.handleLiveStreamCreated(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.LiveStreamCreated,
+      resourceType: 'live-stream',
+      resourceId: streamId,
+      organisationId: orgId,
+      userId,
+      details: {
+        streamId,
+        streamName: 'Studio Camera',
+        sourceUrl: 'rtmp://example.com/live/stream1',
+        protocol: 'rtmp',
+      },
+      organisation: null,
+    });
+  });
+
+  it('should map live_stream.updated to LiveStreamUpdated audit entry', () => {
+    const streamId = '990e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditLiveStreamEvent(streamId, orgId, userId, {
+      streamId,
+      streamName: 'Updated Camera',
+      sourceUrl: 'rtmp://example.com/live/stream2',
+      protocol: 'rtmp',
+    });
+
+    listener.handleLiveStreamUpdated(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.LiveStreamUpdated,
+      resourceType: 'live-stream',
+      resourceId: streamId,
+      organisationId: orgId,
+      userId,
+      details: {
+        streamId,
+        streamName: 'Updated Camera',
+        sourceUrl: 'rtmp://example.com/live/stream2',
+        protocol: 'rtmp',
+      },
+      organisation: null,
+    });
+  });
+
+  it('should map live_stream.deleted to LiveStreamDeleted audit entry', () => {
+    const streamId = '990e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditLiveStreamEvent(streamId, orgId, userId, {
+      streamId,
+      streamName: 'Deleted Camera',
+      sourceUrl: 'rtmp://example.com/live/stream1',
+      protocol: 'rtmp',
+    });
+
+    listener.handleLiveStreamDeleted(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.LiveStreamDeleted,
+      resourceType: 'live-stream',
+      resourceId: streamId,
+      organisationId: orgId,
+      userId,
+      details: {
+        streamId,
+        streamName: 'Deleted Camera',
+        sourceUrl: 'rtmp://example.com/live/stream1',
+        protocol: 'rtmp',
+      },
+      organisation: null,
+    });
+  });
+
+  it('should map live_stream.activated to LiveStreamActivated audit entry', () => {
+    const streamId = '990e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditLiveStreamEvent(streamId, orgId, userId, {
+      streamId,
+      streamName: 'Studio Camera',
+      targetScreenIds: ['screen-1', 'screen-2'],
+    });
+
+    listener.handleLiveStreamActivated(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.LiveStreamActivated,
+      resourceType: 'live-stream',
+      resourceId: streamId,
+      organisationId: orgId,
+      userId,
+      details: {
+        streamId,
+        streamName: 'Studio Camera',
+        targetScreenIds: ['screen-1', 'screen-2'],
+      },
+      organisation: null,
+    });
+  });
+
+  it('should map live_stream.deactivated to LiveStreamDeactivated audit entry', () => {
+    const streamId = '990e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditLiveStreamEvent(streamId, orgId, userId, {
+      streamId,
+      streamName: 'Studio Camera',
+      reason: 'manual',
+    });
+
+    listener.handleLiveStreamDeactivated(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.LiveStreamDeactivated,
+      resourceType: 'live-stream',
+      resourceId: streamId,
+      organisationId: orgId,
+      userId,
+      details: {
+        streamId,
+        streamName: 'Studio Camera',
+        reason: 'manual',
+      },
+      organisation: null,
+    });
+  });
+
+  it('should map live_stream.failed to LiveStreamFailed audit entry with null userId', () => {
+    const streamId = '990e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditLiveStreamEvent(streamId, orgId, null, {
+      streamId,
+      streamName: 'Studio Camera',
+      reason: 'source_disconnected',
+      exitCode: 1,
+    });
+
+    listener.handleLiveStreamFailed(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.LiveStreamFailed,
+      resourceType: 'live-stream',
+      resourceId: streamId,
+      organisationId: orgId,
+      userId: null,
+      details: {
+        streamId,
+        streamName: 'Studio Camera',
+        reason: 'source_disconnected',
+        exitCode: 1,
+      },
       organisation: null,
     });
   });
