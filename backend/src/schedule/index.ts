@@ -7,4 +7,6 @@ export type { DateRange } from './rrule.util';
 export {
   SCHEDULE_ENTRY_CHANGED,
   ScheduleEntryChangedEvent,
+  GROUP_SCHEDULE_CHANGED,
+  GroupScheduleChangedEvent,
 } from './schedule.event';

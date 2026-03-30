@@ -9,8 +9,9 @@ import { Organisation } from '../organisation/organisation.entity';
 import { Screen } from '../screen/screen.entity';
 import { Playlist } from '../playlist/playlist.entity';
 import { ScreenGroup } from '../screen-group/screen-group.entity';
-import { SCHEDULE_ENTRY_CHANGED } from './schedule.event';
+import { SCHEDULE_ENTRY_CHANGED, GROUP_SCHEDULE_CHANGED } from './schedule.event';
 import { SLICE_CONTENT_QUEUE } from '../slice-content';
+import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 
 describe('ScheduleService', () => {
   let service: ScheduleService;
@@ -440,6 +441,168 @@ describe('ScheduleService', () => {
 
       expect(result.playlist).toBeNull();
       expect(result.isDefault).toBe(true);
+    });
+
+    it('should resolve group schedule when no direct screen schedule is active', async () => {
+      const now = new Date();
+      // No direct screen entries
+      scheduleRepo.find
+        .mockResolvedValueOnce([]) // direct screen entries
+        .mockResolvedValueOnce([  // group entries
+          {
+            id: 'group-entry-1',
+            groupId: 'group-1',
+            organisationId: 'org-1',
+            startTime: new Date(now.getTime() - 60 * 60 * 1000),
+            endTime: new Date(now.getTime() + 60 * 60 * 1000),
+            rrule: null,
+            playlist: { id: 'group-playlist-1', name: 'Group Playlist' },
+          },
+        ]);
+
+      screenRepo.findOne.mockResolvedValue({
+        id: 'screen-1',
+        organisationId: 'org-1',
+        groupId: 'group-1',
+      });
+
+      const result = await service.getCurrentPlaylist('screen-1');
+
+      expect(result.playlist).toEqual(
+        expect.objectContaining({ name: 'Group Playlist' }),
+      );
+      expect(result.isDefault).toBe(false);
+    });
+
+    it('should prefer direct screen schedule over group schedule', async () => {
+      const now = new Date();
+      // Direct screen entry is active
+      scheduleRepo.find.mockResolvedValueOnce([
+        {
+          id: 'screen-entry-1',
+          screenId: 'screen-1',
+          organisationId: 'org-1',
+          startTime: new Date(now.getTime() - 60 * 60 * 1000),
+          endTime: new Date(now.getTime() + 60 * 60 * 1000),
+          rrule: null,
+          playlist: { id: 'screen-playlist-1', name: 'Screen Playlist' },
+        },
+      ]);
+
+      const result = await service.getCurrentPlaylist('screen-1');
+
+      expect(result.playlist).toEqual(
+        expect.objectContaining({ name: 'Screen Playlist' }),
+      );
+      expect(result.isDefault).toBe(false);
+      // Should not have queried group entries
+      expect(scheduleRepo.find).toHaveBeenCalledTimes(1);
+    });
+
+    it('should fall back to default when screen has group but no active group schedule', async () => {
+      const now = new Date();
+      // No active direct entries
+      scheduleRepo.find
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([ // group entries — but not active
+          {
+            id: 'group-entry-1',
+            groupId: 'group-1',
+            organisationId: 'org-1',
+            startTime: new Date(now.getTime() + 60 * 60 * 1000), // future
+            endTime: new Date(now.getTime() + 2 * 60 * 60 * 1000),
+            rrule: null,
+            playlist: { id: 'group-playlist-1', name: 'Group Playlist' },
+          },
+        ]);
+
+      screenRepo.findOne.mockResolvedValue({
+        id: 'screen-1',
+        organisationId: 'org-1',
+        groupId: 'group-1',
+      });
+
+      organisationRepo.findOne.mockResolvedValue({
+        id: 'org-1',
+        defaultPlaylistId: null,
+      });
+
+      const result = await service.getCurrentPlaylist('screen-1');
+
+      expect(result.isDefault).toBe(true);
+    });
+
+    it('should skip group lookup when screen has no groupId', async () => {
+      scheduleRepo.find.mockResolvedValue([]);
+      screenRepo.findOne.mockResolvedValue({
+        id: 'screen-1',
+        organisationId: 'org-1',
+        groupId: null,
+      });
+
+      organisationRepo.findOne.mockResolvedValue({
+        id: 'org-1',
+        defaultPlaylistId: null,
+      });
+
+      const result = await service.getCurrentPlaylist('screen-1');
+
+      expect(result.isDefault).toBe(true);
+      // Should only have been called once (direct screen entries)
+      expect(scheduleRepo.find).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('group schedule events', () => {
+    it('should emit GROUP_SCHEDULE_CHANGED when creating entry with groupId', async () => {
+      const dto = {
+        screenId: 'screen-1',
+        playlistId: 'playlist-1',
+        startTime: '2026-04-01T10:00:00Z',
+        endTime: '2026-04-01T12:00:00Z',
+        colour: '#FF5733',
+      };
+
+      // Make the saved entry have a groupId
+      scheduleRepo.create.mockReturnValue({
+        id: 'entry-1',
+        ...dto,
+        groupId: 'group-1',
+        organisationId: 'org-1',
+      });
+      scheduleRepo.save.mockResolvedValue({
+        id: 'entry-1',
+        ...dto,
+        groupId: 'group-1',
+        organisationId: 'org-1',
+      });
+
+      await service.create('org-1', dto);
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        GROUP_SCHEDULE_CHANGED,
+        expect.objectContaining({
+          groupId: 'group-1',
+          organisationId: 'org-1',
+        }),
+      );
+    });
+
+    it('should not emit GROUP_SCHEDULE_CHANGED when entry has no groupId', async () => {
+      const dto = {
+        screenId: 'screen-1',
+        playlistId: 'playlist-1',
+        startTime: '2026-04-01T10:00:00Z',
+        endTime: '2026-04-01T12:00:00Z',
+        colour: '#FF5733',
+      };
+
+      await service.create('org-1', dto);
+
+      const groupCalls = eventEmitter.emit.mock.calls.filter(
+        (c: any) => c[0] === GROUP_SCHEDULE_CHANGED,
+      );
+      expect(groupCalls).toHaveLength(0);
     });
   });
 

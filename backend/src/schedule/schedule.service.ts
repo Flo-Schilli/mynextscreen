@@ -20,6 +20,8 @@ import { getOccurrences, DateRange } from './rrule.util';
 import {
   SCHEDULE_ENTRY_CHANGED,
   ScheduleEntryChangedEvent,
+  GROUP_SCHEDULE_CHANGED,
+  GroupScheduleChangedEvent,
 } from './schedule.event';
 import {
   AUDIT_SCHEDULE_CREATED,
@@ -83,6 +85,9 @@ export class ScheduleService {
     if (dto.screenId) {
       this.emitScheduleChanged(dto.screenId, organisationId);
     }
+    if (saved.groupId) {
+      this.emitGroupScheduleChanged(saved.groupId, organisationId, saved.playlistId);
+    }
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_CREATED,
       new AuditScheduleEvent(saved.id, organisationId, null, {
@@ -131,6 +136,9 @@ export class ScheduleService {
     const saved = await this.scheduleEntryRepository.save(entry);
     if (entry.screenId) {
       this.emitScheduleChanged(entry.screenId, organisationId);
+    }
+    if (saved.groupId) {
+      this.emitGroupScheduleChanged(saved.groupId, organisationId, saved.playlistId);
     }
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_UPDATED,
@@ -192,13 +200,13 @@ export class ScheduleService {
   ): Promise<{ playlist: Playlist | null; isDefault: boolean }> {
     const now = new Date();
 
-    // Find all entries for this screen
+    // Find all direct entries for this screen
     const entries = await this.scheduleEntryRepository.find({
       where: { screenId },
       relations: ['playlist'],
     });
 
-    // Check if any entry is currently active
+    // Check if any direct entry is currently active
     for (const entry of entries) {
       const occurrences = getOccurrences(
         entry.startTime,
@@ -215,19 +223,37 @@ export class ScheduleService {
       }
     }
 
-    // Fallback: get the organisation's default playlist
-    if (entries.length > 0) {
-      const firstEntry = entries[0];
-      return this.getFallbackPlaylist(firstEntry.organisationId);
-    }
-
-    // No entries at all — need screen's organisationId
+    // No direct schedule active — check group schedule as fallback
     const screen = await this.screenRepository.findOne({
       where: { id: screenId },
     });
     if (!screen) {
       return { playlist: null, isDefault: false };
     }
+
+    if (screen.groupId) {
+      const groupEntries = await this.scheduleEntryRepository.find({
+        where: { groupId: screen.groupId },
+        relations: ['playlist'],
+      });
+
+      for (const entry of groupEntries) {
+        const occurrences = getOccurrences(
+          entry.startTime,
+          entry.endTime,
+          entry.rrule,
+          new Date(now.getTime() - 24 * 60 * 60 * 1000),
+          new Date(now.getTime() + 24 * 60 * 60 * 1000),
+        );
+
+        for (const occ of occurrences) {
+          if (occ.start <= now && occ.end > now) {
+            return { playlist: entry.playlist, isDefault: false };
+          }
+        }
+      }
+    }
+
     return this.getFallbackPlaylist(screen.organisationId);
   }
 
@@ -351,6 +377,17 @@ export class ScheduleService {
     this.eventEmitter.emit(
       SCHEDULE_ENTRY_CHANGED,
       new ScheduleEntryChangedEvent(screenId, organisationId),
+    );
+  }
+
+  private emitGroupScheduleChanged(
+    groupId: string,
+    organisationId: string,
+    playlistId: string,
+  ): void {
+    this.eventEmitter.emit(
+      GROUP_SCHEDULE_CHANGED,
+      new GroupScheduleChangedEvent(groupId, organisationId, playlistId),
     );
   }
 
