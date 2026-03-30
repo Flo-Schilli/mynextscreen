@@ -56,6 +56,14 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'live_stream.activated': 'Live stream activated',
   'live_stream.deactivated': 'Live stream deactivated',
   'live_stream.failed': 'Live stream failed',
+  'screen.bulk_deleted': 'Screen deleted (bulk)',
+  'screen.bulk_group_assigned': 'Screen group assigned (bulk)',
+  'content.bulk_deleted': 'Content deleted (bulk)',
+  'content.bulk_tagged': 'Content tagged (bulk)',
+  'content.bulk_untagged': 'Content untagged (bulk)',
+  'content.bulk_added_to_playlist': 'Content added to playlist (bulk)',
+  'playlist.bulk_deleted': 'Playlist deleted (bulk)',
+  'playlist.bulk_screen_assigned': 'Playlist assigned to screen (bulk)',
 };
 
 export const AUDIT_ACTIONS = [
@@ -90,6 +98,14 @@ export const AUDIT_ACTIONS = [
   'live_stream.activated',
   'live_stream.deactivated',
   'live_stream.failed',
+  'screen.bulk_deleted',
+  'screen.bulk_group_assigned',
+  'content.bulk_deleted',
+  'content.bulk_tagged',
+  'content.bulk_untagged',
+  'content.bulk_added_to_playlist',
+  'playlist.bulk_deleted',
+  'playlist.bulk_screen_assigned',
 ];
 
 export const RESOURCE_TYPES = [

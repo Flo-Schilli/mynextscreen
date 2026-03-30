@@ -219,13 +219,13 @@ Allow users to select multiple items at once on the Screens, Content Library, an
 **Parallel:** no — must run after the backend bulk endpoints are confirmed to emit events
 
 **Acceptance Criteria:**
-- [ ] Add new action types to the `AuditEntry` action enum (Feature 011): `screen.bulk_deleted`, `screen.bulk_group_assigned`, `content.bulk_deleted`, `content.bulk_tagged`, `content.bulk_untagged`, `content.bulk_added_to_playlist`, `playlist.bulk_deleted`, `playlist.bulk_screen_assigned`
-- [ ] Each bulk endpoint emits one audit event per affected resource (not one event for the whole batch) using the new action types
-- [ ] Each audit event `details` JSON includes: `bulkOperationSize` (total number of IDs in the request), so it is clear the action was part of a bulk operation
-- [ ] TypeORM migration to add new enum values (or update the column definition if using a string column — consistent with how Feature 011 defined the action field)
-- [ ] Existing audit log UI (Feature 011) can display the new action types with human-readable labels: e.g. `screen.bulk_deleted` → "Screen deleted (bulk)"
-- [ ] Unit tests for the new event mappings in `AuditListener`
-- [ ] Typecheck and lint pass
+- [x] Add new action types to the `AuditEntry` action enum (Feature 011): `screen.bulk_deleted`, `screen.bulk_group_assigned`, `content.bulk_deleted`, `content.bulk_tagged`, `content.bulk_untagged`, `content.bulk_added_to_playlist`, `playlist.bulk_deleted`, `playlist.bulk_screen_assigned`
+- [x] Each bulk endpoint emits one audit event per affected resource (not one event for the whole batch) using the new action types
+- [x] Each audit event `details` JSON includes: `bulkOperationSize` (total number of IDs in the request), so it is clear the action was part of a bulk operation
+- [x] TypeORM migration to add new enum values (or update the column definition if using a string column — consistent with how Feature 011 defined the action field)
+- [x] Existing audit log UI (Feature 011) can display the new action types with human-readable labels: e.g. `screen.bulk_deleted` → "Screen deleted (bulk)"
+- [x] Unit tests for the new event mappings in `AuditListener`
+- [x] Typecheck and lint pass
 
 ## Task Dependency Graph
 
