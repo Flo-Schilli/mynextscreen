@@ -103,7 +103,7 @@ Deliver a complete notification system so that users are alerted to important sy
 **Model:** —
 
 **Acceptance Criteria:**
-- [ ] `NotificationHub` service in `NotificationModule` with a primary method:
+- [x] `NotificationHub` service in `NotificationModule` with a primary method:
   ```ts
   dispatch(event: NotificationEvent): Promise<void>
   ```
@@ -117,7 +117,7 @@ Deliver a complete notification system so that users are alerted to important sy
     resourceId?: string; // e.g. screen ID
   }
   ```
-- [ ] On `dispatch()`:
+- [x] On `dispatch()`:
   1. Fetch all users in the organisation (via `UserOrganisationMembership`)
   2. For each user, load their `UserNotificationPreference` (auto-create default if missing)
   3. For each enabled channel per user, call the appropriate channel handler:
@@ -125,10 +125,10 @@ Deliver a complete notification system so that users are alerted to important sy
      - `emailEnabled` → `EmailNotificationChannel.send(userId, orgId, notification)` (if org SMTP is configured)
      - `ntfyEnabled` → `NtfyNotificationChannel.send(orgId, notification)` (if org ntfy is configured; ntfy is org-level, not per-user)
   4. Each channel call is fire-and-forget (async, non-blocking, errors are caught and logged)
-- [ ] Channel handlers are injected via interfaces (`InAppChannel`, `EmailChannel`, `NtfyChannel`) — hub depends on abstractions
-- [ ] `NotificationModule` exports `NotificationHub` for use by other modules
-- [ ] Unit tests: mock all three channel handlers, verify dispatch calls correct handlers based on user prefs, verify missing config skips channel gracefully
-- [ ] Typecheck and lint pass
+- [x] Channel handlers are injected via interfaces (`InAppChannel`, `EmailChannel`, `NtfyChannel`) — hub depends on abstractions
+- [x] `NotificationModule` exports `NotificationHub` for use by other modules
+- [x] Unit tests: mock all three channel handlers, verify dispatch calls correct handlers based on user prefs, verify missing config skips channel gracefully
+- [x] Typecheck and lint pass
 
 ---
 
