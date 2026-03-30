@@ -12,9 +12,18 @@ import {
 import { Observable } from 'rxjs';
 import { ScreenService } from './screen.service';
 import { ScreenStateService } from './screen-state.service';
-import { CreateScreenDto, UpdateScreenDto } from './dto';
+import {
+  CreateScreenDto,
+  UpdateScreenDto,
+  BulkDeleteScreensDto,
+  BulkAssignGroupDto,
+} from './dto';
 import { Roles } from '../auth/roles.decorator';
-import { ScreenAuth, ScreenAuthenticatedRequest } from '../auth';
+import {
+  ScreenAuth,
+  ScreenAuthenticatedRequest,
+  AuthenticatedRequest,
+} from '../auth';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { Screen } from './screen.entity';
@@ -73,6 +82,35 @@ export class ScreenController {
     @Body() dto: UpdateScreenDto,
   ): Promise<Screen> {
     return this.screenService.updateScreen(organisationId, id, dto);
+  }
+
+  @Post('bulk-delete')
+  @Roles(OrganisationRole.OrgAdmin)
+  bulkDelete(
+    @CurrentOrganisation() organisationId: string,
+    @Body() dto: BulkDeleteScreensDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ deleted: number; notFound: string[] }> {
+    return this.screenService.bulkDelete(
+      organisationId,
+      dto.ids,
+      req.user.userId,
+    );
+  }
+
+  @Post('bulk-assign-group')
+  @Roles(OrganisationRole.OrgAdmin)
+  bulkAssignGroup(
+    @CurrentOrganisation() organisationId: string,
+    @Body() dto: BulkAssignGroupDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ updated: number; notFound: string[] }> {
+    return this.screenService.bulkAssignGroup(
+      organisationId,
+      dto.ids,
+      dto.groupId,
+      req.user.userId,
+    );
   }
 
   @Post(':id/regenerate-key')

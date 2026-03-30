@@ -71,14 +71,14 @@ Allow users to select multiple items at once on the Screens, Content Library, an
 **Parallel:** yes — can run alongside TASK-016-001, TASK-016-002, TASK-016-004
 
 **Acceptance Criteria:**
-- [ ] `POST /api/screens/bulk-delete` — body: `{ ids: string[] }` — deletes all specified screens owned by the request's `organisationId`; returns `{ deleted: number, notFound: string[] }`
-- [ ] `POST /api/screens/bulk-assign-group` — body: `{ ids: string[], groupId: string | null }` — assigns all specified screens to the given group (or removes them from any group if `groupId` is null); returns `{ updated: number, notFound: string[] }`
-- [ ] Both endpoints validate that all IDs belong to the current organisation (silently skip or 400 on foreign IDs — choose 400 with list of offending IDs)
-- [ ] Both endpoints are guarded by JWT auth + Org Admin role
-- [ ] Each affected screen produces an individual audit log event (emit one event per screen so the audit log has per-resource entries)
-- [ ] Input validation via NestJS `class-validator` DTO; `ids` must be a non-empty array, max 200 items
-- [ ] Unit tests for both endpoints including auth guard, org scoping, and partial-notFound scenario
-- [ ] Typecheck and lint pass
+- [x] `POST /api/screens/bulk-delete` — body: `{ ids: string[] }` — deletes all specified screens owned by the request's `organisationId`; returns `{ deleted: number, notFound: string[] }`
+- [x] `POST /api/screens/bulk-assign-group` — body: `{ ids: string[], groupId: string | null }` — assigns all specified screens to the given group (or removes them from any group if `groupId` is null); returns `{ updated: number, notFound: string[] }`
+- [x] Both endpoints validate that all IDs belong to the current organisation (silently skip or 400 on foreign IDs — choose 400 with list of offending IDs)
+- [x] Both endpoints are guarded by JWT auth + Org Admin role
+- [x] Each affected screen produces an individual audit log event (emit one event per screen so the audit log has per-resource entries)
+- [x] Input validation via NestJS `class-validator` DTO; `ids` must be a non-empty array, max 200 items
+- [x] Unit tests for both endpoints including auth guard, org scoping, and partial-notFound scenario
+- [x] Typecheck and lint pass
 
 ### TASK-016-004: Backend Bulk Endpoints — Content
 **Description:** As a backend developer, I want bulk operation endpoints for content items so that the frontend can execute multi-item actions in a single API call.
