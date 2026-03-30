@@ -309,7 +309,7 @@ Deliver a complete notification system so that users are alerted to important sy
 **Model:** —
 
 **Acceptance Criteria:**
-- [ ] Notification preferences section added to the `/settings/user` (or `/user-settings`) page:
+- [x] Notification preferences section added to the `/settings/user` (or `/user-settings`) page:
   - Section header: "Notification Channels"
   - Three toggle rows, one per channel:
     - **In-app** — "Receive notifications in the dashboard" (toggle)
@@ -318,9 +318,9 @@ Deliver a complete notification system so that users are alerted to important sy
   - On toggle change: immediately calls `PATCH /api/users/me/notification-preferences` (debounced 300 ms)
   - Loading state while fetching current preferences on mount
   - Success/error toast feedback on save
-- [ ] Preferences are loaded from `GET /api/users/me/notification-preferences` on page init
-- [ ] Unit tests for the preferences component (mock HTTP service)
-- [ ] Typecheck and lint pass
+- [x] Preferences are loaded from `GET /api/users/me/notification-preferences` on page init
+- [x] Unit tests for the preferences component (mock HTTP service)
+- [x] Typecheck and lint pass
 
 ---
 
