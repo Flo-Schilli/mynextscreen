@@ -5,9 +5,10 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { IsNotEmpty, IsString, IsInt, Min } from 'class-validator';
+import { IsNotEmpty, IsString, IsInt, IsEnum, Min, Max } from 'class-validator';
 import { Playlist } from './playlist.entity';
 import { Content } from '../content/content.entity';
+import { TransitionType } from './transition-type.enum';
 
 @Entity('playlist_items')
 export class PlaylistItem {
@@ -45,4 +46,14 @@ export class PlaylistItem {
   @IsInt()
   @Min(1)
   durationSeconds!: number;
+
+  @Column({ type: 'varchar', default: TransitionType.Fade })
+  @IsEnum(TransitionType)
+  transition!: TransitionType;
+
+  @Column({ type: 'integer', default: 500 })
+  @IsInt()
+  @Min(0)
+  @Max(3000)
+  transitionDurationMs!: number;
 }

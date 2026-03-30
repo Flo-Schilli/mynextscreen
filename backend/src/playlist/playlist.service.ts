@@ -16,6 +16,7 @@ import { ScheduleEntry } from '../schedule/schedule-entry.entity';
 import { CreatePlaylistDto } from './dto/create-playlist.dto';
 import { UpdatePlaylistDto } from './dto/update-playlist.dto';
 import { AddPlaylistItemDto } from './dto/add-playlist-item.dto';
+import { UpdatePlaylistItemDto } from './dto/update-playlist-item.dto';
 import { PLAYLIST_UPDATED, PlaylistUpdatedEvent } from './playlist.event';
 import {
   AUDIT_PLAYLIST_CREATED,
@@ -137,9 +138,45 @@ export class PlaylistService {
       contentId: dto.contentId,
       durationSeconds: dto.durationSeconds,
       position,
+      ...(dto.transition !== undefined && { transition: dto.transition }),
+      ...(dto.transitionDurationMs !== undefined && {
+        transitionDurationMs: dto.transitionDurationMs,
+      }),
     });
     const saved = await this.playlistItemRepository.save(item);
     this.emitPlaylistChanged(id, organisationId);
+    return saved;
+  }
+
+  async updateItem(
+    playlistId: string,
+    itemId: string,
+    organisationId: string,
+    dto: UpdatePlaylistItemDto,
+  ): Promise<PlaylistItem> {
+    await this.findOne(playlistId, organisationId);
+
+    const item = await this.playlistItemRepository.findOne({
+      where: { id: itemId, playlistId },
+    });
+    if (!item) {
+      throw new NotFoundException(
+        `Playlist item with id "${itemId}" not found in playlist "${playlistId}"`,
+      );
+    }
+
+    if (dto.transition !== undefined) {
+      item.transition = dto.transition;
+    }
+    if (dto.transitionDurationMs !== undefined) {
+      item.transitionDurationMs = dto.transitionDurationMs;
+    }
+    if (dto.durationSeconds !== undefined) {
+      item.durationSeconds = dto.durationSeconds;
+    }
+
+    const saved = await this.playlistItemRepository.save(item);
+    this.emitPlaylistChanged(playlistId, organisationId);
     return saved;
   }
 
