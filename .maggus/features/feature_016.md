@@ -128,15 +128,15 @@ Allow users to select multiple items at once on the Screens, Content Library, an
 **Parallel:** no — depends on SelectionService API being stable
 
 **Acceptance Criteria:**
-- [ ] `BulkActionToolbarComponent` standalone component
-- [ ] Inputs: `actions: BulkAction[]` (each action: `{ label: string, icon?: string, variant: 'default' | 'danger', handler: () => void | Promise<void>, disabled?: Signal<boolean> }`)
-- [ ] Shows/hides via `hasSelection` signal from injected `SelectionService` — uses Angular animation or Tailwind transition to slide in from bottom (or appear as a sticky bar at the top of the list area)
-- [ ] Displays selection count: "X item(s) selected" with a "Clear selection" link/button
-- [ ] Renders action buttons; danger-variant buttons styled in red (consistent with existing destructive action styling in the app)
-- [ ] While a bulk action is in progress, all action buttons are disabled and show a loading spinner; selection count badge is preserved
-- [ ] After a successful action the toolbar calls `SelectionService.clearAll()` and the page refreshes its list
-- [ ] Unit tests for show/hide behaviour and action invocation
-- [ ] Typecheck and lint pass
+- [x] `BulkActionToolbarComponent` standalone component
+- [x] Inputs: `actions: BulkAction[]` (each action: `{ label: string, icon?: string, variant: 'default' | 'danger', handler: () => void | Promise<void>, disabled?: Signal<boolean> }`)
+- [x] Shows/hides via `hasSelection` signal from injected `SelectionService` — uses Angular animation or Tailwind transition to slide in from bottom (or appear as a sticky bar at the top of the list area)
+- [x] Displays selection count: "X item(s) selected" with a "Clear selection" link/button
+- [x] Renders action buttons; danger-variant buttons styled in red (consistent with existing destructive action styling in the app)
+- [x] While a bulk action is in progress, all action buttons are disabled and show a loading spinner; selection count badge is preserved
+- [x] After a successful action the toolbar calls `SelectionService.clearAll()` and the page refreshes its list
+- [x] Unit tests for show/hide behaviour and action invocation
+- [x] Typecheck and lint pass
 
 ### TASK-016-007: Integrate Bulk Operations into Screens List
 **Description:** As an Org Admin, I want to select multiple screens and perform bulk actions (delete, assign to group) so that I can manage a large fleet of screens efficiently.
