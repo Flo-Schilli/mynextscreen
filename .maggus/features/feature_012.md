@@ -129,14 +129,14 @@ This feature completes the core playback model described in VISION.md and unlock
 **Parallel:** yes — can run alongside TASK-012-004
 
 **Acceptance Criteria:**
-- [ ] `ScreenStateService` resolves a screen's active content via its group schedule when no direct screen schedule exists.
-- [ ] When a group play event is triggered, `ScreenProtocolService` fans out the SSE `play` command to all screens in the group within a single event loop tick (using `Promise.all`) to minimise jitter.
-- [ ] Mirror mode: all screens receive the same `contentUrl` in the SSE payload.
-- [ ] Split mode: each screen receives the URL of its pre-sliced rendition (looked up from `SlicedRendition` table); if a rendition is not yet available, the screen receives a `pending` state event.
-- [ ] Live stream items always use mirror-mode fan-out regardless of group mode.
-- [ ] SSE event payload includes `groupId` and `syncToken` (shared UTC timestamp, millisecond precision) so clients can detect synchronised playback.
-- [ ] Existing single-screen SSE behaviour is unaffected.
-- [ ] Unit tests are written and successful.
+- [x] `ScreenStateService` resolves a screen's active content via its group schedule when no direct screen schedule exists.
+- [x] When a group play event is triggered, `ScreenProtocolService` fans out the SSE `play` command to all screens in the group within a single event loop tick (using `Promise.all`) to minimise jitter.
+- [x] Mirror mode: all screens receive the same `contentUrl` in the SSE payload.
+- [x] Split mode: each screen receives the URL of its pre-sliced rendition (looked up from `SlicedRendition` table); if a rendition is not yet available, the screen receives a `pending` state event.
+- [x] Live stream items always use mirror-mode fan-out regardless of group mode.
+- [x] SSE event payload includes `groupId` and `syncToken` (shared UTC timestamp, millisecond precision) so clients can detect synchronised playback.
+- [x] Existing single-screen SSE behaviour is unaffected.
+- [x] Unit tests are written and successful.
 
 ---
 
