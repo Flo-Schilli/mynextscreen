@@ -33,12 +33,12 @@ Live Streams allow an Org Admin or Editor to configure stream sources (RTMP or R
 **Parallel:** yes — can run alongside nothing (first task)
 
 **Acceptance Criteria:**
-- [ ] `LiveStream` entity with fields: `id` (UUID, PK), `orgId` (UUID, FK → organisations), `name` (string, not null), `sourceUrl` (string, not null), `protocol` (enum: `rtmp`, `rtp`), `status` (enum: `idle`, `active`, `error`), `createdAt` (datetime, default now), `updatedAt` (datetime, auto-update)
-- [ ] TypeORM migration creates table `live_streams` with indexes on `orgId` and `status`
-- [ ] `LiveStream` entity exported from `LiveStreamModule`
-- [ ] Basic `LiveStreamRepository` (TypeORM) injected into `LiveStreamService` (stub at this stage)
-- [ ] Unit tests: entity instantiation, field defaults
-- [ ] Typecheck and lint pass
+- [x] `LiveStream` entity with fields: `id` (UUID, PK), `orgId` (UUID, FK → organisations), `name` (string, not null), `sourceUrl` (string, not null), `protocol` (enum: `rtmp`, `rtp`), `status` (enum: `idle`, `active`, `error`), `createdAt` (datetime, default now), `updatedAt` (datetime, auto-update)
+- [x] TypeORM migration creates table `live_streams` with indexes on `orgId` and `status`
+- [x] `LiveStream` entity exported from `LiveStreamModule`
+- [x] Basic `LiveStreamRepository` (TypeORM) injected into `LiveStreamService` (stub at this stage)
+- [x] Unit tests: entity instantiation, field defaults
+- [x] Typecheck and lint pass
 
 ---
 
