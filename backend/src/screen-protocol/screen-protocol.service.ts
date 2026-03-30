@@ -15,6 +15,7 @@ import {
 } from '../schedule/schedule.event';
 import {
   LIVE_STREAM_STARTED,
+  LIVE_STREAM_STOPPED,
   ScreenStateChangeEvent,
 } from '../screen/screen-state.event';
 import { ScheduleService } from '../schedule/schedule.service';
@@ -60,15 +61,23 @@ export class ScreenProtocolService {
         ? { id: result.playlist.id, name: result.playlist.name }
         : null;
     } catch {
-      this.logger.warn(
-        `Failed to resolve playlist for group ${event.groupId}`,
-      );
+      this.logger.warn(`Failed to resolve playlist for group ${event.groupId}`);
     }
 
     if (group.mode === ScreenGroupMode.Mirror) {
-      await this.fanOutMirror(group, currentPlaylist, syncToken, event.organisationId);
+      await this.fanOutMirror(
+        group,
+        currentPlaylist,
+        syncToken,
+        event.organisationId,
+      );
     } else {
-      await this.fanOutSplit(group, currentPlaylist, syncToken, event.organisationId);
+      await this.fanOutSplit(
+        group,
+        currentPlaylist,
+        syncToken,
+        event.organisationId,
+      );
     }
   }
 
@@ -105,6 +114,47 @@ export class ScreenProtocolService {
       this.screenStateService.pushEvent(
         s.id,
         new ScreenEvent(ScreenEventType.LiveStreamStart, {
+          ...payload,
+          screenId: s.id,
+        }),
+      ),
+    );
+
+    await Promise.all(events.map((e) => Promise.resolve(e)));
+  }
+
+  @OnEvent(LIVE_STREAM_STOPPED)
+  async handleGroupLiveStreamStopped(
+    event: ScreenStateChangeEvent,
+  ): Promise<void> {
+    // Check if this screen belongs to a group
+    const screen = await this.screenRepository.findOne({
+      where: { id: event.screenId },
+    });
+
+    if (!screen?.groupId) return;
+
+    const group = await this.screenGroupRepository.findOne({
+      where: { id: screen.groupId },
+      relations: ['screens'],
+    });
+
+    if (!group || !group.screens || group.screens.length === 0) return;
+
+    const syncToken = Date.now().toString();
+
+    const payload: Record<string, unknown> = {
+      type: 'live_stream_stop',
+      screenId: event.screenId,
+      organisationId: event.organisationId,
+      groupId: group.id,
+      syncToken,
+    };
+
+    const events = group.screens.map((s) =>
+      this.screenStateService.pushEvent(
+        s.id,
+        new ScreenEvent(ScreenEventType.LiveStreamStop, {
           ...payload,
           screenId: s.id,
         }),

@@ -95,6 +95,15 @@ export class LiveStreamController {
     return this.liveStreamService.activateStream(organisationId, id, dto);
   }
 
+  @Post(':id/deactivate')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
+  deactivate(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<LiveStream> {
+    return this.liveStreamService.deactivateStream(organisationId, id);
+  }
+
   @Get(':id/hls/index.m3u8')
   @Roles(
     OrganisationRole.OrgAdmin,
