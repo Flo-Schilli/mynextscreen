@@ -18,6 +18,7 @@ import { ScreenGroupModule } from './screen-group/screen-group.module';
 import { SliceContentModule } from './slice-content';
 import { NotificationModule } from './notification';
 import { LiveStreamModule } from './live-stream';
+import { SearchModule } from './search/search.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -61,6 +62,7 @@ import { HealthController } from './health.controller';
     SliceContentModule,
     NotificationModule,
     LiveStreamModule,
+    SearchModule,
   ],
   controllers: [HealthController],
 })
