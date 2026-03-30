@@ -8,6 +8,7 @@ import { NotificationService } from './notification.service';
 import { UserNotificationPreferenceService } from './user-notification-preference.service';
 import { OrgNotificationConfigService } from './org-notification-config.service';
 import { NotificationHub } from './notification-hub.service';
+import { NotificationEventListener } from './notification-event-listener.service';
 import { NotificationPreferencesController } from './notification-preferences.controller';
 import { OrgNotificationConfigController } from './org-notification-config.controller';
 import { NotificationController } from './notification.controller';
@@ -17,6 +18,8 @@ import { NtfyNotificationChannel } from './channels/ntfy-notification-channel.se
 import { IN_APP_CHANNEL, EMAIL_CHANNEL, NTFY_CHANNEL } from './channels';
 import { UserModule } from '../user/user.module';
 import { DashboardModule } from '../dashboard/dashboard.module';
+import { ScreenModule } from '../screen/screen.module';
+import { ContentModule } from '../content/content.module';
 
 @Module({
   imports: [
@@ -28,6 +31,8 @@ import { DashboardModule } from '../dashboard/dashboard.module';
     HttpModule,
     UserModule,
     DashboardModule,
+    ScreenModule,
+    ContentModule,
   ],
   controllers: [
     NotificationPreferencesController,
@@ -39,6 +44,7 @@ import { DashboardModule } from '../dashboard/dashboard.module';
     UserNotificationPreferenceService,
     OrgNotificationConfigService,
     NotificationHub,
+    NotificationEventListener,
     InAppNotificationChannel,
     {
       provide: IN_APP_CHANNEL,
