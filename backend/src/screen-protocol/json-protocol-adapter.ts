@@ -40,6 +40,15 @@ export class JsonProtocolAdapter implements ScreenProtocolAdapter {
             startedAt: state.activeLiveStream.startedAt,
           }
         : null,
+      group: state.group
+        ? {
+            id: state.group.id,
+            name: state.group.name,
+            mode: state.group.mode,
+            gridRows: state.group.gridRows,
+            gridColumns: state.group.gridColumns,
+          }
+        : null,
     };
   }
 

@@ -4,11 +4,13 @@ import {
   signal,
   OnInit,
   HostListener,
+  effect,
 } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { OrganisationStateService } from './organisation-state.service';
 import { ThemeService } from './theme.service';
+import { DashboardSocketService } from '../dashboard/dashboard-socket.service';
 import { NotificationBell } from '../notifications/notification-bell';
 import { GlobalSearch } from '../search/global-search';
 
@@ -492,11 +494,19 @@ interface NavItem {
 export class Layout implements OnInit {
   private authService = inject(AuthService);
   private router = inject(Router);
+  private socketService = inject(DashboardSocketService);
   readonly orgState = inject(OrganisationStateService);
   readonly theme = inject(ThemeService);
 
   readonly collapsed = signal(localStorage.getItem(SIDEBAR_KEY) === 'true');
   readonly mobileOpen = signal(false);
+
+  private socketEffect = effect(() => {
+    const orgId = this.orgState.selectedOrgId();
+    if (orgId) {
+      this.socketService.connect();
+    }
+  });
 
   readonly navItems: NavItem[] = [
     {
@@ -575,6 +585,7 @@ export class Layout implements OnInit {
   }
 
   async logout(): Promise<void> {
+    this.socketService.disconnect();
     await this.authService.logout();
     this.router.navigate(['/login']);
   }

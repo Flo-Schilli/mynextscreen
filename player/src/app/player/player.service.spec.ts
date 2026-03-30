@@ -22,6 +22,7 @@ function parseScreenState(raw: unknown): ScreenStateResponse {
     schedule: data.schedule ?? [],
     fallbackPlaylist: data.fallbackPlaylist,
     liveStream: data.liveStream,
+    group: data.group ?? null,
   };
 }
 
@@ -137,6 +138,9 @@ describe('State Parsing', () => {
       organisationId: 'org-1',
       resolution: '1920x1080',
       location: 'Lobby',
+      groupId: null,
+      gridRow: null,
+      gridColumn: null,
     },
     currentPlaylist: {
       id: 'pl-1',
@@ -161,6 +165,7 @@ describe('State Parsing', () => {
       items: [{ url: '/api/media/org-1/fallback-1', duration: 15, type: 'image' }],
     },
     liveStream: null,
+    group: null,
   };
 
   it('should parse a full state response', () => {
@@ -225,6 +230,61 @@ describe('State Parsing', () => {
     expect(items[0].duration).toBe(10);
     expect(items[1].type).toBe('video');
     expect(items[1].duration).toBe(0);
+  });
+
+  it('should handle null group', () => {
+    const state = parseScreenState(fullStateResponse);
+    expect(state.group).toBeNull();
+  });
+
+  it('should parse group info for mirror mode', () => {
+    const state = parseScreenState({
+      ...fullStateResponse,
+      screen: {
+        ...fullStateResponse.screen,
+        groupId: 'group-1',
+        gridRow: null,
+        gridColumn: null,
+      },
+      group: {
+        id: 'group-1',
+        name: 'Lobby Wall',
+        mode: 'mirror',
+        gridRows: null,
+        gridColumns: null,
+      },
+    });
+
+    expect(state.group).not.toBeNull();
+    expect(state.group!.name).toBe('Lobby Wall');
+    expect(state.group!.mode).toBe('mirror');
+    expect(state.screen.groupId).toBe('group-1');
+  });
+
+  it('should parse group info for split mode with grid position', () => {
+    const state = parseScreenState({
+      ...fullStateResponse,
+      screen: {
+        ...fullStateResponse.screen,
+        groupId: 'group-2',
+        gridRow: 0,
+        gridColumn: 1,
+      },
+      group: {
+        id: 'group-2',
+        name: 'Video Wall',
+        mode: 'split',
+        gridRows: 2,
+        gridColumns: 3,
+      },
+    });
+
+    expect(state.group).not.toBeNull();
+    expect(state.group!.mode).toBe('split');
+    expect(state.group!.gridRows).toBe(2);
+    expect(state.group!.gridColumns).toBe(3);
+    expect(state.screen.gridRow).toBe(0);
+    expect(state.screen.gridColumn).toBe(1);
   });
 });
 

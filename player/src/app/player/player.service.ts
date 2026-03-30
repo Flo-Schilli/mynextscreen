@@ -10,6 +10,7 @@ import {
   LiveStream,
   ScreenInfo,
   ScheduleEntry,
+  GroupInfo,
   GroupPlayEvent,
   PendingEvent,
 } from './player.models';
@@ -33,6 +34,7 @@ export class PlayerService implements OnDestroy {
   private readonly _activeLiveStream = signal<LiveStream | null>(null);
   private readonly _status = signal<PlayerConnectionStatus>('disconnected');
   private readonly _lastEvent = signal<ScreenEvent | null>(null);
+  private readonly _groupInfo = signal<GroupInfo | null>(null);
   private readonly _groupPlayEvent = signal<GroupPlayEvent | null>(null);
   private readonly _pendingEvent = signal<PendingEvent | null>(null);
 
@@ -43,11 +45,13 @@ export class PlayerService implements OnDestroy {
   readonly activeLiveStream = this._activeLiveStream.asReadonly();
   readonly status = this._status.asReadonly();
   readonly lastEvent = this._lastEvent.asReadonly();
+  readonly groupInfo = this._groupInfo.asReadonly();
   readonly groupPlayEvent = this._groupPlayEvent.asReadonly();
   readonly pendingEvent = this._pendingEvent.asReadonly();
 
   readonly activePlaylist = computed(() => this._currentPlaylist() ?? this._fallbackPlaylist());
   readonly isLiveStreaming = computed(() => this._activeLiveStream() !== null);
+  readonly isSplitMode = computed(() => this._groupInfo()?.mode === 'split');
 
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private sseAbortController: AbortController | null = null;
@@ -86,6 +90,7 @@ export class PlayerService implements OnDestroy {
     this._scheduleEntries.set([]);
     this._activeLiveStream.set(null);
     this._lastEvent.set(null);
+    this._groupInfo.set(null);
     this._groupPlayEvent.set(null);
     this._pendingEvent.set(null);
     window.removeEventListener('beforeunload', this.beforeUnloadHandler);
@@ -114,6 +119,7 @@ export class PlayerService implements OnDestroy {
     this._fallbackPlaylist.set(state.fallbackPlaylist);
     this._scheduleEntries.set(state.schedule);
     this._activeLiveStream.set(state.liveStream);
+    this._groupInfo.set(state.group);
   }
 
   handleEvent(event: ScreenEvent): void {

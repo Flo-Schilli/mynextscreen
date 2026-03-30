@@ -19,6 +19,9 @@ describe('JsonProtocolAdapter', () => {
     organisationId: '660e8400-e29b-41d4-a716-446655440000',
     resolution: '1920x1080',
     location: 'Main Lobby',
+    groupId: null,
+    gridRow: null,
+    gridColumn: null,
   };
 
   const playlistItem: PlaylistItem = {

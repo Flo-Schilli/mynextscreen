@@ -540,7 +540,6 @@ export class Dashboard implements OnInit, OnDestroy {
     const orgId = this.orgState.selectedOrgId();
     if (orgId) {
       this.loadData(orgId);
-      this.socketService.connect();
     }
   });
 
@@ -576,7 +575,6 @@ export class Dashboard implements OnInit, OnDestroy {
     for (const sub of this.subscriptions) {
       sub.unsubscribe();
     }
-    this.socketService.disconnect();
   }
 
   private loadData(orgId: string): void {

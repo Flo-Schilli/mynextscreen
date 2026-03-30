@@ -15,6 +15,7 @@ export class DashboardSocketService implements OnDestroy {
   private authService = inject(AuthService);
   private orgState = inject(OrganisationStateService);
   private socket: Socket | null = null;
+  private connectedOrgId: string | null = null;
 
   readonly screenOnline$ = new Subject<DashboardEvent>();
   readonly screenOffline$ = new Subject<DashboardEvent>();
@@ -25,12 +26,16 @@ export class DashboardSocketService implements OnDestroy {
   readonly notificationNew$ = new Subject<DashboardEvent>();
 
   connect(): void {
-    this.disconnect();
-
     const token = this.authService.getToken();
     const orgId = this.orgState.selectedOrgId();
     if (!token || !orgId) return;
 
+    // No-op if already connected for the same org
+    if (this.socket?.connected && this.connectedOrgId === orgId) return;
+
+    this.disconnect();
+
+    this.connectedOrgId = orgId;
     this.socket = io('/', {
       auth: { token, organisationId: orgId },
       transports: ['websocket', 'polling'],
@@ -64,9 +69,11 @@ export class DashboardSocketService implements OnDestroy {
 
   disconnect(): void {
     if (this.socket) {
+      this.socket.removeAllListeners();
       this.socket.disconnect();
       this.socket = null;
     }
+    this.connectedOrgId = null;
   }
 
   ngOnDestroy(): void {

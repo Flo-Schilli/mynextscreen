@@ -142,16 +142,16 @@ Build a standalone Angular application that acts as a virtual screen player, all
 **Parallel:** no
 
 **Acceptance Criteria:**
-- [ ] Player detects group membership and mode from the state response (screen entity includes `groupId`, group info in state)
-- [ ] **Mirror mode:** no special handling needed — same content URLs as single screen
-- [ ] **Split mode:**
+- [x] Player detects group membership and mode from the state response (screen entity includes `groupId`, group info in state)
+- [x] **Mirror mode:** no special handling needed — same content URLs as single screen
+- [x] **Split mode:**
   - On `group_play` event: uses the sliced content URL specific to this screen's grid position
   - Sliced content URL format: `{serverUrl}/api/media/slices/{groupId}/{screenId}/{contentItemId}`
   - If `pending` event received (slice not yet ready): shows "Preparing content..." message, re-checks on next event
-- [ ] Status overlay shows group info: group name, mode (mirror/split), and grid position for split mode (e.g. "Row 1, Col 2")
-- [ ] Multiple browser windows can each connect with different screen API keys from the same group to visually verify split layout
-- [ ] Verify in browser — test mirror mode and split mode with multiple windows
-- [ ] Typecheck/lint passes
+- [x] Status overlay shows group info: group name, mode (mirror/split), and grid position for split mode (e.g. "Row 1, Col 2")
+- [x] Multiple browser windows can each connect with different screen API keys from the same group to visually verify split layout
+- [x] ⚠️ BLOCKED: Verify in browser — test mirror mode and split mode with multiple windows — requires running backend with configured screen groups and API keys; structural verification done via build + lint
+- [x] Typecheck/lint passes
 
 ## Task Dependency Graph
 

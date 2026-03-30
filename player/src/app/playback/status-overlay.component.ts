@@ -195,10 +195,18 @@ export class StatusOverlayComponent implements OnInit, OnDestroy {
   });
 
   readonly groupInfo = computed((): string => {
+    const group = this.playerService.groupInfo();
+    if (!group) return '';
+
     const screen = this.playerService.screen();
-    if (!screen) return '';
-    // Group info will be populated when screen group support is added (TASK-017-006)
-    return '';
+    const mode = group.mode === 'mirror' ? 'Mirror' : 'Split';
+    let info = `${group.name} (${mode})`;
+
+    if (group.mode === 'split' && screen?.gridRow != null && screen?.gridColumn != null) {
+      info += ` — Row ${screen.gridRow + 1}, Col ${screen.gridColumn + 1}`;
+    }
+
+    return info;
   });
 
   @HostListener('window:keydown', ['$event'])

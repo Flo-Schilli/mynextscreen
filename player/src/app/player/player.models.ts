@@ -30,6 +30,17 @@ export interface ScreenInfo {
   organisationId: string;
   resolution: string;
   location: string;
+  groupId: string | null;
+  gridRow: number | null;
+  gridColumn: number | null;
+}
+
+export interface GroupInfo {
+  id: string;
+  name: string;
+  mode: 'mirror' | 'split';
+  gridRows: number | null;
+  gridColumns: number | null;
 }
 
 export interface ScreenStateResponse {
@@ -38,6 +49,7 @@ export interface ScreenStateResponse {
   schedule: ScheduleEntry[];
   fallbackPlaylist: Playlist | null;
   liveStream: LiveStream | null;
+  group: GroupInfo | null;
 }
 
 export type ScreenEventType =

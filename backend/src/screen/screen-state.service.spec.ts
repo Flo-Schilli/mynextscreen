@@ -14,6 +14,8 @@ describe('ScreenStateService', () => {
   let screenService: { findOne: jest.Mock };
   let protocolAdapter: jest.Mocked<ScreenProtocolAdapter>;
   let scheduleService: { getCurrentPlaylist: jest.Mock };
+  let screenGroupRepository: { findOne: jest.Mock };
+  let playlistRepository: { findOne: jest.Mock };
 
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
   const screenId = '770e8400-e29b-41d4-a716-446655440000';
@@ -74,10 +76,20 @@ describe('ScreenStateService', () => {
       }),
     };
 
+    screenGroupRepository = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
+    playlistRepository = {
+      findOne: jest.fn().mockResolvedValue(mockPlaylist),
+    };
+
     service = new ScreenStateService(
       screenService as unknown as ScreenService,
       protocolAdapter,
       scheduleService as unknown as ScheduleService,
+      screenGroupRepository as any,
+      playlistRepository as any,
     );
   });
 
@@ -97,10 +109,27 @@ describe('ScreenStateService', () => {
         organisationId: orgId,
         resolution: '1920x1080',
         location: 'Stage Left',
+        groupId: null,
+        gridRow: null,
+        gridColumn: null,
       });
     });
 
+    it('should return currentPlaylist when a scheduled playlist is active', async () => {
+      const state = await service.assembleState(orgId, screenId);
+      expect(state.currentPlaylist).toEqual({
+        id: playlistId,
+        name: 'Morning Playlist',
+        items: [],
+      });
+      expect(state.fallbackPlaylist).toBeNull();
+    });
+
     it('should return null for currentPlaylist when no playlists exist', async () => {
+      scheduleService.getCurrentPlaylist.mockResolvedValue({
+        playlist: null,
+        isDefault: true,
+      });
       const state = await service.assembleState(orgId, screenId);
       expect(state.currentPlaylist).toBeNull();
     });
@@ -115,7 +144,25 @@ describe('ScreenStateService', () => {
       expect(state.activeLiveStream).toBeNull();
     });
 
+    it('should return fallbackPlaylist when default playlist is configured', async () => {
+      scheduleService.getCurrentPlaylist.mockResolvedValue({
+        playlist: mockPlaylist,
+        isDefault: true,
+      });
+      const state = await service.assembleState(orgId, screenId);
+      expect(state.currentPlaylist).toBeNull();
+      expect(state.fallbackPlaylist).toEqual({
+        id: playlistId,
+        name: 'Morning Playlist',
+        items: [],
+      });
+    });
+
     it('should return null for fallbackPlaylist when none configured', async () => {
+      scheduleService.getCurrentPlaylist.mockResolvedValue({
+        playlist: null,
+        isDefault: true,
+      });
       const state = await service.assembleState(orgId, screenId);
       expect(state.fallbackPlaylist).toBeNull();
     });
@@ -135,8 +182,11 @@ describe('ScreenStateService', () => {
           organisationId: orgId,
           resolution: '1920x1080',
           location: 'Stage Left',
+          groupId: null,
+          gridRow: null,
+          gridColumn: null,
         },
-        currentPlaylist: null,
+        currentPlaylist: { id: playlistId, name: 'Morning Playlist', items: [] },
         schedule: [],
         fallbackPlaylist: null,
         liveStream: null,
