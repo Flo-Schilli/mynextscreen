@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { LiveStreamController } from './live-stream.controller';
 import { LiveStreamService } from './live-stream.service';
+import { FfmpegLiveService } from './ffmpeg-live.service';
 import { LiveStream } from './live-stream.entity';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
@@ -37,7 +38,13 @@ describe('LiveStreamController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [LiveStreamController],
-      providers: [{ provide: LiveStreamService, useValue: service }],
+      providers: [
+        { provide: LiveStreamService, useValue: service },
+        {
+          provide: FfmpegLiveService,
+          useValue: { getHlsOutputDir: jest.fn() },
+        },
+      ],
     }).compile();
 
     controller = module.get<LiveStreamController>(LiveStreamController);

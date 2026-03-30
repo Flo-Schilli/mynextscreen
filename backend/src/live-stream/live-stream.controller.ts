@@ -6,9 +6,15 @@ import {
   Delete,
   Param,
   Body,
+  Res,
   ParseUUIDPipe,
+  NotFoundException,
 } from '@nestjs/common';
+import { Response } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 import { LiveStreamService } from './live-stream.service';
+import { FfmpegLiveService } from './ffmpeg-live.service';
 import { CreateLiveStreamDto, UpdateLiveStreamDto } from './dto';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
@@ -17,7 +23,10 @@ import { LiveStream } from './live-stream.entity';
 
 @Controller('live-streams')
 export class LiveStreamController {
-  constructor(private readonly liveStreamService: LiveStreamService) {}
+  constructor(
+    private readonly liveStreamService: LiveStreamService,
+    private readonly ffmpegLiveService: FfmpegLiveService,
+  ) {}
 
   @Post()
   @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
@@ -70,5 +79,54 @@ export class LiveStreamController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     return this.liveStreamService.removeLiveStream(organisationId, id);
+  }
+
+  @Get(':id/hls/index.m3u8')
+  @Roles(
+    OrganisationRole.OrgAdmin,
+    OrganisationRole.Editor,
+    OrganisationRole.Viewer,
+  )
+  servePlaylist(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ): void {
+    const hlsDir = this.ffmpegLiveService.getHlsOutputDir(id);
+    const filePath = path.resolve(path.join(hlsDir, 'index.m3u8'));
+
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundException('HLS playlist not found');
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache, no-store');
+    res.sendFile(filePath);
+  }
+
+  @Get(':id/hls/:segment')
+  @Roles(
+    OrganisationRole.OrgAdmin,
+    OrganisationRole.Editor,
+    OrganisationRole.Viewer,
+  )
+  serveSegment(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('segment') segment: string,
+    @Res() res: Response,
+  ): void {
+    // Sanitize segment filename to prevent path traversal
+    const sanitized = path.basename(segment);
+    const hlsDir = this.ffmpegLiveService.getHlsOutputDir(id);
+    const filePath = path.resolve(path.join(hlsDir, sanitized));
+
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundException('HLS segment not found');
+    }
+
+    res.setHeader('Content-Type', 'video/mp2t');
+    res.setHeader('Cache-Control', 'no-cache, no-store');
+    res.sendFile(filePath);
   }
 }
