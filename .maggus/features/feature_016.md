@@ -201,14 +201,14 @@ Allow users to select multiple items at once on the Screens, Content Library, an
 **Parallel:** no — toolbar must exist before dialog is wired up; pages depend on this
 
 **Acceptance Criteria:**
-- [ ] `BulkConfirmDialogComponent` standalone component (or reuse an existing confirm dialog if one exists in the app — check before creating a new one)
-- [ ] Inputs: `title: string`, `message: string`, `confirmLabel: string` (defaults to "Delete"), `itemCount: number`
-- [ ] Shows: title, a message including the count ("You are about to permanently delete 12 items. This cannot be undone."), Cancel and Confirm buttons
-- [ ] Confirm button is styled red (danger variant)
-- [ ] Returns a `Promise<boolean>` (resolves `true` on confirm, `false` on cancel/dismiss)
-- [ ] Accessible: focus traps inside the dialog, Escape key cancels
-- [ ] Unit test: confirm resolves true, cancel resolves false
-- [ ] Typecheck and lint pass
+- [x] `BulkConfirmDialogComponent` standalone component (or reuse an existing confirm dialog if one exists in the app — check before creating a new one)
+- [x] Inputs: `title: string`, `message: string`, `confirmLabel: string` (defaults to "Delete"), `itemCount: number`
+- [x] Shows: title, a message including the count ("You are about to permanently delete 12 items. This cannot be undone."), Cancel and Confirm buttons
+- [x] Confirm button is styled red (danger variant)
+- [x] Returns a `Promise<boolean>` (resolves `true` on confirm, `false` on cancel/dismiss)
+- [x] Accessible: focus traps inside the dialog, Escape key cancels
+- [x] Unit test: confirm resolves true, cancel resolves false
+- [x] Typecheck and lint pass
 
 ### TASK-016-011: Audit Log Action Types for Bulk Operations
 **Description:** As a system operator, I want bulk operations to produce individual per-resource audit log entries so that the audit trail is granular and searchable.
