@@ -30,19 +30,19 @@ Provide a global search input in the top bar that lets users quickly find screen
 **Parallel:** yes — can run alongside nothing (first task)
 
 **Acceptance Criteria:**
-- [ ] `SearchModule` created under `backend/src/search/`
-- [ ] `SearchService` with a single `search(query: string, organisationId: string): Promise<SearchResultsDto>` method
-- [ ] Searches across four entity types:
+- [x] `SearchModule` created under `backend/src/search/`
+- [x] `SearchService` with a single `search(query: string, organisationId: string): Promise<SearchResultsDto>` method
+- [x] Searches across four entity types:
   - **Screen:** matches on `name`, `location`
   - **Content:** matches on `title`, `description`, `tags`
   - **Playlist:** matches on `name`
   - **ScheduleEntry:** matches on the linked playlist's `name` and the linked screen/group's `name`
-- [ ] Each entity is queried with case-insensitive `LIKE '%query%'` via TypeORM `QueryBuilder`; all queries include `WHERE organisationId = :orgId`
-- [ ] Results capped per category: maximum 5 results per entity type (20 total)
-- [ ] Return type `SearchResultsDto` contains four arrays: `screens`, `content`, `playlists`, `schedules`; each item has at minimum `id`, `type`, `label` (display text), and `url` (frontend navigation path)
-- [ ] Empty query string returns empty results immediately without hitting the database
-- [ ] Unit tests covering: normal match, no results, empty query, org-scoping (results from another org are excluded)
-- [ ] Typecheck and lint pass
+- [x] Each entity is queried with case-insensitive `LIKE '%query%'` via TypeORM `QueryBuilder`; all queries include `WHERE organisationId = :orgId`
+- [x] Results capped per category: maximum 5 results per entity type (20 total)
+- [x] Return type `SearchResultsDto` contains four arrays: `screens`, `content`, `playlists`, `schedules`; each item has at minimum `id`, `type`, `label` (display text), and `url` (frontend navigation path)
+- [x] Empty query string returns empty results immediately without hitting the database
+- [x] Unit tests covering: normal match, no results, empty query, org-scoping (results from another org are excluded)
+- [x] Typecheck and lint pass
 
 ### TASK-015-002: Search REST API Endpoint
 **Description:** As a frontend developer, I want a `GET /api/search` endpoint so that the frontend can retrieve search results with a single request.
