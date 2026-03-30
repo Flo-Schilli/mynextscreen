@@ -53,12 +53,12 @@ Provide a global search input in the top bar that lets users quickly find screen
 **Parallel:** no
 
 **Acceptance Criteria:**
-- [ ] `SearchController` with route `GET /api/search?q=<query>`
-- [ ] Query param `q` is required; returns HTTP 400 if missing
-- [ ] Minimum query length: 2 characters; returns HTTP 400 with a clear message if shorter (prevents overly broad queries)
-- [ ] Controller extracts `organisationId` from the authenticated user's JWT and passes it to `SearchService`
-- [ ] Route is protected by the existing JWT auth guard; unauthenticated requests return HTTP 401
-- [ ] Response shape:
+- [x] `SearchController` with route `GET /api/search?q=<query>`
+- [x] Query param `q` is required; returns HTTP 400 if missing
+- [x] Minimum query length: 2 characters; returns HTTP 400 with a clear message if shorter (prevents overly broad queries)
+- [x] Controller extracts `organisationId` from the authenticated user's JWT and passes it to `SearchService`
+- [x] Route is protected by the existing JWT auth guard; unauthenticated requests return HTTP 401
+- [x] Response shape:
   ```json
   {
     "screens":   [{ "id": "...", "type": "screen",   "label": "...", "url": "/screens/..." }],
@@ -67,8 +67,8 @@ Provide a global search input in the top bar that lets users quickly find screen
     "schedules": [{ "id": "...", "type": "schedule", "label": "...", "url": "/schedules/..." }]
   }
   ```
-- [ ] Unit tests for: happy path, missing `q`, short `q`, unauthenticated
-- [ ] Typecheck and lint pass
+- [x] Unit tests for: happy path, missing `q`, short `q`, unauthenticated
+- [x] Typecheck and lint pass
 
 ### TASK-015-003: Frontend — Global Search Input in Top Bar
 **Description:** As a user, I want a search input in the top bar so that I can start a search from anywhere in the app.
