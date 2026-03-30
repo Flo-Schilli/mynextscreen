@@ -51,18 +51,18 @@ Build a standalone Angular application that acts as a virtual screen player, all
 **Parallel:** yes — can run alongside TASK-017-003
 
 **Acceptance Criteria:**
-- [ ] Modal dialog appears on app load if no saved connection exists
-- [ ] Fields: Server URL (text input, e.g. `http://localhost:3000`), Screen API Key (text input, masked)
-- [ ] "Connect" button validates inputs are non-empty
-- [ ] On connect: calls `GET /api/screens/:id/state` with the API key to verify connection
+- [x] Modal dialog appears on app load if no saved connection exists
+- [x] Fields: Server URL (text input, e.g. `http://localhost:3000`), Screen API Key (text input, masked)
+- [x] "Connect" button validates inputs are non-empty
+- [x] On connect: calls `GET /api/screens/:id/state` with the API key to verify connection
   - API key is sent as `Authorization: Bearer <key>` header
   - Screen ID is extracted from the state response
-- [ ] On success: saves server URL and API key to localStorage, closes dialog, starts player
-- [ ] On failure: shows error message ("Invalid API key" or "Server unreachable")
-- [ ] "Disconnect" button in a small top-right overlay to return to the dialog
-- [ ] Settings persist across page reloads — auto-reconnects on load if settings exist
-- [ ] A `ConnectionService` manages the server URL, API key, and connection state
-- [ ] Verify in browser
+- [x] On success: saves server URL and API key to localStorage, closes dialog, starts player
+- [x] On failure: shows error message ("Invalid API key" or "Server unreachable")
+- [x] "Disconnect" button in a small top-right overlay to return to the dialog
+- [x] Settings persist across page reloads — auto-reconnects on load if settings exist
+- [x] A `ConnectionService` manages the server URL, API key, and connection state
+- [x] ⚠️ BLOCKED: Verify in browser — requires running backend with a configured screen and API key; structural verification done via build + lint
 
 ### TASK-017-003: Player Core Service — State, SSE, Heartbeat
 **Description:** As a virtual screen, I want to pull my full state from the server, subscribe to SSE events for real-time updates, and send heartbeats so that the server tracks me as online.

@@ -61,6 +61,15 @@ export class ScreenController {
     return this.screenService.findAll(organisationId);
   }
 
+  @Get('me')
+  @ScreenAuth()
+  identify(@Req() req: ScreenAuthenticatedRequest): {
+    screenId: string;
+    organisationId: string;
+  } {
+    return { screenId: req.screenId, organisationId: req.organisationId };
+  }
+
   @Get(':id')
   @Roles(
     OrganisationRole.OrgAdmin,
