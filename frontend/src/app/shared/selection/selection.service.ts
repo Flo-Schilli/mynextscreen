@@ -3,6 +3,9 @@ import { Injectable, computed, signal } from '@angular/core';
 @Injectable()
 export class SelectionService {
   private readonly _selectedIds = signal<Set<string>>(new Set());
+  private readonly _lastClickedId = signal<string | null>(null);
+
+  readonly lastClickedId = this._lastClickedId.asReadonly();
 
   readonly selectedIds = this._selectedIds.asReadonly();
   readonly count = computed(() => this._selectedIds().size);
@@ -18,6 +21,7 @@ export class SelectionService {
       }
       return next;
     });
+    this._lastClickedId.set(id);
   }
 
   selectRange(ids: string[], fromId: string, toId: string): void {
