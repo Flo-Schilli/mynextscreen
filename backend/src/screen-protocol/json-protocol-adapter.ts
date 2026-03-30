@@ -68,6 +68,8 @@ export class JsonProtocolAdapter implements ScreenProtocolAdapter {
       url: `/api/media/${organisationId}/${item.contentId}`,
       duration: item.duration,
       type: item.type,
+      transition: item.transition,
+      transitionDurationMs: item.transitionDurationMs,
     };
   }
 }

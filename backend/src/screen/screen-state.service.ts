@@ -156,6 +156,8 @@ export class ScreenStateService implements OnModuleDestroy {
         duration: item.durationSeconds,
         type: item.content?.type ?? 'unknown',
         order: item.position,
+        transition: item.transition,
+        transitionDurationMs: item.transitionDurationMs,
       })),
     };
   }

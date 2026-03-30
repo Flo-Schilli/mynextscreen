@@ -4,6 +4,8 @@ export interface PlaylistItem {
   duration: number;
   type: string;
   order: number;
+  transition: string;
+  transitionDurationMs: number;
 }
 
 export interface Playlist {

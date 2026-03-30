@@ -54,12 +54,12 @@ Add configurable transition/blending modes to playlist items so that content tra
 **Parallel:** yes — can run alongside TASK-018-003
 
 **Acceptance Criteria:**
-- [ ] `screen-state.model.ts` `PlaylistItem` interface gets `transition: string` and `transitionDurationMs: number` fields
-- [ ] `JsonProtocolAdapter.renderPlaylistItem()` includes `transition` and `transitionDurationMs` in the output
-- [ ] `ScreenStateService.mapPlaylist()` maps the entity fields to the protocol model
-- [ ] Player's `player.models.ts` `PlaylistItem` interface gets `transition` and `transitionDurationMs` fields
-- [ ] Unit tests for JsonProtocolAdapter and ScreenStateService updated
-- [ ] Typecheck/lint passes
+- [x] `screen-state.model.ts` `PlaylistItem` interface gets `transition: string` and `transitionDurationMs: number` fields
+- [x] `JsonProtocolAdapter.renderPlaylistItem()` includes `transition` and `transitionDurationMs` in the output
+- [x] `ScreenStateService.mapPlaylist()` maps the entity fields to the protocol model
+- [x] Player's `player.models.ts` `PlaylistItem` interface gets `transition` and `transitionDurationMs` fields
+- [x] Unit tests for JsonProtocolAdapter and ScreenStateService updated
+- [x] Typecheck/lint passes
 
 ### TASK-018-003: Frontend — Transition dropdown and duration input in playlist editor
 **Description:** As an editor, I want a transition dropdown and duration input on each playlist item row so that I can configure how each item enters the screen.

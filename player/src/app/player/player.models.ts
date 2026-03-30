@@ -2,6 +2,8 @@ export interface PlaylistItem {
   url: string;
   duration: number;
   type: string;
+  transition: string;
+  transitionDurationMs: number;
 }
 
 export interface Playlist {
