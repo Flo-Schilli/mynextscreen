@@ -35,3 +35,13 @@ export interface AddPlaylistItemRequest {
 export interface ReorderPlaylistItemsRequest {
   itemIds: string[];
 }
+
+export interface BulkDeletePlaylistsResponse {
+  deleted: number;
+  notFound: string[];
+}
+
+export interface BulkAssignScreenResponse {
+  assigned: number;
+  notFound: string[];
+}

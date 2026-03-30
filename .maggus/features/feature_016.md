@@ -184,13 +184,13 @@ Allow users to select multiple items at once on the Screens, Content Library, an
 **Parallel:** yes — can run alongside TASK-016-007, TASK-016-008
 
 **Acceptance Criteria:**
-- [ ] `PlaylistsListComponent` provides `SelectionService` at component level
-- [ ] Each playlist row includes a `SelectionCheckboxComponent`; a "select all" checkbox in the header
-- [ ] `BulkActionToolbarComponent` embedded with actions: "Delete selected" (danger), "Assign to screen(s)" (default)
-- [ ] "Delete selected" opens a confirmation dialog; on success shows toast "X playlist(s) deleted" and refreshes the list
-- [ ] "Assign to screen(s)" opens a screen-picker modal (multi-select list of screens in the org); calls the bulk assign endpoint; on success shows toast
-- [ ] `notFound` handling: non-blocking warning as in TASK-016-007
-- [ ] Typecheck and lint pass
+- [x] `PlaylistsListComponent` provides `SelectionService` at component level
+- [x] Each playlist row includes a `SelectionCheckboxComponent`; a "select all" checkbox in the header
+- [x] `BulkActionToolbarComponent` embedded with actions: "Delete selected" (danger), "Assign to screen(s)" (default)
+- [x] "Delete selected" opens a confirmation dialog; on success shows toast "X playlist(s) deleted" and refreshes the list
+- [x] "Assign to screen(s)" opens a screen-picker modal (multi-select list of screens in the org); calls the bulk assign endpoint; on success shows toast
+- [x] `notFound` handling: non-blocking warning as in TASK-016-007
+- [x] Typecheck and lint pass
 
 ### TASK-016-010: Confirmation Dialog for Destructive Bulk Actions
 **Description:** As a user, I want a clear confirmation dialog before any destructive bulk action so that I cannot accidentally delete many items at once.
