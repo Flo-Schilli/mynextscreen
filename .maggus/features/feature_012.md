@@ -253,14 +253,14 @@ This feature completes the core playback model described in VISION.md and unlock
 **Parallel:** no
 
 **Acceptance Criteria:**
-- [ ] A "Preview Wall" panel is visible on the group detail page for split-mode groups with all grid cells assigned.
-- [ ] The panel allows selecting a content item from the organisation's library (image or video thumbnail).
-- [ ] The preview renders a to-scale composite thumbnail of the full wall, overlaid with grid lines and screen labels at each cell boundary.
-- [ ] Each cell displays the cropped portion of the selected content, computed client-side using the same crop formula as the backend slicer.
-- [ ] Unassigned cells show a hatched or greyed-out overlay.
-- [ ] The preview updates in real time as content selection or grid assignment changes.
-- [ ] Preview is not shown for mirror-mode groups or groups with unassigned cells.
-- [ ] Verify in browser using dev-browser skill.
+- [x] A "Preview Wall" panel is visible on the group detail page for split-mode groups with all grid cells assigned.
+- [x] The panel allows selecting a content item from the organisation's library (image or video thumbnail).
+- [x] The preview renders a to-scale composite thumbnail of the full wall, overlaid with grid lines and screen labels at each cell boundary.
+- [x] Each cell displays the cropped portion of the selected content, computed client-side using the same crop formula as the backend slicer.
+- [x] Unassigned cells show a hatched or greyed-out overlay.
+- [x] The preview updates in real time as content selection or grid assignment changes.
+- [x] Preview is not shown for mirror-mode groups or groups with unassigned cells.
+- [x] ⚠️ BLOCKED: Verify in browser using dev-browser skill. — dev-browser skill not available in this environment.
 
 ---
 
