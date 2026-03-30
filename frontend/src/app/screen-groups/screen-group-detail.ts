@@ -8,6 +8,8 @@ import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
+import { ContentService } from '../content/content.service';
+import { Content } from '../content/content.model';
 
 interface GridCell {
   row: number;
@@ -112,6 +114,42 @@ interface GridCell {
               }
             </div>
           </div>
+
+          <!-- Wall Preview -->
+          @if (allCellsAssigned) {
+            <div class="wall-preview-section">
+              <h2 class="section-title">Preview Wall</h2>
+              <div class="preview-content-picker">
+                <label for="previewContentSelect">Select content to preview:</label>
+                @if (loadingContent) {
+                  <span class="loading-text">Loading content...</span>
+                } @else {
+                  <select id="previewContentSelect" [(ngModel)]="selectedContentId" (ngModelChange)="onPreviewContentSelect($event)">
+                    <option value="">-- Select content --</option>
+                    @for (item of contentItems; track item.id) {
+                      <option [value]="item.id">{{ item.title }} ({{ item.type }})</option>
+                    }
+                  </select>
+                }
+              </div>
+              @if (previewImageUrl) {
+                <div class="preview-grid"
+                     [style.grid-template-columns]="'repeat(' + group.gridColumns + ', 1fr)'"
+                     [style.grid-template-rows]="'repeat(' + group.gridRows + ', 1fr)'"
+                     [style.aspect-ratio]="previewAspectRatio">
+                  @for (cell of gridCells; track cell.dropListId) {
+                    <div class="preview-cell"
+                         [class.unassigned]="!cell.screen"
+                         [style.background-image]="cell.screen ? 'url(' + previewImageUrl + ')' : 'none'"
+                         [style.background-size]="getPreviewBgSize()"
+                         [style.background-position]="getPreviewBgPosition(cell.col, cell.row)">
+                      <span class="preview-label">{{ cell.screen?.name ?? 'Empty' }}</span>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
         }
 
         <!-- Mirror mode: Simple List -->
@@ -650,6 +688,78 @@ interface GridCell {
       font-size: 0.875rem;
     }
 
+    /* Wall Preview */
+    .wall-preview-section {
+      margin-top: 1.5rem;
+      background: var(--color-bg-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+    }
+    .preview-content-picker {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .preview-content-picker label {
+      font-size: 0.875rem;
+      color: var(--color-text-secondary);
+      white-space: nowrap;
+    }
+    .preview-content-picker select {
+      flex: 1;
+      max-width: 24rem;
+      padding: 0.5rem 0.75rem;
+      background: var(--color-bg-primary);
+      border: 1px solid var(--color-border);
+      border-radius: 0.375rem;
+      color: var(--color-text-primary);
+      font-size: 0.875rem;
+    }
+    .preview-content-picker select:focus {
+      outline: none;
+      border-color: var(--color-accent);
+    }
+    .preview-grid {
+      display: grid;
+      border: 2px solid var(--color-text-muted);
+      border-radius: 0.375rem;
+      overflow: hidden;
+      max-width: 48rem;
+    }
+    .preview-cell {
+      position: relative;
+      border: 1px solid var(--color-text-muted);
+      background-repeat: no-repeat;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      min-height: 4rem;
+    }
+    .preview-cell.unassigned {
+      background: repeating-linear-gradient(
+        45deg,
+        var(--color-bg-tertiary),
+        var(--color-bg-tertiary) 8px,
+        var(--color-border) 8px,
+        var(--color-border) 16px
+      );
+    }
+    .preview-label {
+      background: rgba(0, 0, 0, 0.65);
+      color: #fff;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      padding: 0.125rem 0.375rem;
+      border-radius: 0.25rem;
+      margin-bottom: 0.25rem;
+      max-width: 90%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .page {
@@ -679,6 +789,7 @@ export class ScreenGroupDetail implements OnInit {
   private screenGroupService = inject(ScreenGroupService);
   private screenService = inject(ScreenService);
   private memberService = inject(MemberService);
+  private contentService = inject(ContentService);
 
   orgId = '';
   group: ScreenGroup | null = null;
@@ -707,6 +818,20 @@ export class ScreenGroupDetail implements OnInit {
   switchError = '';
   switching = false;
 
+  // Wall preview state
+  contentItems: Content[] = [];
+  loadingContent = false;
+  selectedContentId = '';
+  selectedContent: Content | null = null;
+  previewImageUrl: string | null = null;
+  previewAspectRatio = '16 / 9';
+
+  get allCellsAssigned(): boolean {
+    if (!this.group || this.group.mode !== 'split' || !this.group.gridColumns || !this.group.gridRows) return false;
+    const totalCells = this.group.gridColumns * this.group.gridRows;
+    return this.gridCells.length === totalCells && this.gridCells.every(cell => cell.screen !== null);
+  }
+
   ngOnInit(): void {
     this.memberService.getMyMemberships().subscribe({
       next: (memberships: MyMembership[]) => {
@@ -715,6 +840,7 @@ export class ScreenGroupDetail implements OnInit {
           this.orgId = m.organisationId;
           this.loadGroup();
           this.loadAllScreens();
+          this.loadContentItems();
         } else {
           this.loadError = 'You are not a member of any organisation.';
           this.loading = false;
@@ -1016,6 +1142,96 @@ export class ScreenGroupDetail implements OnInit {
         this.actionError = 'Failed to refresh group data.';
       },
     });
+  }
+
+  // --- Wall Preview ---
+  private loadContentItems(): void {
+    this.loadingContent = true;
+    this.contentService.getAll(this.orgId).subscribe({
+      next: (items) => {
+        this.contentItems = items.filter(
+          (i) => i.transcodingStatus === 'completed' || (i.type === 'image' && i.transcodingStatus !== 'failed'),
+        );
+        this.loadingContent = false;
+      },
+      error: () => {
+        this.loadingContent = false;
+      },
+    });
+  }
+
+  onPreviewContentSelect(contentId: string): void {
+    if (!contentId) {
+      this.selectedContent = null;
+      this.previewImageUrl = null;
+      return;
+    }
+    const content = this.contentItems.find((c) => c.id === contentId);
+    if (!content) return;
+    this.selectedContent = content;
+
+    const url = this.getContentPreviewUrl(content);
+
+    if (content.type === 'image') {
+      const img = new Image();
+      img.onload = () => {
+        this.previewAspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
+        this.previewImageUrl = url;
+      };
+      img.onerror = () => {
+        this.previewAspectRatio = '16 / 9';
+        this.previewImageUrl = url;
+      };
+      img.src = url;
+    } else {
+      this.extractVideoThumbnail(url);
+    }
+  }
+
+  private extractVideoThumbnail(url: string): void {
+    const video = document.createElement('video');
+    video.crossOrigin = 'anonymous';
+    video.muted = true;
+    video.preload = 'auto';
+    video.onloadeddata = () => {
+      video.currentTime = 0;
+    };
+    video.onseeked = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0);
+        this.previewAspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+        this.previewImageUrl = canvas.toDataURL('image/jpeg');
+      }
+    };
+    video.onerror = () => {
+      this.previewAspectRatio = '16 / 9';
+      this.previewImageUrl = url;
+    };
+    video.src = url;
+  }
+
+  private getContentPreviewUrl(content: Content): string {
+    if (content.transcodingStatus === 'completed') {
+      return this.contentService.getTranscodedUrl(content.id);
+    }
+    return this.contentService.getOriginalUrl(content.id);
+  }
+
+  getPreviewBgSize(): string {
+    if (!this.group?.gridColumns || !this.group?.gridRows) return '100% 100%';
+    return `${this.group.gridColumns * 100}% ${this.group.gridRows * 100}%`;
+  }
+
+  getPreviewBgPosition(col: number, row: number): string {
+    const cols = this.group?.gridColumns ?? 1;
+    const rows = this.group?.gridRows ?? 1;
+    const xPct = cols > 1 ? (col / (cols - 1)) * 100 : 0;
+    const yPct = rows > 1 ? (row / (rows - 1)) * 100 : 0;
+    return `${xPct}% ${yPct}%`;
   }
 
   goBack(): void {
