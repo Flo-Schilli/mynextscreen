@@ -29,6 +29,12 @@ jest.mock('fs/promises', () => ({
   unlink: jest.fn().mockResolvedValue(undefined),
 }));
 
+// Mock ffprobe-duration utility
+const mockFfprobeDuration = jest.fn();
+jest.mock('./ffprobe-duration.util', () => ({
+  ffprobeDuration: (...args: unknown[]) => mockFfprobeDuration(...args),
+}));
+
 function createMockJob(
   overrides: Partial<TranscodeJobData> = {},
 ): Job<TranscodeJobData> {
@@ -122,6 +128,7 @@ describe('TranscodingProcessor', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockFfprobeDuration.mockResolvedValue(60);
 
     contentRepo = {
       update: jest.fn().mockResolvedValue({ affected: 1 }),
@@ -171,9 +178,10 @@ describe('TranscodingProcessor', () => {
         transcodingStatus: TranscodingStatus.Processing,
       });
 
-      // Second call: set to completed with transcoded size
+      // Second call: set to completed with transcoded size and duration
       expect(contentRepo.update).toHaveBeenCalledWith('content-1', {
         transcodedSizeBytes: 5000,
+        durationSeconds: 60,
         transcodingStatus: TranscodingStatus.Completed,
         transcodingError: null,
       });
@@ -244,6 +252,33 @@ describe('TranscodingProcessor', () => {
         expect.any(Object),
       );
     });
+
+    it('should call ffprobe on the transcoded file for videos', async () => {
+      setupSpawnSuccess();
+      const job = createMockJob();
+
+      await processor.process(job);
+
+      expect(mockFfprobeDuration).toHaveBeenCalledWith(
+        expect.stringContaining('content-1.mp4'),
+        'ffprobe',
+      );
+    });
+
+    it('should save durationSeconds as null when ffprobe fails for video', async () => {
+      setupSpawnSuccess();
+      mockFfprobeDuration.mockRejectedValue(new Error('ffprobe failed'));
+      const job = createMockJob();
+
+      await processor.process(job);
+
+      expect(contentRepo.update).toHaveBeenCalledWith('content-1', {
+        transcodedSizeBytes: 5000,
+        durationSeconds: null,
+        transcodingStatus: TranscodingStatus.Completed,
+        transcodingError: null,
+      });
+    });
   });
 
   describe('process — image transcoding', () => {
@@ -271,8 +306,22 @@ describe('TranscodingProcessor', () => {
         'content-1',
         expect.objectContaining({
           transcodingStatus: TranscodingStatus.Completed,
+          durationSeconds: null,
         }),
       );
+    });
+
+    it('should not call ffprobe for images', async () => {
+      setupSpawnSuccess();
+      const job = createMockJob({
+        type: ContentType.Image,
+        mimeType: 'image/png',
+        originalPath: '/tmp/media/org-1/originals/content-1.png',
+      });
+
+      await processor.process(job);
+
+      expect(mockFfprobeDuration).not.toHaveBeenCalled();
     });
   });
 

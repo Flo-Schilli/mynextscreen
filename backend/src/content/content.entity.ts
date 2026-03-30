@@ -76,6 +76,12 @@ export class Content {
   @Min(0)
   transcodedSizeBytes!: number | null;
 
+  @Column({ type: 'integer', nullable: true, default: null })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  durationSeconds!: number | null;
+
   @Column({ type: 'varchar', default: TranscodingStatus.Pending })
   @IsEnum(TranscodingStatus)
   transcodingStatus!: TranscodingStatus;

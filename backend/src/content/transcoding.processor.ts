@@ -18,6 +18,7 @@ import {
   parseProgressTime,
   calculateProgress,
 } from './ffmpeg-progress.util';
+import { ffprobeDuration } from './ffprobe-duration.util';
 import {
   TRANSCODING_COMPLETED,
   TRANSCODING_FAILED,
@@ -116,9 +117,23 @@ export class TranscodingProcessor extends WorkerHost {
         return;
       }
 
+      // Extract video duration via ffprobe
+      let durationSeconds: number | null = null;
+      if (type === ContentType.Video) {
+        try {
+          const ffprobePath = this.ffmpegPath.replace(/ffmpeg/, 'ffprobe');
+          durationSeconds = await ffprobeDuration(outputPath, ffprobePath);
+        } catch (err: unknown) {
+          this.logger.warn(
+            `Failed to extract duration for content ${contentId}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+
       // Update content record
       await this.contentRepository.update(contentId, {
         transcodedSizeBytes,
+        durationSeconds,
         transcodingStatus: TranscodingStatus.Completed,
         transcodingError: null,
       });
