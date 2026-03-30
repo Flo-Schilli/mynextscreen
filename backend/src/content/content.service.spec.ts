@@ -18,6 +18,11 @@ jest.mock('fs/promises', () => ({
   unlink: jest.fn().mockResolvedValue(undefined),
 }));
 
+const mockFfprobeDuration = jest.fn();
+jest.mock('./ffprobe-duration.util', () => ({
+  ffprobeDuration: (...args: unknown[]) => mockFfprobeDuration(...args),
+}));
+
 function createMockFile(
   overrides: Partial<Express.Multer.File> = {},
 ): Express.Multer.File {
@@ -49,6 +54,7 @@ describe('ContentService', () => {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn().mockResolvedValue(null),
       remove: jest.fn().mockResolvedValue(undefined),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
 
     storageService = {
@@ -85,6 +91,7 @@ describe('ContentService', () => {
             get: jest.fn((key: string, defaultVal: unknown) => {
               if (key === 'MEDIA_BASE_PATH') return '/tmp/test-media';
               if (key === 'MAX_FILE_SIZE_BYTES') return 104857600;
+              if (key === 'FFMPEG_PATH') return 'ffmpeg';
               return defaultVal;
             }),
           },
@@ -388,6 +395,70 @@ describe('ContentService', () => {
       await expect(service.reUpload('org-1', 'c1', file)).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  describe('ensureDuration', () => {
+    it('should return null for image content', async () => {
+      const content = {
+        id: 'c1',
+        organisationId: 'org-1',
+        type: ContentType.Image,
+        durationSeconds: null,
+      } as Content;
+
+      const result = await service.ensureDuration(content);
+      expect(result).toBeNull();
+      expect(mockFfprobeDuration).not.toHaveBeenCalled();
+    });
+
+    it('should return existing duration if already set', async () => {
+      const content = {
+        id: 'c1',
+        organisationId: 'org-1',
+        type: ContentType.Video,
+        durationSeconds: 58,
+      } as Content;
+
+      const result = await service.ensureDuration(content);
+      expect(result).toBe(58);
+      expect(mockFfprobeDuration).not.toHaveBeenCalled();
+    });
+
+    it('should run ffprobe and save duration for video without duration', async () => {
+      mockFfprobeDuration.mockResolvedValue(42);
+      const content = {
+        id: 'c1',
+        organisationId: 'org-1',
+        type: ContentType.Video,
+        durationSeconds: null,
+      } as Content;
+
+      const result = await service.ensureDuration(content);
+
+      expect(result).toBe(42);
+      expect(content.durationSeconds).toBe(42);
+      expect(mockFfprobeDuration).toHaveBeenCalledWith(
+        expect.stringContaining('c1.mp4'),
+        'ffprobe',
+      );
+      expect(contentRepo.update).toHaveBeenCalledWith('c1', {
+        durationSeconds: 42,
+      });
+    });
+
+    it('should return null when ffprobe fails', async () => {
+      mockFfprobeDuration.mockRejectedValue(new Error('ffprobe not found'));
+      const content = {
+        id: 'c1',
+        organisationId: 'org-1',
+        type: ContentType.Video,
+        durationSeconds: null,
+      } as Content;
+
+      const result = await service.ensureDuration(content);
+
+      expect(result).toBeNull();
     });
   });
 });

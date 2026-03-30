@@ -18,6 +18,7 @@ import { getOriginalPath, getTranscodedPath } from './content-storage.util';
 import { StorageService } from '../organisation/storage.service';
 import { Playlist } from '../playlist/playlist.entity';
 import { PlaylistItem } from '../playlist/playlist-item.entity';
+import { ffprobeDuration } from './ffprobe-duration.util';
 import { UploadContentDto } from './dto/upload-content.dto';
 import { UpdateContentDto } from './dto/update-content.dto';
 import {
@@ -38,6 +39,7 @@ const VIDEO_MIME_PREFIX = 'video/';
 export class ContentService {
   private readonly mediaBasePath: string;
   private readonly maxFileSizeBytes: number;
+  private readonly ffprobePath: string;
 
   constructor(
     @InjectRepository(Content)
@@ -60,6 +62,8 @@ export class ContentService {
       'MAX_FILE_SIZE_BYTES',
       104857600, // 100 MB default
     );
+    const ffmpegPath = this.configService.get<string>('FFMPEG_PATH', 'ffmpeg');
+    this.ffprobePath = ffmpegPath.replace(/ffmpeg/, 'ffprobe');
   }
 
   async upload(
@@ -157,6 +161,34 @@ export class ContentService {
       );
     }
     return content;
+  }
+
+  async ensureDuration(content: Content): Promise<number | null> {
+    if (content.type !== ContentType.Video) {
+      return null;
+    }
+
+    if (content.durationSeconds != null) {
+      return content.durationSeconds;
+    }
+
+    const transcodedPath = getTranscodedPath(
+      this.mediaBasePath,
+      content.organisationId,
+      content.id,
+      'mp4',
+    );
+
+    try {
+      const duration = await ffprobeDuration(transcodedPath, this.ffprobePath);
+      content.durationSeconds = duration;
+      await this.contentRepository.update(content.id, {
+        durationSeconds: duration,
+      });
+      return duration;
+    } catch {
+      return null;
+    }
   }
 
   async updateMetadata(
@@ -294,6 +326,7 @@ export class ContentService {
     content.originalSizeBytes = file.size;
     content.type = type;
     content.transcodedSizeBytes = null;
+    content.durationSeconds = null;
     content.transcodingStatus = TranscodingStatus.Pending;
     content.transcodingError = null;
     const saved = await this.contentRepository.save(content);

@@ -36,22 +36,22 @@ When a video is added to a playlist, the system currently assigns a hardcoded 30
 **Parallel:** yes — can run alongside nothing (first task)
 
 **Acceptance Criteria:**
-- [ ] `Content` entity gets a new column: `durationSeconds` — integer, nullable, default `null`
+- [x] `Content` entity gets a new column: `durationSeconds` — integer, nullable, default `null`
   - For videos: populated with actual duration in seconds, rounded to nearest integer (e.g. `58`)
   - For images: remains `null` (images have no intrinsic duration)
-- [ ] New utility function `ffprobeDuration(filePath: string): Promise<number>` that spawns ffprobe to extract duration
+- [x] New utility function `ffprobeDuration(filePath: string): Promise<number>` that spawns ffprobe to extract duration
   - Uses `ffprobe -v error -show_entries format=duration -of csv=p=0 <file>`
   - Returns duration as an integer (rounded) in seconds
   - Throws on failure (non-zero exit code or unparseable output)
   - Derives ffprobe path from the existing `FFMPEG_PATH` config by replacing `ffmpeg` with `ffprobe` in the binary name
-- [ ] `TranscodingProcessor.process()` calls ffprobe on the **transcoded** file after successful transcoding and saves `durationSeconds` on the Content entity alongside `transcodedSizeBytes`
-- [ ] `ContentService` exposes a method `ensureDuration(content: Content): Promise<number | null>` for lazy backfill:
+- [x] `TranscodingProcessor.process()` calls ffprobe on the **transcoded** file after successful transcoding and saves `durationSeconds` on the Content entity alongside `transcodedSizeBytes`
+- [x] `ContentService` exposes a method `ensureDuration(content: Content): Promise<number | null>` for lazy backfill:
   - If `content.type !== 'video'`, returns `null`
   - If `content.durationSeconds` is already set, returns it
   - Otherwise, runs ffprobe on the transcoded file, saves the result, and returns it
-- [ ] Content API responses (GET endpoints) include `durationSeconds` field
-- [ ] Unit tests: ffprobe utility, transcoding processor saves duration, lazy backfill logic
-- [ ] Typecheck/lint passes
+- [x] Content API responses (GET endpoints) include `durationSeconds` field
+- [x] Unit tests: ffprobe utility, transcoding processor saves duration, lazy backfill logic
+- [x] Typecheck/lint passes
 
 ### TASK-019-002: Backend — Use real video duration in playlists and screen protocol
 **Description:** As a system, I want playlist total duration and screen state to use real video durations so that duration calculations are accurate.
