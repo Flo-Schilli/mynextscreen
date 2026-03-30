@@ -60,7 +60,7 @@ Deliver a complete notification system so that users are alerted to important sy
 **Model:** —
 
 **Acceptance Criteria:**
-- [ ] `UserNotificationPreference` entity (or extend `UserOrganisationMembership` with nullable boolean columns — choose new entity for cleaner separation):
+- [x] `UserNotificationPreference` entity (or extend `UserOrganisationMembership` with nullable boolean columns — choose new entity for cleaner separation):
   - `id` — UUID, PK
   - `userId` — UUID, FK
   - `organisationId` — UUID, FK
@@ -68,7 +68,7 @@ Deliver a complete notification system so that users are alerted to important sy
   - `emailEnabled` — boolean, default `false`
   - `ntfyEnabled` — boolean, default `false`
   - Unique constraint on `(userId, organisationId)`
-- [ ] `OrganisationNotificationConfig` entity (or columns on `Organisation` entity — use a separate entity for encapsulation):
+- [x] `OrganisationNotificationConfig` entity (or columns on `Organisation` entity — use a separate entity for encapsulation):
   - `id` — UUID, PK
   - `organisationId` — UUID, FK, unique
   - `smtpHost` — string, nullable
@@ -80,16 +80,16 @@ Deliver a complete notification system so that users are alerted to important sy
   - `ntfyUrl` — string, nullable (full base URL, e.g. `https://ntfy.sh`)
   - `ntfyTopic` — string, nullable
   - `ntfyToken` — string, nullable
-- [ ] TypeORM migrations for both new tables
-- [ ] `UserNotificationPreferenceService` with methods: `getForUser(userId, orgId)`, `upsert(userId, orgId, prefs)` — creates default record if none exists
-- [ ] `OrgNotificationConfigService` with methods: `getForOrg(orgId)`, `upsert(orgId, config)`
-- [ ] REST endpoints (add to existing controllers or create new ones):
+- [x] TypeORM migrations for both new tables
+- [x] `UserNotificationPreferenceService` with methods: `getForUser(userId, orgId)`, `upsert(userId, orgId, prefs)` — creates default record if none exists
+- [x] `OrgNotificationConfigService` with methods: `getForOrg(orgId)`, `upsert(orgId, config)`
+- [x] REST endpoints (add to existing controllers or create new ones):
   - `GET /api/users/me/notification-preferences` — returns preferences for current user in current org
   - `PATCH /api/users/me/notification-preferences` — update channel toggles
   - `GET /api/organisations/:id/notification-config` — Org Admin only, returns SMTP + ntfy config
   - `PATCH /api/organisations/:id/notification-config` — Org Admin only, upserts config
-- [ ] Unit tests for service methods and endpoint access control
-- [ ] Typecheck and lint pass
+- [x] Unit tests for service methods and endpoint access control
+- [x] Typecheck and lint pass
 
 ---
 
