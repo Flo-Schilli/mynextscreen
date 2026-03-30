@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { HttpModule } from '@nestjs/axios';
 import { Notification } from './notification.entity';
 import { UserNotificationPreference } from './user-notification-preference.entity';
 import { OrganisationNotificationConfig } from './organisation-notification-config.entity';
@@ -12,7 +13,8 @@ import { OrgNotificationConfigController } from './org-notification-config.contr
 import { NotificationController } from './notification.controller';
 import { InAppNotificationChannel } from './channels/in-app-notification-channel.service';
 import { EmailNotificationChannel } from './channels/email-notification-channel.service';
-import { IN_APP_CHANNEL, EMAIL_CHANNEL } from './channels';
+import { NtfyNotificationChannel } from './channels/ntfy-notification-channel.service';
+import { IN_APP_CHANNEL, EMAIL_CHANNEL, NTFY_CHANNEL } from './channels';
 import { UserModule } from '../user/user.module';
 import { DashboardModule } from '../dashboard/dashboard.module';
 
@@ -23,6 +25,7 @@ import { DashboardModule } from '../dashboard/dashboard.module';
       UserNotificationPreference,
       OrganisationNotificationConfig,
     ]),
+    HttpModule,
     UserModule,
     DashboardModule,
   ],
@@ -45,6 +48,11 @@ import { DashboardModule } from '../dashboard/dashboard.module';
     {
       provide: EMAIL_CHANNEL,
       useExisting: EmailNotificationChannel,
+    },
+    NtfyNotificationChannel,
+    {
+      provide: NTFY_CHANNEL,
+      useExisting: NtfyNotificationChannel,
     },
   ],
   exports: [

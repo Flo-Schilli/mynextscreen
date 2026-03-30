@@ -10,3 +10,4 @@ export {
 export { EmailProvider, MailOptions } from './email-provider.interface';
 export { SmtpEmailProvider, SmtpConfig } from './smtp-email-provider';
 export { EmailNotificationChannel } from './email-notification-channel.service';
+export { NtfyNotificationChannel } from './ntfy-notification-channel.service';
