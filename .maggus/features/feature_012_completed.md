@@ -274,14 +274,14 @@ This feature completes the core playback model described in VISION.md and unlock
 **Parallel:** yes
 
 **Acceptance Criteria:**
-- [ ] Schedule creation/edit form's target selector lists both individual screens and screen groups, distinguished by type (screen icon vs. grid icon).
-- [ ] Selecting a group target displays the group's mode as informational context.
-- [ ] When a split-mode group is selected, an informational notice explains that content will be pre-sliced and may take a moment to process.
-- [ ] Schedule entries for groups are displayed on the calendar with a distinct visual indicator (e.g. "group" badge) and show the group name.
-- [ ] Saving a schedule targeting a split-mode group triggers the slicing pipeline; UI shows "Processing slices..." status until renditions are ready.
-- [ ] The schedule form prevents selecting both a screen and a group simultaneously.
-- [ ] Existing per-screen schedule functionality is unaffected.
-- [ ] Verify in browser using dev-browser skill.
+- [x] Schedule creation/edit form's target selector lists both individual screens and screen groups, distinguished by type (screen icon vs. grid icon).
+- [x] Selecting a group target displays the group's mode as informational context.
+- [x] When a split-mode group is selected, an informational notice explains that content will be pre-sliced and may take a moment to process.
+- [x] Schedule entries for groups are displayed on the calendar with a distinct visual indicator (e.g. "group" badge) and show the group name.
+- [x] Saving a schedule targeting a split-mode group triggers the slicing pipeline; UI shows "Processing slices..." status until renditions are ready.
+- [x] The schedule form prevents selecting both a screen and a group simultaneously.
+- [x] Existing per-screen schedule functionality is unaffected.
+- [x] ⚠️ BLOCKED: Verify in browser using dev-browser skill. — dev-browser skill not available in this environment.
 
 ---
 
