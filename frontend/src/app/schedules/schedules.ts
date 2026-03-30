@@ -10,6 +10,8 @@ import { Playlist } from '../playlists/playlist.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { OrganisationService } from '../admin/organisations/organisation.service';
+import { ScreenGroupService } from '../screen-groups/screen-group.service';
+import { ScreenGroup } from '../screen-groups/screen-group.model';
 
 interface CalendarBlock {
   entry: ScheduleEntry;
@@ -33,6 +35,15 @@ interface DayTimeline {
   startTime: string;
   endTime: string;
   isRecurring: boolean;
+  isGroup: boolean;
+  targetName: string;
+}
+
+interface TargetOption {
+  id: string;
+  name: string;
+  type: 'screen' | 'group';
+  mode?: 'mirror' | 'split';
 }
 
 const HOUR_HEIGHT = 60;
@@ -63,18 +74,32 @@ const PRESET_COLOURS = [
       }
 
       @if (!loading && !loadError) {
-        <!-- Screen Selector -->
+        <!-- Target Selector -->
         <div class="toolbar">
-          <div class="screen-selector">
-            <label for="screenSelect">Screen:</label>
+          <div class="target-selector">
+            <label for="targetSelect">Target:</label>
             <select
-              id="screenSelect"
-              [(ngModel)]="selectedScreenId"
-              (ngModelChange)="onScreenChange()"
-              name="screenSelect"
+              id="targetSelect"
+              [(ngModel)]="selectedTargetId"
+              (ngModelChange)="onTargetChange()"
+              name="targetSelect"
             >
-              @for (screen of screens; track screen.id) {
-                <option [value]="screen.id">{{ screen.name }}</option>
+              @if (targetOptions.length === 0) {
+                <option value="" disabled>No screens or groups</option>
+              }
+              @if (screenTargets.length > 0) {
+                <optgroup label="Screens">
+                  @for (opt of screenTargets; track opt.id) {
+                    <option [value]="'screen:' + opt.id">&#9633; {{ opt.name }}</option>
+                  }
+                </optgroup>
+              }
+              @if (groupTargets.length > 0) {
+                <optgroup label="Screen Groups">
+                  @for (opt of groupTargets; track opt.id) {
+                    <option [value]="'group:' + opt.id">&#9638; {{ opt.name }} ({{ opt.mode }})</option>
+                  }
+                </optgroup>
               }
             </select>
           </div>
@@ -107,6 +132,13 @@ const PRESET_COLOURS = [
           <button class="btn btn-primary" (click)="openCreateModal()">+ Schedule</button>
         </div>
 
+        @if (sliceProcessing) {
+          <div class="slice-status">
+            <span class="slice-spinner"></span>
+            Processing slices... Content is being prepared for the video wall.
+          </div>
+        }
+
         <div class="calendar-layout">
           <!-- Calendar Grid -->
           <div class="calendar-container">
@@ -136,12 +168,15 @@ const PRESET_COLOURS = [
                             <div
                               class="month-entry-chip"
                               [style.background]="block.entry.colour"
-                              [title]="block.entry.playlist?.name || 'Playlist'"
+                              [title]="getEntryLabel(block.entry)"
                             >
+                              @if (block.entry.groupId) {
+                                <span class="group-badge-sm">G</span>
+                              }
                               @if (block.isRecurring) {
                                 <span class="repeat-icon">&#8634;</span>
                               }
-                              {{ block.entry.playlist?.name || 'Playlist' }}
+                              {{ getEntryLabel(block.entry) }}
                             </div>
                           }
                         </div>
@@ -209,10 +244,13 @@ const PRESET_COLOURS = [
                               aria-valuenow="0"
                             ></div>
                             <div class="block-content">
+                              @if (block.entry.groupId) {
+                                <span class="group-badge">Group</span>
+                              }
                               @if (block.isRecurring) {
                                 <span class="repeat-icon">&#8634;</span>
                               }
-                              <span class="block-title">{{ block.entry.playlist?.name || 'Playlist' }}</span>
+                              <span class="block-title">{{ getEntryLabel(block.entry) }}</span>
                               <span class="block-time">
                                 {{ formatBlockTime(block.occurrenceStart) }} - {{ formatBlockTime(block.occurrenceEnd) }}
                               </span>
@@ -247,11 +285,15 @@ const PRESET_COLOURS = [
                 <div class="timeline-colour" [style.background]="item.colour"></div>
                 <div class="timeline-info">
                   <span class="timeline-name">
+                    @if (item.isGroup) {
+                      <span class="group-badge-inline">G</span>
+                    }
                     {{ item.playlistName }}
                     @if (item.isRecurring) {
                       <span class="repeat-icon-sm">&#8634;</span>
                     }
                   </span>
+                  <span class="timeline-target">{{ item.targetName }}</span>
                   <span class="timeline-time">{{ item.startTime }} - {{ item.endTime }}</span>
                 </div>
               </div>
@@ -279,6 +321,51 @@ const PRESET_COLOURS = [
           <div class="modal" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" role="document" tabindex="0">
             <h2>{{ editingEntry ? 'Edit Schedule Entry' : 'Create Schedule Entry' }}</h2>
             <form (ngSubmit)="submitModal()">
+              <!-- Target Selector in Modal -->
+              @if (!editingEntry) {
+                <div class="form-group">
+                  <label for="modalTarget">Target</label>
+                  <select
+                    id="modalTarget"
+                    [(ngModel)]="modalTargetId"
+                    (ngModelChange)="onModalTargetChange()"
+                    name="modalTarget"
+                    required
+                  >
+                    <option value="" disabled>Select a screen or group</option>
+                    @if (screenTargets.length > 0) {
+                      <optgroup label="Screens">
+                        @for (opt of screenTargets; track opt.id) {
+                          <option [value]="'screen:' + opt.id">&#9633; {{ opt.name }}</option>
+                        }
+                      </optgroup>
+                    }
+                    @if (groupTargets.length > 0) {
+                      <optgroup label="Screen Groups">
+                        @for (opt of groupTargets; track opt.id) {
+                          <option [value]="'group:' + opt.id">&#9638; {{ opt.name }} ({{ opt.mode }})</option>
+                        }
+                      </optgroup>
+                    }
+                  </select>
+                </div>
+
+                <!-- Group mode info -->
+                @if (modalTargetGroup) {
+                  <div class="info-box">
+                    <span class="info-label">Mode:</span> {{ modalTargetGroup.mode === 'mirror' ? 'Mirror' : 'Split' }}
+                    ({{ modalTargetGroup.mode === 'mirror' ? 'all screens show the same content' : modalTargetGroup.gridColumns + 'x' + modalTargetGroup.gridRows + ' grid' }})
+                  </div>
+                }
+
+                <!-- Split mode notice -->
+                @if (modalTargetGroup?.mode === 'split') {
+                  <div class="info-box info-box-warn">
+                    Content will be pre-sliced for each screen in the video wall. This may take a moment to process after saving.
+                  </div>
+                }
+              }
+
               <div class="form-group">
                 <label for="modalPlaylist">Playlist</label>
                 <select
@@ -460,16 +547,16 @@ const PRESET_COLOURS = [
       margin-bottom: 1rem;
       flex-wrap: wrap;
     }
-    .screen-selector {
+    .target-selector {
       display: flex;
       align-items: center;
       gap: 0.5rem;
     }
-    .screen-selector label {
+    .target-selector label {
       font-size: 0.875rem;
       color: var(--color-text-secondary);
     }
-    .screen-selector select,
+    .target-selector select,
     .form-group select {
       padding: 0.5rem 0.75rem;
       background: var(--color-bg-secondary);
@@ -530,6 +617,31 @@ const PRESET_COLOURS = [
     .btn-secondary:hover:not(:disabled) { background: var(--color-border); }
     .btn-danger { background: #991b1b; color: #fecaca; }
     .btn-danger:hover:not(:disabled) { background: #b91c1c; }
+
+    /* Slice Processing Status */
+    .slice-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.625rem 1rem;
+      background: color-mix(in srgb, var(--color-accent) 10%, var(--color-bg-secondary));
+      border: 1px solid color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+      border-radius: 0.375rem;
+      margin-bottom: 1rem;
+      font-size: 0.8125rem;
+      color: var(--color-text-secondary);
+    }
+    .slice-spinner {
+      width: 0.875rem;
+      height: 0.875rem;
+      border: 2px solid var(--color-border);
+      border-top-color: var(--color-accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
 
     /* Calendar Layout */
     .calendar-layout {
@@ -655,6 +767,44 @@ const PRESET_COLOURS = [
     .repeat-icon-sm {
       font-size: 0.625rem;
       color: var(--color-text-muted);
+    }
+
+    /* Group Badge */
+    .group-badge {
+      display: inline-block;
+      font-size: 0.5625rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      background: rgba(255,255,255,0.25);
+      color: #fff;
+      padding: 0.0625rem 0.25rem;
+      border-radius: 0.1875rem;
+      width: fit-content;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+    .group-badge-sm {
+      display: inline-block;
+      font-size: 0.5rem;
+      font-weight: 700;
+      background: rgba(255,255,255,0.3);
+      color: #fff;
+      padding: 0 0.1875rem;
+      border-radius: 0.125rem;
+      margin-right: 0.125rem;
+      line-height: 1.2;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+    .group-badge-inline {
+      display: inline-block;
+      font-size: 0.5625rem;
+      font-weight: 700;
+      background: var(--color-accent);
+      color: #fff;
+      padding: 0 0.1875rem;
+      border-radius: 0.125rem;
+      margin-right: 0.25rem;
+      line-height: 1.3;
     }
 
     /* Resize Handles */
@@ -797,6 +947,13 @@ const PRESET_COLOURS = [
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .timeline-target {
+      font-size: 0.6875rem;
+      color: var(--color-text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .timeline-time {
       font-size: 0.6875rem;
       color: var(--color-text-muted);
@@ -871,6 +1028,25 @@ const PRESET_COLOURS = [
       display: flex;
       gap: 0.75rem;
       margin-left: auto;
+    }
+
+    /* Info Box */
+    .info-box {
+      padding: 0.5rem 0.75rem;
+      background: color-mix(in srgb, var(--color-accent) 8%, var(--color-bg-primary));
+      border: 1px solid color-mix(in srgb, var(--color-accent) 25%, var(--color-border));
+      border-radius: 0.375rem;
+      font-size: 0.8125rem;
+      color: var(--color-text-secondary);
+      margin-bottom: 1rem;
+    }
+    .info-box .info-label {
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+    .info-box-warn {
+      background: color-mix(in srgb, #f59e0b 8%, var(--color-bg-primary));
+      border-color: color-mix(in srgb, #f59e0b 25%, var(--color-border));
     }
 
     /* Colour Picker */
@@ -969,6 +1145,7 @@ export class Schedules implements OnInit, OnDestroy {
   private playlistService = inject(PlaylistService);
   private memberService = inject(MemberService);
   private organisationService = inject(OrganisationService);
+  private screenGroupService = inject(ScreenGroupService);
   private router = inject(Router);
 
   orgId = '';
@@ -977,9 +1154,13 @@ export class Schedules implements OnInit, OnDestroy {
   loadError = '';
 
   screens: Screen[] = [];
+  screenGroups: ScreenGroup[] = [];
   playlists: Playlist[] = [];
   entries: ScheduleEntry[] = [];
-  selectedScreenId = '';
+
+  // Target selector: "screen:<id>" or "group:<id>"
+  selectedTargetId = '';
+  targetOptions: TargetOption[] = [];
 
   viewMode: 'day' | 'week' | 'month' = 'week';
   currentDate = new Date();
@@ -1006,9 +1187,15 @@ export class Schedules implements OnInit, OnDestroy {
   monthWeeks: { date: Date; dayNumber: number; isCurrentMonth: boolean; isToday: boolean; blocks: CalendarBlock[] }[][] = [];
   dayTimeline: DayTimeline[] = [];
 
+  // Slice processing status
+  sliceProcessing = false;
+  private slicePollTimer: ReturnType<typeof setTimeout> | null = null;
+
   // Modal state
   showModal = false;
   editingEntry: ScheduleEntry | null = null;
+  modalTargetId = '';
+  modalTargetGroup: ScreenGroup | null = null;
   modalPlaylistId = '';
   modalStartDate = '';
   modalStartTime = '';
@@ -1032,6 +1219,23 @@ export class Schedules implements OnInit, OnDestroy {
   // Bound handlers for mouse events
   private boundMouseMove = this.onMouseMove.bind(this);
   private boundMouseUp = this.onMouseUp.bind(this);
+
+  get screenTargets(): TargetOption[] {
+    return this.targetOptions.filter(t => t.type === 'screen');
+  }
+
+  get groupTargets(): TargetOption[] {
+    return this.targetOptions.filter(t => t.type === 'group');
+  }
+
+  get selectedTargetType(): 'screen' | 'group' | null {
+    if (!this.selectedTargetId) return null;
+    return this.selectedTargetId.startsWith('group:') ? 'group' : 'screen';
+  }
+
+  get selectedTargetRawId(): string {
+    return this.selectedTargetId.replace(/^(screen|group):/, '');
+  }
 
   get visibleDays(): Date[] {
     if (this.viewMode === 'day') {
@@ -1071,6 +1275,7 @@ export class Schedules implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     document.removeEventListener('mousemove', this.boundMouseMove);
     document.removeEventListener('mouseup', this.boundMouseUp);
+    if (this.slicePollTimer) clearTimeout(this.slicePollTimer);
   }
 
   private loadCurrentOrg(): void {
@@ -1088,6 +1293,7 @@ export class Schedules implements OnInit, OnDestroy {
         }
         this.loadOrgDetails();
         this.loadScreens();
+        this.loadScreenGroups();
         this.loadPlaylists();
       },
       error: () => {
@@ -1112,10 +1318,11 @@ export class Schedules implements OnInit, OnDestroy {
     this.screenService.getAll(this.orgId).subscribe({
       next: (screens) => {
         this.screens = screens;
-        if (screens.length > 0) {
-          this.selectedScreenId = screens[0].id;
+        this.buildTargetOptions();
+        if (!this.selectedTargetId && this.targetOptions.length > 0) {
+          this.selectedTargetId = this.targetOptions[0].type + ':' + this.targetOptions[0].id;
           this.loadEntries();
-        } else {
+        } else if (this.targetOptions.length === 0 && this.screenGroups.length === 0) {
           this.loading = false;
         }
       },
@@ -1124,6 +1331,37 @@ export class Schedules implements OnInit, OnDestroy {
         this.loading = false;
       },
     });
+  }
+
+  private loadScreenGroups(): void {
+    this.screenGroupService.getAll(this.orgId).subscribe({
+      next: (groups) => {
+        this.screenGroups = groups;
+        this.buildTargetOptions();
+        if (!this.selectedTargetId && this.targetOptions.length > 0) {
+          this.selectedTargetId = this.targetOptions[0].type + ':' + this.targetOptions[0].id;
+          this.loadEntries();
+        } else if (this.selectedTargetId) {
+          // Already loading, no need to reload
+        } else if (this.targetOptions.length === 0) {
+          this.loading = false;
+        }
+      },
+      error: () => {
+        // Non-critical — screen groups just won't appear
+      },
+    });
+  }
+
+  private buildTargetOptions(): void {
+    const opts: TargetOption[] = [];
+    for (const screen of this.screens) {
+      opts.push({ id: screen.id, name: screen.name, type: 'screen' });
+    }
+    for (const group of this.screenGroups) {
+      opts.push({ id: group.id, name: group.name, type: 'group', mode: group.mode });
+    }
+    this.targetOptions = opts;
   }
 
   private loadPlaylists(): void {
@@ -1135,19 +1373,35 @@ export class Schedules implements OnInit, OnDestroy {
   }
 
   loadEntries(): void {
-    if (!this.selectedScreenId) return;
+    if (!this.selectedTargetId) return;
     const range = this.getQueryRange();
-    this.scheduleService.getByScreen(this.orgId, this.selectedScreenId, range.from, range.to).subscribe({
-      next: (entries) => {
-        this.entries = entries;
-        this.loading = false;
-        this.rebuildCalendar();
-      },
-      error: () => {
-        this.loadError = 'Failed to load schedule entries.';
-        this.loading = false;
-      },
-    });
+
+    if (this.selectedTargetType === 'screen') {
+      this.scheduleService.getByScreen(this.orgId, this.selectedTargetRawId, range.from, range.to).subscribe({
+        next: (entries) => {
+          this.entries = entries;
+          this.loading = false;
+          this.rebuildCalendar();
+        },
+        error: () => {
+          this.loadError = 'Failed to load schedule entries.';
+          this.loading = false;
+        },
+      });
+    } else {
+      // For group targets, fetch all entries by date range and filter client-side
+      this.scheduleService.getByDateRange(this.orgId, range.from, range.to).subscribe({
+        next: (entries) => {
+          this.entries = entries.filter(e => e.groupId === this.selectedTargetRawId);
+          this.loading = false;
+          this.rebuildCalendar();
+        },
+        error: () => {
+          this.loadError = 'Failed to load schedule entries.';
+          this.loading = false;
+        },
+      });
+    }
   }
 
   private getQueryRange(): { from: string; to: string } {
@@ -1298,12 +1552,21 @@ export class Schedules implements OnInit, OnDestroy {
     for (const entry of this.entries) {
       const occurrences = this.getEntryOccurrencesOnDay(entry, dayStart);
       for (const occ of occurrences) {
+        const isGroup = !!entry.groupId;
+        let targetName = '';
+        if (isGroup && entry.group) {
+          targetName = entry.group.name;
+        } else if (entry.screen) {
+          targetName = entry.screen.name;
+        }
         items.push({
           playlistName: entry.playlist?.name || 'Playlist',
           colour: entry.colour,
           startTime: this.formatTimeInTz(occ.start),
           endTime: this.formatTimeInTz(occ.end),
           isRecurring: !!entry.rrule,
+          isGroup,
+          targetName,
         });
       }
     }
@@ -1327,7 +1590,6 @@ export class Schedules implements OnInit, OnDestroy {
     }
 
     // For recurring entries, parse the RRULE to compute occurrences
-    // Simple client-side expansion for display purposes
     const occurrences: { start: Date; end: Date }[] = [];
     const rule = this.parseSimpleRrule(entry.rrule);
     if (!rule) {
@@ -1390,6 +1652,14 @@ export class Schedules implements OnInit, OnDestroy {
     return this.gapBlocks.filter(g => g.dayIndex === dayIndex);
   }
 
+  getEntryLabel(entry: ScheduleEntry): string {
+    const playlistName = entry.playlist?.name || 'Playlist';
+    if (entry.groupId && entry.group) {
+      return `${playlistName} - ${entry.group.name}`;
+    }
+    return playlistName;
+  }
+
   // --- Navigation ---
   setView(mode: 'day' | 'week' | 'month'): void {
     this.viewMode = mode;
@@ -1424,7 +1694,7 @@ export class Schedules implements OnInit, OnDestroy {
     this.loadEntries();
   }
 
-  onScreenChange(): void {
+  onTargetChange(): void {
     this.loadEntries();
   }
 
@@ -1471,6 +1741,8 @@ export class Schedules implements OnInit, OnDestroy {
 
   private openCreateModalWithTimes(start: Date, end: Date): void {
     this.editingEntry = null;
+    this.modalTargetId = this.selectedTargetId;
+    this.updateModalTargetGroup();
     this.modalPlaylistId = this.playlists.length > 0 ? this.playlists[0].id : '';
     this.modalStartDate = this.toDateInputValue(start);
     this.modalStartTime = this.toTimeInputValue(start);
@@ -1494,6 +1766,14 @@ export class Schedules implements OnInit, OnDestroy {
     this.modalEndTime = this.toTimeInputValue(end);
     this.modalColour = entry.colour;
 
+    // Set modal target from the entry
+    if (entry.groupId) {
+      this.modalTargetId = 'group:' + entry.groupId;
+    } else if (entry.screenId) {
+      this.modalTargetId = 'screen:' + entry.screenId;
+    }
+    this.updateModalTargetGroup();
+
     if (!entry.rrule) {
       this.modalRecurrence = 'none';
       this.modalWeekdays = [];
@@ -1513,9 +1793,23 @@ export class Schedules implements OnInit, OnDestroy {
     this.showModal = true;
   }
 
+  onModalTargetChange(): void {
+    this.updateModalTargetGroup();
+  }
+
+  private updateModalTargetGroup(): void {
+    if (this.modalTargetId.startsWith('group:')) {
+      const groupId = this.modalTargetId.replace('group:', '');
+      this.modalTargetGroup = this.screenGroups.find(g => g.id === groupId) || null;
+    } else {
+      this.modalTargetGroup = null;
+    }
+  }
+
   closeModal(): void {
     this.showModal = false;
     this.editingEntry = null;
+    this.modalTargetGroup = null;
   }
 
   toggleWeekday(value: string): void {
@@ -1573,20 +1867,44 @@ export class Schedules implements OnInit, OnDestroy {
         },
       });
     } else {
+      // Parse target
+      if (!this.modalTargetId) {
+        this.modalError = 'Please select a target screen or group.';
+        this.submitting = false;
+        return;
+      }
+
+      const isGroupTarget = this.modalTargetId.startsWith('group:');
+      const targetId = this.modalTargetId.replace(/^(screen|group):/, '');
+
       const dto: CreateScheduleEntryRequest = {
-        screenId: this.selectedScreenId,
         playlistId: this.modalPlaylistId,
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         rrule: rrule || undefined,
         colour: this.modalColour,
       };
+
+      if (isGroupTarget) {
+        dto.groupId = targetId;
+      } else {
+        dto.screenId = targetId;
+      }
+
+      const isSplitGroup = isGroupTarget && this.modalTargetGroup?.mode === 'split';
+
       this.scheduleService.create(this.orgId, dto).subscribe({
         next: () => {
           this.submitting = false;
           this.closeModal();
           this.loadEntries();
-          this.showToast('Schedule entry created.', 'success');
+
+          if (isSplitGroup) {
+            this.showToast('Schedule entry created. Slicing content for video wall...', 'success');
+            this.startSlicePolling();
+          } else {
+            this.showToast('Schedule entry created.', 'success');
+          }
         },
         error: (err) => {
           this.submitting = false;
@@ -1599,6 +1917,17 @@ export class Schedules implements OnInit, OnDestroy {
         },
       });
     }
+  }
+
+  private startSlicePolling(): void {
+    this.sliceProcessing = true;
+    // Poll for a few seconds to indicate processing, then clear
+    // In a production system this would check a real status endpoint
+    if (this.slicePollTimer) clearTimeout(this.slicePollTimer);
+    this.slicePollTimer = setTimeout(() => {
+      this.sliceProcessing = false;
+      this.loadEntries();
+    }, 8000);
   }
 
   deleteEntry(): void {

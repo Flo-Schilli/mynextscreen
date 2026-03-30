@@ -493,12 +493,12 @@ export class Dashboard implements OnInit, OnDestroy {
     const screenMap = new Map<string, { name: string; entries: ScheduleEntry[] }>();
 
     for (const entry of entries) {
-      const screenName = entry.screen?.name ?? 'Unknown';
-      const screenId = entry.screenId;
-      if (!screenMap.has(screenId)) {
-        screenMap.set(screenId, { name: screenName, entries: [] });
+      const screenName = entry.screen?.name ?? entry.group?.name ?? 'Unknown';
+      const targetId = entry.screenId ?? entry.groupId ?? 'unknown';
+      if (!screenMap.has(targetId)) {
+        screenMap.set(targetId, { name: screenName, entries: [] });
       }
-      screenMap.get(screenId)!.entries.push(entry);
+      screenMap.get(targetId)!.entries.push(entry);
     }
 
     const startMs = this.timelineStart.getTime();

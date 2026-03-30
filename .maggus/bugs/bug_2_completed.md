@@ -30,7 +30,7 @@ The first option is better because it makes the type match reality.
 **Description:** As a developer, I want a clean build output so that real warnings aren't buried in noise.
 
 **Acceptance Criteria:**
-- [ ] Change `transcodingProgress` type at line 926 to `Record<string, number | undefined>` (or equivalent)
-- [ ] All 4 NG8102 warnings on lines 179, 186, 275, 277 are resolved
-- [ ] No regression in transcoding progress display
-- [ ] `npm run build` (frontend) produces no new warnings
+- [x] Change `transcodingProgress` type at line 926 to `Record<string, number | undefined>` (or equivalent)
+- [x] All 4 NG8102 warnings on lines 179, 186, 275, 277 are resolved
+- [x] No regression in transcoding progress display
+- [x] `npm run build` (frontend) produces no new warnings

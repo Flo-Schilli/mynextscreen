@@ -923,7 +923,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
   deleting = false;
 
   // Transcoding progress
-  transcodingProgress: Record<string, number> = {};
+  transcodingProgress: Record<string, number | undefined> = {};
   private socket: Socket | null = null;
 
   ngOnInit(): void {
