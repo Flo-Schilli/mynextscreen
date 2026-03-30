@@ -169,7 +169,7 @@ Deliver a complete notification system so that users are alerted to important sy
 **Model:** —
 
 **Acceptance Criteria:**
-- [ ] Abstract `EmailProvider` interface:
+- [x] Abstract `EmailProvider` interface:
   ```ts
   interface EmailProvider {
     sendMail(options: MailOptions): Promise<void>;
@@ -181,21 +181,21 @@ Deliver a complete notification system so that users are alerted to important sy
     html?: string;
   }
   ```
-- [ ] `SmtpEmailProvider` implementation using `nodemailer`:
+- [x] `SmtpEmailProvider` implementation using `nodemailer`:
   - Constructor accepts SMTP config (host, port, user, password, secure, from)
   - `sendMail()` creates a nodemailer transporter per call (or lazily cached) and sends the message
   - Errors are thrown so the hub can catch and log them
-- [ ] `EmailNotificationChannel` service:
+- [x] `EmailNotificationChannel` service:
   - Accepts injected `OrgNotificationConfigService`
   - On `send(userId, orgId, notification)`:
     1. Load org SMTP config — if incomplete (no host), skip silently
     2. Fetch the user's email address from the user record
     3. Instantiate (or reuse) `SmtpEmailProvider` with the org config
     4. Call `sendMail()` with a simple plain-text email: subject = notification title, body = notification message
-- [ ] `nodemailer` added to `backend/package.json` dependencies
-- [ ] `@types/nodemailer` added to dev dependencies
-- [ ] Unit tests for `SmtpEmailProvider` (mock nodemailer transporter) and `EmailNotificationChannel` (mock provider)
-- [ ] Typecheck and lint pass
+- [x] `nodemailer` added to `backend/package.json` dependencies
+- [x] `@types/nodemailer` added to dev dependencies
+- [x] Unit tests for `SmtpEmailProvider` (mock nodemailer transporter) and `EmailNotificationChannel` (mock provider)
+- [x] Typecheck and lint pass
 
 ---
 
