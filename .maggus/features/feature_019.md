@@ -62,12 +62,12 @@ When a video is added to a playlist, the system currently assigns a hardcoded 30
 **Parallel:** yes — can run alongside TASK-019-003
 
 **Acceptance Criteria:**
-- [ ] `PlaylistService.addItem()`: when adding a video, if `Content.durationSeconds` is available, use it as the `PlaylistItem.durationSeconds` value regardless of what the DTO sends; if not available (backfill pending), use the DTO value as fallback
-- [ ] `PlaylistService.getTotalDuration()`: for video items, prefer `item.content.durationSeconds` (from Content entity) over `item.durationSeconds` (from PlaylistItem)
-- [ ] `ScreenStateService.mapPlaylist()`: for video items, use `item.content.durationSeconds` if available, falling back to `item.durationSeconds`
-- [ ] `AddPlaylistItemDto`: make `durationSeconds` optional (default to content's actual duration for videos, 10 for images)
-- [ ] Unit tests for PlaylistService and ScreenStateService updated
-- [ ] Typecheck/lint passes
+- [x] `PlaylistService.addItem()`: when adding a video, if `Content.durationSeconds` is available, use it as the `PlaylistItem.durationSeconds` value regardless of what the DTO sends; if not available (backfill pending), use the DTO value as fallback
+- [x] `PlaylistService.getTotalDuration()`: for video items, prefer `item.content.durationSeconds` (from Content entity) over `item.durationSeconds` (from PlaylistItem)
+- [x] `ScreenStateService.mapPlaylist()`: for video items, use `item.content.durationSeconds` if available, falling back to `item.durationSeconds`
+- [x] `AddPlaylistItemDto`: make `durationSeconds` optional (default to content's actual duration for videos, 10 for images)
+- [x] Unit tests for PlaylistService and ScreenStateService updated
+- [x] Typecheck/lint passes
 
 ### TASK-019-003: Frontend — Read-only video duration in playlist editor
 **Description:** As an editor, I want the duration field for video items to show the actual video length and be non-editable so that I'm not misled by a wrong number.

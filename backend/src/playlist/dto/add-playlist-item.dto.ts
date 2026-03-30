@@ -14,10 +14,10 @@ export class AddPlaylistItemDto {
   @IsString()
   contentId!: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsInt()
   @Min(1)
-  durationSeconds!: number;
+  durationSeconds?: number;
 
   @IsOptional()
   @IsInt()

@@ -150,15 +150,22 @@ export class ScreenStateService implements OnModuleDestroy {
     return {
       id: entity.id,
       name: entity.name,
-      items: (entity.items ?? []).map((item) => ({
-        contentId: item.contentId,
-        contentUrl: '',
-        duration: item.durationSeconds,
-        type: item.content?.type ?? 'unknown',
-        order: item.position,
-        transition: item.transition,
-        transitionDurationMs: item.transitionDurationMs,
-      })),
+      items: (entity.items ?? []).map((item) => {
+        const isVideo = item.content?.type === 'video';
+        const duration =
+          isVideo && item.content?.durationSeconds != null
+            ? item.content.durationSeconds
+            : item.durationSeconds;
+        return {
+          contentId: item.contentId,
+          contentUrl: '',
+          duration,
+          type: item.content?.type ?? 'unknown',
+          order: item.position,
+          transition: item.transition,
+          transitionDurationMs: item.transitionDurationMs,
+        };
+      }),
     };
   }
 
