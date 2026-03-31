@@ -7,6 +7,7 @@ import { ScreenController } from './screen.controller';
 import { ScreenScheduler } from './screen.scheduler';
 import { ScreenProtocolModule } from '../screen-protocol';
 import { ScreenProtocolService } from '../screen-protocol/screen-protocol.service';
+import { ScheduleBoundaryService } from './schedule-boundary.service';
 import { ScheduleEntryModule } from '../schedule';
 import { ScreenGroup } from '../screen-group/screen-group.entity';
 import { SlicedRendition } from '../slice-content/sliced-rendition.entity';
@@ -15,12 +16,29 @@ import { LiveStreamActivation } from '../live-stream/live-stream-activation.enti
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Screen, ScreenGroup, SlicedRendition, Playlist, LiveStreamActivation]),
+    TypeOrmModule.forFeature([
+      Screen,
+      ScreenGroup,
+      SlicedRendition,
+      Playlist,
+      LiveStreamActivation,
+    ]),
     ScreenProtocolModule,
     ScheduleEntryModule,
   ],
   controllers: [ScreenController],
-  providers: [ScreenService, ScreenStateService, ScreenScheduler, ScreenProtocolService],
-  exports: [ScreenService, ScreenStateService, ScreenProtocolService, TypeOrmModule],
+  providers: [
+    ScreenService,
+    ScreenStateService,
+    ScheduleBoundaryService,
+    ScreenScheduler,
+    ScreenProtocolService,
+  ],
+  exports: [
+    ScreenService,
+    ScreenStateService,
+    ScreenProtocolService,
+    TypeOrmModule,
+  ],
 })
 export class ScreenModule {}

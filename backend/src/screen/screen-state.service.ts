@@ -12,6 +12,7 @@ import {
   takeUntil,
 } from 'rxjs';
 import { ScreenService } from './screen.service';
+import { ScheduleBoundaryService } from './schedule-boundary.service';
 import {
   SCREEN_PROTOCOL_ADAPTER,
   ScreenProtocolAdapter,
@@ -61,6 +62,7 @@ export class ScreenStateService implements OnModuleDestroy {
     @Inject(SCREEN_PROTOCOL_ADAPTER)
     private readonly protocolAdapter: ScreenProtocolAdapter,
     private readonly scheduleService: ScheduleService,
+    private readonly scheduleBoundaryService: ScheduleBoundaryService,
     @InjectRepository(ScreenGroup)
     private readonly screenGroupRepository: Repository<ScreenGroup>,
     @InjectRepository(Playlist)
@@ -206,6 +208,13 @@ export class ScreenStateService implements OnModuleDestroy {
     if (!conn) {
       conn = { events: new Subject<ScreenEvent>(), close: new Subject<void>() };
       this.connections.set(screenId, conn);
+      this.scheduleBoundaryService
+        .registerScreen(screenId)
+        .catch((err) =>
+          this.logger.warn(
+            `Failed to register screen ${screenId} for boundary tracking: ${err}`,
+          ),
+        );
     }
 
     const { events, close } = conn;
@@ -234,6 +243,7 @@ export class ScreenStateService implements OnModuleDestroy {
         const current = this.connections.get(screenId);
         if (current && current.events === events && !events.observed) {
           this.connections.delete(screenId);
+          this.scheduleBoundaryService.unregisterScreen(screenId);
           this.logger.log(`SSE connection closed for screen ${screenId}`);
         }
       }),
