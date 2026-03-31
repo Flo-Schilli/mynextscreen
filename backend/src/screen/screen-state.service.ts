@@ -250,6 +250,10 @@ export class ScreenStateService implements OnModuleDestroy {
     );
   }
 
+  getConnectedScreenIds(): string[] {
+    return Array.from(this.connections.keys());
+  }
+
   pushEvent(screenId: string, event: ScreenEvent): void {
     const conn = this.connections.get(screenId);
     if (conn) {

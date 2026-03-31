@@ -82,12 +82,12 @@ This bridge can live in `ScreenStateService` as a new `@OnEvent(PLAYLIST_UPDATED
 Import `PLAYLIST_UPDATED` and `PlaylistUpdatedEvent` from the playlist module into the screen module.
 
 **Acceptance Criteria:**
-- [ ] When a playlist's items are modified, all screens currently showing that playlist receive a `playlist_update` SSE event
-- [ ] Screens using the playlist via a schedule entry are detected
-- [ ] Screens using the playlist as the organisation's default/fallback are detected
-- [ ] Only screens with active SSE connections receive events (no unnecessary DB queries for disconnected screens)
-- [ ] Typecheck/lint passes
-- [ ] Unit tests are written and successful
+- [x] When a playlist's items are modified, all screens currently showing that playlist receive a `playlist_update` SSE event
+- [x] Screens using the playlist via a schedule entry are detected
+- [x] Screens using the playlist as the organisation's default/fallback are detected
+- [x] Only screens with active SSE connections receive events (no unnecessary DB queries for disconnected screens)
+- [x] Typecheck/lint passes
+- [x] Unit tests are written and successful
 
 ### TASK-023-003: Integration smoke test — end-to-end playlist transition
 **Description:** As a developer, I want an integration-level test that verifies the full event chain from schedule boundary crossing to SSE event delivery, so that regressions are caught.
@@ -98,12 +98,12 @@ Import `PLAYLIST_UPDATED` and `PlaylistUpdatedEvent` from the playlist module in
 **Parallel:** no
 
 **Acceptance Criteria:**
-- [ ] Test: screen connected via SSE, schedule entry starts → player receives `schedule_update` event within timer precision
-- [ ] Test: screen connected via SSE, schedule entry ends → player receives `schedule_update` event (transition back to default)
-- [ ] Test: screen connected via SSE, active playlist's items are modified → player receives `playlist_update` event
-- [ ] Test: screen disconnects → no timers leak, no errors on next schedule boundary
-- [ ] Typecheck/lint passes
-- [ ] All tests pass
+- [x] Test: screen connected via SSE, schedule entry starts → player receives `schedule_update` event within timer precision
+- [x] Test: screen connected via SSE, schedule entry ends → player receives `schedule_update` event (transition back to default)
+- [x] Test: screen connected via SSE, active playlist's items are modified → player receives `playlist_update` event
+- [x] Test: screen disconnects → no timers leak, no errors on next schedule boundary
+- [x] Typecheck/lint passes
+- [x] All tests pass
 
 ## Task Dependency Graph
 

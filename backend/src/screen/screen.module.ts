@@ -8,11 +8,13 @@ import { ScreenScheduler } from './screen.scheduler';
 import { ScreenProtocolModule } from '../screen-protocol';
 import { ScreenProtocolService } from '../screen-protocol/screen-protocol.service';
 import { ScheduleBoundaryService } from './schedule-boundary.service';
+import { PlaylistChangeBridgeService } from './playlist-change-bridge.service';
 import { ScheduleEntryModule } from '../schedule';
 import { ScreenGroup } from '../screen-group/screen-group.entity';
 import { SlicedRendition } from '../slice-content/sliced-rendition.entity';
 import { Playlist } from '../playlist/playlist.entity';
 import { LiveStreamActivation } from '../live-stream/live-stream-activation.entity';
+import { Organisation } from '../organisation/organisation.entity';
 
 @Module({
   imports: [
@@ -22,6 +24,7 @@ import { LiveStreamActivation } from '../live-stream/live-stream-activation.enti
       SlicedRendition,
       Playlist,
       LiveStreamActivation,
+      Organisation,
     ]),
     ScreenProtocolModule,
     ScheduleEntryModule,
@@ -31,6 +34,7 @@ import { LiveStreamActivation } from '../live-stream/live-stream-activation.enti
     ScreenService,
     ScreenStateService,
     ScheduleBoundaryService,
+    PlaylistChangeBridgeService,
     ScreenScheduler,
     ScreenProtocolService,
   ],
