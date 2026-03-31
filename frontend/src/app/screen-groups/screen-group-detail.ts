@@ -451,7 +451,7 @@ interface GridCell {
       border: 1px solid var(--color-accent);
       border-radius: 0.375rem;
       padding: 0.5rem 1rem;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 4px 12px var(--color-shadow);
       font-size: 0.875rem;
       font-weight: 500;
       color: var(--color-text-primary);
@@ -608,6 +608,7 @@ interface GridCell {
       min-width: 24rem;
       max-width: 36rem;
       width: 100%;
+      box-shadow: 0 8px 24px var(--color-shadow);
     }
     .modal h2 {
       margin: 0 0 1.25rem;

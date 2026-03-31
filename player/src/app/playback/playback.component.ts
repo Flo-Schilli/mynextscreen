@@ -763,7 +763,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
     this.setLayerAnim(
       layer,
-      `${type}-enter ${duration}ms ease-in-out forwards`,
+      `${type}-enter ${duration}ms ease-in-out both`,
     );
     this.transitionTimer = setTimeout(() => {
       this.zone.run(() => {
@@ -829,11 +829,11 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     // Apply exit animation to outgoing layer, enter animation to incoming layer
     this.setLayerAnim(
       activeLayer,
-      `${transition.type}-exit ${transition.duration}ms ease-in-out forwards`,
+      `${transition.type}-exit ${transition.duration}ms ease-in-out both`,
     );
     this.setLayerAnim(
       inactiveLayer,
-      `${transition.type}-enter ${transition.duration}ms ease-in-out forwards`,
+      `${transition.type}-enter ${transition.duration}ms ease-in-out both`,
     );
 
     this.transitionTimer = setTimeout(() => {
@@ -869,7 +869,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     // Exit animation on current layer
     this.setLayerAnim(
       layer,
-      `${transition.type}-exit ${transition.duration}ms ease-in-out forwards`,
+      `${transition.type}-exit ${transition.duration}ms ease-in-out both`,
     );
 
     this.transitionTimer = setTimeout(() => {
@@ -880,7 +880,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
         // Enter animation on same layer
         this.setLayerAnim(
           layer,
-          `${transition.type}-enter ${transition.duration}ms ease-in-out forwards`,
+          `${transition.type}-enter ${transition.duration}ms ease-in-out both`,
         );
 
         this.transitionTimer = setTimeout(() => {

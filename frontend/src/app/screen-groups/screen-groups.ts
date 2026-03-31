@@ -338,6 +338,7 @@ import { MyMembership } from '../settings/users/member.model';
       background: var(--color-bg-secondary);
       border: 1px solid var(--color-border);
       border-radius: 0.5rem;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     table {
       width: 100%;
@@ -414,6 +415,7 @@ import { MyMembership } from '../settings/users/member.model';
       min-width: 24rem;
       max-width: 36rem;
       width: 100%;
+      box-shadow: 0 8px 24px var(--color-shadow);
     }
     .modal h2 {
       margin: 0 0 1.25rem;

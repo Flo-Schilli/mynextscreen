@@ -5,7 +5,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { FindOptionsWhere, In, Repository } from 'typeorm';
+import { OnEvent } from '@nestjs/event-emitter';
+import { FindOptionsWhere, In, Not, Repository } from 'typeorm';
 import { Playlist } from './playlist.entity';
 import { PlaylistItem } from './playlist-item.entity';
 import { Organisation } from '../organisation/organisation.entity';
@@ -18,6 +19,10 @@ import { UpdatePlaylistDto } from './dto/update-playlist.dto';
 import { AddPlaylistItemDto } from './dto/add-playlist-item.dto';
 import { UpdatePlaylistItemDto } from './dto/update-playlist-item.dto';
 import { PLAYLIST_UPDATED, PlaylistUpdatedEvent } from './playlist.event';
+import {
+  CONTENT_DURATION_RESOLVED,
+  ContentDurationResolvedEvent,
+} from '../content/content.event';
 import {
   AUDIT_PLAYLIST_CREATED,
   AUDIT_PLAYLIST_UPDATED,
@@ -450,6 +455,19 @@ export class PlaylistService {
     }
 
     return total;
+  }
+
+  @OnEvent(CONTENT_DURATION_RESOLVED, { async: true })
+  async onContentDurationResolved(
+    event: ContentDurationResolvedEvent,
+  ): Promise<void> {
+    await this.playlistItemRepository.update(
+      {
+        contentId: event.contentId,
+        durationSeconds: Not(event.durationSeconds),
+      },
+      { durationSeconds: event.durationSeconds },
+    );
   }
 
   private emitPlaylistChanged(

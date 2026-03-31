@@ -154,16 +154,22 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
                       </span>
                     </div>
                     <div class="item-duration">
-                      <label class="duration-label" [attr.for]="'dur_' + item.id">Duration</label>
+                      <label class="duration-label" [attr.for]="'dur_' + item.id">
+                        {{ item.content?.type === 'video' ? 'Video length' : 'Duration' }}
+                      </label>
                       <div class="duration-input-group">
+                        @if (item.content?.type === 'video' && item.content?.durationSeconds === null) {
+                          <span class="duration-approx">~</span>
+                        }
                         <input
                           type="number"
                           class="duration-input"
                           [id]="'dur_' + item.id"
-                          [ngModel]="item.durationSeconds"
+                          [ngModel]="item.content?.type === 'video' ? (item.content?.durationSeconds ?? item.durationSeconds) : item.durationSeconds"
                           (ngModelChange)="updateItemDuration(item, $event)"
                           min="1"
                           [name]="'dur_' + item.id"
+                          [disabled]="item.content?.type === 'video'"
                         />
                         <span class="duration-unit">s</span>
                       </div>
@@ -504,6 +510,7 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       padding: 1.25rem;
       cursor: pointer;
       transition: border-color 0.15s, background-color 0.15s;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .playlist-card:hover, .playlist-card:focus {
       border-color: var(--color-accent);
@@ -558,6 +565,7 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       border-radius: 0.5rem;
       padding: 1.5rem;
       max-width: 40rem;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .form-card h2 {
       margin: 0 0 1.25rem;
@@ -601,6 +609,7 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       border: 1px solid var(--color-border);
       border-radius: 0.5rem;
       padding: 1.5rem;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .editor-header {
       display: flex;
@@ -774,6 +783,15 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
     .duration-input:focus {
       outline: none;
       border-color: var(--color-accent);
+    }
+    .duration-input:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .duration-approx {
+      font-size: 0.8125rem;
+      color: var(--color-text-muted);
+      margin-right: -0.125rem;
     }
     .duration-unit {
       font-size: 0.75rem;
@@ -1375,7 +1393,9 @@ export class Playlists implements OnInit {
 
   addContentToPlaylist(content: Content): void {
     if (!this.selectedPlaylist) return;
-    const defaultDuration = content.type === 'video' ? 30 : 10;
+    const defaultDuration = content.type === 'video'
+      ? (content.durationSeconds ?? 30)
+      : 10;
     this.playlistService.addItem(this.orgId, this.selectedPlaylist.id, {
       contentId: content.id,
       durationSeconds: defaultDuration,

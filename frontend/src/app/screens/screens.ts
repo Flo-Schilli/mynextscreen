@@ -451,6 +451,7 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       padding: 1.25rem;
       cursor: pointer;
       transition: border-color 0.15s, background-color 0.15s;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .screen-card:hover, .screen-card:focus {
       border-color: var(--color-accent);
@@ -516,6 +517,7 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       border-radius: 0.5rem;
       padding: 1.5rem;
       max-width: 40rem;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .detail-header {
       display: flex;
@@ -590,6 +592,7 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       border-radius: 0.5rem;
       padding: 1.5rem;
       max-width: 40rem;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .form-card h2 {
       margin: 0 0 1.25rem;

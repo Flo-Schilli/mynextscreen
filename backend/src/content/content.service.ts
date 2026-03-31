@@ -31,6 +31,10 @@ import {
   AUDIT_CONTENT_BULK_ADDED_TO_PLAYLIST,
   AuditContentEvent,
 } from '../audit-log/audit.events';
+import {
+  CONTENT_DURATION_RESOLVED,
+  ContentDurationResolvedEvent,
+} from './content.event';
 
 const IMAGE_MIME_PREFIX = 'image/';
 const VIDEO_MIME_PREFIX = 'video/';
@@ -185,6 +189,10 @@ export class ContentService {
       await this.contentRepository.update(content.id, {
         durationSeconds: duration,
       });
+      this.eventEmitter.emit(
+        CONTENT_DURATION_RESOLVED,
+        new ContentDurationResolvedEvent(content.id, duration),
+      );
       return duration;
     } catch {
       return null;

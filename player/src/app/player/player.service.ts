@@ -266,7 +266,7 @@ export class PlayerService implements OnDestroy {
         if (payload['type'] === 'keepalive') continue;
 
         const event: ScreenEvent = {
-          type: (eventType || payload['type']) as ScreenEventType,
+          type: (payload['type'] || eventType) as ScreenEventType,
           timestamp: (payload['timestamp'] as string) ?? new Date().toISOString(),
           data: (payload['data'] as Record<string, unknown>) ?? payload,
         };

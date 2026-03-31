@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Notification } from '../notification.entity';
-import { DashboardGateway } from '../../dashboard/dashboard.gateway';
+import { DashboardSseService } from '../../dashboard/dashboard-sse.service';
 import {
   InAppChannel,
   NotificationPayload,
@@ -15,7 +15,7 @@ export class InAppNotificationChannel implements InAppChannel {
   constructor(
     @InjectRepository(Notification)
     private readonly notificationRepo: Repository<Notification>,
-    private readonly dashboardGateway: DashboardGateway,
+    private readonly dashboardSseService: DashboardSseService,
   ) {}
 
   async send(
@@ -34,7 +34,7 @@ export class InAppNotificationChannel implements InAppChannel {
 
     const saved = await this.notificationRepo.save(entity);
 
-    this.dashboardGateway.emitToUser(userId, 'notification.new', {
+    this.dashboardSseService.emitToUser(userId, 'notification.new', {
       id: saved.id,
       eventType: saved.eventType,
       title: saved.title,

@@ -6,6 +6,7 @@ import { StreamHealthService } from './stream-health.service';
 import { LiveStream } from './live-stream.entity';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
+import { TranscodingPreset } from './transcoding-preset.enum';
 import {
   FfmpegLiveService,
   LIVE_STREAM_PROCESS_EXITED,
@@ -36,6 +37,8 @@ describe('StreamHealthService', () => {
     status: LiveStreamStatus.Active,
     createdAt: new Date(),
     updatedAt: new Date(),
+    transcodingPreset: TranscodingPreset.High1080p,
+    audioEnabled: true,
     organisation: {} as Organisation,
   };
 

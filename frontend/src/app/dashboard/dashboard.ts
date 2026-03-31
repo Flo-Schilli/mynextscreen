@@ -14,7 +14,7 @@ import { ScreenService } from '../screens/screen.service';
 import { ContentService } from '../content/content.service';
 import { ScheduleService } from '../schedules/schedule.service';
 import { OrganisationStateService } from '../shell/organisation-state.service';
-import { DashboardSocketService } from './dashboard-socket.service';
+import { DashboardSseService } from './dashboard-sse.service';
 import { Screen } from '../screens/screen.model';
 import { StorageInfo } from '../content/content.model';
 import { ScheduleEntry } from '../schedules/schedule.model';
@@ -208,6 +208,7 @@ interface TimelineEntry {
       border: 1px solid var(--color-border);
       border-radius: 8px;
       overflow: hidden;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .card-header {
       display: flex;
@@ -446,7 +447,7 @@ export class Dashboard implements OnInit, OnDestroy {
   private contentService = inject(ContentService);
   private scheduleService = inject(ScheduleService);
   private orgState = inject(OrganisationStateService);
-  private socketService = inject(DashboardSocketService);
+  private socketService = inject(DashboardSseService);
 
   private subscriptions: Subscription[] = [];
 

@@ -11,10 +11,11 @@ import { ScheduleEntryModule } from '../schedule';
 import { ScreenGroup } from '../screen-group/screen-group.entity';
 import { SlicedRendition } from '../slice-content/sliced-rendition.entity';
 import { Playlist } from '../playlist/playlist.entity';
+import { LiveStreamActivation } from '../live-stream/live-stream-activation.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Screen, ScreenGroup, SlicedRendition, Playlist]),
+    TypeOrmModule.forFeature([Screen, ScreenGroup, SlicedRendition, Playlist, LiveStreamActivation]),
     ScreenProtocolModule,
     ScheduleEntryModule,
   ],

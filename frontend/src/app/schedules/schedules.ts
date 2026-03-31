@@ -659,6 +659,7 @@ const PRESET_COLOURS = [
       border: 1px solid var(--color-border);
       border-radius: 0.5rem;
       overflow: hidden;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .time-grid-header {
       display: flex;
@@ -724,12 +725,12 @@ const PRESET_COLOURS = [
       z-index: 2;
       overflow: hidden;
       min-height: 1.25rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      box-shadow: 0 1px 3px var(--color-shadow);
       transition: box-shadow 0.15s;
       user-select: none;
     }
     .schedule-block:hover {
-      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      box-shadow: 0 2px 8px var(--color-shadow);
       z-index: 3;
     }
     .schedule-block.dragging {
@@ -845,6 +846,7 @@ const PRESET_COLOURS = [
       border: 1px solid var(--color-border);
       border-radius: 0.5rem;
       overflow: hidden;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .month-header-row {
       display: grid;
@@ -916,6 +918,7 @@ const PRESET_COLOURS = [
       padding: 1rem;
       max-height: calc(100vh - 14rem);
       overflow-y: auto;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .side-panel h3 {
       margin: 0 0 0.75rem;
@@ -976,6 +979,7 @@ const PRESET_COLOURS = [
       padding: 1.5rem;
       min-width: 28rem;
       max-width: 36rem;
+      box-shadow: 0 8px 24px var(--color-shadow);
     }
     .modal h2 {
       margin: 0 0 1.25rem;
@@ -1105,7 +1109,7 @@ const PRESET_COLOURS = [
       font-size: 0.875rem;
       z-index: 2000;
       animation: toast-in 0.3s ease;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      box-shadow: 0 4px 16px var(--color-shadow);
     }
     .toast-error {
       background: #991b1b;

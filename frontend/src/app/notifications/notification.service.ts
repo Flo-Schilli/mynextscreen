@@ -1,7 +1,7 @@
 import { Injectable, inject, signal, OnDestroy } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Subscription } from 'rxjs';
-import { DashboardSocketService } from '../dashboard/dashboard-socket.service';
+import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import {
   Notification,
   UnreadCountResponse,
@@ -10,7 +10,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class NotificationService implements OnDestroy {
   private http = inject(HttpClient);
-  private socketService = inject(DashboardSocketService);
+  private socketService = inject(DashboardSseService);
   private socketSub: Subscription | null = null;
 
   readonly unreadCount = signal(0);

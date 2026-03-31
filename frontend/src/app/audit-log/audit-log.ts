@@ -247,6 +247,7 @@ import { Membership } from '../settings/users/member.model';
       background: var(--color-bg-secondary);
       border-radius: 0.5rem;
       overflow: hidden;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     thead {
       background: var(--color-bg-tertiary);

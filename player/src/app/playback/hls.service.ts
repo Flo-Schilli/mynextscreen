@@ -23,6 +23,8 @@ export class HlsService implements OnDestroy {
       const hls = new Hls({
         liveSyncDuration: 3,
         liveMaxLatencyDuration: 10,
+        manifestLoadingMaxRetry: 10,
+        manifestLoadingRetryDelay: 2000,
         xhrSetup: (xhr: XMLHttpRequest) => {
           xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`);
         },

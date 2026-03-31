@@ -6,6 +6,7 @@ import { StreamHealthService } from './stream-health.service';
 import { LiveStream } from './live-stream.entity';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
+import { TranscodingPreset } from './transcoding-preset.enum';
 import { Organisation } from '../organisation/organisation.entity';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { BadGatewayException, ConflictException } from '@nestjs/common';
@@ -29,6 +30,8 @@ describe('LiveStreamController', () => {
     status: LiveStreamStatus.Idle,
     createdAt: new Date(),
     updatedAt: new Date(),
+    transcodingPreset: TranscodingPreset.High1080p,
+    audioEnabled: true,
     organisation: {} as Organisation,
   };
 
@@ -232,7 +235,10 @@ describe('LiveStreamController', () => {
         targetScreenIds: ['770e8400-e29b-41d4-a716-446655440001'],
       };
       const activeStream = { ...mockStream, status: LiveStreamStatus.Active };
-      service.activateStream.mockResolvedValue(activeStream);
+      service.activateStream.mockResolvedValue({
+        stream: activeStream,
+        warnings: [],
+      });
 
       const result = await controller.activate(orgId, streamId, dto, mockReq);
 
@@ -242,7 +248,8 @@ describe('LiveStreamController', () => {
         dto,
         userId,
       );
-      expect(result.status).toBe(LiveStreamStatus.Active);
+      expect(result.stream.status).toBe(LiveStreamStatus.Active);
+      expect(result.warnings).toEqual([]);
     });
 
     it('should propagate BadGatewayException when FFmpeg fails', async () => {

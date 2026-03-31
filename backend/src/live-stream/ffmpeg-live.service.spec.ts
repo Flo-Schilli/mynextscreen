@@ -5,14 +5,34 @@ import { EventEmitter } from 'events';
 import {
   FfmpegLiveService,
   LIVE_STREAM_PROCESS_EXITED,
+  PRESET_MAP,
+  ProbeResult,
 } from './ffmpeg-live.service';
 import { LiveStream } from './live-stream.entity';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
+import { TranscodingPreset } from './transcoding-preset.enum';
 
 // Mock child_process
 jest.mock('child_process', () => ({
   spawn: jest.fn(),
+  execFile: jest.fn(),
+}));
+
+// Mock util.promisify to return our mock directly
+jest.mock('util', () => ({
+  ...jest.requireActual('util'),
+  promisify: (fn: unknown) => {
+    // Return a wrapper that calls through to the mock and returns a promise
+    return (...args: unknown[]) => {
+      return new Promise((resolve, reject) => {
+        (fn as Function)(...args, (err: Error | null, stdout: string, stderr: string) => {
+          if (err) reject(err);
+          else resolve({ stdout, stderr });
+        });
+      });
+    };
+  },
 }));
 
 // Mock fs/promises
@@ -21,9 +41,12 @@ jest.mock('fs/promises', () => ({
   rm: jest.fn().mockResolvedValue(undefined),
 }));
 
-import { spawn } from 'child_process';
+import { spawn, execFile } from 'child_process';
 
 const mockSpawn = spawn as jest.MockedFunction<typeof spawn>;
+const mockExecFile = execFile as unknown as jest.MockedFunction<
+  (cmd: string, args: string[], opts: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => void
+>;
 
 function createMockProcess(): EventEmitter & {
   stderr: EventEmitter;
@@ -49,6 +72,8 @@ function createStream(overrides?: Partial<LiveStream>): LiveStream {
     sourceUrl: 'rtmp://example.com/live/stream1',
     protocol: LiveStreamProtocol.Rtmp,
     status: LiveStreamStatus.Idle,
+    transcodingPreset: TranscodingPreset.High1080p,
+    audioEnabled: true,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -94,20 +119,10 @@ describe('FfmpegLiveService', () => {
           'rtmp://example.com/live/stream1',
           '-c:v',
           'libx264',
-          '-preset',
-          'ultrafast',
-          '-tune',
-          'zerolatency',
           '-c:a',
           'aac',
           '-f',
           'hls',
-          '-hls_time',
-          '2',
-          '-hls_list_size',
-          '5',
-          '-hls_flags',
-          'delete_segments+append_list',
         ]),
         { stdio: ['ignore', 'ignore', 'pipe'] },
       );
@@ -223,21 +238,35 @@ describe('FfmpegLiveService', () => {
   });
 
   describe('buildArgs', () => {
-    it('should build correct RTMP args', () => {
+    const outputPath = '/tmp/out/index.m3u8';
+
+    it('should build correct args for high_1080p preset (default)', () => {
       const stream = createStream();
-      const args = service.buildArgs(stream, '/tmp/out/index.m3u8');
+      const args = service.buildArgs(stream, outputPath);
 
       expect(args).toEqual([
         '-i',
         'rtmp://example.com/live/stream1',
+        '-vf',
+        'scale=1920:-2,format=yuv420p',
         '-c:v',
         'libx264',
         '-preset',
         'ultrafast',
         '-tune',
         'zerolatency',
+        '-b:v',
+        '2500k',
+        '-maxrate',
+        '3000k',
+        '-bufsize',
+        '6000k',
+        '-g',
+        '60',
         '-c:a',
         'aac',
+        '-b:a',
+        '128k',
         '-f',
         'hls',
         '-hls_time',
@@ -246,7 +275,7 @@ describe('FfmpegLiveService', () => {
         '5',
         '-hls_flags',
         'delete_segments+append_list',
-        '/tmp/out/index.m3u8',
+        outputPath,
       ]);
     });
 
@@ -255,15 +284,183 @@ describe('FfmpegLiveService', () => {
         sourceUrl: 'rtp://239.0.0.1:5004',
         protocol: LiveStreamProtocol.Rtp,
       });
-      const args = service.buildArgs(stream, '/tmp/out/index.m3u8');
+      const args = service.buildArgs(stream, outputPath);
 
       expect(args[0]).toBe('-protocol_whitelist');
       expect(args[1]).toBe('file,rtp,udp');
       expect(args[2]).toBe('-i');
       expect(args[3]).toBe('rtp://239.0.0.1:5004');
-      // Rest should be the same HLS output flags
       expect(args).toContain('-f');
       expect(args).toContain('hls');
+    });
+
+    it('should build correct args for low_480p preset', () => {
+      const stream = createStream({
+        transcodingPreset: TranscodingPreset.Low480p,
+      });
+      const args = service.buildArgs(stream, outputPath);
+
+      expect(args).toContain('-vf');
+      expect(args[args.indexOf('-vf') + 1]).toBe('scale=854:-2,format=yuv420p');
+      expect(args[args.indexOf('-b:v') + 1]).toBe('1000k');
+      expect(args[args.indexOf('-maxrate') + 1]).toBe('1200k');
+      expect(args[args.indexOf('-bufsize') + 1]).toBe('2400k');
+      expect(args).toContain('-preset');
+      expect(args[args.indexOf('-preset') + 1]).toBe('ultrafast');
+      expect(args).toContain('-tune');
+      expect(args[args.indexOf('-tune') + 1]).toBe('zerolatency');
+      expect(args).toContain('-g');
+      expect(args[args.indexOf('-g') + 1]).toBe('60');
+    });
+
+    it('should build correct args for medium_720p preset', () => {
+      const stream = createStream({
+        transcodingPreset: TranscodingPreset.Medium720p,
+      });
+      const args = service.buildArgs(stream, outputPath);
+
+      expect(args[args.indexOf('-vf') + 1]).toBe(
+        'scale=1280:-2,format=yuv420p',
+      );
+      expect(args[args.indexOf('-b:v') + 1]).toBe('2000k');
+      expect(args[args.indexOf('-maxrate') + 1]).toBe('2400k');
+      expect(args[args.indexOf('-bufsize') + 1]).toBe('4800k');
+    });
+
+    it('should build correct args for full_hd_plus_1440p preset', () => {
+      const stream = createStream({
+        transcodingPreset: TranscodingPreset.FullHdPlus1440p,
+      });
+      const args = service.buildArgs(stream, outputPath);
+
+      expect(args[args.indexOf('-vf') + 1]).toBe(
+        'scale=2560:-2,format=yuv420p',
+      );
+      expect(args[args.indexOf('-b:v') + 1]).toBe('5000k');
+      expect(args[args.indexOf('-maxrate') + 1]).toBe('6000k');
+      expect(args[args.indexOf('-bufsize') + 1]).toBe('12000k');
+    });
+
+    it('should build correct args for passthrough preset', () => {
+      const stream = createStream({
+        transcodingPreset: TranscodingPreset.Passthrough,
+      });
+      const args = service.buildArgs(stream, outputPath);
+
+      expect(args).toContain('-c:v');
+      expect(args[args.indexOf('-c:v') + 1]).toBe('copy');
+      expect(args).not.toContain('-vf');
+      expect(args).not.toContain('libx264');
+      expect(args).not.toContain('-preset');
+      expect(args).not.toContain('-tune');
+      expect(args).not.toContain('-g');
+      // Still wraps in HLS
+      expect(args).toContain('-f');
+      expect(args[args.indexOf('-f') + 1]).toBe('hls');
+      expect(args).toContain('-hls_time');
+      expect(args).toContain('-hls_list_size');
+      expect(args).toContain('-hls_flags');
+    });
+
+    it('should include -an when audioEnabled is false', () => {
+      const stream = createStream({ audioEnabled: false });
+      const args = service.buildArgs(stream, outputPath);
+
+      expect(args).toContain('-an');
+      expect(args).not.toContain('-c:a');
+      expect(args).not.toContain('aac');
+    });
+
+    it('should include AAC audio args when audioEnabled is true', () => {
+      const stream = createStream({ audioEnabled: true });
+      const args = service.buildArgs(stream, outputPath);
+
+      expect(args).toContain('-c:a');
+      expect(args[args.indexOf('-c:a') + 1]).toBe('aac');
+      expect(args).toContain('-b:a');
+      expect(args[args.indexOf('-b:a') + 1]).toBe('128k');
+      expect(args).not.toContain('-an');
+    });
+
+    it('should include -an for passthrough with audio disabled', () => {
+      const stream = createStream({
+        transcodingPreset: TranscodingPreset.Passthrough,
+        audioEnabled: false,
+      });
+      const args = service.buildArgs(stream, outputPath);
+
+      expect(args).toContain('-c:v');
+      expect(args[args.indexOf('-c:v') + 1]).toBe('copy');
+      expect(args).toContain('-an');
+      expect(args).not.toContain('-c:a');
+    });
+
+    it('should include AAC audio for passthrough with audio enabled', () => {
+      const stream = createStream({
+        transcodingPreset: TranscodingPreset.Passthrough,
+        audioEnabled: true,
+      });
+      const args = service.buildArgs(stream, outputPath);
+
+      expect(args).toContain('-c:v');
+      expect(args[args.indexOf('-c:v') + 1]).toBe('copy');
+      expect(args).toContain('-c:a');
+      expect(args[args.indexOf('-c:a') + 1]).toBe('aac');
+    });
+
+    it('should include format=yuv420p in video filter for all non-passthrough presets', () => {
+      const nonPassthroughPresets = [
+        TranscodingPreset.Low480p,
+        TranscodingPreset.Medium720p,
+        TranscodingPreset.High1080p,
+        TranscodingPreset.FullHdPlus1440p,
+      ];
+
+      for (const preset of nonPassthroughPresets) {
+        const stream = createStream({ transcodingPreset: preset });
+        const args = service.buildArgs(stream, outputPath);
+        const vfValue = args[args.indexOf('-vf') + 1];
+        expect(vfValue).toContain('format=yuv420p');
+      }
+    });
+
+    it('should include -preset ultrafast -tune zerolatency -g 60 for all non-passthrough presets', () => {
+      const nonPassthroughPresets = [
+        TranscodingPreset.Low480p,
+        TranscodingPreset.Medium720p,
+        TranscodingPreset.High1080p,
+        TranscodingPreset.FullHdPlus1440p,
+      ];
+
+      for (const preset of nonPassthroughPresets) {
+        const stream = createStream({ transcodingPreset: preset });
+        const args = service.buildArgs(stream, outputPath);
+        expect(args[args.indexOf('-preset') + 1]).toBe('ultrafast');
+        expect(args[args.indexOf('-tune') + 1]).toBe('zerolatency');
+        expect(args[args.indexOf('-g') + 1]).toBe('60');
+      }
+    });
+
+    it('should match PRESET_MAP values for each non-passthrough preset', () => {
+      const presets = [
+        TranscodingPreset.Low480p,
+        TranscodingPreset.Medium720p,
+        TranscodingPreset.High1080p,
+        TranscodingPreset.FullHdPlus1440p,
+      ] as const;
+
+      for (const preset of presets) {
+        const config = PRESET_MAP[preset];
+        const stream = createStream({ transcodingPreset: preset });
+        const args = service.buildArgs(stream, outputPath);
+
+        expect(args[args.indexOf('-vf') + 1]).toBe(
+          `scale=${config.scale},format=yuv420p`,
+        );
+        expect(args[args.indexOf('-b:v') + 1]).toBe(config.videoBitrate);
+        expect(args[args.indexOf('-maxrate') + 1]).toBe(config.maxrate);
+        expect(args[args.indexOf('-bufsize') + 1]).toBe(config.bufsize);
+      }
     });
   });
 
@@ -271,6 +468,174 @@ describe('FfmpegLiveService', () => {
     it('should return the correct output directory path', () => {
       const dir = service.getHlsOutputDir('stream-123');
       expect(dir).toBe('/tmp/signage-hls/stream-123');
+    });
+  });
+
+  describe('probeSourceStream', () => {
+    beforeEach(() => {
+      mockExecFile.mockReset();
+    });
+
+    function setupExecFile(stdout: string): void {
+      mockExecFile.mockImplementation(
+        (_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => {
+          cb(null, stdout, '');
+          return undefined as never;
+        },
+      );
+    }
+
+    it('should parse ffprobe JSON output with video and audio streams', async () => {
+      const ffprobeOutput = JSON.stringify({
+        streams: [
+          { codec_type: 'video', codec_name: 'h264', pix_fmt: 'yuv420p' },
+          { codec_type: 'audio', codec_name: 'aac' },
+        ],
+      });
+      setupExecFile(ffprobeOutput);
+
+      const result = await service.probeSourceStream(
+        'rtmp://example.com/live/test',
+        LiveStreamProtocol.Rtmp,
+      );
+
+      expect(result).toEqual({
+        videoCodec: 'h264',
+        pixelFormat: 'yuv420p',
+        audioCodec: 'aac',
+      });
+    });
+
+    it('should return "unknown"/"none" for missing streams', async () => {
+      const ffprobeOutput = JSON.stringify({ streams: [] });
+      setupExecFile(ffprobeOutput);
+
+      const result = await service.probeSourceStream(
+        'rtmp://example.com/live/test',
+        LiveStreamProtocol.Rtmp,
+      );
+
+      expect(result).toEqual({
+        videoCodec: 'unknown',
+        pixelFormat: 'unknown',
+        audioCodec: 'none',
+      });
+    });
+
+    it('should include protocol_whitelist for RTP sources', async () => {
+      const ffprobeOutput = JSON.stringify({
+        streams: [
+          { codec_type: 'video', codec_name: 'hevc', pix_fmt: 'yuv420p10le' },
+        ],
+      });
+      setupExecFile(ffprobeOutput);
+
+      await service.probeSourceStream(
+        'rtp://239.0.0.1:5004',
+        LiveStreamProtocol.Rtp,
+      );
+
+      const callArgs = mockExecFile.mock.calls[0][1] as string[];
+      expect(callArgs[0]).toBe('-protocol_whitelist');
+      expect(callArgs[1]).toBe('file,rtp,udp');
+    });
+
+    it('should propagate errors from ffprobe', async () => {
+      mockExecFile.mockImplementation(
+        (_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => {
+          cb(new Error('ffprobe not found'), '', '');
+          return undefined as never;
+        },
+      );
+
+      await expect(
+        service.probeSourceStream(
+          'rtmp://example.com/live/test',
+          LiveStreamProtocol.Rtmp,
+        ),
+      ).rejects.toThrow('ffprobe not found');
+    });
+  });
+
+  describe('checkPassthroughCompatibility', () => {
+    it('should return compatible for h264 + yuv420p + aac', () => {
+      const result = service.checkPassthroughCompatibility({
+        videoCodec: 'h264',
+        pixelFormat: 'yuv420p',
+        audioCodec: 'aac',
+      });
+
+      expect(result).toEqual({ compatible: true, warnings: [] });
+    });
+
+    it('should warn when video codec is not h264', () => {
+      const result = service.checkPassthroughCompatibility({
+        videoCodec: 'hevc',
+        pixelFormat: 'yuv420p',
+        audioCodec: 'aac',
+      });
+
+      expect(result.compatible).toBe(false);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0]).toContain('hevc');
+      expect(result.warnings[0]).toContain('not H.264');
+    });
+
+    it('should warn when pixel format is 10-bit (10le)', () => {
+      const result = service.checkPassthroughCompatibility({
+        videoCodec: 'h264',
+        pixelFormat: 'yuv420p10le',
+        audioCodec: 'aac',
+      });
+
+      expect(result.compatible).toBe(false);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0]).toContain('10-bit');
+    });
+
+    it('should warn when pixel format is 10-bit (10be)', () => {
+      const result = service.checkPassthroughCompatibility({
+        videoCodec: 'h264',
+        pixelFormat: 'yuv422p10be',
+        audioCodec: 'aac',
+      });
+
+      expect(result.compatible).toBe(false);
+      expect(result.warnings[0]).toContain('10-bit');
+    });
+
+    it('should warn when audio codec is not aac', () => {
+      const result = service.checkPassthroughCompatibility({
+        videoCodec: 'h264',
+        pixelFormat: 'yuv420p',
+        audioCodec: 'opus',
+      });
+
+      expect(result.compatible).toBe(false);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0]).toContain('opus');
+      expect(result.warnings[0]).toContain('not AAC');
+    });
+
+    it('should not warn for audio codec "none" (no audio track)', () => {
+      const result = service.checkPassthroughCompatibility({
+        videoCodec: 'h264',
+        pixelFormat: 'yuv420p',
+        audioCodec: 'none',
+      });
+
+      expect(result).toEqual({ compatible: true, warnings: [] });
+    });
+
+    it('should return multiple warnings for multiple incompatibilities', () => {
+      const result = service.checkPassthroughCompatibility({
+        videoCodec: 'vp9',
+        pixelFormat: 'yuv420p10le',
+        audioCodec: 'opus',
+      });
+
+      expect(result.compatible).toBe(false);
+      expect(result.warnings).toHaveLength(3);
     });
   });
 });

@@ -2,6 +2,7 @@ import { validate } from 'class-validator';
 import { LiveStream } from './live-stream.entity';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
+import { TranscodingPreset } from './transcoding-preset.enum';
 
 function createLiveStream(overrides: Partial<LiveStream> = {}): LiveStream {
   const stream = new LiveStream();
@@ -10,6 +11,8 @@ function createLiveStream(overrides: Partial<LiveStream> = {}): LiveStream {
   stream.sourceUrl = 'rtmp://example.com/live/stream-key';
   stream.protocol = LiveStreamProtocol.Rtmp;
   stream.status = LiveStreamStatus.Idle;
+  stream.transcodingPreset = TranscodingPreset.High1080p;
+  stream.audioEnabled = true;
   Object.assign(stream, overrides);
   return stream;
 }

@@ -11,7 +11,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { Subject } from 'rxjs';
 import { NotificationService } from './notification.service';
-import { DashboardSocketService, DashboardEvent } from '../dashboard/dashboard-socket.service';
+import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
 import { Notification } from './notification.model';
 
 try {
@@ -38,7 +38,7 @@ describe('NotificationService', () => {
         provideHttpClientTesting(),
         NotificationService,
         {
-          provide: DashboardSocketService,
+          provide: DashboardSseService,
           useValue: { notificationNew$ },
         },
       ],

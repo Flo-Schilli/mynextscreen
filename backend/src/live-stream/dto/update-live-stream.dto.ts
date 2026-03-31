@@ -3,10 +3,12 @@ import {
   IsString,
   IsNotEmpty,
   IsEnum,
-  IsUrl,
+  IsBoolean,
+  Matches,
   MaxLength,
 } from 'class-validator';
 import { LiveStreamProtocol } from '../live-stream-protocol.enum';
+import { TranscodingPreset } from '../transcoding-preset.enum';
 
 export class UpdateLiveStreamDto {
   @IsOptional()
@@ -16,10 +18,20 @@ export class UpdateLiveStreamDto {
   name?: string;
 
   @IsOptional()
-  @IsUrl({}, { message: 'sourceUrl must be a valid URL' })
+  @Matches(/^(https?|rtmp|rtsp|rtp):\/\/.+/, {
+    message: 'sourceUrl must be a valid URL (http, https, rtmp, rtsp, or rtp)',
+  })
   sourceUrl?: string;
 
   @IsOptional()
   @IsEnum(LiveStreamProtocol)
   protocol?: LiveStreamProtocol;
+
+  @IsOptional()
+  @IsEnum(TranscodingPreset)
+  transcodingPreset?: TranscodingPreset;
+
+  @IsOptional()
+  @IsBoolean()
+  audioEnabled?: boolean;
 }
