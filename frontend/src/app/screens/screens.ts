@@ -1,8 +1,8 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { ScreenService } from './screen.service';
 import { Screen } from './screen.model';
 import { MemberService } from '../settings/users/member.service';
@@ -13,6 +13,7 @@ import { SelectionService } from '../shared/selection/selection.service';
 import { SelectionCheckboxComponent } from '../shared/selection/selection-checkbox';
 import { SelectAllCheckboxComponent } from '../shared/selection/select-all-checkbox';
 import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk-action-toolbar';
+import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 
 @Component({
   selector: 'app-screens',
@@ -748,12 +749,14 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
     }
   `,
 })
-export class Screens implements OnInit {
+export class Screens implements OnInit, OnDestroy {
   private screenService = inject(ScreenService);
   private memberService = inject(MemberService);
   private screenGroupService = inject(ScreenGroupService);
   private router = inject(Router);
+  private sseService = inject(DashboardSseService);
   readonly selectionService = inject(SelectionService);
+  private subscriptions: Subscription[] = [];
 
   orgId = '';
   screens: Screen[] = [];
@@ -824,6 +827,31 @@ export class Screens implements OnInit {
 
   ngOnInit(): void {
     this.loadCurrentOrg();
+
+    this.subscriptions.push(
+      this.sseService.screenOnline$.subscribe((event) => {
+        this.updateScreenStatus(event.data['screenId'] as string, true);
+      }),
+      this.sseService.screenOffline$.subscribe((event) => {
+        this.updateScreenStatus(event.data['screenId'] as string, false);
+      }),
+    );
+  }
+
+  ngOnDestroy(): void {
+    for (const sub of this.subscriptions) {
+      sub.unsubscribe();
+    }
+  }
+
+  private updateScreenStatus(screenId: string, isOnline: boolean): void {
+    const screen = this.screens.find((s) => s.id === screenId);
+    if (screen) {
+      screen.isOnline = isOnline;
+    }
+    if (this.selectedScreen?.id === screenId) {
+      this.selectedScreen = { ...this.selectedScreen, isOnline };
+    }
   }
 
   private loadCurrentOrg(): void {

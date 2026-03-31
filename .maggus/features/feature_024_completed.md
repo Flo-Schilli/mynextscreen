@@ -40,13 +40,13 @@ In `frontend/src/app/screens/screens.ts`:
 Follow the same pattern as the Dashboard component (`dashboard.ts` lines 549–556).
 
 **Acceptance Criteria:**
-- [ ] `DashboardSseService` is injected into `ScreensComponent`
-- [ ] Subscriptions to `screenOnline$` and `screenOffline$` are set up on init
-- [ ] Screen grid cards update their status dot and text in real time when a screen goes online/offline
-- [ ] Screen detail view updates its status badge in real time if the selected screen's status changes
-- [ ] Subscriptions are cleaned up on component destroy
-- [ ] Typecheck/lint passes
-- [ ] Verify in browser: open Screens page, toggle a screen's status → status updates without refresh
+- [x] `DashboardSseService` is injected into `ScreensComponent`
+- [x] Subscriptions to `screenOnline$` and `screenOffline$` are set up on init
+- [x] Screen grid cards update their status dot and text in real time when a screen goes online/offline
+- [x] Screen detail view updates its status badge in real time if the selected screen's status changes
+- [x] Subscriptions are cleaned up on component destroy
+- [x] Typecheck/lint passes
+- [x] ⚠️ BLOCKED: Verify in browser: open Screens page, toggle a screen's status → status updates without refresh — requires running application and manual browser testing
 
 ## Task Dependency Graph
 
