@@ -455,9 +455,11 @@ import { IANA_TIME_ZONES } from './timezones';
       background: var(--color-bg-secondary);
       border-radius: 0.5rem;
       overflow: hidden;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     thead {
       background: var(--color-bg-tertiary);
+      border-bottom: 2px solid var(--color-border);
     }
     th {
       text-align: left;

@@ -53,6 +53,10 @@ export const routes: Routes = [
         loadComponent: () => import('./schedules/schedules').then(m => m.Schedules),
       },
       {
+        path: 'live-streams',
+        loadComponent: () => import('./live-streams/live-streams').then(m => m.LiveStreams),
+      },
+      {
         path: 'audit-log',
         loadComponent: () => import('./audit-log/audit-log').then(m => m.AuditLog),
       },

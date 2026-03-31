@@ -21,6 +21,7 @@ import {
   ScreenEvent,
   ScreenEventType,
   Playlist as ProtocolPlaylist,
+  LiveStream as ProtocolLiveStream,
 } from '../screen-protocol';
 import { Playlist } from '../playlist/playlist.entity';
 import {
@@ -36,6 +37,8 @@ import {
   ScheduleEntryChangedEvent,
   ScheduleService,
 } from '../schedule';
+import { LiveStreamActivation } from '../live-stream/live-stream-activation.entity';
+import { LiveStreamStatus } from '../live-stream/live-stream-status.enum';
 import { ScreenGroup } from '../screen-group/screen-group.entity';
 
 interface MessageEvent {
@@ -62,6 +65,8 @@ export class ScreenStateService implements OnModuleDestroy {
     private readonly screenGroupRepository: Repository<ScreenGroup>,
     @InjectRepository(Playlist)
     private readonly playlistRepository: Repository<Playlist>,
+    @InjectRepository(LiveStreamActivation)
+    private readonly activationRepository: Repository<LiveStreamActivation>,
   ) {}
 
   onModuleDestroy(): void {
@@ -126,11 +131,30 @@ export class ScreenStateService implements OnModuleDestroy {
       );
     }
 
+    let activeLiveStream: ProtocolLiveStream | null = null;
+    try {
+      const activation = await this.activationRepository.findOne({
+        where: { screenId },
+        relations: ['stream'],
+      });
+      if (activation?.stream?.status === LiveStreamStatus.Active) {
+        activeLiveStream = {
+          id: activation.stream.id,
+          streamUrl: `/api/live-streams/${activation.stream.id}/hls/index.m3u8`,
+          startedAt: activation.activatedAt.toISOString(),
+        };
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to resolve live stream for screen ${screenId}: ${error}`,
+      );
+    }
+
     return new ScreenState(
       screenInfo,
       currentPlaylist,
       [],
-      null,
+      activeLiveStream,
       fallbackPlaylist,
       groupInfo,
     );

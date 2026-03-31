@@ -19,6 +19,7 @@ describe('ScreenStateService', () => {
   let scheduleService: { getCurrentPlaylist: jest.Mock };
   let screenGroupRepository: { findOne: jest.Mock };
   let playlistRepository: { findOne: jest.Mock };
+  let activationRepository: { findOne: jest.Mock };
 
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
   const screenId = '770e8400-e29b-41d4-a716-446655440000';
@@ -101,12 +102,17 @@ describe('ScreenStateService', () => {
       findOne: jest.fn().mockResolvedValue(mockPlaylist),
     };
 
+    activationRepository = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
     service = new ScreenStateService(
       screenService as unknown as ScreenService,
       protocolAdapter,
       scheduleService as unknown as ScheduleService,
       screenGroupRepository as any,
       playlistRepository as any,
+      activationRepository as any,
     );
   });
 

@@ -10,7 +10,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { AuthService } from '../auth/auth.service';
 import { OrganisationStateService } from './organisation-state.service';
 import { ThemeService } from './theme.service';
-import { DashboardSocketService } from '../dashboard/dashboard-socket.service';
+import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { NotificationBell } from '../notifications/notification-bell';
 import { GlobalSearch } from '../search/global-search';
 
@@ -213,7 +213,7 @@ interface NavItem {
       left: 0;
       bottom: 0;
       width: 240px;
-      background: var(--color-bg-secondary);
+      background: var(--color-bg-sidebar);
       border-right: 1px solid var(--color-border);
       display: flex;
       flex-direction: column;
@@ -353,6 +353,7 @@ interface NavItem {
       padding: 0 1rem;
       background: var(--color-bg-secondary);
       border-bottom: 1px solid var(--color-border);
+      box-shadow: 0 1px 3px var(--color-shadow);
     }
     .topbar-left {
       display: flex;
@@ -494,7 +495,7 @@ interface NavItem {
 export class Layout implements OnInit {
   private authService = inject(AuthService);
   private router = inject(Router);
-  private socketService = inject(DashboardSocketService);
+  private socketService = inject(DashboardSseService);
   readonly orgState = inject(OrganisationStateService);
   readonly theme = inject(ThemeService);
 
@@ -538,6 +539,11 @@ export class Layout implements OnInit {
       label: 'Schedules',
       route: '/schedules',
       icon: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="4" width="14" height="13" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M3 8h14M7 2v4M13 2v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    },
+    {
+      label: 'Live Streams',
+      route: '/live-streams',
+      icon: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M5 5a7 7 0 000 10M15 5a7 7 0 010 10M3 3a11 11 0 000 14M17 3a11 11 0 010 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
     },
     {
       label: 'Audit Log',

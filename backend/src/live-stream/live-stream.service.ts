@@ -22,6 +22,7 @@ import {
   LIVE_STREAM_PROCESS_EXITED,
   LiveStreamProcessExitedEvent,
 } from './ffmpeg-live.service';
+import { TranscodingPreset } from './transcoding-preset.enum';
 import { ScreenGroupService } from '../screen-group/screen-group.service';
 import { Screen } from '../screen/screen.entity';
 import {
@@ -38,6 +39,11 @@ import {
   AUDIT_LIVE_STREAM_FAILED,
   AuditLiveStreamEvent,
 } from '../audit-log/audit.events';
+
+export interface ActivateStreamResult {
+  stream: LiveStream;
+  warnings: string[];
+}
 
 @Injectable()
 export class LiveStreamService extends OrganisationScopedService<LiveStream> {
@@ -143,7 +149,7 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     id: string,
     dto: ActivateLiveStreamDto,
     userId: string | null = null,
-  ): Promise<LiveStream> {
+  ): Promise<ActivateStreamResult> {
     // Validate exactly one target is provided
     const hasScreenIds = dto.targetScreenIds && dto.targetScreenIds.length > 0;
     const hasGroupId = !!dto.targetGroupId;
@@ -161,6 +167,28 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     }
 
     const stream = await this.findOne(organisationId, id);
+
+    // Probe source stream for passthrough compatibility
+    let warnings: string[] = [];
+    if (stream.transcodingPreset === TranscodingPreset.Passthrough) {
+      try {
+        const probeResult = await this.ffmpegLiveService.probeSourceStream(
+          stream.sourceUrl,
+          stream.protocol,
+        );
+        const compatibility =
+          this.ffmpegLiveService.checkPassthroughCompatibility(probeResult);
+        warnings = compatibility.warnings;
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        this.logger.warn(
+          `[stream:${id}] Failed to probe source for passthrough compatibility: ${message}`,
+        );
+        warnings = [
+          'Could not probe source stream — passthrough compatibility could not be verified.',
+        ];
+      }
+    }
 
     // Resolve target screen IDs
     let targetScreenIds: string[];
@@ -268,7 +296,7 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       }),
     );
 
-    return saved;
+    return { stream: saved, warnings };
   }
 
   async deactivateStream(

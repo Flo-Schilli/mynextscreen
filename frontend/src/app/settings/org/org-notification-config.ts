@@ -193,6 +193,7 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
       padding: 1.5rem;
       max-width: 40rem;
       margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .section-title {
       font-size: 1.125rem;

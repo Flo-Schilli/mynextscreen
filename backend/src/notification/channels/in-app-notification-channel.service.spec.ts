@@ -6,7 +6,7 @@ import { Notification } from '../notification.entity';
 describe('InAppNotificationChannel', () => {
   let channel: InAppNotificationChannel;
   let notificationRepo: Record<string, jest.Mock>;
-  let dashboardGateway: Record<string, jest.Mock>;
+  let dashboardSseService: Record<string, jest.Mock>;
 
   const userId = 'user-1';
   const orgId = 'org-1';
@@ -22,17 +22,17 @@ describe('InAppNotificationChannel', () => {
       create: jest.fn(),
       save: jest.fn(),
     };
-    dashboardGateway = {
+    dashboardSseService = {
       emitToUser: jest.fn(),
     };
 
     channel = new InAppNotificationChannel(
       notificationRepo as unknown as import('typeorm').Repository<Notification>,
-      dashboardGateway as unknown as import('../../dashboard/dashboard.gateway').DashboardGateway,
+      dashboardSseService as unknown as import('../../dashboard/dashboard-sse.service').DashboardSseService,
     );
   });
 
-  it('should save a notification record and emit via Socket.IO', async () => {
+  it('should save a notification record and emit via SSE', async () => {
     const savedNotification = {
       id: 'notif-1',
       userId,
@@ -58,7 +58,7 @@ describe('InAppNotificationChannel', () => {
       read: false,
     });
     expect(notificationRepo.save).toHaveBeenCalledWith(savedNotification);
-    expect(dashboardGateway.emitToUser).toHaveBeenCalledWith(
+    expect(dashboardSseService.emitToUser).toHaveBeenCalledWith(
       userId,
       'notification.new',
       {

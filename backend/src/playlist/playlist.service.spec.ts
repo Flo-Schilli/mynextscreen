@@ -12,6 +12,7 @@ import { Screen } from '../screen/screen.entity';
 import { ScheduleEntry } from '../schedule/schedule-entry.entity';
 import { TransitionType } from './transition-type.enum';
 import { PLAYLIST_UPDATED } from './playlist.event';
+import { ContentDurationResolvedEvent } from '../content/content.event';
 
 describe('PlaylistService', () => {
   let service: PlaylistService;
@@ -43,6 +44,7 @@ describe('PlaylistService', () => {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn().mockResolvedValue(null),
       remove: jest.fn().mockResolvedValue(undefined),
+      update: jest.fn().mockResolvedValue({ affected: 2 }),
       createQueryBuilder: jest.fn(),
     };
 
@@ -749,6 +751,32 @@ describe('PlaylistService', () => {
 
       expect(organisationRepo.save).not.toHaveBeenCalled();
       expect(playlistRepo.remove).toHaveBeenCalled();
+    });
+  });
+
+  describe('onContentDurationResolved', () => {
+    it('should bulk-update playlist items with new duration', async () => {
+      const event = new ContentDurationResolvedEvent('content-1', 58);
+
+      await service.onContentDurationResolved(event);
+
+      expect(playlistItemRepo.update).toHaveBeenCalledWith(
+        { contentId: 'content-1', durationSeconds: expect.anything() },
+        { durationSeconds: 58 },
+      );
+    });
+
+    it('should use Not() condition to skip items already at correct duration', async () => {
+      const event = new ContentDurationResolvedEvent('content-1', 42);
+
+      await service.onContentDurationResolved(event);
+
+      const whereArg = playlistItemRepo.update.mock.calls[0][0];
+      expect(whereArg.contentId).toBe('content-1');
+      // The durationSeconds condition should be a Not(42) FindOperator
+      expect(whereArg.durationSeconds).toBeDefined();
+      expect(whereArg.durationSeconds._type).toBe('not');
+      expect(whereArg.durationSeconds._value).toBe(42);
     });
   });
 

@@ -7,10 +7,11 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { IsNotEmpty, IsString, IsEnum } from 'class-validator';
+import { IsNotEmpty, IsString, IsEnum, IsBoolean } from 'class-validator';
 import { Organisation } from '../organisation/organisation.entity';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
+import { TranscodingPreset } from './transcoding-preset.enum';
 
 @Entity('live_streams')
 export class LiveStream {
@@ -43,6 +44,14 @@ export class LiveStream {
   @Column({ type: 'varchar', default: LiveStreamStatus.Idle })
   @IsEnum(LiveStreamStatus)
   status!: LiveStreamStatus;
+
+  @Column({ type: 'varchar', default: TranscodingPreset.High1080p })
+  @IsEnum(TranscodingPreset)
+  transcodingPreset!: TranscodingPreset;
+
+  @Column({ type: 'boolean', default: true })
+  @IsBoolean()
+  audioEnabled!: boolean;
 
   @CreateDateColumn()
   createdAt!: Date;

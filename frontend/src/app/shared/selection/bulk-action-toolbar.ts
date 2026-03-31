@@ -62,7 +62,7 @@ export interface BulkAction {
       background: var(--color-bg-secondary);
       border-top: 1px solid var(--color-border);
       border-radius: 0.5rem 0.5rem 0 0;
-      box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 -2px 8px var(--color-shadow);
       z-index: 10;
       animation: slideUp 0.2s ease-out;
     }

@@ -1,14 +1,15 @@
-import { Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import {
-  WebSocketGateway,
-  WebSocketServer,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
-} from '@nestjs/websockets';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { Server, Socket } from 'socket.io';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import {
+  Observable,
+  Subject,
+  finalize,
+  map,
+  merge,
+  interval,
+  takeUntil,
+} from 'rxjs';
+import { randomUUID } from 'crypto';
 import {
   TRANSCODING_COMPLETED,
   TRANSCODING_FAILED,
@@ -36,72 +37,94 @@ export interface DashboardEventPayload {
   timestamp: string;
 }
 
-@WebSocketGateway({
-  cors: { origin: '*' },
-  namespace: '/',
-})
-export class DashboardGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
-{
-  private readonly logger = new Logger(DashboardGateway.name);
-  private jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
-  private readonly hankoApiUrl: string;
+interface MessageEvent {
+  data: unknown;
+  type?: string;
+  id?: string;
+  retry?: number;
+}
 
-  constructor(private readonly configService: ConfigService) {
-    this.hankoApiUrl = this.configService.get<string>('HANKO_API_URL', '');
+interface DashboardConnection {
+  organisationId: string;
+  userId: string;
+  events: Subject<DashboardEventPayload>;
+  close: Subject<void>;
+}
+
+@Injectable()
+export class DashboardSseService implements OnModuleDestroy {
+  private readonly logger = new Logger(DashboardSseService.name);
+  private readonly connections = new Map<string, DashboardConnection>();
+
+  onModuleDestroy(): void {
+    for (const [id, conn] of this.connections) {
+      conn.close.next();
+      conn.close.complete();
+      conn.events.complete();
+      this.connections.delete(id);
+    }
   }
 
-  @WebSocketServer()
-  server!: Server;
+  subscribe(organisationId: string, userId: string): Observable<MessageEvent> {
+    const connectionId = randomUUID();
+    const events = new Subject<DashboardEventPayload>();
+    const close = new Subject<void>();
 
-  async handleConnection(client: Socket): Promise<void> {
-    let sub: string | undefined;
+    this.connections.set(connectionId, {
+      organisationId,
+      userId,
+      events,
+      close,
+    });
 
-    try {
-      const token =
-        (client.handshake.auth?.token as string) ??
-        (client.handshake.query['token'] as string);
+    this.logger.log(
+      `SSE connection ${connectionId} opened for org ${organisationId}, user ${userId}`,
+    );
 
-      if (!token) {
-        this.logger.warn('Connection rejected: no token provided');
-        client.disconnect(true);
-        return;
+    const keepalive$ = interval(30_000).pipe(
+      takeUntil(close),
+      map(
+        (): MessageEvent => ({
+          data: '',
+          type: 'keepalive',
+        }),
+      ),
+    );
+
+    const events$ = events.pipe(
+      map(
+        (payload): MessageEvent => ({
+          data: payload,
+          type: 'state-change',
+        }),
+      ),
+    );
+
+    return merge(events$, keepalive$).pipe(
+      finalize(() => {
+        const current = this.connections.get(connectionId);
+        if (current && current.events === events) {
+          this.connections.delete(connectionId);
+          this.logger.log(`SSE connection ${connectionId} closed`);
+        }
+      }),
+    );
+  }
+
+  pushToOrg(organisationId: string, event: DashboardEventPayload): void {
+    for (const conn of this.connections.values()) {
+      if (conn.organisationId === organisationId) {
+        conn.events.next(event);
       }
-
-      const jwks = this.getJwks();
-      const { payload } = await jwtVerify(token, jwks, {
-        issuer: this.hankoApiUrl,
-      });
-      sub = payload.sub;
-    } catch {
-      this.logger.warn('Connection rejected: invalid JWT');
-      client.disconnect(true);
-      return;
-    }
-
-    const orgId =
-      (client.handshake.auth?.organisationId as string) ??
-      (client.handshake.query['organisationId'] as string);
-
-    if (orgId) {
-      client.join(`org:${orgId}`);
-    }
-
-    if (sub) {
-      client.join(`user:${sub}`);
     }
   }
 
-  handleDisconnect(): void {
-    // no-op
-  }
-
-  private getJwks(): ReturnType<typeof createRemoteJWKSet> {
-    if (!this.jwks) {
-      const jwksUrl = new URL('/.well-known/jwks.json', this.hankoApiUrl);
-      this.jwks = createRemoteJWKSet(jwksUrl);
+  pushToUser(userId: string, event: DashboardEventPayload): void {
+    for (const conn of this.connections.values()) {
+      if (conn.userId === userId) {
+        conn.events.next(event);
+      }
     }
-    return this.jwks;
   }
 
   emitToUser(userId: string, type: string, data: unknown): void {
@@ -110,7 +133,7 @@ export class DashboardGateway
       data,
       timestamp: new Date().toISOString(),
     };
-    this.server.to(`user:${userId}`).emit(type, payload);
+    this.pushToUser(userId, payload);
   }
 
   private emitToOrg(organisationId: string, type: string, data: unknown): void {
@@ -119,7 +142,7 @@ export class DashboardGateway
       data,
       timestamp: new Date().toISOString(),
     };
-    this.server.to(`org:${organisationId}`).emit(type, payload);
+    this.pushToOrg(organisationId, payload);
   }
 
   @OnEvent(SCREEN_STATUS_CHANGED)

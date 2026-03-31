@@ -42,6 +42,7 @@ export interface PlaylistItem {
     type: 'image' | 'video';
     originalFilename: string;
     transcodingStatus: string;
+    durationSeconds: number | null;
   };
 }
 

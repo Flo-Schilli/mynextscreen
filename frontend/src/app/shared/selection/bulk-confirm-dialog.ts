@@ -56,6 +56,7 @@ import {
       padding: 1.5rem;
       min-width: 24rem;
       max-width: 36rem;
+      box-shadow: 0 8px 24px var(--color-shadow);
     }
     .modal:focus {
       outline: none;

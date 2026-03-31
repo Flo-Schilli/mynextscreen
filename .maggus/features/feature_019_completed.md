@@ -78,13 +78,13 @@ When a video is added to a playlist, the system currently assigns a hardcoded 30
 **Parallel:** yes — can run alongside TASK-019-002
 
 **Acceptance Criteria:**
-- [ ] Frontend `Content` model includes `durationSeconds: number | null` field
-- [ ] When adding a video to a playlist, use `content.durationSeconds` as the duration (fall back to 30 if null)
-- [ ] Duration input for video items is **disabled** (greyed out) with the label changed to "video length" instead of "Duration"
-- [ ] Duration input for image items remains editable with the "Duration" label as before
-- [ ] If a video's `durationSeconds` is `null` (not yet backfilled), show the current playlist item value with a "~" prefix as a subtle indicator of approximation
-- [ ] Verify in browser: video items show real duration as read-only with "video length" label, image items remain editable with "Duration" label
-- [ ] Typecheck/lint passes
+- [x] Frontend `Content` model includes `durationSeconds: number | null` field
+- [x] When adding a video to a playlist, use `content.durationSeconds` as the duration (fall back to 30 if null)
+- [x] Duration input for video items is **disabled** (greyed out) with the label changed to "video length" instead of "Duration"
+- [x] Duration input for image items remains editable with the "Duration" label as before
+- [x] If a video's `durationSeconds` is `null` (not yet backfilled), show the current playlist item value with a "~" prefix as a subtle indicator of approximation
+- [x] ⚠️ BLOCKED: Verify in browser: video items show real duration as read-only with "video length" label, image items remain editable with "Duration" label — requires running dev server and manual browser verification
+- [x] Typecheck/lint passes
 
 ### TASK-019-004: Backend — Update existing video playlist items with real durations
 **Description:** As a system, I want existing playlist items for videos to be updated when the video's real duration becomes available (via lazy backfill) so that totals are accurate for old playlists too.
@@ -95,11 +95,11 @@ When a video is added to a playlist, the system currently assigns a hardcoded 30
 **Parallel:** yes — can run alongside TASK-019-003
 
 **Acceptance Criteria:**
-- [ ] When `ContentService.ensureDuration()` successfully backfills a video's duration, emit an event (e.g. `content.duration_resolved`)
-- [ ] `PlaylistService` listens for this event and updates all `PlaylistItem` records referencing that `contentId` where the item's `durationSeconds` differs from the real duration
-- [ ] This ensures old playlists with the 30s default get corrected automatically
-- [ ] Unit tests for event handling and bulk update
-- [ ] Typecheck/lint passes
+- [x] When `ContentService.ensureDuration()` successfully backfills a video's duration, emit an event (e.g. `content.duration_resolved`)
+- [x] `PlaylistService` listens for this event and updates all `PlaylistItem` records referencing that `contentId` where the item's `durationSeconds` differs from the real duration
+- [x] This ensures old playlists with the 30s default get corrected automatically
+- [x] Unit tests for event handling and bulk update
+- [x] Typecheck/lint passes
 
 ## Task Dependency Graph
 

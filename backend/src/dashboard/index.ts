@@ -1,2 +1,3 @@
 export { DashboardModule } from './dashboard.module';
-export { DashboardGateway } from './dashboard.gateway';
+export { DashboardSseService } from './dashboard-sse.service';
+export { DashboardController } from './dashboard.controller';

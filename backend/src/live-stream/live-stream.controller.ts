@@ -10,11 +10,12 @@ import {
   Res,
   ParseUUIDPipe,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
-import { LiveStreamService } from './live-stream.service';
+import { LiveStreamService, ActivateStreamResult } from './live-stream.service';
 import { FfmpegLiveService } from './ffmpeg-live.service';
 import {
   StreamHealthService,
@@ -27,6 +28,7 @@ import {
 } from './dto';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
+import { ScreenAuth } from '../auth/screen-auth.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { LiveStream } from './live-stream.entity';
@@ -158,7 +160,7 @@ export class LiveStreamController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ActivateLiveStreamDto,
     @Req() req: AuthenticatedRequest,
-  ): Promise<LiveStream> {
+  ): Promise<ActivateStreamResult> {
     return this.liveStreamService.activateStream(
       organisationId,
       id,
@@ -182,13 +184,8 @@ export class LiveStreamController {
   }
 
   @Get(':id/hls/index.m3u8')
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @ScreenAuth()
   servePlaylist(
-    @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Res() res: Response,
   ): void {
@@ -196,6 +193,10 @@ export class LiveStreamController {
     const filePath = path.resolve(path.join(hlsDir, 'index.m3u8'));
 
     if (!fs.existsSync(filePath)) {
+      // If FFmpeg is still starting up, return 503 so hls.js retries
+      if (this.ffmpegLiveService.isRunning(id)) {
+        throw new ServiceUnavailableException('HLS playlist not ready yet');
+      }
       throw new NotFoundException('HLS playlist not found');
     }
 
@@ -205,13 +206,8 @@ export class LiveStreamController {
   }
 
   @Get(':id/hls/:segment')
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @ScreenAuth()
   serveSegment(
-    @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('segment') segment: string,
     @Res() res: Response,

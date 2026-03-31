@@ -1,7 +1,7 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { ContentService, UploadProgress } from './content.service';
 import { Content, StorageInfo } from './content.model';
 import { MemberService } from '../settings/users/member.service';
@@ -12,7 +12,7 @@ import { SelectionService } from '../shared/selection/selection.service';
 import { SelectionCheckboxComponent } from '../shared/selection/selection-checkbox';
 import { SelectAllCheckboxComponent } from '../shared/selection/select-all-checkbox';
 import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk-action-toolbar';
-import { io, Socket } from 'socket.io-client';
+import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 
 interface UploadItem {
   file: File;
@@ -681,6 +681,7 @@ interface UploadItem {
       overflow: hidden;
       cursor: pointer;
       transition: border-color 0.15s, background-color 0.15s;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .content-card:hover, .content-card:focus {
       border-color: var(--color-accent);
@@ -767,6 +768,7 @@ interface UploadItem {
       border-radius: 0.5rem;
       padding: 1.5rem;
       max-width: 52rem;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .detail-card.wide { max-width: 52rem; }
     .detail-header {
@@ -1153,14 +1155,15 @@ export class ContentLibrary implements OnInit, OnDestroy {
 
   // Transcoding progress
   transcodingProgress: Record<string, number | undefined> = {};
-  private socket: Socket | null = null;
+  private sseService = inject(DashboardSseService);
+  private sseSubs: Subscription[] = [];
 
   ngOnInit(): void {
     this.loadCurrentOrg();
   }
 
   ngOnDestroy(): void {
-    this.socket?.disconnect();
+    for (const sub of this.sseSubs) sub.unsubscribe();
   }
 
   private loadCurrentOrg(): void {
@@ -1174,7 +1177,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
           this.orgId = membership.organisationId;
           this.loadContent();
           this.loadStorage();
-          this.connectSocket();
+          this.subscribeToTranscoding();
         } else {
           this.loadError = 'You are not a member of any organisation.';
           this.loading = false;
@@ -1187,27 +1190,19 @@ export class ContentLibrary implements OnInit, OnDestroy {
     });
   }
 
-  private connectSocket(): void {
-    this.socket = io('/', {
-      query: { organisationId: this.orgId },
-      transports: ['websocket', 'polling'],
-    });
-
-    this.socket.on(
-      'transcoding:progress',
-      (data: { contentId: string; progress: number }) => {
+  private subscribeToTranscoding(): void {
+    this.sseSubs.push(
+      this.sseService.transcodingProgress$.subscribe((event) => {
+        const data = event.data as { contentId: string; progress: number };
         this.transcodingProgress[data.contentId] = data.progress;
         const item = this.contents.find((c) => c.id === data.contentId);
         if (item && item.transcodingStatus !== 'processing') {
           item.transcodingStatus = 'processing';
           this.applyFilters();
         }
-      },
-    );
-
-    this.socket.on(
-      'transcoding:completed',
-      (data: { contentId: string; transcodedSizeBytes: number }) => {
+      }),
+      this.sseService.transcodingComplete$.subscribe((event) => {
+        const data = event.data as { contentId: string; transcodedSizeBytes: number };
         const item = this.contents.find((c) => c.id === data.contentId);
         if (item) {
           item.transcodingStatus = 'completed';
@@ -1219,12 +1214,9 @@ export class ContentLibrary implements OnInit, OnDestroy {
           }
         }
         this.loadStorage();
-      },
-    );
-
-    this.socket.on(
-      'transcoding:failed',
-      (data: { contentId: string; error: string }) => {
+      }),
+      this.sseService.transcodingFailed$.subscribe((event) => {
+        const data = event.data as { contentId: string; error: string };
         const item = this.contents.find((c) => c.id === data.contentId);
         if (item) {
           item.transcodingStatus = 'failed';
@@ -1235,7 +1227,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
             this.selectedContent = { ...item };
           }
         }
-      },
+      }),
     );
   }
 

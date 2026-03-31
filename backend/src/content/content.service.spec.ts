@@ -10,7 +10,8 @@ import { TranscodingStatus } from './transcoding-status.enum';
 import { Playlist } from '../playlist/playlist.entity';
 import { PlaylistItem } from '../playlist/playlist-item.entity';
 import { StorageService } from '../organisation/storage.service';
-import { EventEmitterModule } from '@nestjs/event-emitter';
+import { EventEmitter2, EventEmitterModule } from '@nestjs/event-emitter';
+import { CONTENT_DURATION_RESOLVED } from './content.event';
 
 jest.mock('fs/promises', () => ({
   mkdir: jest.fn().mockResolvedValue(undefined),
@@ -46,6 +47,7 @@ describe('ContentService', () => {
   let contentRepo: Record<string, jest.Mock>;
   let storageService: Record<string, jest.Mock>;
   let queue: Record<string, jest.Mock>;
+  let eventEmitter: EventEmitter2;
 
   beforeEach(async () => {
     contentRepo = {
@@ -100,6 +102,7 @@ describe('ContentService', () => {
     }).compile();
 
     service = module.get<ContentService>(ContentService);
+    eventEmitter = module.get<EventEmitter2>(EventEmitter2);
   });
 
   describe('upload', () => {
@@ -445,6 +448,59 @@ describe('ContentService', () => {
       expect(contentRepo.update).toHaveBeenCalledWith('c1', {
         durationSeconds: 42,
       });
+    });
+
+    it('should emit content.duration_resolved event on successful backfill', async () => {
+      mockFfprobeDuration.mockResolvedValue(42);
+      const emitSpy = jest.spyOn(eventEmitter, 'emit');
+      const content = {
+        id: 'c1',
+        organisationId: 'org-1',
+        type: ContentType.Video,
+        durationSeconds: null,
+      } as Content;
+
+      await service.ensureDuration(content);
+
+      expect(emitSpy).toHaveBeenCalledWith(
+        CONTENT_DURATION_RESOLVED,
+        expect.objectContaining({ contentId: 'c1', durationSeconds: 42 }),
+      );
+    });
+
+    it('should not emit event when duration already set', async () => {
+      const emitSpy = jest.spyOn(eventEmitter, 'emit');
+      const content = {
+        id: 'c1',
+        organisationId: 'org-1',
+        type: ContentType.Video,
+        durationSeconds: 58,
+      } as Content;
+
+      await service.ensureDuration(content);
+
+      expect(emitSpy).not.toHaveBeenCalledWith(
+        CONTENT_DURATION_RESOLVED,
+        expect.anything(),
+      );
+    });
+
+    it('should not emit event when ffprobe fails', async () => {
+      mockFfprobeDuration.mockRejectedValue(new Error('ffprobe not found'));
+      const emitSpy = jest.spyOn(eventEmitter, 'emit');
+      const content = {
+        id: 'c1',
+        organisationId: 'org-1',
+        type: ContentType.Video,
+        durationSeconds: null,
+      } as Content;
+
+      await service.ensureDuration(content);
+
+      expect(emitSpy).not.toHaveBeenCalledWith(
+        CONTENT_DURATION_RESOLVED,
+        expect.anything(),
+      );
     });
 
     it('should return null when ffprobe fails', async () => {

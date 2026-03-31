@@ -257,9 +257,11 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
       background: var(--color-bg-secondary);
       border-radius: 0.5rem;
       overflow: hidden;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     thead {
       background: var(--color-bg-tertiary);
+      border-bottom: 2px solid var(--color-border);
     }
     th {
       text-align: left;
@@ -347,6 +349,7 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
       padding: 1.5rem;
       min-width: 24rem;
       max-width: 32rem;
+      box-shadow: 0 8px 24px var(--color-shadow);
     }
     .modal h2 {
       margin: 0 0 1.25rem;

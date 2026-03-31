@@ -149,7 +149,7 @@ describe('LiveStreamService – activateStream', () => {
           organisationId: orgId,
         },
       });
-      expect(result.status).toBe(LiveStreamStatus.Active);
+      expect(result.stream.status).toBe(LiveStreamStatus.Active);
     });
 
     it('should throw BadRequestException when group has no screens', async () => {
@@ -285,7 +285,7 @@ describe('LiveStreamService – activateStream', () => {
           }),
         ]),
       );
-      expect(result.status).toBe(LiveStreamStatus.Active);
+      expect(result.stream.status).toBe(LiveStreamStatus.Active);
     });
 
     it('should emit SSE events to all target screens', async () => {
