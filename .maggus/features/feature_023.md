@@ -49,13 +49,13 @@ Create `backend/src/screen/schedule-boundary.service.ts`:
 Register `ScheduleBoundaryService` as a provider in `ScreenModule`.
 
 **Acceptance Criteria:**
-- [ ] `ScheduleBoundaryService` is created and registered in `ScreenModule`
-- [ ] Timers are set based on the next schedule boundary for each connected screen
-- [ ] When a timer fires and the active playlist has changed, a `SCHEDULE_CHANGED` event is emitted
-- [ ] Timers are recalculated when `SCHEDULE_ENTRY_CHANGED` or `GROUP_SCHEDULE_CHANGED` fires
-- [ ] Timers are cleaned up on screen disconnect and module destroy
-- [ ] Typecheck/lint passes
-- [ ] Unit tests are written and successful
+- [x] `ScheduleBoundaryService` is created and registered in `ScreenModule`
+- [x] Timers are set based on the next schedule boundary for each connected screen
+- [x] When a timer fires and the active playlist has changed, a `SCHEDULE_CHANGED` event is emitted
+- [x] Timers are recalculated when `SCHEDULE_ENTRY_CHANGED` or `GROUP_SCHEDULE_CHANGED` fires
+- [x] Timers are cleaned up on screen disconnect and module destroy
+- [x] Typecheck/lint passes
+- [x] Unit tests are written and successful
 
 ### TASK-023-002: Bridge playlist content changes to screen notifications
 **Description:** As a screen player, I want to receive an SSE event when the contents of my active playlist change (items added, removed, or reordered) so that I display the updated playlist without a manual refresh.

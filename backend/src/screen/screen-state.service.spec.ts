@@ -1,5 +1,6 @@
 import { ScreenStateService } from './screen-state.service';
 import { ScreenService } from './screen.service';
+import { ScheduleBoundaryService } from './schedule-boundary.service';
 import { ScreenState, ScreenEvent, ScreenEventType } from '../screen-protocol';
 import type { ScreenProtocolAdapter } from '../screen-protocol';
 import { Screen } from './screen.entity';
@@ -17,6 +18,10 @@ describe('ScreenStateService', () => {
   let screenService: { findOne: jest.Mock };
   let protocolAdapter: jest.Mocked<ScreenProtocolAdapter>;
   let scheduleService: { getCurrentPlaylist: jest.Mock };
+  let scheduleBoundaryService: {
+    registerScreen: jest.Mock;
+    unregisterScreen: jest.Mock;
+  };
   let screenGroupRepository: { findOne: jest.Mock };
   let playlistRepository: { findOne: jest.Mock };
   let activationRepository: { findOne: jest.Mock };
@@ -94,6 +99,11 @@ describe('ScreenStateService', () => {
       }),
     };
 
+    scheduleBoundaryService = {
+      registerScreen: jest.fn().mockResolvedValue(undefined),
+      unregisterScreen: jest.fn(),
+    };
+
     screenGroupRepository = {
       findOne: jest.fn().mockResolvedValue(null),
     };
@@ -110,6 +120,7 @@ describe('ScreenStateService', () => {
       screenService as unknown as ScreenService,
       protocolAdapter,
       scheduleService as unknown as ScheduleService,
+      scheduleBoundaryService as unknown as ScheduleBoundaryService,
       screenGroupRepository as any,
       playlistRepository as any,
       activationRepository as any,
