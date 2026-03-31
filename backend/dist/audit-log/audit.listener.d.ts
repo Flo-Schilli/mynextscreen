@@ -1,0 +1,33 @@
+import { AuditLogService } from './audit-log.service';
+import { AuditContentEvent, AuditPlaylistEvent, AuditScheduleEvent, AuditScreenEvent, AuditUserEvent, AuditOrganisationEvent, AuditGroupEvent } from './audit.events';
+export declare class AuditListener {
+    private readonly auditLogService;
+    private readonly logger;
+    constructor(auditLogService: AuditLogService);
+    handleContentUploaded(event: AuditContentEvent): void;
+    handleContentDeleted(event: AuditContentEvent): void;
+    handleContentReuploaded(event: AuditContentEvent): void;
+    handlePlaylistCreated(event: AuditPlaylistEvent): void;
+    handlePlaylistUpdated(event: AuditPlaylistEvent): void;
+    handlePlaylistDeleted(event: AuditPlaylistEvent): void;
+    handleScheduleCreated(event: AuditScheduleEvent): void;
+    handleScheduleUpdated(event: AuditScheduleEvent): void;
+    handleScheduleDeleted(event: AuditScheduleEvent): void;
+    handleScreenRegistered(event: AuditScreenEvent): void;
+    handleScreenUpdated(event: AuditScreenEvent): void;
+    handleScreenKeyRegenerated(event: AuditScreenEvent): void;
+    handleScreenOnline(event: AuditScreenEvent): void;
+    handleScreenOffline(event: AuditScreenEvent): void;
+    handleUserInvited(event: AuditUserEvent): void;
+    handleUserRoleChanged(event: AuditUserEvent): void;
+    handleUserRemoved(event: AuditUserEvent): void;
+    handleOrganisationCreated(event: AuditOrganisationEvent): void;
+    handleOrganisationUpdated(event: AuditOrganisationEvent): void;
+    handleGroupCreated(event: AuditGroupEvent): void;
+    handleGroupUpdated(event: AuditGroupEvent): void;
+    handleGroupDeleted(event: AuditGroupEvent): void;
+    handleGroupScreenAdded(event: AuditGroupEvent): void;
+    handleGroupScreenRemoved(event: AuditGroupEvent): void;
+    handleGroupModeChanged(event: AuditGroupEvent): void;
+    private record;
+}

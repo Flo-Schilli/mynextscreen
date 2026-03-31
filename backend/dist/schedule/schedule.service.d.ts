@@ -1,0 +1,41 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Repository } from 'typeorm';
+import { Queue } from 'bullmq';
+import { ScheduleEntry } from './schedule-entry.entity';
+import { Organisation } from '../organisation/organisation.entity';
+import { Screen } from '../screen/screen.entity';
+import { Playlist } from '../playlist/playlist.entity';
+import { ScreenGroup } from '../screen-group/screen-group.entity';
+import { CreateScheduleEntryDto } from './dto/create-schedule-entry.dto';
+import { UpdateScheduleEntryDto } from './dto/update-schedule-entry.dto';
+import { SliceContentJobData } from '../slice-content/slice-content.processor';
+export declare class ScheduleService {
+    private readonly scheduleEntryRepository;
+    private readonly organisationRepository;
+    private readonly screenRepository;
+    private readonly playlistRepository;
+    private readonly screenGroupRepository;
+    private readonly sliceContentQueue;
+    private readonly eventEmitter;
+    constructor(scheduleEntryRepository: Repository<ScheduleEntry>, organisationRepository: Repository<Organisation>, screenRepository: Repository<Screen>, playlistRepository: Repository<Playlist>, screenGroupRepository: Repository<ScreenGroup>, sliceContentQueue: Queue<SliceContentJobData>, eventEmitter: EventEmitter2);
+    create(organisationId: string, dto: CreateScheduleEntryDto): Promise<ScheduleEntry>;
+    update(id: string, organisationId: string, dto: UpdateScheduleEntryDto): Promise<ScheduleEntry>;
+    delete(id: string, organisationId: string): Promise<void>;
+    findByScreen(screenId: string, organisationId: string, _from: Date, _to: Date): Promise<ScheduleEntry[]>;
+    findByOrganisation(organisationId: string, _from: Date, _to: Date): Promise<ScheduleEntry[]>;
+    getCurrentPlaylist(screenId: string): Promise<{
+        playlist: Playlist | null;
+        isDefault: boolean;
+    }>;
+    checkOverlap(screenId: string, organisationId: string, startTime: Date, endTime: Date, rrule: string | null, excludeEntryId: string | null): Promise<void>;
+    private rangesOverlap;
+    private findOneOrFail;
+    private validateTarget;
+    private validateGroup;
+    private validateScreen;
+    private validatePlaylist;
+    private getFallbackPlaylist;
+    private emitScheduleChanged;
+    private emitGroupScheduleChanged;
+    private enqueueSliceJobIfNeeded;
+}

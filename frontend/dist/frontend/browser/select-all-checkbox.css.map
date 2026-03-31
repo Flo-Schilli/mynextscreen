@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["angular:styles/component:css;2f13f48fe37e51860f249d5b5bc8c282b676080fdd7c8f11bc00dbe0834a6600;/home/fschillhammer/GIT/Codeberg/signage-server/frontend/src/app/shared/selection/select-all-checkbox.ts"],
+  "sourcesContent": ["\n    .selection-checkbox {\n      width: 1rem;\n      height: 1rem;\n      cursor: pointer;\n      accent-color: var(--color-accent);\n      border-radius: 0.25rem;\n    }\n\n    .selection-checkbox:focus-visible {\n      outline: 2px solid var(--color-accent);\n      outline-offset: 2px;\n    }\n  "],
+  "mappings": ";AACI,CAAC;AACC,SAAO;AACP,UAAQ;AACR,UAAQ;AACR,gBAAc,IAAI;AAClB,iBAAe;AACjB;AAEA,CARC,kBAQkB;AACjB,WAAS,IAAI,MAAM,IAAI;AACvB,kBAAgB;AAClB;",
+  "names": []
+}

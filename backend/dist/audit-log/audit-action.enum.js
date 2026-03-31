@@ -1,0 +1,32 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AuditAction = void 0;
+var AuditAction;
+(function (AuditAction) {
+    AuditAction["ContentUpload"] = "content.upload";
+    AuditAction["ContentDelete"] = "content.delete";
+    AuditAction["ContentReupload"] = "content.reupload";
+    AuditAction["PlaylistCreate"] = "playlist.create";
+    AuditAction["PlaylistUpdate"] = "playlist.update";
+    AuditAction["PlaylistDelete"] = "playlist.delete";
+    AuditAction["ScheduleCreate"] = "schedule.create";
+    AuditAction["ScheduleUpdate"] = "schedule.update";
+    AuditAction["ScheduleDelete"] = "schedule.delete";
+    AuditAction["ScreenRegister"] = "screen.register";
+    AuditAction["ScreenUpdate"] = "screen.update";
+    AuditAction["ScreenKeyRegenerated"] = "screen.key_regenerated";
+    AuditAction["ScreenOnline"] = "screen.online";
+    AuditAction["ScreenOffline"] = "screen.offline";
+    AuditAction["UserInvited"] = "user.invited";
+    AuditAction["UserRoleChanged"] = "user.role_changed";
+    AuditAction["UserRemoved"] = "user.removed";
+    AuditAction["OrganisationCreated"] = "organisation.created";
+    AuditAction["OrganisationUpdated"] = "organisation.updated";
+    AuditAction["GroupCreated"] = "group.created";
+    AuditAction["GroupUpdated"] = "group.updated";
+    AuditAction["GroupDeleted"] = "group.deleted";
+    AuditAction["GroupScreenAdded"] = "group.screen_added";
+    AuditAction["GroupScreenRemoved"] = "group.screen_removed";
+    AuditAction["GroupModeChanged"] = "group.mode_changed";
+})(AuditAction || (exports.AuditAction = AuditAction = {}));
+//# sourceMappingURL=audit-action.enum.js.map

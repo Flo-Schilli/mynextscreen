@@ -1,0 +1,1 @@
+{"version":3,"file":"screen-status.event.js","sourceRoot":"","sources":["../../src/screen/screen-status.event.ts"],"names":[],"mappings":";;;AAAA,MAAa,iBAAiB;IAEV;IACA;IACA;IAHlB,YACkB,QAAgB,EAChB,cAAsB,EACtB,QAAiB;QAFjB,aAAQ,GAAR,QAAQ,CAAQ;QAChB,mBAAc,GAAd,cAAc,CAAQ;QACtB,aAAQ,GAAR,QAAQ,CAAS;IAChC,CAAC;CACL;AAND,8CAMC;AAEY,QAAA,qBAAqB,GAAG,uBAAuB,CAAC"}
