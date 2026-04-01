@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Signage - Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        h1 {
+            color: #333;
+        }
+        
+        .info-box {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .info-box h2 {
+            margin-top: 0;
+            color: #4A90E2;
+        }
+        
+        .info-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f9f9f9;
+            border-left: 4px solid #4A90E2;
+        }
+        
+        .info-item strong {
+            display: inline-block;
+            width: 150px;
+        }
+        
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        
+        button {
+            background: #4A90E2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        
+        button:hover {
+            background: #357ABD;
+        }
+        
+        #targetUrl {
+            word-break: break-all;
+            background: #e8f4f8;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Digital Signage - LG WebOS Application Test</h1>
+    
+    <div class="info-box">
+        <h2>Application Information</h2>
+        <div class="info-item">
+            <strong>Application ID:</strong> <code>com.digitalsignage.webos</code>
+        </div>
+        <div class="info-item">
+            <strong>Version:</strong> <code>1.0.0</code>
+        </div>
+        <div class="info-item">
+            <strong>Status:</strong> <span id="status">Initializing...</span>
+        </div>
+    </div>
+    
+    <div class="info-box">
+        <h2>Parameters</h2>
+        <div class="info-item">
+            <strong>Device ID:</strong> <code id="deviceId">Loading...</code>
+        </div>
+        <div class="info-item">
+            <strong>UUID:</strong> <code id="uuid">Loading...</code>
+        </div>
+        <div class="info-item">
+            <strong>Target URL:</strong>
+            <div id="targetUrl">Loading...</div>
+        </div>
+    </div>
+    
+    <div class="info-box">
+        <h2>Actions</h2>
+        <button onclick="resetUUID()">Reset UUID (Generate New)</button>
+        <button onclick="testForward()">Test Forward (Open in New Tab)</button>
+        <button onclick="copyURL()">Copy Target URL</button>
+    </div>
+    
+    <div class="info-box">
+        <h2>Console Logs</h2>
+        <div id="logs" style="max-height: 300px; overflow-y: auto; background: #f9f9f9; padding: 10px; font-family: monospace; font-size: 12px;"></div>
+    </div>
+    
+    <script src="webOSTVjs-1.2.4/webOSTV.js"></script>
+    <script>
+        // Override console.log to capture logs
+        const originalLog = console.log;
+        const logsDiv = document.getElementById('logs');
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const logEntry = document.createElement('div');
+            logEntry.textContent = args.join(' ');
+            logEntry.style.marginBottom = '5px';
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        };
+        
+        // Test configuration - PLACEHOLDER URL for testing
+        // Replace with your actual SPA URL to test real forwarding behavior
+        const SPA_URL = 'https://example.com/dashboard';
+        
+        let currentDeviceId = '';
+        let currentUUID = '';
+        let currentTargetURL = '';
+        
+        // Import functions from app.js
+        function getOrCreateUUID() {
+            const STORAGE_KEY = 'device_uuid';
+            let uuid = localStorage.getItem(STORAGE_KEY);
+            
+            if (!uuid) {
+                uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    const r = Math.random() * 16 | 0;
+                    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+                
+                localStorage.setItem(STORAGE_KEY, uuid);
+                console.log('Generated new UUID:', uuid);
+            } else {
+                console.log('Retrieved existing UUID:', uuid);
+            }
+            
+            return uuid;
+        }
+        
+        function getDeviceIdentifier(callback) {
+            try {
+                if (typeof webOS !== 'undefined' && webOS.deviceInfo) {
+                    webOS.deviceInfo(function(device) {
+                        console.log('Device info:', JSON.stringify(device));
+                        let deviceId = device.modelName || device.serialNumber || device.sdkVersion || 'unknown';
+                        callback(deviceId);
+                    }, function(error) {
+                        console.error('Error getting device info:', error);
+                        callback('webos-device-test-' + Date.now());
+                    });
+                } else {
+                    console.warn('WebOS API not available, using fallback');
+                    callback('webos-device-test-' + Date.now());
+                }
+            } catch (error) {
+                console.error('Exception getting device identifier:', error);
+                callback('webos-device-test-' + Date.now());
+            }
+        }
+        
+        function buildTargetUrl(deviceId, uuid) {
+            const url = new URL(SPA_URL);
+            url.searchParams.append('deviceId', deviceId);
+            url.searchParams.append('uuid', uuid);
+            
+            console.log('Target URL:', url.toString());
+            return url.toString();
+        }
+        
+        function initTest() {
+            console.log('Initializing test page...');
+            document.getElementById('status').textContent = 'Running...';
+            
+            currentUUID = getOrCreateUUID();
+            document.getElementById('uuid').textContent = currentUUID;
+            
+            getDeviceIdentifier(function(deviceId) {
+                currentDeviceId = deviceId;
+                console.log('Device ID:', deviceId);
+                document.getElementById('deviceId').textContent = deviceId;
+                
+                currentTargetURL = buildTargetUrl(deviceId, currentUUID);
+                document.getElementById('targetUrl').textContent = currentTargetURL;
+                
+                document.getElementById('status').textContent = 'Ready';
+                console.log('Test initialization complete');
+            });
+        }
+        
+        function resetUUID() {
+            localStorage.removeItem('device_uuid');
+            console.log('UUID cleared from localStorage');
+            alert('UUID has been reset. Reloading page...');
+            location.reload();
+        }
+        
+        function testForward() {
+            if (currentTargetURL) {
+                console.log('Opening target URL in new tab:', currentTargetURL);
+                window.open(currentTargetURL, '_blank');
+            } else {
+                alert('Target URL not ready yet');
+            }
+        }
+        
+        function copyURL() {
+            if (currentTargetURL) {
+                navigator.clipboard.writeText(currentTargetURL).then(function() {
+                    console.log('URL copied to clipboard');
+                    alert('URL copied to clipboard!');
+                }).catch(function(err) {
+                    console.error('Failed to copy URL:', err);
+                    alert('Failed to copy URL. Please copy manually.');
+                });
+            }
+        }
+        
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', initTest);
+    </script>
+</body>
+</html>

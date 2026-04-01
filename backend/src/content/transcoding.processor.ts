@@ -41,7 +41,10 @@ export class TranscodingProcessor extends WorkerHost {
   private readonly logger = new Logger(TranscodingProcessor.name);
   private readonly mediaBasePath: string;
   private readonly ffmpegPath: string;
-  private readonly videoBitrate: string;
+  private readonly videoCrf: string;
+  private readonly videoPreset: string;
+  private readonly videoMaxRate: string;
+  private readonly videoBufSize: string;
 
   constructor(
     @InjectRepository(Content)
@@ -56,9 +59,18 @@ export class TranscodingProcessor extends WorkerHost {
       './media',
     );
     this.ffmpegPath = this.configService.get<string>('FFMPEG_PATH', 'ffmpeg');
-    this.videoBitrate = this.configService.get<string>(
-      'FFMPEG_VIDEO_BITRATE',
-      '2M',
+    this.videoCrf = this.configService.get<string>('FFMPEG_VIDEO_CRF', '18');
+    this.videoPreset = this.configService.get<string>(
+      'FFMPEG_VIDEO_PRESET',
+      'slow',
+    );
+    this.videoMaxRate = this.configService.get<string>(
+      'FFMPEG_VIDEO_MAXRATE',
+      '8M',
+    );
+    this.videoBufSize = this.configService.get<string>(
+      'FFMPEG_VIDEO_BUFSIZE',
+      '16M',
     );
   }
 
@@ -187,8 +199,16 @@ export class TranscodingProcessor extends WorkerHost {
       inputPath,
       '-c:v',
       'libx264',
-      '-b:v',
-      this.videoBitrate,
+      '-crf',
+      this.videoCrf,
+      '-preset',
+      this.videoPreset,
+      '-maxrate',
+      this.videoMaxRate,
+      '-bufsize',
+      this.videoBufSize,
+      '-pix_fmt',
+      'yuv420p',
       '-c:a',
       'aac',
       '-movflags',

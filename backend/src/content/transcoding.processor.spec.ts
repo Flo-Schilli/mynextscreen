@@ -155,7 +155,10 @@ describe('TranscodingProcessor', () => {
             get: jest.fn((key: string, defaultVal: unknown) => {
               if (key === 'MEDIA_BASE_PATH') return '/tmp/test-media';
               if (key === 'FFMPEG_PATH') return 'ffmpeg';
-              if (key === 'FFMPEG_VIDEO_BITRATE') return '2M';
+              if (key === 'FFMPEG_VIDEO_CRF') return '18';
+              if (key === 'FFMPEG_VIDEO_PRESET') return 'slow';
+              if (key === 'FFMPEG_VIDEO_MAXRATE') return '8M';
+              if (key === 'FFMPEG_VIDEO_BUFSIZE') return '16M';
               return defaultVal;
             }),
           },
@@ -241,8 +244,16 @@ describe('TranscodingProcessor', () => {
           job.data.originalPath,
           '-c:v',
           'libx264',
-          '-b:v',
-          '2M',
+          '-crf',
+          '18',
+          '-preset',
+          'slow',
+          '-maxrate',
+          '8M',
+          '-bufsize',
+          '16M',
+          '-pix_fmt',
+          'yuv420p',
           '-c:a',
           'aac',
           '-movflags',

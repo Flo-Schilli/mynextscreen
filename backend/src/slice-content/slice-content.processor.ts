@@ -29,6 +29,10 @@ export class SliceContentProcessor extends WorkerHost {
   private readonly logger = new Logger(SliceContentProcessor.name);
   private readonly mediaBasePath: string;
   private readonly ffmpegPath: string;
+  private readonly videoCrf: string;
+  private readonly videoPreset: string;
+  private readonly videoMaxRate: string;
+  private readonly videoBufSize: string;
 
   constructor(
     @InjectRepository(SlicedRendition)
@@ -49,6 +53,19 @@ export class SliceContentProcessor extends WorkerHost {
       './media',
     );
     this.ffmpegPath = this.configService.get<string>('FFMPEG_PATH', 'ffmpeg');
+    this.videoCrf = this.configService.get<string>('FFMPEG_VIDEO_CRF', '18');
+    this.videoPreset = this.configService.get<string>(
+      'FFMPEG_VIDEO_PRESET',
+      'slow',
+    );
+    this.videoMaxRate = this.configService.get<string>(
+      'FFMPEG_VIDEO_MAXRATE',
+      '8M',
+    );
+    this.videoBufSize = this.configService.get<string>(
+      'FFMPEG_VIDEO_BUFSIZE',
+      '16M',
+    );
   }
 
   async process(job: Job<SliceContentJobData>): Promise<void> {
@@ -233,6 +250,14 @@ export class SliceContentProcessor extends WorkerHost {
             cropFilter,
             '-c:v',
             'libx264',
+            '-crf',
+            this.videoCrf,
+            '-preset',
+            this.videoPreset,
+            '-maxrate',
+            this.videoMaxRate,
+            '-bufsize',
+            this.videoBufSize,
             '-pix_fmt',
             'yuv420p',
             '-c:a',
