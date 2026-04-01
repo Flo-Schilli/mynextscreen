@@ -69,12 +69,12 @@ Set up a complete production deployment pipeline for the signage server, followi
 **Parallel:** yes — can run alongside TASK-026-001, TASK-026-002, TASK-026-004
 
 **Acceptance Criteria:**
-- [ ] New file `player/Dockerfile.prod` (existing dev Dockerfile unchanged)
-- [ ] Multi-stage build: builder stage runs `ng build --configuration production`, runtime stage uses `nginx:alpine`
-- [ ] `nginx.conf` created at `player/nginx.prod.conf` with SPA routing, static asset caching, hidden file blocking
-- [ ] **Important:** Must NOT send `X-Frame-Options: DENY` header (player is loaded in iframes by LG webOS app)
-- [ ] Serves on port 80
-- [ ] Image builds and serves the player app
+- [x] New file `player/Dockerfile.prod` (existing dev Dockerfile unchanged)
+- [x] Multi-stage build: builder stage runs `ng build --configuration production`, runtime stage uses `nginx:alpine`
+- [x] `nginx.conf` created at `player/nginx.prod.conf` with SPA routing, static asset caching, hidden file blocking
+- [x] **Important:** Must NOT send `X-Frame-Options: DENY` header (player is loaded in iframes by LG webOS app)
+- [x] Serves on port 80
+- [x] Image builds and serves the player app
 
 ### TASK-026-004: Podman Quadlet files and network definition
 **Description:** As a deployer, I want systemd Quadlet unit files for all services so that Podman manages them as auto-starting systemd services.
