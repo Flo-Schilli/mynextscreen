@@ -170,8 +170,8 @@ Set up a complete production deployment pipeline for the signage server, followi
 **Parallel:** yes — can run alongside all other tasks
 
 **Acceptance Criteria:**
-- [ ] `ansible/templates/fail2ban-caddy-filter.conf.j2` — regex matching Caddy JSON log entries with status 401 or 403
-- [ ] `ansible/templates/fail2ban-caddy-jail.conf.j2` — jail config: maxretry=5, findtime=600, bantime=3600, watches `/var/log/caddy/*.access.log`
+- [x] `ansible/templates/fail2ban-caddy-filter.conf.j2` — regex matching Caddy JSON log entries with status 401 or 403
+- [x] `ansible/templates/fail2ban-caddy-jail.conf.j2` — jail config: maxretry=5, findtime=600, bantime=3600, watches `/var/log/caddy/*.access.log`
 
 ## Task Dependency Graph
 
