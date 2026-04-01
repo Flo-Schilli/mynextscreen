@@ -1,0 +1,20 @@
+[Unit]
+Description=Signage Backend
+After=signage-redis.service
+
+[Container]
+ContainerName=signage-backend
+Image=localhost/signage-backend:latest
+Pull=never
+Network=signage.network
+PublishPort=3000:3000
+EnvironmentFile=%h/.config/containers/systemd/.env.signage
+Environment=REDIS_URL=redis://systemd-signage-redis:6379
+Volume=%h/app/data:/app/data:Z
+Volume=%h/app/media:/app/media:Z
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

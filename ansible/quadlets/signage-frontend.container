@@ -1,0 +1,17 @@
+[Unit]
+Description=Signage Frontend
+After=signage-backend.service
+
+[Container]
+ContainerName=signage-frontend
+Image=localhost/signage-frontend:latest
+Pull=never
+Network=signage.network
+PublishPort=4200:80
+EnvironmentFile=%h/.config/containers/systemd/.env.signage
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
