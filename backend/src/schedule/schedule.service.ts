@@ -167,13 +167,18 @@ export class ScheduleService {
   async delete(id: string, organisationId: string): Promise<void> {
     const entry = await this.findOneOrFail(id, organisationId);
     const screenId = entry.screenId;
+    const groupId = entry.groupId;
+    const playlistId = entry.playlistId;
     await this.scheduleEntryRepository.remove(entry);
     if (screenId) {
       this.emitScheduleChanged(screenId, organisationId);
     }
+    if (groupId) {
+      this.emitGroupScheduleChanged(groupId, organisationId, playlistId);
+    }
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_DELETED,
-      new AuditScheduleEvent(id, organisationId, null, { screenId }),
+      new AuditScheduleEvent(id, organisationId, null, { screenId, groupId }),
     );
   }
 

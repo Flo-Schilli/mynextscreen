@@ -371,6 +371,70 @@ describe('ScheduleService', () => {
         NotFoundException,
       );
     });
+
+    it('should emit GROUP_SCHEDULE_CHANGED when deleting group entry', async () => {
+      const entry = {
+        id: 'entry-1',
+        screenId: null,
+        groupId: 'group-1',
+        organisationId: 'org-1',
+        playlistId: 'playlist-1',
+        playlist: { id: 'playlist-1' },
+      };
+      scheduleRepo.findOne.mockResolvedValue(entry);
+
+      await service.delete('entry-1', 'org-1');
+
+      expect(scheduleRepo.remove).toHaveBeenCalledWith(entry);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        GROUP_SCHEDULE_CHANGED,
+        expect.objectContaining({
+          groupId: 'group-1',
+          organisationId: 'org-1',
+          playlistId: 'playlist-1',
+        }),
+      );
+    });
+
+    it('should not emit SCHEDULE_ENTRY_CHANGED when deleting group entry', async () => {
+      const entry = {
+        id: 'entry-1',
+        screenId: null,
+        groupId: 'group-1',
+        organisationId: 'org-1',
+        playlistId: 'playlist-1',
+        playlist: { id: 'playlist-1' },
+      };
+      scheduleRepo.findOne.mockResolvedValue(entry);
+
+      await service.delete('entry-1', 'org-1');
+
+      const screenChangedCalls = eventEmitter.emit.mock.calls.filter(
+        (c: any) => c[0] === SCHEDULE_ENTRY_CHANGED,
+      );
+      expect(screenChangedCalls).toHaveLength(0);
+    });
+
+    it('should include groupId in audit event when deleting group entry', async () => {
+      const entry = {
+        id: 'entry-1',
+        screenId: null,
+        groupId: 'group-1',
+        organisationId: 'org-1',
+        playlistId: 'playlist-1',
+        playlist: { id: 'playlist-1' },
+      };
+      scheduleRepo.findOne.mockResolvedValue(entry);
+
+      await service.delete('entry-1', 'org-1');
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'audit.schedule.deleted',
+        expect.objectContaining({
+          details: expect.objectContaining({ groupId: 'group-1' }),
+        }),
+      );
+    });
   });
 
   describe('getCurrentPlaylist', () => {

@@ -43,10 +43,10 @@ The `delete` method also does not include `entry.groupId` in the audit event pay
 **Description:** As a screen in a group, I want to be notified when the group's schedule is deleted so that I stop showing stale content.
 
 **Acceptance Criteria:**
-- [ ] `ScheduleService.delete()` calls `emitGroupScheduleChanged(entry.groupId, organisationId, entry.playlistId)` when `entry.groupId` is set
-- [ ] `ScheduleBoundaryService` reschedules boundaries for all screens in the group after deletion
-- [ ] `ScreenProtocolService` fans out SSE events to all screens in the group after deletion
-- [ ] Screens switch to fallback/default playlist after the group schedule is deleted
-- [ ] The audit event payload includes `groupId` alongside `screenId`
-- [ ] Existing tests pass, new tests cover group schedule deletion notification
-- [ ] `npm run lint` and `npm run test` pass
+- [x] `ScheduleService.delete()` calls `emitGroupScheduleChanged(entry.groupId, organisationId, entry.playlistId)` when `entry.groupId` is set
+- [x] `ScheduleBoundaryService` reschedules boundaries for all screens in the group after deletion
+- [x] `ScreenProtocolService` fans out SSE events to all screens in the group after deletion
+- [x] Screens switch to fallback/default playlist after the group schedule is deleted
+- [x] The audit event payload includes `groupId` alongside `screenId`
+- [x] Existing tests pass, new tests cover group schedule deletion notification
+- [x] `npm run lint` and `npm run test` pass
