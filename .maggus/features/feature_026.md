@@ -86,17 +86,17 @@ Set up a complete production deployment pipeline for the signage server, followi
 **Model:** opus — complex multi-service orchestration with dependency ordering
 
 **Acceptance Criteria:**
-- [ ] Directory `ansible/quadlets/` created with the following files:
-- [ ] `signage.network` — Podman network named `signage`
-- [ ] `signage-redis.container` — Redis 7 Alpine, on `signage` network, no published ports (internal only), volume for persistence
-- [ ] `signage-backend.container` — Backend image, depends on Redis, on `signage` network, published port 3000, volumes for `/app/data` (SQLite) and `/app/media` (media files), environment variables: `DATABASE_PATH`, `REDIS_URL=redis://systemd-signage-redis:6379`, `MEDIA_BASE_PATH`, `HANKO_API_URL`, `SUPER_ADMIN_USER_IDS`, `MAX_FILE_SIZE_BYTES`, `FFMPEG_VIDEO_CRF`, `FFMPEG_VIDEO_PRESET`, `FFMPEG_VIDEO_MAXRATE`, `FFMPEG_VIDEO_BUFSIZE`
-- [ ] `signage-frontend.container` — Frontend image, depends on backend, on `signage` network, published port 4200, environment variable `HANKO_API_URL` passed through for envsubst
-- [ ] `signage-player.container` — Player image, on `signage` network, published port 4300
-- [ ] All containers use `Pull=never` (images loaded from tarballs)
-- [ ] All containers use `Image=localhost/signage-{service}:latest`
-- [ ] Backend container has `:Z` SELinux label on volume mounts
-- [ ] `.env.signage` environment file for all secret/configurable values, referenced by backend and frontend Quadlets via `EnvironmentFile`
-- [ ] Service startup order: network → redis → backend → frontend + player
+- [x] Directory `ansible/quadlets/` created with the following files:
+- [x] `signage.network` — Podman network named `signage`
+- [x] `signage-redis.container` — Redis 7 Alpine, on `signage` network, no published ports (internal only), volume for persistence
+- [x] `signage-backend.container` — Backend image, depends on Redis, on `signage` network, published port 3000, volumes for `/app/data` (SQLite) and `/app/media` (media files), environment variables: `DATABASE_PATH`, `REDIS_URL=redis://systemd-signage-redis:6379`, `MEDIA_BASE_PATH`, `HANKO_API_URL`, `SUPER_ADMIN_USER_IDS`, `MAX_FILE_SIZE_BYTES`, `FFMPEG_VIDEO_CRF`, `FFMPEG_VIDEO_PRESET`, `FFMPEG_VIDEO_MAXRATE`, `FFMPEG_VIDEO_BUFSIZE`
+- [x] `signage-frontend.container` — Frontend image, depends on backend, on `signage` network, published port 4200, environment variable `HANKO_API_URL` passed through for envsubst
+- [x] `signage-player.container` — Player image, on `signage` network, published port 4300
+- [x] All containers use `Pull=never` (images loaded from tarballs)
+- [x] All containers use `Image=localhost/signage-{service}:latest`
+- [x] Backend container has `:Z` SELinux label on volume mounts
+- [x] `.env.signage` environment file for all secret/configurable values, referenced by backend and frontend Quadlets via `EnvironmentFile`
+- [x] Service startup order: network → redis → backend → frontend + player
 
 ### TASK-026-005: Ansible deploy playbook
 **Description:** As a deployer, I want a single Ansible playbook that builds all images locally, ships them to the server, and deploys the full stack so that I can deploy with one command.
