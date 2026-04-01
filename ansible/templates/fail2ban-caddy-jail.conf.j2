@@ -1,0 +1,11 @@
+# Fail2ban jail for Caddy — ban IPs with repeated auth failures
+# Managed by Ansible — do not edit manually
+
+[caddy-auth]
+enabled = true
+filter = caddy-auth
+logpath = /var/log/caddy/*.access.log
+maxretry = 5
+findtime = 600
+bantime = 3600
+backend = auto

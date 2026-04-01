@@ -1,0 +1,6 @@
+# Fail2ban filter for Caddy JSON access logs
+# Matches 401 and 403 responses
+
+[Definition]
+failregex = ^\{.*"request":\{.*"client_ip":"<HOST>".*"status":40[13].*\}$
+ignoreregex =
