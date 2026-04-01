@@ -52,13 +52,13 @@ Set up a complete production deployment pipeline for the signage server, followi
 **Parallel:** yes — can run alongside TASK-026-001, TASK-026-003, TASK-026-004
 
 **Acceptance Criteria:**
-- [ ] New file `frontend/Dockerfile.prod` (existing dev Dockerfile unchanged)
-- [ ] Multi-stage build: builder stage runs `ng build --configuration production`, runtime stage uses `nginx:alpine`
-- [ ] `nginx.conf` created at `frontend/nginx.prod.conf` with SPA routing (`try_files $uri $uri/ /index.html`), static asset caching, hidden file blocking
-- [ ] Entrypoint script (`frontend/docker-entrypoint.sh`) runs `envsubst` on all `.js` files in `/usr/share/nginx/html/` to replace `${HANKO_API_URL}` placeholder, then starts nginx
-- [ ] `HANKO_API_URL` environment variable is required — if missing, container logs a warning but still starts
-- [ ] Image builds and serves the Angular app on port 80
-- [ ] Verify: `docker run -e HANKO_API_URL=https://test.hanko.io -p 8080:80 signage-frontend` → browsing `http://localhost:8080` loads the admin panel with the correct Hanko URL in the JS bundle
+- [x] New file `frontend/Dockerfile.prod` (existing dev Dockerfile unchanged)
+- [x] Multi-stage build: builder stage runs `ng build --configuration production`, runtime stage uses `nginx:alpine`
+- [x] `nginx.conf` created at `frontend/nginx.prod.conf` with SPA routing (`try_files $uri $uri/ /index.html`), static asset caching, hidden file blocking
+- [x] Entrypoint script (`frontend/docker-entrypoint.sh`) runs `envsubst` on all `.js` files in `/usr/share/nginx/html/` to replace `${HANKO_API_URL}` placeholder, then starts nginx
+- [x] `HANKO_API_URL` environment variable is required — if missing, container logs a warning but still starts
+- [x] Image builds and serves the Angular app on port 80
+- [x] Verify: `docker run -e HANKO_API_URL=https://test.hanko.io -p 8080:80 signage-frontend` → browsing `http://localhost:8080` loads the admin panel with the correct Hanko URL in the JS bundle
 
 ### TASK-026-003: Production Dockerfile for player
 **Description:** As a deployer, I want a production-optimised player Docker image so that the screen player is served as static files via nginx.
