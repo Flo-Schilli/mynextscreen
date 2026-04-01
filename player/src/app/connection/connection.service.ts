@@ -1,4 +1,4 @@
-import { inject, Injectable, signal, computed } from '@angular/core';
+import { inject, Injectable, signal, computed, OnDestroy } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
@@ -15,8 +15,33 @@ export interface ConnectionSettings {
 }
 
 @Injectable({ providedIn: 'root' })
-export class ConnectionService {
+export class ConnectionService implements OnDestroy {
   private readonly http = inject(HttpClient);
+  private readonly onMessage = (event: MessageEvent): void => {
+    const data = event.data;
+    if (
+      data == null ||
+      typeof data !== 'object' ||
+      data.type !== 'signage-connect'
+    ) {
+      return;
+    }
+
+    const { serverUrl, apiKey } = data;
+    if (typeof serverUrl !== 'string' || !serverUrl || typeof apiKey !== 'string' || !apiKey) {
+      return;
+    }
+
+    this.connect(serverUrl, apiKey);
+  };
+
+  constructor() {
+    window.addEventListener('message', this.onMessage);
+  }
+
+  ngOnDestroy(): void {
+    window.removeEventListener('message', this.onMessage);
+  }
 
   private readonly _connected = signal(false);
   private readonly _serverUrl = signal('');

@@ -82,18 +82,18 @@ All legacy GarlicHub, UUID, and friendly-name code is removed from the LG app.
 **Parallel:** yes — can run alongside TASK-025-001, TASK-025-002
 
 **Acceptance Criteria:**
-- [ ] `ConnectionService` registers a `window.addEventListener('message', ...)` listener on construction
-- [ ] Listener filters for messages where `event.data.type === 'signage-connect'`
-- [ ] Listener extracts `serverUrl` and `apiKey` from `event.data`
-- [ ] Listener calls `this.connect(serverUrl, apiKey)` (existing method)
-- [ ] Listener ignores messages with missing `serverUrl` or `apiKey`
-- [ ] Listener is cleaned up on service destroy (if applicable)
-- [ ] `tryAutoConnect()` flow is unchanged — localStorage auto-connect still works
-- [ ] `App.ngOnInit()` still calls `tryAutoConnect()` first; if that returns false, the player waits for either postMessage or manual dialog input
-- [ ] Connection dialog is still shown when `connected()` is false (handles direct browser access)
-- [ ] When postMessage arrives and `connect()` succeeds, `connected()` becomes true and the dialog disappears
-- [ ] Unit tests verify: postMessage with valid data triggers connect, invalid/missing data is ignored
-- [ ] No changes to the connection dialog component itself
+- [x] `ConnectionService` registers a `window.addEventListener('message', ...)` listener on construction
+- [x] Listener filters for messages where `event.data.type === 'signage-connect'`
+- [x] Listener extracts `serverUrl` and `apiKey` from `event.data`
+- [x] Listener calls `this.connect(serverUrl, apiKey)` (existing method)
+- [x] Listener ignores messages with missing `serverUrl` or `apiKey`
+- [x] Listener is cleaned up on service destroy (if applicable)
+- [x] `tryAutoConnect()` flow is unchanged — localStorage auto-connect still works
+- [x] `App.ngOnInit()` still calls `tryAutoConnect()` first; if that returns false, the player waits for either postMessage or manual dialog input
+- [x] Connection dialog is still shown when `connected()` is false (handles direct browser access)
+- [x] When postMessage arrives and `connect()` succeeds, `connected()` becomes true and the dialog disappears
+- [x] Unit tests verify: postMessage with valid data triggers connect, invalid/missing data is ignored
+- [x] No changes to the connection dialog component itself
 
 ### TASK-025-004: End-to-end integration test and documentation update
 **Description:** As a developer, I want to verify the full LG → iframe → postMessage → web player flow works and update the LG app documentation accordingly.
