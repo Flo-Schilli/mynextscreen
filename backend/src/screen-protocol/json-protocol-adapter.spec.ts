@@ -26,7 +26,7 @@ describe('JsonProtocolAdapter', () => {
 
   const playlistItem: PlaylistItem = {
     contentId: '770e8400-e29b-41d4-a716-446655440000',
-    contentUrl: '/old/path/does-not-matter',
+    contentUrl: '',
     duration: 30,
     type: 'video',
     order: 0,
@@ -36,7 +36,7 @@ describe('JsonProtocolAdapter', () => {
 
   const playlistItemImage: PlaylistItem = {
     contentId: '880e8400-e29b-41d4-a716-446655440001',
-    contentUrl: '/old/path/image',
+    contentUrl: '',
     duration: 10,
     type: 'image',
     order: 1,
@@ -207,6 +207,25 @@ describe('JsonProtocolAdapter', () => {
       const result = adapter.renderState(state) as Record<string, unknown>;
 
       expect(result.schedule).toEqual([]);
+    });
+
+    it('should use pre-set contentUrl when non-empty (split-mode sliced URL)', () => {
+      const slicedItem: PlaylistItem = {
+        ...playlistItem,
+        contentUrl: '/api/media/slices/group-1/screen-1/content-1',
+      };
+      const slicedPlaylist: Playlist = {
+        id: playlist.id,
+        name: playlist.name,
+        items: [slicedItem],
+      };
+      const state = new ScreenState(screenInfo, slicedPlaylist, [], null, null);
+
+      const result = adapter.renderState(state) as Record<string, unknown>;
+      const rendered = result.currentPlaylist as Record<string, unknown>;
+      const items = rendered.items as Array<Record<string, unknown>>;
+
+      expect(items[0].url).toBe('/api/media/slices/group-1/screen-1/content-1');
     });
 
     it('should include recurrenceRule in schedule entries when present', () => {
