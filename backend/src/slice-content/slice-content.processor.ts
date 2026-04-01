@@ -181,6 +181,9 @@ export class SliceContentProcessor extends WorkerHost {
 
         // Run FFmpeg crop
         const cropFilter = buildCropFilter(cropParams);
+        this.logger.log(
+          `Slicing content ${content.id} for screen ${screen.id} (${completed + 1}/${totalWork})`,
+        );
         await this.runFfmpegCrop(
           sourcePath,
           outputPath,
@@ -230,8 +233,12 @@ export class SliceContentProcessor extends WorkerHost {
             cropFilter,
             '-c:v',
             'libx264',
+            '-pix_fmt',
+            'yuv420p',
             '-c:a',
             'copy',
+            '-movflags',
+            '+faststart',
             '-y',
             outputPath,
           ]

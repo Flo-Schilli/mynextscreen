@@ -84,13 +84,15 @@ function resolveTransition(item: PlaylistItem | null): {
         >
           @if (groupPlayContentType() === 'video') {
             <video
+              #groupPlayVideo
               [src]="groupPlayMediaUrl()"
               class="content-media"
               autoplay
               muted
               playsinline
+              (loadeddata)="onGroupPlayVideoReady()"
               (ended)="onGroupPlayVideoEnded()"
-              (error)="onMediaError()"
+              (error)="onMediaError($event)"
             ></video>
           } @else {
             <img
@@ -98,7 +100,7 @@ function resolveTransition(item: PlaylistItem | null): {
               class="content-media"
               alt=""
               (load)="onGroupPlayImageLoaded()"
-              (error)="onMediaError()"
+              (error)="onMediaError($event)"
             />
           }
         </div>
@@ -121,7 +123,7 @@ function resolveTransition(item: PlaylistItem | null): {
               class="content-media"
               alt=""
               (load)="onLayerImageLoaded(0)"
-              (error)="onMediaError()"
+              (error)="onMediaError($event)"
             />
           } @else if (layer0Item()?.type === 'video') {
             <video
@@ -133,7 +135,7 @@ function resolveTransition(item: PlaylistItem | null): {
               playsinline
               (loadeddata)="onLayerVideoReady(0)"
               (ended)="onLayerVideoEnded(0)"
-              (error)="onMediaError()"
+              (error)="onMediaError($event)"
             ></video>
           }
         </div>
@@ -152,7 +154,7 @@ function resolveTransition(item: PlaylistItem | null): {
               class="content-media"
               alt=""
               (load)="onLayerImageLoaded(1)"
-              (error)="onMediaError()"
+              (error)="onMediaError($event)"
             />
           } @else if (layer1Item()?.type === 'video') {
             <video
@@ -164,7 +166,7 @@ function resolveTransition(item: PlaylistItem | null): {
               playsinline
               (loadeddata)="onLayerVideoReady(1)"
               (ended)="onLayerVideoEnded(1)"
-              (error)="onMediaError()"
+              (error)="onMediaError($event)"
             ></video>
           }
         </div>
@@ -429,6 +431,8 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     viewChild<ElementRef<HTMLVideoElement>>('layer1Video');
   private readonly hlsVideo =
     viewChild<ElementRef<HTMLVideoElement>>('hlsVideo');
+  private readonly groupPlayVideo =
+    viewChild<ElementRef<HTMLVideoElement>>('groupPlayVideo');
 
   private readonly _currentIndex = signal(0);
   private readonly _activeLayer = signal<LayerId>(0);
@@ -572,9 +576,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
       if (event && this.playerService.isSplitMode()) {
         this._isPending.set(false);
         this._groupPlayContentUrl.set(event.contentUrl);
-        this._groupPlayContentType.set(
-          this.inferContentType(event.contentUrl),
-        );
+        this._groupPlayContentType.set(event.contentType ?? 'image');
         this._showCurrent.set(true);
       }
     });
@@ -619,6 +621,16 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   }
 
   onLayerVideoReady(layer: LayerId): void {
+    const videoEl =
+      layer === 0
+        ? this.layer0Video()?.nativeElement
+        : this.layer1Video()?.nativeElement;
+    if (videoEl) {
+      videoEl.muted = true;
+      videoEl.play().catch((err: Error) => {
+        console.warn(`[Playback] layer ${layer} play() rejected:`, err.message);
+      });
+    }
     if (this._initialLoad() && layer === this._activeLayer()) {
       this.playInitialAppearance();
     }
@@ -630,7 +642,14 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     }
   }
 
-  onMediaError(): void {
+  onMediaError(event?: Event): void {
+    const target = event?.target as HTMLVideoElement | HTMLImageElement | null;
+    const src = target?.getAttribute('src') ?? 'unknown';
+    const error = (target as HTMLVideoElement)?.error;
+    console.error(
+      `[Playback] Media error for ${src}`,
+      error ? `code=${error.code} message=${error.message}` : 'no details',
+    );
     // Skip broken items — advance after a short delay
     setTimeout(() => {
       if (!this.destroyed) this.advance();
@@ -641,6 +660,16 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
   onGroupPlayImageLoaded(): void {
     this._showCurrent.set(true);
+  }
+
+  onGroupPlayVideoReady(): void {
+    const videoEl = this.groupPlayVideo()?.nativeElement;
+    if (videoEl) {
+      videoEl.muted = true;
+      videoEl.play().catch((err: Error) => {
+        console.warn('[Playback] group play play() rejected:', err.message);
+      });
+    }
   }
 
   onGroupPlayVideoEnded(): void {
@@ -941,15 +970,4 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     }
   }
 
-  private inferContentType(url: string): string {
-    const lower = url.toLowerCase();
-    if (
-      lower.endsWith('.mp4') ||
-      lower.endsWith('.webm') ||
-      lower.endsWith('.mov')
-    ) {
-      return 'video';
-    }
-    return 'image';
-  }
 }

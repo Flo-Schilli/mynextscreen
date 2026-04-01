@@ -239,6 +239,7 @@ describe('ScreenProtocolService', () => {
           orgId,
           '/api/media/org/content1',
           contentItemId,
+          'video',
           false,
         );
 
@@ -251,6 +252,7 @@ describe('ScreenProtocolService', () => {
               type: ScreenEventType.GroupPlay,
               payload: expect.objectContaining({
                 contentUrl: '/api/media/org/content1',
+                contentType: 'video',
                 groupId,
                 syncToken: expect.any(String),
               }),
@@ -268,6 +270,7 @@ describe('ScreenProtocolService', () => {
           orgId,
           '/api/media/org/content1',
           contentItemId,
+          'video',
           false,
         );
 
@@ -292,12 +295,13 @@ describe('ScreenProtocolService', () => {
           orgId,
           '/api/media/org/content1',
           contentItemId,
+          'video',
           false,
         );
 
         expect(screenStateService.pushEvent).toHaveBeenCalledTimes(2);
 
-        // Each screen should get its own slice URL
+        // Each screen should get its own slice URL with contentType
         for (const screen of screens) {
           expect(screenStateService.pushEvent).toHaveBeenCalledWith(
             screen.id,
@@ -305,6 +309,7 @@ describe('ScreenProtocolService', () => {
               type: ScreenEventType.GroupPlay,
               payload: expect.objectContaining({
                 contentUrl: `/api/media/slices/${groupId}/${screen.id}/${contentItemId}`,
+                contentType: 'video',
                 groupId,
                 syncToken: expect.any(String),
               }),
@@ -324,6 +329,7 @@ describe('ScreenProtocolService', () => {
           orgId,
           '/api/media/org/content1',
           contentItemId,
+          'video',
           false,
         );
 
@@ -353,6 +359,7 @@ describe('ScreenProtocolService', () => {
           orgId,
           'rtmp://stream.example.com/live',
           contentItemId,
+          'video',
           true, // isLiveStream
         );
 
@@ -385,6 +392,7 @@ describe('ScreenProtocolService', () => {
         orgId,
         '/api/media/org/content1',
         contentItemId,
+        'video',
         false,
       );
 
