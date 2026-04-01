@@ -41,6 +41,8 @@ import {
 import { LiveStreamActivation } from '../live-stream/live-stream-activation.entity';
 import { LiveStreamStatus } from '../live-stream/live-stream-status.enum';
 import { ScreenGroup } from '../screen-group/screen-group.entity';
+import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
+import { SlicedRendition } from '../slice-content/sliced-rendition.entity';
 
 interface MessageEvent {
   data: unknown;
@@ -69,6 +71,8 @@ export class ScreenStateService implements OnModuleDestroy {
     private readonly playlistRepository: Repository<Playlist>,
     @InjectRepository(LiveStreamActivation)
     private readonly activationRepository: Repository<LiveStreamActivation>,
+    @InjectRepository(SlicedRendition)
+    private readonly slicedRenditionRepository: Repository<SlicedRendition>,
   ) {}
 
   onModuleDestroy(): void {
@@ -131,6 +135,28 @@ export class ScreenStateService implements OnModuleDestroy {
       this.logger.warn(
         `Failed to resolve playlist for screen ${screenId}: ${error}`,
       );
+    }
+
+    if (groupInfo?.mode === ScreenGroupMode.Split) {
+      const applySlicedUrls = async (
+        playlist: ProtocolPlaylist | null,
+      ): Promise<void> => {
+        if (!playlist) return;
+        for (const item of playlist.items) {
+          const rendition = await this.slicedRenditionRepository.findOne({
+            where: {
+              groupId: screen.groupId!,
+              screenId: screen.id,
+              contentItemId: item.contentId,
+            },
+          });
+          if (rendition) {
+            item.contentUrl = `/api/media/slices/${screen.groupId}/${screen.id}/${item.contentId}`;
+          }
+        }
+      };
+      await applySlicedUrls(currentPlaylist);
+      await applySlicedUrls(fallbackPlaylist);
     }
 
     let activeLiveStream: ProtocolLiveStream | null = null;
