@@ -1,0 +1,48 @@
+---
+# Signage Server — Download Database Backup
+# Usage: ansible-playbook -i hosts.ini download_db.yml -K
+#
+# Downloads the SQLite database from the server to a timestamped local backup.
+# Output: ansible/backups/signage_YYYYMMDD_HHMMSS.db
+
+- name: Download database from server
+  hosts: servers
+  become: true
+  vars:
+    service_user: signage
+    service_user_home: "/home/{{ service_user }}"
+    db_path: "{{ service_user_home }}/app/data/signage.db"
+    backup_dir: "{{ playbook_dir }}/backups"
+
+  tasks:
+    - name: Check if database exists on server
+      ansible.builtin.stat:
+        path: "{{ db_path }}"
+      register: db_file
+
+    - name: Fail if database does not exist
+      ansible.builtin.fail:
+        msg: "Database not found at {{ db_path }}"
+      when: not db_file.stat.exists
+
+    - name: Generate timestamp
+      ansible.builtin.set_fact:
+        backup_timestamp: "{{ ansible_date_time.date | replace('-', '') }}_{{ ansible_date_time.time | replace(':', '') }}"
+
+    - name: Create local backup directory
+      ansible.builtin.file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+
+    - name: Fetch database to local backup
+      ansible.builtin.fetch:
+        src: "{{ db_path }}"
+        dest: "{{ backup_dir }}/signage_{{ backup_timestamp }}.db"
+        flat: true
+
+    - name: Report backup location
+      ansible.builtin.debug:
+        msg: "Database saved to {{ backup_dir }}/signage_{{ backup_timestamp }}.db"

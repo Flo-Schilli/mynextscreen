@@ -1,0 +1,70 @@
+---
+# Signage Server — Upload Database Restore
+# Usage: ansible-playbook -i hosts.ini upload_db.yml -K
+#
+# Uploads a local SQLite database to the server, replacing the existing one.
+# The backend service is stopped during the upload and restarted afterward.
+#
+# Place the database file at: ansible/signage.db
+
+- name: Upload database to server
+  hosts: servers
+  become: true
+  vars:
+    service_user: signage
+    service_user_home: "/home/{{ service_user }}"
+    db_dest: "{{ service_user_home }}/app/data/signage.db"
+    local_db: "{{ playbook_dir }}/signage.db"
+
+  tasks:
+    - name: Check if local database file exists
+      ansible.builtin.stat:
+        path: "{{ local_db }}"
+      delegate_to: localhost
+      become: false
+      register: local_db_file
+
+    - name: Fail if local database file is missing
+      ansible.builtin.fail:
+        msg: "Local database not found at {{ local_db }}. Place the database file at ansible/signage.db"
+      when: not local_db_file.stat.exists
+
+    - name: Get service user UID
+      ansible.builtin.command:
+        cmd: id -u {{ service_user }}
+      register: uid_result
+      changed_when: false
+
+    - name: Set service user UID fact
+      ansible.builtin.set_fact:
+        service_user_uid: "{{ uid_result.stdout }}"
+
+    - name: Stop backend service
+      ansible.builtin.command:
+        cmd: systemctl --user stop signage-backend
+      become: true
+      become_user: "{{ service_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ service_user_uid }}"
+        DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ service_user_uid }}/bus"
+
+    - name: Upload database to server
+      ansible.builtin.copy:
+        src: "{{ local_db }}"
+        dest: "{{ db_dest }}"
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
+        mode: "0644"
+
+    - name: Start backend service
+      ansible.builtin.command:
+        cmd: systemctl --user start signage-backend
+      become: true
+      become_user: "{{ service_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ service_user_uid }}"
+        DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ service_user_uid }}/bus"
+
+    - name: Report success
+      ansible.builtin.debug:
+        msg: "Database uploaded to {{ db_dest }} and backend service restarted"
