@@ -5,6 +5,7 @@
 .maggus/usage_*.jsonl
 COMMIT.md
 
+test-data/
 # Dependencies
 node_modules/
 
