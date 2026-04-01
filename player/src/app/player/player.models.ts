@@ -81,6 +81,7 @@ export interface LiveStreamStartEvent {
 export interface GroupPlayEvent {
   contentUrl: string;
   contentItemId: string;
+  contentType: 'video' | 'image';
   groupId: string;
   syncToken: string;
   screenId: string;

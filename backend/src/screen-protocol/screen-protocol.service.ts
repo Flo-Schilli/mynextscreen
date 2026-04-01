@@ -169,6 +169,7 @@ export class ScreenProtocolService {
     organisationId: string,
     contentUrl: string,
     contentItemId: string,
+    contentType: 'video' | 'image',
     isLiveStream: boolean,
   ): Promise<void> {
     const group = await this.screenGroupRepository.findOne({
@@ -189,6 +190,7 @@ export class ScreenProtocolService {
             new ScreenEvent(ScreenEventType.GroupPlay, {
               contentUrl,
               contentItemId,
+              contentType,
               groupId: group.id,
               syncToken,
               screenId: screen.id,
@@ -204,6 +206,7 @@ export class ScreenProtocolService {
         group,
         contentUrl,
         contentItemId,
+        contentType,
         syncToken,
         organisationId,
       );
@@ -262,6 +265,7 @@ export class ScreenProtocolService {
     group: ScreenGroup,
     contentUrl: string,
     contentItemId: string,
+    contentType: 'video' | 'image',
     syncToken: string,
     organisationId: string,
   ): Promise<void> {
@@ -280,6 +284,7 @@ export class ScreenProtocolService {
           new ScreenEvent(ScreenEventType.GroupPlay, {
             contentUrl: `/api/media/slices/${group.id}/${screen.id}/${contentItemId}`,
             contentItemId,
+            contentType,
             groupId: group.id,
             syncToken,
             screenId: screen.id,
