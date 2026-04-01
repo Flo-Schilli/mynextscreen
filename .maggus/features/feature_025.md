@@ -55,10 +55,10 @@ All legacy GarlicHub, UUID, and friendly-name code is removed from the LG app.
 **Parallel:** no
 
 **Acceptance Criteria:**
-- [ ] `initApp()` checks for saved `server_url` and `api_key`; if missing, shows settings overlay
-- [ ] Player URL is resolved as: `localStorage.player_url || (serverUrl + '/player/')`
-- [ ] iframe `src` is set to the resolved player URL (no query parameters — credentials are NOT in the URL)
-- [ ] On iframe `load` event, the app sends a postMessage to the iframe:
+- [x] `initApp()` checks for saved `server_url` and `api_key`; if missing, shows settings overlay
+- [x] Player URL is resolved as: `localStorage.player_url || (serverUrl + '/player/')`
+- [x] iframe `src` is set to the resolved player URL (no query parameters — credentials are NOT in the URL)
+- [x] On iframe `load` event, the app sends a postMessage to the iframe:
   ```javascript
   iframe.contentWindow.postMessage({
     type: 'signage-connect',
@@ -66,12 +66,12 @@ All legacy GarlicHub, UUID, and friendly-name code is removed from the LG app.
     apiKey: apiKey
   }, '*');
   ```
-- [ ] Loading message ("Loading Digital Signage...") is shown while iframe loads
-- [ ] Loading message hides and iframe becomes visible on load
-- [ ] Error message shown if iframe fails to load
-- [ ] No `deviceId`, `uuid`, or `backend` parameters in the URL
-- [ ] `buildTargetUrl()` function removed entirely
-- [ ] `getDeviceIdentifier()` function removed entirely
+- [x] Loading message ("Loading Digital Signage...") is shown while iframe loads
+- [x] Loading message hides and iframe becomes visible on load
+- [x] Error message shown if iframe fails to load
+- [x] No `deviceId`, `uuid`, or `backend` parameters in the URL
+- [x] `buildTargetUrl()` function removed entirely
+- [x] `getDeviceIdentifier()` function removed entirely
 
 ### TASK-025-003: Web player — add postMessage listener for auto-connect
 **Description:** As a web player instance embedded in an iframe, I want to listen for a `signage-connect` postMessage so that I can auto-connect without showing the connection dialog.
