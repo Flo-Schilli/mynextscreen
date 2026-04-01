@@ -40,22 +40,29 @@ function initApp() {
     // Resolve the player URL
     const playerUrl = localStorage.getItem(STORAGE_KEYS.playerUrl) || (serverUrl.replace(/\/+$/, '') + '/player/');
 
-    loadPlayer(playerUrl);
+    loadPlayer(playerUrl, serverUrl, apiKey);
 }
 
 /**
- * Load the web player in the iframe
+ * Load the web player in the iframe and send credentials via postMessage.
  */
-function loadPlayer(playerUrl) {
+function loadPlayer(playerUrl, serverUrl, apiKey) {
     const iframe = document.getElementById('contentFrame');
     const loadingMessage = document.getElementById('loadingMessage');
 
     iframe.src = playerUrl;
 
     iframe.onload = function() {
+        // Send credentials to the player via postMessage
+        iframe.contentWindow.postMessage({
+            type: 'signage-connect',
+            serverUrl: serverUrl,
+            apiKey: apiKey
+        }, '*');
+
         loadingMessage.style.display = 'none';
         iframe.style.display = 'block';
-        console.log('Player loaded successfully');
+        console.log('Player loaded successfully, credentials sent via postMessage');
     };
 
     iframe.onerror = function() {
