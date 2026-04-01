@@ -1,88 +1,59 @@
 # Digital Signage - LG WebOS Application
 
-LG WebOS application for Digital Signage that forwards to a hosted SPA with device identification.
+LG WebOS application that acts as a thin shell, loading the web player in a fullscreen iframe and authenticating it via `postMessage`.
 
 ## Features
 
-- **Device Identification**: Automatically retrieves device identifier from LG WebOS TV
-- **Persistent UUID**: Generates and stores a UUID that persists across app launches
-- **URL Forwarding**: Forwards to your hosted SPA with device parameters
+- **Settings UI**: Configure Server URL, API Key, and optional Player URL directly on the TV
+- **Secure Authentication**: Credentials are sent to the web player via `postMessage` (never in the URL)
+- **Automatic Connection**: The web player auto-connects when it receives credentials from the LG shell
 - **Compatible**: Works with LG WebOS 2024 and newer
-
-## Quick Start
-
-### 1. Configure Your SPA URL
-
-Edit `app.js` and update the `SPA_URL` constant with your hosted SPA URL:
-
-```javascript
-const SPA_URL = 'https://your-spa-url.com';
-```
-
-### 2. Package the Application
-
-Create an IPK package for LG WebOS:
-
-```bash
-# Install ares-cli tools first (if not already installed)
-npm install -g @webos-tools/cli
-
-# Package the application
-ares-package . --outdir ./build
-```
-
-### 3. Install on LG TV
-
-```bash
-# Add your TV device (first time only)
-ares-setup-device
-
-# Install the application
-ares-install --device YOUR_TV_NAME ./build/com.digitalsignage.webos_1.0.0_all.ipk
-
-# Launch the application
-ares-launch --device YOUR_TV_NAME com.digitalsignage.webos
-```
 
 ## How It Works
 
-When the application launches:
+The LG app is a deployment vehicle for the existing web player, not a separate player implementation.
 
-1. **UUID Generation**: The app checks localStorage for an existing UUID
-   - If found, it reuses the same UUID
-   - If not found, it generates a new UUID v4 and stores it
-   
-2. **Device Identification**: The app retrieves the device identifier from LG WebOS API
-   - Uses `webOS.deviceInfo()` to get device information
-   - Falls back to generated identifier if API is unavailable
-
-3. **URL Construction**: The app builds the target URL with parameters:
+1. **First Launch**: The settings overlay opens automatically, prompting for Server URL and API Key
+2. **iframe Loading**: The app loads the web player at `{Server URL}/player/` (or a custom Player URL) in a fullscreen iframe
+3. **postMessage Authentication**: After the iframe loads, the app sends credentials via `postMessage`:
+   ```javascript
+   iframe.contentWindow.postMessage({
+     type: 'signage-connect',
+     serverUrl: '...',
+     apiKey: '...'
+   }, '*');
    ```
-   https://your-spa-url.com?deviceId=LG-WEBOS-MODEL&uuid=xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-   ```
+4. **Auto-Connect**: The web player's `ConnectionService` receives the message and calls `connect(serverUrl, apiKey)`, bypassing the connection dialog
 
-4. **Content Loading**: The SPA is loaded in a fullscreen iframe
+## Settings
 
-## URL Parameters
+Settings are configured on-device via the settings overlay (press the **Settings** or **Blue** button on the remote).
 
-Your hosted SPA will receive two URL parameters:
+| Field | Required | Description |
+|-------|----------|-------------|
+| **Server URL** | Yes | The URL of your signage server (e.g. `https://signage.example.com`) |
+| **API Key** | Yes | The API key for this screen |
+| **Player URL** | No | Override the player URL. Leave empty to use `{Server URL}/player/`. Only set for development (e.g. `http://localhost:4200`). |
 
-- `deviceId`: Unique identifier from the LG TV (model name, serial number, or generated ID)
-- `uuid`: Persistent UUID that remains the same across app launches
+Values are stored in `localStorage` with keys: `server_url`, `api_key`, `player_url`.
+
+## Quick Start
+
+See `QUICKSTART.md` for step-by-step deployment instructions.
 
 ## File Structure
 
 ```
 .
 ├── appinfo.json              # Application metadata
-├── index.html                # Main HTML file
-├── app.js                    # Application logic
+├── index.html                # Main HTML (iframe, settings overlay)
+├── app.js                    # Application logic (iframe loading, postMessage)
 ├── icon.png                  # Application icon (80x80)
-├── largeIcon.png            # Large icon (130x130)
+├── largeIcon.png             # Large icon (130x130)
 ├── icon.svg                  # Icon source (SVG)
-├── largeIcon.svg            # Large icon source (SVG)
+├── largeIcon.svg             # Large icon source (SVG)
 └── webOSTVjs-1.2.4/
-    └── webOSTV.js           # WebOS TV API wrapper
+    └── webOSTV.js            # WebOS TV API wrapper
 ```
 
 ## Customization
@@ -100,7 +71,7 @@ Edit `appinfo.json` and update the `id` field:
 
 ### Update Icons
 
-Replace `icon.png` (80x80) and `largeIcon.png` (130x130) with your custom icons. 
+Replace `icon.png` (80x80) and `largeIcon.png` (130x130) with your custom icons.
 See `ICONS_README.md` for instructions on generating PNG files from the provided SVG sources.
 
 ### Modify Resolution
@@ -116,19 +87,7 @@ Edit `appinfo.json` to match your TV's resolution:
 
 ## Development
 
-### Testing Locally
-
-You can test the application in a web browser, though device identification will use fallback values:
-
-```bash
-# Serve the directory with any web server
-python3 -m http.server 8000
-
-# Open in browser
-open http://localhost:8000
-```
-
-### Debugging
+### Debugging on LG TV
 
 View console logs when running on LG TV:
 
@@ -136,11 +95,15 @@ View console logs when running on LG TV:
 ares-inspect --device YOUR_TV_NAME --app com.digitalsignage.webos --open
 ```
 
+### Development Setup (Split Server/Player)
+
+If you run the Angular web player on a separate dev server (e.g. `ng serve` on port 4200), set the **Player URL** in the LG app settings to point to that dev server. The Server URL should still point to the backend API.
+
 ## Requirements
 
 - LG WebOS TV (2024 or newer recommended)
 - WebOS SDK tools (`@webos-tools/cli`)
-- A hosted SPA that can receive URL parameters
+- A running signage server with the web player deployed
 
 ## License
 

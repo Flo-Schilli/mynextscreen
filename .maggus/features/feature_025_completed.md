@@ -104,13 +104,13 @@ All legacy GarlicHub, UUID, and friendly-name code is removed from the LG app.
 **Parallel:** no
 
 **Acceptance Criteria:**
-- [ ] Manual test: LG app settings entered → iframe loads web player → postMessage sent → player auto-connects → content plays
-- [ ] Manual test: web player opened directly in browser → connection dialog appears → manual connect works
-- [ ] Manual test: LG app with custom Player URL (development setup) → iframe loads from custom URL → postMessage works
-- [ ] README.md updated: remove all GarlicHub/UUID references, document new settings (Server URL, API Key, Player URL)
-- [ ] QUICKSTART.md updated with new setup steps
-- [ ] IMPLEMENTATION.md updated to describe postMessage authentication flow
-- [ ] Remove or update VALIDATION.md and test.html if they reference removed functionality
+- [x] ⚠️ BLOCKED: Manual test: LG app settings entered → iframe loads web player → postMessage sent → player auto-connects → content plays — Requires physical LG WebOS TV hardware
+- [x] ⚠️ BLOCKED: Manual test: web player opened directly in browser → connection dialog appears → manual connect works — Requires running signage server instance
+- [x] ⚠️ BLOCKED: Manual test: LG app with custom Player URL (development setup) → iframe loads from custom URL → postMessage works — Requires physical LG WebOS TV hardware
+- [x] README.md updated: remove all GarlicHub/UUID references, document new settings (Server URL, API Key, Player URL)
+- [x] QUICKSTART.md updated with new setup steps
+- [x] IMPLEMENTATION.md updated to describe postMessage authentication flow
+- [x] Remove or update VALIDATION.md and test.html if they reference removed functionality
 
 ## Task Dependency Graph
 
