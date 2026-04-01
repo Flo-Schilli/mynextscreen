@@ -58,6 +58,7 @@ api.{{ domain_name }} {
 	# SSE endpoints — disable response buffering
 	handle /api/screens/*/events {
 		reverse_proxy localhost:3000 {
+			header_up X-Real-IP {remote_host}
 			flush_interval -1
 		}
 	}

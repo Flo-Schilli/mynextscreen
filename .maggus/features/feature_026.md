@@ -138,15 +138,15 @@ Set up a complete production deployment pipeline for the signage server, followi
 **Parallel:** yes — can run alongside TASK-026-001 through TASK-026-004
 
 **Acceptance Criteria:**
-- [ ] `ansible/templates/Caddyfile.j2` with three site blocks:
-- [ ] `app.{{ domain_name }}` → reverse proxy to `localhost:4200` (frontend), SPA fallback
-- [ ] `player.{{ domain_name }}` → reverse proxy to `localhost:4300` (player), **no** `X-Frame-Options` header (allow iframe embedding)
-- [ ] `api.{{ domain_name }}` → reverse proxy to `localhost:3000` (backend)
-- [ ] All three blocks have: JSON access logging with rotation, security headers (X-Content-Type-Options, X-XSS-Protection, HSTS, Referrer-Policy, Permissions-Policy, -Server)
-- [ ] `app.{{ domain_name }}` has CSP allowing `self`, Hanko scripts/connections, `unsafe-inline` for styles
-- [ ] `api.{{ domain_name }}` has: `X-Real-IP` header pass-through, `/api/docs*` blocked with 404, SSE-friendly config (`flush_interval -1` on `/api/screens/*/events`)
-- [ ] `player.{{ domain_name }}` has: CSP allowing media from `api.{{ domain_name }}`, `X-Frame-Options` explicitly set to `ALLOWALL` or omitted
-- [ ] Caddy log output to `/var/log/caddy/{subdomain}.access.log`
+- [x] `ansible/templates/Caddyfile.j2` with three site blocks:
+- [x] `app.{{ domain_name }}` → reverse proxy to `localhost:4200` (frontend), SPA fallback
+- [x] `player.{{ domain_name }}` → reverse proxy to `localhost:4300` (player), **no** `X-Frame-Options` header (allow iframe embedding)
+- [x] `api.{{ domain_name }}` → reverse proxy to `localhost:3000` (backend)
+- [x] All three blocks have: JSON access logging with rotation, security headers (X-Content-Type-Options, X-XSS-Protection, HSTS, Referrer-Policy, Permissions-Policy, -Server)
+- [x] `app.{{ domain_name }}` has CSP allowing `self`, Hanko scripts/connections, `unsafe-inline` for styles
+- [x] `api.{{ domain_name }}` has: `X-Real-IP` header pass-through, `/api/docs*` blocked with 404, SSE-friendly config (`flush_interval -1` on `/api/screens/*/events`)
+- [x] `player.{{ domain_name }}` has: CSP allowing media from `api.{{ domain_name }}`, `X-Frame-Options` explicitly set to `ALLOWALL` or omitted
+- [x] Caddy log output to `/var/log/caddy/{subdomain}.access.log`
 
 ### TASK-026-007: Database backup and restore playbooks
 **Description:** As a deployer, I want Ansible playbooks to download and upload the SQLite database so that I can manage backups.
