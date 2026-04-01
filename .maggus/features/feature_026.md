@@ -157,9 +157,9 @@ Set up a complete production deployment pipeline for the signage server, followi
 **Parallel:** no
 
 **Acceptance Criteria:**
-- [ ] `ansible/download_db.yml` — fetches `data/signage.db` from server to `ansible/backups/signage_YYYYMMDD_HHMMSS.db`
-- [ ] `ansible/upload_db.yml` — stops backend service, uploads `ansible/signage.db` to server, starts backend service
-- [ ] Both playbooks use the same `hosts.ini` and variable structure as `deploy.yml`
+- [x] `ansible/download_db.yml` — fetches `data/signage.db` from server to `ansible/backups/signage_YYYYMMDD_HHMMSS.db`
+- [x] `ansible/upload_db.yml` — stops backend service, uploads `ansible/signage.db` to server, starts backend service
+- [x] Both playbooks use the same `hosts.ini` and variable structure as `deploy.yml`
 
 ### TASK-026-008: Fail2ban configuration templates
 **Description:** As a deployer, I want fail2ban to automatically ban IPs that make repeated failed authentication attempts against the API.
