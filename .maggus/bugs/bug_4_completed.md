@@ -54,10 +54,10 @@ The `MediaController` only has `GET /media/:organisationId/:contentId` which ser
 **Description:** As a screen player fetching sliced content, I want a media endpoint that serves cropped rendition files so that split-mode playback works end-to-end.
 
 **Acceptance Criteria:**
-- [ ] New route `GET /media/slices/:groupId/:screenId/:contentId` in `MediaController`
-- [ ] Endpoint is protected with `@ScreenAuth()` and validates the screen belongs to the requested group and organisation
-- [ ] Serves the file from the `SlicedRendition.filePath` stored in the database
-- [ ] Returns 404 if the rendition does not exist
-- [ ] Sets appropriate `Content-Type` and caching headers (consistent with existing media endpoint)
-- [ ] Existing tests pass, new tests cover the sliced media endpoint
-- [ ] `npm run lint` and `npm run test` pass
+- [x] New route `GET /media/slices/:groupId/:screenId/:contentId` in `MediaController`
+- [x] Endpoint is protected with `@ScreenAuth()` and validates the screen belongs to the requested group and organisation
+- [x] Serves the file from the `SlicedRendition.filePath` stored in the database
+- [x] Returns 404 if the rendition does not exist
+- [x] Sets appropriate `Content-Type` and caching headers (consistent with existing media endpoint)
+- [x] Existing tests pass, new tests cover the sliced media endpoint
+- [x] `npm run lint` and `npm run test` pass
