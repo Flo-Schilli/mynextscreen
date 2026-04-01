@@ -34,14 +34,14 @@ Set up a complete production deployment pipeline for the signage server, followi
 **Parallel:** yes — can run alongside TASK-026-002, TASK-026-003, TASK-026-004
 
 **Acceptance Criteria:**
-- [ ] New file `backend/Dockerfile.prod` (existing dev Dockerfile unchanged)
-- [ ] Multi-stage build: builder stage compiles TypeScript (`npm run build`), runtime stage copies only `dist/` and production `node_modules`
-- [ ] Base image: `node:22-alpine`
-- [ ] FFmpeg installed via `apk add --no-cache ffmpeg` in the runtime stage
-- [ ] `npm ci` in builder, `npm ci --omit=dev` in runtime
-- [ ] Runs `node dist/main` (not `npm run start:dev`)
-- [ ] Exposes port 3000
-- [ ] Image builds successfully: `docker build -f Dockerfile.prod -t signage-backend .`
+- [x] New file `backend/Dockerfile.prod` (existing dev Dockerfile unchanged)
+- [x] Multi-stage build: builder stage compiles TypeScript (`npm run build`), runtime stage copies only `dist/` and production `node_modules`
+- [x] Base image: `node:22-alpine`
+- [x] FFmpeg installed via `apk add --no-cache ffmpeg` in the runtime stage
+- [x] `npm ci` in builder, `npm ci --omit=dev` in runtime
+- [x] Runs `node dist/main` (not `npm run start:dev`)
+- [x] Exposes port 3000
+- [x] Image builds successfully: `docker build -f Dockerfile.prod -t signage-backend .`
 
 ### TASK-026-002: Production Dockerfile for frontend with envsubst
 **Description:** As a deployer, I want a production-optimised frontend Docker image that injects the Hanko API URL at container startup so that the same image works across environments.
