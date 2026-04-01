@@ -108,12 +108,12 @@ Set up a complete production deployment pipeline for the signage server, followi
 **Model:** opus — orchestration across many files with complex dependencies
 
 **Acceptance Criteria:**
-- [ ] `ansible/deploy.yml` with three plays: Build (localhost), Deploy (server), Cleanup (localhost)
-- [ ] `ansible/hosts.ini` with `[local]` and `[servers]` groups (server hostname templated)
-- [ ] **Play 1 — Build locally:**
+- [x] `ansible/deploy.yml` with three plays: Build (localhost), Deploy (server), Cleanup (localhost)
+- [x] `ansible/hosts.ini` with `[local]` and `[servers]` groups (server hostname templated)
+- [x] **Play 1 — Build locally:**
   - Builds 3 Docker images using `Dockerfile.prod` for each (backend, frontend, player)
   - Saves each as `.tar` tarball
-- [ ] **Play 2 — Server setup and deploy:**
+- [x] **Play 2 — Server setup and deploy:**
   - Installs packages: podman, firewalld, caddy, fail2ban, sqlite3, acl, net-tools
   - Creates service user with linger enabled
   - Opens firewall ports 80/443
@@ -124,10 +124,10 @@ Set up a complete production deployment pipeline for the signage server, followi
   - Generates Caddyfile from template
   - Sets up fail2ban filter and jail for Caddy
   - Reloads systemd and restarts all services in correct order
-- [ ] **Play 3 — Cleanup:**
+- [x] **Play 3 — Cleanup:**
   - Removes local `.tar` files
-- [ ] `ansible/.env.signage.example` with all required environment variables documented
-- [ ] Running `ansible-playbook -i hosts.ini deploy.yml -K` completes without errors
+- [x] `ansible/.env.signage.example` with all required environment variables documented
+- [x] Running `ansible-playbook -i hosts.ini deploy.yml -K` completes without errors
 
 ### TASK-026-006: Caddy reverse proxy configuration
 **Description:** As a deployer, I want a Caddyfile template that routes three subdomains to the correct services with HTTPS and security headers.
