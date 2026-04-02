@@ -40,6 +40,15 @@ export class JsonProtocolAdapter implements ScreenProtocolAdapter {
             startedAt: state.activeLiveStream.startedAt,
           }
         : null,
+      group: state.group
+        ? {
+            id: state.group.id,
+            name: state.group.name,
+            mode: state.group.mode,
+            gridRows: state.group.gridRows,
+            gridColumns: state.group.gridColumns,
+          }
+        : null,
     };
   }
 
@@ -55,10 +64,14 @@ export class JsonProtocolAdapter implements ScreenProtocolAdapter {
     item: PlaylistItem,
     organisationId: string,
   ): Record<string, unknown> {
+    const url =
+      item.contentUrl || `/api/media/${organisationId}/${item.contentId}`;
     return {
-      url: `/api/media/${organisationId}/${item.contentId}`,
+      url,
       duration: item.duration,
       type: item.type,
+      transition: item.transition,
+      transitionDurationMs: item.transitionDurationMs,
     };
   }
 }

@@ -4,11 +4,15 @@ import {
   signal,
   OnInit,
   HostListener,
+  effect,
 } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { OrganisationStateService } from './organisation-state.service';
 import { ThemeService } from './theme.service';
+import { DashboardSseService } from '../dashboard/dashboard-sse.service';
+import { NotificationBell } from '../notifications/notification-bell';
+import { GlobalSearch } from '../search/global-search';
 
 const SIDEBAR_KEY = 'signage_sidebar_collapsed';
 
@@ -20,7 +24,7 @@ interface NavItem {
 
 @Component({
   selector: 'app-layout',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, NotificationBell, GlobalSearch],
   template: `
     <!-- Mobile overlay -->
     @if (mobileOpen()) {
@@ -74,6 +78,26 @@ interface NavItem {
             }
           </a>
         }
+
+        @if (orgState.isSuperAdmin()) {
+          <div class="nav-divider"></div>
+          <a
+            class="nav-item admin-nav-item"
+            routerLink="/admin/organisations"
+            routerLinkActive="active"
+            (click)="mobileOpen.set(false)"
+            [attr.title]="collapsed() ? 'Admin' : null"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M10 1l2.5 3.5H17l-1.5 4L18 13h-4l-2 4h-4l-2-4H2l2.5-4.5L3 5h4.5L10 1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            @if (!collapsed()) {
+              <span class="nav-label">Admin</span>
+            }
+          </a>
+        }
       </nav>
 
       <div class="sidebar-footer">
@@ -121,19 +145,8 @@ interface NavItem {
         </div>
 
         <div class="topbar-right">
-          <!-- Global search placeholder -->
-          <div class="search-box">
-            <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/>
-              <path d="M11 11l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-            <input
-              type="text"
-              class="search-input"
-              placeholder="Search..."
-              disabled
-            />
-          </div>
+          <!-- Global search -->
+          <app-global-search />
 
           <!-- Theme toggle -->
           <button
@@ -153,20 +166,22 @@ interface NavItem {
             }
           </button>
 
-          <!-- Notification bell placeholder -->
-          <button class="topbar-btn notification-btn" aria-label="Notifications">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M10 2a5 5 0 00-5 5v3l-1.5 2h13L15 10V7a5 5 0 00-5-5zM8.5 17a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span class="badge">0</span>
-          </button>
+          <!-- Notification bell -->
+          <app-notification-bell />
 
           <!-- User avatar -->
-          <div class="user-avatar" aria-label="Current user">
+          <div class="user-avatar" [class.super-admin]="orgState.isSuperAdmin()" [attr.aria-label]="orgState.isSuperAdmin() ? 'Super Admin' : 'Current user'">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <circle cx="10" cy="8" r="3" stroke="currentColor" stroke-width="1.5"/>
               <path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
+            @if (orgState.isSuperAdmin()) {
+              <span class="admin-badge" title="Super Admin">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M5 0.5L6.1 3.5H9.3L6.6 5.3L7.7 8.5L5 6.5L2.3 8.5L3.4 5.3L0.7 3.5H3.9L5 0.5Z" fill="currentColor"/>
+                </svg>
+              </span>
+            }
           </div>
         </div>
       </header>
@@ -198,7 +213,7 @@ interface NavItem {
       left: 0;
       bottom: 0;
       width: 240px;
-      background: var(--color-bg-secondary);
+      background: var(--color-bg-sidebar);
       border-right: 1px solid var(--color-border);
       display: flex;
       flex-direction: column;
@@ -291,6 +306,23 @@ interface NavItem {
       text-overflow: ellipsis;
     }
 
+    .nav-divider {
+      height: 1px;
+      background: var(--color-border);
+      margin: 0.5rem 0.75rem;
+    }
+    .admin-nav-item {
+      color: #f59e0b;
+    }
+    .admin-nav-item:hover {
+      background: rgba(245, 158, 11, 0.1);
+      color: #fbbf24;
+    }
+    .admin-nav-item.active {
+      background: #f59e0b;
+      color: #fff;
+    }
+
     .sidebar-footer {
       padding: 0.5rem;
       border-top: 1px solid var(--color-border);
@@ -321,6 +353,7 @@ interface NavItem {
       padding: 0 1rem;
       background: var(--color-bg-secondary);
       border-bottom: 1px solid var(--color-border);
+      box-shadow: 0 1px 3px var(--color-shadow);
     }
     .topbar-left {
       display: flex;
@@ -369,36 +402,6 @@ interface NavItem {
       cursor: default;
     }
 
-    /* ── Search ── */
-    .search-box {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      background: var(--color-bg-tertiary);
-      border: 1px solid var(--color-border);
-      border-radius: 6px;
-      padding: 0.375rem 0.75rem;
-    }
-    .search-icon {
-      color: var(--color-text-muted);
-      flex-shrink: 0;
-    }
-    .search-input {
-      background: transparent;
-      border: none;
-      color: var(--color-text-primary);
-      font-size: 0.875rem;
-      width: 160px;
-      outline: none;
-    }
-    .search-input::placeholder {
-      color: var(--color-text-muted);
-    }
-    .search-input:disabled {
-      cursor: not-allowed;
-      opacity: 0.5;
-    }
-
     /* ── Top bar buttons ── */
     .topbar-btn {
       display: flex;
@@ -417,27 +420,8 @@ interface NavItem {
       color: var(--color-text-primary);
     }
 
-    .notification-btn {
-      position: relative;
-    }
-    .badge {
-      position: absolute;
-      top: 4px;
-      right: 4px;
-      min-width: 16px;
-      height: 16px;
-      background: var(--color-accent);
-      color: #fff;
-      font-size: 0.625rem;
-      font-weight: 600;
-      border-radius: 999px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 3px;
-    }
-
     .user-avatar {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -447,6 +431,24 @@ interface NavItem {
       background: var(--color-bg-tertiary);
       color: var(--color-text-secondary);
       border: 1px solid var(--color-border);
+    }
+    .user-avatar.super-admin {
+      border-color: #f59e0b;
+      box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3);
+    }
+    .admin-badge {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      background: #f59e0b;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.5px solid var(--color-bg-secondary);
     }
 
     /* ── Content ── */
@@ -485,7 +487,7 @@ interface NavItem {
         margin-left: 0;
       }
       .mobile-only { display: flex; }
-      .search-box { display: none; }
+      app-global-search { display: none; }
       .content { padding: 1rem; }
     }
   `,
@@ -493,11 +495,19 @@ interface NavItem {
 export class Layout implements OnInit {
   private authService = inject(AuthService);
   private router = inject(Router);
+  private socketService = inject(DashboardSseService);
   readonly orgState = inject(OrganisationStateService);
   readonly theme = inject(ThemeService);
 
   readonly collapsed = signal(localStorage.getItem(SIDEBAR_KEY) === 'true');
   readonly mobileOpen = signal(false);
+
+  private socketEffect = effect(() => {
+    const orgId = this.orgState.selectedOrgId();
+    if (orgId) {
+      this.socketService.connect();
+    }
+  });
 
   readonly navItems: NavItem[] = [
     {
@@ -509,6 +519,11 @@ export class Layout implements OnInit {
       label: 'Screens',
       route: '/screens',
       icon: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="3" width="16" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M7 17h6M10 14v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    },
+    {
+      label: 'Screen Groups',
+      route: '/screen-groups',
+      icon: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="7" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="2" width="7" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="13" width="7" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="13" width="7" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><path d="M9 7v2.5a1 1 0 001 1h0a1 1 0 001-1V7M10 10.5V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
     },
     {
       label: 'Content Library',
@@ -524,6 +539,11 @@ export class Layout implements OnInit {
       label: 'Schedules',
       route: '/schedules',
       icon: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="4" width="14" height="13" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M3 8h14M7 2v4M13 2v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    },
+    {
+      label: 'Live Streams',
+      route: '/live-streams',
+      icon: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M5 5a7 7 0 000 10M15 5a7 7 0 010 10M3 3a11 11 0 000 14M17 3a11 11 0 010 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
     },
     {
       label: 'Audit Log',
@@ -571,6 +591,7 @@ export class Layout implements OnInit {
   }
 
   async logout(): Promise<void> {
+    this.socketService.disconnect();
     await this.authService.logout();
     this.router.navigate(['/login']);
   }

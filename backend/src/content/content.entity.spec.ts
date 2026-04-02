@@ -14,6 +14,7 @@ function createContent(overrides: Partial<Content> = {}): Content {
   content.originalMimeType = 'image/png';
   content.originalSizeBytes = 1024000;
   content.transcodedSizeBytes = null;
+  content.durationSeconds = null;
   content.transcodingStatus = TranscodingStatus.Pending;
   content.transcodingError = null;
   Object.assign(content, overrides);
@@ -124,5 +125,24 @@ describe('Content entity validation', () => {
     });
     const errors = await validate(content);
     expect(errors).toHaveLength(0);
+  });
+
+  it('should pass validation with durationSeconds set', async () => {
+    const content = createContent({ durationSeconds: 58 });
+    const errors = await validate(content);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('should pass validation with durationSeconds null', async () => {
+    const content = createContent({ durationSeconds: null });
+    const errors = await validate(content);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('should fail validation with negative durationSeconds', async () => {
+    const content = createContent({ durationSeconds: -1 });
+    const errors = await validate(content);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some((e) => e.property === 'durationSeconds')).toBe(true);
   });
 });

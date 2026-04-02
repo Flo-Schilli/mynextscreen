@@ -1,4 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
 import {
   Observable,
@@ -10,14 +12,19 @@ import {
   takeUntil,
 } from 'rxjs';
 import { ScreenService } from './screen.service';
+import { ScheduleBoundaryService } from './schedule-boundary.service';
 import {
   SCREEN_PROTOCOL_ADAPTER,
   ScreenProtocolAdapter,
   ScreenState,
   ScreenInfo,
+  GroupInfo,
   ScreenEvent,
   ScreenEventType,
+  Playlist as ProtocolPlaylist,
+  LiveStream as ProtocolLiveStream,
 } from '../screen-protocol';
+import { Playlist } from '../playlist/playlist.entity';
 import {
   SCHEDULE_CHANGED,
   PLAYLIST_CHANGED,
@@ -31,6 +38,11 @@ import {
   ScheduleEntryChangedEvent,
   ScheduleService,
 } from '../schedule';
+import { LiveStreamActivation } from '../live-stream/live-stream-activation.entity';
+import { LiveStreamStatus } from '../live-stream/live-stream-status.enum';
+import { ScreenGroup } from '../screen-group/screen-group.entity';
+import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
+import { SlicedRendition } from '../slice-content/sliced-rendition.entity';
 
 interface MessageEvent {
   data: unknown;
@@ -52,6 +64,15 @@ export class ScreenStateService implements OnModuleDestroy {
     @Inject(SCREEN_PROTOCOL_ADAPTER)
     private readonly protocolAdapter: ScreenProtocolAdapter,
     private readonly scheduleService: ScheduleService,
+    private readonly scheduleBoundaryService: ScheduleBoundaryService,
+    @InjectRepository(ScreenGroup)
+    private readonly screenGroupRepository: Repository<ScreenGroup>,
+    @InjectRepository(Playlist)
+    private readonly playlistRepository: Repository<Playlist>,
+    @InjectRepository(LiveStreamActivation)
+    private readonly activationRepository: Repository<LiveStreamActivation>,
+    @InjectRepository(SlicedRendition)
+    private readonly slicedRenditionRepository: Repository<SlicedRendition>,
   ) {}
 
   onModuleDestroy(): void {
@@ -75,11 +96,129 @@ export class ScreenStateService implements OnModuleDestroy {
       organisationId: screen.organisationId,
       resolution: screen.resolution,
       location: screen.location,
+      groupId: screen.groupId,
+      gridRow: screen.gridRow,
+      gridColumn: screen.gridColumn,
     };
 
-    // Playlists, schedules, and live streams are not yet implemented.
-    // Return empty/null placeholders — future modules will populate these.
-    return new ScreenState(screenInfo, null, [], null, null);
+    let groupInfo: GroupInfo | null = null;
+    if (screen.groupId) {
+      const group = await this.screenGroupRepository.findOne({
+        where: { id: screen.groupId },
+      });
+      if (group) {
+        groupInfo = {
+          id: group.id,
+          name: group.name,
+          mode: group.mode,
+          gridRows: group.gridRows,
+          gridColumns: group.gridColumns,
+        };
+      }
+    }
+
+    let currentPlaylist: ProtocolPlaylist | null = null;
+    let fallbackPlaylist: ProtocolPlaylist | null = null;
+
+    try {
+      const result = await this.scheduleService.getCurrentPlaylist(screenId);
+      if (result.playlist) {
+        const full = await this.loadPlaylistWithItems(result.playlist.id);
+        const mapped = full ? this.mapPlaylist(full) : null;
+        if (result.isDefault) {
+          fallbackPlaylist = mapped;
+        } else {
+          currentPlaylist = mapped;
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to resolve playlist for screen ${screenId}: ${error}`,
+      );
+    }
+
+    if (groupInfo?.mode === ScreenGroupMode.Split) {
+      const applySlicedUrls = async (
+        playlist: ProtocolPlaylist | null,
+      ): Promise<void> => {
+        if (!playlist) return;
+        for (const item of playlist.items) {
+          const rendition = await this.slicedRenditionRepository.findOne({
+            where: {
+              groupId: screen.groupId!,
+              screenId: screen.id,
+              contentItemId: item.contentId,
+            },
+          });
+          if (rendition) {
+            item.contentUrl = `/api/media/slices/${screen.groupId}/${screen.id}/${item.contentId}`;
+          }
+        }
+      };
+      await applySlicedUrls(currentPlaylist);
+      await applySlicedUrls(fallbackPlaylist);
+    }
+
+    let activeLiveStream: ProtocolLiveStream | null = null;
+    try {
+      const activation = await this.activationRepository.findOne({
+        where: { screenId },
+        relations: ['stream'],
+      });
+      if (activation?.stream?.status === LiveStreamStatus.Active) {
+        activeLiveStream = {
+          id: activation.stream.id,
+          streamUrl: `/api/live-streams/${activation.stream.id}/hls/index.m3u8`,
+          startedAt: activation.activatedAt.toISOString(),
+        };
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to resolve live stream for screen ${screenId}: ${error}`,
+      );
+    }
+
+    return new ScreenState(
+      screenInfo,
+      currentPlaylist,
+      [],
+      activeLiveStream,
+      fallbackPlaylist,
+      groupInfo,
+    );
+  }
+
+  private async loadPlaylistWithItems(
+    playlistId: string,
+  ): Promise<Playlist | null> {
+    return this.playlistRepository.findOne({
+      where: { id: playlistId },
+      relations: ['items', 'items.content'],
+      order: { items: { position: 'ASC' } },
+    });
+  }
+
+  private mapPlaylist(entity: Playlist): ProtocolPlaylist {
+    return {
+      id: entity.id,
+      name: entity.name,
+      items: (entity.items ?? []).map((item) => {
+        const isVideo = item.content?.type === 'video';
+        const duration =
+          isVideo && item.content?.durationSeconds != null
+            ? item.content.durationSeconds
+            : item.durationSeconds;
+        return {
+          contentId: item.contentId,
+          contentUrl: '',
+          duration,
+          type: item.content?.type ?? 'unknown',
+          order: item.position,
+          transition: item.transition,
+          transitionDurationMs: item.transitionDurationMs,
+        };
+      }),
+    };
   }
 
   async getRenderedState(
@@ -95,6 +234,13 @@ export class ScreenStateService implements OnModuleDestroy {
     if (!conn) {
       conn = { events: new Subject<ScreenEvent>(), close: new Subject<void>() };
       this.connections.set(screenId, conn);
+      this.scheduleBoundaryService
+        .registerScreen(screenId)
+        .catch((err) =>
+          this.logger.warn(
+            `Failed to register screen ${screenId} for boundary tracking: ${err}`,
+          ),
+        );
     }
 
     const { events, close } = conn;
@@ -123,10 +269,15 @@ export class ScreenStateService implements OnModuleDestroy {
         const current = this.connections.get(screenId);
         if (current && current.events === events && !events.observed) {
           this.connections.delete(screenId);
+          this.scheduleBoundaryService.unregisterScreen(screenId);
           this.logger.log(`SSE connection closed for screen ${screenId}`);
         }
       }),
     );
+  }
+
+  getConnectedScreenIds(): string[] {
+    return Array.from(this.connections.keys());
   }
 
   pushEvent(screenId: string, event: ScreenEvent): void {

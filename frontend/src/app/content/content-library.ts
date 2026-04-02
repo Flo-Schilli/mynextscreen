@@ -1,11 +1,18 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { ContentService, UploadProgress } from './content.service';
 import { Content, StorageInfo } from './content.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
-import { io, Socket } from 'socket.io-client';
+import { PlaylistService } from '../playlists/playlist.service';
+import { Playlist } from '../playlists/playlist.model';
+import { SelectionService } from '../shared/selection/selection.service';
+import { SelectionCheckboxComponent } from '../shared/selection/selection-checkbox';
+import { SelectAllCheckboxComponent } from '../shared/selection/select-all-checkbox';
+import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk-action-toolbar';
+import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 
 interface UploadItem {
   file: File;
@@ -18,7 +25,8 @@ interface UploadItem {
 @Component({
   selector: 'app-content-library',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, SelectionCheckboxComponent, SelectAllCheckboxComponent, BulkActionToolbarComponent],
+  providers: [SelectionService],
   template: `
     <div class="page">
       <header class="page-header">
@@ -250,11 +258,22 @@ interface UploadItem {
 
       <!-- Content Grid -->
       @if (!loading && !selectedContent && filteredContent.length > 0) {
+        <div class="grid-header">
+          <app-select-all-checkbox [allIds]="contentIds" />
+        </div>
         <div class="content-grid">
-          @for (item of filteredContent; track item.id) {
-            <div class="content-card" (click)="selectContent(item)" tabindex="0" role="button"
+          @for (item of filteredContent; track item.id; let i = $index) {
+            <div class="content-card" [class.selected]="selectionService.isSelected(item.id)()" (click)="selectContent(item)" tabindex="0" role="button"
                  (keydown.enter)="selectContent(item)" (keydown.space)="selectContent(item)">
               <div class="card-thumbnail">
+                <div class="card-checkbox" [class.any-selected]="selectionService.hasSelection()">
+                  <app-selection-checkbox
+                    [itemId]="item.id"
+                    [itemIndex]="i"
+                    [orderedIds]="contentIds"
+                    (click)="$event.stopPropagation()"
+                  />
+                </div>
                 @if (item.type === 'image' && item.transcodingStatus === 'completed') {
                   <img [src]="getPreviewUrl(item)" alt="" class="thumb-img" loading="lazy" />
                 } @else if (item.type === 'video') {
@@ -289,6 +308,8 @@ interface UploadItem {
             </div>
           }
         </div>
+
+        <app-bulk-action-toolbar [actions]="bulkActions" />
       }
 
       @if (!loading && !selectedContent && filteredContent.length === 0 && !loadError) {
@@ -314,8 +335,92 @@ interface UploadItem {
         </div>
       }
 
+      <!-- Bulk Delete Confirmation Modal -->
+      @if (showBulkDeleteConfirm) {
+        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Confirm bulk delete"
+             tabindex="0" (click)="cancelBulkDelete()" (keydown.escape)="cancelBulkDelete()">
+          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+            <h2>Delete Content</h2>
+            <p>You are about to permanently delete <strong>{{ selectionService.count() }} item(s)</strong>. This will remove all original and transcoded files. This cannot be undone.</p>
+            <div class="form-actions">
+              <button class="btn btn-secondary" (click)="cancelBulkDelete()">Cancel</button>
+              <button class="btn btn-danger" (click)="executeBulkDelete()">Delete</button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Tag Entry Modal -->
+      @if (showTagModal) {
+        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Manage tags"
+             tabindex="0" (click)="cancelTagModal()" (keydown.escape)="cancelTagModal()">
+          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+            <h2>{{ tagModalMode === 'add' ? 'Add Tags' : 'Remove Tags' }}</h2>
+            <div class="form-group">
+              <label for="bulkTagInput">Tags (comma-separated)</label>
+              <input id="bulkTagInput" type="text" [(ngModel)]="bulkTagInput" name="bulkTagInput" placeholder="e.g. promo, seasonal" />
+            </div>
+            @if (allTags.length > 0) {
+              <div class="tag-suggestions">
+                @for (tag of allTags; track tag) {
+                  <button class="tag-chip" [class.active]="bulkTagInput.split(',').map(t => t.trim()).includes(tag)" (click)="toggleBulkTag(tag)">
+                    {{ tag }}
+                  </button>
+                }
+              </div>
+            }
+            <div class="form-actions">
+              <button class="btn btn-secondary" (click)="cancelTagModal()">Cancel</button>
+              <button class="btn btn-primary" (click)="executeTagModal()" [disabled]="!bulkTagInput.trim()">
+                {{ tagModalMode === 'add' ? 'Add Tags' : 'Remove Tags' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Playlist Picker Modal -->
+      @if (showPlaylistModal) {
+        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Add to playlist"
+             tabindex="0" (click)="cancelPlaylistModal()" (keydown.escape)="cancelPlaylistModal()">
+          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+            <h2>Add to Playlist</h2>
+            @if (playlistsLoading) {
+              <p>Loading playlists...</p>
+            } @else if (playlistsLoadError) {
+              <p class="error">{{ playlistsLoadError }}</p>
+            } @else {
+              <div class="playlist-list">
+                @for (pl of playlists; track pl.id) {
+                  <label class="playlist-option">
+                    <input type="radio" name="playlistPick" [value]="pl.id" [(ngModel)]="selectedPlaylistId" />
+                    <span>{{ pl.name }}</span>
+                  </label>
+                }
+                @if (playlists.length === 0) {
+                  <p class="empty-text">No playlists available.</p>
+                }
+              </div>
+            }
+            <div class="form-actions">
+              <button class="btn btn-secondary" (click)="cancelPlaylistModal()">Cancel</button>
+              <button class="btn btn-primary" (click)="executePlaylistModal()" [disabled]="!selectedPlaylistId || playlistsLoading">
+                Add to Playlist
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
       @if (actionError) {
         <p class="error">{{ actionError }}</p>
+      }
+
+      <!-- Toast -->
+      @if (toastMessage) {
+        <div class="toast" [class.toast-error]="toastType === 'error'" [class.toast-success]="toastType === 'success'" [class.toast-warning]="toastType === 'warning'">
+          {{ toastMessage }}
+        </div>
       }
     </div>
   `,
@@ -576,6 +681,7 @@ interface UploadItem {
       overflow: hidden;
       cursor: pointer;
       transition: border-color 0.15s, background-color 0.15s;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .content-card:hover, .content-card:focus {
       border-color: var(--color-accent);
@@ -662,6 +768,7 @@ interface UploadItem {
       border-radius: 0.5rem;
       padding: 1.5rem;
       max-width: 52rem;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .detail-card.wide { max-width: 52rem; }
     .detail-header {
@@ -860,6 +967,83 @@ interface UploadItem {
       line-height: 1.5;
     }
 
+    /* Grid Header with select-all */
+    .grid-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    /* Selection checkbox overlay on cards */
+    .card-checkbox {
+      position: absolute;
+      top: 0.375rem;
+      left: 0.375rem;
+      z-index: 2;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .content-card:hover .card-checkbox,
+    .card-checkbox.any-selected {
+      opacity: 1;
+    }
+    .content-card.selected {
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 1px var(--color-accent);
+    }
+
+    /* Tag suggestions in modal */
+    .tag-suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+      margin-bottom: 1rem;
+    }
+
+    /* Playlist picker */
+    .playlist-list {
+      max-height: 16rem;
+      overflow-y: auto;
+      margin-bottom: 1rem;
+    }
+    .playlist-option {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      font-size: 0.875rem;
+      color: var(--color-text-primary);
+      transition: background 0.1s;
+    }
+    .playlist-option:hover {
+      background: var(--color-bg-tertiary);
+    }
+    .playlist-option input[type="radio"] {
+      accent-color: var(--color-accent);
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      padding: 0.75rem 1.25rem;
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      z-index: 2000;
+      animation: slideUp 0.2s ease-out;
+    }
+    .toast-success { background: #166534; color: #bbf7d0; }
+    .toast-error { background: #991b1b; color: #fecaca; }
+    .toast-warning { background: #92400e; color: #fef3c7; }
+    @keyframes slideUp {
+      from { transform: translateY(1rem); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
     .empty-state {
       text-align: center;
       padding: 4rem 2rem;
@@ -887,11 +1071,14 @@ interface UploadItem {
 export class ContentLibrary implements OnInit, OnDestroy {
   private contentService = inject(ContentService);
   private memberService = inject(MemberService);
+  private playlistService = inject(PlaylistService);
   private router = inject(Router);
+  readonly selectionService = inject(SelectionService);
 
   orgId = '';
   contents: Content[] = [];
   filteredContent: Content[] = [];
+  contentIds: string[] = [];
   allTags: string[] = [];
   loading = true;
   loadError = '';
@@ -922,16 +1109,61 @@ export class ContentLibrary implements OnInit, OnDestroy {
   showDeleteConfirm = false;
   deleting = false;
 
+  // Bulk operations
+  showBulkDeleteConfirm = false;
+  private bulkDeleteResolve: ((v: boolean) => void) | null = null;
+
+  showTagModal = false;
+  tagModalMode: 'add' | 'remove' = 'add';
+  bulkTagInput = '';
+  private tagModalResolve: ((v: boolean) => void) | null = null;
+
+  showPlaylistModal = false;
+  playlists: Playlist[] = [];
+  playlistsLoading = false;
+  playlistsLoadError = '';
+  selectedPlaylistId = '';
+  private playlistModalResolve: ((v: boolean) => void) | null = null;
+
+  // Toast
+  toastMessage = '';
+  toastType: 'error' | 'success' | 'warning' = 'success';
+  private toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  bulkActions: BulkAction[] = [
+    {
+      label: 'Delete selected',
+      variant: 'danger',
+      handler: () => this.handleBulkDelete(),
+    },
+    {
+      label: 'Add tags',
+      variant: 'default',
+      handler: () => this.handleBulkTag('add'),
+    },
+    {
+      label: 'Remove tags',
+      variant: 'default',
+      handler: () => this.handleBulkTag('remove'),
+    },
+    {
+      label: 'Add to playlist',
+      variant: 'default',
+      handler: () => this.handleBulkAddToPlaylist(),
+    },
+  ];
+
   // Transcoding progress
-  transcodingProgress: Record<string, number> = {};
-  private socket: Socket | null = null;
+  transcodingProgress: Record<string, number | undefined> = {};
+  private sseService = inject(DashboardSseService);
+  private sseSubs: Subscription[] = [];
 
   ngOnInit(): void {
     this.loadCurrentOrg();
   }
 
   ngOnDestroy(): void {
-    this.socket?.disconnect();
+    for (const sub of this.sseSubs) sub.unsubscribe();
   }
 
   private loadCurrentOrg(): void {
@@ -945,7 +1177,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
           this.orgId = membership.organisationId;
           this.loadContent();
           this.loadStorage();
-          this.connectSocket();
+          this.subscribeToTranscoding();
         } else {
           this.loadError = 'You are not a member of any organisation.';
           this.loading = false;
@@ -958,27 +1190,19 @@ export class ContentLibrary implements OnInit, OnDestroy {
     });
   }
 
-  private connectSocket(): void {
-    this.socket = io('/', {
-      query: { organisationId: this.orgId },
-      transports: ['websocket', 'polling'],
-    });
-
-    this.socket.on(
-      'transcoding:progress',
-      (data: { contentId: string; progress: number }) => {
+  private subscribeToTranscoding(): void {
+    this.sseSubs.push(
+      this.sseService.transcodingProgress$.subscribe((event) => {
+        const data = event.data as { contentId: string; progress: number };
         this.transcodingProgress[data.contentId] = data.progress;
         const item = this.contents.find((c) => c.id === data.contentId);
         if (item && item.transcodingStatus !== 'processing') {
           item.transcodingStatus = 'processing';
           this.applyFilters();
         }
-      },
-    );
-
-    this.socket.on(
-      'transcoding:completed',
-      (data: { contentId: string; transcodedSizeBytes: number }) => {
+      }),
+      this.sseService.transcodingComplete$.subscribe((event) => {
+        const data = event.data as { contentId: string; transcodedSizeBytes: number };
         const item = this.contents.find((c) => c.id === data.contentId);
         if (item) {
           item.transcodingStatus = 'completed';
@@ -990,12 +1214,9 @@ export class ContentLibrary implements OnInit, OnDestroy {
           }
         }
         this.loadStorage();
-      },
-    );
-
-    this.socket.on(
-      'transcoding:failed',
-      (data: { contentId: string; error: string }) => {
+      }),
+      this.sseService.transcodingFailed$.subscribe((event) => {
+        const data = event.data as { contentId: string; error: string };
         const item = this.contents.find((c) => c.id === data.contentId);
         if (item) {
           item.transcodingStatus = 'failed';
@@ -1006,7 +1227,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
             this.selectedContent = { ...item };
           }
         }
-      },
+      }),
     );
   }
 
@@ -1018,6 +1239,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
         this.contents = contents;
         this.extractTags();
         this.applyFilters();
+        this.contentIds = this.filteredContent.map((c) => c.id);
         this.loading = false;
       },
       error: (err) => {
@@ -1051,6 +1273,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
       );
     }
     this.filteredContent = filtered;
+    this.contentIds = filtered.map((c) => c.id);
   }
 
   setTypeFilter(type: string | undefined): void {
@@ -1277,6 +1500,161 @@ export class ContentLibrary implements OnInit, OnDestroy {
           this.showDeleteConfirm = false;
         },
       });
+  }
+
+  // --- Bulk Operations ---
+  async handleBulkDelete(): Promise<void> {
+    const confirmed = await this.openBulkDeleteConfirm();
+    if (!confirmed) throw new Error('cancelled');
+
+    const ids = [...this.selectionService.selectedIds()];
+    const result = await firstValueFrom(this.contentService.bulkDelete(this.orgId, ids));
+
+    this.showToast(`${result.deleted} item(s) deleted`, 'success');
+    if (result.notFound.length > 0) {
+      this.showToast(`${result.notFound.length} item(s) could not be found and were skipped`, 'warning');
+    }
+    this.loadContent();
+    this.loadStorage();
+  }
+
+  private openBulkDeleteConfirm(): Promise<boolean> {
+    this.showBulkDeleteConfirm = true;
+    return new Promise<boolean>((resolve) => {
+      this.bulkDeleteResolve = resolve;
+    });
+  }
+
+  cancelBulkDelete(): void {
+    this.showBulkDeleteConfirm = false;
+    this.bulkDeleteResolve?.(false);
+    this.bulkDeleteResolve = null;
+  }
+
+  executeBulkDelete(): void {
+    this.showBulkDeleteConfirm = false;
+    this.bulkDeleteResolve?.(true);
+    this.bulkDeleteResolve = null;
+  }
+
+  async handleBulkTag(mode: 'add' | 'remove'): Promise<void> {
+    const confirmed = await this.openTagModal(mode);
+    if (!confirmed) throw new Error('cancelled');
+
+    const tags = this.bulkTagInput
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+    if (tags.length === 0) throw new Error('cancelled');
+
+    const ids = [...this.selectionService.selectedIds()];
+    const result =
+      mode === 'add'
+        ? await firstValueFrom(this.contentService.bulkTag(this.orgId, ids, tags))
+        : await firstValueFrom(this.contentService.bulkUntag(this.orgId, ids, tags));
+
+    this.showToast(`${result.updated} item(s) ${mode === 'add' ? 'tagged' : 'untagged'}`, 'success');
+    if (result.notFound.length > 0) {
+      this.showToast(`${result.notFound.length} item(s) could not be found and were skipped`, 'warning');
+    }
+    this.loadContent();
+  }
+
+  private openTagModal(mode: 'add' | 'remove'): Promise<boolean> {
+    this.tagModalMode = mode;
+    this.bulkTagInput = '';
+    this.showTagModal = true;
+    return new Promise<boolean>((resolve) => {
+      this.tagModalResolve = resolve;
+    });
+  }
+
+  cancelTagModal(): void {
+    this.showTagModal = false;
+    this.tagModalResolve?.(false);
+    this.tagModalResolve = null;
+  }
+
+  executeTagModal(): void {
+    this.showTagModal = false;
+    this.tagModalResolve?.(true);
+    this.tagModalResolve = null;
+  }
+
+  toggleBulkTag(tag: string): void {
+    const tags = this.bulkTagInput
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+    const idx = tags.indexOf(tag);
+    if (idx >= 0) {
+      tags.splice(idx, 1);
+    } else {
+      tags.push(tag);
+    }
+    this.bulkTagInput = tags.join(', ');
+  }
+
+  async handleBulkAddToPlaylist(): Promise<void> {
+    const confirmed = await this.openPlaylistModal();
+    if (!confirmed) throw new Error('cancelled');
+
+    const ids = [...this.selectionService.selectedIds()];
+    const result = await firstValueFrom(
+      this.contentService.bulkAddToPlaylist(this.orgId, ids, this.selectedPlaylistId),
+    );
+
+    const playlistName = this.playlists.find((p) => p.id === this.selectedPlaylistId)?.name ?? 'selected playlist';
+    let message = `${result.added} item(s) added to ${playlistName}`;
+    if (result.alreadyPresent > 0) {
+      message += ` (${result.alreadyPresent} were already in the playlist)`;
+    }
+    this.showToast(message, 'success');
+    if (result.notFound.length > 0) {
+      this.showToast(`${result.notFound.length} item(s) could not be found and were skipped`, 'warning');
+    }
+    this.loadContent();
+  }
+
+  private openPlaylistModal(): Promise<boolean> {
+    this.showPlaylistModal = true;
+    this.selectedPlaylistId = '';
+    this.playlistsLoadError = '';
+    this.playlistsLoading = true;
+    this.playlistService.getAll(this.orgId).subscribe({
+      next: (playlists) => {
+        this.playlists = playlists;
+        this.playlistsLoading = false;
+      },
+      error: () => {
+        this.playlistsLoadError = 'Failed to load playlists.';
+        this.playlistsLoading = false;
+      },
+    });
+    return new Promise<boolean>((resolve) => {
+      this.playlistModalResolve = resolve;
+    });
+  }
+
+  cancelPlaylistModal(): void {
+    this.showPlaylistModal = false;
+    this.playlistModalResolve?.(false);
+    this.playlistModalResolve = null;
+  }
+
+  executePlaylistModal(): void {
+    this.showPlaylistModal = false;
+    this.playlistModalResolve?.(true);
+    this.playlistModalResolve = null;
+  }
+
+  showToast(message: string, type: 'error' | 'success' | 'warning'): void {
+    this.toastMessage = message;
+    this.toastType = type;
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => {
+      this.toastMessage = '';
+    }, 4000);
   }
 
   // --- Helpers ---

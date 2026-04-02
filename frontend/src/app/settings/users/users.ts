@@ -1,14 +1,14 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MemberService } from './member.service';
 import { Membership, MyMembership, OrganisationRole } from './member.model';
 
 @Component({
   selector: 'app-users',
   standalone: true,
-  imports: [DatePipe, FormsModule],
+  imports: [DatePipe, FormsModule, RouterLink],
   template: `
     <div class="page">
       <header class="page-header">
@@ -22,6 +22,11 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
           </button>
         }
       </header>
+
+      <nav class="settings-nav">
+        <a class="settings-nav-link active">User Management</a>
+        <a class="settings-nav-link" routerLink="/settings/org/notifications">Notification Config</a>
+      </nav>
 
       @if (loadError) {
         <p class="error">{{ loadError }}</p>
@@ -178,6 +183,30 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
       background: var(--color-bg-secondary);
     }
 
+    .settings-nav {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .settings-nav-link {
+      padding: 0.625rem 1rem;
+      font-size: 0.875rem;
+      color: var(--color-text-secondary);
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .settings-nav-link:hover {
+      color: var(--color-text-primary);
+    }
+    .settings-nav-link.active {
+      color: var(--color-text-primary);
+      border-bottom-color: var(--color-accent);
+      font-weight: 500;
+    }
+
     /* Buttons */
     .btn {
       padding: 0.5rem 1rem;
@@ -228,9 +257,11 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
       background: var(--color-bg-secondary);
       border-radius: 0.5rem;
       overflow: hidden;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     thead {
       background: var(--color-bg-tertiary);
+      border-bottom: 2px solid var(--color-border);
     }
     th {
       text-align: left;
@@ -318,6 +349,7 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
       padding: 1.5rem;
       min-width: 24rem;
       max-width: 32rem;
+      box-shadow: 0 8px 24px var(--color-shadow);
     }
     .modal h2 {
       margin: 0 0 1.25rem;

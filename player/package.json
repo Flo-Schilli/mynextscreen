@@ -1,0 +1,42 @@
+{
+  "name": "player",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "lint": "ng lint",
+    "test": "jest --config jest.config.ts"
+  },
+  "private": true,
+  "packageManager": "npm@11.6.2",
+  "dependencies": {
+    "@angular/common": "^21.2.0",
+    "@angular/compiler": "^21.2.0",
+    "@angular/core": "^21.2.0",
+    "@angular/forms": "^21.2.6",
+    "@angular/platform-browser": "^21.2.0",
+    "@angular/router": "^21.2.0",
+    "@tailwindcss/postcss": "^4.2.2",
+    "hls.js": "^1.6.15",
+    "postcss": "^8.5.8",
+    "rxjs": "~7.8.0",
+    "tailwindcss": "^4.2.2",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^21.2.5",
+    "@angular/cli": "^21.2.5",
+    "@angular/compiler-cli": "^21.2.0",
+    "@eslint/js": "^10.0.1",
+    "@types/jest": "^30.0.0",
+    "angular-eslint": "21.3.1",
+    "eslint": "^10.0.3",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.6",
+    "typescript": "~5.9.2",
+    "typescript-eslint": "8.56.1",
+    "zone.js": "^0.16.1"
+  }
+}

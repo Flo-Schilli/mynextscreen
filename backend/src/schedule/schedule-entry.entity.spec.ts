@@ -34,11 +34,10 @@ describe('ScheduleEntry entity validation', () => {
     expect(errors.some((e) => e.property === 'organisationId')).toBe(true);
   });
 
-  it('should fail validation when screenId is empty', async () => {
-    const entry = createEntry({ screenId: '' });
+  it('should pass validation when screenId is null (group-targeted schedule)', async () => {
+    const entry = createEntry({ screenId: null });
     const errors = await validate(entry);
-    expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some((e) => e.property === 'screenId')).toBe(true);
+    expect(errors).toHaveLength(0);
   });
 
   it('should fail validation when playlistId is empty', async () => {
@@ -66,5 +65,22 @@ describe('ScheduleEntry entity validation', () => {
     const entry = createEntry({ colour: '#ff5733' });
     const errors = await validate(entry);
     expect(errors).toHaveLength(0);
+  });
+
+  describe('targetType and targetId computed properties', () => {
+    it('should return targetType "screen" when screenId is set', () => {
+      const entry = createEntry({ screenId: 'screen-1', groupId: null });
+      expect(entry.targetType).toBe('screen');
+      expect(entry.targetId).toBe('screen-1');
+    });
+
+    it('should return targetType "group" when groupId is set', () => {
+      const entry = createEntry({
+        screenId: null,
+        groupId: 'group-1',
+      });
+      expect(entry.targetType).toBe('group');
+      expect(entry.targetId).toBe('group-1');
+    });
   });
 });

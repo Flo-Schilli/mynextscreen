@@ -46,7 +46,7 @@ A multi-tenant digital signage platform built with **NestJS** (backend), **Angul
 | **NotificationModule** | Notification hub: in-app, email (abstract interface), ntfy; per-user channel preferences |
 | **AuditLogModule** | Records all significant actions with timestamp, user, organisation, action, affected resource |
 | **SearchModule** | Global search across screens, content, and playlists within the current organisation |
-| **DashboardGateway** | Socket.IO WebSocket gateway for real-time dashboard updates (screen status, schedule changes) |
+| **DashboardSseModule** | SSE-based real-time dashboard updates (screen status, transcoding progress, schedule changes, notifications) |
 
 ## Data & Persistence
 
@@ -94,7 +94,7 @@ interface ScreenProtocolAdapter {
 - **Worker:** picks up job, spawns FFmpeg child process:
   - Video → H.264 MP4 (configurable bitrate/resolution)
   - Image → WebP (JPEG fallback for compatibility)
-- **Progress:** worker reports progress via BullMQ events → DashboardGateway pushes to frontend via Socket.IO
+- **Progress:** worker reports progress via BullMQ events → DashboardSseService pushes to frontend via SSE
 - **Storage accounting:** on completion, original and transcoded file sizes are added to the organisation's usage counters
 - **Re-upload:** overwrites both original and transcoded files, updates storage counters
 
@@ -110,7 +110,7 @@ interface ScreenProtocolAdapter {
 
 - **NotificationHub** — central service that receives events (screen offline, transcoding complete, etc.) and fans out to configured channels
 - **Channels:**
-  - **In-app** — stored in DB, delivered to dashboard via Socket.IO
+  - **In-app** — stored in DB, delivered to dashboard via SSE
   - **Email** — abstract `EmailProvider` interface (implementation injected at startup; e.g. SendGrid, SES, SMTP)
   - **ntfy** — HTTP POST to configurable URL with auth token, per organisation
 - **User preferences** — each user toggles channels independently; hub checks preferences before dispatching
@@ -128,7 +128,7 @@ interface ScreenProtocolAdapter {
 
 - **Angular 21** with **Tailwind CSS v4** and **PostCSS**
 - **Dark mode first** — CSS custom properties for theme switching
-- **Socket.IO client** for real-time dashboard updates (screen status, notifications, transcoding progress)
+- **SSE client** for real-time dashboard updates (screen status, notifications, transcoding progress)
 - **Global search** — searches across screens, content, and playlists within the current organisation
 - **Component structure** mirrors backend modules: screens, content, playlists, schedules, live streams, settings
 - **Calendar component** for schedule management (day/week/month views, drag-and-drop playlist blocks, RRULE-based recurring schedules)
@@ -138,7 +138,7 @@ interface ScreenProtocolAdapter {
 
 - **Docker Compose** for both local development and production
 - **Services:**
-  - `signage-server` — NestJS application (API + WebSocket + SSE + BullMQ workers)
+  - `signage-server` — NestJS application (API + SSE + BullMQ workers)
   - `redis` — job queue backend
 - **External services:**
   - Hanko Cloud — authentication (no self-hosted container needed)

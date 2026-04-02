@@ -24,3 +24,29 @@ export interface UpdateOrganisationDto {
   storageOriginalLimitBytes?: number;
   storageTranscodedLimitBytes?: number;
 }
+
+export type OrgMemberRole = 'org_admin' | 'editor' | 'viewer';
+
+export interface OrgMember {
+  id: string;
+  userId: string;
+  organisationId: string;
+  role: OrgMemberRole;
+  createdAt: string;
+  user: {
+    id: string;
+    email: string;
+    name: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+}
+
+export interface AddOrgMemberRequest {
+  email: string;
+  role: OrgMemberRole;
+}
+
+export interface UpdateOrgMemberRoleRequest {
+  role: OrgMemberRole;
+}

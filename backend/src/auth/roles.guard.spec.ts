@@ -1,5 +1,6 @@
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import { RolesGuard } from './roles.guard';
 import { UserService } from '../user/user.service';
 import { OrganisationRole } from '../user/organisation-role.enum';
@@ -10,6 +11,7 @@ describe('RolesGuard', () => {
   let guard: RolesGuard;
   let reflector: Reflector;
   let userService: jest.Mocked<UserService>;
+  let configService: jest.Mocked<ConfigService>;
 
   beforeEach(() => {
     reflector = new Reflector();
@@ -21,8 +23,11 @@ describe('RolesGuard', () => {
       getMemberships: jest.fn(),
       getMembership: jest.fn(),
     } as unknown as jest.Mocked<UserService>;
+    configService = {
+      get: jest.fn().mockReturnValue(''),
+    } as unknown as jest.Mocked<ConfigService>;
 
-    guard = new RolesGuard(reflector, userService);
+    guard = new RolesGuard(reflector, userService, configService);
   });
 
   function createMockContext(options: {

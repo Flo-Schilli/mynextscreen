@@ -9,6 +9,7 @@ import {
   AuditScreenEvent,
   AuditUserEvent,
   AuditOrganisationEvent,
+  AuditLiveStreamEvent,
 } from './audit.events';
 
 describe('AuditListener', () => {
@@ -375,6 +376,325 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: null,
+      organisation: null,
+    });
+  });
+
+  // ── Live Stream Events ───────────────────────────────────────────────
+
+  it('should map live_stream.created to LiveStreamCreated audit entry', () => {
+    const streamId = '990e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditLiveStreamEvent(streamId, orgId, userId, {
+      streamId,
+      streamName: 'Studio Camera',
+      sourceUrl: 'rtmp://example.com/live/stream1',
+      protocol: 'rtmp',
+    });
+
+    listener.handleLiveStreamCreated(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.LiveStreamCreated,
+      resourceType: 'live-stream',
+      resourceId: streamId,
+      organisationId: orgId,
+      userId,
+      details: {
+        streamId,
+        streamName: 'Studio Camera',
+        sourceUrl: 'rtmp://example.com/live/stream1',
+        protocol: 'rtmp',
+      },
+      organisation: null,
+    });
+  });
+
+  it('should map live_stream.updated to LiveStreamUpdated audit entry', () => {
+    const streamId = '990e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditLiveStreamEvent(streamId, orgId, userId, {
+      streamId,
+      streamName: 'Updated Camera',
+      sourceUrl: 'rtmp://example.com/live/stream2',
+      protocol: 'rtmp',
+    });
+
+    listener.handleLiveStreamUpdated(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.LiveStreamUpdated,
+      resourceType: 'live-stream',
+      resourceId: streamId,
+      organisationId: orgId,
+      userId,
+      details: {
+        streamId,
+        streamName: 'Updated Camera',
+        sourceUrl: 'rtmp://example.com/live/stream2',
+        protocol: 'rtmp',
+      },
+      organisation: null,
+    });
+  });
+
+  it('should map live_stream.deleted to LiveStreamDeleted audit entry', () => {
+    const streamId = '990e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditLiveStreamEvent(streamId, orgId, userId, {
+      streamId,
+      streamName: 'Deleted Camera',
+      sourceUrl: 'rtmp://example.com/live/stream1',
+      protocol: 'rtmp',
+    });
+
+    listener.handleLiveStreamDeleted(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.LiveStreamDeleted,
+      resourceType: 'live-stream',
+      resourceId: streamId,
+      organisationId: orgId,
+      userId,
+      details: {
+        streamId,
+        streamName: 'Deleted Camera',
+        sourceUrl: 'rtmp://example.com/live/stream1',
+        protocol: 'rtmp',
+      },
+      organisation: null,
+    });
+  });
+
+  it('should map live_stream.activated to LiveStreamActivated audit entry', () => {
+    const streamId = '990e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditLiveStreamEvent(streamId, orgId, userId, {
+      streamId,
+      streamName: 'Studio Camera',
+      targetScreenIds: ['screen-1', 'screen-2'],
+    });
+
+    listener.handleLiveStreamActivated(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.LiveStreamActivated,
+      resourceType: 'live-stream',
+      resourceId: streamId,
+      organisationId: orgId,
+      userId,
+      details: {
+        streamId,
+        streamName: 'Studio Camera',
+        targetScreenIds: ['screen-1', 'screen-2'],
+      },
+      organisation: null,
+    });
+  });
+
+  it('should map live_stream.deactivated to LiveStreamDeactivated audit entry', () => {
+    const streamId = '990e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditLiveStreamEvent(streamId, orgId, userId, {
+      streamId,
+      streamName: 'Studio Camera',
+      reason: 'manual',
+    });
+
+    listener.handleLiveStreamDeactivated(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.LiveStreamDeactivated,
+      resourceType: 'live-stream',
+      resourceId: streamId,
+      organisationId: orgId,
+      userId,
+      details: {
+        streamId,
+        streamName: 'Studio Camera',
+        reason: 'manual',
+      },
+      organisation: null,
+    });
+  });
+
+  it('should map live_stream.failed to LiveStreamFailed audit entry with null userId', () => {
+    const streamId = '990e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditLiveStreamEvent(streamId, orgId, null, {
+      streamId,
+      streamName: 'Studio Camera',
+      reason: 'source_disconnected',
+      exitCode: 1,
+    });
+
+    listener.handleLiveStreamFailed(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.LiveStreamFailed,
+      resourceType: 'live-stream',
+      resourceId: streamId,
+      organisationId: orgId,
+      userId: null,
+      details: {
+        streamId,
+        streamName: 'Studio Camera',
+        reason: 'source_disconnected',
+        exitCode: 1,
+      },
+      organisation: null,
+    });
+  });
+
+  // ── Bulk Content Events ──────────────────────────────────────────────
+
+  it('should map content.bulk_deleted to ContentBulkDeleted audit entry', () => {
+    const event = new AuditContentEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 5,
+      filename: 'old.mp4',
+    });
+
+    listener.handleContentBulkDeleted(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.ContentBulkDeleted,
+      resourceType: 'content',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 5, filename: 'old.mp4' },
+      organisation: null,
+    });
+  });
+
+  it('should map content.bulk_tagged to ContentBulkTagged audit entry', () => {
+    const event = new AuditContentEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 3,
+      tags: ['promo', 'summer'],
+    });
+
+    listener.handleContentBulkTagged(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.ContentBulkTagged,
+      resourceType: 'content',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 3, tags: ['promo', 'summer'] },
+      organisation: null,
+    });
+  });
+
+  it('should map content.bulk_untagged to ContentBulkUntagged audit entry', () => {
+    const event = new AuditContentEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 4,
+      tags: ['outdated'],
+    });
+
+    listener.handleContentBulkUntagged(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.ContentBulkUntagged,
+      resourceType: 'content',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 4, tags: ['outdated'] },
+      organisation: null,
+    });
+  });
+
+  it('should map content.bulk_added_to_playlist to ContentBulkAddedToPlaylist audit entry', () => {
+    const playlistId = '880e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditContentEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 10,
+      playlistId,
+    });
+
+    listener.handleContentBulkAddedToPlaylist(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.ContentBulkAddedToPlaylist,
+      resourceType: 'content',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 10, playlistId },
+      organisation: null,
+    });
+  });
+
+  // ── Bulk Screen Events ──────────────────────────────────────────────
+
+  it('should map screen.bulk_deleted to ScreenBulkDeleted audit entry', () => {
+    const event = new AuditScreenEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 8,
+    });
+
+    listener.handleScreenBulkDeleted(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.ScreenBulkDeleted,
+      resourceType: 'screen',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 8 },
+      organisation: null,
+    });
+  });
+
+  it('should map screen.bulk_group_assigned to ScreenBulkGroupAssigned audit entry', () => {
+    const groupId = '880e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditScreenEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 6,
+      groupId,
+    });
+
+    listener.handleScreenBulkGroupAssigned(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.ScreenBulkGroupAssigned,
+      resourceType: 'screen',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 6, groupId },
+      organisation: null,
+    });
+  });
+
+  // ── Bulk Playlist Events ────────────────────────────────────────────
+
+  it('should map playlist.bulk_deleted to PlaylistBulkDeleted audit entry', () => {
+    const event = new AuditPlaylistEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 3,
+    });
+
+    listener.handlePlaylistBulkDeleted(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.PlaylistBulkDeleted,
+      resourceType: 'playlist',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 3 },
+      organisation: null,
+    });
+  });
+
+  it('should map playlist.bulk_screen_assigned to PlaylistBulkScreenAssigned audit entry', () => {
+    const screenId = '880e8400-e29b-41d4-a716-446655440000';
+    const event = new AuditPlaylistEvent(resourceId, orgId, userId, {
+      bulkOperationSize: 5,
+      screenId,
+    });
+
+    listener.handlePlaylistBulkScreenAssigned(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.PlaylistBulkScreenAssigned,
+      resourceType: 'playlist',
+      resourceId,
+      organisationId: orgId,
+      userId,
+      details: { bulkOperationSize: 5, screenId },
       organisation: null,
     });
   });

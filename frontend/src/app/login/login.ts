@@ -2,12 +2,14 @@ import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
   inject,
-  OnInit,
   OnDestroy,
+  OnInit,
 } from '@angular/core';
 import { Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { register } from '@teamhanko/hanko-elements';
 import { environment } from '../../environments/environment';
+import { AuthService } from '../auth/auth.service';
 
 @Component({
   selector: 'app-login',
@@ -17,27 +19,23 @@ import { environment } from '../../environments/environment';
 })
 export class Login implements OnInit, OnDestroy {
   private router = inject(Router);
+  private authService = inject(AuthService);
   private hankoApiUrl = environment.hankoApiUrl;
+  private subscription?: Subscription;
 
   ngOnInit(): void {
     register(this.hankoApiUrl).catch((error) =>
-      console.error('Failed to register Hanko elements:', error)
+      console.error('Failed to register Hanko elements:', error),
     );
 
-    document.addEventListener(
-      'hankoAuthFlowCompleted',
-      this.redirectAfterLogin
-    );
+    this.subscription = this.authService.currentUser$.subscribe((user) => {
+      if (user) {
+        this.router.navigate(['/']);
+      }
+    });
   }
 
   ngOnDestroy(): void {
-    document.removeEventListener(
-      'hankoAuthFlowCompleted',
-      this.redirectAfterLogin
-    );
+    this.subscription?.unsubscribe();
   }
-
-  private redirectAfterLogin = () => {
-    this.router.navigate(['/']);
-  };
 }

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Signage - postMessage Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        h1 { color: #333; }
+
+        .info-box {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .info-box h2 {
+            margin-top: 0;
+            color: #4A90E2;
+        }
+
+        .form-group {
+            margin: 15px 0;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        button {
+            background: #4A90E2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+
+        button:hover { background: #357ABD; }
+
+        #log {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f9f9f9;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .log-entry { margin-bottom: 4px; }
+        .log-sent { color: #2e7d32; }
+        .log-received { color: #1565c0; }
+        .log-error { color: #b00020; }
+
+        iframe {
+            width: 100%;
+            height: 300px;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Digital Signage - postMessage Test</h1>
+    <p>This page simulates the LG app's postMessage flow for testing in a browser.</p>
+
+    <div class="info-box">
+        <h2>1. Configuration</h2>
+        <div class="form-group">
+            <label for="testServerUrl">Server URL:</label>
+            <input type="url" id="testServerUrl" placeholder="http://localhost:3000" value="http://localhost:3000">
+        </div>
+        <div class="form-group">
+            <label for="testApiKey">API Key:</label>
+            <input type="text" id="testApiKey" placeholder="test-api-key">
+        </div>
+        <div class="form-group">
+            <label for="testPlayerUrl">Player URL (iframe src):</label>
+            <input type="url" id="testPlayerUrl" placeholder="http://localhost:4200" value="http://localhost:4200">
+        </div>
+    </div>
+
+    <div class="info-box">
+        <h2>2. Test</h2>
+        <button onclick="loadIframe()">Load Player in iframe</button>
+        <button onclick="sendPostMessage()">Send postMessage</button>
+        <iframe id="testFrame" style="display:none;"></iframe>
+    </div>
+
+    <div class="info-box">
+        <h2>3. Log</h2>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        var logEl = document.getElementById('log');
+
+        function addLog(message, className) {
+            var entry = document.createElement('div');
+            entry.className = 'log-entry ' + (className || '');
+            entry.textContent = new Date().toLocaleTimeString() + ' ' + message;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function loadIframe() {
+            var playerUrl = document.getElementById('testPlayerUrl').value.trim();
+            if (!playerUrl) {
+                addLog('ERROR: Player URL is required', 'log-error');
+                return;
+            }
+            var iframe = document.getElementById('testFrame');
+            iframe.style.display = 'block';
+            iframe.src = playerUrl;
+            addLog('Loading iframe: ' + playerUrl);
+
+            iframe.onload = function() {
+                addLog('iframe loaded successfully');
+            };
+            iframe.onerror = function() {
+                addLog('ERROR: iframe failed to load', 'log-error');
+            };
+        }
+
+        function sendPostMessage() {
+            var serverUrl = document.getElementById('testServerUrl').value.trim();
+            var apiKey = document.getElementById('testApiKey').value.trim();
+
+            if (!serverUrl || !apiKey) {
+                addLog('ERROR: Server URL and API Key are required', 'log-error');
+                return;
+            }
+
+            var iframe = document.getElementById('testFrame');
+            if (!iframe.src) {
+                addLog('ERROR: Load the iframe first', 'log-error');
+                return;
+            }
+
+            var message = {
+                type: 'signage-connect',
+                serverUrl: serverUrl,
+                apiKey: apiKey
+            };
+
+            iframe.contentWindow.postMessage(message, '*');
+            addLog('Sent postMessage: ' + JSON.stringify(message), 'log-sent');
+        }
+
+        // Listen for any messages back from the iframe (for debugging)
+        window.addEventListener('message', function(event) {
+            addLog('Received message from iframe: ' + JSON.stringify(event.data), 'log-received');
+        });
+
+        addLog('Test page ready. Load the player iframe, then send a postMessage.');
+    </script>
+</body>
+</html>

@@ -14,7 +14,7 @@ import { ScreenService } from '../screens/screen.service';
 import { ContentService } from '../content/content.service';
 import { ScheduleService } from '../schedules/schedule.service';
 import { OrganisationStateService } from '../shell/organisation-state.service';
-import { DashboardSocketService } from './dashboard-socket.service';
+import { DashboardSseService } from './dashboard-sse.service';
 import { Screen } from '../screens/screen.model';
 import { StorageInfo } from '../content/content.model';
 import { ScheduleEntry } from '../schedules/schedule.model';
@@ -208,6 +208,7 @@ interface TimelineEntry {
       border: 1px solid var(--color-border);
       border-radius: 8px;
       overflow: hidden;
+      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
     }
     .card-header {
       display: flex;
@@ -446,7 +447,7 @@ export class Dashboard implements OnInit, OnDestroy {
   private contentService = inject(ContentService);
   private scheduleService = inject(ScheduleService);
   private orgState = inject(OrganisationStateService);
-  private socketService = inject(DashboardSocketService);
+  private socketService = inject(DashboardSseService);
 
   private subscriptions: Subscription[] = [];
 
@@ -493,12 +494,12 @@ export class Dashboard implements OnInit, OnDestroy {
     const screenMap = new Map<string, { name: string; entries: ScheduleEntry[] }>();
 
     for (const entry of entries) {
-      const screenName = entry.screen?.name ?? 'Unknown';
-      const screenId = entry.screenId;
-      if (!screenMap.has(screenId)) {
-        screenMap.set(screenId, { name: screenName, entries: [] });
+      const screenName = entry.screen?.name ?? entry.group?.name ?? 'Unknown';
+      const targetId = entry.screenId ?? entry.groupId ?? 'unknown';
+      if (!screenMap.has(targetId)) {
+        screenMap.set(targetId, { name: screenName, entries: [] });
       }
-      screenMap.get(screenId)!.entries.push(entry);
+      screenMap.get(targetId)!.entries.push(entry);
     }
 
     const startMs = this.timelineStart.getTime();
@@ -540,7 +541,6 @@ export class Dashboard implements OnInit, OnDestroy {
     const orgId = this.orgState.selectedOrgId();
     if (orgId) {
       this.loadData(orgId);
-      this.socketService.connect();
     }
   });
 
@@ -576,7 +576,6 @@ export class Dashboard implements OnInit, OnDestroy {
     for (const sub of this.subscriptions) {
       sub.unsubscribe();
     }
-    this.socketService.disconnect();
   }
 
   private loadData(orgId: string): void {

@@ -1,0 +1,16 @@
+[Unit]
+Description=Signage Redis
+After=signage-network.service
+
+[Container]
+ContainerName=signage-redis
+Image=localhost/signage-redis:latest
+Pull=never
+Network=signage.network
+Volume=signage-redis-data:/data:Z
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

@@ -1,5 +1,6 @@
 import { ScreenStateService } from './screen-state.service';
 import { ScreenService } from './screen.service';
+import { ScheduleBoundaryService } from './schedule-boundary.service';
 import { ScreenState, ScreenEvent, ScreenEventType } from '../screen-protocol';
 import type { ScreenProtocolAdapter } from '../screen-protocol';
 import { Screen } from './screen.entity';
@@ -7,13 +8,25 @@ import { Organisation } from '../organisation/organisation.entity';
 import { ScreenStateChangeEvent } from './screen-state.event';
 import { ScheduleEntryChangedEvent, ScheduleService } from '../schedule';
 import { Playlist } from '../playlist/playlist.entity';
+import { PlaylistItem } from '../playlist/playlist-item.entity';
+import { TransitionType } from '../playlist/transition-type.enum';
+import { Content } from '../content/content.entity';
 import { firstValueFrom, take } from 'rxjs';
+import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 
 describe('ScreenStateService', () => {
   let service: ScreenStateService;
   let screenService: { findOne: jest.Mock };
   let protocolAdapter: jest.Mocked<ScreenProtocolAdapter>;
   let scheduleService: { getCurrentPlaylist: jest.Mock };
+  let scheduleBoundaryService: {
+    registerScreen: jest.Mock;
+    unregisterScreen: jest.Mock;
+  };
+  let screenGroupRepository: { findOne: jest.Mock };
+  let playlistRepository: { findOne: jest.Mock };
+  let activationRepository: { findOne: jest.Mock };
+  let slicedRenditionRepository: { findOne: jest.Mock };
 
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
   const screenId = '770e8400-e29b-41d4-a716-446655440000';
@@ -31,6 +44,19 @@ describe('ScreenStateService', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     organisation: {} as Organisation,
+    groupId: null,
+    group: null,
+    gridRow: null,
+    gridColumn: null,
+  };
+
+  const mockPlaylistItem: Partial<PlaylistItem> = {
+    contentId: 'content-1',
+    durationSeconds: 30,
+    position: 0,
+    transition: TransitionType.SlideLeft,
+    transitionDurationMs: 1000,
+    content: { type: 'video' } as Content,
   };
 
   const mockPlaylist: Playlist = {
@@ -41,6 +67,11 @@ describe('ScreenStateService', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     organisation: {} as Organisation,
+  } as Playlist;
+
+  const mockPlaylistWithItems: Playlist = {
+    ...mockPlaylist,
+    items: [mockPlaylistItem as PlaylistItem],
   } as Playlist;
 
   beforeEach(() => {
@@ -70,10 +101,36 @@ describe('ScreenStateService', () => {
       }),
     };
 
+    scheduleBoundaryService = {
+      registerScreen: jest.fn().mockResolvedValue(undefined),
+      unregisterScreen: jest.fn(),
+    };
+
+    screenGroupRepository = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
+    playlistRepository = {
+      findOne: jest.fn().mockResolvedValue(mockPlaylist),
+    };
+
+    activationRepository = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
+    slicedRenditionRepository = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
     service = new ScreenStateService(
       screenService as unknown as ScreenService,
       protocolAdapter,
       scheduleService as unknown as ScheduleService,
+      scheduleBoundaryService as unknown as ScheduleBoundaryService,
+      screenGroupRepository as any,
+      playlistRepository as any,
+      activationRepository as any,
+      slicedRenditionRepository as any,
     );
   });
 
@@ -93,10 +150,93 @@ describe('ScreenStateService', () => {
         organisationId: orgId,
         resolution: '1920x1080',
         location: 'Stage Left',
+        groupId: null,
+        gridRow: null,
+        gridColumn: null,
       });
     });
 
+    it('should return currentPlaylist when a scheduled playlist is active', async () => {
+      const state = await service.assembleState(orgId, screenId);
+      expect(state.currentPlaylist).toEqual({
+        id: playlistId,
+        name: 'Morning Playlist',
+        items: [],
+      });
+      expect(state.fallbackPlaylist).toBeNull();
+    });
+
+    it('should map transition fields from playlist items to protocol model', async () => {
+      playlistRepository.findOne.mockResolvedValue(mockPlaylistWithItems);
+      const state = await service.assembleState(orgId, screenId);
+      const items = state.currentPlaylist!.items;
+      expect(items).toHaveLength(1);
+      expect(items[0].transition).toBe('slide-left');
+      expect(items[0].transitionDurationMs).toBe(1000);
+    });
+
+    it('should use Content.durationSeconds for video items when available', async () => {
+      const playlistWithVideoDuration = {
+        ...mockPlaylist,
+        items: [
+          {
+            contentId: 'content-1',
+            durationSeconds: 30,
+            position: 0,
+            transition: TransitionType.Fade,
+            transitionDurationMs: 500,
+            content: { type: 'video', durationSeconds: 58 } as Content,
+          } as PlaylistItem,
+        ],
+      } as Playlist;
+      playlistRepository.findOne.mockResolvedValue(playlistWithVideoDuration);
+      const state = await service.assembleState(orgId, screenId);
+      expect(state.currentPlaylist!.items[0].duration).toBe(58);
+    });
+
+    it('should fall back to item.durationSeconds for video when Content.durationSeconds is null', async () => {
+      const playlistWithNullDuration = {
+        ...mockPlaylist,
+        items: [
+          {
+            contentId: 'content-1',
+            durationSeconds: 30,
+            position: 0,
+            transition: TransitionType.Fade,
+            transitionDurationMs: 500,
+            content: { type: 'video', durationSeconds: null } as Content,
+          } as PlaylistItem,
+        ],
+      } as Playlist;
+      playlistRepository.findOne.mockResolvedValue(playlistWithNullDuration);
+      const state = await service.assembleState(orgId, screenId);
+      expect(state.currentPlaylist!.items[0].duration).toBe(30);
+    });
+
+    it('should use item.durationSeconds for image items regardless of Content.durationSeconds', async () => {
+      const playlistWithImage = {
+        ...mockPlaylist,
+        items: [
+          {
+            contentId: 'content-1',
+            durationSeconds: 15,
+            position: 0,
+            transition: TransitionType.Fade,
+            transitionDurationMs: 500,
+            content: { type: 'image', durationSeconds: null } as Content,
+          } as PlaylistItem,
+        ],
+      } as Playlist;
+      playlistRepository.findOne.mockResolvedValue(playlistWithImage);
+      const state = await service.assembleState(orgId, screenId);
+      expect(state.currentPlaylist!.items[0].duration).toBe(15);
+    });
+
     it('should return null for currentPlaylist when no playlists exist', async () => {
+      scheduleService.getCurrentPlaylist.mockResolvedValue({
+        playlist: null,
+        isDefault: true,
+      });
       const state = await service.assembleState(orgId, screenId);
       expect(state.currentPlaylist).toBeNull();
     });
@@ -111,9 +251,109 @@ describe('ScreenStateService', () => {
       expect(state.activeLiveStream).toBeNull();
     });
 
+    it('should return fallbackPlaylist when default playlist is configured', async () => {
+      scheduleService.getCurrentPlaylist.mockResolvedValue({
+        playlist: mockPlaylist,
+        isDefault: true,
+      });
+      const state = await service.assembleState(orgId, screenId);
+      expect(state.currentPlaylist).toBeNull();
+      expect(state.fallbackPlaylist).toEqual({
+        id: playlistId,
+        name: 'Morning Playlist',
+        items: [],
+      });
+    });
+
     it('should return null for fallbackPlaylist when none configured', async () => {
+      scheduleService.getCurrentPlaylist.mockResolvedValue({
+        playlist: null,
+        isDefault: true,
+      });
       const state = await service.assembleState(orgId, screenId);
       expect(state.fallbackPlaylist).toBeNull();
+    });
+
+    describe('split-mode URL substitution', () => {
+      const groupId = 'group-001';
+
+      const splitScreen: Screen = {
+        ...mockScreen,
+        groupId,
+        gridRow: 0,
+        gridColumn: 1,
+      };
+
+      beforeEach(() => {
+        screenService.findOne.mockResolvedValue(splitScreen);
+        screenGroupRepository.findOne.mockResolvedValue({
+          id: groupId,
+          name: 'Video Wall',
+          mode: ScreenGroupMode.Split,
+          gridRows: 1,
+          gridColumns: 2,
+        });
+        playlistRepository.findOne.mockResolvedValue(mockPlaylistWithItems);
+      });
+
+      it('should substitute sliced rendition URL when rendition exists', async () => {
+        slicedRenditionRepository.findOne.mockResolvedValue({
+          id: 'rendition-1',
+          filePath: '/data/slices/group-001/screen-001/content-1.mp4',
+        });
+
+        const state = await service.assembleState(orgId, screenId);
+        expect(state.currentPlaylist!.items[0].contentUrl).toBe(
+          `/api/media/slices/${groupId}/${screenId}/content-1`,
+        );
+      });
+
+      it('should fall back to empty contentUrl when no rendition exists yet', async () => {
+        slicedRenditionRepository.findOne.mockResolvedValue(null);
+
+        const state = await service.assembleState(orgId, screenId);
+        expect(state.currentPlaylist!.items[0].contentUrl).toBe('');
+      });
+
+      it('should not query sliced renditions for mirror-mode groups', async () => {
+        screenGroupRepository.findOne.mockResolvedValue({
+          id: groupId,
+          name: 'Mirror Wall',
+          mode: ScreenGroupMode.Mirror,
+          gridRows: null,
+          gridColumns: null,
+        });
+
+        const state = await service.assembleState(orgId, screenId);
+        expect(slicedRenditionRepository.findOne).not.toHaveBeenCalled();
+        expect(state.currentPlaylist!.items[0].contentUrl).toBe('');
+      });
+
+      it('should not query sliced renditions for ungrouped screens', async () => {
+        screenService.findOne.mockResolvedValue(mockScreen);
+        screenGroupRepository.findOne.mockResolvedValue(null);
+        playlistRepository.findOne.mockResolvedValue(mockPlaylistWithItems);
+
+        const state = await service.assembleState(orgId, screenId);
+        expect(slicedRenditionRepository.findOne).not.toHaveBeenCalled();
+        expect(state.currentPlaylist!.items[0].contentUrl).toBe('');
+      });
+
+      it('should substitute URLs in fallback playlist for split-mode', async () => {
+        scheduleService.getCurrentPlaylist.mockResolvedValue({
+          playlist: mockPlaylist,
+          isDefault: true,
+        });
+        slicedRenditionRepository.findOne.mockResolvedValue({
+          id: 'rendition-2',
+          filePath: '/data/slices/group-001/screen-001/content-1.mp4',
+        });
+
+        const state = await service.assembleState(orgId, screenId);
+        expect(state.fallbackPlaylist!.items[0].contentUrl).toBe(
+          `/api/media/slices/${groupId}/${screenId}/content-1`,
+        );
+      });
     });
   });
 
@@ -131,8 +371,15 @@ describe('ScreenStateService', () => {
           organisationId: orgId,
           resolution: '1920x1080',
           location: 'Stage Left',
+          groupId: null,
+          gridRow: null,
+          gridColumn: null,
         },
-        currentPlaylist: null,
+        currentPlaylist: {
+          id: playlistId,
+          name: 'Morning Playlist',
+          items: [],
+        },
         schedule: [],
         fallbackPlaylist: null,
         liveStream: null,

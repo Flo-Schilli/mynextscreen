@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   Query,
+  Req,
   Res,
   UploadedFile,
   UseInterceptors,
@@ -21,7 +22,13 @@ import * as path from 'path';
 import { ContentService } from './content.service';
 import { UploadContentDto } from './dto/upload-content.dto';
 import { UpdateContentDto } from './dto/update-content.dto';
+import { BulkDeleteContentDto } from './dto/bulk-delete-content.dto';
+import { BulkTagContentDto } from './dto/bulk-tag-content.dto';
+import { BulkUntagContentDto } from './dto/bulk-untag-content.dto';
+import { BulkAddToPlaylistDto } from './dto/bulk-add-to-playlist.dto';
 import { Roles } from '../auth/roles.decorator';
+import { Public } from '../auth/public.decorator';
+import { AuthenticatedRequest } from '../auth';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { Content } from './content.entity';
@@ -51,6 +58,65 @@ export class ContentController {
     @Body() dto: UploadContentDto,
   ): Promise<Content> {
     return this.contentService.upload(organisationId, file, dto);
+  }
+
+  @Post('bulk-delete')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
+  bulkDelete(
+    @CurrentOrganisation() organisationId: string,
+    @Body() dto: BulkDeleteContentDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ deleted: number; notFound: string[] }> {
+    return this.contentService.bulkDelete(
+      organisationId,
+      dto.ids,
+      req.user.userId,
+    );
+  }
+
+  @Post('bulk-tag')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
+  bulkTag(
+    @CurrentOrganisation() organisationId: string,
+    @Body() dto: BulkTagContentDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ updated: number; notFound: string[] }> {
+    return this.contentService.bulkTag(
+      organisationId,
+      dto.ids,
+      dto.tags,
+      req.user.userId,
+    );
+  }
+
+  @Post('bulk-untag')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
+  bulkUntag(
+    @CurrentOrganisation() organisationId: string,
+    @Body() dto: BulkUntagContentDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ updated: number; notFound: string[] }> {
+    return this.contentService.bulkUntag(
+      organisationId,
+      dto.ids,
+      dto.tags,
+      req.user.userId,
+    );
+  }
+
+  @Post('bulk-add-to-playlist')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
+  bulkAddToPlaylist(
+    @CurrentOrganisation() organisationId: string,
+    @Body() dto: BulkAddToPlaylistDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ added: number; alreadyPresent: number; notFound: string[] }> {
+    return this.contentService.bulkAddToPlaylist(
+      organisationId,
+      dto.ids,
+      dto.playlistId,
+      req.user.userId,
+    );
   }
 
   @Get()

@@ -14,6 +14,9 @@ describe('ScreenState', () => {
     organisationId: '660e8400-e29b-41d4-a716-446655440000',
     resolution: '1920x1080',
     location: 'Main Lobby',
+    groupId: null,
+    gridRow: null,
+    gridColumn: null,
   };
 
   const playlistItem: PlaylistItem = {
@@ -22,6 +25,8 @@ describe('ScreenState', () => {
     duration: 30,
     type: 'video',
     order: 0,
+    transition: 'fade',
+    transitionDurationMs: 500,
   };
 
   const playlist: Playlist = {

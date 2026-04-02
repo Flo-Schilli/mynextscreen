@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Queue } from 'bullmq';
-import { Repository, FindOptionsWhere } from 'typeorm';
+import { Repository, FindOptionsWhere, In } from 'typeorm';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { Content } from './content.entity';
@@ -16,14 +16,25 @@ import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
 import { getOriginalPath, getTranscodedPath } from './content-storage.util';
 import { StorageService } from '../organisation/storage.service';
+import { Playlist } from '../playlist/playlist.entity';
+import { PlaylistItem } from '../playlist/playlist-item.entity';
+import { ffprobeDuration } from './ffprobe-duration.util';
 import { UploadContentDto } from './dto/upload-content.dto';
 import { UpdateContentDto } from './dto/update-content.dto';
 import {
   AUDIT_CONTENT_UPLOADED,
   AUDIT_CONTENT_DELETED,
   AUDIT_CONTENT_REUPLOADED,
+  AUDIT_CONTENT_BULK_DELETED,
+  AUDIT_CONTENT_BULK_TAGGED,
+  AUDIT_CONTENT_BULK_UNTAGGED,
+  AUDIT_CONTENT_BULK_ADDED_TO_PLAYLIST,
   AuditContentEvent,
 } from '../audit-log/audit.events';
+import {
+  CONTENT_DURATION_RESOLVED,
+  ContentDurationResolvedEvent,
+} from './content.event';
 
 const IMAGE_MIME_PREFIX = 'image/';
 const VIDEO_MIME_PREFIX = 'video/';
@@ -32,10 +43,15 @@ const VIDEO_MIME_PREFIX = 'video/';
 export class ContentService {
   private readonly mediaBasePath: string;
   private readonly maxFileSizeBytes: number;
+  private readonly ffprobePath: string;
 
   constructor(
     @InjectRepository(Content)
     private readonly contentRepository: Repository<Content>,
+    @InjectRepository(Playlist)
+    private readonly playlistRepository: Repository<Playlist>,
+    @InjectRepository(PlaylistItem)
+    private readonly playlistItemRepository: Repository<PlaylistItem>,
     @InjectQueue('transcoding')
     private readonly transcodingQueue: Queue,
     private readonly configService: ConfigService,
@@ -50,6 +66,8 @@ export class ContentService {
       'MAX_FILE_SIZE_BYTES',
       104857600, // 100 MB default
     );
+    const ffmpegPath = this.configService.get<string>('FFMPEG_PATH', 'ffmpeg');
+    this.ffprobePath = ffmpegPath.replace(/ffmpeg/, 'ffprobe');
   }
 
   async upload(
@@ -147,6 +165,38 @@ export class ContentService {
       );
     }
     return content;
+  }
+
+  async ensureDuration(content: Content): Promise<number | null> {
+    if (content.type !== ContentType.Video) {
+      return null;
+    }
+
+    if (content.durationSeconds != null) {
+      return content.durationSeconds;
+    }
+
+    const transcodedPath = getTranscodedPath(
+      this.mediaBasePath,
+      content.organisationId,
+      content.id,
+      'mp4',
+    );
+
+    try {
+      const duration = await ffprobeDuration(transcodedPath, this.ffprobePath);
+      content.durationSeconds = duration;
+      await this.contentRepository.update(content.id, {
+        durationSeconds: duration,
+      });
+      this.eventEmitter.emit(
+        CONTENT_DURATION_RESOLVED,
+        new ContentDurationResolvedEvent(content.id, duration),
+      );
+      return duration;
+    } catch {
+      return null;
+    }
   }
 
   async updateMetadata(
@@ -284,6 +334,7 @@ export class ContentService {
     content.originalSizeBytes = file.size;
     content.type = type;
     content.transcodedSizeBytes = null;
+    content.durationSeconds = null;
     content.transcodingStatus = TranscodingStatus.Pending;
     content.transcodingError = null;
     const saved = await this.contentRepository.save(content);
@@ -307,6 +358,302 @@ export class ContentService {
     );
 
     return saved;
+  }
+
+  async bulkDelete(
+    organisationId: string,
+    ids: string[],
+    userId: string | null,
+  ): Promise<{ deleted: number; notFound: string[] }> {
+    const contents = await this.contentRepository.find({
+      where: { id: In(ids), organisationId },
+    });
+
+    const foundIds = new Set(contents.map((c) => c.id));
+    const notFound: string[] = [];
+    const foreignIds: string[] = [];
+
+    for (const id of ids) {
+      if (!foundIds.has(id)) {
+        const exists = await this.contentRepository.findOne({
+          where: { id } as FindOptionsWhere<Content>,
+        });
+        if (exists) {
+          foreignIds.push(id);
+        } else {
+          notFound.push(id);
+        }
+      }
+    }
+
+    if (foreignIds.length > 0) {
+      throw new BadRequestException({
+        message: 'Some IDs belong to a different organisation',
+        foreignIds,
+      });
+    }
+
+    for (const content of contents) {
+      const ext =
+        path.extname(content.originalFilename).replace('.', '') || 'bin';
+      const originalPath = getOriginalPath(
+        this.mediaBasePath,
+        organisationId,
+        content.id,
+        ext,
+      );
+      await this.unlinkSafe(originalPath);
+
+      const transcodedExt = content.type === ContentType.Video ? 'mp4' : 'webp';
+      const transcodedPath = getTranscodedPath(
+        this.mediaBasePath,
+        organisationId,
+        content.id,
+        transcodedExt,
+      );
+      await this.unlinkSafe(transcodedPath);
+
+      await this.storageService.subtractOriginalUsage(
+        organisationId,
+        Number(content.originalSizeBytes),
+      );
+      if (content.transcodedSizeBytes) {
+        await this.storageService.subtractTranscodedUsage(
+          organisationId,
+          Number(content.transcodedSizeBytes),
+        );
+      }
+    }
+
+    if (contents.length > 0) {
+      await this.contentRepository.remove(contents);
+    }
+
+    const bulkOperationSize = ids.length;
+    for (const content of contents) {
+      this.eventEmitter.emit(
+        AUDIT_CONTENT_BULK_DELETED,
+        new AuditContentEvent(content.id, organisationId, userId, {
+          bulkOperationSize,
+          filename: content.originalFilename,
+        }),
+      );
+    }
+
+    return { deleted: contents.length, notFound };
+  }
+
+  async bulkTag(
+    organisationId: string,
+    ids: string[],
+    tags: string[],
+    userId: string | null,
+  ): Promise<{ updated: number; notFound: string[] }> {
+    const contents = await this.contentRepository.find({
+      where: { id: In(ids), organisationId },
+    });
+
+    const foundIds = new Set(contents.map((c) => c.id));
+    const notFound: string[] = [];
+    const foreignIds: string[] = [];
+
+    for (const id of ids) {
+      if (!foundIds.has(id)) {
+        const exists = await this.contentRepository.findOne({
+          where: { id } as FindOptionsWhere<Content>,
+        });
+        if (exists) {
+          foreignIds.push(id);
+        } else {
+          notFound.push(id);
+        }
+      }
+    }
+
+    if (foreignIds.length > 0) {
+      throw new BadRequestException({
+        message: 'Some IDs belong to a different organisation',
+        foreignIds,
+      });
+    }
+
+    for (const content of contents) {
+      const existingTags = new Set(content.tags);
+      for (const tag of tags) {
+        existingTags.add(tag);
+      }
+      content.tags = [...existingTags];
+    }
+
+    if (contents.length > 0) {
+      await this.contentRepository.save(contents);
+    }
+
+    const bulkOperationSize = ids.length;
+    for (const content of contents) {
+      this.eventEmitter.emit(
+        AUDIT_CONTENT_BULK_TAGGED,
+        new AuditContentEvent(content.id, organisationId, userId, {
+          bulkOperationSize,
+          tags,
+        }),
+      );
+    }
+
+    return { updated: contents.length, notFound };
+  }
+
+  async bulkUntag(
+    organisationId: string,
+    ids: string[],
+    tags: string[],
+    userId: string | null,
+  ): Promise<{ updated: number; notFound: string[] }> {
+    const contents = await this.contentRepository.find({
+      where: { id: In(ids), organisationId },
+    });
+
+    const foundIds = new Set(contents.map((c) => c.id));
+    const notFound: string[] = [];
+    const foreignIds: string[] = [];
+
+    for (const id of ids) {
+      if (!foundIds.has(id)) {
+        const exists = await this.contentRepository.findOne({
+          where: { id } as FindOptionsWhere<Content>,
+        });
+        if (exists) {
+          foreignIds.push(id);
+        } else {
+          notFound.push(id);
+        }
+      }
+    }
+
+    if (foreignIds.length > 0) {
+      throw new BadRequestException({
+        message: 'Some IDs belong to a different organisation',
+        foreignIds,
+      });
+    }
+
+    const tagsToRemove = new Set(tags);
+    for (const content of contents) {
+      content.tags = content.tags.filter((t) => !tagsToRemove.has(t));
+    }
+
+    if (contents.length > 0) {
+      await this.contentRepository.save(contents);
+    }
+
+    const bulkOperationSize = ids.length;
+    for (const content of contents) {
+      this.eventEmitter.emit(
+        AUDIT_CONTENT_BULK_UNTAGGED,
+        new AuditContentEvent(content.id, organisationId, userId, {
+          bulkOperationSize,
+          tags,
+        }),
+      );
+    }
+
+    return { updated: contents.length, notFound };
+  }
+
+  async bulkAddToPlaylist(
+    organisationId: string,
+    ids: string[],
+    playlistId: string,
+    userId: string | null,
+  ): Promise<{ added: number; alreadyPresent: number; notFound: string[] }> {
+    // Verify playlist exists and belongs to org
+    const playlist = await this.playlistRepository.findOne({
+      where: { id: playlistId, organisationId },
+    });
+    if (!playlist) {
+      throw new BadRequestException(
+        `Playlist with id "${playlistId}" not found in organisation "${organisationId}"`,
+      );
+    }
+
+    const contents = await this.contentRepository.find({
+      where: { id: In(ids), organisationId },
+    });
+
+    const foundIds = new Set(contents.map((c) => c.id));
+    const notFound: string[] = [];
+    const foreignIds: string[] = [];
+
+    for (const id of ids) {
+      if (!foundIds.has(id)) {
+        const exists = await this.contentRepository.findOne({
+          where: { id } as FindOptionsWhere<Content>,
+        });
+        if (exists) {
+          foreignIds.push(id);
+        } else {
+          notFound.push(id);
+        }
+      }
+    }
+
+    if (foreignIds.length > 0) {
+      throw new BadRequestException({
+        message: 'Some IDs belong to a different organisation',
+        foreignIds,
+      });
+    }
+
+    // Get existing playlist items to deduplicate
+    const existingItems = await this.playlistItemRepository.find({
+      where: { playlistId },
+    });
+    const existingContentIds = new Set(existingItems.map((i) => i.contentId));
+
+    // Find max position
+    let maxPosition = -1;
+    for (const item of existingItems) {
+      if (item.position > maxPosition) {
+        maxPosition = item.position;
+      }
+    }
+
+    let added = 0;
+    let alreadyPresent = 0;
+    const bulkOperationSize = ids.length;
+
+    // Iterate in the order of the ids array to preserve selection order
+    for (const id of ids) {
+      if (!foundIds.has(id)) continue;
+
+      if (existingContentIds.has(id)) {
+        alreadyPresent++;
+        continue;
+      }
+
+      // Avoid adding the same content twice within this batch
+      existingContentIds.add(id);
+      maxPosition++;
+
+      const item = this.playlistItemRepository.create({
+        playlistId,
+        contentId: id,
+        position: maxPosition,
+        durationSeconds: 10, // default duration
+      });
+      await this.playlistItemRepository.save(item);
+      added++;
+
+      this.eventEmitter.emit(
+        AUDIT_CONTENT_BULK_ADDED_TO_PLAYLIST,
+        new AuditContentEvent(id, organisationId, userId, {
+          bulkOperationSize,
+          playlistId,
+        }),
+      );
+    }
+
+    return { added, alreadyPresent, notFound };
   }
 
   private validateFile(file: Express.Multer.File): void {

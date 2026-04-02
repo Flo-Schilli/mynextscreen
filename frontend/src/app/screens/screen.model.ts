@@ -6,6 +6,9 @@ export interface Screen {
   location: string;
   isOnline: boolean;
   lastHeartbeat: string | null;
+  groupId: string | null;
+  gridRow: number | null;
+  gridColumn: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -25,4 +28,14 @@ export interface UpdateScreenRequest {
 export interface ScreenWithApiKey {
   screen: Screen;
   apiKey: string;
+}
+
+export interface BulkDeleteResponse {
+  deleted: number;
+  notFound: string[];
+}
+
+export interface BulkAssignGroupResponse {
+  updated: number;
+  notFound: string[];
 }

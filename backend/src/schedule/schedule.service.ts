@@ -2,20 +2,27 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
+import { Queue } from 'bullmq';
 import { ScheduleEntry } from './schedule-entry.entity';
 import { Organisation } from '../organisation/organisation.entity';
 import { Screen } from '../screen/screen.entity';
 import { Playlist } from '../playlist/playlist.entity';
+import { ScreenGroup } from '../screen-group/screen-group.entity';
+import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { CreateScheduleEntryDto } from './dto/create-schedule-entry.dto';
 import { UpdateScheduleEntryDto } from './dto/update-schedule-entry.dto';
 import { getOccurrences, DateRange } from './rrule.util';
 import {
   SCHEDULE_ENTRY_CHANGED,
   ScheduleEntryChangedEvent,
+  GROUP_SCHEDULE_CHANGED,
+  GroupScheduleChangedEvent,
 } from './schedule.event';
 import {
   AUDIT_SCHEDULE_CREATED,
@@ -23,6 +30,8 @@ import {
   AUDIT_SCHEDULE_DELETED,
   AuditScheduleEvent,
 } from '../audit-log/audit.events';
+import { SLICE_CONTENT_QUEUE } from '../slice-content';
+import { SliceContentJobData } from '../slice-content/slice-content.processor';
 
 const OVERLAP_WINDOW_DAYS = 365;
 
@@ -37,6 +46,10 @@ export class ScheduleService {
     private readonly screenRepository: Repository<Screen>,
     @InjectRepository(Playlist)
     private readonly playlistRepository: Repository<Playlist>,
+    @InjectRepository(ScreenGroup)
+    private readonly screenGroupRepository: Repository<ScreenGroup>,
+    @InjectQueue(SLICE_CONTENT_QUEUE)
+    private readonly sliceContentQueue: Queue<SliceContentJobData>,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -44,24 +57,34 @@ export class ScheduleService {
     organisationId: string,
     dto: CreateScheduleEntryDto,
   ): Promise<ScheduleEntry> {
-    await this.validateScreen(dto.screenId, organisationId);
+    this.validateTarget(dto.screenId, dto.groupId);
+
+    if (dto.screenId) {
+      await this.validateScreen(dto.screenId, organisationId);
+    }
+    if (dto.groupId) {
+      await this.validateGroup(dto.groupId, organisationId);
+    }
     await this.validatePlaylist(dto.playlistId, organisationId);
 
     const startTime = new Date(dto.startTime);
     const endTime = new Date(dto.endTime);
 
-    await this.checkOverlap(
-      dto.screenId,
-      organisationId,
-      startTime,
-      endTime,
-      dto.rrule ?? null,
-      null,
-    );
+    if (dto.screenId) {
+      await this.checkOverlap(
+        dto.screenId,
+        organisationId,
+        startTime,
+        endTime,
+        dto.rrule ?? null,
+        null,
+      );
+    }
 
     const entry = this.scheduleEntryRepository.create({
       organisationId,
-      screenId: dto.screenId,
+      screenId: dto.screenId ?? null,
+      groupId: dto.groupId ?? null,
       playlistId: dto.playlistId,
       startTime,
       endTime,
@@ -70,14 +93,23 @@ export class ScheduleService {
     });
 
     const saved = await this.scheduleEntryRepository.save(entry);
-    this.emitScheduleChanged(dto.screenId, organisationId);
+    if (saved.screenId) {
+      this.emitScheduleChanged(saved.screenId, organisationId);
+    }
+    if (saved.groupId) {
+      this.emitGroupScheduleChanged(saved.groupId, organisationId, saved.playlistId);
+    }
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_CREATED,
       new AuditScheduleEvent(saved.id, organisationId, null, {
-        screenId: dto.screenId,
+        screenId: dto.screenId ?? null,
+        groupId: dto.groupId ?? null,
         playlistId: dto.playlistId,
       }),
     );
+
+    await this.enqueueSliceJobIfNeeded(saved);
+
     return saved;
   }
 
@@ -96,7 +128,7 @@ export class ScheduleService {
       await this.validatePlaylist(dto.playlistId, organisationId);
     }
 
-    if (dto.startTime || dto.endTime || dto.rrule !== undefined) {
+    if (entry.screenId && (dto.startTime || dto.endTime || dto.rrule !== undefined)) {
       await this.checkOverlap(
         entry.screenId,
         organisationId,
@@ -114,24 +146,39 @@ export class ScheduleService {
     if (dto.colour !== undefined) entry.colour = dto.colour;
 
     const saved = await this.scheduleEntryRepository.save(entry);
-    this.emitScheduleChanged(entry.screenId, organisationId);
+    if (entry.screenId) {
+      this.emitScheduleChanged(entry.screenId, organisationId);
+    }
+    if (saved.groupId) {
+      this.emitGroupScheduleChanged(saved.groupId, organisationId, saved.playlistId);
+    }
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_UPDATED,
       new AuditScheduleEvent(saved.id, organisationId, null, {
         screenId: entry.screenId,
       }),
     );
+
+    await this.enqueueSliceJobIfNeeded(saved);
+
     return saved;
   }
 
   async delete(id: string, organisationId: string): Promise<void> {
     const entry = await this.findOneOrFail(id, organisationId);
     const screenId = entry.screenId;
+    const groupId = entry.groupId;
+    const playlistId = entry.playlistId;
     await this.scheduleEntryRepository.remove(entry);
-    this.emitScheduleChanged(screenId, organisationId);
+    if (screenId) {
+      this.emitScheduleChanged(screenId, organisationId);
+    }
+    if (groupId) {
+      this.emitGroupScheduleChanged(groupId, organisationId, playlistId);
+    }
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_DELETED,
-      new AuditScheduleEvent(id, organisationId, null, { screenId }),
+      new AuditScheduleEvent(id, organisationId, null, { screenId, groupId }),
     );
   }
 
@@ -160,7 +207,7 @@ export class ScheduleService {
       where: {
         organisationId,
       },
-      relations: ['playlist', 'screen'],
+      relations: ['playlist', 'screen', 'group'],
       order: { startTime: 'ASC' },
     });
   }
@@ -170,13 +217,13 @@ export class ScheduleService {
   ): Promise<{ playlist: Playlist | null; isDefault: boolean }> {
     const now = new Date();
 
-    // Find all entries for this screen
+    // Find all direct entries for this screen
     const entries = await this.scheduleEntryRepository.find({
       where: { screenId },
       relations: ['playlist'],
     });
 
-    // Check if any entry is currently active
+    // Check if any direct entry is currently active
     for (const entry of entries) {
       const occurrences = getOccurrences(
         entry.startTime,
@@ -193,19 +240,37 @@ export class ScheduleService {
       }
     }
 
-    // Fallback: get the organisation's default playlist
-    if (entries.length > 0) {
-      const firstEntry = entries[0];
-      return this.getFallbackPlaylist(firstEntry.organisationId);
-    }
-
-    // No entries at all — need screen's organisationId
+    // No direct schedule active — check group schedule as fallback
     const screen = await this.screenRepository.findOne({
       where: { id: screenId },
     });
     if (!screen) {
       return { playlist: null, isDefault: false };
     }
+
+    if (screen.groupId) {
+      const groupEntries = await this.scheduleEntryRepository.find({
+        where: { groupId: screen.groupId },
+        relations: ['playlist'],
+      });
+
+      for (const entry of groupEntries) {
+        const occurrences = getOccurrences(
+          entry.startTime,
+          entry.endTime,
+          entry.rrule,
+          new Date(now.getTime() - 24 * 60 * 60 * 1000),
+          new Date(now.getTime() + 24 * 60 * 60 * 1000),
+        );
+
+        for (const occ of occurrences) {
+          if (occ.start <= now && occ.end > now) {
+            return { playlist: entry.playlist, isDefault: false };
+          }
+        }
+      }
+    }
+
     return this.getFallbackPlaylist(screen.organisationId);
   }
 
@@ -282,6 +347,36 @@ export class ScheduleService {
     return entry;
   }
 
+  private validateTarget(
+    screenId?: string,
+    groupId?: string,
+  ): void {
+    if (screenId && groupId) {
+      throw new BadRequestException(
+        'Exactly one of screenId or groupId must be set, not both',
+      );
+    }
+    if (!screenId && !groupId) {
+      throw new BadRequestException(
+        'Exactly one of screenId or groupId must be set',
+      );
+    }
+  }
+
+  private async validateGroup(
+    groupId: string,
+    organisationId: string,
+  ): Promise<void> {
+    const group = await this.screenGroupRepository.findOne({
+      where: { id: groupId, organisationId },
+    });
+    if (!group) {
+      throw new NotFoundException(
+        `Screen group with id "${groupId}" not found in organisation "${organisationId}"`,
+      );
+    }
+  }
+
   private async validateScreen(
     screenId: string,
     organisationId: string,
@@ -330,5 +425,33 @@ export class ScheduleService {
       SCHEDULE_ENTRY_CHANGED,
       new ScheduleEntryChangedEvent(screenId, organisationId),
     );
+  }
+
+  private emitGroupScheduleChanged(
+    groupId: string,
+    organisationId: string,
+    playlistId: string,
+  ): void {
+    this.eventEmitter.emit(
+      GROUP_SCHEDULE_CHANGED,
+      new GroupScheduleChangedEvent(groupId, organisationId, playlistId),
+    );
+  }
+
+  private async enqueueSliceJobIfNeeded(entry: ScheduleEntry): Promise<void> {
+    if (!entry.groupId) return;
+
+    const group = await this.screenGroupRepository.findOne({
+      where: { id: entry.groupId },
+    });
+
+    if (!group || group.mode !== ScreenGroupMode.Split) return;
+
+    await this.sliceContentQueue.add('slice', {
+      groupId: entry.groupId,
+      scheduleId: entry.id,
+      playlistId: entry.playlistId,
+      organisationId: entry.organisationId,
+    });
   }
 }

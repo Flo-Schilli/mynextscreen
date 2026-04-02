@@ -5,6 +5,7 @@ export {
 export { ScreenState } from './screen-state.model';
 export type {
   ScreenInfo,
+  GroupInfo,
   Playlist,
   PlaylistItem,
   ScheduleEntry,
@@ -13,3 +14,4 @@ export type {
 export { ScreenEvent } from './screen-event.model';
 export { ScreenEventType } from './screen-event-type.enum';
 export type { ScreenProtocolAdapter } from './screen-protocol-adapter.interface';
+

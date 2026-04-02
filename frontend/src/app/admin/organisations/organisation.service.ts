@@ -1,7 +1,14 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { Organisation, CreateOrganisationDto, UpdateOrganisationDto } from './organisation.model';
+import {
+  Organisation,
+  CreateOrganisationDto,
+  UpdateOrganisationDto,
+  OrgMember,
+  AddOrgMemberRequest,
+  UpdateOrgMemberRoleRequest,
+} from './organisation.model';
 
 @Injectable({ providedIn: 'root' })
 export class OrganisationService {
@@ -22,5 +29,21 @@ export class OrganisationService {
 
   update(id: string, dto: UpdateOrganisationDto): Observable<Organisation> {
     return this.http.patch<Organisation>(`${this.baseUrl}/${id}`, dto);
+  }
+
+  listMembers(orgId: string): Observable<OrgMember[]> {
+    return this.http.get<OrgMember[]>(`${this.baseUrl}/${orgId}/members`);
+  }
+
+  addMember(orgId: string, dto: AddOrgMemberRequest): Observable<OrgMember> {
+    return this.http.post<OrgMember>(`${this.baseUrl}/${orgId}/members`, dto);
+  }
+
+  updateMemberRole(orgId: string, userId: string, dto: UpdateOrgMemberRoleRequest): Observable<OrgMember> {
+    return this.http.patch<OrgMember>(`${this.baseUrl}/${orgId}/members/${userId}`, dto);
+  }
+
+  removeMember(orgId: string, userId: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${orgId}/members/${userId}`);
   }
 }

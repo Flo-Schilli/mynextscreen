@@ -23,19 +23,22 @@
     "@teamhanko/hanko-elements": "^2.5.0",
     "postcss": "^8.5.8",
     "rxjs": "~7.8.0",
-    "socket.io-client": "^4.8.3",
     "tailwindcss": "^4.2.2",
     "tslib": "^2.3.0"
   },
   "devDependencies": {
+    "@analogjs/vitest-angular": "^2.3.1",
     "@angular/build": "^21.2.5",
     "@angular/cli": "^21.2.5",
     "@angular/compiler-cli": "^21.2.0",
     "@eslint/js": "^10.0.1",
     "angular-eslint": "21.3.1",
     "eslint": "^10.0.3",
+    "jsdom": "^29.0.1",
     "prettier": "^3.8.1",
     "typescript": "~5.9.2",
-    "typescript-eslint": "8.56.1"
+    "typescript-eslint": "8.56.1",
+    "vitest": "^4.1.2",
+    "zone.js": "^0.16.1"
   }
 }

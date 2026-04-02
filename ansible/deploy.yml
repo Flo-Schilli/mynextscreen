@@ -1,0 +1,327 @@
+---
+# Signage Server — Full Deployment Playbook
+# Usage: ansible-playbook -i hosts.ini deploy.yml -K
+#
+# Required variables (set in hosts.ini, group_vars, or -e):
+#   domain_name:    Base domain (e.g., signage.example.com)
+#   hanko_api_host: Hanko API hostname (e.g., your-project.hanko.io)
+#   service_user:   Linux user that runs Podman (default: signage)
+
+# ═══════════════════════════════════════════════════════════════
+# Play 1 — Build Docker images locally
+# ═══════════════════════════════════════════════════════════════
+- name: Build Docker images locally
+  hosts: local
+  gather_facts: false
+  vars:
+    project_root: "{{ playbook_dir }}/.."
+    build_dir: "{{ playbook_dir }}/build"
+    images:
+      - name: signage-backend
+        context: "{{ project_root }}/backend"
+        dockerfile: Dockerfile.prod
+      - name: signage-frontend
+        context: "{{ project_root }}/frontend"
+        dockerfile: Dockerfile.prod
+      - name: signage-player
+        context: "{{ project_root }}/player"
+        dockerfile: Dockerfile.prod
+
+  tasks:
+    - name: Create local build directory
+      ansible.builtin.file:
+        path: "{{ build_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Build Docker images
+      ansible.builtin.command:
+        cmd: >
+          docker build
+          -f {{ item.dockerfile }}
+          -t {{ item.name }}:latest
+          .
+        chdir: "{{ item.context }}"
+      loop: "{{ images }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Save images as tarballs
+      ansible.builtin.command:
+        cmd: docker save -o {{ build_dir }}/{{ item.name }}.tar {{ item.name }}:latest
+      loop: "{{ images }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+# ═══════════════════════════════════════════════════════════════
+# Play 2 — Server setup and deploy
+# ═══════════════════════════════════════════════════════════════
+- name: Deploy to server
+  hosts: servers
+  become: true
+  vars:
+    service_user: signage
+    service_user_home: "/home/{{ service_user }}"
+    quadlet_dir: "{{ service_user_home }}/.config/containers/systemd"
+    app_dirs:
+      - "{{ service_user_home }}/app"
+      - "{{ service_user_home }}/app/data"
+      - "{{ service_user_home }}/app/media"
+      - "{{ service_user_home }}/app/backups"
+    build_dir: "{{ playbook_dir }}/build"
+    images:
+      - signage-backend
+      - signage-frontend
+      - signage-player
+    services:
+      - signage-redis
+      - signage-backend
+      - signage-frontend
+      - signage-player
+
+  tasks:
+    # ─── System packages ──────────────────────────────────────
+    - name: Install required packages
+      ansible.builtin.dnf:
+        name:
+          - podman
+          - firewalld
+          - caddy
+          - fail2ban
+          - sqlite
+          - acl
+          - net-tools
+        state: present
+
+    - name: Ensure firewalld is running
+      ansible.builtin.systemd:
+        name: firewalld
+        state: started
+        enabled: true
+
+    - name: Open firewall ports for HTTP/HTTPS
+      ansible.posix.firewalld:
+        service: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      loop:
+        - http
+        - https
+
+    # ─── Service user ─────────────────────────────────────────
+    - name: Create service user
+      ansible.builtin.user:
+        name: "{{ service_user }}"
+        shell: /bin/bash
+        create_home: true
+        state: present
+
+    - name: Enable linger for service user
+      ansible.builtin.command:
+        cmd: loginctl enable-linger {{ service_user }}
+      changed_when: true
+
+    # ─── Directory structure ──────────────────────────────────
+    - name: Create application directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
+        mode: "0755"
+      loop: "{{ app_dirs }}"
+
+    - name: Create Quadlet directory
+      ansible.builtin.file:
+        path: "{{ quadlet_dir }}"
+        state: directory
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
+        mode: "0755"
+
+    - name: Create Caddy log directory
+      ansible.builtin.file:
+        path: /var/log/caddy
+        state: directory
+        owner: caddy
+        group: caddy
+        mode: "0755"
+
+    # ─── Database backup ──────────────────────────────────────
+    - name: Check if SQLite database exists
+      ansible.builtin.stat:
+        path: "{{ service_user_home }}/app/data/signage.db"
+      register: db_file
+
+    - name: Backup existing database
+      ansible.builtin.copy:
+        src: "{{ service_user_home }}/app/data/signage.db"
+        dest: "{{ service_user_home }}/app/backups/signage_{{ ansible_date_time.iso8601_basic_short }}.db"
+        remote_src: true
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
+        mode: "0644"
+      when: db_file.stat.exists
+
+    # ─── Quadlet files and env ────────────────────────────────
+    - name: Copy Quadlet files
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/quadlets/{{ item }}"
+        dest: "{{ quadlet_dir }}/{{ item }}"
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
+        mode: "0644"
+      loop:
+        - signage.network
+        - signage-redis.container
+        - signage-backend.container
+        - signage-frontend.container
+        - signage-player.container
+
+    - name: Copy environment file
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/quadlets/.env.signage"
+        dest: "{{ quadlet_dir }}/.env.signage"
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
+        mode: "0600"
+
+    # ─── Container images ─────────────────────────────────────
+    - name: Copy image tarballs to server
+      ansible.builtin.copy:
+        src: "{{ build_dir }}/{{ item }}.tar"
+        dest: "/tmp/{{ item }}.tar"
+        mode: "0644"
+      loop: "{{ images }}"
+
+    - name: Load images into Podman
+      ansible.builtin.command:
+        cmd: podman load -i /tmp/{{ item }}.tar
+      become: true
+      become_user: "{{ service_user }}"
+      loop: "{{ images }}"
+
+    - name: Tag images with localhost prefix
+      ansible.builtin.command:
+        cmd: podman tag {{ item }}:latest localhost/{{ item }}:latest
+      become: true
+      become_user: "{{ service_user }}"
+      loop: "{{ images }}"
+      # tag may already exist — ignore errors from identical tags
+      failed_when: false
+
+    - name: Pull Redis image
+      ansible.builtin.command:
+        cmd: podman pull docker.io/library/redis:7-alpine
+      become: true
+      become_user: "{{ service_user }}"
+
+    - name: Tag Redis image for Quadlet
+      ansible.builtin.command:
+        cmd: podman tag docker.io/library/redis:7-alpine localhost/signage-redis:latest
+      become: true
+      become_user: "{{ service_user }}"
+
+    - name: Clean up tarballs from server
+      ansible.builtin.file:
+        path: "/tmp/{{ item }}.tar"
+        state: absent
+      loop: "{{ images }}"
+
+    # ─── Caddy configuration ─────────────────────────────────
+    - name: Generate Caddyfile
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/templates/Caddyfile.j2"
+        dest: /etc/caddy/Caddyfile
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload Caddy
+
+    # ─── Fail2ban ─────────────────────────────────────────────
+    - name: Deploy fail2ban filter for Caddy
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/templates/fail2ban-caddy-filter.conf.j2"
+        dest: /etc/fail2ban/filter.d/caddy-auth.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart fail2ban
+
+    - name: Deploy fail2ban jail for Caddy
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/templates/fail2ban-caddy-jail.conf.j2"
+        dest: /etc/fail2ban/jail.d/caddy-auth.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart fail2ban
+
+    # ─── Start services ───────────────────────────────────────
+    - name: Get service user UID
+      ansible.builtin.command:
+        cmd: id -u {{ service_user }}
+      register: uid_result
+      changed_when: false
+
+    - name: Set service user UID fact
+      ansible.builtin.set_fact:
+        service_user_uid: "{{ uid_result.stdout }}"
+
+    - name: Reload systemd user daemon
+      ansible.builtin.command:
+        cmd: systemctl --user daemon-reload
+      become: true
+      become_user: "{{ service_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ service_user_uid }}"
+        DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ service_user_uid }}/bus"
+
+    - name: Restart Podman services in order
+      ansible.builtin.command:
+        cmd: systemctl --user restart {{ item }}
+      become: true
+      become_user: "{{ service_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ service_user_uid }}"
+        DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ service_user_uid }}/bus"
+      loop: "{{ services }}"
+
+    - name: Enable Caddy
+      ansible.builtin.systemd:
+        name: caddy
+        state: started
+        enabled: true
+
+    - name: Enable fail2ban
+      ansible.builtin.systemd:
+        name: fail2ban
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Reload Caddy
+      ansible.builtin.systemd:
+        name: caddy
+        state: reloaded
+
+    - name: Restart fail2ban
+      ansible.builtin.systemd:
+        name: fail2ban
+        state: restarted
+
+# ═══════════════════════════════════════════════════════════════
+# Play 3 — Cleanup local build artifacts
+# ═══════════════════════════════════════════════════════════════
+- name: Cleanup local build artifacts
+  hosts: local
+  gather_facts: false
+  vars:
+    build_dir: "{{ playbook_dir }}/build"
+
+  tasks:
+    - name: Remove local tarball directory
+      ansible.builtin.file:
+        path: "{{ build_dir }}"
+        state: absent

@@ -5,6 +5,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import { ROLES_KEY } from './roles.decorator';
 import { IS_PUBLIC_KEY } from './public.decorator';
 import { IS_SCREEN_AUTH_KEY } from './screen-auth.decorator';
@@ -16,6 +17,7 @@ export class RolesGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly userService: UserService,
+    private readonly configService: ConfigService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -50,6 +52,20 @@ export class RolesGuard implements CanActivate {
     const user = request.user;
     if (!user?.userId) {
       throw new ForbiddenException('Access denied');
+    }
+
+    // Super-admins bypass role checks
+    const superAdminIds = this.configService.get<string>(
+      'SUPER_ADMIN_USER_IDS',
+      '',
+    );
+    const allowedIds = superAdminIds
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    if (allowedIds.includes(user.userId)) {
+      await this.userService.findOrCreate(user.userId, user.email);
+      return true;
     }
 
     // Extract organisationId from header or query param

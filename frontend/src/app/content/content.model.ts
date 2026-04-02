@@ -11,6 +11,7 @@ export interface Content {
   transcodedSizeBytes: number | null;
   transcodingStatus: 'pending' | 'processing' | 'completed' | 'failed';
   transcodingError: string | null;
+  durationSeconds: number | null;
   createdAt: string;
   updatedAt: string;
 }

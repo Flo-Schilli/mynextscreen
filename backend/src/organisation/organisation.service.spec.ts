@@ -1,9 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { OrganisationService } from './organisation.service';
 import { Organisation } from './organisation.entity';
 import { Playlist } from '../playlist/playlist.entity';
+import { User } from '../user/user.entity';
+import { UserOrganisationMembership } from '../user/user-organisation-membership.entity';
 
 describe('OrganisationService', () => {
   let service: OrganisationService;
@@ -49,6 +52,18 @@ describe('OrganisationService', () => {
         {
           provide: getRepositoryToken(Playlist),
           useValue: playlistRepository,
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: { findOne: jest.fn(), create: jest.fn(), save: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(UserOrganisationMembership),
+          useValue: { create: jest.fn(), save: jest.fn() },
+        },
+        {
+          provide: EventEmitter2,
+          useValue: { emit: jest.fn() },
         },
       ],
     }).compile();

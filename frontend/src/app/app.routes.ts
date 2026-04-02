@@ -17,12 +17,28 @@ export const routes: Routes = [
         loadComponent: () => import('./admin/organisations/organisations').then(m => m.Organisations),
       },
       {
+        path: 'settings/user',
+        loadComponent: () => import('./settings/user/user-settings').then(m => m.UserSettings),
+      },
+      {
         path: 'settings/users',
         loadComponent: () => import('./settings/users/users').then(m => m.Users),
       },
       {
+        path: 'settings/org/notifications',
+        loadComponent: () => import('./settings/org/org-notification-config').then(m => m.OrgNotificationConfig),
+      },
+      {
         path: 'screens',
         loadComponent: () => import('./screens/screens').then(m => m.Screens),
+      },
+      {
+        path: 'screen-groups',
+        loadComponent: () => import('./screen-groups/screen-groups').then(m => m.ScreenGroups),
+      },
+      {
+        path: 'screen-groups/:id',
+        loadComponent: () => import('./screen-groups/screen-group-detail').then(m => m.ScreenGroupDetail),
       },
       {
         path: 'content',
@@ -35,6 +51,10 @@ export const routes: Routes = [
       {
         path: 'schedules',
         loadComponent: () => import('./schedules/schedules').then(m => m.Schedules),
+      },
+      {
+        path: 'live-streams',
+        loadComponent: () => import('./live-streams/live-streams').then(m => m.LiveStreams),
       },
       {
         path: 'audit-log',

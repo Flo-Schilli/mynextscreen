@@ -1,0 +1,15 @@
+{
+  "id": "com.cbf.webos",
+  "version": "1.0.0",
+  "vendor": "Digital Signage",
+  "type": "web",
+  "main": "index.html",
+  "title": "Digital Signage",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "resolution": "1920x1080",
+  "requiredMemory": 30,
+  "requiredPermissions": [
+    "device.info"
+  ]
+}

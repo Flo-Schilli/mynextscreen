@@ -68,16 +68,21 @@ export class JwtAuthGuard implements CanActivate {
 
   private extractToken(request: {
     headers: Record<string, string>;
+    query?: Record<string, string>;
   }): string | null {
     const authorization = request.headers['authorization'];
-    if (!authorization) {
-      return null;
+    if (authorization) {
+      const [scheme, token] = authorization.split(' ');
+      if (scheme === 'Bearer' && token) {
+        return token;
+      }
     }
-    const [scheme, token] = authorization.split(' ');
-    if (scheme !== 'Bearer' || !token) {
-      return null;
+    // Fallback: token query param (for media URLs in img/video src)
+    const queryToken = request.query?.['token'];
+    if (queryToken) {
+      return queryToken;
     }
-    return token;
+    return null;
   }
 
   private getJwks(): ReturnType<typeof createRemoteJWKSet> {
@@ -92,9 +97,17 @@ export class JwtAuthGuard implements CanActivate {
   }
 
   private extractUser(payload: JWTPayload): AuthenticatedUser {
+    const rawEmail = payload.email;
+    let email = '';
+    if (typeof rawEmail === 'string') {
+      email = rawEmail;
+    } else if (rawEmail && typeof rawEmail === 'object' && 'address' in rawEmail) {
+      email = (rawEmail as { address: string }).address;
+    }
+
     return {
       userId: payload.sub ?? '',
-      email: (payload.email as string) ?? '',
+      email,
     };
   }
 }

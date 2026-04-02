@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { LessThan, Repository } from 'typeorm';
+import { FindOptionsWhere, In, LessThan, Repository } from 'typeorm';
 import { OrganisationScopedService } from '../organisation/organisation-scope.service';
 import { Screen } from './screen.entity';
 import { CreateScreenDto } from './dto/create-screen.dto';
@@ -16,6 +16,8 @@ import {
   AUDIT_SCREEN_UPDATED,
   AUDIT_SCREEN_KEY_REGENERATED,
   AUDIT_SCREEN_ONLINE,
+  AUDIT_SCREEN_BULK_DELETED,
+  AUDIT_SCREEN_BULK_GROUP_ASSIGNED,
   AuditScreenEvent,
 } from '../audit-log/audit.events';
 
@@ -115,6 +117,122 @@ export class ScreenService extends OrganisationScopedService<Screen> {
     }
 
     return saved;
+  }
+
+  /**
+   * Bulk delete screens by IDs, scoped to the given organisation.
+   * Validates that all IDs belong to the organisation (400 on foreign IDs).
+   * Emits one audit event per deleted screen.
+   */
+  async bulkDelete(
+    organisationId: string,
+    ids: string[],
+    userId: string | null,
+  ): Promise<{ deleted: number; notFound: string[] }> {
+    const screens = await this.repository.find({
+      where: { id: In(ids), organisationId },
+    });
+
+    const foundIds = new Set(screens.map((s) => s.id));
+    const notFound: string[] = [];
+    const foreignIds: string[] = [];
+
+    for (const id of ids) {
+      if (!foundIds.has(id)) {
+        // Check if the screen exists in another org
+        const exists = await this.repository.findOne({
+          where: { id } as FindOptionsWhere<Screen>,
+        });
+        if (exists) {
+          foreignIds.push(id);
+        } else {
+          notFound.push(id);
+        }
+      }
+    }
+
+    if (foreignIds.length > 0) {
+      throw new BadRequestException({
+        message: 'Some IDs belong to a different organisation',
+        foreignIds,
+      });
+    }
+
+    if (screens.length > 0) {
+      await this.repository.remove(screens);
+    }
+
+    const bulkOperationSize = ids.length;
+    for (const screen of screens) {
+      this.eventEmitter.emit(
+        AUDIT_SCREEN_BULK_DELETED,
+        new AuditScreenEvent(screen.id, organisationId, userId, {
+          bulkOperationSize,
+        }),
+      );
+    }
+
+    return { deleted: screens.length, notFound };
+  }
+
+  /**
+   * Bulk assign screens to a group (or remove from group if groupId is null).
+   * Validates that all IDs belong to the organisation (400 on foreign IDs).
+   * Emits one audit event per updated screen.
+   */
+  async bulkAssignGroup(
+    organisationId: string,
+    ids: string[],
+    groupId: string | null,
+    userId: string | null,
+  ): Promise<{ updated: number; notFound: string[] }> {
+    const screens = await this.repository.find({
+      where: { id: In(ids), organisationId },
+    });
+
+    const foundIds = new Set(screens.map((s) => s.id));
+    const notFound: string[] = [];
+    const foreignIds: string[] = [];
+
+    for (const id of ids) {
+      if (!foundIds.has(id)) {
+        const exists = await this.repository.findOne({
+          where: { id } as FindOptionsWhere<Screen>,
+        });
+        if (exists) {
+          foreignIds.push(id);
+        } else {
+          notFound.push(id);
+        }
+      }
+    }
+
+    if (foreignIds.length > 0) {
+      throw new BadRequestException({
+        message: 'Some IDs belong to a different organisation',
+        foreignIds,
+      });
+    }
+
+    if (screens.length > 0) {
+      await this.repository.update(
+        screens.map((s) => s.id),
+        { groupId },
+      );
+    }
+
+    const bulkOperationSize = ids.length;
+    for (const screen of screens) {
+      this.eventEmitter.emit(
+        AUDIT_SCREEN_BULK_GROUP_ASSIGNED,
+        new AuditScreenEvent(screen.id, organisationId, userId, {
+          bulkOperationSize,
+          groupId,
+        }),
+      );
+    }
+
+    return { updated: screens.length, notFound };
   }
 
   /**

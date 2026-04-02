@@ -4,6 +4,8 @@ export interface PlaylistItem {
   duration: number;
   type: string;
   order: number;
+  transition: string;
+  transitionDurationMs: number;
 }
 
 export interface Playlist {
@@ -32,6 +34,17 @@ export interface ScreenInfo {
   organisationId: string;
   resolution: string;
   location: string;
+  groupId: string | null;
+  gridRow: number | null;
+  gridColumn: number | null;
+}
+
+export interface GroupInfo {
+  id: string;
+  name: string;
+  mode: 'mirror' | 'split';
+  gridRows: number | null;
+  gridColumns: number | null;
 }
 
 export class ScreenState {
@@ -41,5 +54,6 @@ export class ScreenState {
     public readonly scheduleEntries: ScheduleEntry[],
     public readonly activeLiveStream: LiveStream | null,
     public readonly fallbackPlaylist: Playlist | null,
+    public readonly group: GroupInfo | null = null,
   ) {}
 }

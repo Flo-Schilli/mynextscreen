@@ -5,20 +5,30 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Repository } from 'typeorm';
+import { OnEvent } from '@nestjs/event-emitter';
+import { FindOptionsWhere, In, Not, Repository } from 'typeorm';
 import { Playlist } from './playlist.entity';
 import { PlaylistItem } from './playlist-item.entity';
 import { Organisation } from '../organisation/organisation.entity';
 import { Content } from '../content/content.entity';
 import { ContentType } from '../content/content-type.enum';
+import { Screen } from '../screen/screen.entity';
+import { ScheduleEntry } from '../schedule/schedule-entry.entity';
 import { CreatePlaylistDto } from './dto/create-playlist.dto';
 import { UpdatePlaylistDto } from './dto/update-playlist.dto';
 import { AddPlaylistItemDto } from './dto/add-playlist-item.dto';
+import { UpdatePlaylistItemDto } from './dto/update-playlist-item.dto';
 import { PLAYLIST_UPDATED, PlaylistUpdatedEvent } from './playlist.event';
+import {
+  CONTENT_DURATION_RESOLVED,
+  ContentDurationResolvedEvent,
+} from '../content/content.event';
 import {
   AUDIT_PLAYLIST_CREATED,
   AUDIT_PLAYLIST_UPDATED,
   AUDIT_PLAYLIST_DELETED,
+  AUDIT_PLAYLIST_BULK_DELETED,
+  AUDIT_PLAYLIST_BULK_SCREEN_ASSIGNED,
   AuditPlaylistEvent,
 } from '../audit-log/audit.events';
 
@@ -33,6 +43,10 @@ export class PlaylistService {
     private readonly organisationRepository: Repository<Organisation>,
     @InjectRepository(Content)
     private readonly contentRepository: Repository<Content>,
+    @InjectRepository(Screen)
+    private readonly screenRepository: Repository<Screen>,
+    @InjectRepository(ScheduleEntry)
+    private readonly scheduleEntryRepository: Repository<ScheduleEntry>,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -124,14 +138,60 @@ export class PlaylistService {
       position = maxItem ? maxItem.position + 1 : 0;
     }
 
+    // Determine duration: for videos, prefer Content.durationSeconds; for images, default to 10
+    let durationSeconds: number;
+    if (content.type === ContentType.Video && content.durationSeconds != null) {
+      durationSeconds = content.durationSeconds;
+    } else if (dto.durationSeconds != null) {
+      durationSeconds = dto.durationSeconds;
+    } else {
+      durationSeconds = content.type === ContentType.Video ? 30 : 10;
+    }
+
     const item = this.playlistItemRepository.create({
       playlistId: playlist.id,
       contentId: dto.contentId,
-      durationSeconds: dto.durationSeconds,
+      durationSeconds,
       position,
+      ...(dto.transition !== undefined && { transition: dto.transition }),
+      ...(dto.transitionDurationMs !== undefined && {
+        transitionDurationMs: dto.transitionDurationMs,
+      }),
     });
     const saved = await this.playlistItemRepository.save(item);
     this.emitPlaylistChanged(id, organisationId);
+    return saved;
+  }
+
+  async updateItem(
+    playlistId: string,
+    itemId: string,
+    organisationId: string,
+    dto: UpdatePlaylistItemDto,
+  ): Promise<PlaylistItem> {
+    await this.findOne(playlistId, organisationId);
+
+    const item = await this.playlistItemRepository.findOne({
+      where: { id: itemId, playlistId },
+    });
+    if (!item) {
+      throw new NotFoundException(
+        `Playlist item with id "${itemId}" not found in playlist "${playlistId}"`,
+      );
+    }
+
+    if (dto.transition !== undefined) {
+      item.transition = dto.transition;
+    }
+    if (dto.transitionDurationMs !== undefined) {
+      item.transitionDurationMs = dto.transitionDurationMs;
+    }
+    if (dto.durationSeconds !== undefined) {
+      item.durationSeconds = dto.durationSeconds;
+    }
+
+    const saved = await this.playlistItemRepository.save(item);
+    this.emitPlaylistChanged(playlistId, organisationId);
     return saved;
   }
 
@@ -222,23 +282,192 @@ export class PlaylistService {
     );
   }
 
+  /**
+   * Bulk delete playlists by IDs, scoped to the given organisation.
+   * Validates that all IDs belong to the organisation (400 on foreign IDs).
+   * Clears defaultPlaylistId on the org if any deleted playlist was the default.
+   * Emits one audit event per deleted playlist.
+   */
+  async bulkDelete(
+    organisationId: string,
+    ids: string[],
+    userId: string | null,
+  ): Promise<{ deleted: number; notFound: string[] }> {
+    const playlists = await this.playlistRepository.find({
+      where: { id: In(ids), organisationId },
+    });
+
+    const foundIds = new Set(playlists.map((p) => p.id));
+    const notFound: string[] = [];
+    const foreignIds: string[] = [];
+
+    for (const id of ids) {
+      if (!foundIds.has(id)) {
+        const exists = await this.playlistRepository.findOne({
+          where: { id } as FindOptionsWhere<Playlist>,
+        });
+        if (exists) {
+          foreignIds.push(id);
+        } else {
+          notFound.push(id);
+        }
+      }
+    }
+
+    if (foreignIds.length > 0) {
+      throw new BadRequestException({
+        message: 'Some IDs belong to a different organisation',
+        foreignIds,
+      });
+    }
+
+    if (playlists.length > 0) {
+      // Clear defaultPlaylistId on the org if any deleted playlist was the default
+      const org = await this.organisationRepository.findOneBy({
+        id: organisationId,
+      });
+      if (org && org.defaultPlaylistId && foundIds.has(org.defaultPlaylistId)) {
+        org.defaultPlaylistId = null;
+        await this.organisationRepository.save(org);
+      }
+
+      await this.playlistRepository.remove(playlists);
+    }
+
+    const bulkOperationSize = ids.length;
+    for (const playlist of playlists) {
+      this.eventEmitter.emit(
+        AUDIT_PLAYLIST_BULK_DELETED,
+        new AuditPlaylistEvent(playlist.id, organisationId, userId, {
+          bulkOperationSize,
+        }),
+      );
+    }
+
+    return { deleted: playlists.length, notFound };
+  }
+
+  /**
+   * Bulk assign playlists to a screen by creating schedule entries.
+   * Validates that all playlist IDs and the screen belong to the organisation.
+   * Creates one schedule entry per playlist for the given screen.
+   * Emits one audit event per assigned playlist.
+   */
+  async bulkAssignScreen(
+    organisationId: string,
+    ids: string[],
+    screenId: string,
+    userId: string | null,
+  ): Promise<{ assigned: number; notFound: string[] }> {
+    // Validate the screen belongs to the organisation
+    const screen = await this.screenRepository.findOne({
+      where: { id: screenId, organisationId },
+    });
+    if (!screen) {
+      // Check if screen exists in another org
+      const existsElsewhere = await this.screenRepository.findOne({
+        where: { id: screenId } as FindOptionsWhere<Screen>,
+      });
+      if (existsElsewhere) {
+        throw new BadRequestException({
+          message: 'Screen belongs to a different organisation',
+          foreignIds: [screenId],
+        });
+      }
+      throw new NotFoundException(`Screen with id "${screenId}" not found`);
+    }
+
+    const playlists = await this.playlistRepository.find({
+      where: { id: In(ids), organisationId },
+    });
+
+    const foundIds = new Set(playlists.map((p) => p.id));
+    const notFound: string[] = [];
+    const foreignIds: string[] = [];
+
+    for (const id of ids) {
+      if (!foundIds.has(id)) {
+        const exists = await this.playlistRepository.findOne({
+          where: { id } as FindOptionsWhere<Playlist>,
+        });
+        if (exists) {
+          foreignIds.push(id);
+        } else {
+          notFound.push(id);
+        }
+      }
+    }
+
+    if (foreignIds.length > 0) {
+      throw new BadRequestException({
+        message: 'Some IDs belong to a different organisation',
+        foreignIds,
+      });
+    }
+
+    // Create schedule entries for each playlist on the screen
+    const now = new Date();
+    const farFuture = new Date('2099-12-31T23:59:59.000Z');
+    const defaultColour = '#4A90D9';
+
+    for (const playlist of playlists) {
+      const entry = this.scheduleEntryRepository.create({
+        organisationId,
+        screenId,
+        groupId: null,
+        playlistId: playlist.id,
+        startTime: now,
+        endTime: farFuture,
+        rrule: null,
+        colour: defaultColour,
+      });
+      await this.scheduleEntryRepository.save(entry);
+    }
+
+    const bulkOperationSize = ids.length;
+    for (const playlist of playlists) {
+      this.eventEmitter.emit(
+        AUDIT_PLAYLIST_BULK_SCREEN_ASSIGNED,
+        new AuditPlaylistEvent(playlist.id, organisationId, userId, {
+          bulkOperationSize,
+          screenId,
+        }),
+      );
+    }
+
+    return { assigned: playlists.length, notFound };
+  }
+
   async getTotalDuration(id: string, organisationId: string): Promise<number> {
     const playlist = await this.findOne(id, organisationId);
     let total = 0;
 
     for (const item of playlist.items) {
-      if (item.content && item.content.type === ContentType.Video) {
-        // For videos, use the item's durationSeconds as a fallback
-        // but prefer the video's actual duration if available
-        // (Content entity does not currently store video duration,
-        //  so we use the playlist item's durationSeconds)
-        total += item.durationSeconds;
+      if (
+        item.content &&
+        item.content.type === ContentType.Video &&
+        item.content.durationSeconds != null
+      ) {
+        total += item.content.durationSeconds;
       } else {
         total += item.durationSeconds;
       }
     }
 
     return total;
+  }
+
+  @OnEvent(CONTENT_DURATION_RESOLVED, { async: true })
+  async onContentDurationResolved(
+    event: ContentDurationResolvedEvent,
+  ): Promise<void> {
+    await this.playlistItemRepository.update(
+      {
+        contentId: event.contentId,
+        durationSeconds: Not(event.durationSeconds),
+      },
+      { durationSeconds: event.durationSeconds },
+    );
   }
 
   private emitPlaylistChanged(
