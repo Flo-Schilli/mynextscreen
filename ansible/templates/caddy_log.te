@@ -1,0 +1,14 @@
+module caddy_log 1.0;
+
+require {
+    type httpd_log_t;
+    type httpd_t;
+    type var_log_t;
+    class file { open rename };
+    class dir remove_name;
+}
+
+#============= httpd_t ==============
+allow httpd_t httpd_log_t:dir remove_name;
+allow httpd_t httpd_log_t:file rename;
+allow httpd_t var_log_t:file open;

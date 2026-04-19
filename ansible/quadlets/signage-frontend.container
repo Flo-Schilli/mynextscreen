@@ -7,7 +7,7 @@ ContainerName=signage-frontend
 Image=localhost/signage-frontend:latest
 Pull=never
 Network=signage.network
-PublishPort=4200:80
+PublishPort=50001:80
 EnvironmentFile=%h/.config/containers/systemd/.env.signage
 
 [Service]

@@ -45,6 +45,7 @@ export class TranscodingProcessor extends WorkerHost {
   private readonly videoPreset: string;
   private readonly videoMaxRate: string;
   private readonly videoBufSize: string;
+  private readonly stripAudio: boolean;
 
   constructor(
     @InjectRepository(Content)
@@ -72,6 +73,9 @@ export class TranscodingProcessor extends WorkerHost {
       'FFMPEG_VIDEO_BUFSIZE',
       '16M',
     );
+    this.stripAudio =
+      this.configService.get<string>('FFMPEG_VIDEO_STRIP_AUDIO', 'false') ===
+      'true';
   }
 
   async process(job: Job<TranscodeJobData>): Promise<void> {
@@ -209,8 +213,7 @@ export class TranscodingProcessor extends WorkerHost {
       this.videoBufSize,
       '-pix_fmt',
       'yuv420p',
-      '-c:a',
-      'aac',
+      ...(this.stripAudio ? ['-an'] : ['-c:a', 'aac']),
       '-movflags',
       '+faststart',
       '-y',

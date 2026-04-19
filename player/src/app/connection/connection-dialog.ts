@@ -26,7 +26,7 @@ import { ConnectionService } from './connection.service';
               type="text"
               [(ngModel)]="serverUrl"
               name="serverUrl"
-              placeholder="http://localhost:3000"
+              [placeholder]="serverUrl || 'http://localhost:3000'"
               autocomplete="url"
             />
           </div>
@@ -217,8 +217,22 @@ export class ConnectionDialogComponent {
   readonly connectionService = inject(ConnectionService);
   readonly connected = output<void>();
 
-  serverUrl = '';
+  serverUrl = this.getDefaultServerUrl();
   apiKey = '';
+
+  private getDefaultServerUrl(): string {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:3000';
+    }
+    // Derive API domain: replace first subdomain (e.g. "player.example.com" → "api.example.com")
+    const parts = hostname.split('.');
+    if (parts.length >= 2) {
+      parts[0] = 'api';
+      return `https://${parts.join('.')}`;
+    }
+    return '';
+  }
 
   canConnect(): boolean {
     return this.serverUrl.trim().length > 0 && this.apiKey.trim().length > 0;

@@ -106,7 +106,7 @@ function resolveTransition(item: PlaylistItem | null): {
         </div>
       } @else if (noContent()) {
         <div class="no-content">
-          <p class="text-text-muted text-lg">No content scheduled</p>
+          <img src="default-screen.png" class="default-screen-image" alt="" />
         </div>
       } @else {
         <!-- Transition Layer 0 -->
@@ -212,6 +212,13 @@ function resolveTransition(item: PlaylistItem | null): {
         justify-content: center;
         width: 100%;
         height: 100%;
+        background: #000;
+      }
+
+      .default-screen-image {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
       }
 
       .content-layer {

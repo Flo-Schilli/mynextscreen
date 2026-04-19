@@ -38,6 +38,7 @@
       ansible.builtin.command:
         cmd: >
           docker build
+          --no-cache
           -f {{ item.dockerfile }}
           -t {{ item.name }}:latest
           .
@@ -147,6 +148,44 @@
         owner: caddy
         group: caddy
         mode: "0755"
+        setype: httpd_log_t
+
+    # ─── SELinux for Caddy logs ───────────────────────────────
+    - name: Install SELinux policy tools
+      ansible.builtin.dnf:
+        name:
+          - policycoreutils-python-utils
+        state: present
+
+    - name: Set SELinux file context for Caddy logs
+      community.general.sefcontext:
+        target: "/var/log/caddy(/.*)?"
+        setype: httpd_log_t
+        state: present
+
+    - name: Apply SELinux file context to Caddy log directory
+      ansible.builtin.command:
+        cmd: restorecon -Rv /var/log/caddy/
+      changed_when: true
+
+    - name: Copy Caddy SELinux policy source
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/templates/caddy_log.te"
+        dest: /tmp/caddy_log.te
+        mode: "0644"
+
+    - name: Check if Caddy log SELinux module is already loaded
+      ansible.builtin.command:
+        cmd: semodule -l
+      register: semodule_list
+      changed_when: false
+
+    - name: Compile and install Caddy SELinux policy module
+      ansible.builtin.shell: |
+        checkmodule -M -m -o /tmp/caddy_log.mod /tmp/caddy_log.te
+        semodule_package -o /tmp/caddy_log.pp -m /tmp/caddy_log.mod
+        semodule -i /tmp/caddy_log.pp
+      when: "'caddy_log' not in semodule_list.stdout"
 
     # ─── Database backup ──────────────────────────────────────
     - name: Check if SQLite database exists
@@ -179,13 +218,51 @@
         - signage-frontend.container
         - signage-player.container
 
-    - name: Copy environment file
-      ansible.builtin.copy:
-        src: "{{ playbook_dir }}/quadlets/.env.signage"
+    - name: Generate environment file
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/templates/env.signage.j2"
         dest: "{{ quadlet_dir }}/.env.signage"
         owner: "{{ service_user }}"
         group: "{{ service_user }}"
         mode: "0600"
+
+    # ─── Container images ─────────────────────────────────────
+    # ─── Stop services and remove old images ─────────────────
+    - name: Get service user UID (for container ops)
+      ansible.builtin.command:
+        cmd: id -u {{ service_user }}
+      register: uid_result_early
+      changed_when: false
+
+    - name: Stop Podman services before image update
+      ansible.builtin.command:
+        cmd: systemctl --user stop {{ item }}
+      become: true
+      become_user: "{{ service_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ uid_result_early.stdout }}"
+        DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ uid_result_early.stdout }}/bus"
+      loop: "{{ services | reverse | list }}"
+      failed_when: false
+
+    - name: Remove old containers
+      ansible.builtin.command:
+        cmd: podman rm -f {{ item }}
+      become: true
+      become_user: "{{ service_user }}"
+      loop:
+        - signage-player
+        - signage-frontend
+        - signage-backend
+      failed_when: false
+
+    - name: Remove old images
+      ansible.builtin.command:
+        cmd: podman rmi -f localhost/{{ item }}:latest {{ item }}:latest
+      become: true
+      become_user: "{{ service_user }}"
+      loop: "{{ images }}"
+      failed_when: false
 
     # ─── Container images ─────────────────────────────────────
     - name: Copy image tarballs to server
@@ -230,10 +307,18 @@
       loop: "{{ images }}"
 
     # ─── Caddy configuration ─────────────────────────────────
+    - name: Ensure Caddyfile.d directory exists
+      ansible.builtin.file:
+        path: /etc/caddy/Caddyfile.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
     - name: Generate Caddyfile
       ansible.builtin.template:
         src: "{{ playbook_dir }}/templates/Caddyfile.j2"
-        dest: /etc/caddy/Caddyfile
+        dest: "/etc/caddy/Caddyfile.d/{{ caddy_site_prefix | default('02') }}_{{ domain_name }}.caddyfile"
         owner: root
         group: root
         mode: "0644"

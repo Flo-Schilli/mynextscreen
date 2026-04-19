@@ -3,7 +3,17 @@
 
 # ─── Frontend (Admin Panel) ─────────────────────────────────
 app.{{ domain_name }} {
-	reverse_proxy localhost:4200
+	# Proxy API requests to the backend
+	handle /api/* {
+		reverse_proxy localhost:50002 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# Serve the Angular SPA
+	handle {
+		reverse_proxy localhost:50001
+	}
 
 	header {
 		X-Content-Type-Options nosniff
@@ -12,11 +22,11 @@ app.{{ domain_name }} {
 		Referrer-Policy strict-origin-when-cross-origin
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 		-Server
-		Content-Security-Policy "default-src 'self'; script-src 'self' https://{{ hanko_api_host }}; connect-src 'self' https://{{ hanko_api_host }}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; frame-src 'self' https://{{ hanko_api_host }}"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-hashes' 'sha256-MhtPZXr7+LpJUY5qtMutB+qWfQtMaPccfe7QXtCcEYc=' https://{{ hanko_api_host }}; connect-src 'self' https://{{ hanko_api_host }}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; frame-src 'self' https://{{ hanko_api_host }}"
 	}
 
 	log {
-		output file /var/log/caddy/app.access.log {
+		output file /var/log/caddy/app.signage.access.log {
 			roll_size 50MiB
 			roll_keep 5
 		}
@@ -26,7 +36,7 @@ app.{{ domain_name }} {
 
 # ─── Player (Screen Display) ────────────────────────────────
 player.{{ domain_name }} {
-	reverse_proxy localhost:4300
+	reverse_proxy localhost:50003
 
 	header {
 		X-Content-Type-Options nosniff
@@ -36,11 +46,11 @@ player.{{ domain_name }} {
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 		-Server
 		-X-Frame-Options
-		Content-Security-Policy "default-src 'self'; connect-src 'self' https://api.{{ domain_name }}; media-src 'self' https://api.{{ domain_name }}; img-src 'self' https://api.{{ domain_name }} data:; style-src 'self' 'unsafe-inline'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-hashes' 'sha256-MhtPZXr7+LpJUY5qtMutB+qWfQtMaPccfe7QXtCcEYc='; connect-src 'self' https://api.{{ domain_name }}; media-src 'self' https://api.{{ domain_name }}; img-src 'self' https://api.{{ domain_name }} data:; style-src 'self' 'unsafe-inline'"
 	}
 
 	log {
-		output file /var/log/caddy/player.access.log {
+		output file /var/log/caddy/player.signage.access.log {
 			roll_size 50MiB
 			roll_keep 5
 		}
@@ -57,7 +67,7 @@ api.{{ domain_name }} {
 
 	# SSE endpoints — disable response buffering
 	handle /api/screens/*/events {
-		reverse_proxy localhost:3000 {
+		reverse_proxy localhost:50002 {
 			header_up X-Real-IP {remote_host}
 			flush_interval -1
 		}
@@ -65,7 +75,7 @@ api.{{ domain_name }} {
 
 	# All other API requests
 	handle {
-		reverse_proxy localhost:3000 {
+		reverse_proxy localhost:50002 {
 			header_up X-Real-IP {remote_host}
 		}
 	}
@@ -80,7 +90,7 @@ api.{{ domain_name }} {
 	}
 
 	log {
-		output file /var/log/caddy/api.access.log {
+		output file /var/log/caddy/api.signage.access.log {
 			roll_size 50MiB
 			roll_keep 5
 		}

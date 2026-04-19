@@ -6,7 +6,7 @@ ContainerName=signage-player
 Image=localhost/signage-player:latest
 Pull=never
 Network=signage.network
-PublishPort=4300:80
+PublishPort=50003:80
 
 [Service]
 Restart=always
