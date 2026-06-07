@@ -28,9 +28,7 @@ export class OrgNotificationConfigController {
 
   @Get(':id/notification-config')
   @Roles(OrganisationRole.OrgAdmin)
-  async getConfig(
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<OrganisationNotificationConfig> {
+  async getConfig(@Param('id', ParseUUIDPipe) id: string): Promise<OrganisationNotificationConfig> {
     const config = await this.configService.getForOrg(id);
     if (config) {
       // Redact sensitive fields in the response
@@ -111,9 +109,7 @@ export class OrgNotificationConfigController {
 
   @Post(':id/notification-config/test-ntfy')
   @Roles(OrganisationRole.OrgAdmin)
-  async testNtfy(
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<{ message: string }> {
+  async testNtfy(@Param('id', ParseUUIDPipe) id: string): Promise<{ message: string }> {
     const config = await this.configService.getForOrg(id);
 
     if (!config?.ntfyUrl || !config?.ntfyTopic) {
@@ -133,11 +129,9 @@ export class OrgNotificationConfigController {
 
     try {
       await firstValueFrom(
-        this.httpService.post(
-          url,
-          'This is a test notification from your Signage configuration.',
-          { headers },
-        ),
+        this.httpService.post(url, 'This is a test notification from your Signage configuration.', {
+          headers,
+        }),
       );
     } catch (error) {
       throw new UnprocessableEntityException(

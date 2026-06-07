@@ -3,10 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../user/user.entity';
 import { OrgNotificationConfigService } from '../org-notification-config.service';
-import {
-  EmailChannel,
-  NotificationPayload,
-} from './notification-channel.interfaces';
+import { EmailChannel, NotificationPayload } from './notification-channel.interfaces';
 import { SmtpEmailProvider } from './smtp-email-provider';
 
 @Injectable()
@@ -19,11 +16,7 @@ export class EmailNotificationChannel implements EmailChannel {
     private readonly orgConfigService: OrgNotificationConfigService,
   ) {}
 
-  async send(
-    userId: string,
-    orgId: string,
-    notification: NotificationPayload,
-  ): Promise<void> {
+  async send(userId: string, orgId: string, notification: NotificationPayload): Promise<void> {
     const orgConfig = await this.orgConfigService.getForOrg(orgId);
 
     if (!orgConfig?.smtpHost) {

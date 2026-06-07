@@ -29,27 +29,15 @@ export class MediaService {
     @InjectRepository(SlicedRendition)
     private readonly slicedRenditionRepository: Repository<SlicedRendition>,
   ) {
-    this.mediaBasePath = this.configService.get<string>(
-      'MEDIA_BASE_PATH',
-      './data/media',
-    );
+    this.mediaBasePath = this.configService.get<string>('MEDIA_BASE_PATH', './data/media');
   }
 
-  async getTranscodedFile(
-    organisationId: string,
-    contentId: string,
-  ): Promise<MediaFileInfo> {
-    const transcodedDir = path.join(
-      this.mediaBasePath,
-      organisationId,
-      'transcoded',
-    );
+  async getTranscodedFile(organisationId: string, contentId: string): Promise<MediaFileInfo> {
+    const transcodedDir = path.join(this.mediaBasePath, organisationId, 'transcoded');
 
     const filePath = await this.findFile(transcodedDir, contentId);
     if (!filePath) {
-      throw new NotFoundException(
-        'Content not found or transcoding not complete',
-      );
+      throw new NotFoundException('Content not found or transcoding not complete');
     }
 
     const ext = path.extname(filePath).toLowerCase();
@@ -84,10 +72,7 @@ export class MediaService {
     return { filePath, contentType };
   }
 
-  private async findFile(
-    directory: string,
-    contentId: string,
-  ): Promise<string | null> {
+  private async findFile(directory: string, contentId: string): Promise<string | null> {
     try {
       const entries = await fs.promises.readdir(directory);
       const match = entries.find((entry) => {

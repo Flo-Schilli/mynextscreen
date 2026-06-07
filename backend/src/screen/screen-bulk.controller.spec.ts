@@ -51,17 +51,9 @@ describe('ScreenController — bulk endpoints', () => {
     it('should call service.bulkDelete with correct args', async () => {
       service.bulkDelete.mockResolvedValue({ deleted: 2, notFound: [] });
 
-      const result = await controller.bulkDelete(
-        orgId,
-        { ids: [screenId1, screenId2] },
-        mockReq,
-      );
+      const result = await controller.bulkDelete(orgId, { ids: [screenId1, screenId2] }, mockReq);
 
-      expect(service.bulkDelete).toHaveBeenCalledWith(
-        orgId,
-        [screenId1, screenId2],
-        userId,
-      );
+      expect(service.bulkDelete).toHaveBeenCalledWith(orgId, [screenId1, screenId2], userId);
       expect(result).toEqual({ deleted: 2, notFound: [] });
     });
 
@@ -71,11 +63,7 @@ describe('ScreenController — bulk endpoints', () => {
         notFound: [screenId3],
       });
 
-      const result = await controller.bulkDelete(
-        orgId,
-        { ids: [screenId1, screenId3] },
-        mockReq,
-      );
+      const result = await controller.bulkDelete(orgId, { ids: [screenId1, screenId3] }, mockReq);
 
       expect(result.deleted).toBe(1);
       expect(result.notFound).toEqual([screenId3]);
@@ -110,12 +98,7 @@ describe('ScreenController — bulk endpoints', () => {
         mockReq,
       );
 
-      expect(service.bulkAssignGroup).toHaveBeenCalledWith(
-        orgId,
-        [screenId1],
-        null,
-        userId,
-      );
+      expect(service.bulkAssignGroup).toHaveBeenCalledWith(orgId, [screenId1], null, userId);
       expect(result.updated).toBe(1);
     });
 

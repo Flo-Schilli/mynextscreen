@@ -3,9 +3,7 @@ import { CreateLiveStreamDto } from './create-live-stream.dto';
 import { LiveStreamProtocol } from '../live-stream-protocol.enum';
 import { TranscodingPreset } from '../transcoding-preset.enum';
 
-function createDto(
-  overrides: Partial<CreateLiveStreamDto> = {},
-): CreateLiveStreamDto {
+function createDto(overrides: Partial<CreateLiveStreamDto> = {}): CreateLiveStreamDto {
   const dto = new CreateLiveStreamDto();
   dto.name = 'Test Stream';
   dto.sourceUrl = 'rtmp://example.com/live/stream-key';

@@ -1,29 +1,10 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Param,
-  Body,
-  Req,
-  Sse,
-  ParseUUIDPipe,
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Req, Sse, ParseUUIDPipe } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { ScreenService } from './screen.service';
 import { ScreenStateService } from './screen-state.service';
-import {
-  CreateScreenDto,
-  UpdateScreenDto,
-  BulkDeleteScreensDto,
-  BulkAssignGroupDto,
-} from './dto';
+import { CreateScreenDto, UpdateScreenDto, BulkDeleteScreensDto, BulkAssignGroupDto } from './dto';
 import { Roles } from '../auth/roles.decorator';
-import {
-  ScreenAuth,
-  ScreenAuthenticatedRequest,
-  AuthenticatedRequest,
-} from '../auth';
+import { ScreenAuth, ScreenAuthenticatedRequest, AuthenticatedRequest } from '../auth';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { Screen } from './screen.entity';
@@ -52,11 +33,7 @@ export class ScreenController {
   }
 
   @Get()
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   findAll(@CurrentOrganisation() organisationId: string): Promise<Screen[]> {
     return this.screenService.findAll(organisationId);
   }
@@ -71,11 +48,7 @@ export class ScreenController {
   }
 
   @Get(':id')
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   findOne(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -100,11 +73,7 @@ export class ScreenController {
     @Body() dto: BulkDeleteScreensDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<{ deleted: number; notFound: string[] }> {
-    return this.screenService.bulkDelete(
-      organisationId,
-      dto.ids,
-      req.user.userId,
-    );
+    return this.screenService.bulkDelete(organisationId, dto.ids, req.user.userId);
   }
 
   @Post('bulk-assign-group')

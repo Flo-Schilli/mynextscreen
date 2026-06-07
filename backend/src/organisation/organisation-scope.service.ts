@@ -74,10 +74,7 @@ export class OrganisationScopedService<T extends OrganisationScoped> {
   /**
    * Create a new entity, automatically setting the organisationId.
    */
-  async create(
-    organisationId: string,
-    data: Omit<DeepPartial<T>, 'organisationId'>,
-  ): Promise<T> {
+  async create(organisationId: string, data: Omit<DeepPartial<T>, 'organisationId'>): Promise<T> {
     const entity = this.repository.create({
       ...data,
       organisationId,

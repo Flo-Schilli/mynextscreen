@@ -16,11 +16,6 @@ import { ScreenGroupModule } from '../screen-group/screen-group.module';
   ],
   controllers: [LiveStreamController],
   providers: [LiveStreamService, FfmpegLiveService, StreamHealthService],
-  exports: [
-    LiveStreamService,
-    FfmpegLiveService,
-    StreamHealthService,
-    TypeOrmModule,
-  ],
+  exports: [LiveStreamService, FfmpegLiveService, StreamHealthService, TypeOrmModule],
 })
 export class LiveStreamModule {}

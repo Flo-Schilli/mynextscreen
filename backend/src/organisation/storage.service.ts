@@ -17,10 +17,7 @@ export class StorageService {
     private readonly organisationRepository: Repository<Organisation>,
   ) {}
 
-  async checkOriginalLimit(
-    orgId: string,
-    additionalBytes: number,
-  ): Promise<void> {
+  async checkOriginalLimit(orgId: string, additionalBytes: number): Promise<void> {
     const org = await this.organisationRepository.findOneByOrFail({
       id: orgId,
     });
@@ -28,17 +25,12 @@ export class StorageService {
     if (limit > 0) {
       const newUsage = Number(org.storageOriginalUsedBytes) + additionalBytes;
       if (newUsage > limit) {
-        throw new BadRequestException(
-          'Upload would exceed organisation original storage limit',
-        );
+        throw new BadRequestException('Upload would exceed organisation original storage limit');
       }
     }
   }
 
-  async checkTranscodedLimit(
-    orgId: string,
-    additionalBytes: number,
-  ): Promise<void> {
+  async checkTranscodedLimit(orgId: string, additionalBytes: number): Promise<void> {
     const org = await this.organisationRepository.findOneByOrFail({
       id: orgId,
     });
@@ -65,10 +57,7 @@ export class StorageService {
     const org = await this.organisationRepository.findOneByOrFail({
       id: orgId,
     });
-    org.storageOriginalUsedBytes = Math.max(
-      0,
-      Number(org.storageOriginalUsedBytes) - bytes,
-    );
+    org.storageOriginalUsedBytes = Math.max(0, Number(org.storageOriginalUsedBytes) - bytes);
     await this.organisationRepository.save(org);
   }
 
@@ -76,8 +65,7 @@ export class StorageService {
     const org = await this.organisationRepository.findOneByOrFail({
       id: orgId,
     });
-    org.storageTranscodedUsedBytes =
-      Number(org.storageTranscodedUsedBytes) + bytes;
+    org.storageTranscodedUsedBytes = Number(org.storageTranscodedUsedBytes) + bytes;
     await this.organisationRepository.save(org);
   }
 
@@ -85,10 +73,7 @@ export class StorageService {
     const org = await this.organisationRepository.findOneByOrFail({
       id: orgId,
     });
-    org.storageTranscodedUsedBytes = Math.max(
-      0,
-      Number(org.storageTranscodedUsedBytes) - bytes,
-    );
+    org.storageTranscodedUsedBytes = Math.max(0, Number(org.storageTranscodedUsedBytes) - bytes);
     await this.organisationRepository.save(org);
   }
 

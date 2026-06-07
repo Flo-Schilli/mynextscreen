@@ -48,24 +48,12 @@ export class SliceContentProcessor extends WorkerHost {
     private readonly configService: ConfigService,
   ) {
     super();
-    this.mediaBasePath = this.configService.get<string>(
-      'MEDIA_BASE_PATH',
-      './media',
-    );
+    this.mediaBasePath = this.configService.get<string>('MEDIA_BASE_PATH', './media');
     this.ffmpegPath = this.configService.get<string>('FFMPEG_PATH', 'ffmpeg');
     this.videoCrf = this.configService.get<string>('FFMPEG_VIDEO_CRF', '18');
-    this.videoPreset = this.configService.get<string>(
-      'FFMPEG_VIDEO_PRESET',
-      'slow',
-    );
-    this.videoMaxRate = this.configService.get<string>(
-      'FFMPEG_VIDEO_MAXRATE',
-      '8M',
-    );
-    this.videoBufSize = this.configService.get<string>(
-      'FFMPEG_VIDEO_BUFSIZE',
-      '16M',
-    );
+    this.videoPreset = this.configService.get<string>('FFMPEG_VIDEO_PRESET', 'slow');
+    this.videoMaxRate = this.configService.get<string>('FFMPEG_VIDEO_MAXRATE', '8M');
+    this.videoBufSize = this.configService.get<string>('FFMPEG_VIDEO_BUFSIZE', '16M');
   }
 
   async process(job: Job<SliceContentJobData>): Promise<void> {
@@ -80,9 +68,7 @@ export class SliceContentProcessor extends WorkerHost {
       where: { id: groupId, organisationId },
     });
     if (!group || !group.gridColumns || !group.gridRows) {
-      throw new Error(
-        `Group ${groupId} not found or missing grid configuration`,
-      );
+      throw new Error(`Group ${groupId} not found or missing grid configuration`);
     }
 
     // Load screens in the group
@@ -100,9 +86,7 @@ export class SliceContentProcessor extends WorkerHost {
       relations: ['items', 'items.content'],
     });
     if (!playlist || !playlist.items || playlist.items.length === 0) {
-      this.logger.warn(
-        `Playlist ${playlistId} not found or empty, skipping slicing`,
-      );
+      this.logger.warn(`Playlist ${playlistId} not found or empty, skipping slicing`);
       return;
     }
 
@@ -112,9 +96,7 @@ export class SliceContentProcessor extends WorkerHost {
     for (const item of playlist.items) {
       const content = item.content;
       if (!content) {
-        this.logger.warn(
-          `Content not found for playlist item ${item.id}, skipping`,
-        );
+        this.logger.warn(`Content not found for playlist item ${item.id}, skipping`);
         completed += screens.length;
         await job.updateProgress(Math.round((completed / totalWork) * 100));
         continue;
@@ -135,9 +117,7 @@ export class SliceContentProcessor extends WorkerHost {
       // Determine source resolution by probing with FFmpeg
       const resolution = await this.probeResolution(sourcePath);
       if (!resolution) {
-        this.logger.warn(
-          `Could not determine resolution for content ${content.id}, skipping`,
-        );
+        this.logger.warn(`Could not determine resolution for content ${content.id}, skipping`);
         completed += screens.length;
         await job.updateProgress(Math.round((completed / totalWork) * 100));
         continue;
@@ -145,9 +125,7 @@ export class SliceContentProcessor extends WorkerHost {
 
       for (const screen of screens) {
         if (screen.gridRow === null || screen.gridColumn === null) {
-          this.logger.warn(
-            `Screen ${screen.id} has no grid position, skipping`,
-          );
+          this.logger.warn(`Screen ${screen.id} has no grid position, skipping`);
           completed++;
           await job.updateProgress(Math.round((completed / totalWork) * 100));
           continue;
@@ -199,12 +177,7 @@ export class SliceContentProcessor extends WorkerHost {
         this.logger.log(
           `Slicing content ${content.id} for screen ${screen.id} (${completed + 1}/${totalWork})`,
         );
-        await this.runFfmpegCrop(
-          sourcePath,
-          outputPath,
-          cropFilter,
-          content.type,
-        );
+        await this.runFfmpegCrop(sourcePath, outputPath, cropFilter, content.type);
 
         // Save or update rendition in database
         if (existing) {
@@ -228,9 +201,7 @@ export class SliceContentProcessor extends WorkerHost {
       }
     }
 
-    this.logger.log(
-      `Slice-content job ${job.id} completed: ${completed} slices processed`,
-    );
+    this.logger.log(`Slice-content job ${job.id} completed: ${completed} slices processed`);
   }
 
   private runFfmpegCrop(

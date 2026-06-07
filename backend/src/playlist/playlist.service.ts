@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -19,10 +15,7 @@ import { UpdatePlaylistDto } from './dto/update-playlist.dto';
 import { AddPlaylistItemDto } from './dto/add-playlist-item.dto';
 import { UpdatePlaylistItemDto } from './dto/update-playlist-item.dto';
 import { PLAYLIST_UPDATED, PlaylistUpdatedEvent } from './playlist.event';
-import {
-  CONTENT_DURATION_RESOLVED,
-  ContentDurationResolvedEvent,
-} from '../content/content.event';
+import { CONTENT_DURATION_RESOLVED, ContentDurationResolvedEvent } from '../content/content.event';
 import {
   AUDIT_PLAYLIST_CREATED,
   AUDIT_PLAYLIST_UPDATED,
@@ -50,10 +43,7 @@ export class PlaylistService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async create(
-    organisationId: string,
-    dto: CreatePlaylistDto,
-  ): Promise<Playlist> {
+  async create(organisationId: string, dto: CreatePlaylistDto): Promise<Playlist> {
     const playlist = this.playlistRepository.create({
       organisationId,
       name: dto.name,
@@ -91,11 +81,7 @@ export class PlaylistService {
     return playlist;
   }
 
-  async update(
-    id: string,
-    organisationId: string,
-    dto: UpdatePlaylistDto,
-  ): Promise<Playlist> {
+  async update(id: string, organisationId: string, dto: UpdatePlaylistDto): Promise<Playlist> {
     const playlist = await this.findOne(id, organisationId);
     playlist.name = dto.name;
     const saved = await this.playlistRepository.save(playlist);
@@ -195,11 +181,7 @@ export class PlaylistService {
     return saved;
   }
 
-  async removeItem(
-    playlistId: string,
-    itemId: string,
-    organisationId: string,
-  ): Promise<void> {
+  async removeItem(playlistId: string, itemId: string, organisationId: string): Promise<void> {
     // Verify playlist belongs to org
     await this.findOne(playlistId, organisationId);
 
@@ -458,9 +440,7 @@ export class PlaylistService {
   }
 
   @OnEvent(CONTENT_DURATION_RESOLVED, { async: true })
-  async onContentDurationResolved(
-    event: ContentDurationResolvedEvent,
-  ): Promise<void> {
+  async onContentDurationResolved(event: ContentDurationResolvedEvent): Promise<void> {
     await this.playlistItemRepository.update(
       {
         contentId: event.contentId,
@@ -470,13 +450,7 @@ export class PlaylistService {
     );
   }
 
-  private emitPlaylistChanged(
-    playlistId: string,
-    organisationId: string,
-  ): void {
-    this.eventEmitter.emit(
-      PLAYLIST_UPDATED,
-      new PlaylistUpdatedEvent(playlistId, organisationId),
-    );
+  private emitPlaylistChanged(playlistId: string, organisationId: string): void {
+    this.eventEmitter.emit(PLAYLIST_UPDATED, new PlaylistUpdatedEvent(playlistId, organisationId));
   }
 }

@@ -1,10 +1,4 @@
-import {
-  IsOptional,
-  IsString,
-  IsDateString,
-  IsUUID,
-  Matches,
-} from 'class-validator';
+import { IsOptional, IsString, IsDateString, IsUUID, Matches } from 'class-validator';
 
 export class UpdateScheduleEntryDto {
   @IsOptional()

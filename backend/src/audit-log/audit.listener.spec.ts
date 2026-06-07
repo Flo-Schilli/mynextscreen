@@ -26,10 +26,7 @@ describe('AuditListener', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AuditListener,
-        { provide: AuditLogService, useValue: auditLogService },
-      ],
+      providers: [AuditListener, { provide: AuditLogService, useValue: auditLogService }],
     }).compile();
 
     listener = module.get<AuditListener>(AuditListener);

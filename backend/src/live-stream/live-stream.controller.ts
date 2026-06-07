@@ -17,15 +17,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { LiveStreamService, ActivateStreamResult } from './live-stream.service';
 import { FfmpegLiveService } from './ffmpeg-live.service';
-import {
-  StreamHealthService,
-  StreamHealthState,
-} from './stream-health.service';
-import {
-  CreateLiveStreamDto,
-  UpdateLiveStreamDto,
-  ActivateLiveStreamDto,
-} from './dto';
+import { StreamHealthService, StreamHealthState } from './stream-health.service';
+import { CreateLiveStreamDto, UpdateLiveStreamDto, ActivateLiveStreamDto } from './dto';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { ScreenAuth } from '../auth/screen-auth.decorator';
@@ -53,22 +46,12 @@ export class LiveStreamController {
     @Body() dto: CreateLiveStreamDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<LiveStream> {
-    return this.liveStreamService.createLiveStream(
-      organisationId,
-      dto,
-      req.user.userId,
-    );
+    return this.liveStreamService.createLiveStream(organisationId, dto, req.user.userId);
   }
 
   @Get()
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
-  async findAll(
-    @CurrentOrganisation() organisationId: string,
-  ): Promise<LiveStreamWithHealth[]> {
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
+  async findAll(@CurrentOrganisation() organisationId: string): Promise<LiveStreamWithHealth[]> {
     const streams = await this.liveStreamService.findAll(organisationId);
 
     return streams.map((stream) => {
@@ -84,11 +67,7 @@ export class LiveStreamController {
   }
 
   @Get(':id/health')
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   async getHealth(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -111,11 +90,7 @@ export class LiveStreamController {
   }
 
   @Get(':id')
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   findOne(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -131,12 +106,7 @@ export class LiveStreamController {
     @Body() dto: UpdateLiveStreamDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<LiveStream> {
-    return this.liveStreamService.updateLiveStream(
-      organisationId,
-      id,
-      dto,
-      req.user.userId,
-    );
+    return this.liveStreamService.updateLiveStream(organisationId, id, dto, req.user.userId);
   }
 
   @Delete(':id')
@@ -146,11 +116,7 @@ export class LiveStreamController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: AuthenticatedRequest,
   ): Promise<void> {
-    return this.liveStreamService.removeLiveStream(
-      organisationId,
-      id,
-      req.user.userId,
-    );
+    return this.liveStreamService.removeLiveStream(organisationId, id, req.user.userId);
   }
 
   @Post(':id/activate')
@@ -161,12 +127,7 @@ export class LiveStreamController {
     @Body() dto: ActivateLiveStreamDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<ActivateStreamResult> {
-    return this.liveStreamService.activateStream(
-      organisationId,
-      id,
-      dto,
-      req.user.userId,
-    );
+    return this.liveStreamService.activateStream(organisationId, id, dto, req.user.userId);
   }
 
   @Post(':id/deactivate')
@@ -176,19 +137,12 @@ export class LiveStreamController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: AuthenticatedRequest,
   ): Promise<LiveStream> {
-    return this.liveStreamService.deactivateStream(
-      organisationId,
-      id,
-      req.user.userId,
-    );
+    return this.liveStreamService.deactivateStream(organisationId, id, req.user.userId);
   }
 
   @Get(':id/hls/index.m3u8')
   @ScreenAuth()
-  servePlaylist(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Res() res: Response,
-  ): void {
+  servePlaylist(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response): void {
     const hlsDir = this.ffmpegLiveService.getHlsOutputDir(id);
     const filePath = path.resolve(path.join(hlsDir, 'index.m3u8'));
 

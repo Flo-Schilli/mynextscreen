@@ -1,7 +1,4 @@
-export {
-  ScreenProtocolModule,
-  SCREEN_PROTOCOL_ADAPTER,
-} from './screen-protocol.module';
+export { ScreenProtocolModule, SCREEN_PROTOCOL_ADAPTER } from './screen-protocol.module';
 export { ScreenState } from './screen-state.model';
 export type {
   ScreenInfo,

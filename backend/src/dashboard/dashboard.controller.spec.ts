@@ -14,9 +14,7 @@ describe('DashboardController', () => {
       subscribe: jest.fn(),
     };
 
-    controller = new DashboardController(
-      sseService as unknown as DashboardSseService,
-    );
+    controller = new DashboardController(sseService as unknown as DashboardSseService);
   });
 
   describe('events', () => {

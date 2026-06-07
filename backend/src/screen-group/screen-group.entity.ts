@@ -8,14 +8,7 @@ import {
   OneToMany,
   JoinColumn,
 } from 'typeorm';
-import {
-  IsNotEmpty,
-  IsString,
-  IsEnum,
-  IsOptional,
-  IsInt,
-  Min,
-} from 'class-validator';
+import { IsNotEmpty, IsString, IsEnum, IsOptional, IsInt, Min } from 'class-validator';
 import { Organisation } from '../organisation/organisation.entity';
 import { Screen } from '../screen/screen.entity';
 import { ScreenGroupMode } from './screen-group-mode.enum';

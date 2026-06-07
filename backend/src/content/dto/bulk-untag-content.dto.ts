@@ -1,10 +1,4 @@
-import {
-  ArrayMaxSize,
-  ArrayMinSize,
-  IsArray,
-  IsString,
-  IsUUID,
-} from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsString, IsUUID } from 'class-validator';
 
 export class BulkUntagContentDto {
   @IsArray()

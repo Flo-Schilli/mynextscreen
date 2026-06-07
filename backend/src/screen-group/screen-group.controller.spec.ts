@@ -97,12 +97,7 @@ describe('ScreenGroupController', () => {
 
       const result = await controller.update(orgId, groupId, dto, mockReq);
 
-      expect(service.updateGroup).toHaveBeenCalledWith(
-        orgId,
-        groupId,
-        dto,
-        userId,
-      );
+      expect(service.updateGroup).toHaveBeenCalledWith(orgId, groupId, dto, userId);
       expect(result).toEqual(updated);
     });
   });
@@ -131,21 +126,9 @@ describe('ScreenGroupController', () => {
       const dto = { gridRow: 0, gridColumn: 1 };
       service.assignScreen.mockResolvedValue(mockScreen);
 
-      const result = await controller.assignScreen(
-        orgId,
-        groupId,
-        screenId,
-        dto,
-        mockReq,
-      );
+      const result = await controller.assignScreen(orgId, groupId, screenId, dto, mockReq);
 
-      expect(service.assignScreen).toHaveBeenCalledWith(
-        orgId,
-        groupId,
-        screenId,
-        dto,
-        userId,
-      );
+      expect(service.assignScreen).toHaveBeenCalledWith(orgId, groupId, screenId, dto, userId);
       expect(result).toEqual(mockScreen);
     });
   });
@@ -163,19 +146,9 @@ describe('ScreenGroupController', () => {
     it('should call removeScreen with organisationId, groupId, and screenId', async () => {
       service.removeScreen.mockResolvedValue(mockScreen);
 
-      const result = await controller.removeScreen(
-        orgId,
-        groupId,
-        screenId,
-        mockReq,
-      );
+      const result = await controller.removeScreen(orgId, groupId, screenId, mockReq);
 
-      expect(service.removeScreen).toHaveBeenCalledWith(
-        orgId,
-        groupId,
-        screenId,
-        userId,
-      );
+      expect(service.removeScreen).toHaveBeenCalledWith(orgId, groupId, screenId, userId);
       expect(result).toEqual(mockScreen);
     });
   });

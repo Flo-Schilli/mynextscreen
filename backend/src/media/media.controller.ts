@@ -34,9 +34,7 @@ export class MediaController {
     @Res() res: Response,
   ): Promise<void> {
     if (req.organisationId !== organisationId) {
-      throw new ForbiddenException(
-        'Screen does not belong to the requested organisation',
-      );
+      throw new ForbiddenException('Screen does not belong to the requested organisation');
     }
 
     const { filePath, contentType } = await this.mediaService.getTranscodedFile(
@@ -60,9 +58,7 @@ export class MediaController {
     @Res() res: Response,
   ): Promise<void> {
     if (req.screenId !== screenId) {
-      throw new ForbiddenException(
-        'Authenticated screen does not match the requested screen',
-      );
+      throw new ForbiddenException('Authenticated screen does not match the requested screen');
     }
 
     const screen = await this.screenRepository.findOne({
@@ -75,15 +71,11 @@ export class MediaController {
     }
 
     if (screen.organisationId !== req.organisationId) {
-      throw new ForbiddenException(
-        'Screen does not belong to the requested organisation',
-      );
+      throw new ForbiddenException('Screen does not belong to the requested organisation');
     }
 
     if (screen.groupId !== groupId) {
-      throw new ForbiddenException(
-        'Screen does not belong to the requested group',
-      );
+      throw new ForbiddenException('Screen does not belong to the requested group');
     }
 
     const { filePath, contentType } = await this.mediaService.getSlicedFile(

@@ -80,23 +80,17 @@ describe('JwtAuthGuard', () => {
   describe('missing token', () => {
     it('should throw UnauthorizedException when no Authorization header', async () => {
       const context = createMockContext({});
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException when Authorization header has no Bearer scheme', async () => {
       const context = createMockContext({ authorization: 'Basic abc123' });
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException when Bearer token is empty', async () => {
       const context = createMockContext({ authorization: 'Bearer ' });
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });
   });
 
@@ -133,9 +127,7 @@ describe('JwtAuthGuard', () => {
       const context = createMockContext({
         authorization: `Bearer ${token}`,
       });
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });
   });
 
@@ -146,9 +138,7 @@ describe('JwtAuthGuard', () => {
       const context = createMockContext({
         authorization: 'Bearer not.a.valid.jwt.token',
       });
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException for token with invalid signature', async () => {
@@ -169,9 +159,7 @@ describe('JwtAuthGuard', () => {
       const context = createMockContext({
         authorization: `Bearer ${token}`,
       });
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });
   });
 });

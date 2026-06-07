@@ -49,13 +49,7 @@ describe('ScreenState', () => {
   };
 
   it('should construct with all fields populated', () => {
-    const state = new ScreenState(
-      screenInfo,
-      playlist,
-      [scheduleEntry],
-      liveStream,
-      playlist,
-    );
+    const state = new ScreenState(screenInfo, playlist, [scheduleEntry], liveStream, playlist);
 
     expect(state.screen).toBe(screenInfo);
     expect(state.currentPlaylist).toBe(playlist);
@@ -65,25 +59,13 @@ describe('ScreenState', () => {
   });
 
   it('should allow null for currentPlaylist', () => {
-    const state = new ScreenState(
-      screenInfo,
-      null,
-      [scheduleEntry],
-      null,
-      playlist,
-    );
+    const state = new ScreenState(screenInfo, null, [scheduleEntry], null, playlist);
 
     expect(state.currentPlaylist).toBeNull();
   });
 
   it('should allow null for activeLiveStream', () => {
-    const state = new ScreenState(
-      screenInfo,
-      playlist,
-      [scheduleEntry],
-      null,
-      playlist,
-    );
+    const state = new ScreenState(screenInfo, playlist, [scheduleEntry], null, playlist);
 
     expect(state.activeLiveStream).toBeNull();
   });
@@ -105,16 +87,8 @@ describe('ScreenState', () => {
       ...scheduleEntry,
       recurrenceRule: 'RRULE:FREQ=DAILY;BYHOUR=8;BYMINUTE=0',
     };
-    const state = new ScreenState(
-      screenInfo,
-      playlist,
-      [recurring],
-      null,
-      null,
-    );
+    const state = new ScreenState(screenInfo, playlist, [recurring], null, null);
 
-    expect(state.scheduleEntries[0].recurrenceRule).toBe(
-      'RRULE:FREQ=DAILY;BYHOUR=8;BYMINUTE=0',
-    );
+    expect(state.scheduleEntries[0].recurrenceRule).toBe('RRULE:FREQ=DAILY;BYHOUR=8;BYMINUTE=0');
   });
 });

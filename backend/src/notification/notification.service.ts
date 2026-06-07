@@ -10,10 +10,7 @@ export class NotificationService {
     private readonly notificationRepository: Repository<Notification>,
   ) {}
 
-  async findUnreadByUser(
-    userId: string,
-    organisationId: string,
-  ): Promise<Notification[]> {
+  async findUnreadByUser(userId: string, organisationId: string): Promise<Notification[]> {
     return this.notificationRepository.find({
       where: { userId, organisationId, read: false },
       order: { createdAt: 'DESC' },

@@ -85,11 +85,7 @@ describe('MembershipController', () => {
         role: OrganisationRole.Viewer,
       });
 
-      expect(service.updateRole).toHaveBeenCalledWith(
-        orgId,
-        'u-1',
-        OrganisationRole.Viewer,
-      );
+      expect(service.updateRole).toHaveBeenCalledWith(orgId, 'u-1', OrganisationRole.Viewer);
       expect(result.role).toBe(OrganisationRole.Viewer);
     });
   });

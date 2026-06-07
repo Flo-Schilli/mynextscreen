@@ -1,12 +1,4 @@
-import {
-  IsNotEmpty,
-  IsString,
-  IsInt,
-  IsEnum,
-  Min,
-  Max,
-  IsOptional,
-} from 'class-validator';
+import { IsNotEmpty, IsString, IsInt, IsEnum, Min, Max, IsOptional } from 'class-validator';
 import { TransitionType } from '../transition-type.enum';
 
 export class AddPlaylistItemDto {

@@ -29,10 +29,7 @@ describe('StorageService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        StorageService,
-        { provide: getRepositoryToken(Organisation), useValue: orgRepo },
-      ],
+      providers: [StorageService, { provide: getRepositoryToken(Organisation), useValue: orgRepo }],
     }).compile();
 
     service = module.get<StorageService>(StorageService);
@@ -47,9 +44,7 @@ describe('StorageService', () => {
         }),
       );
 
-      await expect(
-        service.checkOriginalLimit('org-1', 5000),
-      ).resolves.toBeUndefined();
+      await expect(service.checkOriginalLimit('org-1', 5000)).resolves.toBeUndefined();
     });
 
     it('should throw when limit would be exceeded', async () => {
@@ -60,19 +55,13 @@ describe('StorageService', () => {
         }),
       );
 
-      await expect(service.checkOriginalLimit('org-1', 1000)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.checkOriginalLimit('org-1', 1000)).rejects.toThrow(BadRequestException);
     });
 
     it('should allow unlimited when limit is 0', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(
-        createMockOrg({ storageOriginalLimitBytes: 0 }),
-      );
+      orgRepo.findOneByOrFail.mockResolvedValue(createMockOrg({ storageOriginalLimitBytes: 0 }));
 
-      await expect(
-        service.checkOriginalLimit('org-1', 999999999),
-      ).resolves.toBeUndefined();
+      await expect(service.checkOriginalLimit('org-1', 999999999)).resolves.toBeUndefined();
     });
   });
 
@@ -85,9 +74,7 @@ describe('StorageService', () => {
         }),
       );
 
-      await expect(
-        service.checkTranscodedLimit('org-1', 5000),
-      ).resolves.toBeUndefined();
+      await expect(service.checkTranscodedLimit('org-1', 5000)).resolves.toBeUndefined();
     });
 
     it('should throw when limit would be exceeded', async () => {
@@ -104,21 +91,15 @@ describe('StorageService', () => {
     });
 
     it('should allow unlimited when limit is 0', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(
-        createMockOrg({ storageTranscodedLimitBytes: 0 }),
-      );
+      orgRepo.findOneByOrFail.mockResolvedValue(createMockOrg({ storageTranscodedLimitBytes: 0 }));
 
-      await expect(
-        service.checkTranscodedLimit('org-1', 999999999),
-      ).resolves.toBeUndefined();
+      await expect(service.checkTranscodedLimit('org-1', 999999999)).resolves.toBeUndefined();
     });
   });
 
   describe('addOriginalUsage', () => {
     it('should increment original usage', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(
-        createMockOrg({ storageOriginalUsedBytes: 1000 }),
-      );
+      orgRepo.findOneByOrFail.mockResolvedValue(createMockOrg({ storageOriginalUsedBytes: 1000 }));
 
       await service.addOriginalUsage('org-1', 5000);
 
@@ -130,9 +111,7 @@ describe('StorageService', () => {
 
   describe('subtractOriginalUsage', () => {
     it('should decrement original usage', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(
-        createMockOrg({ storageOriginalUsedBytes: 5000 }),
-      );
+      orgRepo.findOneByOrFail.mockResolvedValue(createMockOrg({ storageOriginalUsedBytes: 5000 }));
 
       await service.subtractOriginalUsage('org-1', 3000);
 
@@ -142,9 +121,7 @@ describe('StorageService', () => {
     });
 
     it('should not go below zero', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(
-        createMockOrg({ storageOriginalUsedBytes: 1000 }),
-      );
+      orgRepo.findOneByOrFail.mockResolvedValue(createMockOrg({ storageOriginalUsedBytes: 1000 }));
 
       await service.subtractOriginalUsage('org-1', 5000);
 

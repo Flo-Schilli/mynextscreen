@@ -1,9 +1,4 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  TableColumn,
-  TableForeignKey,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, TableColumn, TableForeignKey } from 'typeorm';
 
 export class AddGroupIdToScheduleEntry1711700010000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -40,10 +35,7 @@ export class AddGroupIdToScheduleEntry1711700010000 implements MigrationInterfac
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropForeignKey(
-      'schedule_entries',
-      'FK_schedule_entry_group',
-    );
+    await queryRunner.dropForeignKey('schedule_entries', 'FK_schedule_entry_group');
     await queryRunner.dropColumn('schedule_entries', 'groupId');
 
     await queryRunner.changeColumn(

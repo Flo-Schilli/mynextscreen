@@ -70,26 +70,18 @@ describe('ApiKeyAuthGuard', () => {
   describe('missing header', () => {
     it('should throw UnauthorizedException when no Authorization header', async () => {
       const context = createMockContext({});
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
-      );
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        'Missing API key',
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+      await expect(guard.canActivate(context)).rejects.toThrow('Missing API key');
     });
 
     it('should throw UnauthorizedException when Authorization has no Bearer scheme', async () => {
       const context = createMockContext({ authorization: 'Basic abc123' });
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException when Bearer token is empty', async () => {
       const context = createMockContext({ authorization: 'Bearer ' });
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });
   });
 
@@ -101,12 +93,8 @@ describe('ApiKeyAuthGuard', () => {
         authorization: 'Bearer wrong-api-key',
       });
 
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
-      );
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        'Invalid API key',
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+      await expect(guard.canActivate(context)).rejects.toThrow('Invalid API key');
     });
 
     it('should throw UnauthorizedException when no screens exist', async () => {
@@ -116,9 +104,7 @@ describe('ApiKeyAuthGuard', () => {
         authorization: `Bearer ${VALID_API_KEY}`,
       });
 
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });
   });
 

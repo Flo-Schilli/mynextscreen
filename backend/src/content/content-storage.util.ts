@@ -10,12 +10,7 @@ export function getOriginalPath(
   contentId: string,
   ext: string,
 ): string {
-  return path.join(
-    basePath,
-    organisationId,
-    'originals',
-    `${contentId}.${ext}`,
-  );
+  return path.join(basePath, organisationId, 'originals', `${contentId}.${ext}`);
 }
 
 /**
@@ -28,10 +23,5 @@ export function getTranscodedPath(
   contentId: string,
   targetExt: string,
 ): string {
-  return path.join(
-    basePath,
-    organisationId,
-    'transcoded',
-    `${contentId}.${targetExt}`,
-  );
+  return path.join(basePath, organisationId, 'transcoded', `${contentId}.${targetExt}`);
 }

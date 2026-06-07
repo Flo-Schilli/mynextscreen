@@ -24,9 +24,7 @@ jest.mock('./ffprobe-duration.util', () => ({
   ffprobeDuration: (...args: unknown[]) => mockFfprobeDuration(...args),
 }));
 
-function createMockFile(
-  overrides: Partial<Express.Multer.File> = {},
-): Express.Multer.File {
+function createMockFile(overrides: Partial<Express.Multer.File> = {}): Express.Multer.File {
   return {
     fieldname: 'file',
     originalname: 'test.png',
@@ -154,25 +152,18 @@ describe('ContentService', () => {
 
       await service.upload('org-1', file, dto);
 
-      expect(storageService.addOriginalUsage).toHaveBeenCalledWith(
-        'org-1',
-        5000,
-      );
+      expect(storageService.addOriginalUsage).toHaveBeenCalledWith('org-1', 5000);
     });
 
     it('should reject upload when storage limit would be exceeded', async () => {
       storageService.checkOriginalLimit.mockRejectedValue(
-        new BadRequestException(
-          'Upload would exceed organisation original storage limit',
-        ),
+        new BadRequestException('Upload would exceed organisation original storage limit'),
       );
 
       const file = createMockFile({ size: 1000 });
       const dto = { title: 'Too big' };
 
-      await expect(service.upload('org-1', file, dto)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.upload('org-1', file, dto)).rejects.toThrow(BadRequestException);
     });
 
     it('should allow upload when storage limit is 0 (unlimited)', async () => {
@@ -188,18 +179,14 @@ describe('ContentService', () => {
       const file = createMockFile({ mimetype: 'application/pdf' });
       const dto = { title: 'PDF' };
 
-      await expect(service.upload('org-1', file, dto)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.upload('org-1', file, dto)).rejects.toThrow(BadRequestException);
     });
 
     it('should reject files exceeding max file size', async () => {
       const file = createMockFile({ size: 200000000 }); // 200 MB > 100 MB limit
       const dto = { title: 'Huge' };
 
-      await expect(service.upload('org-1', file, dto)).rejects.toThrow(
-        PayloadTooLargeException,
-      );
+      await expect(service.upload('org-1', file, dto)).rejects.toThrow(PayloadTooLargeException);
     });
   });
 
@@ -250,9 +237,7 @@ describe('ContentService', () => {
 
     it('should throw when content not found', async () => {
       contentRepo.findOne.mockResolvedValue(null);
-      await expect(service.findOne('org-1', 'missing')).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.findOne('org-1', 'missing')).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -271,14 +256,8 @@ describe('ContentService', () => {
       await service.delete('org-1', 'c1');
 
       expect(contentRepo.remove).toHaveBeenCalledWith(mockContent);
-      expect(storageService.subtractOriginalUsage).toHaveBeenCalledWith(
-        'org-1',
-        5000,
-      );
-      expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith(
-        'org-1',
-        3000,
-      );
+      expect(storageService.subtractOriginalUsage).toHaveBeenCalledWith('org-1', 5000);
+      expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith('org-1', 3000);
     });
 
     it('should handle delete when no transcoded file exists', async () => {
@@ -295,10 +274,7 @@ describe('ContentService', () => {
       await service.delete('org-1', 'c1');
 
       expect(contentRepo.remove).toHaveBeenCalled();
-      expect(storageService.subtractOriginalUsage).toHaveBeenCalledWith(
-        'org-1',
-        5000,
-      );
+      expect(storageService.subtractOriginalUsage).toHaveBeenCalledWith('org-1', 5000);
       expect(storageService.subtractTranscodedUsage).not.toHaveBeenCalled();
     });
   });
@@ -359,18 +335,9 @@ describe('ContentService', () => {
         }),
       );
       // sizeDelta = 3000 - 2000 = 1000 (positive), so checkOriginalLimit + addOriginalUsage
-      expect(storageService.checkOriginalLimit).toHaveBeenCalledWith(
-        'org-1',
-        1000,
-      );
-      expect(storageService.addOriginalUsage).toHaveBeenCalledWith(
-        'org-1',
-        1000,
-      );
-      expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith(
-        'org-1',
-        1000,
-      );
+      expect(storageService.checkOriginalLimit).toHaveBeenCalledWith('org-1', 1000);
+      expect(storageService.addOriginalUsage).toHaveBeenCalledWith('org-1', 1000);
+      expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith('org-1', 1000);
       expect(queue.add).toHaveBeenCalledWith(
         'transcode',
         expect.objectContaining({ contentId: 'c1' }),
@@ -388,16 +355,12 @@ describe('ContentService', () => {
       } as Content;
       contentRepo.findOne.mockResolvedValue(mockContent);
       storageService.checkOriginalLimit.mockRejectedValue(
-        new BadRequestException(
-          'Upload would exceed organisation original storage limit',
-        ),
+        new BadRequestException('Upload would exceed organisation original storage limit'),
       );
 
       const file = createMockFile({ size: 5000 }); // delta = 5000-1000 = 4000
 
-      await expect(service.reUpload('org-1', 'c1', file)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.reUpload('org-1', 'c1', file)).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -479,10 +442,7 @@ describe('ContentService', () => {
 
       await service.ensureDuration(content);
 
-      expect(emitSpy).not.toHaveBeenCalledWith(
-        CONTENT_DURATION_RESOLVED,
-        expect.anything(),
-      );
+      expect(emitSpy).not.toHaveBeenCalledWith(CONTENT_DURATION_RESOLVED, expect.anything());
     });
 
     it('should not emit event when ffprobe fails', async () => {
@@ -497,10 +457,7 @@ describe('ContentService', () => {
 
       await service.ensureDuration(content);
 
-      expect(emitSpy).not.toHaveBeenCalledWith(
-        CONTENT_DURATION_RESOLVED,
-        expect.anything(),
-      );
+      expect(emitSpy).not.toHaveBeenCalledWith(CONTENT_DURATION_RESOLVED, expect.anything());
     });
 
     it('should return null when ffprobe fails', async () => {

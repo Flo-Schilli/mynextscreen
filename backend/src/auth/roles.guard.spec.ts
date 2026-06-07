@@ -82,9 +82,7 @@ describe('RolesGuard', () => {
         user: { userId: 'user-1', email: 'test@example.com' },
         roles: [OrganisationRole.OrgAdmin],
       });
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -132,9 +130,7 @@ describe('RolesGuard', () => {
         roles: [OrganisationRole.OrgAdmin],
       });
 
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
       await expect(guard.canActivate(context)).rejects.toThrow(
         'You are not a member of this organisation',
       );
@@ -153,9 +149,7 @@ describe('RolesGuard', () => {
         roles: [OrganisationRole.OrgAdmin, OrganisationRole.Editor],
       });
 
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
       await expect(guard.canActivate(context)).rejects.toThrow(
         'Insufficient role for this operation',
       );
@@ -172,9 +166,7 @@ describe('RolesGuard', () => {
         roles: [OrganisationRole.OrgAdmin],
       });
 
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
     });
 
     it('should deny viewer when editor or admin is required', async () => {
@@ -188,9 +180,7 @@ describe('RolesGuard', () => {
         roles: [OrganisationRole.OrgAdmin, OrganisationRole.Editor],
       });
 
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -231,11 +221,7 @@ describe('RolesGuard', () => {
       const context = createMockContext({
         user: { userId: 'user-1', email: 'test@example.com' },
         headers: { 'x-organisation-id': 'org-1' },
-        roles: [
-          OrganisationRole.OrgAdmin,
-          OrganisationRole.Editor,
-          OrganisationRole.Viewer,
-        ],
+        roles: [OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer],
       });
 
       expect(await guard.canActivate(context)).toBe(true);
@@ -255,10 +241,7 @@ describe('RolesGuard', () => {
       });
 
       await guard.canActivate(context);
-      expect(userService.findOrCreate).toHaveBeenCalledWith(
-        'new-user',
-        'new@example.com',
-      );
+      expect(userService.findOrCreate).toHaveBeenCalledWith('new-user', 'new@example.com');
     });
   });
 
@@ -269,9 +252,7 @@ describe('RolesGuard', () => {
         roles: [OrganisationRole.OrgAdmin],
       });
 
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
     });
   });
 });

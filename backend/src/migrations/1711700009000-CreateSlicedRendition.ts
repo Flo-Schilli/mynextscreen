@@ -1,9 +1,4 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  Table,
-  TableForeignKey,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableForeignKey } from 'typeorm';
 
 export class CreateSlicedRendition1711700009000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {

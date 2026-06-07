@@ -8,9 +8,7 @@ import { SearchService } from './search.service';
 import { SearchController } from './search.controller';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Screen, Content, Playlist, ScheduleEntry]),
-  ],
+  imports: [TypeOrmModule.forFeature([Screen, Content, Playlist, ScheduleEntry])],
   controllers: [SearchController],
   providers: [SearchService],
   exports: [SearchService],

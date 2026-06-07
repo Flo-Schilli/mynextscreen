@@ -43,10 +43,7 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
     });
   }
 
-  override async findOne(
-    organisationId: string,
-    id: string,
-  ): Promise<ScreenGroup> {
+  override async findOne(organisationId: string, id: string): Promise<ScreenGroup> {
     const entity = await this.repository.findOne({
       where: { organisationId, id } as FindOptionsWhere<ScreenGroup>,
       relations: ['screens'],
@@ -66,9 +63,7 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
   ): Promise<ScreenGroup> {
     if (dto.mode === ScreenGroupMode.Split) {
       if (!dto.gridColumns || !dto.gridRows) {
-        throw new BadRequestException(
-          'gridColumns and gridRows are required when mode is split',
-        );
+        throw new BadRequestException('gridColumns and gridRows are required when mode is split');
       }
     }
 
@@ -107,9 +102,7 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
       const effectiveColumns = dto.gridColumns ?? group.gridColumns;
       const effectiveRows = dto.gridRows ?? group.gridRows;
       if (!effectiveColumns || !effectiveRows) {
-        throw new BadRequestException(
-          'gridColumns and gridRows are required when mode is split',
-        );
+        throw new BadRequestException('gridColumns and gridRows are required when mode is split');
       }
     }
 
@@ -199,9 +192,7 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
 
     // Check if screen already belongs to a different group
     if (screen.groupId && screen.groupId !== groupId) {
-      throw new ConflictException(
-        `Screen "${screen.name}" already belongs to another group`,
-      );
+      throw new ConflictException(`Screen "${screen.name}" already belongs to another group`);
     }
 
     // For split-mode groups, grid position is required
@@ -228,10 +219,8 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
     }
 
     screen.groupId = groupId;
-    screen.gridRow =
-      group.mode === ScreenGroupMode.Split ? (dto.gridRow ?? null) : null;
-    screen.gridColumn =
-      group.mode === ScreenGroupMode.Split ? (dto.gridColumn ?? null) : null;
+    screen.gridRow = group.mode === ScreenGroupMode.Split ? (dto.gridRow ?? null) : null;
+    screen.gridColumn = group.mode === ScreenGroupMode.Split ? (dto.gridColumn ?? null) : null;
 
     const saved = await this.screenRepository.save(screen);
 
@@ -260,9 +249,7 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
       where: { id: screenId, organisationId, groupId },
     });
     if (!screen) {
-      throw new NotFoundException(
-        `Screen with id "${screenId}" not found in group "${groupId}"`,
-      );
+      throw new NotFoundException(`Screen with id "${screenId}" not found in group "${groupId}"`);
     }
 
     const screenName = screen.name;

@@ -2,15 +2,7 @@ import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
-import {
-  Observable,
-  Subject,
-  finalize,
-  map,
-  merge,
-  interval,
-  takeUntil,
-} from 'rxjs';
+import { Observable, Subject, finalize, map, merge, interval, takeUntil } from 'rxjs';
 import { ScreenService } from './screen.service';
 import { ScheduleBoundaryService } from './schedule-boundary.service';
 import {
@@ -33,11 +25,7 @@ import {
   LIVE_STREAM_STOPPED,
   ScreenStateChangeEvent,
 } from './screen-state.event';
-import {
-  SCHEDULE_ENTRY_CHANGED,
-  ScheduleEntryChangedEvent,
-  ScheduleService,
-} from '../schedule';
+import { SCHEDULE_ENTRY_CHANGED, ScheduleEntryChangedEvent, ScheduleService } from '../schedule';
 import { LiveStreamActivation } from '../live-stream/live-stream-activation.entity';
 import { LiveStreamStatus } from '../live-stream/live-stream-status.enum';
 import { ScreenGroup } from '../screen-group/screen-group.entity';
@@ -84,10 +72,7 @@ export class ScreenStateService implements OnModuleDestroy {
     }
   }
 
-  async assembleState(
-    organisationId: string,
-    screenId: string,
-  ): Promise<ScreenState> {
+  async assembleState(organisationId: string, screenId: string): Promise<ScreenState> {
     const screen = await this.screenService.findOne(organisationId, screenId);
 
     const screenInfo: ScreenInfo = {
@@ -132,15 +117,11 @@ export class ScreenStateService implements OnModuleDestroy {
         }
       }
     } catch (error) {
-      this.logger.warn(
-        `Failed to resolve playlist for screen ${screenId}: ${error}`,
-      );
+      this.logger.warn(`Failed to resolve playlist for screen ${screenId}: ${error}`);
     }
 
     if (groupInfo?.mode === ScreenGroupMode.Split) {
-      const applySlicedUrls = async (
-        playlist: ProtocolPlaylist | null,
-      ): Promise<void> => {
+      const applySlicedUrls = async (playlist: ProtocolPlaylist | null): Promise<void> => {
         if (!playlist) return;
         for (const item of playlist.items) {
           const rendition = await this.slicedRenditionRepository.findOne({
@@ -173,9 +154,7 @@ export class ScreenStateService implements OnModuleDestroy {
         };
       }
     } catch (error) {
-      this.logger.warn(
-        `Failed to resolve live stream for screen ${screenId}: ${error}`,
-      );
+      this.logger.warn(`Failed to resolve live stream for screen ${screenId}: ${error}`);
     }
 
     return new ScreenState(
@@ -188,9 +167,7 @@ export class ScreenStateService implements OnModuleDestroy {
     );
   }
 
-  private async loadPlaylistWithItems(
-    playlistId: string,
-  ): Promise<Playlist | null> {
+  private async loadPlaylistWithItems(playlistId: string): Promise<Playlist | null> {
     return this.playlistRepository.findOne({
       where: { id: playlistId },
       relations: ['items', 'items.content'],
@@ -221,10 +198,7 @@ export class ScreenStateService implements OnModuleDestroy {
     };
   }
 
-  async getRenderedState(
-    organisationId: string,
-    screenId: string,
-  ): Promise<unknown> {
+  async getRenderedState(organisationId: string, screenId: string): Promise<unknown> {
     const state = await this.assembleState(organisationId, screenId);
     return this.protocolAdapter.renderState(state);
   }
@@ -237,9 +211,7 @@ export class ScreenStateService implements OnModuleDestroy {
       this.scheduleBoundaryService
         .registerScreen(screenId)
         .catch((err) =>
-          this.logger.warn(
-            `Failed to register screen ${screenId} for boundary tracking: ${err}`,
-          ),
+          this.logger.warn(`Failed to register screen ${screenId} for boundary tracking: ${err}`),
         );
     }
 
@@ -288,9 +260,7 @@ export class ScreenStateService implements OnModuleDestroy {
   }
 
   @OnEvent(SCHEDULE_ENTRY_CHANGED)
-  async handleScheduleEntryChanged(
-    event: ScheduleEntryChangedEvent,
-  ): Promise<void> {
+  async handleScheduleEntryChanged(event: ScheduleEntryChangedEvent): Promise<void> {
     const conn = this.connections.get(event.screenId);
     if (!conn) return;
 
@@ -298,17 +268,13 @@ export class ScreenStateService implements OnModuleDestroy {
     let isDefault = true;
 
     try {
-      const result = await this.scheduleService.getCurrentPlaylist(
-        event.screenId,
-      );
+      const result = await this.scheduleService.getCurrentPlaylist(event.screenId);
       isDefault = result.isDefault;
       currentPlaylist = result.playlist
         ? { id: result.playlist.id, name: result.playlist.name }
         : null;
     } catch (error) {
-      this.logger.warn(
-        `Failed to resolve current playlist for screen ${event.screenId}: ${error}`,
-      );
+      this.logger.warn(`Failed to resolve current playlist for screen ${event.screenId}: ${error}`);
     }
 
     this.pushEvent(

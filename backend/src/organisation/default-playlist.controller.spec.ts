@@ -34,9 +34,7 @@ describe('DefaultPlaylistController', () => {
       providers: [{ provide: OrganisationService, useValue: service }],
     }).compile();
 
-    controller = module.get<DefaultPlaylistController>(
-      DefaultPlaylistController,
-    );
+    controller = module.get<DefaultPlaylistController>(DefaultPlaylistController);
   });
 
   it('should set the default playlist', async () => {

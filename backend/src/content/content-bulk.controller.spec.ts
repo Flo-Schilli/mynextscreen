@@ -52,17 +52,9 @@ describe('ContentController — bulk endpoints', () => {
     it('should call service.bulkDelete with correct args', async () => {
       service.bulkDelete.mockResolvedValue({ deleted: 2, notFound: [] });
 
-      const result = await controller.bulkDelete(
-        orgId,
-        { ids: [contentId1, contentId2] },
-        mockReq,
-      );
+      const result = await controller.bulkDelete(orgId, { ids: [contentId1, contentId2] }, mockReq);
 
-      expect(service.bulkDelete).toHaveBeenCalledWith(
-        orgId,
-        [contentId1, contentId2],
-        userId,
-      );
+      expect(service.bulkDelete).toHaveBeenCalledWith(orgId, [contentId1, contentId2], userId);
       expect(result).toEqual({ deleted: 2, notFound: [] });
     });
 
@@ -72,11 +64,7 @@ describe('ContentController — bulk endpoints', () => {
         notFound: [contentId3],
       });
 
-      const result = await controller.bulkDelete(
-        orgId,
-        { ids: [contentId1, contentId3] },
-        mockReq,
-      );
+      const result = await controller.bulkDelete(orgId, { ids: [contentId1, contentId3] }, mockReq);
 
       expect(result.deleted).toBe(1);
       expect(result.notFound).toEqual([contentId3]);

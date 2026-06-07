@@ -3,14 +3,8 @@ import { Interval } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { ScreenService } from './screen.service';
-import {
-  ScreenStatusEvent,
-  SCREEN_STATUS_CHANGED,
-} from './screen-status.event';
-import {
-  AUDIT_SCREEN_OFFLINE,
-  AuditScreenEvent,
-} from '../audit-log/audit.events';
+import { ScreenStatusEvent, SCREEN_STATUS_CHANGED } from './screen-status.event';
+import { AUDIT_SCREEN_OFFLINE, AuditScreenEvent } from '../audit-log/audit.events';
 
 @Injectable()
 export class ScreenScheduler {
@@ -30,9 +24,7 @@ export class ScreenScheduler {
 
   @Interval(60_000)
   async detectOfflineScreens(): Promise<void> {
-    const offlineScreens = await this.screenService.detectOfflineScreens(
-      this.offlineThresholdMs,
-    );
+    const offlineScreens = await this.screenService.detectOfflineScreens(this.offlineThresholdMs);
 
     for (const screen of offlineScreens) {
       this.eventEmitter.emit(

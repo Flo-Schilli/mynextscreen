@@ -16,10 +16,7 @@ export class UserNotificationPreferenceService {
     private readonly repo: Repository<UserNotificationPreference>,
   ) {}
 
-  async getForUser(
-    userId: string,
-    organisationId: string,
-  ): Promise<UserNotificationPreference> {
+  async getForUser(userId: string, organisationId: string): Promise<UserNotificationPreference> {
     const existing = await this.repo.findOne({
       where: { userId, organisationId },
     });

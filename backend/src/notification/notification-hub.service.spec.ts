@@ -29,9 +29,7 @@ describe('NotificationHub', () => {
     resourceId: 'screen-1',
   };
 
-  const makeMembership = (
-    userId: string,
-  ): Partial<UserOrganisationMembership> => ({
+  const makeMembership = (userId: string): Partial<UserOrganisationMembership> => ({
     userId,
     organisationId: orgId,
   });
@@ -180,10 +178,7 @@ describe('NotificationHub', () => {
   });
 
   it('should handle multiple users with different preferences independently', async () => {
-    membershipRepo.find.mockResolvedValue([
-      makeMembership(user1Id),
-      makeMembership(user2Id),
-    ]);
+    membershipRepo.find.mockResolvedValue([makeMembership(user1Id), makeMembership(user2Id)]);
     orgConfigService.getForOrg.mockResolvedValue(fullOrgConfig);
     userPrefService.getForUser
       .mockResolvedValueOnce(
@@ -204,16 +199,8 @@ describe('NotificationHub', () => {
     await hub.dispatch(event);
 
     // User 1: in-app + email
-    expect(inAppChannel.send).toHaveBeenCalledWith(
-      user1Id,
-      orgId,
-      expect.any(Object),
-    );
-    expect(emailChannel.send).toHaveBeenCalledWith(
-      user1Id,
-      orgId,
-      expect.any(Object),
-    );
+    expect(inAppChannel.send).toHaveBeenCalledWith(user1Id, orgId, expect.any(Object));
+    expect(emailChannel.send).toHaveBeenCalledWith(user1Id, orgId, expect.any(Object));
 
     // User 2: ntfy only (org-level)
     expect(ntfyChannel.send).toHaveBeenCalledTimes(1);
@@ -225,10 +212,7 @@ describe('NotificationHub', () => {
   });
 
   it('should deduplicate ntfy — send at most once per dispatch even with multiple ntfy-enabled users', async () => {
-    membershipRepo.find.mockResolvedValue([
-      makeMembership(user1Id),
-      makeMembership(user2Id),
-    ]);
+    membershipRepo.find.mockResolvedValue([makeMembership(user1Id), makeMembership(user2Id)]);
     orgConfigService.getForOrg.mockResolvedValue(fullOrgConfig);
     userPrefService.getForUser.mockResolvedValue(
       makePrefs({

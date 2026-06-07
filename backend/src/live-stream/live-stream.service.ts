@@ -155,15 +155,11 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     const hasGroupId = !!dto.targetGroupId;
 
     if (!hasScreenIds && !hasGroupId) {
-      throw new BadRequestException(
-        'Either targetScreenIds or targetGroupId must be provided.',
-      );
+      throw new BadRequestException('Either targetScreenIds or targetGroupId must be provided.');
     }
 
     if (hasScreenIds && hasGroupId) {
-      throw new BadRequestException(
-        'Provide either targetScreenIds or targetGroupId, not both.',
-      );
+      throw new BadRequestException('Provide either targetScreenIds or targetGroupId, not both.');
     }
 
     const stream = await this.findOne(organisationId, id);
@@ -176,8 +172,7 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
           stream.sourceUrl,
           stream.protocol,
         );
-        const compatibility =
-          this.ffmpegLiveService.checkPassthroughCompatibility(probeResult);
+        const compatibility = this.ffmpegLiveService.checkPassthroughCompatibility(probeResult);
         warnings = compatibility.warnings;
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Unknown error';
@@ -194,16 +189,11 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     let targetScreenIds: string[];
 
     if (hasGroupId) {
-      const group = await this.screenGroupService.findOne(
-        organisationId,
-        dto.targetGroupId!,
-      );
+      const group = await this.screenGroupService.findOne(organisationId, dto.targetGroupId!);
       targetScreenIds = group.screens.map((s) => s.id);
 
       if (targetScreenIds.length === 0) {
-        throw new BadRequestException(
-          'The target screen group has no member screens.',
-        );
+        throw new BadRequestException('The target screen group has no member screens.');
       }
     } else {
       targetScreenIds = dto.targetScreenIds!;
@@ -227,9 +217,7 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       await this.ffmpegLiveService.start(stream);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      throw new BadGatewayException(
-        `Failed to start FFmpeg transcoding: ${message}`,
-      );
+      throw new BadGatewayException(`Failed to start FFmpeg transcoding: ${message}`);
     }
 
     // Handle duplicate overrides: deactivate any previous stream on these screens
@@ -240,9 +228,7 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     if (existingActivations.length > 0) {
       // Group by streamId to check if we need to clean up other streams
       const otherStreamIds = new Set(
-        existingActivations
-          .filter((a) => a.streamId !== id)
-          .map((a) => a.streamId),
+        existingActivations.filter((a) => a.streamId !== id).map((a) => a.streamId),
       );
 
       // Remove existing activations for these screens
@@ -346,9 +332,7 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
   }
 
   @OnEvent(LIVE_STREAM_PROCESS_EXITED)
-  async handleUnplannedExit(
-    event: LiveStreamProcessExitedEvent,
-  ): Promise<void> {
+  async handleUnplannedExit(event: LiveStreamProcessExitedEvent): Promise<void> {
     this.logger.warn(
       `Handling unplanned exit for stream ${event.streamId} (exit code: ${event.exitCode})`,
     );

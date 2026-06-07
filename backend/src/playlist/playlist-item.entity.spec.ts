@@ -2,9 +2,7 @@ import { validate } from 'class-validator';
 import { PlaylistItem } from './playlist-item.entity';
 import { TransitionType } from './transition-type.enum';
 
-function createPlaylistItem(
-  overrides: Partial<PlaylistItem> = {},
-): PlaylistItem {
+function createPlaylistItem(overrides: Partial<PlaylistItem> = {}): PlaylistItem {
   const item = new PlaylistItem();
   item.playlistId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
   item.contentId = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
@@ -114,17 +112,13 @@ describe('PlaylistItem entity validation', () => {
     const item = createPlaylistItem({ transitionDurationMs: 3001 });
     const errors = await validate(item);
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some((e) => e.property === 'transitionDurationMs')).toBe(
-      true,
-    );
+    expect(errors.some((e) => e.property === 'transitionDurationMs')).toBe(true);
   });
 
   it('should fail validation when transitionDurationMs is negative', async () => {
     const item = createPlaylistItem({ transitionDurationMs: -1 });
     const errors = await validate(item);
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some((e) => e.property === 'transitionDurationMs')).toBe(
-      true,
-    );
+    expect(errors.some((e) => e.property === 'transitionDurationMs')).toBe(true);
   });
 });

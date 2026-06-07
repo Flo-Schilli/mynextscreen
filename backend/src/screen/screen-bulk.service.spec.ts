@@ -71,11 +71,7 @@ describe('ScreenService — bulk operations', () => {
       repository.find.mockResolvedValue(screens);
       repository.remove.mockResolvedValue(screens);
 
-      const result = await service.bulkDelete(
-        orgId,
-        [screenId1, screenId2],
-        userId,
-      );
+      const result = await service.bulkDelete(orgId, [screenId1, screenId2], userId);
 
       expect(repository.find).toHaveBeenCalledWith({
         where: {
@@ -97,11 +93,7 @@ describe('ScreenService — bulk operations', () => {
       repository.findOne.mockResolvedValue(null); // screenId2 not found anywhere
       repository.remove.mockResolvedValue(screens);
 
-      const result = await service.bulkDelete(
-        orgId,
-        [screenId1, screenId2],
-        userId,
-      );
+      const result = await service.bulkDelete(orgId, [screenId1, screenId2], userId);
 
       expect(result.deleted).toBe(1);
       expect(result.notFound).toEqual([screenId2]);
@@ -112,9 +104,9 @@ describe('ScreenService — bulk operations', () => {
       // screenId2 exists but in another org
       repository.findOne.mockResolvedValue(makeScreen(screenId2, otherOrgId));
 
-      await expect(
-        service.bulkDelete(orgId, [screenId1, screenId2], userId),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.bulkDelete(orgId, [screenId1, screenId2], userId)).rejects.toThrow(
+        BadRequestException,
+      );
 
       try {
         await service.bulkDelete(orgId, [screenId1, screenId2], userId);
@@ -172,12 +164,7 @@ describe('ScreenService — bulk operations', () => {
       repository.find.mockResolvedValue(screens);
       repository.update.mockResolvedValue({ affected: 2 });
 
-      const result = await service.bulkAssignGroup(
-        orgId,
-        [screenId1, screenId2],
-        groupId,
-        userId,
-      );
+      const result = await service.bulkAssignGroup(orgId, [screenId1, screenId2], groupId, userId);
 
       expect(repository.update).toHaveBeenCalledWith([screenId1, screenId2], {
         groupId,
@@ -191,12 +178,7 @@ describe('ScreenService — bulk operations', () => {
       repository.find.mockResolvedValue(screens);
       repository.update.mockResolvedValue({ affected: 1 });
 
-      const result = await service.bulkAssignGroup(
-        orgId,
-        [screenId1],
-        null,
-        userId,
-      );
+      const result = await service.bulkAssignGroup(orgId, [screenId1], null, userId);
 
       expect(repository.update).toHaveBeenCalledWith([screenId1], {
         groupId: null,
@@ -209,12 +191,7 @@ describe('ScreenService — bulk operations', () => {
       repository.findOne.mockResolvedValue(null);
       repository.update.mockResolvedValue({ affected: 1 });
 
-      const result = await service.bulkAssignGroup(
-        orgId,
-        [screenId1, screenId3],
-        groupId,
-        userId,
-      );
+      const result = await service.bulkAssignGroup(orgId, [screenId1, screenId3], groupId, userId);
 
       expect(result.updated).toBe(1);
       expect(result.notFound).toEqual([screenId3]);
@@ -234,12 +211,7 @@ describe('ScreenService — bulk operations', () => {
       repository.find.mockResolvedValue(screens);
       repository.update.mockResolvedValue({ affected: 2 });
 
-      await service.bulkAssignGroup(
-        orgId,
-        [screenId1, screenId2],
-        groupId,
-        userId,
-      );
+      await service.bulkAssignGroup(orgId, [screenId1, screenId2], groupId, userId);
 
       expect(eventEmitter.emit).toHaveBeenCalledTimes(2);
       expect(eventEmitter.emit).toHaveBeenCalledWith(
@@ -257,12 +229,7 @@ describe('ScreenService — bulk operations', () => {
       repository.find.mockResolvedValue([]);
       repository.findOne.mockResolvedValue(null);
 
-      const result = await service.bulkAssignGroup(
-        orgId,
-        [screenId1],
-        groupId,
-        userId,
-      );
+      const result = await service.bulkAssignGroup(orgId, [screenId1], groupId, userId);
 
       expect(result.updated).toBe(0);
       expect(result.notFound).toEqual([screenId1]);

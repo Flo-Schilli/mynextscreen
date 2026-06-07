@@ -7,15 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import {
-  IsNotEmpty,
-  IsString,
-  IsOptional,
-  IsEnum,
-  IsArray,
-  IsInt,
-  Min,
-} from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsEnum, IsArray, IsInt, Min } from 'class-validator';
 import { Organisation } from '../organisation/organisation.entity';
 import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';

@@ -12,13 +12,7 @@ export const SLICE_CONTENT_QUEUE = 'slice-content';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      SlicedRendition,
-      ScreenGroup,
-      Screen,
-      Playlist,
-      Content,
-    ]),
+    TypeOrmModule.forFeature([SlicedRendition, ScreenGroup, Screen, Playlist, Content]),
     BullModule.registerQueue({
       name: SLICE_CONTENT_QUEUE,
       defaultJobOptions: {

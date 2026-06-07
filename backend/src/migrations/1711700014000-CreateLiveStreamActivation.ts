@@ -1,10 +1,4 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  Table,
-  TableForeignKey,
-  TableIndex,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableForeignKey, TableIndex } from 'typeorm';
 
 export class CreateLiveStreamActivation1711700014000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -67,14 +61,8 @@ export class CreateLiveStreamActivation1711700014000 implements MigrationInterfa
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropIndex(
-      'live_stream_activations',
-      'IDX_live_stream_activation_screenId',
-    );
-    await queryRunner.dropIndex(
-      'live_stream_activations',
-      'IDX_live_stream_activation_streamId',
-    );
+    await queryRunner.dropIndex('live_stream_activations', 'IDX_live_stream_activation_screenId');
+    await queryRunner.dropIndex('live_stream_activations', 'IDX_live_stream_activation_streamId');
     await queryRunner.dropTable('live_stream_activations');
   }
 }

@@ -20,9 +20,6 @@ export async function hashApiKey(plaintext: string): Promise<string> {
 /**
  * Compares a plaintext API key against a bcrypt hash.
  */
-export async function verifyApiKey(
-  plaintext: string,
-  hash: string,
-): Promise<boolean> {
+export async function verifyApiKey(plaintext: string, hash: string): Promise<boolean> {
   return bcrypt.compare(plaintext, hash);
 }

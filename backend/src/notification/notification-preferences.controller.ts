@@ -9,16 +9,10 @@ import { UserNotificationPreference } from './user-notification-preference.entit
 
 @Controller('me/notification-preferences')
 export class NotificationPreferencesController {
-  constructor(
-    private readonly prefService: UserNotificationPreferenceService,
-  ) {}
+  constructor(private readonly prefService: UserNotificationPreferenceService) {}
 
   @Get()
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   getPreferences(
     @Req() req: AuthenticatedRequest,
     @CurrentOrganisation() organisationId: string,
@@ -27,11 +21,7 @@ export class NotificationPreferencesController {
   }
 
   @Patch()
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   updatePreferences(
     @Req() req: AuthenticatedRequest,
     @CurrentOrganisation() organisationId: string,

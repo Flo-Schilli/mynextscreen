@@ -229,20 +229,12 @@ describe('JsonProtocolAdapter', () => {
     });
 
     it('should include recurrenceRule in schedule entries when present', () => {
-      const state = new ScreenState(
-        screenInfo,
-        null,
-        [recurringScheduleEntry],
-        null,
-        null,
-      );
+      const state = new ScreenState(screenInfo, null, [recurringScheduleEntry], null, null);
 
       const result = adapter.renderState(state) as Record<string, unknown>;
       const schedule = result.schedule as Array<Record<string, unknown>>;
 
-      expect(schedule[0].recurrenceRule).toBe(
-        'RRULE:FREQ=DAILY;BYHOUR=8;BYMINUTE=0',
-      );
+      expect(schedule[0].recurrenceRule).toBe('RRULE:FREQ=DAILY;BYHOUR=8;BYMINUTE=0');
     });
   });
 

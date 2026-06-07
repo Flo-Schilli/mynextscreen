@@ -1,9 +1,4 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { ROLES_KEY } from './roles.decorator';
@@ -31,19 +26,19 @@ export class RolesGuard implements CanActivate {
     }
 
     // Skip for screen-authenticated routes (API key auth, no user roles)
-    const isScreenAuth = this.reflector.getAllAndOverride<boolean>(
-      IS_SCREEN_AUTH_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const isScreenAuth = this.reflector.getAllAndOverride<boolean>(IS_SCREEN_AUTH_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
     if (isScreenAuth) {
       return true;
     }
 
     // If no @Roles() decorator, allow (only JWT auth required)
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>(
-      ROLES_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
     if (!requiredRoles || requiredRoles.length === 0) {
       return true;
     }
@@ -55,10 +50,7 @@ export class RolesGuard implements CanActivate {
     }
 
     // Super-admins bypass role checks
-    const superAdminIds = this.configService.get<string>(
-      'SUPER_ADMIN_USER_IDS',
-      '',
-    );
+    const superAdminIds = this.configService.get<string>('SUPER_ADMIN_USER_IDS', '');
     const allowedIds = superAdminIds
       .split(',')
       .map((id) => id.trim())
@@ -75,19 +67,14 @@ export class RolesGuard implements CanActivate {
       (httpRequest.query?.organisationId as string);
 
     if (!organisationId) {
-      throw new ForbiddenException(
-        'Organisation context required for role-based access',
-      );
+      throw new ForbiddenException('Organisation context required for role-based access');
     }
 
     // Ensure user record exists (findOrCreate on first authenticated request)
     await this.userService.findOrCreate(user.userId, user.email);
 
     // Look up the user's role in the requested organisation
-    const membership = await this.userService.getMembership(
-      user.userId,
-      organisationId,
-    );
+    const membership = await this.userService.getMembership(user.userId, organisationId);
 
     if (!membership) {
       throw new ForbiddenException('You are not a member of this organisation');

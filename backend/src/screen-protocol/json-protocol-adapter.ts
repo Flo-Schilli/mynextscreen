@@ -60,12 +60,8 @@ export class JsonProtocolAdapter implements ScreenProtocolAdapter {
     };
   }
 
-  private renderPlaylistItem(
-    item: PlaylistItem,
-    organisationId: string,
-  ): Record<string, unknown> {
-    const url =
-      item.contentUrl || `/api/media/${organisationId}/${item.contentId}`;
+  private renderPlaylistItem(item: PlaylistItem, organisationId: string): Record<string, unknown> {
+    const url = item.contentUrl || `/api/media/${organisationId}/${item.contentId}`;
     return {
       url,
       duration: item.duration,

@@ -24,9 +24,7 @@ describe('MediaService', () => {
 
     readdirSpy = jest
       .spyOn(fs.promises, 'readdir')
-      .mockResolvedValue(
-        [] as unknown as Awaited<ReturnType<typeof fs.promises.readdir>>,
-      );
+      .mockResolvedValue([] as unknown as Awaited<ReturnType<typeof fs.promises.readdir>>);
     accessSpy = jest.spyOn(fs.promises, 'access').mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
@@ -59,9 +57,7 @@ describe('MediaService', () => {
 
       const result = await service.getTranscodedFile(orgId, contentId);
 
-      expect(result.filePath).toBe(
-        `/data/media/${orgId}/transcoded/${contentId}.mp4`,
-      );
+      expect(result.filePath).toBe(`/data/media/${orgId}/transcoded/${contentId}.mp4`);
       expect(result.contentType).toBe('video/mp4');
     });
 
@@ -70,9 +66,7 @@ describe('MediaService', () => {
 
       const result = await service.getTranscodedFile(orgId, contentId);
 
-      expect(result.filePath).toBe(
-        `/data/media/${orgId}/transcoded/${contentId}.webp`,
-      );
+      expect(result.filePath).toBe(`/data/media/${orgId}/transcoded/${contentId}.webp`);
       expect(result.contentType).toBe('image/webp');
     });
 
@@ -81,26 +75,20 @@ describe('MediaService', () => {
 
       const result = await service.getTranscodedFile(orgId, contentId);
 
-      expect(result.filePath).toBe(
-        `/data/media/${orgId}/transcoded/${contentId}.jpg`,
-      );
+      expect(result.filePath).toBe(`/data/media/${orgId}/transcoded/${contentId}.jpg`);
       expect(result.contentType).toBe('image/jpeg');
     });
 
     it('should throw NotFoundException when directory does not exist', async () => {
       readdirSpy.mockRejectedValue(new Error('ENOENT'));
 
-      await expect(service.getTranscodedFile(orgId, contentId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.getTranscodedFile(orgId, contentId)).rejects.toThrow(NotFoundException);
     });
 
     it('should throw NotFoundException when file is not found', async () => {
       readdirSpy.mockResolvedValue(['other-file.mp4']);
 
-      await expect(service.getTranscodedFile(orgId, contentId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.getTranscodedFile(orgId, contentId)).rejects.toThrow(NotFoundException);
     });
 
     it('should return application/octet-stream for unknown extensions', async () => {
@@ -141,9 +129,9 @@ describe('MediaService', () => {
     it('should throw NotFoundException when rendition record does not exist', async () => {
       slicedRenditionRepository.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.getSlicedFile(groupId, screenId, contentId),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.getSlicedFile(groupId, screenId, contentId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw NotFoundException when file does not exist on disk', async () => {
@@ -151,9 +139,9 @@ describe('MediaService', () => {
       slicedRenditionRepository.findOne.mockResolvedValue({ filePath });
       accessSpy.mockRejectedValue(new Error('ENOENT'));
 
-      await expect(
-        service.getSlicedFile(groupId, screenId, contentId),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.getSlicedFile(groupId, screenId, contentId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should return application/octet-stream for unknown extensions', async () => {

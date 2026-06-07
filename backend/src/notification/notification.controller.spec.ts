@@ -34,9 +34,7 @@ describe('NotificationController', () => {
       markAllAsRead: jest.fn(),
     };
 
-    controller = new NotificationController(
-      notificationService as unknown as NotificationService,
-    );
+    controller = new NotificationController(notificationService as unknown as NotificationService);
   });
 
   describe('getNotifications', () => {
@@ -45,11 +43,7 @@ describe('NotificationController', () => {
 
       const result = await controller.getNotifications(mockReq, orgId);
 
-      expect(notificationService.findRecent).toHaveBeenCalledWith(
-        userId,
-        orgId,
-        false,
-      );
+      expect(notificationService.findRecent).toHaveBeenCalledWith(userId, orgId, false);
       expect(result).toEqual([mockNotification]);
     });
 
@@ -58,11 +52,7 @@ describe('NotificationController', () => {
 
       await controller.getNotifications(mockReq, orgId, 'true');
 
-      expect(notificationService.findRecent).toHaveBeenCalledWith(
-        userId,
-        orgId,
-        true,
-      );
+      expect(notificationService.findRecent).toHaveBeenCalledWith(userId, orgId, true);
     });
   });
 
@@ -72,10 +62,7 @@ describe('NotificationController', () => {
 
       const result = await controller.getUnreadCount(mockReq, orgId);
 
-      expect(notificationService.countUnread).toHaveBeenCalledWith(
-        userId,
-        orgId,
-      );
+      expect(notificationService.countUnread).toHaveBeenCalledWith(userId, orgId);
       expect(result).toEqual({ count: 5 });
     });
   });
@@ -86,10 +73,7 @@ describe('NotificationController', () => {
 
       await controller.markAsRead(mockReq, 'notif-1');
 
-      expect(notificationService.markAsRead).toHaveBeenCalledWith(
-        'notif-1',
-        userId,
-      );
+      expect(notificationService.markAsRead).toHaveBeenCalledWith('notif-1', userId);
     });
   });
 
@@ -99,10 +83,7 @@ describe('NotificationController', () => {
 
       await controller.markAllAsRead(mockReq, orgId);
 
-      expect(notificationService.markAllAsRead).toHaveBeenCalledWith(
-        userId,
-        orgId,
-      );
+      expect(notificationService.markAllAsRead).toHaveBeenCalledWith(userId, orgId);
     });
   });
 });

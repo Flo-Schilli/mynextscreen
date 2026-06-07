@@ -13,11 +13,7 @@ import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
 import { StorageService } from '../organisation/storage.service';
 import { getTranscodedPath } from './content-storage.util';
-import {
-  parseDuration,
-  parseProgressTime,
-  calculateProgress,
-} from './ffmpeg-progress.util';
+import { parseDuration, parseProgressTime, calculateProgress } from './ffmpeg-progress.util';
 import { ffprobeDuration } from './ffprobe-duration.util';
 import {
   TRANSCODING_COMPLETED,
@@ -55,35 +51,20 @@ export class TranscodingProcessor extends WorkerHost {
     private readonly storageService: StorageService,
   ) {
     super();
-    this.mediaBasePath = this.configService.get<string>(
-      'MEDIA_BASE_PATH',
-      './media',
-    );
+    this.mediaBasePath = this.configService.get<string>('MEDIA_BASE_PATH', './media');
     this.ffmpegPath = this.configService.get<string>('FFMPEG_PATH', 'ffmpeg');
     this.videoCrf = this.configService.get<string>('FFMPEG_VIDEO_CRF', '18');
-    this.videoPreset = this.configService.get<string>(
-      'FFMPEG_VIDEO_PRESET',
-      'slow',
-    );
-    this.videoMaxRate = this.configService.get<string>(
-      'FFMPEG_VIDEO_MAXRATE',
-      '8M',
-    );
-    this.videoBufSize = this.configService.get<string>(
-      'FFMPEG_VIDEO_BUFSIZE',
-      '16M',
-    );
+    this.videoPreset = this.configService.get<string>('FFMPEG_VIDEO_PRESET', 'slow');
+    this.videoMaxRate = this.configService.get<string>('FFMPEG_VIDEO_MAXRATE', '8M');
+    this.videoBufSize = this.configService.get<string>('FFMPEG_VIDEO_BUFSIZE', '16M');
     this.stripAudio =
-      this.configService.get<string>('FFMPEG_VIDEO_STRIP_AUDIO', 'false') ===
-      'true';
+      this.configService.get<string>('FFMPEG_VIDEO_STRIP_AUDIO', 'false') === 'true';
   }
 
   async process(job: Job<TranscodeJobData>): Promise<void> {
     const { contentId, organisationId, originalPath, type } = job.data;
 
-    this.logger.log(
-      `Processing transcoding job ${job.id} for content ${contentId}`,
-    );
+    this.logger.log(`Processing transcoding job ${job.id} for content ${contentId}`);
 
     // Update status to processing
     await this.updateStatus(contentId, TranscodingStatus.Processing);
@@ -110,15 +91,11 @@ export class TranscodingProcessor extends WorkerHost {
 
       // Check transcoded storage limit before saving
       try {
-        await this.storageService.checkTranscodedLimit(
-          organisationId,
-          transcodedSizeBytes,
-        );
+        await this.storageService.checkTranscodedLimit(organisationId, transcodedSizeBytes);
       } catch {
         // Limit exceeded: remove the transcoded file and mark as failed
         await this.unlinkSafe(outputPath);
-        const limitError =
-          'Transcoded file would exceed organisation transcoded storage limit';
+        const limitError = 'Transcoded file would exceed organisation transcoded storage limit';
         await this.contentRepository.update(contentId, {
           transcodingStatus: TranscodingStatus.Failed,
           transcodingError: limitError,
@@ -127,9 +104,7 @@ export class TranscodingProcessor extends WorkerHost {
           TRANSCODING_FAILED,
           new TranscodingFailedEvent(contentId, organisationId, limitError),
         );
-        this.logger.warn(
-          `Transcoding for content ${contentId} exceeded transcoded storage limit`,
-        );
+        this.logger.warn(`Transcoding for content ${contentId} exceeded transcoded storage limit`);
         return;
       }
 
@@ -155,29 +130,19 @@ export class TranscodingProcessor extends WorkerHost {
       });
 
       // Update org storage counter
-      await this.storageService.addTranscodedUsage(
-        organisationId,
-        transcodedSizeBytes,
-      );
+      await this.storageService.addTranscodedUsage(organisationId, transcodedSizeBytes);
 
       this.eventEmitter.emit(
         TRANSCODING_COMPLETED,
-        new TranscodingCompletedEvent(
-          contentId,
-          organisationId,
-          transcodedSizeBytes,
-        ),
+        new TranscodingCompletedEvent(contentId, organisationId, transcodedSizeBytes),
       );
 
       this.logger.log(
         `Transcoding completed for content ${contentId} (${transcodedSizeBytes} bytes)`,
       );
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Transcoding failed for content ${contentId}: ${errorMessage}`,
-      );
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Transcoding failed for content ${contentId}: ${errorMessage}`);
 
       await this.contentRepository.update(contentId, {
         transcodingStatus: TranscodingStatus.Failed,
@@ -258,11 +223,7 @@ export class TranscodingProcessor extends WorkerHost {
           });
           this.eventEmitter.emit(
             TRANSCODING_PROGRESS,
-            new TranscodingProgressEvent(
-              job.data.contentId,
-              job.data.organisationId,
-              progress,
-            ),
+            new TranscodingProgressEvent(job.data.contentId, job.data.organisationId, progress),
           );
         }
       });
@@ -284,10 +245,7 @@ export class TranscodingProcessor extends WorkerHost {
     });
   }
 
-  private async updateStatus(
-    contentId: string,
-    status: TranscodingStatus,
-  ): Promise<void> {
+  private async updateStatus(contentId: string, status: TranscodingStatus): Promise<void> {
     await this.contentRepository.update(contentId, {
       transcodingStatus: status,
     });

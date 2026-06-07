@@ -11,10 +11,7 @@ export { OrganisationNotificationConfig } from './organisation-notification-conf
 export { OrgNotificationConfigService } from './org-notification-config.service';
 export { NotificationPreferencesController } from './notification-preferences.controller';
 export { OrgNotificationConfigController } from './org-notification-config.controller';
-export {
-  UpdateNotificationPreferencesDto,
-  UpdateOrgNotificationConfigDto,
-} from './dto';
+export { UpdateNotificationPreferencesDto, UpdateOrgNotificationConfigDto } from './dto';
 export {
   NotificationPayload,
   InAppChannel,

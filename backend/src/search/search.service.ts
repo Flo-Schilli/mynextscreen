@@ -5,10 +5,7 @@ import { Screen } from '../screen/screen.entity';
 import { Content } from '../content/content.entity';
 import { Playlist } from '../playlist/playlist.entity';
 import { ScheduleEntry } from '../schedule/schedule-entry.entity';
-import {
-  SearchResultsDto,
-  SearchResultItemDto,
-} from './dto/search-results.dto';
+import { SearchResultsDto, SearchResultItemDto } from './dto/search-results.dto';
 
 @Injectable()
 export class SearchService {
@@ -23,10 +20,7 @@ export class SearchService {
     private readonly scheduleEntryRepository: Repository<ScheduleEntry>,
   ) {}
 
-  async search(
-    query: string,
-    organisationId: string,
-  ): Promise<SearchResultsDto> {
+  async search(query: string, organisationId: string): Promise<SearchResultsDto> {
     const trimmed = query.trim();
     if (trimmed === '') {
       return { screens: [], content: [], playlists: [], schedules: [] };
@@ -56,10 +50,9 @@ export class SearchService {
     const results = await this.screenRepository
       .createQueryBuilder('screen')
       .where('screen.organisationId = :orgId', { orgId: organisationId })
-      .andWhere(
-        '(LOWER(screen.name) LIKE LOWER(:q) OR LOWER(screen.location) LIKE LOWER(:q))',
-        { q: likePattern },
-      )
+      .andWhere('(LOWER(screen.name) LIKE LOWER(:q) OR LOWER(screen.location) LIKE LOWER(:q))', {
+        q: likePattern,
+      })
       .take(5)
       .getMany();
 

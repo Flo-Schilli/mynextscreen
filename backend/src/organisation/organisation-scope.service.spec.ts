@@ -1,8 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import {
-  OrganisationScopedService,
-  OrganisationScoped,
-} from './organisation-scope.service';
+import { OrganisationScopedService, OrganisationScoped } from './organisation-scope.service';
 
 interface TestEntity extends OrganisationScoped {
   id: string;
@@ -78,9 +75,7 @@ describe('OrganisationScopedService', () => {
     it('should throw NotFoundException when entity not found in organisation', async () => {
       repository.findOne.mockResolvedValue(null);
 
-      await expect(service.findOne(otherOrgId, entityId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.findOne(otherOrgId, entityId)).rejects.toThrow(NotFoundException);
       await expect(service.findOne(otherOrgId, entityId)).rejects.toThrow(
         `TestEntity with id "${entityId}" not found in organisation "${otherOrgId}"`,
       );
@@ -124,9 +119,9 @@ describe('OrganisationScopedService', () => {
     it('should throw NotFoundException when entity not found', async () => {
       repository.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.update(otherOrgId, entityId, { name: 'Updated' }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.update(otherOrgId, entityId, { name: 'Updated' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -146,9 +141,7 @@ describe('OrganisationScopedService', () => {
     it('should throw NotFoundException when entity not found', async () => {
       repository.findOne.mockResolvedValue(null);
 
-      await expect(service.remove(otherOrgId, entityId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.remove(otherOrgId, entityId)).rejects.toThrow(NotFoundException);
     });
   });
 });

@@ -365,9 +365,7 @@ describe('ScreenStateService', () => {
     it('should return the state rendered through the protocol adapter', async () => {
       const result = await service.getRenderedState(orgId, screenId);
 
-      expect(protocolAdapter.renderState).toHaveBeenCalledWith(
-        expect.any(ScreenState),
-      );
+      expect(protocolAdapter.renderState).toHaveBeenCalledWith(expect.any(ScreenState));
       expect(result).toEqual({
         screen: {
           id: screenId,
@@ -397,10 +395,7 @@ describe('ScreenStateService', () => {
 
       const eventPromise = firstValueFrom(observable.pipe(take(1)));
 
-      service.pushEvent(
-        screenId,
-        new ScreenEvent(ScreenEventType.PlaylistUpdate, { test: true }),
-      );
+      service.pushEvent(screenId, new ScreenEvent(ScreenEventType.PlaylistUpdate, { test: true }));
 
       const msg = await eventPromise;
       expect(msg.type).toBe('state-change');
@@ -437,10 +432,7 @@ describe('ScreenStateService', () => {
 
     it('should be a no-op when no subscriber exists', () => {
       // Should not throw
-      service.pushEvent(
-        'non-existent-id',
-        new ScreenEvent(ScreenEventType.PlaylistUpdate, {}),
-      );
+      service.pushEvent('non-existent-id', new ScreenEvent(ScreenEventType.PlaylistUpdate, {}));
     });
   });
 
@@ -449,9 +441,7 @@ describe('ScreenStateService', () => {
       const observable = service.subscribe(screenId);
       const eventPromise = firstValueFrom(observable.pipe(take(1)));
 
-      await service.handleScheduleEntryChanged(
-        new ScheduleEntryChangedEvent(screenId, orgId),
-      );
+      await service.handleScheduleEntryChanged(new ScheduleEntryChangedEvent(screenId, orgId));
 
       const msg = await eventPromise;
       expect(scheduleService.getCurrentPlaylist).toHaveBeenCalledWith(screenId);
@@ -478,9 +468,7 @@ describe('ScreenStateService', () => {
       const observable = service.subscribe(screenId);
       const eventPromise = firstValueFrom(observable.pipe(take(1)));
 
-      await service.handleScheduleEntryChanged(
-        new ScheduleEntryChangedEvent(screenId, orgId),
-      );
+      await service.handleScheduleEntryChanged(new ScheduleEntryChangedEvent(screenId, orgId));
 
       await eventPromise;
       expect(protocolAdapter.renderEvent).toHaveBeenCalledWith(
@@ -502,9 +490,7 @@ describe('ScreenStateService', () => {
       const observable = service.subscribe(screenId);
       const eventPromise = firstValueFrom(observable.pipe(take(1)));
 
-      await service.handleScheduleEntryChanged(
-        new ScheduleEntryChangedEvent(screenId, orgId),
-      );
+      await service.handleScheduleEntryChanged(new ScheduleEntryChangedEvent(screenId, orgId));
 
       await eventPromise;
       expect(protocolAdapter.renderEvent).toHaveBeenCalledWith(
@@ -519,9 +505,7 @@ describe('ScreenStateService', () => {
 
     it('should not send event if screen has no active SSE connection', async () => {
       // No subscribe() call — screen is not connected
-      await service.handleScheduleEntryChanged(
-        new ScheduleEntryChangedEvent(screenId, orgId),
-      );
+      await service.handleScheduleEntryChanged(new ScheduleEntryChangedEvent(screenId, orgId));
 
       expect(scheduleService.getCurrentPlaylist).not.toHaveBeenCalled();
       expect(protocolAdapter.renderEvent).not.toHaveBeenCalled();
@@ -536,9 +520,7 @@ describe('ScreenStateService', () => {
 
       const eventPromise = firstValueFrom(obs1.pipe(take(1)));
 
-      await service.handleScheduleEntryChanged(
-        new ScheduleEntryChangedEvent(screenId, orgId),
-      );
+      await service.handleScheduleEntryChanged(new ScheduleEntryChangedEvent(screenId, orgId));
 
       const msg = await eventPromise;
       expect(msg.type).toBe('state-change');
@@ -549,16 +531,12 @@ describe('ScreenStateService', () => {
     });
 
     it('should still send event when getCurrentPlaylist throws', async () => {
-      scheduleService.getCurrentPlaylist.mockRejectedValue(
-        new Error('DB error'),
-      );
+      scheduleService.getCurrentPlaylist.mockRejectedValue(new Error('DB error'));
 
       const observable = service.subscribe(screenId);
       const eventPromise = firstValueFrom(observable.pipe(take(1)));
 
-      await service.handleScheduleEntryChanged(
-        new ScheduleEntryChangedEvent(screenId, orgId),
-      );
+      await service.handleScheduleEntryChanged(new ScheduleEntryChangedEvent(screenId, orgId));
 
       const msg = await eventPromise;
       expect(protocolAdapter.renderEvent).toHaveBeenCalledWith(
@@ -581,9 +559,7 @@ describe('ScreenStateService', () => {
       const observable = service.subscribe(screenId);
       const eventPromise = firstValueFrom(observable.pipe(take(1)));
 
-      service.handleScheduleChanged(
-        new ScreenStateChangeEvent(screenId, orgId),
-      );
+      service.handleScheduleChanged(new ScreenStateChangeEvent(screenId, orgId));
 
       await eventPromise;
       expect(protocolAdapter.renderEvent).toHaveBeenCalledWith(
@@ -595,9 +571,7 @@ describe('ScreenStateService', () => {
       const observable = service.subscribe(screenId);
       const eventPromise = firstValueFrom(observable.pipe(take(1)));
 
-      service.handlePlaylistChanged(
-        new ScreenStateChangeEvent(screenId, orgId),
-      );
+      service.handlePlaylistChanged(new ScreenStateChangeEvent(screenId, orgId));
 
       await eventPromise;
       expect(protocolAdapter.renderEvent).toHaveBeenCalledWith(
@@ -621,9 +595,7 @@ describe('ScreenStateService', () => {
       const observable = service.subscribe(screenId);
       const eventPromise = firstValueFrom(observable.pipe(take(1)));
 
-      service.handleLiveStreamStarted(
-        new ScreenStateChangeEvent(screenId, orgId),
-      );
+      service.handleLiveStreamStarted(new ScreenStateChangeEvent(screenId, orgId));
 
       await eventPromise;
       expect(protocolAdapter.renderEvent).toHaveBeenCalledWith(
@@ -635,9 +607,7 @@ describe('ScreenStateService', () => {
       const observable = service.subscribe(screenId);
       const eventPromise = firstValueFrom(observable.pipe(take(1)));
 
-      service.handleLiveStreamStopped(
-        new ScreenStateChangeEvent(screenId, orgId),
-      );
+      service.handleLiveStreamStopped(new ScreenStateChangeEvent(screenId, orgId));
 
       await eventPromise;
       expect(protocolAdapter.renderEvent).toHaveBeenCalledWith(

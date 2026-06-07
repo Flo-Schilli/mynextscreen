@@ -21,9 +21,7 @@ export class MembershipController {
   constructor(private readonly membershipService: MembershipService) {}
 
   @Get()
-  listMembers(
-    @Param('orgId') orgId: string,
-  ): Promise<UserOrganisationMembership[]> {
+  listMembers(@Param('orgId') orgId: string): Promise<UserOrganisationMembership[]> {
     return this.membershipService.listMembers(orgId);
   }
 
@@ -46,10 +44,7 @@ export class MembershipController {
 
   @Delete(':userId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  removeMember(
-    @Param('orgId') orgId: string,
-    @Param('userId') userId: string,
-  ): Promise<void> {
+  removeMember(@Param('orgId') orgId: string, @Param('userId') userId: string): Promise<void> {
     return this.membershipService.removeMember(orgId, userId);
   }
 }

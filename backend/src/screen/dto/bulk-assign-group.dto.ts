@@ -1,10 +1,4 @@
-import {
-  ArrayMaxSize,
-  ArrayMinSize,
-  IsArray,
-  IsUUID,
-  ValidateIf,
-} from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsUUID, ValidateIf } from 'class-validator';
 
 export class BulkAssignGroupDto {
   @IsArray()

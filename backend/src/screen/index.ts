@@ -4,10 +4,7 @@ export { ScreenService } from './screen.service';
 export { ScreenStateService } from './screen-state.service';
 export { ScreenController } from './screen.controller';
 export { ScreenScheduler } from './screen.scheduler';
-export {
-  ScreenStatusEvent,
-  SCREEN_STATUS_CHANGED,
-} from './screen-status.event';
+export { ScreenStatusEvent, SCREEN_STATUS_CHANGED } from './screen-status.event';
 export {
   ScreenStateChangeEvent,
   SCHEDULE_CHANGED,

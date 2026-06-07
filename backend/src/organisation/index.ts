@@ -6,7 +6,4 @@ export { StorageService, StorageInfo } from './storage.service';
 export { StorageController } from './storage.controller';
 export { CreateOrganisationDto, UpdateOrganisationDto } from './dto';
 export { CurrentOrganisation } from './current-organisation.decorator';
-export {
-  OrganisationScopedService,
-  OrganisationScoped,
-} from './organisation-scope.service';
+export { OrganisationScopedService, OrganisationScoped } from './organisation-scope.service';

@@ -64,10 +64,7 @@ describe('MediaController', () => {
 
       await controller.serveMedia(req, orgId, contentId, res);
 
-      expect(mediaService.getTranscodedFile).toHaveBeenCalledWith(
-        orgId,
-        contentId,
-      );
+      expect(mediaService.getTranscodedFile).toHaveBeenCalledWith(orgId, contentId);
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'video/mp4');
       expect(res.setHeader).toHaveBeenCalledWith(
         'Cache-Control',
@@ -83,9 +80,9 @@ describe('MediaController', () => {
       const res = mockResponse();
       const req = mockRequest(otherOrgId);
 
-      await expect(
-        controller.serveMedia(req, orgId, contentId, res),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(controller.serveMedia(req, orgId, contentId, res)).rejects.toThrow(
+        ForbiddenException,
+      );
 
       expect(mediaService.getTranscodedFile).not.toHaveBeenCalled();
     });
@@ -98,9 +95,9 @@ describe('MediaController', () => {
       const res = mockResponse();
       const req = mockRequest(orgId);
 
-      await expect(
-        controller.serveMedia(req, orgId, contentId, res),
-      ).rejects.toThrow(NotFoundException);
+      await expect(controller.serveMedia(req, orgId, contentId, res)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should set correct content type for image files', async () => {
@@ -135,11 +132,7 @@ describe('MediaController', () => {
 
       await controller.serveSlicedMedia(req, groupId, screenId, contentId, res);
 
-      expect(mediaService.getSlicedFile).toHaveBeenCalledWith(
-        groupId,
-        screenId,
-        contentId,
-      );
+      expect(mediaService.getSlicedFile).toHaveBeenCalledWith(groupId, screenId, contentId);
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'video/mp4');
       expect(res.setHeader).toHaveBeenCalledWith(
         'Cache-Control',

@@ -1,7 +1,4 @@
-import {
-  DashboardSseService,
-  DashboardEventPayload,
-} from './dashboard-sse.service';
+import { DashboardSseService, DashboardEventPayload } from './dashboard-sse.service';
 import {
   TranscodingProgressEvent,
   TranscodingCompletedEvent,
@@ -39,9 +36,7 @@ describe('DashboardSseService', () => {
 
       const result = await resultPromise;
       expect(result.type).toBe('state-change');
-      expect(result.data).toEqual(
-        expect.objectContaining({ type: 'test', data: { foo: 'bar' } }),
-      );
+      expect(result.data).toEqual(expect.objectContaining({ type: 'test', data: { foo: 'bar' } }));
     });
 
     it('should create unique connections for multiple subscribers', async () => {
@@ -57,10 +52,7 @@ describe('DashboardSseService', () => {
         timestamp: new Date().toISOString(),
       });
 
-      const [result1, result2] = await Promise.all([
-        result1Promise,
-        result2Promise,
-      ]);
+      const [result1, result2] = await Promise.all([result1Promise, result2Promise]);
       expect(result1.type).toBe('state-change');
       expect(result2.type).toBe('state-change');
     });
@@ -96,10 +88,7 @@ describe('DashboardSseService', () => {
       };
       service.pushToOrg(orgId, payload);
 
-      const [result1, result2] = await Promise.all([
-        result1Promise,
-        result2Promise,
-      ]);
+      const [result1, result2] = await Promise.all([result1Promise, result2Promise]);
       expect((result1.data as DashboardEventPayload).type).toBe('test');
       expect((result2.data as DashboardEventPayload).type).toBe('test');
 
@@ -131,10 +120,7 @@ describe('DashboardSseService', () => {
       };
       service.pushToUser(userId, payload);
 
-      const [result1, result2] = await Promise.all([
-        result1Promise,
-        result2Promise,
-      ]);
+      const [result1, result2] = await Promise.all([result1Promise, result2Promise]);
       expect((result1.data as DashboardEventPayload).type).toBe('notification');
       expect((result2.data as DashboardEventPayload).type).toBe('notification');
 
@@ -192,20 +178,16 @@ describe('DashboardSseService', () => {
 
     it('should emit screen.online on screen status change (online)', () => {
       const event = new ScreenStatusEvent('screen-1', orgId, true);
-      return expectOrgEvent(
-        () => service.handleScreenStatusChanged(event),
-        'screen.online',
-        { screenId: 'screen-1' },
-      );
+      return expectOrgEvent(() => service.handleScreenStatusChanged(event), 'screen.online', {
+        screenId: 'screen-1',
+      });
     });
 
     it('should emit screen.offline on screen status change (offline)', () => {
       const event = new ScreenStatusEvent('screen-1', orgId, false);
-      return expectOrgEvent(
-        () => service.handleScreenStatusChanged(event),
-        'screen.offline',
-        { screenId: 'screen-1' },
-      );
+      return expectOrgEvent(() => service.handleScreenStatusChanged(event), 'screen.offline', {
+        screenId: 'screen-1',
+      });
     });
 
     it('should emit transcoding.progress', () => {
@@ -227,25 +209,18 @@ describe('DashboardSseService', () => {
     });
 
     it('should emit transcoding.failed', () => {
-      const event = new TranscodingFailedEvent(
-        'content-1',
-        orgId,
-        'codec error',
-      );
-      return expectOrgEvent(
-        () => service.handleTranscodingFailed(event),
-        'transcoding.failed',
-        { contentId: 'content-1', error: 'codec error' },
-      );
+      const event = new TranscodingFailedEvent('content-1', orgId, 'codec error');
+      return expectOrgEvent(() => service.handleTranscodingFailed(event), 'transcoding.failed', {
+        contentId: 'content-1',
+        error: 'codec error',
+      });
     });
 
     it('should emit schedule.updated', () => {
       const event = new ScheduleEntryChangedEvent('screen-1', orgId);
-      return expectOrgEvent(
-        () => service.handleScheduleChanged(event),
-        'schedule.updated',
-        { screenId: 'screen-1' },
-      );
+      return expectOrgEvent(() => service.handleScheduleChanged(event), 'schedule.updated', {
+        screenId: 'screen-1',
+      });
     });
 
     it('should emit live-stream-health', () => {

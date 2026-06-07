@@ -8,8 +8,7 @@ export const AUDIT_CONTENT_REUPLOADED = 'audit.content.reuploaded';
 export const AUDIT_CONTENT_BULK_DELETED = 'audit.content.bulk_deleted';
 export const AUDIT_CONTENT_BULK_TAGGED = 'audit.content.bulk_tagged';
 export const AUDIT_CONTENT_BULK_UNTAGGED = 'audit.content.bulk_untagged';
-export const AUDIT_CONTENT_BULK_ADDED_TO_PLAYLIST =
-  'audit.content.bulk_added_to_playlist';
+export const AUDIT_CONTENT_BULK_ADDED_TO_PLAYLIST = 'audit.content.bulk_added_to_playlist';
 
 export class AuditContentEvent {
   constructor(
@@ -25,8 +24,7 @@ export const AUDIT_PLAYLIST_CREATED = 'audit.playlist.created';
 export const AUDIT_PLAYLIST_UPDATED = 'audit.playlist.updated';
 export const AUDIT_PLAYLIST_DELETED = 'audit.playlist.deleted';
 export const AUDIT_PLAYLIST_BULK_DELETED = 'audit.playlist.bulk_deleted';
-export const AUDIT_PLAYLIST_BULK_SCREEN_ASSIGNED =
-  'audit.playlist.bulk_screen_assigned';
+export const AUDIT_PLAYLIST_BULK_SCREEN_ASSIGNED = 'audit.playlist.bulk_screen_assigned';
 
 export class AuditPlaylistEvent {
   constructor(
@@ -58,8 +56,7 @@ export const AUDIT_SCREEN_KEY_REGENERATED = 'audit.screen.key_regenerated';
 export const AUDIT_SCREEN_ONLINE = 'audit.screen.online';
 export const AUDIT_SCREEN_OFFLINE = 'audit.screen.offline';
 export const AUDIT_SCREEN_BULK_DELETED = 'audit.screen.bulk_deleted';
-export const AUDIT_SCREEN_BULK_GROUP_ASSIGNED =
-  'audit.screen.bulk_group_assigned';
+export const AUDIT_SCREEN_BULK_GROUP_ASSIGNED = 'audit.screen.bulk_group_assigned';
 
 export class AuditScreenEvent {
   constructor(

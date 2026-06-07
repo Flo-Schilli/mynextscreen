@@ -1,11 +1,4 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToOne,
-  JoinColumn,
-  Unique,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
 import { IsNotEmpty, IsUUID, IsBoolean } from 'class-validator';
 import { User } from '../user/user.entity';
 import { Organisation } from '../organisation/organisation.entity';

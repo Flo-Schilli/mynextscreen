@@ -53,10 +53,7 @@ export class ScheduleService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async create(
-    organisationId: string,
-    dto: CreateScheduleEntryDto,
-  ): Promise<ScheduleEntry> {
+  async create(organisationId: string, dto: CreateScheduleEntryDto): Promise<ScheduleEntry> {
     this.validateTarget(dto.screenId, dto.groupId);
 
     if (dto.screenId) {
@@ -97,11 +94,7 @@ export class ScheduleService {
       this.emitScheduleChanged(saved.screenId, organisationId);
     }
     if (saved.groupId) {
-      this.emitGroupScheduleChanged(
-        saved.groupId,
-        organisationId,
-        saved.playlistId,
-      );
+      this.emitGroupScheduleChanged(saved.groupId, organisationId, saved.playlistId);
     }
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_CREATED,
@@ -132,10 +125,7 @@ export class ScheduleService {
       await this.validatePlaylist(dto.playlistId, organisationId);
     }
 
-    if (
-      entry.screenId &&
-      (dto.startTime || dto.endTime || dto.rrule !== undefined)
-    ) {
+    if (entry.screenId && (dto.startTime || dto.endTime || dto.rrule !== undefined)) {
       await this.checkOverlap(
         entry.screenId,
         organisationId,
@@ -157,11 +147,7 @@ export class ScheduleService {
       this.emitScheduleChanged(entry.screenId, organisationId);
     }
     if (saved.groupId) {
-      this.emitGroupScheduleChanged(
-        saved.groupId,
-        organisationId,
-        saved.playlistId,
-      );
+      this.emitGroupScheduleChanged(saved.groupId, organisationId, saved.playlistId);
     }
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_UPDATED,
@@ -294,18 +280,10 @@ export class ScheduleService {
     excludeEntryId: string | null,
   ): Promise<void> {
     const windowStart = new Date(Math.min(startTime.getTime(), Date.now()));
-    const windowEnd = new Date(
-      windowStart.getTime() + OVERLAP_WINDOW_DAYS * 24 * 60 * 60 * 1000,
-    );
+    const windowEnd = new Date(windowStart.getTime() + OVERLAP_WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
     // Get new entry's occurrences
-    const newOccurrences = getOccurrences(
-      startTime,
-      endTime,
-      rrule,
-      windowStart,
-      windowEnd,
-    );
+    const newOccurrences = getOccurrences(startTime, endTime, rrule, windowStart, windowEnd);
 
     // Get all existing entries for this screen
     const existingEntries = await this.scheduleEntryRepository.find({
@@ -342,10 +320,7 @@ export class ScheduleService {
     return false;
   }
 
-  private async findOneOrFail(
-    id: string,
-    organisationId: string,
-  ): Promise<ScheduleEntry> {
+  private async findOneOrFail(id: string, organisationId: string): Promise<ScheduleEntry> {
     const entry = await this.scheduleEntryRepository.findOne({
       where: { id, organisationId },
       relations: ['playlist'],
@@ -360,21 +335,14 @@ export class ScheduleService {
 
   private validateTarget(screenId?: string, groupId?: string): void {
     if (screenId && groupId) {
-      throw new BadRequestException(
-        'Exactly one of screenId or groupId must be set, not both',
-      );
+      throw new BadRequestException('Exactly one of screenId or groupId must be set, not both');
     }
     if (!screenId && !groupId) {
-      throw new BadRequestException(
-        'Exactly one of screenId or groupId must be set',
-      );
+      throw new BadRequestException('Exactly one of screenId or groupId must be set');
     }
   }
 
-  private async validateGroup(
-    groupId: string,
-    organisationId: string,
-  ): Promise<void> {
+  private async validateGroup(groupId: string, organisationId: string): Promise<void> {
     const group = await this.screenGroupRepository.findOne({
       where: { id: groupId, organisationId },
     });
@@ -385,10 +353,7 @@ export class ScheduleService {
     }
   }
 
-  private async validateScreen(
-    screenId: string,
-    organisationId: string,
-  ): Promise<void> {
+  private async validateScreen(screenId: string, organisationId: string): Promise<void> {
     const screen = await this.screenRepository.findOne({
       where: { id: screenId, organisationId },
     });
@@ -399,10 +364,7 @@ export class ScheduleService {
     }
   }
 
-  private async validatePlaylist(
-    playlistId: string,
-    organisationId: string,
-  ): Promise<void> {
+  private async validatePlaylist(playlistId: string, organisationId: string): Promise<void> {
     const playlist = await this.playlistRepository.findOne({
       where: { id: playlistId, organisationId },
     });

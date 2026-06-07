@@ -1,19 +1,5 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToOne,
-  JoinColumn,
-  Unique,
-} from 'typeorm';
-import {
-  IsNotEmpty,
-  IsUUID,
-  IsBoolean,
-  IsOptional,
-  IsString,
-  IsInt,
-} from 'class-validator';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
+import { IsNotEmpty, IsUUID, IsBoolean, IsOptional, IsString, IsInt } from 'class-validator';
 import { Organisation } from '../organisation/organisation.entity';
 
 @Entity('organisation_notification_configs')

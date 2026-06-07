@@ -1,10 +1,4 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  Table,
-  TableForeignKey,
-  TableIndex,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableForeignKey, TableIndex } from 'typeorm';
 
 export class CreatePlaylist1711700005000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -136,14 +130,8 @@ export class CreatePlaylist1711700005000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropForeignKey(
-      'organisations',
-      'FK_organisation_default_playlist',
-    );
-    await queryRunner.dropIndex(
-      'playlist_items',
-      'IDX_playlist_item_playlistId',
-    );
+    await queryRunner.dropForeignKey('organisations', 'FK_organisation_default_playlist');
+    await queryRunner.dropIndex('playlist_items', 'IDX_playlist_item_playlistId');
     await queryRunner.dropTable('playlist_items');
     await queryRunner.dropIndex('playlists', 'IDX_playlist_organisationId');
     await queryRunner.dropTable('playlists');

@@ -1,11 +1,4 @@
-import {
-  IsNotEmpty,
-  IsString,
-  IsEnum,
-  IsInt,
-  Min,
-  ValidateIf,
-} from 'class-validator';
+import { IsNotEmpty, IsString, IsEnum, IsInt, Min, ValidateIf } from 'class-validator';
 import { ScreenGroupMode } from '../screen-group-mode.enum';
 
 export class CreateScreenGroupDto {

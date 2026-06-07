@@ -3,10 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Notification } from '../notification.entity';
 import { DashboardSseService } from '../../dashboard/dashboard-sse.service';
-import {
-  InAppChannel,
-  NotificationPayload,
-} from './notification-channel.interfaces';
+import { InAppChannel, NotificationPayload } from './notification-channel.interfaces';
 
 @Injectable()
 export class InAppNotificationChannel implements InAppChannel {
@@ -18,11 +15,7 @@ export class InAppNotificationChannel implements InAppChannel {
     private readonly dashboardSseService: DashboardSseService,
   ) {}
 
-  async send(
-    userId: string,
-    orgId: string,
-    notification: NotificationPayload,
-  ): Promise<void> {
+  async send(userId: string, orgId: string, notification: NotificationPayload): Promise<void> {
     const entity = this.notificationRepo.create({
       userId,
       organisationId: orgId,

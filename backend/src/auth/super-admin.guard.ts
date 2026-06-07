@@ -1,9 +1,4 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthenticatedRequest } from './jwt-auth.guard';
 
@@ -19,10 +14,7 @@ export class SuperAdminGuard implements CanActivate {
       throw new ForbiddenException('Access denied');
     }
 
-    const superAdminIds = this.configService.get<string>(
-      'SUPER_ADMIN_USER_IDS',
-      '',
-    );
+    const superAdminIds = this.configService.get<string>('SUPER_ADMIN_USER_IDS', '');
     const allowedIds = superAdminIds
       .split(',')
       .map((id) => id.trim())

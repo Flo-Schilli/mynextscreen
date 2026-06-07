@@ -22,9 +22,7 @@ export class OrgNotificationConfigService {
     private readonly repo: Repository<OrganisationNotificationConfig>,
   ) {}
 
-  async getForOrg(
-    organisationId: string,
-  ): Promise<OrganisationNotificationConfig | null> {
+  async getForOrg(organisationId: string): Promise<OrganisationNotificationConfig | null> {
     return this.repo.findOne({ where: { organisationId } });
   }
 
@@ -43,8 +41,7 @@ export class OrgNotificationConfigService {
         existing.smtpPassword = config.smtpPassword;
       }
       if (config.smtpFrom !== undefined) existing.smtpFrom = config.smtpFrom;
-      if (config.smtpSecure !== undefined)
-        existing.smtpSecure = config.smtpSecure;
+      if (config.smtpSecure !== undefined) existing.smtpSecure = config.smtpSecure;
       if (config.ntfyUrl !== undefined) existing.ntfyUrl = config.ntfyUrl;
       if (config.ntfyTopic !== undefined) existing.ntfyTopic = config.ntfyTopic;
       if (config.ntfyToken !== undefined && config.ntfyToken !== '') {

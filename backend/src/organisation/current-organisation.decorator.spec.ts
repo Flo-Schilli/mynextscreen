@@ -8,11 +8,7 @@ function getParamDecoratorFactory() {
     test(@CurrentOrganisation() _organisationId: string) {}
   }
 
-  const metadata = Reflect.getMetadata(
-    ROUTE_ARGS_METADATA,
-    TestController,
-    'test',
-  );
+  const metadata = Reflect.getMetadata(ROUTE_ARGS_METADATA, TestController, 'test');
   const key = Object.keys(metadata)[0];
   return metadata[key].factory;
 }
@@ -53,9 +49,7 @@ describe('CurrentOrganisation decorator', () => {
     const ctx = createMockExecutionContext({});
 
     expect(() => factory(undefined, ctx)).toThrow(BadRequestException);
-    expect(() => factory(undefined, ctx)).toThrow(
-      'Missing organisation context',
-    );
+    expect(() => factory(undefined, ctx)).toThrow('Missing organisation context');
   });
 
   it('should throw BadRequestException when header is empty string', () => {

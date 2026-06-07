@@ -38,11 +38,6 @@ import { Organisation } from '../organisation/organisation.entity';
     ScreenScheduler,
     ScreenProtocolService,
   ],
-  exports: [
-    ScreenService,
-    ScreenStateService,
-    ScreenProtocolService,
-    TypeOrmModule,
-  ],
+  exports: [ScreenService, ScreenStateService, ScreenProtocolService, TypeOrmModule],
 })
 export class ScreenModule {}

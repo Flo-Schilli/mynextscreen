@@ -2,11 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventEmitter } from 'events';
-import {
-  FfmpegLiveService,
-  LIVE_STREAM_PROCESS_EXITED,
-  PRESET_MAP,
-} from './ffmpeg-live.service';
+import { FfmpegLiveService, LIVE_STREAM_PROCESS_EXITED, PRESET_MAP } from './ffmpeg-live.service';
 import { LiveStream } from './live-stream.entity';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
@@ -326,9 +322,7 @@ describe('FfmpegLiveService', () => {
       });
       const args = service.buildArgs(stream, outputPath);
 
-      expect(args[args.indexOf('-vf') + 1]).toBe(
-        'scale=1280:-2,format=yuv420p',
-      );
+      expect(args[args.indexOf('-vf') + 1]).toBe('scale=1280:-2,format=yuv420p');
       expect(args[args.indexOf('-b:v') + 1]).toBe('2000k');
       expect(args[args.indexOf('-maxrate') + 1]).toBe('2400k');
       expect(args[args.indexOf('-bufsize') + 1]).toBe('4800k');
@@ -340,9 +334,7 @@ describe('FfmpegLiveService', () => {
       });
       const args = service.buildArgs(stream, outputPath);
 
-      expect(args[args.indexOf('-vf') + 1]).toBe(
-        'scale=2560:-2,format=yuv420p',
-      );
+      expect(args[args.indexOf('-vf') + 1]).toBe('scale=2560:-2,format=yuv420p');
       expect(args[args.indexOf('-b:v') + 1]).toBe('5000k');
       expect(args[args.indexOf('-maxrate') + 1]).toBe('6000k');
       expect(args[args.indexOf('-bufsize') + 1]).toBe('12000k');
@@ -461,9 +453,7 @@ describe('FfmpegLiveService', () => {
         const stream = createStream({ transcodingPreset: preset });
         const args = service.buildArgs(stream, outputPath);
 
-        expect(args[args.indexOf('-vf') + 1]).toBe(
-          `scale=${config.scale},format=yuv420p`,
-        );
+        expect(args[args.indexOf('-vf') + 1]).toBe(`scale=${config.scale},format=yuv420p`);
         expect(args[args.indexOf('-b:v') + 1]).toBe(config.videoBitrate);
         expect(args[args.indexOf('-maxrate') + 1]).toBe(config.maxrate);
         expect(args[args.indexOf('-bufsize') + 1]).toBe(config.bufsize);
@@ -536,16 +526,11 @@ describe('FfmpegLiveService', () => {
 
     it('should include protocol_whitelist for RTP sources', async () => {
       const ffprobeOutput = JSON.stringify({
-        streams: [
-          { codec_type: 'video', codec_name: 'hevc', pix_fmt: 'yuv420p10le' },
-        ],
+        streams: [{ codec_type: 'video', codec_name: 'hevc', pix_fmt: 'yuv420p10le' }],
       });
       setupExecFile(ffprobeOutput);
 
-      await service.probeSourceStream(
-        'rtp://239.0.0.1:5004',
-        LiveStreamProtocol.Rtp,
-      );
+      await service.probeSourceStream('rtp://239.0.0.1:5004', LiveStreamProtocol.Rtp);
 
       const callArgs = mockExecFile.mock.calls[0][1] as string[];
       expect(callArgs[0]).toBe('-protocol_whitelist');
@@ -566,10 +551,7 @@ describe('FfmpegLiveService', () => {
       );
 
       await expect(
-        service.probeSourceStream(
-          'rtmp://example.com/live/test',
-          LiveStreamProtocol.Rtmp,
-        ),
+        service.probeSourceStream('rtmp://example.com/live/test', LiveStreamProtocol.Rtmp),
       ).rejects.toThrow('ffprobe not found');
     });
   });

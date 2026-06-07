@@ -1,10 +1,4 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { IsNotEmpty, IsString, IsInt, IsEnum, Min, Max } from 'class-validator';
 import { Playlist } from './playlist.entity';
 import { Content } from '../content/content.entity';
