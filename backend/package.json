@@ -4,6 +4,7 @@
   "description": "Signage Server - NestJS Backend",
   "private": true,
   "license": "UNLICENSED",
+  "packageManager": "npm@11.6.2",
   "scripts": {
     "build": "nest build",
     "start": "nest start",
