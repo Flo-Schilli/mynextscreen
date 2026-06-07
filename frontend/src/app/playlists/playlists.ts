@@ -544,81 +544,15 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
     </div>
   `,
   styles: `
+    /* Extra bottom padding for sticky bulk-action bar */
     .page {
-      min-height: 100vh;
-      background: var(--color-bg-primary);
-      color: var(--color-text-primary);
-      padding: 2rem;
       padding-bottom: 5rem;
     }
-    .page-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 2rem;
-    }
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-    }
-    .header-left h1 {
-      font-size: 1.5rem;
-      font-weight: 600;
-      margin: 0;
-    }
-    .back-btn {
-      background: none;
-      border: none;
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      font-size: 0.875rem;
-      padding: 0.25rem 0.5rem;
-      border-radius: 0.25rem;
-    }
-    .back-btn:hover {
-      color: var(--color-text-primary);
-      background: var(--color-bg-secondary);
-    }
 
-    /* Buttons */
-    .btn {
-      padding: 0.5rem 1rem;
-      border-radius: 0.375rem;
-      border: none;
-      cursor: pointer;
-      font-size: 0.875rem;
-      font-weight: 500;
-      transition: background-color 0.15s;
-    }
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+    /* Small button variant */
     .btn-sm {
       padding: 0.325rem 0.75rem;
       font-size: 0.8125rem;
-    }
-    .btn-primary {
-      background: var(--color-accent);
-      color: #fff;
-    }
-    .btn-primary:hover:not(:disabled) {
-      background: var(--color-accent-hover);
-    }
-    .btn-secondary {
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-primary);
-    }
-    .btn-secondary:hover:not(:disabled) {
-      background: var(--color-border);
-    }
-    .btn-danger {
-      background: #991b1b;
-      color: #fecaca;
-    }
-    .btn-danger:hover:not(:disabled) {
-      background: #b91c1c;
     }
 
     /* Select All Row */
@@ -716,37 +650,6 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       font-size: 1.125rem;
       font-weight: 600;
     }
-    .form-group {
-      margin-bottom: 1rem;
-    }
-    .form-group label {
-      display: block;
-      margin-bottom: 0.375rem;
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-    }
-    .form-group input,
-    .form-group select {
-      width: 100%;
-      padding: 0.5rem 0.75rem;
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-      color: var(--color-text-primary);
-      font-size: 0.875rem;
-      box-sizing: border-box;
-    }
-    .form-group input:focus,
-    .form-group select:focus {
-      outline: none;
-      border-color: var(--color-accent);
-    }
-    .form-actions {
-      display: flex;
-      gap: 0.75rem;
-      margin-top: 1.25rem;
-    }
-
     /* Editor Card */
     .editor-card {
       background: var(--color-bg-secondary);
@@ -1042,40 +945,12 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       border: 1px solid var(--color-border);
     }
 
-    /* Modal */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.6);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    }
-    .modal {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.5rem;
-      min-width: 24rem;
-      max-width: 36rem;
-    }
+    /* Large modal variant */
     .modal-lg {
       max-width: 52rem;
       width: 90vw;
       max-height: 80vh;
       overflow-y: auto;
-    }
-    .modal h2 {
-      margin: 0 0 1.25rem;
-      font-size: 1.125rem;
-      font-weight: 600;
-    }
-    .modal p {
-      margin: 0 0 1rem;
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-      line-height: 1.5;
     }
     .warning-text {
       color: #fbbf24 !important;
@@ -1169,25 +1044,6 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: 4rem 2rem;
-    }
-    .empty-text {
-      color: var(--color-text-muted);
-      font-size: 0.875rem;
-      margin-bottom: 1rem;
-    }
-    .error {
-      color: #ef4444;
-      font-size: 0.875rem;
-      margin-top: 0.5rem;
-    }
-    .loading-text {
-      color: var(--color-text-muted);
-      font-size: 0.875rem;
     }
 
     /* Toast */

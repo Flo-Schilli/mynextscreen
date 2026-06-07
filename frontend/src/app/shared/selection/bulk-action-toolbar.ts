@@ -117,11 +117,6 @@ export interface BulkAction {
       transition: background-color 0.15s;
     }
 
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
     .btn-default {
       background: var(--color-bg-tertiary);
       color: var(--color-text-primary);
@@ -129,15 +124,6 @@ export interface BulkAction {
 
     .btn-default:hover:not(:disabled) {
       background: var(--color-border);
-    }
-
-    .btn-danger {
-      background: #991b1b;
-      color: #fecaca;
-    }
-
-    .btn-danger:hover:not(:disabled) {
-      background: #b91c1c;
     }
 
     .spinner {

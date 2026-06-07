@@ -57,3 +57,319 @@ html.light {
   --color-border: #e2e8f0;
   --color-shadow: rgba(0, 0, 0, 0.08);
 }
+
+/*
+ * Shared design system.
+ *
+ * These primitives (page chrome, buttons, tables, badges, modals, forms,
+ * empty/loading states) were duplicated verbatim inside almost every admin
+ * component's `styles:` block. They live here once so components only carry
+ * markup. Placed in `@layer components` so Tailwind utilities still win, and
+ * so any component that still ships its own (unlayered) copy keeps overriding
+ * this until it is migrated — letting components drop their blocks one by one
+ * with no visual change.
+ */
+@layer components {
+  /* Page chrome */
+  .page {
+    min-height: 100vh;
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    padding: 2rem;
+  }
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .header-left h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0;
+  }
+  .back-btn {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+  }
+  .back-btn:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-secondary);
+  }
+
+  /* Buttons */
+  .btn {
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    border: none;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background-color 0.15s;
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: var(--color-accent);
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-accent-hover);
+  }
+  .btn-secondary {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--color-border);
+  }
+  .btn-danger {
+    background: #991b1b;
+    color: #fecaca;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: #b91c1c;
+  }
+  .btn-warning {
+    background: #92400e;
+    color: #fde68a;
+  }
+  .btn-warning:hover:not(:disabled) {
+    background: #a16207;
+  }
+  .btn-small {
+    padding: 0.25rem 0.625rem;
+    font-size: 0.8125rem;
+  }
+
+  /* Tables */
+  .table-container {
+    width: 100%;
+    overflow-x: auto;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+    box-shadow:
+      0 1px 3px var(--color-shadow),
+      0 1px 2px var(--color-shadow);
+  }
+  .table-container table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .table-container th {
+    background: var(--color-bg-tertiary);
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-secondary);
+    border-bottom: 2px solid var(--color-border);
+  }
+  .table-container td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.875rem;
+  }
+  .table-container tr:last-child td {
+    border-bottom: none;
+  }
+  .name-cell {
+    font-weight: 500;
+  }
+  .actions-cell {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  /* Badges */
+  .protocol-badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+  }
+  .status-badge,
+  .health-badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+  .status-idle {
+    background: #6b728020;
+    color: #9ca3af;
+  }
+  .status-active,
+  .health-healthy {
+    background: #16a34a20;
+    color: #22c55e;
+  }
+  .status-error,
+  .health-stopped {
+    background: #dc262620;
+    color: #ef4444;
+  }
+  .health-degraded {
+    background: #f59e0b20;
+    color: #f59e0b;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .modal {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    min-width: 24rem;
+    max-width: 36rem;
+    width: 100%;
+  }
+  .modal-wide {
+    max-width: 40rem;
+  }
+  .modal h2 {
+    margin: 0 0 1.25rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+  .modal p {
+    margin: 0 0 1rem;
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+  }
+
+  /* Forms */
+  .form-group {
+    margin-bottom: 1rem;
+  }
+  .form-group label,
+  .form-label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+  }
+  .form-group input[type='text'],
+  .form-group select {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: 0.375rem;
+    color: var(--color-text-primary);
+    font-size: 0.875rem;
+    box-sizing: border-box;
+  }
+  .form-group input:focus,
+  .form-group select:focus {
+    outline: none;
+    border-color: var(--color-accent);
+  }
+  .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+  .radio-group {
+    display: flex;
+    gap: 1.5rem;
+  }
+  .radio-label,
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--color-text-primary);
+    cursor: pointer;
+  }
+  .checkbox-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--color-border);
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+
+  /* Empty / loading / error states */
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+  }
+  .empty-icon {
+    color: var(--color-text-muted);
+    margin-bottom: 1rem;
+  }
+  .empty-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin: 0 0 0.5rem;
+  }
+  .empty-text {
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    margin-bottom: 1.5rem;
+  }
+  .error {
+    color: #ef4444;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+  }
+  .loading-text {
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+  }
+  .text-muted {
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+  }
+
+  @media (max-width: 768px) {
+    .page {
+      padding: 1rem;
+    }
+    .page-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+    .modal {
+      min-width: auto;
+      margin: 1rem;
+    }
+  }
+}
