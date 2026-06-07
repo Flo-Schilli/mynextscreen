@@ -575,45 +575,10 @@ interface UploadItem {
     </div>
   `,
   styles: `
-    .page {
-      min-height: 100vh;
-      background: var(--color-bg-primary);
-      color: var(--color-text-primary);
-      padding: 2rem;
-    }
-    .page-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-    }
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-    }
-    .header-left h1 {
-      font-size: 1.5rem;
-      font-weight: 600;
-      margin: 0;
-    }
     .header-right {
       display: flex;
       gap: 0.75rem;
       align-items: center;
-    }
-    .back-btn {
-      background: none;
-      border: none;
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      font-size: 0.875rem;
-      padding: 0.25rem 0.5rem;
-      border-radius: 0.25rem;
-    }
-    .back-btn:hover {
-      color: var(--color-text-primary);
-      background: var(--color-bg-secondary);
     }
 
     /* Type Toggle */
@@ -992,14 +957,6 @@ interface UploadItem {
       flex-direction: column;
       gap: 0.375rem;
     }
-    .status-badge {
-      display: inline-block;
-      padding: 0.125rem 0.5rem;
-      border-radius: 9999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      width: fit-content;
-    }
     .status-badge[data-status='completed'] {
       background: #22c55e20;
       color: #22c55e;
@@ -1045,53 +1002,7 @@ interface UploadItem {
       color: var(--color-text-secondary);
     }
 
-    /* Buttons */
-    .btn {
-      padding: 0.5rem 1rem;
-      border-radius: 0.375rem;
-      border: none;
-      cursor: pointer;
-      font-size: 0.875rem;
-      font-weight: 500;
-      transition: background-color 0.15s;
-    }
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .btn-primary {
-      background: var(--color-accent);
-      color: #fff;
-    }
-    .btn-primary:hover:not(:disabled) {
-      background: var(--color-accent-hover);
-    }
-    .btn-secondary {
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-primary);
-    }
-    .btn-secondary:hover:not(:disabled) {
-      background: var(--color-border);
-    }
-    .btn-danger {
-      background: #991b1b;
-      color: #fecaca;
-    }
-    .btn-danger:hover:not(:disabled) {
-      background: #b91c1c;
-    }
-
-    /* Form */
-    .form-group {
-      margin-bottom: 1rem;
-    }
-    .form-group label {
-      display: block;
-      margin-bottom: 0.375rem;
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-    }
-    .form-group input,
+    /* Form: textarea styling (not covered by shared input-only rules) */
     .form-group textarea {
       width: 100%;
       padding: 0.5rem 0.75rem;
@@ -1103,45 +1014,9 @@ interface UploadItem {
       box-sizing: border-box;
       font-family: inherit;
     }
-    .form-group input:focus,
     .form-group textarea:focus {
       outline: none;
       border-color: var(--color-accent);
-    }
-    .form-actions {
-      display: flex;
-      gap: 0.75rem;
-      margin-top: 1rem;
-    }
-
-    /* Modal */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.6);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    }
-    .modal {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.5rem;
-      min-width: 24rem;
-      max-width: 36rem;
-    }
-    .modal h2 {
-      margin: 0 0 1.25rem;
-      font-size: 1.125rem;
-      font-weight: 600;
-    }
-    .modal p {
-      margin: 0 0 1rem;
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-      line-height: 1.5;
     }
 
     /* Grid Header with select-all */
@@ -1236,27 +1111,10 @@ interface UploadItem {
       }
     }
 
-    .empty-state {
-      text-align: center;
-      padding: 4rem 2rem;
-    }
-    .empty-text {
-      color: var(--color-text-muted);
-      font-size: 0.875rem;
-    }
-    .error {
-      color: #ef4444;
-      font-size: 0.875rem;
-      margin-top: 0.5rem;
-    }
     .success {
       color: #22c55e;
       font-size: 0.875rem;
       margin-top: 0.5rem;
-    }
-    .loading-text {
-      color: var(--color-text-muted);
-      font-size: 0.875rem;
     }
   `,
 })

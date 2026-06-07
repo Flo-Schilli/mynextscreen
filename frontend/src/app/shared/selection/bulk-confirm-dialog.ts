@@ -40,42 +40,8 @@ import {
     </div>
   `,
   styles: `
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.6);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    }
-    .modal {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.5rem;
-      min-width: 24rem;
-      max-width: 36rem;
-      box-shadow: 0 8px 24px var(--color-shadow);
-    }
     .modal:focus {
       outline: none;
-    }
-    .modal h2 {
-      margin: 0 0 1.25rem;
-      font-size: 1.125rem;
-      font-weight: 600;
-    }
-    .modal p {
-      margin: 0 0 1rem;
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-      line-height: 1.5;
-    }
-    .form-actions {
-      display: flex;
-      gap: 0.75rem;
-      margin-top: 1.25rem;
     }
   `,
 })

@@ -171,18 +171,6 @@ import { Membership } from '../settings/users/member.model';
     </div>
   `,
   styles: `
-    .page {
-      min-height: 100vh;
-      background: var(--color-bg-primary);
-      color: var(--color-text-primary);
-      padding: 2rem;
-    }
-    .page-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-    }
     .page-header h1 {
       font-size: 1.5rem;
       font-weight: 600;
@@ -235,63 +223,11 @@ import { Membership } from '../settings/users/member.model';
       align-self: flex-end;
     }
 
-    /* Buttons */
-    .btn {
-      padding: 0.5rem 1rem;
-      border-radius: 0.375rem;
-      border: none;
-      cursor: pointer;
-      font-size: 0.875rem;
-      font-weight: 500;
-      transition: background-color 0.15s;
-    }
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .btn-secondary {
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-primary);
-    }
-    .btn-secondary:hover:not(:disabled) {
-      background: var(--color-border);
-    }
-    .btn-small {
-      padding: 0.375rem 0.75rem;
-      font-size: 0.8125rem;
-    }
-
     /* Table */
-    .table-container {
-      overflow-x: auto;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: var(--color-bg-secondary);
-      border-radius: 0.5rem;
-      overflow: hidden;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
-    }
-    thead {
-      background: var(--color-bg-tertiary);
-    }
     th {
-      text-align: left;
-      padding: 0.75rem 1rem;
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--color-text-secondary);
       white-space: nowrap;
     }
     td {
-      padding: 0.75rem 1rem;
-      font-size: 0.875rem;
-      border-top: 1px solid var(--color-border);
       vertical-align: top;
     }
     tr:hover td {
@@ -367,10 +303,6 @@ import { Membership } from '../settings/users/member.model';
       cursor: help;
     }
 
-    .text-muted {
-      color: var(--color-text-muted);
-    }
-
     /* Load more */
     .load-more-container {
       display: flex;
@@ -384,18 +316,6 @@ import { Membership } from '../settings/users/member.model';
       color: var(--color-text-muted);
     }
 
-    .error {
-      color: #ef4444;
-      font-size: 0.875rem;
-      margin-top: 0.5rem;
-    }
-    .loading-text,
-    .empty-text {
-      color: var(--color-text-muted);
-      font-size: 0.875rem;
-    }
-
-    /* Titlecase pipe polyfill via CSS */
     @media (max-width: 768px) {
       .filter-bar {
         flex-direction: column;

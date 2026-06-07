@@ -104,42 +104,6 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
     </div>
   `,
   styles: `
-    .page {
-      min-height: 100vh;
-      background: var(--color-bg-primary);
-      color: var(--color-text-primary);
-      padding: 2rem;
-    }
-    .page-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 2rem;
-    }
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-    }
-    .header-left h1 {
-      font-size: 1.5rem;
-      font-weight: 600;
-      margin: 0;
-    }
-    .back-btn {
-      background: none;
-      border: none;
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      font-size: 0.875rem;
-      padding: 0.25rem 0.5rem;
-      border-radius: 0.25rem;
-    }
-    .back-btn:hover {
-      color: var(--color-text-primary);
-      background: var(--color-bg-secondary);
-    }
-
     .section {
       background: var(--color-bg-secondary);
       border: 1px solid var(--color-border);
@@ -243,15 +207,6 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
     .toast-error {
       background: #991b1b;
       color: #fecaca;
-    }
-
-    .error {
-      color: #ef4444;
-      font-size: 0.875rem;
-    }
-    .loading-text {
-      color: var(--color-text-muted);
-      font-size: 0.875rem;
     }
   `,
 })

@@ -158,42 +158,6 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
     </div>
   `,
   styles: `
-    .page {
-      min-height: 100vh;
-      background: var(--color-bg-primary);
-      color: var(--color-text-primary);
-      padding: 2rem;
-    }
-    .page-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 2rem;
-    }
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-    }
-    .header-left h1 {
-      font-size: 1.5rem;
-      font-weight: 600;
-      margin: 0;
-    }
-    .back-btn {
-      background: none;
-      border: none;
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      font-size: 0.875rem;
-      padding: 0.25rem 0.5rem;
-      border-radius: 0.25rem;
-    }
-    .back-btn:hover {
-      color: var(--color-text-primary);
-      background: var(--color-bg-secondary);
-    }
-
     .settings-nav {
       display: flex;
       gap: 0;
@@ -302,33 +266,6 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
       gap: 0.75rem;
       margin-top: 1.25rem;
     }
-    .btn {
-      padding: 0.5rem 1rem;
-      border-radius: 0.375rem;
-      font-size: 0.875rem;
-      font-weight: 500;
-      cursor: pointer;
-      border: none;
-    }
-    .btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    .btn-primary {
-      background: var(--color-accent);
-      color: #fff;
-    }
-    .btn-primary:hover:not(:disabled) {
-      filter: brightness(1.1);
-    }
-    .btn-secondary {
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-primary);
-      border: 1px solid var(--color-border);
-    }
-    .btn-secondary:hover:not(:disabled) {
-      background: var(--color-bg-primary);
-    }
 
     .toast {
       position: fixed;
@@ -346,15 +283,6 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
     .toast-error {
       background: #991b1b;
       color: #fecaca;
-    }
-
-    .error {
-      color: #ef4444;
-      font-size: 0.875rem;
-    }
-    .loading-text {
-      color: var(--color-text-muted);
-      font-size: 0.875rem;
     }
   `,
 })
