@@ -18,8 +18,8 @@ services:
       - FFMPEG_VIDEO_PRESET=slow
       - FFMPEG_VIDEO_MAXRATE=8M
       - FFMPEG_VIDEO_BUFSIZE=16M
-      - HANKO_API_URL=https://d4c70f6b-088c-4080-96c7-f53645649006.hanko.io
-      - SUPER_ADMIN_USER_IDS=3dd344f0-6349-405b-8710-2905aefdac30
+      - HANKO_API_URL=${HANKO_API_URL:?set HANKO_API_URL in .env (copy from .env.example)}
+      - SUPER_ADMIN_USER_IDS=${SUPER_ADMIN_USER_IDS:-}
     depends_on:
       - redis
 
