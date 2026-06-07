@@ -27,7 +27,6 @@ import { BulkTagContentDto } from './dto/bulk-tag-content.dto';
 import { BulkUntagContentDto } from './dto/bulk-untag-content.dto';
 import { BulkAddToPlaylistDto } from './dto/bulk-add-to-playlist.dto';
 import { Roles } from '../auth/roles.decorator';
-import { Public } from '../auth/public.decorator';
 import { AuthenticatedRequest } from '../auth';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';

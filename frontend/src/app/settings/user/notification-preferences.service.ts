@@ -21,23 +21,16 @@ export class NotificationPreferencesService {
   private http = inject(HttpClient);
 
   getPreferences(): Observable<NotificationPreferences> {
-    return this.http.get<NotificationPreferences>(
-      '/api/me/notification-preferences',
-    );
+    return this.http.get<NotificationPreferences>('/api/me/notification-preferences');
   }
 
   updatePreferences(
     prefs: Partial<Pick<NotificationPreferences, 'inAppEnabled' | 'emailEnabled' | 'ntfyEnabled'>>,
   ): Observable<NotificationPreferences> {
-    return this.http.patch<NotificationPreferences>(
-      '/api/me/notification-preferences',
-      prefs,
-    );
+    return this.http.patch<NotificationPreferences>('/api/me/notification-preferences', prefs);
   }
 
   getOrgNotificationConfig(orgId: string): Observable<OrgNotificationConfig> {
-    return this.http.get<OrgNotificationConfig>(
-      `/api/organisations/${orgId}/notification-config`,
-    );
+    return this.http.get<OrgNotificationConfig>(`/api/organisations/${orgId}/notification-config`);
   }
 }

@@ -1,12 +1,6 @@
 import { TestBed, ComponentFixture, getTestBed } from '@angular/core/testing';
-import {
-  BrowserTestingModule,
-  platformBrowserTesting,
-} from '@angular/platform-browser/testing';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
@@ -15,10 +9,7 @@ import { NotificationPreferences } from './notification-preferences.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
 
 try {
-  getTestBed().initTestEnvironment(
-    BrowserTestingModule,
-    platformBrowserTesting(),
-  );
+  getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
 } catch {
   // already initialized
 }
@@ -79,9 +70,7 @@ describe('UserSettings', () => {
     const prefsReq = httpMock.expectOne('/api/me/notification-preferences');
     prefsReq.flush(mockPrefs);
 
-    const configReq = httpMock.expectOne(
-      `/api/organisations/${ORG_ID}/notification-config`,
-    );
+    const configReq = httpMock.expectOne(`/api/organisations/${ORG_ID}/notification-config`);
     configReq.flush(orgConfig);
   }
 
@@ -115,15 +104,11 @@ describe('UserSettings', () => {
     const prefsReq = httpMock.expectOne('/api/me/notification-preferences');
     prefsReq.error(new ProgressEvent('error'));
 
-    const configReq = httpMock.expectOne(
-      `/api/organisations/${ORG_ID}/notification-config`,
-    );
+    const configReq = httpMock.expectOne(`/api/organisations/${ORG_ID}/notification-config`);
     configReq.flush({ smtpHost: null, ntfyUrl: null });
 
     expect(component.loading).toBe(false);
-    expect(component.loadError).toBe(
-      'Failed to load notification preferences.',
-    );
+    expect(component.loadError).toBe('Failed to load notification preferences.');
   });
 
   it('should handle org config load error gracefully', () => {
@@ -132,9 +117,7 @@ describe('UserSettings', () => {
     const prefsReq = httpMock.expectOne('/api/me/notification-preferences');
     prefsReq.flush(mockPrefs);
 
-    const configReq = httpMock.expectOne(
-      `/api/organisations/${ORG_ID}/notification-config`,
-    );
+    const configReq = httpMock.expectOne(`/api/organisations/${ORG_ID}/notification-config`);
     configReq.error(new ProgressEvent('error'));
 
     expect(component.orgSmtpConfigured).toBe(false);

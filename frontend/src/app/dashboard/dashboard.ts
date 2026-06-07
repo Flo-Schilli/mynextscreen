@@ -1,12 +1,4 @@
-import {
-  Component,
-  inject,
-  signal,
-  computed,
-  OnInit,
-  OnDestroy,
-  effect,
-} from '@angular/core';
+import { Component, inject, signal, computed, OnInit, OnDestroy, effect } from '@angular/core';
 import { Router } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { Subscription } from 'rxjs';
@@ -86,7 +78,10 @@ interface TimelineEntry {
               <div class="storage-section">
                 <div class="storage-label-row">
                   <span class="storage-label">Originals</span>
-                  <span class="storage-value">{{ formatBytes(storage()!.originalUsedBytes) }} / {{ formatBytes(storage()!.originalLimitBytes) }}</span>
+                  <span class="storage-value"
+                    >{{ formatBytes(storage()!.originalUsedBytes) }} /
+                    {{ formatBytes(storage()!.originalLimitBytes) }}</span
+                  >
                 </div>
                 <div
                   class="storage-bar"
@@ -101,7 +96,10 @@ interface TimelineEntry {
               <div class="storage-section">
                 <div class="storage-label-row">
                   <span class="storage-label">Transcoded</span>
-                  <span class="storage-value">{{ formatBytes(storage()!.transcodedUsedBytes) }} / {{ formatBytes(storage()!.transcodedLimitBytes) }}</span>
+                  <span class="storage-value"
+                    >{{ formatBytes(storage()!.transcodedUsedBytes) }} /
+                    {{ formatBytes(storage()!.transcodedLimitBytes) }}</span
+                  >
                 </div>
                 <div
                   class="storage-bar"
@@ -139,7 +137,9 @@ interface TimelineEntry {
                 </div>
                 @for (row of timelineRows(); track row.screenName) {
                   <div class="timeline-row">
-                    <span class="timeline-screen-label" [title]="row.screenName">{{ row.screenName }}</span>
+                    <span class="timeline-screen-label" [title]="row.screenName">{{
+                      row.screenName
+                    }}</span>
                     <div class="timeline-track">
                       @for (entry of row.entries; track entry.startPercent) {
                         <div
@@ -147,7 +147,14 @@ interface TimelineEntry {
                           [style.left.%]="entry.startPercent"
                           [style.width.%]="entry.widthPercent"
                           [style.background]="entry.colour"
-                          [title]="entry.playlistName + ' (' + entry.startTime + ' - ' + entry.endTime + ')'"
+                          [title]="
+                            entry.playlistName +
+                            ' (' +
+                            entry.startTime +
+                            ' - ' +
+                            entry.endTime +
+                            ')'
+                          "
                         ></div>
                       }
                     </div>
@@ -171,7 +178,7 @@ interface TimelineEntry {
                 @for (entry of activityFeed(); track entry.timestamp) {
                   <div class="activity-item">
                     <span class="activity-dot" [class]="'activity-dot--' + entry.category"></span>
-                    <span class="activity-time">{{ entry.timestamp | date:'HH:mm:ss' }}</span>
+                    <span class="activity-time">{{ entry.timestamp | date: 'HH:mm:ss' }}</span>
                     <span class="activity-text">{{ entry.description }}</span>
                   </div>
                 }
@@ -208,7 +215,9 @@ interface TimelineEntry {
       border: 1px solid var(--color-border);
       border-radius: 8px;
       overflow: hidden;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
     .card-header {
       display: flex;
@@ -234,7 +243,8 @@ interface TimelineEntry {
       padding: 1rem;
     }
 
-    .loading-placeholder, .empty-state {
+    .loading-placeholder,
+    .empty-state {
       color: var(--color-text-muted);
       font-size: 0.8125rem;
       padding: 1rem 0;
@@ -258,7 +268,9 @@ interface TimelineEntry {
       cursor: pointer;
       text-align: left;
       color: var(--color-text-primary);
-      transition: border-color 0.15s, transform 0.1s;
+      transition:
+        border-color 0.15s,
+        transform 0.1s;
     }
     .screen-tile:hover {
       border-color: var(--color-accent);
@@ -270,9 +282,15 @@ interface TimelineEntry {
       border-radius: 50%;
       margin-bottom: 0.25rem;
     }
-    .screen-tile.online .screen-dot { background: #22c55e; }
-    .screen-tile.offline .screen-dot { background: #ef4444; }
-    .screen-tile.never .screen-dot { background: #6b7280; }
+    .screen-tile.online .screen-dot {
+      background: #22c55e;
+    }
+    .screen-tile.offline .screen-dot {
+      background: #ef4444;
+    }
+    .screen-tile.never .screen-dot {
+      background: #6b7280;
+    }
 
     .screen-name {
       font-size: 0.8125rem;
@@ -412,10 +430,18 @@ interface TimelineEntry {
       border-radius: 50%;
       flex-shrink: 0;
     }
-    .activity-dot--screen { background: #22c55e; }
-    .activity-dot--schedule { background: #3b82f6; }
-    .activity-dot--transcoding { background: #8b5cf6; }
-    .activity-dot--info { background: #6b7280; }
+    .activity-dot--screen {
+      background: #22c55e;
+    }
+    .activity-dot--schedule {
+      background: #3b82f6;
+    }
+    .activity-dot--transcoding {
+      background: #8b5cf6;
+    }
+    .activity-dot--info {
+      background: #6b7280;
+    }
 
     .activity-time {
       font-size: 0.75rem;
@@ -471,10 +497,7 @@ export class Dashboard implements OnInit, OnDestroy {
   readonly transcodedPercent = computed(() => {
     const s = this.storage();
     if (!s || s.transcodedLimitBytes === 0) return 0;
-    return Math.min(
-      (s.transcodedUsedBytes / s.transcodedLimitBytes) * 100,
-      100,
-    );
+    return Math.min((s.transcodedUsedBytes / s.transcodedLimitBytes) * 100, 100);
   });
 
   readonly timelineHours = computed(() => {
@@ -482,9 +505,7 @@ export class Dashboard implements OnInit, OnDestroy {
     const start = new Date(this.timelineStart);
     for (let i = 0; i <= 24; i += 3) {
       const h = new Date(start.getTime() + i * 60 * 60 * 1000);
-      hours.push(
-        h.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      );
+      hours.push(h.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
     }
     return hours;
   });
@@ -610,9 +631,7 @@ export class Dashboard implements OnInit, OnDestroy {
     this.loadingSchedule.set(true);
     this.timelineStart = new Date();
     const from = this.timelineStart.toISOString();
-    const to = new Date(
-      this.timelineStart.getTime() + 24 * 60 * 60 * 1000,
-    ).toISOString();
+    const to = new Date(this.timelineStart.getTime() + 24 * 60 * 60 * 1000).toISOString();
 
     this.scheduleService.getByDateRange(orgId, from, to).subscribe({
       next: (entries) => {
@@ -624,9 +643,7 @@ export class Dashboard implements OnInit, OnDestroy {
   }
 
   private updateScreenStatus(screenId: string, isOnline: boolean): void {
-    const updated = this.screens().map((s) =>
-      s.id === screenId ? { ...s, isOnline } : s,
-    );
+    const updated = this.screens().map((s) => (s.id === screenId ? { ...s, isOnline } : s));
     this.screens.set(updated);
   }
 

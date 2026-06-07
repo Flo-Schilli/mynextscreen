@@ -2,7 +2,12 @@ import { Component, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ScreenGroupService } from './screen-group.service';
-import { ScreenGroup, ScreenGroupMode, CreateScreenGroupRequest, UpdateScreenGroupRequest } from './screen-group.model';
+import {
+  ScreenGroup,
+  ScreenGroupMode,
+  CreateScreenGroupRequest,
+  UpdateScreenGroupRequest,
+} from './screen-group.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 
@@ -18,9 +23,7 @@ import { MyMembership } from '../settings/users/member.model';
           <h1>Screen Groups</h1>
         </div>
         @if (!loading && !showCreateForm) {
-          <button class="btn btn-primary" (click)="openCreateForm()">
-            + New Group
-          </button>
+          <button class="btn btn-primary" (click)="openCreateForm()">+ New Group</button>
         }
       </header>
 
@@ -34,9 +37,21 @@ import { MyMembership } from '../settings/users/member.model';
 
       <!-- Create Group Modal -->
       @if (showCreateForm) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Create Screen Group"
-             tabindex="0" (click)="cancelCreate()" (keydown.escape)="cancelCreate()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Create Screen Group"
+          tabindex="0"
+          (click)="cancelCreate()"
+          (keydown.escape)="cancelCreate()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Create Screen Group</h2>
             <form (ngSubmit)="submitCreate()">
               <div class="form-group">
@@ -91,7 +106,9 @@ import { MyMembership } from '../settings/users/member.model';
                 <p class="error">{{ createError }}</p>
               }
               <div class="form-actions">
-                <button type="button" class="btn btn-secondary" (click)="cancelCreate()">Cancel</button>
+                <button type="button" class="btn btn-secondary" (click)="cancelCreate()">
+                  Cancel
+                </button>
                 <button type="submit" class="btn btn-primary" [disabled]="creating">
                   {{ creating ? 'Creating...' : 'Create Group' }}
                 </button>
@@ -117,17 +134,40 @@ import { MyMembership } from '../settings/users/member.model';
             <tbody>
               @for (group of groups; track group.id) {
                 <tr>
-                  <td class="name-cell"><a class="group-link" tabindex="0" role="link" (click)="viewGroup(group)" (keydown.enter)="viewGroup(group)">{{ group.name }}</a></td>
+                  <td class="name-cell">
+                    <a
+                      class="group-link"
+                      tabindex="0"
+                      role="link"
+                      (click)="viewGroup(group)"
+                      (keydown.enter)="viewGroup(group)"
+                      >{{ group.name }}</a
+                    >
+                  </td>
                   <td>
-                    <span class="mode-badge" [class.mirror]="group.mode === 'mirror'" [class.split]="group.mode === 'split'">
+                    <span
+                      class="mode-badge"
+                      [class.mirror]="group.mode === 'mirror'"
+                      [class.split]="group.mode === 'split'"
+                    >
                       {{ group.mode === 'mirror' ? 'Mirror' : 'Split' }}
                     </span>
                   </td>
-                  <td>{{ group.mode === 'split' && group.gridColumns && group.gridRows ? group.gridColumns + 'x' + group.gridRows : '-' }}</td>
+                  <td>
+                    {{
+                      group.mode === 'split' && group.gridColumns && group.gridRows
+                        ? group.gridColumns + 'x' + group.gridRows
+                        : '-'
+                    }}
+                  </td>
                   <td>{{ group.screens.length }}</td>
                   <td class="actions-cell">
-                    <button class="btn btn-small btn-secondary" (click)="editGroup(group)">Edit</button>
-                    <button class="btn btn-small btn-danger" (click)="confirmDelete(group)">Delete</button>
+                    <button class="btn btn-small btn-secondary" (click)="editGroup(group)">
+                      Edit
+                    </button>
+                    <button class="btn btn-small btn-danger" (click)="confirmDelete(group)">
+                      Delete
+                    </button>
                   </td>
                 </tr>
               }
@@ -141,16 +181,58 @@ import { MyMembership } from '../settings/users/member.model';
         <div class="empty-state">
           <div class="empty-icon">
             <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <rect x="4" y="6" width="16" height="12" rx="2" stroke="currentColor" stroke-width="2"/>
-              <rect x="28" y="6" width="16" height="12" rx="2" stroke="currentColor" stroke-width="2"/>
-              <rect x="4" y="30" width="16" height="12" rx="2" stroke="currentColor" stroke-width="2"/>
-              <rect x="28" y="30" width="16" height="12" rx="2" stroke="currentColor" stroke-width="2"/>
-              <path d="M20 12h8M12 18v12M36 18v12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 3"/>
+              <rect
+                x="4"
+                y="6"
+                width="16"
+                height="12"
+                rx="2"
+                stroke="currentColor"
+                stroke-width="2"
+              />
+              <rect
+                x="28"
+                y="6"
+                width="16"
+                height="12"
+                rx="2"
+                stroke="currentColor"
+                stroke-width="2"
+              />
+              <rect
+                x="4"
+                y="30"
+                width="16"
+                height="12"
+                rx="2"
+                stroke="currentColor"
+                stroke-width="2"
+              />
+              <rect
+                x="28"
+                y="30"
+                width="16"
+                height="12"
+                rx="2"
+                stroke="currentColor"
+                stroke-width="2"
+              />
+              <path
+                d="M20 12h8M12 18v12M36 18v12"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-dasharray="2 3"
+              />
             </svg>
           </div>
           <p class="empty-title">No screen groups yet</p>
-          <p class="empty-text">Create your first screen group to start building mirror displays or video walls.</p>
-          <button class="btn btn-primary" (click)="openCreateForm()">Create Your First Group</button>
+          <p class="empty-text">
+            Create your first screen group to start building mirror displays or video walls.
+          </p>
+          <button class="btn btn-primary" (click)="openCreateForm()">
+            Create Your First Group
+          </button>
         </div>
       }
 
@@ -160,20 +242,26 @@ import { MyMembership } from '../settings/users/member.model';
 
       <!-- Edit Group Modal -->
       @if (editingGroup) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Edit Screen Group"
-             tabindex="0" (click)="cancelEdit()" (keydown.escape)="cancelEdit()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit Screen Group"
+          tabindex="0"
+          (click)="cancelEdit()"
+          (keydown.escape)="cancelEdit()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Edit Screen Group</h2>
             <form (ngSubmit)="submitEdit()">
               <div class="form-group">
                 <label for="editName">Name</label>
-                <input
-                  id="editName"
-                  type="text"
-                  [(ngModel)]="editName"
-                  name="editName"
-                  required
-                />
+                <input id="editName" type="text" [(ngModel)]="editName" name="editName" required />
               </div>
               <div class="form-group">
                 <label for="editMode">Mode</label>
@@ -214,7 +302,9 @@ import { MyMembership } from '../settings/users/member.model';
                 <p class="error">{{ editError }}</p>
               }
               <div class="form-actions">
-                <button type="button" class="btn btn-secondary" (click)="cancelEdit()">Cancel</button>
+                <button type="button" class="btn btn-secondary" (click)="cancelEdit()">
+                  Cancel
+                </button>
                 <button type="submit" class="btn btn-primary" [disabled]="saving">
                   {{ saving ? 'Saving...' : 'Save Changes' }}
                 </button>
@@ -226,19 +316,37 @@ import { MyMembership } from '../settings/users/member.model';
 
       <!-- Delete Confirmation Modal -->
       @if (deletingGroup) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Confirm deletion"
-             tabindex="0" (click)="cancelDelete()" (keydown.escape)="cancelDelete()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm deletion"
+          tabindex="0"
+          (click)="cancelDelete()"
+          (keydown.escape)="cancelDelete()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Delete Screen Group</h2>
             @if (deletingGroup.screens.length > 0) {
               <div class="delete-blocked">
-                Cannot delete "{{ deletingGroup.name }}" because it still has {{ deletingGroup.screens.length }} assigned screen(s). Remove all screens from the group before deleting it.
+                Cannot delete "{{ deletingGroup.name }}" because it still has
+                {{ deletingGroup.screens.length }} assigned screen(s). Remove all screens from the
+                group before deleting it.
               </div>
               <div class="form-actions">
                 <button class="btn btn-secondary" (click)="cancelDelete()">Close</button>
               </div>
             } @else {
-              <p>Are you sure you want to delete the screen group <strong>{{ deletingGroup.name }}</strong>? This action cannot be undone.</p>
+              <p>
+                Are you sure you want to delete the screen group
+                <strong>{{ deletingGroup.name }}</strong
+                >? This action cannot be undone.
+              </p>
               @if (deleteError) {
                 <p class="error">{{ deleteError }}</p>
               }
@@ -338,7 +446,9 @@ import { MyMembership } from '../settings/users/member.model';
       background: var(--color-bg-secondary);
       border: 1px solid var(--color-border);
       border-radius: 0.5rem;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
     table {
       width: 100%;
@@ -598,10 +708,7 @@ export class ScreenGroups implements OnInit {
         this.loading = false;
       },
       error: (err) => {
-        this.loadError =
-          err.status === 403
-            ? 'Access denied.'
-            : 'Failed to load screen groups.';
+        this.loadError = err.status === 403 ? 'Access denied.' : 'Failed to load screen groups.';
         this.loading = false;
       },
     });
@@ -636,7 +743,9 @@ export class ScreenGroups implements OnInit {
     const dto: CreateScreenGroupRequest = {
       name: this.createName,
       mode: this.createMode,
-      ...(this.createMode === 'split' ? { gridColumns: this.createGridColumns, gridRows: this.createGridRows } : {}),
+      ...(this.createMode === 'split'
+        ? { gridColumns: this.createGridColumns, gridRows: this.createGridRows }
+        : {}),
     };
     this.screenGroupService.create(this.orgId, dto).subscribe({
       next: () => {
@@ -681,7 +790,9 @@ export class ScreenGroups implements OnInit {
     const dto: UpdateScreenGroupRequest = {
       name: this.editName,
       mode: this.editMode,
-      ...(this.editMode === 'split' ? { gridColumns: this.editGridColumns, gridRows: this.editGridRows } : {}),
+      ...(this.editMode === 'split'
+        ? { gridColumns: this.editGridColumns, gridRows: this.editGridRows }
+        : {}),
     };
     this.screenGroupService.update(this.orgId, this.editingGroup.id, dto).subscribe({
       next: () => {

@@ -86,10 +86,7 @@ export class CreateLiveStream1711700013000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropIndex(
-      'live_streams',
-      'IDX_live_stream_status',
-    );
+    await queryRunner.dropIndex('live_streams', 'IDX_live_stream_status');
     await queryRunner.dropIndex(
       'live_streams',
       'IDX_live_stream_organisationId',

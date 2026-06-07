@@ -4,8 +4,8 @@ After=signage-network.service
 
 [Container]
 ContainerName=signage-redis
-Image=localhost/signage-redis:latest
-Pull=never
+Image=docker.io/library/redis:7-alpine
+Pull=newer
 Network=signage.network
 Volume=signage-redis-data:/data:Z
 

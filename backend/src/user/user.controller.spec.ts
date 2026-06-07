@@ -1,9 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { OrganisationRole } from './organisation-role.enum';
 import { UserOrganisationMembership } from './user-organisation-membership.entity';
+import { User } from './user.entity';
+import { Organisation } from '../organisation/organisation.entity';
 
 describe('UserController', () => {
   let controller: UserController;
@@ -17,12 +20,12 @@ describe('UserController', () => {
       userId,
       organisationId: 'org-1',
       role: OrganisationRole.OrgAdmin,
-      user: {} as any,
+      user: {} as unknown as User,
       organisation: {
         id: 'org-1',
         name: 'Org Alpha',
         timeZone: 'Europe/Vienna',
-      } as any,
+      } as unknown as Organisation,
       createdAt: new Date(),
     },
     {
@@ -30,12 +33,12 @@ describe('UserController', () => {
       userId,
       organisationId: 'org-2',
       role: OrganisationRole.Viewer,
-      user: {} as any,
+      user: {} as unknown as User,
       organisation: {
         id: 'org-2',
         name: 'Org Beta',
         timeZone: 'UTC',
-      } as any,
+      } as unknown as Organisation,
       createdAt: new Date(),
     },
   ];
@@ -49,7 +52,10 @@ describe('UserController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UserController],
-      providers: [{ provide: UserService, useValue: userService }],
+      providers: [
+        { provide: UserService, useValue: userService },
+        { provide: ConfigService, useValue: { get: jest.fn(() => '') } },
+      ],
     }).compile();
 
     controller = module.get<UserController>(UserController);
@@ -59,7 +65,9 @@ describe('UserController', () => {
     it('should return all memberships for the authenticated user', async () => {
       userService.getMemberships.mockResolvedValue(mockMemberships);
 
-      const req = { user: { userId, email: 'test@example.com' } } as AuthenticatedRequest;
+      const req = {
+        user: { userId, email: 'test@example.com' },
+      } as AuthenticatedRequest;
       const result = await controller.getMemberships(req);
 
       expect(userService.getMemberships).toHaveBeenCalledWith(userId);
@@ -70,7 +78,9 @@ describe('UserController', () => {
     it('should return empty array if user has no memberships', async () => {
       userService.getMemberships.mockResolvedValue([]);
 
-      const req = { user: { userId, email: 'test@example.com' } } as AuthenticatedRequest;
+      const req = {
+        user: { userId, email: 'test@example.com' },
+      } as AuthenticatedRequest;
       const result = await controller.getMemberships(req);
 
       expect(userService.getMemberships).toHaveBeenCalledWith(userId);
@@ -80,7 +90,9 @@ describe('UserController', () => {
     it('should include organisation relations in returned memberships', async () => {
       userService.getMemberships.mockResolvedValue(mockMemberships);
 
-      const req = { user: { userId, email: 'test@example.com' } } as AuthenticatedRequest;
+      const req = {
+        user: { userId, email: 'test@example.com' },
+      } as AuthenticatedRequest;
       const result = await controller.getMemberships(req);
 
       expect(result[0].organisation.name).toBe('Org Alpha');

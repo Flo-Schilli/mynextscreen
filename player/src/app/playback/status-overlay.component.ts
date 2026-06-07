@@ -66,7 +66,10 @@ const AUTO_HIDE_MS = 5_000;
         backdrop-filter: blur(8px);
         font-size: 0.8125rem;
         color: rgba(255, 255, 255, 0.8);
-        font-family: system-ui, -apple-system, sans-serif;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
         pointer-events: none;
         animation: fadeIn 0.2s ease-in;
       }

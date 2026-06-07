@@ -21,7 +21,11 @@ export function expandRRule(
   const durationMs = entryEnd.getTime() - entryStart.getTime();
   const rule = rrulestr(rruleString, { dtstart: entryStart });
 
-  const occurrences = rule.between(windowStart, windowEnd, true);
+  // Look back by one occurrence duration so an occurrence that *starts* just
+  // before windowStart but whose interval extends into the window is still
+  // included (rangesOverlap filters out any that don't actually overlap).
+  const lookbackStart = new Date(windowStart.getTime() - durationMs);
+  const occurrences = rule.between(lookbackStart, windowEnd, true);
 
   return occurrences.map((occStart) => ({
     start: occStart,

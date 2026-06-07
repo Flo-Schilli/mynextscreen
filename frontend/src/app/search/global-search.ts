@@ -11,7 +11,16 @@ import {
 import { Router, NavigationStart } from '@angular/router';
 import { SearchService } from './search.service';
 import { SearchResults, SearchResultItem } from './search.model';
-import { Subject, Subscription, debounceTime, distinctUntilChanged, switchMap, of, finalize, filter } from 'rxjs';
+import {
+  Subject,
+  Subscription,
+  debounceTime,
+  distinctUntilChanged,
+  switchMap,
+  of,
+  finalize,
+  filter,
+} from 'rxjs';
 
 interface ResultSection {
   key: keyof SearchResults;
@@ -25,20 +34,25 @@ interface ResultSection {
     <div class="search-wrapper">
       <div class="search-box" [class.focused]="focused()">
         <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M11 11l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5" />
+          <path d="M11 11l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
         </svg>
         @if (loading()) {
           <svg class="spinner" width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" opacity="0.25"/>
-            <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" opacity="0.25" />
+            <path
+              d="M14 8a6 6 0 00-6-6"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
           </svg>
         }
         <input
           #searchInput
           type="text"
           class="search-input"
-          placeholder="Search\u2026"
+          placeholder="Search…"
           [value]="query()"
           (input)="onInput($event)"
           (focus)="focused.set(true)"
@@ -113,7 +127,9 @@ interface ResultSection {
     }
 
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     .search-input {
@@ -231,20 +247,17 @@ export class GlobalSearch implements OnInit, OnDestroy {
   readonly sections = computed<ResultSection[]>(() => {
     const res = this.results();
     if (!res) return [];
-    return GlobalSearch.SECTION_ORDER
-      .filter((s) => res[s.key].length > 0)
-      .map((s) => ({ ...s, items: res[s.key] }));
+    return GlobalSearch.SECTION_ORDER.filter((s) => res[s.key].length > 0).map((s) => ({
+      ...s,
+      items: res[s.key],
+    }));
   });
 
   readonly hasResults = computed(() => this.sections().length > 0);
 
-  readonly dropdownOpen = computed(
-    () => this.results() !== null && this.focused(),
-  );
+  readonly dropdownOpen = computed(() => this.results() !== null && this.focused());
 
-  private flatItems = computed<SearchResultItem[]>(() =>
-    this.sections().flatMap((s) => s.items),
-  );
+  private flatItems = computed<SearchResultItem[]>(() => this.sections().flatMap((s) => s.items));
 
   private searchSubject = new Subject<string>();
   private subscription!: Subscription;
@@ -265,9 +278,7 @@ export class GlobalSearch implements OnInit, OnDestroy {
             return of(null);
           }
           this.loading.set(true);
-          return this.searchService.search(trimmed).pipe(
-            finalize(() => this.loading.set(false)),
-          );
+          return this.searchService.search(trimmed).pipe(finalize(() => this.loading.set(false)));
         }),
       )
       .subscribe((res) => {

@@ -6,9 +6,7 @@ import {
   TableIndex,
 } from 'typeorm';
 
-export class CreateNotificationPreferencesAndConfig1711700012000
-  implements MigrationInterface
-{
+export class CreateNotificationPreferencesAndConfig1711700012000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Create user_notification_preferences table
     await queryRunner.createTable(

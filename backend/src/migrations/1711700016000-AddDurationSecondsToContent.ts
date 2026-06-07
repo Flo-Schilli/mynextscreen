@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddDurationSecondsToContent1711700016000
-  implements MigrationInterface
-{
+export class AddDurationSecondsToContent1711700016000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.addColumn(
       'contents',

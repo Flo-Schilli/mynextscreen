@@ -8,6 +8,10 @@ import { Organisation } from '../organisation/organisation.entity';
 import { ScreenStateChangeEvent } from './screen-state.event';
 import { ScheduleEntryChangedEvent, ScheduleService } from '../schedule';
 import { Playlist } from '../playlist/playlist.entity';
+import { Repository } from 'typeorm';
+import { ScreenGroup } from '../screen-group/screen-group.entity';
+import { LiveStreamActivation } from '../live-stream/live-stream-activation.entity';
+import { SlicedRendition } from '../slice-content/sliced-rendition.entity';
 import { PlaylistItem } from '../playlist/playlist-item.entity';
 import { TransitionType } from '../playlist/transition-type.enum';
 import { Content } from '../content/content.entity';
@@ -127,10 +131,10 @@ describe('ScreenStateService', () => {
       protocolAdapter,
       scheduleService as unknown as ScheduleService,
       scheduleBoundaryService as unknown as ScheduleBoundaryService,
-      screenGroupRepository as any,
-      playlistRepository as any,
-      activationRepository as any,
-      slicedRenditionRepository as any,
+      screenGroupRepository as unknown as Repository<ScreenGroup>,
+      playlistRepository as unknown as Repository<Playlist>,
+      activationRepository as unknown as Repository<LiveStreamActivation>,
+      slicedRenditionRepository as unknown as Repository<SlicedRendition>,
     );
   });
 

@@ -6,8 +6,11 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test",
-    "lint": "ng lint"
+    "test": "vitest run",
+    "lint": "ng lint",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "format": "prettier --write \"src/**/*.{ts,html,css}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,html,css}\""
   },
   "private": true,
   "packageManager": "npm@11.6.2",

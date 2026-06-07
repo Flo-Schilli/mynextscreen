@@ -2,14 +2,21 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { ScheduleService } from './schedule.service';
 import { ScheduleEntry } from './schedule-entry.entity';
 import { Organisation } from '../organisation/organisation.entity';
 import { Screen } from '../screen/screen.entity';
 import { Playlist } from '../playlist/playlist.entity';
 import { ScreenGroup } from '../screen-group/screen-group.entity';
-import { SCHEDULE_ENTRY_CHANGED, GROUP_SCHEDULE_CHANGED } from './schedule.event';
+import {
+  SCHEDULE_ENTRY_CHANGED,
+  GROUP_SCHEDULE_CHANGED,
+} from './schedule.event';
 import { SLICE_CONTENT_QUEUE } from '../slice-content';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 
@@ -77,7 +84,10 @@ describe('ScheduleService', () => {
         { provide: getRepositoryToken(Screen), useValue: screenRepo },
         { provide: getRepositoryToken(Playlist), useValue: playlistRepo },
         { provide: getRepositoryToken(ScreenGroup), useValue: screenGroupRepo },
-        { provide: getQueueToken(SLICE_CONTENT_QUEUE), useValue: sliceContentQueue },
+        {
+          provide: getQueueToken(SLICE_CONTENT_QUEUE),
+          useValue: sliceContentQueue,
+        },
         { provide: EventEmitter2, useValue: eventEmitter },
       ],
     }).compile();
@@ -410,7 +420,7 @@ describe('ScheduleService', () => {
       await service.delete('entry-1', 'org-1');
 
       const screenChangedCalls = eventEmitter.emit.mock.calls.filter(
-        (c: any) => c[0] === SCHEDULE_ENTRY_CHANGED,
+        (c: unknown[]) => c[0] === SCHEDULE_ENTRY_CHANGED,
       );
       expect(screenChangedCalls).toHaveLength(0);
     });
@@ -512,7 +522,8 @@ describe('ScheduleService', () => {
       // No direct screen entries
       scheduleRepo.find
         .mockResolvedValueOnce([]) // direct screen entries
-        .mockResolvedValueOnce([  // group entries
+        .mockResolvedValueOnce([
+          // group entries
           {
             id: 'group-entry-1',
             groupId: 'group-1',
@@ -566,19 +577,18 @@ describe('ScheduleService', () => {
     it('should fall back to default when screen has group but no active group schedule', async () => {
       const now = new Date();
       // No active direct entries
-      scheduleRepo.find
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([ // group entries — but not active
-          {
-            id: 'group-entry-1',
-            groupId: 'group-1',
-            organisationId: 'org-1',
-            startTime: new Date(now.getTime() + 60 * 60 * 1000), // future
-            endTime: new Date(now.getTime() + 2 * 60 * 60 * 1000),
-            rrule: null,
-            playlist: { id: 'group-playlist-1', name: 'Group Playlist' },
-          },
-        ]);
+      scheduleRepo.find.mockResolvedValueOnce([]).mockResolvedValueOnce([
+        // group entries — but not active
+        {
+          id: 'group-entry-1',
+          groupId: 'group-1',
+          organisationId: 'org-1',
+          startTime: new Date(now.getTime() + 60 * 60 * 1000), // future
+          endTime: new Date(now.getTime() + 2 * 60 * 60 * 1000),
+          rrule: null,
+          playlist: { id: 'group-playlist-1', name: 'Group Playlist' },
+        },
+      ]);
 
       screenRepo.findOne.mockResolvedValue({
         id: 'screen-1',
@@ -671,7 +681,7 @@ describe('ScheduleService', () => {
       await service.create('org-1', dto);
 
       const groupCalls = eventEmitter.emit.mock.calls.filter(
-        (c: any) => c[0] === GROUP_SCHEDULE_CHANGED,
+        (c: unknown[]) => c[0] === GROUP_SCHEDULE_CHANGED,
       );
       expect(groupCalls).toHaveLength(0);
     });
@@ -926,7 +936,9 @@ describe('ScheduleService', () => {
       // find is only called by save/create, not by checkOverlap
       // checkOverlap calls find with { screenId, organisationId } — should not be called
       const overlapCalls = scheduleRepo.find.mock.calls.filter(
-        (c: any) => c[0]?.where?.screenId !== undefined,
+        (c: unknown[]) =>
+          (c[0] as { where?: { screenId?: unknown } })?.where?.screenId !==
+          undefined,
       );
       expect(overlapCalls).toHaveLength(0);
     });

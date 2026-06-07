@@ -138,8 +138,11 @@ VISION.md                 # Produkt-Vision & Feature-Details (kanonisch)
 - **TypeORM-Entities sind die Schema-Quelle.** Schema-Änderungen immer per
   Migration (`migration:generate`), nie Auto-Sync in Prod.
 - **TailwindCSS only** (v4), möglichst kein Custom-CSS.
-- **Prettier** für Formatierung, **ESLint** ohne Formatierungsregeln.
+- **Prettier** für Formatierung (alle drei Apps haben `.prettierrc` + `format`/`format:check`), **ESLint** ohne Formatierungsregeln.
 - **npm** als Package-Manager — nie pnpm/yarn.
+- **Versions-Single-source-of-truth = Root-`package.json`.** Release via
+  `npm run version:patch && git push --follow-tags`; alles andere (Image-Tags,
+  OCI-Labels, `/api/version`, `version.json`) leitet sich daraus ab — nie manuell.
 - Externe Calls (Hanko-JWKS, ntfy, SMTP) hinter Interface/Modul, mockbar.
 - Geheimnisse/API-Keys nie plaintext loggen; Config über ENV (`@nestjs/config`).
 
@@ -157,28 +160,42 @@ VISION.md                 # Produkt-Vision & Feature-Details (kanonisch)
 ```bash
 # Alles per Docker (dev): backend:3000 · frontend:4200 · player:4300 · redis:6379
 npm run dev                       # docker compose up --build
-npm run lint                      # Lint backend + frontend
-npm run test                      # Frontend-Unit-Tests (Vitest)
-npm run typecheck                 # tsc --noEmit (backend)
+# Root-Scripts fächern über ALLE drei Apps (backend + frontend + player):
+npm run lint
+npm run test                      # backend (Jest) + frontend (Vitest) + player (Jest)
+npm run typecheck
+npm run format:check
+# Release + lokale Prod-Images
+npm run version:patch             # bump + commit + tag (push: git push --follow-tags)
+npm run images:build              # baut alle 3 prod-Images mit Versions-Metadaten
 
 # Backend (cd backend)
 npm run start:dev                 # NestJS watch-mode
 npm run build                     # nest build
-npm run test                      # Jest
-npm run test:cov                  # Jest + Coverage
+npm run test:cov                  # Jest + Coverage (Gate ~80%, siehe unten)
 npm run lint:fix                  # ESLint --fix
 npm run migration:generate -- src/migrations/<Name>   # Migration aus Entity-Diff
-npm run migration:run             # Pending Migrations ausführen
-npm run migration:revert          # Letzte Migration zurückrollen
+npm run migration:run / revert    # (Prod: Migrationen laufen via migrationsRun beim Boot)
 
 # Frontend (cd frontend) / Player (cd player)
 npm start                         # ng serve (frontend:4200 / player:4300)
 npm run build                     # Prod-Build
 npm test                          # frontend: Vitest · player: Jest
+npm run typecheck / format / format:check
 ```
 
 > **Lokal ohne Docker:** Redis (7+) und FFmpeg müssen auf dem `PATH` sein; Hanko-
 > Projekt anlegen und `HANKO_API_URL` setzen (`.env.example` → `.env`).
+
+## Tests & Quality Gates
+- **CI:** `.github/workflows/ci.yml` — Trigger push `main`, Tags `v*.*.*`, PRs.
+  Job 1 `lint-test-build` (Matrix backend/frontend/player): `format:check` · `lint`
+  · `typecheck` · `test` · `build`. Job 2 `docker` (Matrix): baut alle drei
+  prod-Images, **published nach GHCR nur auf main/Tags** (nicht bei PRs).
+- **Coverage-Gate nur Backend** (`backend/jest.config.ts`, ~80% — gemessen ~85%).
+  Frontend/Player ohne Schwelle (Test-Abdeckung dort dünn: ~8 bzw. ~3 Specs;
+  Backend ~83 Suites / 900+ Tests). Keine künstlichen Tests nur fürs Gate.
+- Kein e2e-Setup; eine Backend-Integration-Spec (`playlist-transition.integration.spec.ts`).
 
 ## Environment (wichtigste Variablen)
 | Variable | Zweck |
@@ -192,11 +209,21 @@ npm test                          # frontend: Vitest · player: Jest
 | `FFMPEG_PATH` | FFmpeg-Binary (default: System-PATH) |
 | `FFMPEG_VIDEO_CRF` / `_PRESET` / `_MAXRATE` / `_BUFSIZE` | Transcoding-Qualität |
 
-## Deployment (Prod)
-- **Ansible** (`ansible/deploy.yml`) deployt rootless **Podman Quadlets**
-  (`signage-backend/frontend/player/redis.container` + `signage.network`).
+## Deployment (Prod) — GHCR-Pull-Modell
+- **CI baut + published** die Images nach **GHCR** (`ghcr.io/flo-schilli/digital-signage/{backend,frontend,player}`).
+- **Ansible** (`ansible/deploy.yml`) baut nichts lokal mehr — es `podman login`t
+  (falls `ghcr_token` gesetzt) und **zieht** die Images. App-Quadlets sind Templates
+  (`ansible/templates/signage-*.container.j2`) mit `AutoUpdate=registry` + `Pull=newer`;
+  der Tag ist über `signage_image_tag` (default `latest`, pinbar auf `1.2.3`) steuerbar.
+  Redis kommt direkt von `docker.io/library/redis:7-alpine`.
+- **Versions-Surfaces:** Build-args `APP_VERSION/GIT_COMMIT/BUILD_DATE` → OCI-Labels
+  in allen Images; Backend `GET /api/version`; Frontend & Player `GET /version.json`.
 - **Caddy** als einziger öffentlicher Reverse Proxy (`templates/Caddyfile.j2`),
   inkl. SSE-Pass-Through (X-Real-IP) und **fail2ban**-Jail.
+- Container-Härtung: `tini` als PID 1 (backend), `HEALTHCHECK` in allen Images
+  (backend → `/api/health`, nginx → `/`). Backend bleibt rootless-gemapptes root
+  wegen Host-Bind-Mounts (`%h/app/{data,media}`); erzwungenes `USER 1001` würde
+  Schreibrechte auf die Volumes brechen.
 - DB-Backup/Restore über `ansible/download_db.yml` / `upload_db.yml`.
 - Auth-Flow: Frontend ↔ Hanko (Passkey/E-Mail) → JWT als `Bearer`; Backend
   validiert gegen `HANKO_API_URL/.well-known/jwks.json`. Screens nutzen API-Keys.

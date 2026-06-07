@@ -4,8 +4,9 @@ After=signage-backend.service
 
 [Container]
 ContainerName=signage-frontend
-Image=localhost/signage-frontend:latest
-Pull=never
+Image={{ image_registry }}/frontend:{{ signage_image_tag }}
+AutoUpdate=registry
+Pull=newer
 Network=signage.network
 PublishPort=50001:80
 EnvironmentFile=%h/.config/containers/systemd/.env.signage

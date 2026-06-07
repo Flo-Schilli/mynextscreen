@@ -24,9 +24,9 @@ describe('MediaService', () => {
 
     readdirSpy = jest
       .spyOn(fs.promises, 'readdir')
-      .mockResolvedValue([] as unknown as Awaited<
-        ReturnType<typeof fs.promises.readdir>
-      >);
+      .mockResolvedValue(
+        [] as unknown as Awaited<ReturnType<typeof fs.promises.readdir>>,
+      );
     accessSpy = jest.spyOn(fs.promises, 'access').mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({

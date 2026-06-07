@@ -4,6 +4,7 @@ import { OrganisationController } from './organisation.controller';
 import { OrganisationService } from './organisation.service';
 import { MembershipService } from '../user/membership.service';
 import { Organisation } from './organisation.entity';
+import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 
 describe('OrganisationController', () => {
   let controller: OrganisationController;
@@ -63,7 +64,9 @@ describe('OrganisationController', () => {
       };
       service.create.mockResolvedValue(mockOrganisation);
 
-      const mockReq = { user: { userId: 'user-1', email: 'admin@test.com' } } as any;
+      const mockReq = {
+        user: { userId: 'user-1', email: 'admin@test.com' },
+      } as unknown as AuthenticatedRequest;
       const result = await controller.create(dto, mockReq);
 
       expect(service.create).toHaveBeenCalledWith(dto, mockReq.user);

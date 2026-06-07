@@ -7,7 +7,14 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { IsNotEmpty, IsString, IsOptional, IsBoolean, IsInt, Min } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsInt,
+  Min,
+} from 'class-validator';
 import { Organisation } from '../organisation/organisation.entity';
 import { ScreenGroup } from '../screen-group/screen-group.entity';
 

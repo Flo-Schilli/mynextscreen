@@ -51,7 +51,11 @@ import { Membership } from '../settings/users/member.model';
 
           <div class="filter-group">
             <label for="filterResource">Resource Type</label>
-            <select id="filterResource" [(ngModel)]="filterResourceType" (ngModelChange)="applyFilters()">
+            <select
+              id="filterResource"
+              [(ngModel)]="filterResourceType"
+              (ngModelChange)="applyFilters()"
+            >
               <option value="">All types</option>
               @for (type of resourceTypes; track type) {
                 <option [value]="type">{{ type | titlecase }}</option>
@@ -61,16 +65,28 @@ import { Membership } from '../settings/users/member.model';
 
           <div class="filter-group">
             <label for="filterFrom">From</label>
-            <input id="filterFrom" type="date" [(ngModel)]="filterFrom" (ngModelChange)="applyFilters()" />
+            <input
+              id="filterFrom"
+              type="date"
+              [(ngModel)]="filterFrom"
+              (ngModelChange)="applyFilters()"
+            />
           </div>
 
           <div class="filter-group">
             <label for="filterTo">To</label>
-            <input id="filterTo" type="date" [(ngModel)]="filterTo" (ngModelChange)="applyFilters()" />
+            <input
+              id="filterTo"
+              type="date"
+              [(ngModel)]="filterTo"
+              (ngModelChange)="applyFilters()"
+            />
           </div>
 
           @if (hasActiveFilters()) {
-            <button class="btn btn-secondary btn-small clear-btn" (click)="clearFilters()">Clear filters</button>
+            <button class="btn btn-secondary btn-small clear-btn" (click)="clearFilters()">
+              Clear filters
+            </button>
           }
         </div>
 
@@ -102,17 +118,25 @@ import { Membership } from '../settings/users/member.model';
               <tbody>
                 @for (entry of entries; track entry.id) {
                   <tr>
-                    <td class="timestamp-cell">{{ entry.timestamp | date:'medium' }}</td>
+                    <td class="timestamp-cell">{{ entry.timestamp | date: 'medium' }}</td>
                     <td>{{ getUserDisplay(entry.userId) }}</td>
                     <td>
-                      <span class="action-badge" [attr.data-category]="actionCategory(entry.action)">
+                      <span
+                        class="action-badge"
+                        [attr.data-category]="actionCategory(entry.action)"
+                      >
                         {{ actionLabel(entry.action) }}
                       </span>
                     </td>
                     <td class="resource-type-cell">{{ entry.resourceType }}</td>
                     <td>
                       @if (entry.resourceId) {
-                        <a class="resource-link" (click)="navigateToResource(entry.resourceType, entry.resourceId)" (keydown.enter)="navigateToResource(entry.resourceType, entry.resourceId)" tabindex="0">
+                        <a
+                          class="resource-link"
+                          (click)="navigateToResource(entry.resourceType, entry.resourceId)"
+                          (keydown.enter)="navigateToResource(entry.resourceType, entry.resourceId)"
+                          tabindex="0"
+                        >
                           {{ getResourceDisplay(entry) }}
                         </a>
                       } @else {
@@ -199,7 +223,7 @@ import { Membership } from '../settings/users/member.model';
       font-size: 0.875rem;
       min-width: 10rem;
     }
-    .filter-group input[type="date"] {
+    .filter-group input[type='date'] {
       min-width: 9rem;
     }
     .filter-group select:focus,
@@ -247,7 +271,9 @@ import { Membership } from '../settings/users/member.model';
       background: var(--color-bg-secondary);
       border-radius: 0.5rem;
       overflow: hidden;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
     thead {
       background: var(--color-bg-tertiary);
@@ -289,27 +315,27 @@ import { Membership } from '../settings/users/member.model';
       font-weight: 500;
       white-space: nowrap;
     }
-    .action-badge[data-category="content"] {
+    .action-badge[data-category='content'] {
       background: rgba(59, 130, 246, 0.15);
       color: #93c5fd;
     }
-    .action-badge[data-category="playlist"] {
+    .action-badge[data-category='playlist'] {
       background: rgba(168, 85, 247, 0.15);
       color: #d8b4fe;
     }
-    .action-badge[data-category="schedule"] {
+    .action-badge[data-category='schedule'] {
       background: rgba(34, 197, 94, 0.15);
       color: #86efac;
     }
-    .action-badge[data-category="screen"] {
+    .action-badge[data-category='screen'] {
       background: rgba(234, 179, 8, 0.15);
       color: #fde047;
     }
-    .action-badge[data-category="user"] {
+    .action-badge[data-category='user'] {
       background: rgba(244, 63, 94, 0.15);
       color: #fda4af;
     }
-    .action-badge[data-category="organisation"] {
+    .action-badge[data-category='organisation'] {
       background: rgba(20, 184, 166, 0.15);
       color: #5eead4;
     }
@@ -363,7 +389,8 @@ import { Membership } from '../settings/users/member.model';
       font-size: 0.875rem;
       margin-top: 0.5rem;
     }
-    .loading-text, .empty-text {
+    .loading-text,
+    .empty-text {
       color: var(--color-text-muted);
       font-size: 0.875rem;
     }
@@ -487,19 +514,17 @@ export class AuditLog implements OnInit {
 
     this.loading = true;
 
-    this.auditLogService
-      .getAuditLog(org.id, this.buildFilters(this.entries.length))
-      .subscribe({
-        next: (response) => {
-          this.entries = [...this.entries, ...response.data];
-          this.total = response.total;
-          this.loading = false;
-        },
-        error: () => {
-          this.loadError = 'Failed to load more entries.';
-          this.loading = false;
-        },
-      });
+    this.auditLogService.getAuditLog(org.id, this.buildFilters(this.entries.length)).subscribe({
+      next: (response) => {
+        this.entries = [...this.entries, ...response.data];
+        this.total = response.total;
+        this.loading = false;
+      },
+      error: () => {
+        this.loadError = 'Failed to load more entries.';
+        this.loading = false;
+      },
+    });
   }
 
   applyFilters(): void {

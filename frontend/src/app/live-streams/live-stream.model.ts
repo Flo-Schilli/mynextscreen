@@ -1,6 +1,11 @@
 export type LiveStreamStatus = 'idle' | 'active' | 'error';
 export type LiveStreamProtocol = 'rtmp' | 'rtp';
-export type TranscodingPreset = 'low_480p' | 'medium_720p' | 'high_1080p' | 'full_hd_plus_1440p' | 'passthrough';
+export type TranscodingPreset =
+  | 'low_480p'
+  | 'medium_720p'
+  | 'high_1080p'
+  | 'full_hd_plus_1440p'
+  | 'passthrough';
 
 export interface LiveStream {
   id: string;

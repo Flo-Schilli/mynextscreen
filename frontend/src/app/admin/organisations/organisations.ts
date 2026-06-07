@@ -3,13 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { OrganisationService } from './organisation.service';
-import {
-  Organisation,
-  CreateOrganisationDto,
-  UpdateOrganisationDto,
-  OrgMember,
-  OrgMemberRole,
-} from './organisation.model';
+import { Organisation, OrgMember, OrgMemberRole } from './organisation.model';
 import { IANA_TIME_ZONES } from './timezones';
 
 @Component({
@@ -24,9 +18,7 @@ import { IANA_TIME_ZONES } from './timezones';
           <h1>Organisations</h1>
         </div>
         @if (!showForm && !selectedOrg) {
-          <button class="btn btn-primary" (click)="openCreateForm()">
-            + New Organisation
-          </button>
+          <button class="btn btn-primary" (click)="openCreateForm()">+ New Organisation</button>
         }
       </header>
 
@@ -51,7 +43,9 @@ import { IANA_TIME_ZONES } from './timezones';
               <label for="timeZone">Time Zone</label>
               <select id="timeZone" [(ngModel)]="formData.timeZone" name="timeZone" required>
                 <option value="" disabled>Select a time zone</option>
-                <option *ngFor="let tz of timeZones" [value]="tz">{{ tz }}</option>
+                @for (tz of timeZones; track tz) {
+                  <option [value]="tz">{{ tz }}</option>
+                }
               </select>
             </div>
 
@@ -103,14 +97,22 @@ import { IANA_TIME_ZONES } from './timezones';
 
         <div class="org-info">
           <span class="info-tag">{{ selectedOrg.timeZone }}</span>
-          <span class="info-tag">Original: {{ formatBytes(selectedOrg.storageOriginalUsedBytes) }} / {{ formatBytes(selectedOrg.storageOriginalLimitBytes) }}</span>
-          <span class="info-tag">Transcoded: {{ formatBytes(selectedOrg.storageTranscodedUsedBytes) }} / {{ formatBytes(selectedOrg.storageTranscodedLimitBytes) }}</span>
+          <span class="info-tag"
+            >Original: {{ formatBytes(selectedOrg.storageOriginalUsedBytes) }} /
+            {{ formatBytes(selectedOrg.storageOriginalLimitBytes) }}</span
+          >
+          <span class="info-tag"
+            >Transcoded: {{ formatBytes(selectedOrg.storageTranscodedUsedBytes) }} /
+            {{ formatBytes(selectedOrg.storageTranscodedLimitBytes) }}</span
+          >
         </div>
 
         <!-- Members section -->
         <div class="section-header">
           <h3>Members</h3>
-          <button class="btn btn-primary btn-small" (click)="openAddMemberModal()">+ Add Member</button>
+          <button class="btn btn-primary btn-small" (click)="openAddMemberModal()">
+            + Add Member
+          </button>
         </div>
 
         @if (membersLoading) {
@@ -150,7 +152,7 @@ import { IANA_TIME_ZONES } from './timezones';
                         <option value="viewer">Viewer</option>
                       </select>
                     </td>
-                    <td>{{ member.createdAt | date:'mediumDate' }}</td>
+                    <td>{{ member.createdAt | date: 'mediumDate' }}</td>
                     <td>
                       <button
                         class="btn btn-small btn-danger"
@@ -207,7 +209,7 @@ import { IANA_TIME_ZONES } from './timezones';
                     <td>{{ memberCounts[org.id] ?? '...' }}</td>
                     <td>{{ formatBytes(org.storageOriginalLimitBytes) }}</td>
                     <td>{{ formatBytes(org.storageTranscodedLimitBytes) }}</td>
-                    <td>{{ org.createdAt | date:'mediumDate' }}</td>
+                    <td>{{ org.createdAt | date: 'mediumDate' }}</td>
                   </tr>
                 }
               </tbody>
@@ -222,9 +224,21 @@ import { IANA_TIME_ZONES } from './timezones';
 
       <!-- ── Add Member Modal ── -->
       @if (showAddMemberModal) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Add member"
-             tabindex="0" (click)="closeAddMemberModal()" (keydown.escape)="closeAddMemberModal()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add member"
+          tabindex="0"
+          (click)="closeAddMemberModal()"
+          (keydown.escape)="closeAddMemberModal()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Add Member</h2>
             <form (ngSubmit)="submitAddMember()">
               <div class="form-group">
@@ -250,7 +264,9 @@ import { IANA_TIME_ZONES } from './timezones';
                 <p class="error">{{ addMemberError }}</p>
               }
               <div class="form-actions">
-                <button type="button" class="btn btn-secondary" (click)="closeAddMemberModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" (click)="closeAddMemberModal()">
+                  Cancel
+                </button>
                 <button type="submit" class="btn btn-primary" [disabled]="addingMember">
                   {{ addingMember ? 'Adding...' : 'Add Member' }}
                 </button>
@@ -262,14 +278,33 @@ import { IANA_TIME_ZONES } from './timezones';
 
       <!-- ── Remove Member Confirm Modal ── -->
       @if (showRemoveConfirm) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Confirm removal"
-             tabindex="0" (click)="cancelRemoveMember()" (keydown.escape)="cancelRemoveMember()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm removal"
+          tabindex="0"
+          (click)="cancelRemoveMember()"
+          (keydown.escape)="cancelRemoveMember()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Remove Member</h2>
-            <p>Are you sure you want to remove <strong>{{ removingMember?.user?.email }}</strong> from this organisation?</p>
+            <p>
+              Are you sure you want to remove
+              <strong>{{ removingMember?.user?.email }}</strong> from this organisation?
+            </p>
             <div class="form-actions">
               <button class="btn btn-secondary" (click)="cancelRemoveMember()">Cancel</button>
-              <button class="btn btn-danger" (click)="executeRemoveMember()" [disabled]="removingMemberId !== null">
+              <button
+                class="btn btn-danger"
+                (click)="executeRemoveMember()"
+                [disabled]="removingMemberId !== null"
+              >
                 {{ removingMemberId ? 'Removing...' : 'Remove' }}
               </button>
             </div>
@@ -455,7 +490,9 @@ import { IANA_TIME_ZONES } from './timezones';
       background: var(--color-bg-secondary);
       border-radius: 0.5rem;
       overflow: hidden;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
     thead {
       background: var(--color-bg-tertiary);
@@ -536,7 +573,8 @@ import { IANA_TIME_ZONES } from './timezones';
       font-size: 0.875rem;
       margin-top: 0.5rem;
     }
-    .loading-text, .empty-text {
+    .loading-text,
+    .empty-text {
       color: var(--color-text-muted);
       font-size: 0.875rem;
     }
@@ -779,22 +817,20 @@ export class Organisations implements OnInit {
 
     this.removingMemberId = this.removingMember.userId;
     this.memberActionError = '';
-    this.orgService
-      .removeMember(this.selectedOrg.id, this.removingMember.userId)
-      .subscribe({
-        next: () => {
-          this.removingMemberId = null;
-          this.showRemoveConfirm = false;
-          this.removingMember = null;
-          this.loadMembers();
-        },
-        error: (err) => {
-          this.memberActionError = err.error?.message || 'Failed to remove member.';
-          this.removingMemberId = null;
-          this.showRemoveConfirm = false;
-          this.removingMember = null;
-        },
-      });
+    this.orgService.removeMember(this.selectedOrg.id, this.removingMember.userId).subscribe({
+      next: () => {
+        this.removingMemberId = null;
+        this.showRemoveConfirm = false;
+        this.removingMember = null;
+        this.loadMembers();
+      },
+      error: (err) => {
+        this.memberActionError = err.error?.message || 'Failed to remove member.';
+        this.removingMemberId = null;
+        this.showRemoveConfirm = false;
+        this.removingMember = null;
+      },
+    });
   }
 
   // ── Helpers ──

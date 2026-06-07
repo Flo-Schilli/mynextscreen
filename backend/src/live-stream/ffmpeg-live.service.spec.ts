@@ -6,7 +6,6 @@ import {
   FfmpegLiveService,
   LIVE_STREAM_PROCESS_EXITED,
   PRESET_MAP,
-  ProbeResult,
 } from './ffmpeg-live.service';
 import { LiveStream } from './live-stream.entity';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
@@ -26,10 +25,13 @@ jest.mock('util', () => ({
     // Return a wrapper that calls through to the mock and returns a promise
     return (...args: unknown[]) => {
       return new Promise((resolve, reject) => {
-        (fn as Function)(...args, (err: Error | null, stdout: string, stderr: string) => {
-          if (err) reject(err);
-          else resolve({ stdout, stderr });
-        });
+        (fn as (...fnArgs: unknown[]) => unknown)(
+          ...args,
+          (err: Error | null, stdout: string, stderr: string) => {
+            if (err) reject(err);
+            else resolve({ stdout, stderr });
+          },
+        );
       });
     };
   },
@@ -45,7 +47,12 @@ import { spawn, execFile } from 'child_process';
 
 const mockSpawn = spawn as jest.MockedFunction<typeof spawn>;
 const mockExecFile = execFile as unknown as jest.MockedFunction<
-  (cmd: string, args: string[], opts: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => void
+  (
+    cmd: string,
+    args: string[],
+    opts: unknown,
+    cb: (err: Error | null, stdout: string, stderr: string) => void,
+  ) => void
 >;
 
 function createMockProcess(): EventEmitter & {
@@ -478,7 +485,12 @@ describe('FfmpegLiveService', () => {
 
     function setupExecFile(stdout: string): void {
       mockExecFile.mockImplementation(
-        (_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => {
+        (
+          _cmd: string,
+          _args: string[],
+          _opts: unknown,
+          cb: (err: Error | null, stdout: string, stderr: string) => void,
+        ) => {
           cb(null, stdout, '');
           return undefined as never;
         },
@@ -542,7 +554,12 @@ describe('FfmpegLiveService', () => {
 
     it('should propagate errors from ffprobe', async () => {
       mockExecFile.mockImplementation(
-        (_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => {
+        (
+          _cmd: string,
+          _args: string[],
+          _opts: unknown,
+          cb: (err: Error | null, stdout: string, stderr: string) => void,
+        ) => {
           cb(new Error('ffprobe not found'), '', '');
           return undefined as never;
         },

@@ -31,9 +31,7 @@ describe('DefaultPlaylistController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DefaultPlaylistController],
-      providers: [
-        { provide: OrganisationService, useValue: service },
-      ],
+      providers: [{ provide: OrganisationService, useValue: service }],
     }).compile();
 
     controller = module.get<DefaultPlaylistController>(

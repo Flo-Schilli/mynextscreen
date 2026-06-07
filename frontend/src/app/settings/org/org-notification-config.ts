@@ -36,12 +36,19 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
       @if (!loading && !loadError) {
         <section class="section">
           <h2 class="section-title">SMTP Email Settings</h2>
-          <p class="section-desc">Configure SMTP to enable email notifications for your organisation.</p>
+          <p class="section-desc">
+            Configure SMTP to enable email notifications for your organisation.
+          </p>
 
           <div class="form-grid">
             <div class="form-group">
               <label for="smtpHost">Host</label>
-              <input id="smtpHost" type="text" [(ngModel)]="smtpHost" placeholder="smtp.example.com" />
+              <input
+                id="smtpHost"
+                type="text"
+                [(ngModel)]="smtpHost"
+                placeholder="smtp.example.com"
+              />
             </div>
             <div class="form-group">
               <label for="smtpPort">Port</label>
@@ -49,7 +56,12 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
             </div>
             <div class="form-group">
               <label for="smtpUser">Username</label>
-              <input id="smtpUser" type="text" [(ngModel)]="smtpUser" placeholder="user@example.com" />
+              <input
+                id="smtpUser"
+                type="text"
+                [(ngModel)]="smtpUser"
+                placeholder="user@example.com"
+              />
             </div>
             <div class="form-group">
               <label for="smtpPassword">Password</label>
@@ -57,12 +69,19 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
                 id="smtpPassword"
                 type="password"
                 [(ngModel)]="smtpPassword"
-                [placeholder]="hasSmtpPassword ? 'Saved — leave blank to keep current' : 'Enter password'"
+                [placeholder]="
+                  hasSmtpPassword ? 'Saved — leave blank to keep current' : 'Enter password'
+                "
               />
             </div>
             <div class="form-group">
               <label for="smtpFrom">From address</label>
-              <input id="smtpFrom" type="text" [(ngModel)]="smtpFrom" placeholder="noreply@example.com" />
+              <input
+                id="smtpFrom"
+                type="text"
+                [(ngModel)]="smtpFrom"
+                placeholder="noreply@example.com"
+              />
             </div>
             <div class="form-group form-group-checkbox">
               <label for="smtpSecure">
@@ -85,7 +104,9 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
 
         <section class="section">
           <h2 class="section-title">ntfy Push Notifications</h2>
-          <p class="section-desc">Configure ntfy to enable push notifications for your organisation.</p>
+          <p class="section-desc">
+            Configure ntfy to enable push notifications for your organisation.
+          </p>
 
           <div class="form-grid">
             <div class="form-group">
@@ -94,7 +115,12 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
             </div>
             <div class="form-group">
               <label for="ntfyTopic">Topic</label>
-              <input id="ntfyTopic" type="text" [(ngModel)]="ntfyTopic" placeholder="my-org-notifications" />
+              <input
+                id="ntfyTopic"
+                type="text"
+                [(ngModel)]="ntfyTopic"
+                placeholder="my-org-notifications"
+              />
             </div>
             <div class="form-group">
               <label for="ntfyToken">Auth token (optional)</label>
@@ -102,7 +128,9 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
                 id="ntfyToken"
                 type="password"
                 [(ngModel)]="ntfyToken"
-                [placeholder]="hasNtfyToken ? 'Saved — leave blank to keep current' : 'Enter token (optional)'"
+                [placeholder]="
+                  hasNtfyToken ? 'Saved — leave blank to keep current' : 'Enter token (optional)'
+                "
               />
             </div>
           </div>
@@ -118,7 +146,11 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
         </section>
 
         @if (toastMessage) {
-          <div class="toast" [class.toast-error]="toastType === 'error'" [class.toast-success]="toastType === 'success'">
+          <div
+            class="toast"
+            [class.toast-error]="toastType === 'error'"
+            [class.toast-success]="toastType === 'success'"
+          >
             {{ toastMessage }}
           </div>
         }
@@ -175,7 +207,9 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
       text-decoration: none;
       border-bottom: 2px solid transparent;
       cursor: pointer;
-      transition: color 0.15s, border-color 0.15s;
+      transition:
+        color 0.15s,
+        border-color 0.15s;
     }
     .settings-nav-link:hover {
       color: var(--color-text-primary);
@@ -193,7 +227,9 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
       padding: 1.5rem;
       max-width: 40rem;
       margin-bottom: 1.5rem;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
     .section-title {
       font-size: 1.125rem;
@@ -226,9 +262,9 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
       font-weight: 500;
       color: var(--color-text-secondary);
     }
-    .form-group input[type="text"],
-    .form-group input[type="number"],
-    .form-group input[type="password"] {
+    .form-group input[type='text'],
+    .form-group input[type='number'],
+    .form-group input[type='password'] {
       padding: 0.5rem 0.75rem;
       border: 1px solid var(--color-border);
       border-radius: 0.375rem;
@@ -251,7 +287,7 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
       font-size: 0.875rem;
       color: var(--color-text-primary);
     }
-    .form-group-checkbox input[type="checkbox"] {
+    .form-group-checkbox input[type='checkbox'] {
       width: 1rem;
       height: 1rem;
       accent-color: var(--color-accent);
@@ -464,8 +500,7 @@ export class OrgNotificationConfig implements OnInit {
       },
       error: (err) => {
         this.testingEmail = false;
-        const msg =
-          err?.error?.message || 'Failed to send test email.';
+        const msg = err?.error?.message || 'Failed to send test email.';
         this.showToast(msg, 'error');
       },
     });
@@ -483,8 +518,7 @@ export class OrgNotificationConfig implements OnInit {
       },
       error: (err) => {
         this.testingNtfy = false;
-        const msg =
-          err?.error?.message || 'Failed to send test notification.';
+        const msg = err?.error?.message || 'Failed to send test notification.';
         this.showToast(msg, 'error');
       },
     });

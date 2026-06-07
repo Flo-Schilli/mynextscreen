@@ -18,7 +18,13 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 @Component({
   selector: 'app-screens',
   standalone: true,
-  imports: [DatePipe, FormsModule, SelectionCheckboxComponent, SelectAllCheckboxComponent, BulkActionToolbarComponent],
+  imports: [
+    DatePipe,
+    FormsModule,
+    SelectionCheckboxComponent,
+    SelectAllCheckboxComponent,
+    BulkActionToolbarComponent,
+  ],
   providers: [SelectionService],
   template: `
     <div class="page">
@@ -28,9 +34,7 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
           <h1>Screen Management</h1>
         </div>
         @if (!loading && !selectedScreen && !showCreateForm) {
-          <button class="btn btn-primary" (click)="openCreateForm()">
-            + Register Screen
-          </button>
+          <button class="btn btn-primary" (click)="openCreateForm()">+ Register Screen</button>
         }
       </header>
 
@@ -73,7 +77,12 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
             </div>
             <div class="form-group">
               <label for="createResolution">Resolution</label>
-              <select id="createResolution" [(ngModel)]="createResolution" name="createResolution" required>
+              <select
+                id="createResolution"
+                [(ngModel)]="createResolution"
+                name="createResolution"
+                required
+              >
                 <option value="1920x1080">1920x1080 (Full HD)</option>
                 <option value="3840x2160">3840x2160 (4K UHD)</option>
                 <option value="1280x720">1280x720 (HD)</option>
@@ -99,7 +108,9 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
               <p class="error">{{ createError }}</p>
             }
             <div class="form-actions">
-              <button type="button" class="btn btn-secondary" (click)="cancelCreate()">Cancel</button>
+              <button type="button" class="btn btn-secondary" (click)="cancelCreate()">
+                Cancel
+              </button>
               <button type="submit" class="btn btn-primary" [disabled]="creating">
                 {{ creating ? 'Registering...' : 'Register Screen' }}
               </button>
@@ -121,7 +132,11 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
           <div class="detail-grid">
             <div class="detail-item">
               <span class="detail-label">Status</span>
-              <span class="status-badge" [class.online]="selectedScreen.isOnline" [class.offline]="!selectedScreen.isOnline">
+              <span
+                class="status-badge"
+                [class.online]="selectedScreen.isOnline"
+                [class.offline]="!selectedScreen.isOnline"
+              >
                 {{ selectedScreen.isOnline ? 'Online' : 'Offline' }}
               </span>
             </div>
@@ -135,16 +150,23 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
             </div>
             <div class="detail-item">
               <span class="detail-label">Last Heartbeat</span>
-              <span>{{ selectedScreen.lastHeartbeat ? (selectedScreen.lastHeartbeat | date:'medium') : 'Never' }}</span>
+              <span>{{
+                selectedScreen.lastHeartbeat
+                  ? (selectedScreen.lastHeartbeat | date: 'medium')
+                  : 'Never'
+              }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">Registered</span>
-              <span>{{ selectedScreen.createdAt | date:'mediumDate' }}</span>
+              <span>{{ selectedScreen.createdAt | date: 'mediumDate' }}</span>
             </div>
           </div>
           <div class="api-key-section">
             <h3>API Key Management</h3>
-            <p class="text-muted">Regenerate the API key if it has been compromised. The current key will be invalidated immediately.</p>
+            <p class="text-muted">
+              Regenerate the API key if it has been compromised. The current key will be invalidated
+              immediately.
+            </p>
             <button class="btn btn-danger" (click)="confirmRegenerate()" [disabled]="regenerating">
               Regenerate API Key
             </button>
@@ -160,13 +182,7 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
             <div class="form-row">
               <div class="form-group">
                 <label for="editName">Name</label>
-                <input
-                  id="editName"
-                  type="text"
-                  [(ngModel)]="editName"
-                  name="editName"
-                  required
-                />
+                <input id="editName" type="text" [(ngModel)]="editName" name="editName" required />
               </div>
               <div class="form-group">
                 <label for="editLocation">Location</label>
@@ -210,9 +226,15 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
         </div>
         <div class="screen-grid">
           @for (screen of screens; track screen.id; let i = $index) {
-            <div class="screen-card" [class.selected]="selectionService.selectedIds().has(screen.id)"
-                 (click)="selectScreen(screen)" tabindex="0" role="button"
-                 (keydown.enter)="selectScreen(screen)" (keydown.space)="selectScreen(screen)">
+            <div
+              class="screen-card"
+              [class.selected]="selectionService.selectedIds().has(screen.id)"
+              (click)="selectScreen(screen)"
+              tabindex="0"
+              role="button"
+              (keydown.enter)="selectScreen(screen)"
+              (keydown.space)="selectScreen(screen)"
+            >
               <div class="card-header">
                 <app-selection-checkbox
                   [itemId]="screen.id"
@@ -221,8 +243,12 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
                   (click)="$event.stopPropagation()"
                 />
                 <span class="screen-name">{{ screen.name }}</span>
-                <span class="status-dot" [class.online]="screen.isOnline" [class.offline]="!screen.isOnline"
-                      [attr.title]="screen.isOnline ? 'Online' : 'Offline'"></span>
+                <span
+                  class="status-dot"
+                  [class.online]="screen.isOnline"
+                  [class.offline]="!screen.isOnline"
+                  [attr.title]="screen.isOnline ? 'Online' : 'Offline'"
+                ></span>
               </div>
               <div class="card-body">
                 <div class="card-field">
@@ -235,7 +261,11 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
                 </div>
                 <div class="card-field">
                   <span class="card-label">Status</span>
-                  <span class="card-value status-text" [class.online]="screen.isOnline" [class.offline]="!screen.isOnline">
+                  <span
+                    class="card-value status-text"
+                    [class.online]="screen.isOnline"
+                    [class.offline]="!screen.isOnline"
+                  >
                     {{ screen.isOnline ? 'Online' : 'Offline' }}
                   </span>
                 </div>
@@ -250,7 +280,9 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
       @if (!loading && !selectedScreen && !showCreateForm && screens.length === 0 && !loadError) {
         <div class="empty-state">
           <p class="empty-text">No screens registered yet.</p>
-          <button class="btn btn-primary" (click)="openCreateForm()">Register Your First Screen</button>
+          <button class="btn btn-primary" (click)="openCreateForm()">
+            Register Your First Screen
+          </button>
         </div>
       }
 
@@ -260,9 +292,21 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 
       <!-- API Key Modal -->
       @if (showApiKeyModal) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="API Key"
-             tabindex="0" (click)="closeApiKeyModal()" (keydown.escape)="closeApiKeyModal()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="API Key"
+          tabindex="0"
+          (click)="closeApiKeyModal()"
+          (keydown.escape)="closeApiKeyModal()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Screen API Key</h2>
             <div class="api-key-warning">
               This API key will only be shown once. Copy it now and store it securely.
@@ -282,15 +326,38 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 
       <!-- Regenerate Confirmation Modal -->
       @if (showRegenerateConfirm) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Confirm regeneration"
-             tabindex="0" (click)="cancelRegenerate()" (keydown.escape)="cancelRegenerate()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm regeneration"
+          tabindex="0"
+          (click)="cancelRegenerate()"
+          (keydown.escape)="cancelRegenerate()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Regenerate API Key</h2>
-            <p>Are you sure you want to regenerate the API key for <strong>{{ selectedScreen?.name }}</strong>?</p>
-            <p>The current API key will be invalidated immediately. The screen will need to be reconfigured with the new key.</p>
+            <p>
+              Are you sure you want to regenerate the API key for
+              <strong>{{ selectedScreen?.name }}</strong
+              >?
+            </p>
+            <p>
+              The current API key will be invalidated immediately. The screen will need to be
+              reconfigured with the new key.
+            </p>
             <div class="form-actions">
               <button class="btn btn-secondary" (click)="cancelRegenerate()">Cancel</button>
-              <button class="btn btn-danger" (click)="executeRegenerate()" [disabled]="regenerating">
+              <button
+                class="btn btn-danger"
+                (click)="executeRegenerate()"
+                [disabled]="regenerating"
+              >
                 {{ regenerating ? 'Regenerating...' : 'Regenerate' }}
               </button>
             </div>
@@ -300,16 +367,29 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 
       <!-- Bulk Delete Confirmation Modal -->
       @if (showBulkDeleteConfirm) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Confirm bulk delete"
-             tabindex="0" (click)="cancelBulkDelete()" (keydown.escape)="cancelBulkDelete()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm bulk delete"
+          tabindex="0"
+          (click)="cancelBulkDelete()"
+          (keydown.escape)="cancelBulkDelete()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Delete Screens</h2>
-            <p>You are about to permanently delete <strong>{{ selectionService.count() }} screen(s)</strong>. This cannot be undone.</p>
+            <p>
+              You are about to permanently delete
+              <strong>{{ selectionService.count() }} screen(s)</strong>. This cannot be undone.
+            </p>
             <div class="form-actions">
               <button class="btn btn-secondary" (click)="cancelBulkDelete()">Cancel</button>
-              <button class="btn btn-danger" (click)="executeBulkDelete()">
-                Delete
-              </button>
+              <button class="btn btn-danger" (click)="executeBulkDelete()">Delete</button>
             </div>
           </div>
         </div>
@@ -317,11 +397,25 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 
       <!-- Assign to Group Modal -->
       @if (showAssignGroupModal) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Assign to group"
-             tabindex="0" (click)="cancelAssignGroup()" (keydown.escape)="cancelAssignGroup()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Assign to group"
+          tabindex="0"
+          (click)="cancelAssignGroup()"
+          (keydown.escape)="cancelAssignGroup()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Assign to Group</h2>
-            <p>Select a group to assign <strong>{{ selectionService.count() }} screen(s)</strong> to:</p>
+            <p>
+              Select a group to assign <strong>{{ selectionService.count() }} screen(s)</strong> to:
+            </p>
             <div class="form-group">
               <label for="groupSelect">Group</label>
               <select id="groupSelect" [(ngModel)]="selectedGroupId" name="groupSelect">
@@ -336,7 +430,11 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
             }
             <div class="form-actions">
               <button class="btn btn-secondary" (click)="cancelAssignGroup()">Cancel</button>
-              <button class="btn btn-primary" (click)="executeAssignGroup()" [disabled]="groupsLoading">
+              <button
+                class="btn btn-primary"
+                (click)="executeAssignGroup()"
+                [disabled]="groupsLoading"
+              >
                 {{ groupsLoading ? 'Loading...' : 'Assign' }}
               </button>
             </div>
@@ -346,7 +444,12 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 
       <!-- Toast -->
       @if (toastMessage) {
-        <div class="toast" [class.toast-error]="toastType === 'error'" [class.toast-success]="toastType === 'success'" [class.toast-warning]="toastType === 'warning'">
+        <div
+          class="toast"
+          [class.toast-error]="toastType === 'error'"
+          [class.toast-success]="toastType === 'success'"
+          [class.toast-warning]="toastType === 'warning'"
+        >
           {{ toastMessage }}
         </div>
       }
@@ -451,10 +554,15 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
       border-radius: 0.5rem;
       padding: 1.25rem;
       cursor: pointer;
-      transition: border-color 0.15s, background-color 0.15s;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      transition:
+        border-color 0.15s,
+        background-color 0.15s;
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
-    .screen-card:hover, .screen-card:focus {
+    .screen-card:hover,
+    .screen-card:focus {
       border-color: var(--color-accent);
       background: var(--color-bg-tertiary);
       outline: none;
@@ -518,7 +626,9 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
       border-radius: 0.5rem;
       padding: 1.5rem;
       max-width: 40rem;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
     .detail-header {
       display: flex;
@@ -593,7 +703,9 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
       border-radius: 0.5rem;
       padding: 1.5rem;
       max-width: 40rem;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
     .form-card h2 {
       margin: 0 0 1.25rem;
@@ -726,7 +838,7 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
       font-size: 0.875rem;
       z-index: 2000;
       animation: toast-in 0.3s ease;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
     }
     .toast-error {
       background: #991b1b;
@@ -744,8 +856,14 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
       border: 1px solid #d97706;
     }
     @keyframes toast-in {
-      from { opacity: 0; transform: translateY(1rem); }
-      to { opacity: 1; transform: translateY(0); }
+      from {
+        opacity: 0;
+        transform: translateY(1rem);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
   `,
 })
@@ -888,10 +1006,7 @@ export class Screens implements OnInit, OnDestroy {
         this.loading = false;
       },
       error: (err) => {
-        this.loadError =
-          err.status === 403
-            ? 'Access denied.'
-            : 'Failed to load screens.';
+        this.loadError = err.status === 403 ? 'Access denied.' : 'Failed to load screens.';
         this.loading = false;
       },
     });
@@ -912,9 +1027,8 @@ export class Screens implements OnInit, OnDestroy {
   }
 
   submitCreate(): void {
-    const resolution = this.createResolution === 'custom'
-      ? this.createCustomResolution
-      : this.createResolution;
+    const resolution =
+      this.createResolution === 'custom' ? this.createCustomResolution : this.createResolution;
 
     if (!this.createName || !this.createLocation || !resolution) {
       this.createError = 'All fields are required.';
@@ -923,24 +1037,26 @@ export class Screens implements OnInit, OnDestroy {
 
     this.creating = true;
     this.createError = '';
-    this.screenService.create(this.orgId, {
-      name: this.createName,
-      resolution,
-      location: this.createLocation,
-    }).subscribe({
-      next: (result) => {
-        this.creating = false;
-        this.showCreateForm = false;
-        this.displayedApiKey = result.apiKey;
-        this.copied = false;
-        this.showApiKeyModal = true;
-        this.loadScreens();
-      },
-      error: (err) => {
-        this.createError = err.error?.message || 'Failed to register screen.';
-        this.creating = false;
-      },
-    });
+    this.screenService
+      .create(this.orgId, {
+        name: this.createName,
+        resolution,
+        location: this.createLocation,
+      })
+      .subscribe({
+        next: (result) => {
+          this.creating = false;
+          this.showCreateForm = false;
+          this.displayedApiKey = result.apiKey;
+          this.copied = false;
+          this.showApiKeyModal = true;
+          this.loadScreens();
+        },
+        error: (err) => {
+          this.createError = err.error?.message || 'Failed to register screen.';
+          this.creating = false;
+        },
+      });
   }
 
   // --- Detail ---
@@ -976,22 +1092,24 @@ export class Screens implements OnInit, OnDestroy {
 
     this.saving = true;
     this.editError = '';
-    this.screenService.update(this.orgId, this.selectedScreen.id, {
-      name: this.editName,
-      resolution: this.editResolution,
-      location: this.editLocation,
-    }).subscribe({
-      next: (updated) => {
-        this.saving = false;
-        this.editingScreen = false;
-        this.selectedScreen = updated;
-        this.loadScreens();
-      },
-      error: (err) => {
-        this.editError = err.error?.message || 'Failed to update screen.';
-        this.saving = false;
-      },
-    });
+    this.screenService
+      .update(this.orgId, this.selectedScreen.id, {
+        name: this.editName,
+        resolution: this.editResolution,
+        location: this.editLocation,
+      })
+      .subscribe({
+        next: (updated) => {
+          this.saving = false;
+          this.editingScreen = false;
+          this.selectedScreen = updated;
+          this.loadScreens();
+        },
+        error: (err) => {
+          this.editError = err.error?.message || 'Failed to update screen.';
+          this.saving = false;
+        },
+      });
   }
 
   // --- Regenerate API Key ---
@@ -1034,7 +1152,9 @@ export class Screens implements OnInit, OnDestroy {
   copyApiKey(): void {
     navigator.clipboard.writeText(this.displayedApiKey).then(() => {
       this.copied = true;
-      setTimeout(() => { this.copied = false; }, 2000);
+      setTimeout(() => {
+        this.copied = false;
+      }, 2000);
     });
   }
 
@@ -1048,7 +1168,10 @@ export class Screens implements OnInit, OnDestroy {
 
     this.showToast(`${result.deleted} screen(s) deleted`, 'success');
     if (result.notFound.length > 0) {
-      this.showToast(`${result.notFound.length} item(s) could not be found and were skipped`, 'warning');
+      this.showToast(
+        `${result.notFound.length} item(s) could not be found and were skipped`,
+        'warning',
+      );
     }
     this.loadScreens();
   }
@@ -1079,14 +1202,19 @@ export class Screens implements OnInit, OnDestroy {
 
     const ids = [...this.selectionService.selectedIds()];
     const groupId = this.selectedGroupId || null;
-    const result = await firstValueFrom(this.screenService.bulkAssignGroup(this.orgId, ids, groupId));
+    const result = await firstValueFrom(
+      this.screenService.bulkAssignGroup(this.orgId, ids, groupId),
+    );
 
     const groupName = groupId
-      ? this.groups.find((g) => g.id === groupId)?.name ?? 'selected group'
+      ? (this.groups.find((g) => g.id === groupId)?.name ?? 'selected group')
       : 'no group';
     this.showToast(`${result.updated} screen(s) assigned to ${groupName}`, 'success');
     if (result.notFound.length > 0) {
-      this.showToast(`${result.notFound.length} item(s) could not be found and were skipped`, 'warning');
+      this.showToast(
+        `${result.notFound.length} item(s) could not be found and were skipped`,
+        'warning',
+      );
     }
     this.loadScreens();
   }

@@ -3,7 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CdkDragDrop, CdkDrag, CdkDropList, CdkDragPlaceholder } from '@angular/cdk/drag-drop';
 import { ScreenGroupService } from './screen-group.service';
-import { ScreenGroup, ScreenGroupMode, ScreenGroupScreen, UpdateScreenGroupRequest } from './screen-group.model';
+import {
+  ScreenGroup,
+  ScreenGroupMode,
+  ScreenGroupScreen,
+  UpdateScreenGroupRequest,
+} from './screen-group.model';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
 import { MemberService } from '../settings/users/member.service';
@@ -29,7 +34,11 @@ interface GridCell {
           <button class="back-btn" (click)="goBack()">&#8592; Back to Groups</button>
           @if (group) {
             <h1>{{ group.name }}</h1>
-            <span class="mode-badge" [class.mirror]="group.mode === 'mirror'" [class.split]="group.mode === 'split'">
+            <span
+              class="mode-badge"
+              [class.mirror]="group.mode === 'mirror'"
+              [class.split]="group.mode === 'split'"
+            >
               {{ group.mode === 'mirror' ? 'Mirror' : 'Split' }}
             </span>
           }
@@ -58,19 +67,25 @@ interface GridCell {
         @if (group.mode === 'split' && group.gridColumns && group.gridRows) {
           <div class="grid-editor-layout">
             <div class="grid-section">
-              <h2 class="section-title">Grid Layout ({{ group.gridColumns }}x{{ group.gridRows }})</h2>
-              <div class="grid-container"
-                   [style.grid-template-columns]="'repeat(' + group.gridColumns + ', 1fr)'"
-                   [style.grid-template-rows]="'repeat(' + group.gridRows + ', 1fr)'">
+              <h2 class="section-title">
+                Grid Layout ({{ group.gridColumns }}x{{ group.gridRows }})
+              </h2>
+              <div
+                class="grid-container"
+                [style.grid-template-columns]="'repeat(' + group.gridColumns + ', 1fr)'"
+                [style.grid-template-rows]="'repeat(' + group.gridRows + ', 1fr)'"
+              >
                 @for (cell of gridCells; track cell.dropListId) {
-                  <div class="grid-cell"
-                       cdkDropList
-                       [id]="cell.dropListId"
-                       [cdkDropListData]="cell"
-                       [cdkDropListConnectedTo]="allDropListIds"
-                       (cdkDropListDropped)="onDropToCell($event)"
-                       [class.occupied]="cell.screen"
-                       [class.dropping]="isDroppingOver === cell.dropListId">
+                  <div
+                    class="grid-cell"
+                    cdkDropList
+                    [id]="cell.dropListId"
+                    [cdkDropListData]="cell"
+                    [cdkDropListConnectedTo]="allDropListIds"
+                    (cdkDropListDropped)="onDropToCell($event)"
+                    [class.occupied]="cell.screen"
+                    [class.dropping]="isDroppingOver === cell.dropListId"
+                  >
                     @if (cell.screen) {
                       <div class="cell-screen" cdkDrag [cdkDragData]="cell.screen">
                         <div class="cell-screen-placeholder" *cdkDragPlaceholder></div>
@@ -95,12 +110,14 @@ interface GridCell {
               } @else if (availableScreens.length === 0) {
                 <p class="sidebar-empty">No unassigned screens available.</p>
               } @else {
-                <div class="sidebar-list"
-                     cdkDropList
-                     id="sidebar-list"
-                     [cdkDropListData]="availableScreens"
-                     [cdkDropListConnectedTo]="allDropListIds"
-                     (cdkDropListDropped)="onDropToSidebar($event)">
+                <div
+                  class="sidebar-list"
+                  cdkDropList
+                  id="sidebar-list"
+                  [cdkDropListData]="availableScreens"
+                  [cdkDropListConnectedTo]="allDropListIds"
+                  (cdkDropListDropped)="onDropToSidebar($event)"
+                >
                   @for (screen of availableScreens; track screen.id) {
                     <div class="sidebar-screen" cdkDrag [cdkDragData]="screen">
                       <div class="sidebar-screen-placeholder" *cdkDragPlaceholder></div>
@@ -124,7 +141,11 @@ interface GridCell {
                 @if (loadingContent) {
                   <span class="loading-text">Loading content...</span>
                 } @else {
-                  <select id="previewContentSelect" [(ngModel)]="selectedContentId" (ngModelChange)="onPreviewContentSelect($event)">
+                  <select
+                    id="previewContentSelect"
+                    [(ngModel)]="selectedContentId"
+                    (ngModelChange)="onPreviewContentSelect($event)"
+                  >
                     <option value="">-- Select content --</option>
                     @for (item of contentItems; track item.id) {
                       <option [value]="item.id">{{ item.title }} ({{ item.type }})</option>
@@ -133,16 +154,22 @@ interface GridCell {
                 }
               </div>
               @if (previewImageUrl) {
-                <div class="preview-grid"
-                     [style.grid-template-columns]="'repeat(' + group.gridColumns + ', 1fr)'"
-                     [style.grid-template-rows]="'repeat(' + group.gridRows + ', 1fr)'"
-                     [style.aspect-ratio]="previewAspectRatio">
+                <div
+                  class="preview-grid"
+                  [style.grid-template-columns]="'repeat(' + group.gridColumns + ', 1fr)'"
+                  [style.grid-template-rows]="'repeat(' + group.gridRows + ', 1fr)'"
+                  [style.aspect-ratio]="previewAspectRatio"
+                >
                   @for (cell of gridCells; track cell.dropListId) {
-                    <div class="preview-cell"
-                         [class.unassigned]="!cell.screen"
-                         [style.background-image]="cell.screen ? 'url(' + previewImageUrl + ')' : 'none'"
-                         [style.background-size]="getPreviewBgSize()"
-                         [style.background-position]="getPreviewBgPosition(cell.col, cell.row)">
+                    <div
+                      class="preview-cell"
+                      [class.unassigned]="!cell.screen"
+                      [style.background-image]="
+                        cell.screen ? 'url(' + previewImageUrl + ')' : 'none'
+                      "
+                      [style.background-size]="getPreviewBgSize()"
+                      [style.background-position]="getPreviewBgPosition(cell.col, cell.row)"
+                    >
                       <span class="preview-label">{{ cell.screen?.name ?? 'Empty' }}</span>
                     </div>
                   }
@@ -158,7 +185,9 @@ interface GridCell {
             <div class="mirror-section">
               <div class="mirror-header">
                 <h2 class="section-title">Assigned Screens ({{ group.screens.length }})</h2>
-                <button class="btn btn-primary btn-small" (click)="openAddScreen()">+ Add Screen</button>
+                <button class="btn btn-primary btn-small" (click)="openAddScreen()">
+                  + Add Screen
+                </button>
               </div>
               @if (group.screens.length === 0) {
                 <div class="mirror-empty">
@@ -173,7 +202,11 @@ interface GridCell {
                         <span class="mirror-screen-name">{{ screen.name }}</span>
                         <span class="mirror-screen-location">{{ screen.location }}</span>
                       </div>
-                      <button class="btn btn-small btn-danger" (click)="removeScreenFromGroup(screen.id)" [disabled]="operationInProgress">
+                      <button
+                        class="btn btn-small btn-danger"
+                        (click)="removeScreenFromGroup(screen.id)"
+                        [disabled]="operationInProgress"
+                      >
                         Remove
                       </button>
                     </div>
@@ -187,9 +220,21 @@ interface GridCell {
 
       <!-- Add Screen Modal (Mirror mode) -->
       @if (showAddScreen) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Add Screen"
-             tabindex="0" (click)="cancelAddScreen()" (keydown.escape)="cancelAddScreen()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add Screen"
+          tabindex="0"
+          (click)="cancelAddScreen()"
+          (keydown.escape)="cancelAddScreen()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Add Screen to Group</h2>
             @if (loadingScreens) {
               <p class="loading-text">Loading screens...</p>
@@ -208,9 +253,13 @@ interface GridCell {
                         <span class="already-assigned-badge">Already in another group</span>
                       }
                     </div>
-                    <button class="btn btn-small btn-primary"
-                            (click)="addScreenMirror(screen)"
-                            [disabled]="operationInProgress || !!(screen.groupId && screen.groupId !== group!.id)">
+                    <button
+                      class="btn btn-small btn-primary"
+                      (click)="addScreenMirror(screen)"
+                      [disabled]="
+                        operationInProgress || !!(screen.groupId && screen.groupId !== group!.id)
+                      "
+                    >
                       Add
                     </button>
                   </div>
@@ -229,24 +278,53 @@ interface GridCell {
 
       <!-- Switch Mode Confirmation Modal -->
       @if (showSwitchMode) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Switch mode"
-             tabindex="0" (click)="cancelSwitchMode()" (keydown.escape)="cancelSwitchMode()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Switch mode"
+          tabindex="0"
+          (click)="cancelSwitchMode()"
+          (keydown.escape)="cancelSwitchMode()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Switch Mode</h2>
             @if (group!.mode === 'split') {
               <div class="warning-box">
-                Switching from Split to Mirror will clear all grid positions for assigned screens. This action cannot be undone.
+                Switching from Split to Mirror will clear all grid positions for assigned screens.
+                This action cannot be undone.
               </div>
             }
             @if (group!.mode === 'mirror') {
               <div class="form-row">
                 <div class="form-group">
                   <label for="switchGridColumns">Grid Columns</label>
-                  <input id="switchGridColumns" type="number" [(ngModel)]="switchGridColumns" name="switchGridColumns" required min="1" max="10" />
+                  <input
+                    id="switchGridColumns"
+                    type="number"
+                    [(ngModel)]="switchGridColumns"
+                    name="switchGridColumns"
+                    required
+                    min="1"
+                    max="10"
+                  />
                 </div>
                 <div class="form-group">
                   <label for="switchGridRows">Grid Rows</label>
-                  <input id="switchGridRows" type="number" [(ngModel)]="switchGridRows" name="switchGridRows" required min="1" max="10" />
+                  <input
+                    id="switchGridRows"
+                    type="number"
+                    [(ngModel)]="switchGridRows"
+                    name="switchGridRows"
+                    required
+                    min="1"
+                    max="10"
+                  />
                 </div>
               </div>
             }
@@ -390,17 +468,19 @@ interface GridCell {
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: border-color 0.15s, background-color 0.15s;
+      transition:
+        border-color 0.15s,
+        background-color 0.15s;
       position: relative;
     }
     .grid-cell.occupied {
       border-style: solid;
       border-color: var(--color-accent);
-      background: var(--color-accent)08;
+      background: var(--color-accent) 08;
     }
     .grid-cell.cdk-drop-list-dragging {
       border-color: var(--color-accent);
-      background: var(--color-accent)12;
+      background: var(--color-accent) 12;
     }
     .cell-screen {
       display: flex;
@@ -439,7 +519,7 @@ interface GridCell {
     }
     .cell-screen-placeholder,
     .sidebar-screen-placeholder {
-      background: var(--color-accent)20;
+      background: var(--color-accent) 20;
       border: 2px dashed var(--color-accent);
       border-radius: 0.375rem;
       min-height: 3rem;
@@ -828,9 +908,17 @@ export class ScreenGroupDetail implements OnInit {
   previewAspectRatio = '16 / 9';
 
   get allCellsAssigned(): boolean {
-    if (!this.group || this.group.mode !== 'split' || !this.group.gridColumns || !this.group.gridRows) return false;
+    if (
+      !this.group ||
+      this.group.mode !== 'split' ||
+      !this.group.gridColumns ||
+      !this.group.gridRows
+    )
+      return false;
     const totalCells = this.group.gridColumns * this.group.gridRows;
-    return this.gridCells.length === totalCells && this.gridCells.every(cell => cell.screen !== null);
+    return (
+      this.gridCells.length === totalCells && this.gridCells.every((cell) => cell.screen !== null)
+    );
   }
 
   ngOnInit(): void {
@@ -874,9 +962,7 @@ export class ScreenGroupDetail implements OnInit {
       },
       error: (err) => {
         this.loadError =
-          err.status === 404
-            ? 'Screen group not found.'
-            : 'Failed to load screen group.';
+          err.status === 404 ? 'Screen group not found.' : 'Failed to load screen group.';
         this.loading = false;
       },
     });
@@ -906,14 +992,19 @@ export class ScreenGroupDetail implements OnInit {
 
   // --- Grid Builder ---
   private buildGrid(): void {
-    if (!this.group || this.group.mode !== 'split' || !this.group.gridColumns || !this.group.gridRows) return;
+    if (
+      !this.group ||
+      this.group.mode !== 'split' ||
+      !this.group.gridColumns ||
+      !this.group.gridRows
+    )
+      return;
 
     const cells: GridCell[] = [];
     for (let row = 0; row < this.group.gridRows; row++) {
       for (let col = 0; col < this.group.gridColumns; col++) {
-        const screen = this.group.screens.find(
-          (s) => s.gridRow === row && s.gridColumn === col
-        ) ?? null;
+        const screen =
+          this.group.screens.find((s) => s.gridRow === row && s.gridColumn === col) ?? null;
         cells.push({
           row,
           col,
@@ -923,10 +1014,7 @@ export class ScreenGroupDetail implements OnInit {
       }
     }
     this.gridCells = cells;
-    this.allDropListIds = [
-      'sidebar-list',
-      ...cells.map((c) => c.dropListId),
-    ];
+    this.allDropListIds = ['sidebar-list', ...cells.map((c) => c.dropListId)];
   }
 
   // --- Drag & Drop (Split Mode) ---
@@ -990,38 +1078,40 @@ export class ScreenGroupDetail implements OnInit {
       });
   }
 
-  private moveScreenToCell(screen: ScreenGroupScreen, _sourceCell: GridCell, targetCell: GridCell): void {
+  private moveScreenToCell(
+    screen: ScreenGroupScreen,
+    _sourceCell: GridCell,
+    targetCell: GridCell,
+  ): void {
     if (!this.group) return;
 
     // Remove then re-assign at new position
     this.operationInProgress = true;
     this.actionError = '';
-    this.screenGroupService
-      .removeScreen(this.orgId, this.group.id, screen.id)
-      .subscribe({
-        next: () => {
-          this.screenGroupService
-            .assignScreen(this.orgId, this.group!.id, screen.id, {
-              gridRow: targetCell.row,
-              gridColumn: targetCell.col,
-            })
-            .subscribe({
-              next: () => {
-                this.operationInProgress = false;
-                this.refreshGroup();
-              },
-              error: (err) => {
-                this.actionError = err.error?.message || 'Failed to move screen.';
-                this.operationInProgress = false;
-                this.refreshGroup();
-              },
-            });
-        },
-        error: (err) => {
-          this.actionError = err.error?.message || 'Failed to move screen.';
-          this.operationInProgress = false;
-        },
-      });
+    this.screenGroupService.removeScreen(this.orgId, this.group.id, screen.id).subscribe({
+      next: () => {
+        this.screenGroupService
+          .assignScreen(this.orgId, this.group!.id, screen.id, {
+            gridRow: targetCell.row,
+            gridColumn: targetCell.col,
+          })
+          .subscribe({
+            next: () => {
+              this.operationInProgress = false;
+              this.refreshGroup();
+            },
+            error: (err) => {
+              this.actionError = err.error?.message || 'Failed to move screen.';
+              this.operationInProgress = false;
+              this.refreshGroup();
+            },
+          });
+      },
+      error: (err) => {
+        this.actionError = err.error?.message || 'Failed to move screen.';
+        this.operationInProgress = false;
+      },
+    });
   }
 
   // --- Remove Screen ---
@@ -1030,18 +1120,16 @@ export class ScreenGroupDetail implements OnInit {
 
     this.operationInProgress = true;
     this.actionError = '';
-    this.screenGroupService
-      .removeScreen(this.orgId, this.group.id, screenId)
-      .subscribe({
-        next: () => {
-          this.operationInProgress = false;
-          this.refreshGroup();
-        },
-        error: (err) => {
-          this.actionError = err.error?.message || 'Failed to remove screen.';
-          this.operationInProgress = false;
-        },
-      });
+    this.screenGroupService.removeScreen(this.orgId, this.group.id, screenId).subscribe({
+      next: () => {
+        this.operationInProgress = false;
+        this.refreshGroup();
+      },
+      error: (err) => {
+        this.actionError = err.error?.message || 'Failed to remove screen.';
+        this.operationInProgress = false;
+      },
+    });
   }
 
   // --- Mirror Mode: Add Screen ---
@@ -1068,18 +1156,16 @@ export class ScreenGroupDetail implements OnInit {
 
     this.operationInProgress = true;
     this.addScreenError = '';
-    this.screenGroupService
-      .assignScreen(this.orgId, this.group.id, screen.id, {})
-      .subscribe({
-        next: () => {
-          this.operationInProgress = false;
-          this.refreshGroup();
-        },
-        error: (err) => {
-          this.addScreenError = err.error?.message || 'Failed to add screen.';
-          this.operationInProgress = false;
-        },
-      });
+    this.screenGroupService.assignScreen(this.orgId, this.group.id, screen.id, {}).subscribe({
+      next: () => {
+        this.operationInProgress = false;
+        this.refreshGroup();
+      },
+      error: (err) => {
+        this.addScreenError = err.error?.message || 'Failed to add screen.';
+        this.operationInProgress = false;
+      },
+    });
   }
 
   // --- Switch Mode ---
@@ -1113,19 +1199,17 @@ export class ScreenGroupDetail implements OnInit {
       dto.gridRows = this.switchGridRows;
     }
 
-    this.screenGroupService
-      .update(this.orgId, this.group.id, dto)
-      .subscribe({
-        next: () => {
-          this.switching = false;
-          this.showSwitchMode = false;
-          this.refreshGroup();
-        },
-        error: (err) => {
-          this.switchError = err.error?.message || 'Failed to switch mode.';
-          this.switching = false;
-        },
-      });
+    this.screenGroupService.update(this.orgId, this.group.id, dto).subscribe({
+      next: () => {
+        this.switching = false;
+        this.showSwitchMode = false;
+        this.refreshGroup();
+      },
+      error: (err) => {
+        this.switchError = err.error?.message || 'Failed to switch mode.';
+        this.switching = false;
+      },
+    });
   }
 
   // --- Helpers ---
@@ -1151,7 +1235,9 @@ export class ScreenGroupDetail implements OnInit {
     this.contentService.getAll(this.orgId).subscribe({
       next: (items) => {
         this.contentItems = items.filter(
-          (i) => i.transcodingStatus === 'completed' || (i.type === 'image' && i.transcodingStatus !== 'failed'),
+          (i) =>
+            i.transcodingStatus === 'completed' ||
+            (i.type === 'image' && i.transcodingStatus !== 'failed'),
         );
         this.loadingContent = false;
       },

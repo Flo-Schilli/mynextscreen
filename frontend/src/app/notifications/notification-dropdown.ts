@@ -1,9 +1,4 @@
-import {
-  Component,
-  inject,
-  output,
-  OnInit,
-} from '@angular/core';
+import { Component, inject, output, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { NotificationService } from './notification.service';
 import { Notification, NotificationEventType } from './notification.model';

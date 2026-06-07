@@ -5,9 +5,7 @@ import {
   TableForeignKey,
 } from 'typeorm';
 
-export class AddGroupIdToScheduleEntry1711700010000
-  implements MigrationInterface
-{
+export class AddGroupIdToScheduleEntry1711700010000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Make screenId nullable — group-targeted entries have no screenId
     await queryRunner.changeColumn(

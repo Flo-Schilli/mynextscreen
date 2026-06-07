@@ -52,22 +52,12 @@ function resolveTransition(item: PlaylistItem | null): {
               <p class="text-red-400 text-lg">Live stream unavailable</p>
             </div>
           } @else {
-            <video
-              #hlsVideo
-              class="content-media"
-              autoplay
-              muted
-              playsinline
-            ></video>
+            <video #hlsVideo class="content-media" autoplay muted playsinline></video>
           }
         </div>
 
         @if (isMuted()) {
-          <button
-            class="unmute-overlay"
-            (click)="unmuteHls()"
-            (keydown.enter)="unmuteHls()"
-          >
+          <button class="unmute-overlay" (click)="unmuteHls()" (keydown.enter)="unmuteHls()">
             <span class="unmute-icon">🔇</span>
             <span class="text-sm">Click to unmute</span>
           </button>
@@ -172,11 +162,7 @@ function resolveTransition(item: PlaylistItem | null): {
         </div>
 
         @if (isMuted() && currentItem()?.type === 'video') {
-          <button
-            class="unmute-overlay"
-            (click)="unmute()"
-            (keydown.enter)="unmute()"
-          >
+          <button class="unmute-overlay" (click)="unmute()" (keydown.enter)="unmute()">
             <span class="unmute-icon">🔇</span>
             <span class="text-sm">Click to unmute</span>
           </button>
@@ -187,12 +173,7 @@ function resolveTransition(item: PlaylistItem | null): {
 
       <!-- Preload next image (hidden) -->
       @if (nextMediaUrl()) {
-        <img
-          [src]="nextMediaUrl()"
-          class="preload-image"
-          alt=""
-          aria-hidden="true"
-        />
+        <img [src]="nextMediaUrl()" class="preload-image" alt="" aria-hidden="true" />
       }
     </div>
   `,
@@ -432,14 +413,10 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   private readonly hlsService = inject(HlsService);
   private readonly zone = inject(NgZone);
 
-  private readonly layer0Video =
-    viewChild<ElementRef<HTMLVideoElement>>('layer0Video');
-  private readonly layer1Video =
-    viewChild<ElementRef<HTMLVideoElement>>('layer1Video');
-  private readonly hlsVideo =
-    viewChild<ElementRef<HTMLVideoElement>>('hlsVideo');
-  private readonly groupPlayVideo =
-    viewChild<ElementRef<HTMLVideoElement>>('groupPlayVideo');
+  private readonly layer0Video = viewChild<ElementRef<HTMLVideoElement>>('layer0Video');
+  private readonly layer1Video = viewChild<ElementRef<HTMLVideoElement>>('layer1Video');
+  private readonly hlsVideo = viewChild<ElementRef<HTMLVideoElement>>('hlsVideo');
+  private readonly groupPlayVideo = viewChild<ElementRef<HTMLVideoElement>>('groupPlayVideo');
 
   private readonly _currentIndex = signal(0);
   private readonly _activeLayer = signal<LayerId>(0);
@@ -478,9 +455,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   readonly layer1Anim = this._layer1Anim.asReadonly();
 
   readonly isLiveStreaming = computed(() => this.playerService.isLiveStreaming());
-  readonly isSplitGroupPlay = computed(
-    () => this._groupPlayContentUrl() !== null,
-  );
+  readonly isSplitGroupPlay = computed(() => this._groupPlayContentUrl() !== null);
 
   readonly groupPlayMediaUrl = computed(() => {
     const url = this._groupPlayContentUrl();
@@ -496,9 +471,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   readonly noContent = computed(() => this.items().length === 0);
 
   readonly currentItem = computed((): PlaylistItem | null => {
-    return this._activeLayer() === 0
-      ? this._layer0Item()
-      : this._layer1Item();
+    return this._activeLayer() === 0 ? this._layer0Item() : this._layer1Item();
   });
 
   readonly nextItem = computed((): PlaylistItem | null => {
@@ -533,9 +506,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   });
 
   readonly layer1ZIndex = computed(() => {
-    const onTop = this._isTransitioning()
-      ? this._activeLayer() !== 1
-      : this._activeLayer() === 1;
+    const onTop = this._isTransitioning() ? this._activeLayer() !== 1 : this._activeLayer() === 1;
     return onTop ? 2 : 1;
   });
 
@@ -629,9 +600,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
   onLayerVideoReady(layer: LayerId): void {
     const videoEl =
-      layer === 0
-        ? this.layer0Video()?.nativeElement
-        : this.layer1Video()?.nativeElement;
+      layer === 0 ? this.layer0Video()?.nativeElement : this.layer1Video()?.nativeElement;
     if (videoEl) {
       videoEl.muted = true;
       videoEl.play().catch((err: Error) => {
@@ -797,10 +766,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.setLayerAnim(
-      layer,
-      `${type}-enter ${duration}ms ease-in-out both`,
-    );
+    this.setLayerAnim(layer, `${type}-enter ${duration}ms ease-in-out both`);
     this.transitionTimer = setTimeout(() => {
       this.zone.run(() => {
         this.setLayerAnim(layer, '');
@@ -810,8 +776,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   }
 
   private advance(): void {
-    if (this.destroyed || this._isTransitioning() || this._isPendingImageLoad)
-      return;
+    if (this.destroyed || this._isTransitioning() || this._isPendingImageLoad) return;
 
     const list = this.items();
     if (list.length === 0) return;
@@ -853,10 +818,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     }
   }
 
-  private executeTransition(transition: {
-    type: string;
-    duration: number;
-  }): void {
+  private executeTransition(transition: { type: string; duration: number }): void {
     const activeLayer = this._activeLayer();
     const inactiveLayer: LayerId = activeLayer === 0 ? 1 : 0;
 
@@ -880,8 +842,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
         this.setLayerAnim(1, '');
         this.setLayerItem(activeLayer, null); // clean up old layer
 
-        const item =
-          inactiveLayer === 0 ? this._layer0Item() : this._layer1Item();
+        const item = inactiveLayer === 0 ? this._layer0Item() : this._layer1Item();
         this.onTransitionComplete(item);
       });
     }, transition.duration);
@@ -903,10 +864,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     this._isTransitioning.set(true);
 
     // Exit animation on current layer
-    this.setLayerAnim(
-      layer,
-      `${transition.type}-exit ${transition.duration}ms ease-in-out both`,
-    );
+    this.setLayerAnim(layer, `${transition.type}-exit ${transition.duration}ms ease-in-out both`);
 
     this.transitionTimer = setTimeout(() => {
       if (this.destroyed) return;
@@ -976,5 +934,4 @@ export class PlaybackComponent implements OnInit, OnDestroy {
       this.transitionTimer = null;
     }
   }
-
 }

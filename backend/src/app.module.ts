@@ -20,6 +20,7 @@ import { NotificationModule } from './notification';
 import { LiveStreamModule } from './live-stream';
 import { SearchModule } from './search/search.module';
 import { HealthController } from './health.controller';
+import { VersionController } from './version.controller';
 
 @Module({
   imports: [
@@ -64,6 +65,6 @@ import { HealthController } from './health.controller';
     LiveStreamModule,
     SearchModule,
   ],
-  controllers: [HealthController],
+  controllers: [HealthController, VersionController],
 })
 export class AppModule {}

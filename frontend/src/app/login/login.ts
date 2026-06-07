@@ -1,10 +1,4 @@
-import {
-  Component,
-  CUSTOM_ELEMENTS_SCHEMA,
-  inject,
-  OnDestroy,
-  OnInit,
-} from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, inject, OnDestroy, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { register } from '@teamhanko/hanko-elements';

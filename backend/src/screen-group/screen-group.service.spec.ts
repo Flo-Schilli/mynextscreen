@@ -336,7 +336,12 @@ describe('ScreenGroupService', () => {
     };
 
     it('should assign a screen to a mirror-mode group', async () => {
-      const mirrorGroup = { ...mockGroup, mode: ScreenGroupMode.Mirror, gridColumns: null, gridRows: null };
+      const mirrorGroup = {
+        ...mockGroup,
+        mode: ScreenGroupMode.Mirror,
+        gridColumns: null,
+        gridRows: null,
+      };
       repository.findOne.mockResolvedValue(mirrorGroup);
       screenRepository.findOne.mockResolvedValue({ ...mockScreen });
       screenRepository.save.mockImplementation(async (s: Screen) => s);
@@ -398,7 +403,11 @@ describe('ScreenGroupService', () => {
     it('should throw ConflictException when grid cell is already occupied', async () => {
       repository.findOne.mockResolvedValue({ ...mockGroup });
       const existingScreen = { ...mockScreen };
-      const occupyingScreen = { ...mockScreen, id: 'other-screen-id', name: 'Other Screen' };
+      const occupyingScreen = {
+        ...mockScreen,
+        id: 'other-screen-id',
+        name: 'Other Screen',
+      };
       screenRepository.findOne
         .mockResolvedValueOnce(existingScreen)
         .mockResolvedValueOnce(occupyingScreen);
@@ -542,9 +551,14 @@ describe('ScreenGroupService', () => {
       repository.findOne.mockResolvedValue(existing);
       repository.save.mockImplementation(async (e) => e);
 
-      await service.updateGroup(orgId, groupId, {
-        mode: ScreenGroupMode.Mirror,
-      }, 'user-1');
+      await service.updateGroup(
+        orgId,
+        groupId,
+        {
+          mode: ScreenGroupMode.Mirror,
+        },
+        'user-1',
+      );
 
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         'audit.group.mode_changed',
@@ -576,7 +590,12 @@ describe('ScreenGroupService', () => {
 
     it('should emit audit event on screen assignment', async () => {
       const screenId = '770e8400-e29b-41d4-a716-446655440000';
-      const mirrorGroup = { ...mockGroup, mode: ScreenGroupMode.Mirror, gridColumns: null, gridRows: null };
+      const mirrorGroup = {
+        ...mockGroup,
+        mode: ScreenGroupMode.Mirror,
+        gridColumns: null,
+        gridRows: null,
+      };
       repository.findOne.mockResolvedValue(mirrorGroup);
       screenRepository.findOne.mockResolvedValue({
         id: screenId,

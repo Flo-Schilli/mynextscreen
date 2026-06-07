@@ -1,17 +1,11 @@
 import { TestBed, getTestBed, ComponentFixture } from '@angular/core/testing';
-import {
-  BrowserTestingModule,
-  platformBrowserTesting,
-} from '@angular/platform-browser/testing';
+import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { Component, provideZonelessChangeDetection } from '@angular/core';
 import { SelectionService } from './selection.service';
 import { SelectionCheckboxComponent } from './selection-checkbox';
 
 try {
-  getTestBed().initTestEnvironment(
-    BrowserTestingModule,
-    platformBrowserTesting(),
-  );
+  getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
 } catch {
   // already initialized
 }
@@ -21,11 +15,7 @@ try {
   imports: [SelectionCheckboxComponent],
   template: `
     @for (id of ids; track id; let i = $index) {
-      <app-selection-checkbox
-        [itemId]="id"
-        [itemIndex]="i"
-        [orderedIds]="ids"
-      />
+      <app-selection-checkbox [itemId]="id" [itemIndex]="i" [orderedIds]="ids" />
     }
   `,
   providers: [SelectionService],
@@ -48,9 +38,7 @@ describe('SelectionCheckboxComponent', () => {
   });
 
   function getCheckboxes(): HTMLInputElement[] {
-    return Array.from(
-      fixture.nativeElement.querySelectorAll('input[type="checkbox"]'),
-    );
+    return Array.from(fixture.nativeElement.querySelectorAll('input[type="checkbox"]'));
   }
 
   it('should render a checkbox for each item', () => {

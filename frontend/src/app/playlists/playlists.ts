@@ -20,7 +20,13 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
 @Component({
   selector: 'app-playlists',
   standalone: true,
-  imports: [FormsModule, DragDropModule, SelectionCheckboxComponent, SelectAllCheckboxComponent, BulkActionToolbarComponent],
+  imports: [
+    FormsModule,
+    DragDropModule,
+    SelectionCheckboxComponent,
+    SelectAllCheckboxComponent,
+    BulkActionToolbarComponent,
+  ],
   providers: [SelectionService],
   template: `
     <div class="page">
@@ -30,9 +36,7 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
           <h1>Playlists</h1>
         </div>
         @if (!loading && !selectedPlaylist && !showCreateForm) {
-          <button class="btn btn-primary" (click)="openCreateForm()">
-            + Create Playlist
-          </button>
+          <button class="btn btn-primary" (click)="openCreateForm()">+ Create Playlist</button>
         }
       </header>
 
@@ -64,7 +68,9 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
               <p class="error">{{ createError }}</p>
             }
             <div class="form-actions">
-              <button type="button" class="btn btn-secondary" (click)="cancelCreate()">Cancel</button>
+              <button type="button" class="btn btn-secondary" (click)="cancelCreate()">
+                Cancel
+              </button>
               <button type="submit" class="btn btn-primary" [disabled]="creating">
                 {{ creating ? 'Creating...' : 'Create Playlist' }}
               </button>
@@ -118,27 +124,33 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
           <div class="items-section">
             <div class="items-header">
               <h3>Items</h3>
-              <button class="btn btn-primary btn-sm" (click)="openAddContent()">+ Add Content</button>
+              <button class="btn btn-primary btn-sm" (click)="openAddContent()">
+                + Add Content
+              </button>
             </div>
 
             @if (selectedPlaylist.items.length === 0) {
               <div class="empty-items">
                 <p class="empty-text">No items in this playlist yet.</p>
-                <button class="btn btn-primary" (click)="openAddContent()">Add Your First Item</button>
+                <button class="btn btn-primary" (click)="openAddContent()">
+                  Add Your First Item
+                </button>
               </div>
             } @else {
-              <div
-                cdkDropList
-                class="item-list"
-                (cdkDropListDropped)="onDrop($event)"
-              >
+              <div cdkDropList class="item-list" (cdkDropListDropped)="onDrop($event)">
                 @for (item of selectedPlaylist.items; track item.id) {
                   <div class="item-row" cdkDrag>
                     <div class="drag-handle" cdkDragHandle>
                       <span class="drag-icon">&#9776;</span>
                     </div>
-                    <div class="item-thumbnail" (click)="previewItem(item)" tabindex="0" role="button"
-                         (keydown.enter)="previewItem(item)" (keydown.space)="previewItem(item)">
+                    <div
+                      class="item-thumbnail"
+                      (click)="previewItem(item)"
+                      tabindex="0"
+                      role="button"
+                      (keydown.enter)="previewItem(item)"
+                      (keydown.space)="previewItem(item)"
+                    >
                       @if (item.content?.type === 'image') {
                         <img [src]="getThumbUrl(item)" alt="" class="thumb-img" />
                       } @else {
@@ -149,7 +161,11 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
                     </div>
                     <div class="item-info">
                       <span class="item-title">{{ item.content?.title || 'Untitled' }}</span>
-                      <span class="item-type" [class.type-image]="item.content?.type === 'image'" [class.type-video]="item.content?.type === 'video'">
+                      <span
+                        class="item-type"
+                        [class.type-image]="item.content?.type === 'image'"
+                        [class.type-video]="item.content?.type === 'video'"
+                      >
                         {{ item.content?.type || 'unknown' }}
                       </span>
                     </div>
@@ -158,14 +174,20 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
                         {{ item.content?.type === 'video' ? 'Video length' : 'Duration' }}
                       </label>
                       <div class="duration-input-group">
-                        @if (item.content?.type === 'video' && item.content?.durationSeconds === null) {
+                        @if (
+                          item.content?.type === 'video' && item.content?.durationSeconds === null
+                        ) {
                           <span class="duration-approx">~</span>
                         }
                         <input
                           type="number"
                           class="duration-input"
                           [id]="'dur_' + item.id"
-                          [ngModel]="item.content?.type === 'video' ? (item.content?.durationSeconds ?? item.durationSeconds) : item.durationSeconds"
+                          [ngModel]="
+                            item.content?.type === 'video'
+                              ? (item.content?.durationSeconds ?? item.durationSeconds)
+                              : item.durationSeconds
+                          "
                           (ngModelChange)="updateItemDuration(item, $event)"
                           min="1"
                           [name]="'dur_' + item.id"
@@ -175,7 +197,9 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
                       </div>
                     </div>
                     <div class="item-transition">
-                      <label class="duration-label" [attr.for]="'trans_' + item.id">Transition</label>
+                      <label class="duration-label" [attr.for]="'trans_' + item.id"
+                        >Transition</label
+                      >
                       <select
                         class="transition-select"
                         [id]="'trans_' + item.id"
@@ -222,13 +246,19 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
             <div class="preview-section">
               <div class="preview-header">
                 <h3>Preview: {{ previewingItem.content?.title || 'Untitled' }}</h3>
-                <button class="btn btn-secondary btn-sm" (click)="closePreview()">Close Preview</button>
+                <button class="btn btn-secondary btn-sm" (click)="closePreview()">
+                  Close Preview
+                </button>
               </div>
               <div class="preview-content">
                 @if (previewingItem.content?.type === 'image') {
                   <img [src]="getPreviewUrl(previewingItem)" alt="Preview" class="preview-media" />
                 } @else {
-                  <video [src]="getPreviewUrl(previewingItem)" controls class="preview-media"></video>
+                  <video
+                    [src]="getPreviewUrl(previewingItem)"
+                    controls
+                    class="preview-media"
+                  ></video>
                 }
               </div>
             </div>
@@ -244,9 +274,15 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
         </div>
         <div class="playlist-grid">
           @for (playlist of playlists; track playlist.id; let i = $index) {
-            <div class="playlist-card" [class.selected]="selectionService.selectedIds().has(playlist.id)"
-                 (click)="selectPlaylist(playlist)" tabindex="0" role="button"
-                 (keydown.enter)="selectPlaylist(playlist)" (keydown.space)="selectPlaylist(playlist)">
+            <div
+              class="playlist-card"
+              [class.selected]="selectionService.selectedIds().has(playlist.id)"
+              (click)="selectPlaylist(playlist)"
+              tabindex="0"
+              role="button"
+              (keydown.enter)="selectPlaylist(playlist)"
+              (keydown.space)="selectPlaylist(playlist)"
+            >
               <div class="card-header">
                 <app-selection-checkbox
                   [itemId]="playlist.id"
@@ -266,7 +302,9 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
                 </div>
                 <div class="card-field">
                   <span class="card-label">Duration</span>
-                  <span class="card-value">{{ formatDuration(getPlaylistDuration(playlist)) }}</span>
+                  <span class="card-value">{{
+                    formatDuration(getPlaylistDuration(playlist))
+                  }}</span>
                 </div>
                 <div class="card-field">
                   <span class="card-label">Created</span>
@@ -280,22 +318,44 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
         <app-bulk-action-toolbar [actions]="bulkActions" />
       }
 
-      @if (!loading && !selectedPlaylist && !showCreateForm && playlists.length === 0 && !loadError) {
+      @if (
+        !loading && !selectedPlaylist && !showCreateForm && playlists.length === 0 && !loadError
+      ) {
         <div class="empty-state">
           <p class="empty-text">No playlists created yet.</p>
-          <button class="btn btn-primary" (click)="openCreateForm()">Create Your First Playlist</button>
+          <button class="btn btn-primary" (click)="openCreateForm()">
+            Create Your First Playlist
+          </button>
         </div>
       }
 
       <!-- Delete Confirmation Modal -->
       @if (showDeleteConfirm) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Confirm deletion"
-             tabindex="0" (click)="cancelDelete()" (keydown.escape)="cancelDelete()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm deletion"
+          tabindex="0"
+          (click)="cancelDelete()"
+          (keydown.escape)="cancelDelete()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Delete Playlist</h2>
-            <p>Are you sure you want to delete <strong>{{ selectedPlaylist?.name }}</strong>? This action cannot be undone.</p>
+            <p>
+              Are you sure you want to delete <strong>{{ selectedPlaylist?.name }}</strong
+              >? This action cannot be undone.
+            </p>
             @if (selectedPlaylist?.id === defaultPlaylistId) {
-              <p class="warning-text">This playlist is currently set as the organisation's default. Deleting it will clear the default playlist setting.</p>
+              <p class="warning-text">
+                This playlist is currently set as the organisation's default. Deleting it will clear
+                the default playlist setting.
+              </p>
             }
             <div class="form-actions">
               <button class="btn btn-secondary" (click)="cancelDelete()">Cancel</button>
@@ -309,9 +369,21 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
 
       <!-- Add Content Modal -->
       @if (showAddContent) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Add content"
-             tabindex="0" (click)="closeAddContent()" (keydown.escape)="closeAddContent()">
-          <div class="modal modal-lg" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add content"
+          tabindex="0"
+          (click)="closeAddContent()"
+          (keydown.escape)="closeAddContent()"
+        >
+          <div
+            class="modal modal-lg"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Add Content to Playlist</h2>
 
             @if (contentLoading) {
@@ -320,14 +392,38 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
               <p class="empty-text">No content available. Upload content first.</p>
             } @else {
               <div class="content-type-filter">
-                <button class="toggle-btn" [class.active]="!contentFilter" (click)="contentFilter = undefined">All</button>
-                <button class="toggle-btn" [class.active]="contentFilter === 'image'" (click)="contentFilter = 'image'">Images</button>
-                <button class="toggle-btn" [class.active]="contentFilter === 'video'" (click)="contentFilter = 'video'">Videos</button>
+                <button
+                  class="toggle-btn"
+                  [class.active]="!contentFilter"
+                  (click)="contentFilter = undefined"
+                >
+                  All
+                </button>
+                <button
+                  class="toggle-btn"
+                  [class.active]="contentFilter === 'image'"
+                  (click)="contentFilter = 'image'"
+                >
+                  Images
+                </button>
+                <button
+                  class="toggle-btn"
+                  [class.active]="contentFilter === 'video'"
+                  (click)="contentFilter = 'video'"
+                >
+                  Videos
+                </button>
               </div>
               <div class="content-grid">
                 @for (content of filteredContent; track content.id) {
-                  <div class="content-item" (click)="addContentToPlaylist(content)" tabindex="0" role="button"
-                       (keydown.enter)="addContentToPlaylist(content)" (keydown.space)="addContentToPlaylist(content)">
+                  <div
+                    class="content-item"
+                    (click)="addContentToPlaylist(content)"
+                    tabindex="0"
+                    role="button"
+                    (keydown.enter)="addContentToPlaylist(content)"
+                    (keydown.space)="addContentToPlaylist(content)"
+                  >
                     @if (content.type === 'image') {
                       <img [src]="getContentThumbUrl(content)" alt="" class="content-thumb" />
                     } @else {
@@ -337,7 +433,11 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
                     }
                     <div class="content-item-info">
                       <span class="content-item-title">{{ content.title }}</span>
-                      <span class="content-item-type" [class.type-image]="content.type === 'image'" [class.type-video]="content.type === 'video'">
+                      <span
+                        class="content-item-type"
+                        [class.type-image]="content.type === 'image'"
+                        [class.type-video]="content.type === 'video'"
+                      >
                         {{ content.type }}
                       </span>
                     </div>
@@ -354,16 +454,29 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       }
       <!-- Bulk Delete Confirmation Modal -->
       @if (showBulkDeleteConfirm) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Confirm bulk delete"
-             tabindex="0" (click)="cancelBulkDelete()" (keydown.escape)="cancelBulkDelete()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm bulk delete"
+          tabindex="0"
+          (click)="cancelBulkDelete()"
+          (keydown.escape)="cancelBulkDelete()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Delete Playlists</h2>
-            <p>You are about to permanently delete <strong>{{ selectionService.count() }} playlist(s)</strong>. This cannot be undone.</p>
+            <p>
+              You are about to permanently delete
+              <strong>{{ selectionService.count() }} playlist(s)</strong>. This cannot be undone.
+            </p>
             <div class="form-actions">
               <button class="btn btn-secondary" (click)="cancelBulkDelete()">Cancel</button>
-              <button class="btn btn-danger" (click)="executeBulkDelete()">
-                Delete
-              </button>
+              <button class="btn btn-danger" (click)="executeBulkDelete()">Delete</button>
             </div>
           </div>
         </div>
@@ -371,11 +484,26 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
 
       <!-- Assign to Screen(s) Modal -->
       @if (showAssignScreenModal) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Assign to screens"
-             tabindex="0" (click)="cancelAssignScreen()" (keydown.escape)="cancelAssignScreen()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Assign to screens"
+          tabindex="0"
+          (click)="cancelAssignScreen()"
+          (keydown.escape)="cancelAssignScreen()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Assign to Screen</h2>
-            <p>Select a screen to assign <strong>{{ selectionService.count() }} playlist(s)</strong> to:</p>
+            <p>
+              Select a screen to assign
+              <strong>{{ selectionService.count() }} playlist(s)</strong> to:
+            </p>
             <div class="form-group">
               <label for="screenSelect">Screen</label>
               <select id="screenSelect" [(ngModel)]="selectedScreenId" name="screenSelect">
@@ -390,7 +518,11 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
             }
             <div class="form-actions">
               <button class="btn btn-secondary" (click)="cancelAssignScreen()">Cancel</button>
-              <button class="btn btn-primary" (click)="executeAssignScreen()" [disabled]="screensLoading || !selectedScreenId">
+              <button
+                class="btn btn-primary"
+                (click)="executeAssignScreen()"
+                [disabled]="screensLoading || !selectedScreenId"
+              >
                 {{ screensLoading ? 'Loading...' : 'Assign' }}
               </button>
             </div>
@@ -400,7 +532,12 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
 
       <!-- Toast -->
       @if (toastMessage) {
-        <div class="toast" [class.toast-error]="toastType === 'error'" [class.toast-success]="toastType === 'success'" [class.toast-warning]="toastType === 'warning'">
+        <div
+          class="toast"
+          [class.toast-error]="toastType === 'error'"
+          [class.toast-success]="toastType === 'success'"
+          [class.toast-warning]="toastType === 'warning'"
+        >
           {{ toastMessage }}
         </div>
       }
@@ -509,10 +646,15 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       border-radius: 0.5rem;
       padding: 1.25rem;
       cursor: pointer;
-      transition: border-color 0.15s, background-color 0.15s;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      transition:
+        border-color 0.15s,
+        background-color 0.15s;
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
-    .playlist-card:hover, .playlist-card:focus {
+    .playlist-card:hover,
+    .playlist-card:focus {
       border-color: var(--color-accent);
       background: var(--color-bg-tertiary);
       outline: none;
@@ -565,7 +707,9 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       border-radius: 0.5rem;
       padding: 1.5rem;
       max-width: 40rem;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
     .form-card h2 {
       margin: 0 0 1.25rem;
@@ -609,7 +753,9 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       border: 1px solid var(--color-border);
       border-radius: 0.5rem;
       padding: 1.5rem;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
     .editor-header {
       display: flex;
@@ -824,7 +970,9 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       font-size: 0.875rem;
       padding: 0.25rem 0.5rem;
       border-radius: 0.25rem;
-      transition: color 0.15s, background-color 0.15s;
+      transition:
+        color 0.15s,
+        background-color 0.15s;
     }
     .btn-remove:hover {
       color: #ef4444;
@@ -979,7 +1127,8 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       cursor: pointer;
       transition: border-color 0.15s;
     }
-    .content-item:hover, .content-item:focus {
+    .content-item:hover,
+    .content-item:focus {
       border-color: var(--color-accent);
       outline: none;
     }
@@ -1051,7 +1200,7 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       font-size: 0.875rem;
       z-index: 2000;
       animation: toast-in 0.3s ease;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
     }
     .toast-error {
       background: #991b1b;
@@ -1069,8 +1218,14 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       border: 1px solid #d97706;
     }
     @keyframes toast-in {
-      from { opacity: 0; transform: translateY(1rem); }
-      to { opacity: 1; transform: translateY(0); }
+      from {
+        opacity: 0;
+        transform: translateY(1rem);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
   `,
 })
@@ -1172,9 +1327,7 @@ export class Playlists implements OnInit {
   }
 
   get filteredContent(): Content[] {
-    let content = this.availableContent.filter(
-      (c) => c.transcodingStatus === 'completed',
-    );
+    let content = this.availableContent.filter((c) => c.transcodingStatus === 'completed');
     if (this.contentFilter) {
       content = content.filter((c) => c.type === this.contentFilter);
     }
@@ -1231,10 +1384,7 @@ export class Playlists implements OnInit {
         this.loading = false;
       },
       error: (err) => {
-        this.loadError =
-          err.status === 403
-            ? 'Access denied.'
-            : 'Failed to load playlists.';
+        this.loadError = err.status === 403 ? 'Access denied.' : 'Failed to load playlists.';
         this.loading = false;
       },
     });
@@ -1308,17 +1458,19 @@ export class Playlists implements OnInit {
 
   saveName(): void {
     if (!this.selectedPlaylist || !this.editNameValue.trim()) return;
-    this.playlistService.update(this.orgId, this.selectedPlaylist.id, { name: this.editNameValue.trim() }).subscribe({
-      next: (updated) => {
-        if (this.selectedPlaylist) {
-          this.selectedPlaylist.name = updated.name;
-        }
-        this.editingName = false;
-      },
-      error: (err) => {
-        this.editorError = err.error?.message || 'Failed to rename playlist.';
-      },
-    });
+    this.playlistService
+      .update(this.orgId, this.selectedPlaylist.id, { name: this.editNameValue.trim() })
+      .subscribe({
+        next: (updated) => {
+          if (this.selectedPlaylist) {
+            this.selectedPlaylist.name = updated.name;
+          }
+          this.editingName = false;
+        },
+        error: (err) => {
+          this.editorError = err.error?.message || 'Failed to rename playlist.';
+        },
+      });
   }
 
   // --- Delete ---
@@ -1393,22 +1545,22 @@ export class Playlists implements OnInit {
 
   addContentToPlaylist(content: Content): void {
     if (!this.selectedPlaylist) return;
-    const defaultDuration = content.type === 'video'
-      ? (content.durationSeconds ?? 30)
-      : 10;
-    this.playlistService.addItem(this.orgId, this.selectedPlaylist.id, {
-      contentId: content.id,
-      durationSeconds: defaultDuration,
-      transition: 'fade',
-      transitionDurationMs: 500,
-    }).subscribe({
-      next: () => {
-        this.reloadPlaylist();
-      },
-      error: (err) => {
-        this.editorError = err.error?.message || 'Failed to add item.';
-      },
-    });
+    const defaultDuration = content.type === 'video' ? (content.durationSeconds ?? 30) : 10;
+    this.playlistService
+      .addItem(this.orgId, this.selectedPlaylist.id, {
+        contentId: content.id,
+        durationSeconds: defaultDuration,
+        transition: 'fade',
+        transitionDurationMs: 500,
+      })
+      .subscribe({
+        next: () => {
+          this.reloadPlaylist();
+        },
+        error: (err) => {
+          this.editorError = err.error?.message || 'Failed to add item.';
+        },
+      });
   }
 
   // --- Remove Item ---
@@ -1450,10 +1602,12 @@ export class Playlists implements OnInit {
       key,
       setTimeout(() => {
         if (!this.selectedPlaylist) return;
-        this.playlistService.updateItem(this.orgId, this.selectedPlaylist.id, item.id, patch).subscribe({
-          next: () => this.reloadPlaylist(),
-          error: () => this.reloadPlaylist(),
-        });
+        this.playlistService
+          .updateItem(this.orgId, this.selectedPlaylist.id, item.id, patch)
+          .subscribe({
+            next: () => this.reloadPlaylist(),
+            error: () => this.reloadPlaylist(),
+          });
         this.durationTimers.delete(key);
       }, 800),
     );
@@ -1536,7 +1690,10 @@ export class Playlists implements OnInit {
 
     this.showToast(`${result.deleted} playlist(s) deleted`, 'success');
     if (result.notFound.length > 0) {
-      this.showToast(`${result.notFound.length} item(s) could not be found and were skipped`, 'warning');
+      this.showToast(
+        `${result.notFound.length} item(s) could not be found and were skipped`,
+        'warning',
+      );
     }
     this.loadPlaylists();
   }
@@ -1566,12 +1723,18 @@ export class Playlists implements OnInit {
     if (!confirmed) throw new Error('cancelled');
 
     const ids = [...this.selectionService.selectedIds()];
-    const result = await firstValueFrom(this.playlistService.bulkAssignScreen(this.orgId, ids, this.selectedScreenId));
+    const result = await firstValueFrom(
+      this.playlistService.bulkAssignScreen(this.orgId, ids, this.selectedScreenId),
+    );
 
-    const screenName = this.availableScreens.find((s) => s.id === this.selectedScreenId)?.name ?? 'selected screen';
+    const screenName =
+      this.availableScreens.find((s) => s.id === this.selectedScreenId)?.name ?? 'selected screen';
     this.showToast(`${result.assigned} playlist(s) assigned to ${screenName}`, 'success');
     if (result.notFound.length > 0) {
-      this.showToast(`${result.notFound.length} item(s) could not be found and were skipped`, 'warning');
+      this.showToast(
+        `${result.notFound.length} item(s) could not be found and were skipped`,
+        'warning',
+      );
     }
     this.loadPlaylists();
   }

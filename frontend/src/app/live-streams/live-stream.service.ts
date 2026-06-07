@@ -44,16 +44,24 @@ export class LiveStreamService {
     });
   }
 
-  activate(orgId: string, id: string, dto: ActivateLiveStreamRequest): Observable<ActivateStreamResponse> {
+  activate(
+    orgId: string,
+    id: string,
+    dto: ActivateLiveStreamRequest,
+  ): Observable<ActivateStreamResponse> {
     return this.http.post<ActivateStreamResponse>(`/api/live-streams/${id}/activate`, dto, {
       headers: this.orgHeader(orgId),
     });
   }
 
   deactivate(orgId: string, id: string): Observable<LiveStream> {
-    return this.http.post<LiveStream>(`/api/live-streams/${id}/deactivate`, {}, {
-      headers: this.orgHeader(orgId),
-    });
+    return this.http.post<LiveStream>(
+      `/api/live-streams/${id}/deactivate`,
+      {},
+      {
+        headers: this.orgHeader(orgId),
+      },
+    );
   }
 
   getHealth(orgId: string, id: string): Observable<StreamHealthState> {

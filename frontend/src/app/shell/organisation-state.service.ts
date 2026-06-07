@@ -32,9 +32,7 @@ export class OrganisationStateService {
   private http = inject(HttpClient);
 
   readonly organisations = signal<OrgWithRole[]>([]);
-  readonly selectedOrgId = signal<string | null>(
-    localStorage.getItem(STORAGE_KEY),
-  );
+  readonly selectedOrgId = signal<string | null>(localStorage.getItem(STORAGE_KEY));
   readonly selectedOrg = computed(() => {
     const id = this.selectedOrgId();
     return this.organisations().find((o) => o.id === id) ?? null;

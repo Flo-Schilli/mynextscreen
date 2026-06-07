@@ -42,7 +42,9 @@ describe('ConnectionService postMessage listener', () => {
   });
 
   it('should call connect when receiving a valid signage-connect message', () => {
-    handler({ data: { type: 'signage-connect', serverUrl: 'https://example.com', apiKey: 'key-123' } });
+    handler({
+      data: { type: 'signage-connect', serverUrl: 'https://example.com', apiKey: 'key-123' },
+    });
 
     expect(connectFn).toHaveBeenCalledWith('https://example.com', 'key-123');
     expect(connectFn).toHaveBeenCalledTimes(1);

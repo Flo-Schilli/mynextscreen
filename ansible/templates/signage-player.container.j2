@@ -3,8 +3,9 @@ Description=Signage Player
 
 [Container]
 ContainerName=signage-player
-Image=localhost/signage-player:latest
-Pull=never
+Image={{ image_registry }}/player:{{ signage_image_tag }}
+AutoUpdate=registry
+Pull=newer
 Network=signage.network
 PublishPort=50003:80
 

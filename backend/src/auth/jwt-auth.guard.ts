@@ -101,7 +101,11 @@ export class JwtAuthGuard implements CanActivate {
     let email = '';
     if (typeof rawEmail === 'string') {
       email = rawEmail;
-    } else if (rawEmail && typeof rawEmail === 'object' && 'address' in rawEmail) {
+    } else if (
+      rawEmail &&
+      typeof rawEmail === 'object' &&
+      'address' in rawEmail
+    ) {
       email = (rawEmail as { address: string }).address;
     }
 

@@ -1,12 +1,6 @@
 import { TestBed, getTestBed } from '@angular/core/testing';
-import {
-  BrowserTestingModule,
-  platformBrowserTesting,
-} from '@angular/platform-browser/testing';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { Subject } from 'rxjs';
@@ -15,10 +9,7 @@ import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.
 import { Notification } from './notification.model';
 
 try {
-  getTestBed().initTestEnvironment(
-    BrowserTestingModule,
-    platformBrowserTesting(),
-  );
+  getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
 } catch {
   // already initialized
 }

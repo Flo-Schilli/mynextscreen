@@ -1,16 +1,10 @@
 import { TestBed, getTestBed } from '@angular/core/testing';
-import {
-  BrowserTestingModule,
-  platformBrowserTesting,
-} from '@angular/platform-browser/testing';
+import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { SelectionService } from './selection.service';
 
 try {
-  getTestBed().initTestEnvironment(
-    BrowserTestingModule,
-    platformBrowserTesting(),
-  );
+  getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
 } catch {
   // already initialized
 }
