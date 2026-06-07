@@ -44,3 +44,11 @@ export interface UpdateScheduleEntryRequest {
   rrule?: string | null;
   colour?: string;
 }
+
+/** A schedule target shown in the selectors: a single screen or a screen group. */
+export interface TargetOption {
+  id: string;
+  name: string;
+  type: 'screen' | 'group';
+  mode?: ScreenGroupMode;
+}
