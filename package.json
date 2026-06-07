@@ -3,11 +3,17 @@
   "version": "0.0.1",
   "description": "Multi-tenant digital signage platform",
   "private": true,
+  "engines": {
+    "node": "22.x",
+    "npm": "11.6.2"
+  },
+  "packageManager": "npm@11.6.2",
   "scripts": {
     "dev": "docker compose up --build",
     "lint": "npm run lint --prefix backend && npm run lint --prefix frontend && npm run lint --prefix player",
     "test": "npm run test --prefix backend && npm run test --prefix frontend && npm run test --prefix player",
     "typecheck": "npm run typecheck --prefix backend && npm run typecheck --prefix frontend && npm run typecheck --prefix player",
+    "format": "npm run format --prefix backend && npm run format --prefix frontend && npm run format --prefix player",
     "format:check": "npm run format:check --prefix backend && npm run format:check --prefix frontend && npm run format:check --prefix player",
     "version:patch": "npm version patch -m \"chore(release): %s\"",
     "version:minor": "npm version minor -m \"chore(release): %s\"",
