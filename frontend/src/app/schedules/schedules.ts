@@ -16,32 +16,15 @@ import { MyMembership } from '../settings/users/member.model';
 import { OrganisationService } from '../admin/organisations/organisation.service';
 import { ScreenGroupService } from '../screen-groups/screen-group.service';
 import { ScreenGroup } from '../screen-groups/screen-group.model';
-
-interface CalendarBlock {
-  entry: ScheduleEntry;
-  top: number;
-  height: number;
-  dayIndex: number;
-  isRecurring: boolean;
-  occurrenceStart: Date;
-  occurrenceEnd: Date;
-}
-
-interface GapBlock {
-  top: number;
-  height: number;
-  dayIndex: number;
-}
-
-interface DayTimeline {
-  playlistName: string;
-  colour: string;
-  startTime: string;
-  endTime: string;
-  isRecurring: boolean;
-  isGroup: boolean;
-  targetName: string;
-}
+import { ScheduleRecurrenceService, RecurrenceType } from './schedule-recurrence.service';
+import {
+  ScheduleCalendarService,
+  ScheduleViewMode,
+  CalendarBlock,
+  GapBlock,
+  DayTimeline,
+  MonthDayCell,
+} from './schedule-calendar.service';
 
 interface TargetOption {
   id: string;
@@ -1113,6 +1096,8 @@ export class Schedules implements OnInit, OnDestroy {
   private memberService = inject(MemberService);
   private organisationService = inject(OrganisationService);
   private screenGroupService = inject(ScreenGroupService);
+  private recurrence = inject(ScheduleRecurrenceService);
+  private calendar = inject(ScheduleCalendarService);
   private router = inject(Router);
 
   orgId = '';
@@ -1129,7 +1114,7 @@ export class Schedules implements OnInit, OnDestroy {
   selectedTargetId = '';
   targetOptions: TargetOption[] = [];
 
-  viewMode: 'day' | 'week' | 'month' = 'week';
+  viewMode: ScheduleViewMode = 'week';
   currentDate = new Date();
   selectedDate = new Date();
 
@@ -1151,13 +1136,7 @@ export class Schedules implements OnInit, OnDestroy {
   // Computed calendar data
   calendarBlocks: CalendarBlock[] = [];
   gapBlocks: GapBlock[] = [];
-  monthWeeks: {
-    date: Date;
-    dayNumber: number;
-    isCurrentMonth: boolean;
-    isToday: boolean;
-    blocks: CalendarBlock[];
-  }[][] = [];
+  monthWeeks: MonthDayCell[][] = [];
   dayTimeline: DayTimeline[] = [];
 
   // Slice processing status
@@ -1175,7 +1154,7 @@ export class Schedules implements OnInit, OnDestroy {
   modalEndDate = '';
   modalEndTime = '';
   modalColour = PRESET_COLOURS[0];
-  modalRecurrence = 'none';
+  modalRecurrence: RecurrenceType = 'none';
   modalWeekdays: string[] = [];
   modalError = '';
   submitting = false;
@@ -1219,16 +1198,7 @@ export class Schedules implements OnInit, OnDestroy {
   }
 
   get visibleDays(): Date[] {
-    if (this.viewMode === 'day') {
-      return [new Date(this.currentDate)];
-    }
-    // week
-    const start = this.getWeekStart(this.currentDate);
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(start);
-      d.setDate(d.getDate() + i);
-      return d;
-    });
+    return this.calendar.getVisibleDays(this.viewMode, this.currentDate);
   }
 
   get currentRangeLabel(): string {
@@ -1374,7 +1344,7 @@ export class Schedules implements OnInit, OnDestroy {
 
   loadEntries(): void {
     if (!this.selectedTargetId) return;
-    const range = this.getQueryRange();
+    const range = this.calendar.getQueryRange(this.viewMode, this.currentDate);
 
     if (this.selectedTargetType === 'screen') {
       this.scheduleService
@@ -1406,267 +1376,23 @@ export class Schedules implements OnInit, OnDestroy {
     }
   }
 
-  private getQueryRange(): { from: string; to: string } {
-    if (this.viewMode === 'day') {
-      const start = new Date(this.currentDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 1);
-      return { from: start.toISOString(), to: end.toISOString() };
-    }
-    if (this.viewMode === 'week') {
-      const start = this.getWeekStart(this.currentDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 7);
-      return { from: start.toISOString(), to: end.toISOString() };
-    }
-    // month: fetch wider range
-    const start = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), 1);
-    start.setDate(start.getDate() - 7);
-    const end = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 7);
-    return { from: start.toISOString(), to: end.toISOString() };
-  }
-
   private rebuildCalendar(): void {
     if (this.viewMode === 'month') {
-      this.buildMonthView();
+      this.monthWeeks = this.calendar.buildMonthWeeks(this.entries, this.currentDate);
     } else {
-      this.buildTimeGridBlocks();
+      const { blocks, gaps } = this.calendar.buildTimeGridBlocks(
+        this.entries,
+        this.visibleDays,
+        this.hourHeight,
+      );
+      this.calendarBlocks = blocks;
+      this.gapBlocks = gaps;
     }
-    this.buildDayTimeline();
-  }
-
-  private buildTimeGridBlocks(): void {
-    const days = this.visibleDays;
-    this.calendarBlocks = [];
-    this.gapBlocks = [];
-
-    for (let dayIdx = 0; dayIdx < days.length; dayIdx++) {
-      const dayStart = new Date(days[dayIdx]);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(dayStart);
-      dayEnd.setDate(dayEnd.getDate() + 1);
-
-      const dayBlocks: CalendarBlock[] = [];
-
-      for (const entry of this.entries) {
-        const occurrences = this.getEntryOccurrencesOnDay(entry, dayStart);
-        for (const occ of occurrences) {
-          const clippedStart = occ.start < dayStart ? dayStart : occ.start;
-          const clippedEnd = occ.end > dayEnd ? dayEnd : occ.end;
-
-          const startMinutes = clippedStart.getHours() * 60 + clippedStart.getMinutes();
-          const endMinutes = clippedEnd.getHours() * 60 + clippedEnd.getMinutes();
-          const top = (startMinutes / 60) * this.hourHeight;
-          const height = Math.max(((endMinutes - startMinutes) / 60) * this.hourHeight, 20);
-
-          const block: CalendarBlock = {
-            entry,
-            top,
-            height,
-            dayIndex: dayIdx,
-            isRecurring: !!entry.rrule,
-            occurrenceStart: clippedStart,
-            occurrenceEnd: clippedEnd,
-          };
-          dayBlocks.push(block);
-          this.calendarBlocks.push(block);
-        }
-      }
-
-      // Build gaps
-      const sorted = [...dayBlocks].sort((a, b) => a.top - b.top);
-      let lastEnd = 0;
-      const dayHeight = 24 * this.hourHeight;
-      for (const block of sorted) {
-        if (block.top > lastEnd + 5) {
-          this.gapBlocks.push({ top: lastEnd, height: block.top - lastEnd, dayIndex: dayIdx });
-        }
-        lastEnd = Math.max(lastEnd, block.top + block.height);
-      }
-      if (lastEnd < dayHeight - 5) {
-        this.gapBlocks.push({ top: lastEnd, height: dayHeight - lastEnd, dayIndex: dayIdx });
-      }
-    }
-  }
-
-  private buildMonthView(): void {
-    const year = this.currentDate.getFullYear();
-    const month = this.currentDate.getMonth();
-    const firstOfMonth = new Date(year, month, 1);
-
-    // Find Monday of the first week
-    const start = new Date(firstOfMonth);
-    const dayOfWeek = start.getDay();
-    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    start.setDate(start.getDate() + diff);
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    this.monthWeeks = [];
-    const current = new Date(start);
-
-    for (let w = 0; w < 6; w++) {
-      const week: {
-        date: Date;
-        dayNumber: number;
-        isCurrentMonth: boolean;
-        isToday: boolean;
-        blocks: CalendarBlock[];
-      }[] = [];
-      for (let d = 0; d < 7; d++) {
-        const cellDate = new Date(current);
-        const dayStart = new Date(cellDate);
-        dayStart.setHours(0, 0, 0, 0);
-
-        const blocks: CalendarBlock[] = [];
-        for (const entry of this.entries) {
-          const occurrences = this.getEntryOccurrencesOnDay(entry, dayStart);
-          for (const occ of occurrences) {
-            blocks.push({
-              entry,
-              top: 0,
-              height: 0,
-              dayIndex: d,
-              isRecurring: !!entry.rrule,
-              occurrenceStart: occ.start,
-              occurrenceEnd: occ.end,
-            });
-          }
-        }
-
-        week.push({
-          date: cellDate,
-          dayNumber: cellDate.getDate(),
-          isCurrentMonth: cellDate.getMonth() === month,
-          isToday: cellDate.getTime() === today.getTime(),
-          blocks,
-        });
-        current.setDate(current.getDate() + 1);
-      }
-      this.monthWeeks.push(week);
-      // Stop if we've passed the month
-      if (current.getMonth() !== month && current.getDate() > 7) break;
-    }
-  }
-
-  private buildDayTimeline(): void {
-    const dayStart = new Date(this.selectedDate);
-    dayStart.setHours(0, 0, 0, 0);
-
-    const items: DayTimeline[] = [];
-    for (const entry of this.entries) {
-      const occurrences = this.getEntryOccurrencesOnDay(entry, dayStart);
-      for (const occ of occurrences) {
-        const isGroup = !!entry.groupId;
-        let targetName = '';
-        if (isGroup && entry.group) {
-          targetName = entry.group.name;
-        } else if (entry.screen) {
-          targetName = entry.screen.name;
-        }
-        items.push({
-          playlistName: entry.playlist?.name || 'Playlist',
-          colour: entry.colour,
-          startTime: this.formatTimeInTz(occ.start),
-          endTime: this.formatTimeInTz(occ.end),
-          isRecurring: !!entry.rrule,
-          isGroup,
-          targetName,
-        });
-      }
-    }
-    items.sort((a, b) => a.startTime.localeCompare(b.startTime));
-    this.dayTimeline = items;
-  }
-
-  private getEntryOccurrencesOnDay(
-    entry: ScheduleEntry,
-    dayStart: Date,
-  ): { start: Date; end: Date }[] {
-    const dayEnd = new Date(dayStart);
-    dayEnd.setDate(dayEnd.getDate() + 1);
-    const entryStart = new Date(entry.startTime);
-    const entryEnd = new Date(entry.endTime);
-    const duration = entryEnd.getTime() - entryStart.getTime();
-
-    if (!entry.rrule) {
-      // Non-recurring: check if it overlaps this day
-      if (entryStart < dayEnd && entryEnd > dayStart) {
-        return [{ start: entryStart, end: entryEnd }];
-      }
-      return [];
-    }
-
-    // For recurring entries, parse the RRULE to compute occurrences
-    const occurrences: { start: Date; end: Date }[] = [];
-    const rule = this.parseSimpleRrule(entry.rrule);
-    if (!rule) {
-      // Fallback: show on original date
-      if (entryStart < dayEnd && entryEnd > dayStart) {
-        return [{ start: entryStart, end: entryEnd }];
-      }
-      return [];
-    }
-
-    // Check if this day matches the recurrence pattern
-    if (this.doesDayMatchRrule(dayStart, entryStart, rule)) {
-      const occStart = new Date(dayStart);
-      occStart.setHours(entryStart.getHours(), entryStart.getMinutes(), entryStart.getSeconds());
-      const occEnd = new Date(occStart.getTime() + duration);
-
-      // Only include if the occurrence start is on or after the original entry start date
-      if (
-        occStart >= new Date(entryStart.getFullYear(), entryStart.getMonth(), entryStart.getDate())
-      ) {
-        occurrences.push({ start: occStart, end: occEnd });
-      }
-    }
-
-    return occurrences;
-  }
-
-  private parseSimpleRrule(rrule: string): { freq: string; byday?: string[] } | null {
-    const parts = rrule.replace('RRULE:', '').split(';');
-    const map: Record<string, string> = {};
-    for (const part of parts) {
-      const [key, value] = part.split('=');
-      if (key && value) map[key] = value;
-    }
-    if (!map['FREQ']) return null;
-    return {
-      freq: map['FREQ'],
-      byday: map['BYDAY']?.split(','),
-    };
-  }
-
-  private doesDayMatchRrule(
-    day: Date,
-    entryStart: Date,
-    rule: { freq: string; byday?: string[] },
-  ): boolean {
-    if (rule.freq === 'DAILY') return true;
-
-    if (rule.freq === 'WEEKLY') {
-      if (rule.byday && rule.byday.length > 0) {
-        const dayMap: Record<number, string> = {
-          0: 'SU',
-          1: 'MO',
-          2: 'TU',
-          3: 'WE',
-          4: 'TH',
-          5: 'FR',
-          6: 'SA',
-        };
-        return rule.byday.includes(dayMap[day.getDay()]);
-      }
-      // Weekly with no BYDAY: same weekday as original
-      return day.getDay() === entryStart.getDay();
-    }
-
-    return false;
+    this.dayTimeline = this.calendar.buildDayTimeline(
+      this.entries,
+      this.selectedDate,
+      this.orgTimeZone,
+    );
   }
 
   getBlocksForDay(dayIndex: number): CalendarBlock[] {
@@ -1686,7 +1412,7 @@ export class Schedules implements OnInit, OnDestroy {
   }
 
   // --- Navigation ---
-  setView(mode: 'day' | 'week' | 'month'): void {
+  setView(mode: ScheduleViewMode): void {
     this.viewMode = mode;
     this.loadEntries();
   }
@@ -1807,20 +1533,9 @@ export class Schedules implements OnInit, OnDestroy {
     }
     this.updateModalTargetGroup();
 
-    if (!entry.rrule) {
-      this.modalRecurrence = 'none';
-      this.modalWeekdays = [];
-    } else {
-      const rule = this.parseSimpleRrule(entry.rrule);
-      if (rule?.freq === 'DAILY') {
-        this.modalRecurrence = 'daily';
-      } else if (rule?.freq === 'WEEKLY' && rule.byday && rule.byday.length > 0) {
-        this.modalRecurrence = 'weekdays';
-        this.modalWeekdays = [...rule.byday];
-      } else {
-        this.modalRecurrence = 'weekly';
-      }
-    }
+    const form = this.recurrence.toRecurrenceForm(entry.rrule);
+    this.modalRecurrence = form.recurrence;
+    this.modalWeekdays = form.weekdays;
 
     this.modalError = '';
     this.showModal = true;
@@ -1869,7 +1584,7 @@ export class Schedules implements OnInit, OnDestroy {
       return;
     }
 
-    const rrule = this.buildRrule();
+    const rrule = this.recurrence.buildRrule(this.modalRecurrence, this.modalWeekdays);
 
     this.submitting = true;
     this.modalError = '';
@@ -1980,16 +1695,6 @@ export class Schedules implements OnInit, OnDestroy {
     });
   }
 
-  private buildRrule(): string | undefined {
-    if (this.modalRecurrence === 'none') return undefined;
-    if (this.modalRecurrence === 'daily') return 'FREQ=DAILY';
-    if (this.modalRecurrence === 'weekly') return 'FREQ=WEEKLY';
-    if (this.modalRecurrence === 'weekdays' && this.modalWeekdays.length > 0) {
-      return `FREQ=WEEKLY;BYDAY=${this.modalWeekdays.join(',')}`;
-    }
-    return undefined;
-  }
-
   // --- Drag & Drop ---
   onBlockMouseDown(event: MouseEvent, block: CalendarBlock): void {
     // Ignore if it was a resize handle
@@ -2024,7 +1729,11 @@ export class Schedules implements OnInit, OnDestroy {
     if (this.dragState || this.resizeState) return;
     event.stopPropagation();
     this.selectedDate = new Date(block.occurrenceStart);
-    this.buildDayTimeline();
+    this.dayTimeline = this.calendar.buildDayTimeline(
+      this.entries,
+      this.selectedDate,
+      this.orgTimeZone,
+    );
     this.openEditModal(block.entry);
   }
 
@@ -2078,20 +1787,16 @@ export class Schedules implements OnInit, OnDestroy {
     const dayDate = this.visibleDays[block.dayIndex];
     if (!dayDate) return;
 
-    const startMinutes = (block.top / this.hourHeight) * 60;
-    const endMinutes = ((block.top + block.height) / this.hourHeight) * 60;
-
-    const newStart = new Date(dayDate);
-    newStart.setHours(0, 0, 0, 0);
-    newStart.setMinutes(startMinutes);
-
-    const newEnd = new Date(dayDate);
-    newEnd.setHours(0, 0, 0, 0);
-    newEnd.setMinutes(endMinutes);
+    const { start, end } = this.calendar.pixelsToTimeRange(
+      block.top,
+      block.height,
+      dayDate,
+      this.hourHeight,
+    );
 
     const dto: UpdateScheduleEntryRequest = {
-      startTime: newStart.toISOString(),
-      endTime: newEnd.toISOString(),
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
     };
 
     this.scheduleService.update(this.orgId, block.entry.id, dto).subscribe({
@@ -2143,15 +1848,6 @@ export class Schedules implements OnInit, OnDestroy {
     });
   }
 
-  formatTimeInTz(date: Date): string {
-    return date.toLocaleTimeString(undefined, {
-      timeZone: this.orgTimeZone,
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  }
-
   formatSidePanelDate(date: Date): string {
     return date.toLocaleDateString(undefined, {
       timeZone: this.orgTimeZone,
@@ -2169,15 +1865,6 @@ export class Schedules implements OnInit, OnDestroy {
       day.getMonth() === today.getMonth() &&
       day.getDate() === today.getDate()
     );
-  }
-
-  private getWeekStart(date: Date): Date {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = day === 0 ? -6 : 1 - day; // Monday as first day
-    d.setDate(d.getDate() + diff);
-    d.setHours(0, 0, 0, 0);
-    return d;
   }
 
   private toDateInputValue(date: Date): string {
