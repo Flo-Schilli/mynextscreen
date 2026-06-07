@@ -11,10 +11,10 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 - **Scheduling** — calendar-based scheduling with recurring rules (iCal RRULE)
 - **Screen groups** — mirror and split modes for video walls
 - **Live streaming** — ingest live streams via FFmpeg, serve HLS to screens
-- **Real-time updates** — WebSocket-powered dashboard with live screen status
+- **Real-time updates** — SSE-powered dashboard with live screen status
 - **Notifications** — in-app, email (SMTP), and ntfy push notifications
 - **Audit log** — full audit trail of all user and system actions
-- **Screen protocol abstraction** — SMIL support, extensible to additional protocols
+- **Screen protocol abstraction** — JSON adapter (first implementation), extensible to additional protocols (e.g. SMIL)
 
 ## Tech Stack
 
@@ -25,7 +25,7 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 | Database       | SQLite (better-sqlite3)                 |
 | Job Queue      | BullMQ + Redis                          |
 | Authentication | Hanko Cloud (users), API keys (screens) |
-| Real-time      | Socket.IO                               |
+| Real-time      | Server-Sent Events (SSE)                |
 | Media          | FFmpeg (transcoding + HLS)              |
 | Runtime        | Node.js 22                              |
 
@@ -277,10 +277,10 @@ signage-server/
 │       ├── playlist/         # Playlist CRUD
 │       ├── schedule/         # Calendar scheduling with RRULE support
 │       ├── live-stream/      # Live stream management (FFmpeg + HLS)
-│       ├── screen-protocol/  # Protocol abstraction (SMIL, JSON)
+│       ├── screen-protocol/  # Protocol abstraction (JSON adapter; SMIL planned)
 │       ├── notification/     # In-app, email, ntfy notifications
 │       ├── audit-log/        # Audit trail
-│       ├── dashboard/        # WebSocket gateway for real-time updates
+│       ├── dashboard/        # SSE service for real-time updates
 │       ├── media/            # Filesystem media management
 │       ├── search/           # Global search
 │       └── migrations/       # TypeORM database migrations

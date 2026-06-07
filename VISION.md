@@ -1,6 +1,6 @@
 # Signage Server
 
-A **multi-tenant digital signage platform** for concert venues. Organisations manage screens (TVs) distributed across their venue, upload and transcode images and videos into a shared content library, build playlists, schedule them across screens, and stream live video — all controlled from an Angular web dashboard. Screens communicate via **SMIL**, with the architecture designed to support additional protocols in the future.
+A **multi-tenant digital signage platform** for concert venues. Organisations manage screens (TVs) distributed across their venue, upload and transcode images and videos into a shared content library, build playlists, schedule them across screens, and stream live video — all controlled from an Angular web dashboard. Screens communicate via a **protocol abstraction layer** (JSON over HTTP + SSE as the first implementation), designed to support additional protocols such as SMIL in the future.
 
 ## Core Concepts
 
@@ -32,9 +32,9 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
   - Physical location description (e.g. "Main Hall Entrance Left")
 - On registration, the system generates an **API key** (shown once, can be regenerated)
 - Screens authenticate all requests using their API key
-- Screens communicate via a **SMIL interface** (first protocol; architecture allows adding more)
+- Screens communicate via a **protocol abstraction layer** (JSON over HTTP + SSE is the first implementation; architecture allows adding more, e.g. SMIL)
   - On startup, the screen **pulls** its full state from the server
-  - Afterwards, the server **pushes** updates in real time
+  - Afterwards, the server **pushes** updates in real time via SSE
 - Each screen sends a **heartbeat** to report online/offline status
 - Screens **cache content locally** — if the server connection drops, playback continues from cache
 
@@ -166,4 +166,4 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 - **Backend:** NestJS, TypeORM, SQLite3 (initial database)
 - **Authentication:** Hanko (users), API keys (screens)
 - **Storage:** Filesystem for transcoded and original media
-- **Screen protocol:** SMIL (extensible to additional protocols)
+- **Screen protocol:** JSON over HTTP + SSE (protocol abstraction layer; extensible to additional protocols such as SMIL)
