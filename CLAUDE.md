@@ -195,6 +195,10 @@ npm run typecheck / format / format:check
 - **Coverage-Gate nur Backend** (`backend/jest.config.ts`, ~80% — gemessen ~85%).
   Frontend/Player ohne Schwelle (Test-Abdeckung dort dünn: ~8 bzw. ~3 Specs;
   Backend ~83 Suites / 900+ Tests). Keine künstlichen Tests nur fürs Gate.
+- **Frontend-Test-Step ist in CI vorerst `continue-on-error`** (TODO): Vitest +
+  `@analogjs/vite-plugin-angular` leaken `TestBed`-State über Spec-Dateien, wenn
+  diese sich auf Low-Core-Runnern einen Worker teilen. Lokal mit vielen Kernen
+  grün; zu fixen via Vitest-Isolation. Backend/Player-Tests bleiben hart.
 - Kein e2e-Setup; eine Backend-Integration-Spec (`playlist-transition.integration.spec.ts`).
 
 ## Environment (wichtigste Variablen)
