@@ -1,11 +1,11 @@
-import { Component, inject, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import { ScheduleService } from './schedule.service';
 import {
   ScheduleEntry,
   CreateScheduleEntryRequest,
   UpdateScheduleEntryRequest,
+  TargetOption,
 } from './schedule.model';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
@@ -25,32 +25,17 @@ import {
   DayTimeline,
   MonthDayCell,
 } from './schedule-calendar.service';
-
-interface TargetOption {
-  id: string;
-  name: string;
-  type: 'screen' | 'group';
-  mode?: 'mirror' | 'split';
-}
+import { ScheduleToolbar } from './schedule-toolbar';
+import { ScheduleSidePanel } from './schedule-side-panel';
+import { ScheduleCalendarGrid } from './schedule-calendar-grid';
+import { ScheduleFormModal, ScheduleFormResult, PRESET_COLOURS } from './schedule-form-modal';
 
 const HOUR_HEIGHT = 60;
-const PRESET_COLOURS = [
-  '#3b82f6',
-  '#ef4444',
-  '#22c55e',
-  '#f59e0b',
-  '#8b5cf6',
-  '#ec4899',
-  '#06b6d4',
-  '#f97316',
-  '#14b8a6',
-  '#6366f1',
-];
 
 @Component({
   selector: 'app-schedules',
   standalone: true,
-  imports: [FormsModule],
+  imports: [ScheduleToolbar, ScheduleSidePanel, ScheduleCalendarGrid, ScheduleFormModal],
   template: `
     <div class="page">
       <header class="page-header">
@@ -69,67 +54,19 @@ const PRESET_COLOURS = [
       }
 
       @if (!loading && !loadError) {
-        <!-- Target Selector -->
-        <div class="toolbar">
-          <div class="target-selector">
-            <label for="targetSelect">Target:</label>
-            <select
-              id="targetSelect"
-              [(ngModel)]="selectedTargetId"
-              (ngModelChange)="onTargetChange()"
-              name="targetSelect"
-            >
-              @if (targetOptions.length === 0) {
-                <option value="" disabled>No screens or groups</option>
-              }
-              @if (screenTargets.length > 0) {
-                <optgroup label="Screens">
-                  @for (opt of screenTargets; track opt.id) {
-                    <option [value]="'screen:' + opt.id">&#9633; {{ opt.name }}</option>
-                  }
-                </optgroup>
-              }
-              @if (groupTargets.length > 0) {
-                <optgroup label="Screen Groups">
-                  @for (opt of groupTargets; track opt.id) {
-                    <option [value]="'group:' + opt.id">
-                      &#9638; {{ opt.name }} ({{ opt.mode }})
-                    </option>
-                  }
-                </optgroup>
-              }
-            </select>
-          </div>
-
-          <div class="view-buttons">
-            <button class="toggle-btn" [class.active]="viewMode === 'day'" (click)="setView('day')">
-              Day
-            </button>
-            <button
-              class="toggle-btn"
-              [class.active]="viewMode === 'week'"
-              (click)="setView('week')"
-            >
-              Week
-            </button>
-            <button
-              class="toggle-btn"
-              [class.active]="viewMode === 'month'"
-              (click)="setView('month')"
-            >
-              Month
-            </button>
-          </div>
-
-          <div class="nav-buttons">
-            <button class="btn btn-secondary btn-sm" (click)="navigatePrev()">&#8592;</button>
-            <button class="btn btn-secondary btn-sm" (click)="navigateToday()">Today</button>
-            <button class="btn btn-secondary btn-sm" (click)="navigateNext()">&#8594;</button>
-            <span class="current-range">{{ currentRangeLabel }}</span>
-          </div>
-
-          <button class="btn btn-primary" (click)="openCreateModal()">+ Schedule</button>
-        </div>
+        <app-schedule-toolbar
+          [screenTargets]="screenTargets"
+          [groupTargets]="groupTargets"
+          [selectedTargetId]="selectedTargetId"
+          [viewMode]="viewMode"
+          [currentRangeLabel]="currentRangeLabel"
+          (targetChange)="onToolbarTargetChange($event)"
+          (viewChange)="setView($event)"
+          (prev)="navigatePrev()"
+          (today)="navigateToday()"
+          (next)="navigateNext()"
+          (create)="openCreateModal()"
+        />
 
         @if (sliceProcessing) {
           <div class="slice-status">
@@ -139,176 +76,32 @@ const PRESET_COLOURS = [
         }
 
         <div class="calendar-layout">
-          <!-- Calendar Grid -->
           <div class="calendar-container">
-            @if (viewMode === 'month') {
-              <!-- Month View -->
-              <div class="month-grid">
-                <div class="month-header-row">
-                  @for (dayName of weekdayNames; track dayName) {
-                    <div class="month-header-cell">{{ dayName }}</div>
-                  }
-                </div>
-                @for (week of monthWeeks; track $index) {
-                  <div class="month-week-row">
-                    @for (day of week; track $index) {
-                      <div
-                        class="month-day-cell"
-                        [class.other-month]="!day.isCurrentMonth"
-                        [class.today]="day.isToday"
-                        (click)="onMonthDayClick(day.date)"
-                        role="button"
-                        tabindex="0"
-                        (keydown.enter)="onMonthDayClick(day.date)"
-                      >
-                        <span class="month-day-number">{{ day.dayNumber }}</span>
-                        <div class="month-day-entries">
-                          @for (block of day.blocks; track block.entry.id) {
-                            <div
-                              class="month-entry-chip"
-                              [style.background]="block.entry.colour"
-                              [title]="getEntryLabel(block.entry)"
-                            >
-                              @if (block.entry.groupId) {
-                                <span class="group-badge-sm">G</span>
-                              }
-                              @if (block.isRecurring) {
-                                <span class="repeat-icon">&#8634;</span>
-                              }
-                              {{ getEntryLabel(block.entry) }}
-                            </div>
-                          }
-                        </div>
-                      </div>
-                    }
-                  </div>
-                }
-              </div>
-            } @else {
-              <!-- Day / Week View -->
-              <div class="time-grid" #timeGrid>
-                <div class="time-grid-header">
-                  <div class="time-gutter-header"></div>
-                  @for (day of visibleDays; track $index) {
-                    <div class="day-column-header" [class.today]="isDayToday(day)">
-                      <span class="day-name">{{ formatDayHeader(day) }}</span>
-                    </div>
-                  }
-                </div>
-                <div
-                  class="time-grid-body"
-                  (click)="onTimeGridClick($event)"
-                  (keydown.enter)="$event.preventDefault()"
-                  role="grid"
-                  tabindex="0"
-                >
-                  <div class="time-gutter">
-                    @for (hour of hours; track hour) {
-                      <div class="time-label" [style.height.px]="hourHeight">
-                        {{ formatHour(hour) }}
-                      </div>
-                    }
-                  </div>
-                  <div class="day-columns">
-                    @for (day of visibleDays; track $index; let dayIdx = $index) {
-                      <div class="day-column" [attr.data-day-index]="dayIdx">
-                        @for (hour of hours; track hour) {
-                          <div class="hour-slot" [style.height.px]="hourHeight"></div>
-                        }
-                        <!-- Gap indicators -->
-                        @for (gap of getGapsForDay(dayIdx); track $index) {
-                          <div
-                            class="gap-indicator"
-                            [style.top.px]="gap.top"
-                            [style.height.px]="gap.height"
-                          >
-                            <span class="gap-label">Fallback playlist</span>
-                          </div>
-                        }
-                        <!-- Schedule blocks -->
-                        @for (block of getBlocksForDay(dayIdx); track block.entry.id) {
-                          <div
-                            class="schedule-block"
-                            [style.top.px]="block.top"
-                            [style.height.px]="block.height"
-                            [style.background]="block.entry.colour"
-                            [class.dragging]="dragState?.entryId === block.entry.id"
-                            (mousedown)="onBlockMouseDown($event, block)"
-                            (click)="onBlockClick($event, block)"
-                            (keydown.enter)="openEditModal(block.entry)"
-                            role="button"
-                            tabindex="0"
-                          >
-                            <div
-                              class="resize-handle resize-handle-top"
-                              (mousedown)="onResizeMouseDown($event, block, 'top')"
-                              (keydown.enter)="$event.preventDefault()"
-                              role="separator"
-                              tabindex="0"
-                              aria-label="Resize top"
-                              aria-valuenow="0"
-                            ></div>
-                            <div class="block-content">
-                              @if (block.entry.groupId) {
-                                <span class="group-badge">Group</span>
-                              }
-                              @if (block.isRecurring) {
-                                <span class="repeat-icon">&#8634;</span>
-                              }
-                              <span class="block-title">{{ getEntryLabel(block.entry) }}</span>
-                              <span class="block-time">
-                                {{ formatBlockTime(block.occurrenceStart) }} -
-                                {{ formatBlockTime(block.occurrenceEnd) }}
-                              </span>
-                            </div>
-                            <div
-                              class="resize-handle resize-handle-bottom"
-                              (mousedown)="onResizeMouseDown($event, block, 'bottom')"
-                              (keydown.enter)="$event.preventDefault()"
-                              role="separator"
-                              tabindex="0"
-                              aria-label="Resize bottom"
-                              aria-valuenow="0"
-                            ></div>
-                          </div>
-                        }
-                      </div>
-                    }
-                  </div>
-                </div>
-              </div>
-            }
+            <app-schedule-calendar-grid
+              [viewMode]="viewMode"
+              [visibleDays]="visibleDays"
+              [monthWeeks]="monthWeeks"
+              [blocks]="calendarBlocks"
+              [gaps]="gapBlocks"
+              [hourHeight]="hourHeight"
+              [orgTimeZone]="orgTimeZone"
+              [draggingEntryId]="dragState?.entryId ?? null"
+              (monthDayClick)="onMonthDayClick($event)"
+              (createSlot)="openCreateModalWithTimes($event.start, $event.end)"
+              (blockMouseDown)="onBlockMouseDown($event.event, $event.block)"
+              (resizeMouseDown)="onResizeMouseDown($event.event, $event.block, $event.edge)"
+              (blockClick)="onBlockClick($event.event, $event.block)"
+              (blockEnter)="openEditModal($event)"
+            />
           </div>
 
-          <!-- Side Panel -->
-          <div class="side-panel">
-            <h3>{{ formatSidePanelDate(selectedDate) }}</h3>
-            @if (dayTimeline.length === 0) {
-              <p class="empty-text">No schedule entries for this day.</p>
-            }
-            @for (item of dayTimeline; track $index) {
-              <div class="timeline-item">
-                <div class="timeline-colour" [style.background]="item.colour"></div>
-                <div class="timeline-info">
-                  <span class="timeline-name">
-                    @if (item.isGroup) {
-                      <span class="group-badge-inline">G</span>
-                    }
-                    {{ item.playlistName }}
-                    @if (item.isRecurring) {
-                      <span class="repeat-icon-sm">&#8634;</span>
-                    }
-                  </span>
-                  <span class="timeline-target">{{ item.targetName }}</span>
-                  <span class="timeline-time">{{ item.startTime }} - {{ item.endTime }}</span>
-                </div>
-              </div>
-            }
-          </div>
+          <app-schedule-side-panel
+            [dateLabel]="formatSidePanelDate(selectedDate)"
+            [timeline]="dayTimeline"
+          />
         </div>
       }
 
-      <!-- Toast -->
       @if (toastMessage) {
         <div
           class="toast"
@@ -319,280 +112,30 @@ const PRESET_COLOURS = [
         </div>
       }
 
-      <!-- Create / Edit Modal -->
       @if (showModal) {
-        <div
-          class="modal-overlay"
-          (click)="closeModal()"
-          role="dialog"
-          tabindex="-1"
-          (keydown.escape)="closeModal()"
-        >
-          <div
-            class="modal"
-            (click)="$event.stopPropagation()"
-            (keydown.enter)="$event.stopPropagation()"
-            role="document"
-            tabindex="0"
-          >
-            <h2>{{ editingEntry ? 'Edit Schedule Entry' : 'Create Schedule Entry' }}</h2>
-            <form (ngSubmit)="submitModal()">
-              <!-- Target Selector in Modal -->
-              @if (!editingEntry) {
-                <div class="form-group">
-                  <label for="modalTarget">Target</label>
-                  <select
-                    id="modalTarget"
-                    [(ngModel)]="modalTargetId"
-                    (ngModelChange)="onModalTargetChange()"
-                    name="modalTarget"
-                    required
-                  >
-                    <option value="" disabled>Select a screen or group</option>
-                    @if (screenTargets.length > 0) {
-                      <optgroup label="Screens">
-                        @for (opt of screenTargets; track opt.id) {
-                          <option [value]="'screen:' + opt.id">&#9633; {{ opt.name }}</option>
-                        }
-                      </optgroup>
-                    }
-                    @if (groupTargets.length > 0) {
-                      <optgroup label="Screen Groups">
-                        @for (opt of groupTargets; track opt.id) {
-                          <option [value]="'group:' + opt.id">
-                            &#9638; {{ opt.name }} ({{ opt.mode }})
-                          </option>
-                        }
-                      </optgroup>
-                    }
-                  </select>
-                </div>
-
-                <!-- Group mode info -->
-                @if (modalTargetGroup) {
-                  <div class="info-box">
-                    <span class="info-label">Mode:</span>
-                    {{ modalTargetGroup.mode === 'mirror' ? 'Mirror' : 'Split' }} ({{
-                      modalTargetGroup.mode === 'mirror'
-                        ? 'all screens show the same content'
-                        : modalTargetGroup.gridColumns + 'x' + modalTargetGroup.gridRows + ' grid'
-                    }})
-                  </div>
-                }
-
-                <!-- Split mode notice -->
-                @if (modalTargetGroup?.mode === 'split') {
-                  <div class="info-box info-box-warn">
-                    Content will be pre-sliced for each screen in the video wall. This may take a
-                    moment to process after saving.
-                  </div>
-                }
-              }
-
-              <div class="form-group">
-                <label for="modalPlaylist">Playlist</label>
-                <select
-                  id="modalPlaylist"
-                  [(ngModel)]="modalPlaylistId"
-                  name="modalPlaylist"
-                  required
-                >
-                  <option value="" disabled>Select a playlist</option>
-                  @for (p of playlists; track p.id) {
-                    <option [value]="p.id">{{ p.name }}</option>
-                  }
-                </select>
-              </div>
-
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="modalStartDate">Start Date</label>
-                  <input
-                    id="modalStartDate"
-                    type="date"
-                    [(ngModel)]="modalStartDate"
-                    name="modalStartDate"
-                    required
-                  />
-                </div>
-                <div class="form-group">
-                  <label for="modalStartTime">Start Time</label>
-                  <input
-                    id="modalStartTime"
-                    type="time"
-                    [(ngModel)]="modalStartTime"
-                    name="modalStartTime"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="modalEndDate">End Date</label>
-                  <input
-                    id="modalEndDate"
-                    type="date"
-                    [(ngModel)]="modalEndDate"
-                    name="modalEndDate"
-                    required
-                  />
-                </div>
-                <div class="form-group">
-                  <label for="modalEndTime">End Time</label>
-                  <input
-                    id="modalEndTime"
-                    type="time"
-                    [(ngModel)]="modalEndTime"
-                    name="modalEndTime"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label for="modalColourCustom">Colour</label>
-                <div class="colour-picker">
-                  @for (c of presetColours; track c) {
-                    <button
-                      type="button"
-                      class="colour-swatch"
-                      [style.background]="c"
-                      [class.selected]="modalColour === c"
-                      (click)="modalColour = c"
-                      [attr.aria-label]="'Select colour ' + c"
-                    >
-                      &nbsp;
-                    </button>
-                  }
-                  <input
-                    id="modalColourCustom"
-                    type="color"
-                    [(ngModel)]="modalColour"
-                    name="modalColourCustom"
-                    class="colour-input"
-                  />
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label for="modalRecurrence">Recurrence</label>
-                <select id="modalRecurrence" [(ngModel)]="modalRecurrence" name="modalRecurrence">
-                  <option value="none">None</option>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="weekdays">Specific weekdays</option>
-                </select>
-              </div>
-
-              @if (modalRecurrence === 'weekdays') {
-                <div class="form-group">
-                  <span id="weekdayLabel" class="form-label-text">Days</span>
-                  <div class="weekday-checkboxes">
-                    @for (wd of weekdayOptions; track wd.value) {
-                      <label class="weekday-checkbox">
-                        <input
-                          type="checkbox"
-                          [checked]="modalWeekdays.includes(wd.value)"
-                          (change)="toggleWeekday(wd.value)"
-                        />
-                        {{ wd.label }}
-                      </label>
-                    }
-                  </div>
-                </div>
-              }
-
-              @if (modalError) {
-                <p class="error">{{ modalError }}</p>
-              }
-              <div class="form-actions">
-                @if (editingEntry) {
-                  <button type="button" class="btn btn-danger" (click)="deleteEntry()">
-                    Delete
-                  </button>
-                }
-                <div class="form-actions-right">
-                  <button type="button" class="btn btn-secondary" (click)="closeModal()">
-                    Cancel
-                  </button>
-                  <button type="submit" class="btn btn-primary" [disabled]="submitting">
-                    {{ submitting ? 'Saving...' : editingEntry ? 'Update' : 'Create' }}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
+        <app-schedule-form-modal
+          [editingEntry]="editingEntry"
+          [screenTargets]="screenTargets"
+          [groupTargets]="groupTargets"
+          [screenGroups]="screenGroups"
+          [playlists]="playlists"
+          [submitting]="submitting"
+          [error]="modalError"
+          [initialTargetId]="modalInitialTargetId"
+          [initialPlaylistId]="modalInitialPlaylistId"
+          [initialStart]="modalInitialStart"
+          [initialEnd]="modalInitialEnd"
+          [initialColour]="modalInitialColour"
+          [initialRecurrence]="modalInitialRecurrence"
+          [initialWeekdays]="modalInitialWeekdays"
+          (save)="submitModal($event)"
+          (remove)="deleteEntry()"
+          (dismiss)="closeModal()"
+        />
       }
     </div>
   `,
   styles: `
-    /* Toolbar */
-    .toolbar {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      margin-bottom: 1rem;
-      flex-wrap: wrap;
-    }
-    .target-selector {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .target-selector label {
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-    }
-    .target-selector select {
-      padding: 0.5rem 0.75rem;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-      color: var(--color-text-primary);
-      font-size: 0.875rem;
-    }
-    .view-buttons {
-      display: flex;
-      gap: 0.25rem;
-    }
-    .toggle-btn {
-      padding: 0.375rem 0.75rem;
-      border-radius: 0.375rem;
-      border: 1px solid var(--color-border);
-      background: transparent;
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      font-size: 0.8125rem;
-      transition: all 0.15s;
-    }
-    .toggle-btn:hover {
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-primary);
-    }
-    .toggle-btn.active {
-      background: var(--color-accent);
-      color: #fff;
-      border-color: var(--color-accent);
-    }
-    .nav-buttons {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .current-range {
-      font-size: 0.875rem;
-      font-weight: 500;
-      min-width: 10rem;
-    }
-
-    /* Buttons */
-    .btn-sm {
-      padding: 0.325rem 0.75rem;
-      font-size: 0.8125rem;
-    }
-
     /* Slice Processing Status */
     .slice-status {
       display: flex;
@@ -630,429 +173,6 @@ const PRESET_COLOURS = [
       min-width: 0;
     }
 
-    /* Time Grid (Day/Week) */
-    .time-grid {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      overflow: hidden;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
-    }
-    .time-grid-header {
-      display: flex;
-      border-bottom: 1px solid var(--color-border);
-    }
-    .time-gutter-header {
-      width: 3.5rem;
-      flex-shrink: 0;
-    }
-    .day-column-header {
-      flex: 1;
-      text-align: center;
-      padding: 0.5rem;
-      font-size: 0.8125rem;
-      font-weight: 500;
-      color: var(--color-text-secondary);
-      border-left: 1px solid var(--color-border);
-    }
-    .day-column-header.today {
-      color: var(--color-accent);
-      font-weight: 600;
-    }
-    .time-grid-body {
-      display: flex;
-      max-height: calc(100vh - 14rem);
-      overflow-y: auto;
-      position: relative;
-    }
-    .time-gutter {
-      width: 3.5rem;
-      flex-shrink: 0;
-    }
-    .time-label {
-      font-size: 0.6875rem;
-      color: var(--color-text-muted);
-      text-align: right;
-      padding-right: 0.5rem;
-      box-sizing: border-box;
-      position: relative;
-      top: -0.5em;
-    }
-    .day-columns {
-      display: flex;
-      flex: 1;
-    }
-    .day-column {
-      flex: 1;
-      position: relative;
-      border-left: 1px solid var(--color-border);
-    }
-    .hour-slot {
-      border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
-      box-sizing: border-box;
-    }
-
-    /* Schedule Blocks */
-    .schedule-block {
-      position: absolute;
-      left: 2px;
-      right: 2px;
-      border-radius: 0.25rem;
-      cursor: grab;
-      z-index: 2;
-      overflow: hidden;
-      min-height: 1.25rem;
-      box-shadow: 0 1px 3px var(--color-shadow);
-      transition: box-shadow 0.15s;
-      user-select: none;
-    }
-    .schedule-block:hover {
-      box-shadow: 0 2px 8px var(--color-shadow);
-      z-index: 3;
-    }
-    .schedule-block.dragging {
-      opacity: 0.7;
-      cursor: grabbing;
-      z-index: 10;
-    }
-    .block-content {
-      padding: 0.25rem 0.375rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.125rem;
-      height: 100%;
-      box-sizing: border-box;
-    }
-    .block-title {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: #fff;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    }
-    .block-time {
-      font-size: 0.625rem;
-      color: rgba(255, 255, 255, 0.85);
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    }
-    .repeat-icon {
-      font-size: 0.75rem;
-      color: rgba(255, 255, 255, 0.9);
-      margin-right: 0.125rem;
-    }
-    .repeat-icon-sm {
-      font-size: 0.625rem;
-      color: var(--color-text-muted);
-    }
-
-    /* Group Badge */
-    .group-badge {
-      display: inline-block;
-      font-size: 0.5625rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      background: rgba(255, 255, 255, 0.25);
-      color: #fff;
-      padding: 0.0625rem 0.25rem;
-      border-radius: 0.1875rem;
-      width: fit-content;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    }
-    .group-badge-sm {
-      display: inline-block;
-      font-size: 0.5rem;
-      font-weight: 700;
-      background: rgba(255, 255, 255, 0.3);
-      color: #fff;
-      padding: 0 0.1875rem;
-      border-radius: 0.125rem;
-      margin-right: 0.125rem;
-      line-height: 1.2;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    }
-    .group-badge-inline {
-      display: inline-block;
-      font-size: 0.5625rem;
-      font-weight: 700;
-      background: var(--color-accent);
-      color: #fff;
-      padding: 0 0.1875rem;
-      border-radius: 0.125rem;
-      margin-right: 0.25rem;
-      line-height: 1.3;
-    }
-
-    /* Resize Handles */
-    .resize-handle {
-      position: absolute;
-      left: 0;
-      right: 0;
-      height: 6px;
-      cursor: ns-resize;
-      z-index: 5;
-    }
-    .resize-handle-top {
-      top: 0;
-    }
-    .resize-handle-bottom {
-      bottom: 0;
-    }
-
-    /* Gap Indicators */
-    .gap-indicator {
-      position: absolute;
-      left: 2px;
-      right: 2px;
-      background: rgba(251, 191, 36, 0.08);
-      border: 1px dashed rgba(251, 191, 36, 0.25);
-      border-radius: 0.25rem;
-      z-index: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      pointer-events: none;
-    }
-    .gap-label {
-      font-size: 0.625rem;
-      color: rgba(251, 191, 36, 0.6);
-      font-style: italic;
-    }
-
-    /* Month View */
-    .month-grid {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      overflow: hidden;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
-    }
-    .month-header-row {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      border-bottom: 1px solid var(--color-border);
-    }
-    .month-header-cell {
-      padding: 0.5rem;
-      text-align: center;
-      font-size: 0.8125rem;
-      font-weight: 500;
-      color: var(--color-text-secondary);
-    }
-    .month-week-row {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-    }
-    .month-day-cell {
-      min-height: 5rem;
-      padding: 0.25rem;
-      border-bottom: 1px solid var(--color-border);
-      border-right: 1px solid var(--color-border);
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    .month-day-cell:nth-child(7n) {
-      border-right: none;
-    }
-    .month-day-cell:hover {
-      background: var(--color-bg-tertiary);
-    }
-    .month-day-cell.other-month {
-      opacity: 0.4;
-    }
-    .month-day-cell.today .month-day-number {
-      background: var(--color-accent);
-      color: #fff;
-      border-radius: 9999px;
-      width: 1.5rem;
-      height: 1.5rem;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .month-day-number {
-      font-size: 0.75rem;
-      font-weight: 500;
-      color: var(--color-text-secondary);
-      display: inline-block;
-      margin-bottom: 0.125rem;
-    }
-    .month-day-entries {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-    }
-    .month-entry-chip {
-      font-size: 0.625rem;
-      color: #fff;
-      padding: 0.0625rem 0.25rem;
-      border-radius: 0.125rem;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    }
-
-    /* Side Panel */
-    .side-panel {
-      width: 16rem;
-      flex-shrink: 0;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1rem;
-      max-height: calc(100vh - 14rem);
-      overflow-y: auto;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
-    }
-    .side-panel h3 {
-      margin: 0 0 0.75rem;
-      font-size: 0.875rem;
-      font-weight: 600;
-    }
-    .timeline-item {
-      display: flex;
-      gap: 0.5rem;
-      padding: 0.5rem 0;
-      border-bottom: 1px solid var(--color-border);
-    }
-    .timeline-item:last-child {
-      border-bottom: none;
-    }
-    .timeline-colour {
-      width: 0.25rem;
-      border-radius: 0.125rem;
-      flex-shrink: 0;
-    }
-    .timeline-info {
-      display: flex;
-      flex-direction: column;
-      gap: 0.125rem;
-      min-width: 0;
-    }
-    .timeline-name {
-      font-size: 0.8125rem;
-      font-weight: 500;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .timeline-target {
-      font-size: 0.6875rem;
-      color: var(--color-text-muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .timeline-time {
-      font-size: 0.6875rem;
-      color: var(--color-text-muted);
-    }
-
-    /* Form layout */
-    .form-row {
-      display: flex;
-      gap: 0.75rem;
-    }
-    .form-row .form-group {
-      flex: 1;
-    }
-    .form-label-text {
-      display: block;
-      margin-bottom: 0.375rem;
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-    }
-    .form-actions {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 1.25rem;
-    }
-    .form-actions-right {
-      display: flex;
-      gap: 0.75rem;
-      margin-left: auto;
-    }
-
-    /* Info Box */
-    .info-box {
-      padding: 0.5rem 0.75rem;
-      background: color-mix(in srgb, var(--color-accent) 8%, var(--color-bg-primary));
-      border: 1px solid color-mix(in srgb, var(--color-accent) 25%, var(--color-border));
-      border-radius: 0.375rem;
-      font-size: 0.8125rem;
-      color: var(--color-text-secondary);
-      margin-bottom: 1rem;
-    }
-    .info-box .info-label {
-      font-weight: 600;
-      color: var(--color-text-primary);
-    }
-    .info-box-warn {
-      background: color-mix(in srgb, #f59e0b 8%, var(--color-bg-primary));
-      border-color: color-mix(in srgb, #f59e0b 25%, var(--color-border));
-    }
-
-    /* Colour Picker */
-    .colour-picker {
-      display: flex;
-      gap: 0.375rem;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-    .colour-swatch {
-      width: 1.5rem;
-      height: 1.5rem;
-      border-radius: 0.25rem;
-      border: 2px solid transparent;
-      cursor: pointer;
-      transition: border-color 0.15s;
-    }
-    .colour-swatch:hover {
-      border-color: var(--color-text-muted);
-    }
-    .colour-swatch.selected {
-      border-color: #fff;
-      box-shadow: 0 0 0 1px var(--color-accent);
-    }
-    .colour-input {
-      width: 2rem !important;
-      height: 1.5rem;
-      padding: 0 !important;
-      border: 1px solid var(--color-border) !important;
-      border-radius: 0.25rem;
-      cursor: pointer;
-      background: transparent !important;
-    }
-
-    /* Weekday Checkboxes */
-    .weekday-checkboxes {
-      display: flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-    }
-    .weekday-checkbox {
-      display: flex;
-      align-items: center;
-      gap: 0.25rem;
-      font-size: 0.8125rem;
-      color: var(--color-text-primary);
-      cursor: pointer;
-    }
-    .weekday-checkbox input[type='checkbox'] {
-      width: auto;
-      accent-color: var(--color-accent);
-    }
-
     /* Toast */
     .toast {
       position: fixed;
@@ -1088,8 +208,6 @@ const PRESET_COLOURS = [
   `,
 })
 export class Schedules implements OnInit, OnDestroy {
-  @ViewChild('timeGrid', { static: false }) timeGridRef!: ElementRef;
-
   private scheduleService = inject(ScheduleService);
   private screenService = inject(ScreenService);
   private playlistService = inject(PlaylistService);
@@ -1118,20 +236,7 @@ export class Schedules implements OnInit, OnDestroy {
   currentDate = new Date();
   selectedDate = new Date();
 
-  hours = Array.from({ length: 24 }, (_, i) => i);
   hourHeight = HOUR_HEIGHT;
-  presetColours = PRESET_COLOURS;
-  weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-  weekdayOptions = [
-    { value: 'MO', label: 'Mon' },
-    { value: 'TU', label: 'Tue' },
-    { value: 'WE', label: 'Wed' },
-    { value: 'TH', label: 'Thu' },
-    { value: 'FR', label: 'Fri' },
-    { value: 'SA', label: 'Sat' },
-    { value: 'SU', label: 'Sun' },
-  ];
 
   // Computed calendar data
   calendarBlocks: CalendarBlock[] = [];
@@ -1143,21 +248,18 @@ export class Schedules implements OnInit, OnDestroy {
   sliceProcessing = false;
   private slicePollTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Modal state
+  // Modal state (form state itself lives in the modal child)
   showModal = false;
   editingEntry: ScheduleEntry | null = null;
-  modalTargetId = '';
-  modalTargetGroup: ScreenGroup | null = null;
-  modalPlaylistId = '';
-  modalStartDate = '';
-  modalStartTime = '';
-  modalEndDate = '';
-  modalEndTime = '';
-  modalColour = PRESET_COLOURS[0];
-  modalRecurrence: RecurrenceType = 'none';
-  modalWeekdays: string[] = [];
   modalError = '';
   submitting = false;
+  modalInitialTargetId = '';
+  modalInitialPlaylistId = '';
+  modalInitialStart = new Date();
+  modalInitialEnd = new Date();
+  modalInitialColour = PRESET_COLOURS[0];
+  modalInitialRecurrence: RecurrenceType = 'none';
+  modalInitialWeekdays: string[] = [];
 
   // Drag state
   dragState: { entryId: string; startY: number; originalTop: number; block: CalendarBlock } | null =
@@ -1395,22 +497,6 @@ export class Schedules implements OnInit, OnDestroy {
     );
   }
 
-  getBlocksForDay(dayIndex: number): CalendarBlock[] {
-    return this.calendarBlocks.filter((b) => b.dayIndex === dayIndex);
-  }
-
-  getGapsForDay(dayIndex: number): GapBlock[] {
-    return this.gapBlocks.filter((g) => g.dayIndex === dayIndex);
-  }
-
-  getEntryLabel(entry: ScheduleEntry): string {
-    const playlistName = entry.playlist?.name || 'Playlist';
-    if (entry.groupId && entry.group) {
-      return `${playlistName} - ${entry.group.name}`;
-    }
-    return playlistName;
-  }
-
   // --- Navigation ---
   setView(mode: ScheduleViewMode): void {
     this.viewMode = mode;
@@ -1453,7 +539,8 @@ export class Schedules implements OnInit, OnDestroy {
     this.loadEntries();
   }
 
-  onTargetChange(): void {
+  onToolbarTargetChange(targetId: string): void {
+    this.selectedTargetId = targetId;
     this.loadEntries();
   }
 
@@ -1461,31 +548,6 @@ export class Schedules implements OnInit, OnDestroy {
     this.currentDate = new Date(date);
     this.selectedDate = new Date(date);
     this.setView('day');
-  }
-
-  // --- Time Grid Click (create entry) ---
-  onTimeGridClick(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    // Only handle clicks on hour slots (not on blocks)
-    if (!target.classList.contains('hour-slot')) return;
-
-    const dayColumn = target.closest('.day-column') as HTMLElement;
-    if (!dayColumn) return;
-    const dayIndex = parseInt(dayColumn.getAttribute('data-day-index') || '0', 10);
-    const day = this.visibleDays[dayIndex];
-    if (!day) return;
-
-    const rect = dayColumn.getBoundingClientRect();
-    const y = event.clientY - rect.top + dayColumn.scrollTop;
-    const hour = Math.floor(y / this.hourHeight);
-    const clampedHour = Math.max(0, Math.min(23, hour));
-
-    const startDate = new Date(day);
-    startDate.setHours(clampedHour, 0, 0, 0);
-    const endDate = new Date(startDate);
-    endDate.setHours(clampedHour + 1);
-
-    this.openCreateModalWithTimes(startDate, endDate);
   }
 
   // --- Modal ---
@@ -1498,80 +560,50 @@ export class Schedules implements OnInit, OnDestroy {
     this.openCreateModalWithTimes(start, end);
   }
 
-  private openCreateModalWithTimes(start: Date, end: Date): void {
+  openCreateModalWithTimes(start: Date, end: Date): void {
     this.editingEntry = null;
-    this.modalTargetId = this.selectedTargetId;
-    this.updateModalTargetGroup();
-    this.modalPlaylistId = this.playlists.length > 0 ? this.playlists[0].id : '';
-    this.modalStartDate = this.toDateInputValue(start);
-    this.modalStartTime = this.toTimeInputValue(start);
-    this.modalEndDate = this.toDateInputValue(end);
-    this.modalEndTime = this.toTimeInputValue(end);
-    this.modalColour = PRESET_COLOURS[Math.floor(Math.random() * PRESET_COLOURS.length)];
-    this.modalRecurrence = 'none';
-    this.modalWeekdays = [];
+    this.modalInitialTargetId = this.selectedTargetId;
+    this.modalInitialPlaylistId = this.playlists.length > 0 ? this.playlists[0].id : '';
+    this.modalInitialStart = start;
+    this.modalInitialEnd = end;
+    this.modalInitialColour = PRESET_COLOURS[Math.floor(Math.random() * PRESET_COLOURS.length)];
+    this.modalInitialRecurrence = 'none';
+    this.modalInitialWeekdays = [];
     this.modalError = '';
     this.showModal = true;
   }
 
   openEditModal(entry: ScheduleEntry): void {
     this.editingEntry = entry;
-    this.modalPlaylistId = entry.playlistId;
-    const start = new Date(entry.startTime);
-    const end = new Date(entry.endTime);
-    this.modalStartDate = this.toDateInputValue(start);
-    this.modalStartTime = this.toTimeInputValue(start);
-    this.modalEndDate = this.toDateInputValue(end);
-    this.modalEndTime = this.toTimeInputValue(end);
-    this.modalColour = entry.colour;
+    this.modalInitialPlaylistId = entry.playlistId;
+    this.modalInitialStart = new Date(entry.startTime);
+    this.modalInitialEnd = new Date(entry.endTime);
+    this.modalInitialColour = entry.colour;
 
-    // Set modal target from the entry
     if (entry.groupId) {
-      this.modalTargetId = 'group:' + entry.groupId;
+      this.modalInitialTargetId = 'group:' + entry.groupId;
     } else if (entry.screenId) {
-      this.modalTargetId = 'screen:' + entry.screenId;
+      this.modalInitialTargetId = 'screen:' + entry.screenId;
+    } else {
+      this.modalInitialTargetId = '';
     }
-    this.updateModalTargetGroup();
 
     const form = this.recurrence.toRecurrenceForm(entry.rrule);
-    this.modalRecurrence = form.recurrence;
-    this.modalWeekdays = form.weekdays;
+    this.modalInitialRecurrence = form.recurrence;
+    this.modalInitialWeekdays = form.weekdays;
 
     this.modalError = '';
     this.showModal = true;
   }
 
-  onModalTargetChange(): void {
-    this.updateModalTargetGroup();
-  }
-
-  private updateModalTargetGroup(): void {
-    if (this.modalTargetId.startsWith('group:')) {
-      const groupId = this.modalTargetId.replace('group:', '');
-      this.modalTargetGroup = this.screenGroups.find((g) => g.id === groupId) || null;
-    } else {
-      this.modalTargetGroup = null;
-    }
-  }
-
   closeModal(): void {
     this.showModal = false;
     this.editingEntry = null;
-    this.modalTargetGroup = null;
   }
 
-  toggleWeekday(value: string): void {
-    const idx = this.modalWeekdays.indexOf(value);
-    if (idx >= 0) {
-      this.modalWeekdays.splice(idx, 1);
-    } else {
-      this.modalWeekdays.push(value);
-    }
-  }
-
-  submitModal(): void {
-    const startStr = `${this.modalStartDate}T${this.modalStartTime}:00`;
-    const endStr = `${this.modalEndDate}T${this.modalEndTime}:00`;
+  submitModal(result: ScheduleFormResult): void {
+    const startStr = `${result.startDate}T${result.startTime}:00`;
+    const endStr = `${result.endDate}T${result.endTime}:00`;
     const start = new Date(startStr);
     const end = new Date(endStr);
 
@@ -1579,23 +611,23 @@ export class Schedules implements OnInit, OnDestroy {
       this.modalError = 'End time must be after start time.';
       return;
     }
-    if (!this.modalPlaylistId) {
+    if (!result.playlistId) {
       this.modalError = 'Please select a playlist.';
       return;
     }
 
-    const rrule = this.recurrence.buildRrule(this.modalRecurrence, this.modalWeekdays);
+    const rrule = this.recurrence.buildRrule(result.recurrence, result.weekdays);
 
     this.submitting = true;
     this.modalError = '';
 
     if (this.editingEntry) {
       const dto: UpdateScheduleEntryRequest = {
-        playlistId: this.modalPlaylistId,
+        playlistId: result.playlistId,
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         rrule: rrule || null,
-        colour: this.modalColour,
+        colour: result.colour,
       };
       this.scheduleService.update(this.orgId, this.editingEntry.id, dto).subscribe({
         next: () => {
@@ -1615,22 +647,21 @@ export class Schedules implements OnInit, OnDestroy {
         },
       });
     } else {
-      // Parse target
-      if (!this.modalTargetId) {
+      if (!result.targetId) {
         this.modalError = 'Please select a target screen or group.';
         this.submitting = false;
         return;
       }
 
-      const isGroupTarget = this.modalTargetId.startsWith('group:');
-      const targetId = this.modalTargetId.replace(/^(screen|group):/, '');
+      const isGroupTarget = result.targetId.startsWith('group:');
+      const targetId = result.targetId.replace(/^(screen|group):/, '');
 
       const dto: CreateScheduleEntryRequest = {
-        playlistId: this.modalPlaylistId,
+        playlistId: result.playlistId,
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         rrule: rrule || undefined,
-        colour: this.modalColour,
+        colour: result.colour,
       };
 
       if (isGroupTarget) {
@@ -1639,7 +670,8 @@ export class Schedules implements OnInit, OnDestroy {
         dto.screenId = targetId;
       }
 
-      const isSplitGroup = isGroupTarget && this.modalTargetGroup?.mode === 'split';
+      const isSplitGroup =
+        isGroupTarget && this.screenGroups.find((g) => g.id === targetId)?.mode === 'split';
 
       this.scheduleService.create(this.orgId, dto).subscribe({
         next: () => {
@@ -1669,8 +701,8 @@ export class Schedules implements OnInit, OnDestroy {
 
   private startSlicePolling(): void {
     this.sliceProcessing = true;
-    // Poll for a few seconds to indicate processing, then clear
-    // In a production system this would check a real status endpoint
+    // Poll for a few seconds to indicate processing, then clear.
+    // In a production system this would check a real status endpoint.
     if (this.slicePollTimer) clearTimeout(this.slicePollTimer);
     this.slicePollTimer = setTimeout(() => {
       this.sliceProcessing = false;
@@ -1737,6 +769,11 @@ export class Schedules implements OnInit, OnDestroy {
     this.openEditModal(block.entry);
   }
 
+  // NOTE: drag/resize mutates block.top/height in place on the shared
+  // CalendarBlock objects rendered by <app-schedule-calendar-grid>. This relies
+  // on zone-based change detection (provideZoneChangeDetection) picking up the
+  // document mousemove and re-rendering the (non-OnPush) child. If this app ever
+  // moves to OnPush or zoneless, switch these to immutable/signal updates.
   private onMouseMove(event: MouseEvent): void {
     if (this.dragState) {
       const dy = event.clientY - this.dragState.startY;
@@ -1825,29 +862,6 @@ export class Schedules implements OnInit, OnDestroy {
     }, 4000);
   }
 
-  // --- Formatting helpers ---
-  formatHour(hour: number): string {
-    return `${hour.toString().padStart(2, '0')}:00`;
-  }
-
-  formatDayHeader(day: Date): string {
-    return day.toLocaleDateString(undefined, {
-      timeZone: this.orgTimeZone,
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    });
-  }
-
-  formatBlockTime(date: Date): string {
-    return date.toLocaleTimeString(undefined, {
-      timeZone: this.orgTimeZone,
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  }
-
   formatSidePanelDate(date: Date): string {
     return date.toLocaleDateString(undefined, {
       timeZone: this.orgTimeZone,
@@ -1856,28 +870,6 @@ export class Schedules implements OnInit, OnDestroy {
       day: 'numeric',
       year: 'numeric',
     });
-  }
-
-  isDayToday(day: Date): boolean {
-    const today = new Date();
-    return (
-      day.getFullYear() === today.getFullYear() &&
-      day.getMonth() === today.getMonth() &&
-      day.getDate() === today.getDate()
-    );
-  }
-
-  private toDateInputValue(date: Date): string {
-    const y = date.getFullYear();
-    const m = (date.getMonth() + 1).toString().padStart(2, '0');
-    const d = date.getDate().toString().padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }
-
-  private toTimeInputValue(date: Date): string {
-    const h = date.getHours().toString().padStart(2, '0');
-    const m = date.getMinutes().toString().padStart(2, '0');
-    return `${h}:${m}`;
   }
 
   goBack(): void {
