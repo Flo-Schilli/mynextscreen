@@ -7,10 +7,7 @@ import { Screen } from './screen.entity';
 import { CreateScreenDto } from './dto/create-screen.dto';
 import { UpdateScreenDto } from './dto/update-screen.dto';
 import { generateApiKey, hashApiKey } from './api-key.util';
-import {
-  ScreenStatusEvent,
-  SCREEN_STATUS_CHANGED,
-} from './screen-status.event';
+import { ScreenStatusEvent, SCREEN_STATUS_CHANGED } from './screen-status.event';
 import {
   AUDIT_SCREEN_REGISTERED,
   AUDIT_SCREEN_UPDATED,
@@ -62,11 +59,7 @@ export class ScreenService extends OrganisationScopedService<Screen> {
   /**
    * Update a screen's name, resolution, or location.
    */
-  async updateScreen(
-    organisationId: string,
-    id: string,
-    dto: UpdateScreenDto,
-  ): Promise<Screen> {
+  async updateScreen(organisationId: string, id: string, dto: UpdateScreenDto): Promise<Screen> {
     const screen = await this.update(organisationId, id, dto);
     this.eventEmitter.emit(
       AUDIT_SCREEN_UPDATED,

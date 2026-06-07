@@ -18,23 +18,17 @@ function setupProc(exitCode: number, stdout: string, stderr = ''): void {
     };
 
     setTimeout(() => {
-      const stdoutCb = mockStdoutOn.mock.calls.find(
-        (c: unknown[]) => c[0] === 'data',
-      );
+      const stdoutCb = mockStdoutOn.mock.calls.find((c: unknown[]) => c[0] === 'data');
       if (stdoutCb && stdout) {
         stdoutCb[1](Buffer.from(stdout));
       }
 
-      const stderrCb = mockStderrOn.mock.calls.find(
-        (c: unknown[]) => c[0] === 'data',
-      );
+      const stderrCb = mockStderrOn.mock.calls.find((c: unknown[]) => c[0] === 'data');
       if (stderrCb && stderr) {
         stderrCb[1](Buffer.from(stderr));
       }
 
-      const closeCb = mockOn.mock.calls.find(
-        (c: unknown[]) => c[0] === 'close',
-      );
+      const closeCb = mockOn.mock.calls.find((c: unknown[]) => c[0] === 'close');
       if (closeCb) {
         closeCb[1](exitCode);
       }
@@ -57,15 +51,7 @@ describe('ffprobeDuration', () => {
     expect(result).toBe(58);
     expect(mockSpawn).toHaveBeenCalledWith(
       'ffprobe',
-      [
-        '-v',
-        'error',
-        '-show_entries',
-        'format=duration',
-        '-of',
-        'csv=p=0',
-        '/tmp/video.mp4',
-      ],
+      ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', '/tmp/video.mp4'],
       expect.any(Object),
     );
   });
@@ -107,9 +93,7 @@ describe('ffprobeDuration', () => {
       };
 
       setTimeout(() => {
-        const errorCb = mockOn.mock.calls.find(
-          (c: unknown[]) => c[0] === 'error',
-        );
+        const errorCb = mockOn.mock.calls.find((c: unknown[]) => c[0] === 'error');
         if (errorCb) {
           errorCb[1](new Error('ENOENT'));
         }
@@ -118,9 +102,9 @@ describe('ffprobeDuration', () => {
       return proc;
     });
 
-    await expect(
-      ffprobeDuration('/tmp/video.mp4', '/bad/ffprobe'),
-    ).rejects.toThrow('Failed to spawn ffprobe: ENOENT');
+    await expect(ffprobeDuration('/tmp/video.mp4', '/bad/ffprobe')).rejects.toThrow(
+      'Failed to spawn ffprobe: ENOENT',
+    );
   });
 
   it('should use custom ffprobe path', async () => {

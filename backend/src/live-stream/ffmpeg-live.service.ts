@@ -82,14 +82,8 @@ export class FfmpegLiveService implements OnModuleInit {
     private readonly eventEmitter: EventEmitter2,
   ) {
     this.ffmpegPath = this.configService.get<string>('FFMPEG_PATH', 'ffmpeg');
-    this.ffprobePath = this.configService.get<string>(
-      'FFPROBE_PATH',
-      'ffprobe',
-    );
-    this.hlsOutputDir = this.configService.get<string>(
-      'HLS_OUTPUT_DIR',
-      '/tmp/signage-hls',
-    );
+    this.ffprobePath = this.configService.get<string>('FFPROBE_PATH', 'ffprobe');
+    this.hlsOutputDir = this.configService.get<string>('HLS_OUTPUT_DIR', '/tmp/signage-hls');
   }
 
   onModuleInit(): void {
@@ -130,10 +124,7 @@ export class FfmpegLiveService implements OnModuleInit {
     proc.stderr!.on('data', (data: Buffer) => {
       const message = data.toString().trim();
       if (message) {
-        if (
-          message.toLowerCase().includes('error') ||
-          message.toLowerCase().includes('fatal')
-        ) {
+        if (message.toLowerCase().includes('error') || message.toLowerCase().includes('fatal')) {
           this.logger.error(`[stream:${stream.id}] ${message}`);
         } else {
           this.logger.log(`[stream:${stream.id}] ${message}`);
@@ -142,9 +133,7 @@ export class FfmpegLiveService implements OnModuleInit {
     });
 
     proc.on('error', (err) => {
-      this.logger.error(
-        `[stream:${stream.id}] Failed to spawn FFmpeg: ${err.message}`,
-      );
+      this.logger.error(`[stream:${stream.id}] Failed to spawn FFmpeg: ${err.message}`);
       this.processes.delete(stream.id);
     });
 
@@ -158,9 +147,7 @@ export class FfmpegLiveService implements OnModuleInit {
       }
 
       // Unplanned exit
-      this.logger.warn(
-        `[stream:${stream.id}] FFmpeg exited unexpectedly with code ${code}`,
-      );
+      this.logger.warn(`[stream:${stream.id}] FFmpeg exited unexpectedly with code ${code}`);
       this.eventEmitter.emit(
         LIVE_STREAM_PROCESS_EXITED,
         new LiveStreamProcessExitedEvent(stream.id, code),
@@ -195,24 +182,14 @@ export class FfmpegLiveService implements OnModuleInit {
     return path.join(this.hlsOutputDir, streamId);
   }
 
-  async probeSourceStream(
-    sourceUrl: string,
-    protocol: LiveStreamProtocol,
-  ): Promise<ProbeResult> {
+  async probeSourceStream(sourceUrl: string, protocol: LiveStreamProtocol): Promise<ProbeResult> {
     const args: string[] = [];
 
     if (protocol === LiveStreamProtocol.Rtp) {
       args.push('-protocol_whitelist', 'file,rtp,udp');
     }
 
-    args.push(
-      '-v',
-      'quiet',
-      '-print_format',
-      'json',
-      '-show_streams',
-      sourceUrl,
-    );
+    args.push('-v', 'quiet', '-print_format', 'json', '-show_streams', sourceUrl);
 
     const { stdout } = await execFileAsync(this.ffprobePath, args, {
       timeout: 5000,
@@ -235,9 +212,7 @@ export class FfmpegLiveService implements OnModuleInit {
     };
   }
 
-  checkPassthroughCompatibility(
-    probeResult: ProbeResult,
-  ): PassthroughCompatibility {
+  checkPassthroughCompatibility(probeResult: ProbeResult): PassthroughCompatibility {
     const warnings: string[] = [];
 
     if (probeResult.videoCodec !== 'h264') {
@@ -246,10 +221,7 @@ export class FfmpegLiveService implements OnModuleInit {
       );
     }
 
-    if (
-      probeResult.pixelFormat.includes('10le') ||
-      probeResult.pixelFormat.includes('10be')
-    ) {
+    if (probeResult.pixelFormat.includes('10le') || probeResult.pixelFormat.includes('10be')) {
       warnings.push(
         `Pixel format "${probeResult.pixelFormat}" is 10-bit — most browsers only support 8-bit H.264.`,
       );

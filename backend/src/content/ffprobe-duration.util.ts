@@ -7,20 +7,9 @@ import { spawn } from 'child_process';
  * @param ffprobePath  Path to the ffprobe binary (defaults to 'ffprobe')
  * @returns Duration in whole seconds (rounded to nearest integer)
  */
-export function ffprobeDuration(
-  filePath: string,
-  ffprobePath = 'ffprobe',
-): Promise<number> {
+export function ffprobeDuration(filePath: string, ffprobePath = 'ffprobe'): Promise<number> {
   return new Promise((resolve, reject) => {
-    const args = [
-      '-v',
-      'error',
-      '-show_entries',
-      'format=duration',
-      '-of',
-      'csv=p=0',
-      filePath,
-    ];
+    const args = ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', filePath];
 
     const proc = spawn(ffprobePath, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -49,11 +38,7 @@ export function ffprobeDuration(
 
       const parsed = parseFloat(stdout.trim());
       if (isNaN(parsed)) {
-        reject(
-          new Error(
-            `ffprobe returned unparseable duration: "${stdout.trim()}"`,
-          ),
-        );
+        reject(new Error(`ffprobe returned unparseable duration: "${stdout.trim()}"`));
         return;
       }
 

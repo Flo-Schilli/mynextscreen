@@ -55,10 +55,7 @@ export class NotificationHub {
     let ntfySent = false;
 
     for (const membership of memberships) {
-      const prefs = await this.userPrefService.getForUser(
-        membership.userId,
-        event.orgId,
-      );
+      const prefs = await this.userPrefService.getForUser(membership.userId, event.orgId);
 
       // In-app channel
       if (prefs.inAppEnabled && this.inAppChannel) {
@@ -79,27 +76,14 @@ export class NotificationHub {
       }
 
       // ntfy channel — org-level, send at most once per dispatch
-      if (
-        prefs.ntfyEnabled &&
-        ntfyConfigured &&
-        this.ntfyChannel &&
-        !ntfySent
-      ) {
+      if (prefs.ntfyEnabled && ntfyConfigured && this.ntfyChannel && !ntfySent) {
         ntfySent = true;
-        this.fireAndForget(
-          'Ntfy',
-          membership.userId,
-          this.ntfyChannel.send(event.orgId, payload),
-        );
+        this.fireAndForget('Ntfy', membership.userId, this.ntfyChannel.send(event.orgId, payload));
       }
     }
   }
 
-  private fireAndForget(
-    channel: string,
-    userId: string,
-    promise: Promise<void>,
-  ): void {
+  private fireAndForget(channel: string, userId: string, promise: Promise<void>): void {
     promise.catch((error) => {
       this.logger.error(
         `Failed to send ${channel} notification for user ${userId}: ${error.message}`,

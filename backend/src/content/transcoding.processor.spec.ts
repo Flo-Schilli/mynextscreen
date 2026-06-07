@@ -4,10 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BadRequestException } from '@nestjs/common';
 import { Job } from 'bullmq';
-import {
-  TranscodingProcessor,
-  TranscodeJobData,
-} from './transcoding.processor';
+import { TranscodingProcessor, TranscodeJobData } from './transcoding.processor';
 import { Content } from './content.entity';
 import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
@@ -35,9 +32,7 @@ jest.mock('./ffprobe-duration.util', () => ({
   ffprobeDuration: (...args: unknown[]) => mockFfprobeDuration(...args),
 }));
 
-function createMockJob(
-  overrides: Partial<TranscodeJobData> = {},
-): Job<TranscodeJobData> {
+function createMockJob(overrides: Partial<TranscodeJobData> = {}): Job<TranscodeJobData> {
   return {
     id: 'job-1',
     data: {
@@ -64,14 +59,10 @@ function setupSpawnSuccess(): void {
     // Simulate FFmpeg completing successfully
     setTimeout(() => {
       // Emit some stderr data with duration
-      const dataCallback = mockStderrOn.mock.calls.find(
-        (c: unknown[]) => c[0] === 'data',
-      );
+      const dataCallback = mockStderrOn.mock.calls.find((c: unknown[]) => c[0] === 'data');
       if (dataCallback) {
         dataCallback[1](
-          Buffer.from(
-            '  Duration: 00:01:00.00, start: 0.000000, bitrate: 1234 kb/s\n',
-          ),
+          Buffer.from('  Duration: 00:01:00.00, start: 0.000000, bitrate: 1234 kb/s\n'),
         );
         dataCallback[1](
           Buffer.from(
@@ -80,9 +71,7 @@ function setupSpawnSuccess(): void {
         );
       }
       // Close with success
-      const closeCallback = mockOn.mock.calls.find(
-        (c: unknown[]) => c[0] === 'close',
-      );
+      const closeCallback = mockOn.mock.calls.find((c: unknown[]) => c[0] === 'close');
       if (closeCallback) {
         closeCallback[1](0);
       }
@@ -102,15 +91,11 @@ function setupSpawnFailure(exitCode: number): void {
     };
 
     setTimeout(() => {
-      const dataCallback = mockStderrOn.mock.calls.find(
-        (c: unknown[]) => c[0] === 'data',
-      );
+      const dataCallback = mockStderrOn.mock.calls.find((c: unknown[]) => c[0] === 'data');
       if (dataCallback) {
         dataCallback[1](Buffer.from('Error: something went wrong\n'));
       }
-      const closeCallback = mockOn.mock.calls.find(
-        (c: unknown[]) => c[0] === 'close',
-      );
+      const closeCallback = mockOn.mock.calls.find((c: unknown[]) => c[0] === 'close');
       if (closeCallback) {
         closeCallback[1](exitCode);
       }
@@ -196,14 +181,8 @@ describe('TranscodingProcessor', () => {
 
       await processor.process(job);
 
-      expect(storageService.checkTranscodedLimit).toHaveBeenCalledWith(
-        'org-1',
-        5000,
-      );
-      expect(storageService.addTranscodedUsage).toHaveBeenCalledWith(
-        'org-1',
-        5000,
-      );
+      expect(storageService.checkTranscodedLimit).toHaveBeenCalledWith('org-1', 5000);
+      expect(storageService.addTranscodedUsage).toHaveBeenCalledWith('org-1', 5000);
     });
 
     it('should emit TRANSCODING_COMPLETED event on success', async () => {
@@ -305,11 +284,7 @@ describe('TranscodingProcessor', () => {
 
       expect(mockSpawn).toHaveBeenCalledWith(
         'ffmpeg',
-        expect.arrayContaining([
-          '-i',
-          '/tmp/media/org-1/originals/content-1.png',
-          '-y',
-        ]),
+        expect.arrayContaining(['-i', '/tmp/media/org-1/originals/content-1.png', '-y']),
         expect.any(Object),
       );
 
@@ -341,9 +316,7 @@ describe('TranscodingProcessor', () => {
       setupSpawnFailure(1);
       const job = createMockJob();
 
-      await expect(processor.process(job)).rejects.toThrow(
-        'FFmpeg exited with code 1',
-      );
+      await expect(processor.process(job)).rejects.toThrow('FFmpeg exited with code 1');
 
       expect(contentRepo.update).toHaveBeenCalledWith('content-1', {
         transcodingStatus: TranscodingStatus.Failed,
@@ -385,8 +358,7 @@ describe('TranscodingProcessor', () => {
       // Should mark as failed with storage limit error
       expect(contentRepo.update).toHaveBeenCalledWith('content-1', {
         transcodingStatus: TranscodingStatus.Failed,
-        transcodingError:
-          'Transcoded file would exceed organisation transcoded storage limit',
+        transcodingError: 'Transcoded file would exceed organisation transcoded storage limit',
       });
 
       // Should emit TRANSCODING_FAILED event
@@ -395,8 +367,7 @@ describe('TranscodingProcessor', () => {
         expect.objectContaining({
           contentId: 'content-1',
           organisationId: 'org-1',
-          error:
-            'Transcoded file would exceed organisation transcoded storage limit',
+          error: 'Transcoded file would exceed organisation transcoded storage limit',
         }),
       );
 

@@ -187,24 +187,18 @@ describe('OrgNotificationConfigController', () => {
 
       await controller.testNtfy(orgId);
 
-      expect(httpService.post).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(String),
-        {
-          headers: {
-            'Content-Type': 'text/plain',
-            Title: 'Signage — Test Notification',
-          },
+      expect(httpService.post).toHaveBeenCalledWith(expect.any(String), expect.any(String), {
+        headers: {
+          'Content-Type': 'text/plain',
+          Title: 'Signage — Test Notification',
         },
-      );
+      });
     });
 
     it('should throw 422 if ntfy is not configured', async () => {
       configService.getForOrg.mockResolvedValue(null);
 
-      await expect(controller.testNtfy(orgId)).rejects.toThrow(
-        UnprocessableEntityException,
-      );
+      await expect(controller.testNtfy(orgId)).rejects.toThrow(UnprocessableEntityException);
     });
 
     it('should throw 422 if ntfy URL is missing', async () => {
@@ -213,9 +207,7 @@ describe('OrgNotificationConfigController', () => {
         ntfyUrl: null,
       });
 
-      await expect(controller.testNtfy(orgId)).rejects.toThrow(
-        UnprocessableEntityException,
-      );
+      await expect(controller.testNtfy(orgId)).rejects.toThrow(UnprocessableEntityException);
     });
 
     it('should throw 422 if ntfy topic is missing', async () => {
@@ -224,20 +216,14 @@ describe('OrgNotificationConfigController', () => {
         ntfyTopic: null,
       });
 
-      await expect(controller.testNtfy(orgId)).rejects.toThrow(
-        UnprocessableEntityException,
-      );
+      await expect(controller.testNtfy(orgId)).rejects.toThrow(UnprocessableEntityException);
     });
 
     it('should throw 422 if HTTP request fails', async () => {
       configService.getForOrg.mockResolvedValue(mockConfig);
-      httpService.post.mockReturnValue(
-        throwError(() => new Error('Network error')),
-      );
+      httpService.post.mockReturnValue(throwError(() => new Error('Network error')));
 
-      await expect(controller.testNtfy(orgId)).rejects.toThrow(
-        UnprocessableEntityException,
-      );
+      await expect(controller.testNtfy(orgId)).rejects.toThrow(UnprocessableEntityException);
     });
 
     it('should strip trailing slashes from ntfy URL', async () => {

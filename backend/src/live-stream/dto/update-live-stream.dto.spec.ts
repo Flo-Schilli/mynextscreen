@@ -2,9 +2,7 @@ import { validate } from 'class-validator';
 import { UpdateLiveStreamDto } from './update-live-stream.dto';
 import { TranscodingPreset } from '../transcoding-preset.enum';
 
-function createDto(
-  overrides: Partial<UpdateLiveStreamDto> = {},
-): UpdateLiveStreamDto {
+function createDto(overrides: Partial<UpdateLiveStreamDto> = {}): UpdateLiveStreamDto {
   const dto = new UpdateLiveStreamDto();
   Object.assign(dto, overrides);
   return dto;

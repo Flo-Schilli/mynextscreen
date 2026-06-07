@@ -18,11 +18,7 @@ export class DashboardController {
   constructor(private readonly dashboardSseService: DashboardSseService) {}
 
   @Sse('events')
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   events(
     @CurrentOrganisation() organisationId: string,
     @Req() req: AuthenticatedRequest,

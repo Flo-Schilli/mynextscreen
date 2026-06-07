@@ -32,11 +32,7 @@ export class ScheduleController {
   }
 
   @Get()
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   async find(
     @CurrentOrganisation() organisationId: string,
     @Query('screenId') screenId?: string,
@@ -44,24 +40,13 @@ export class ScheduleController {
     @Query('to') to?: string,
   ): Promise<Record<string, unknown>[]> {
     const fromDate = from ? new Date(from) : new Date();
-    const toDate = to
-      ? new Date(to)
-      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const toDate = to ? new Date(to) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
     let entries: ScheduleEntry[];
     if (screenId) {
-      entries = await this.scheduleService.findByScreen(
-        screenId,
-        organisationId,
-        fromDate,
-        toDate,
-      );
+      entries = await this.scheduleService.findByScreen(screenId, organisationId, fromDate, toDate);
     } else {
-      entries = await this.scheduleService.findByOrganisation(
-        organisationId,
-        fromDate,
-        toDate,
-      );
+      entries = await this.scheduleService.findByOrganisation(organisationId, fromDate, toDate);
     }
 
     return entries.map((entry) => ({
@@ -72,11 +57,7 @@ export class ScheduleController {
   }
 
   @Get('current')
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   getCurrentPlaylist(
     @Query('screenId') screenId: string,
   ): Promise<{ playlist: Playlist | null; isDefault: boolean }> {

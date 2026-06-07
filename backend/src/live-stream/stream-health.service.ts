@@ -139,10 +139,7 @@ export class StreamHealthService implements OnModuleDestroy {
         if (file.endsWith('.ts')) {
           const filePath = path.join(hlsDir, file);
           const stat = fs.statSync(filePath);
-          if (
-            now - stat.mtimeMs <
-            StreamHealthService.STALE_SEGMENT_THRESHOLD_MS
-          ) {
+          if (now - stat.mtimeMs < StreamHealthService.STALE_SEGMENT_THRESHOLD_MS) {
             return true;
           }
         }

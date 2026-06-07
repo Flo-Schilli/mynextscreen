@@ -28,9 +28,7 @@ export class MembershipService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async listMembers(
-    organisationId: string,
-  ): Promise<UserOrganisationMembership[]> {
+  async listMembers(organisationId: string): Promise<UserOrganisationMembership[]> {
     return this.membershipRepository.find({
       where: { organisationId },
       relations: ['user'],
@@ -59,9 +57,7 @@ export class MembershipService {
       where: { userId: user.id, organisationId },
     });
     if (existing) {
-      throw new ConflictException(
-        'User is already a member of this organisation',
-      );
+      throw new ConflictException('User is already a member of this organisation');
     }
 
     const membership = this.membershipRepository.create({
@@ -92,10 +88,7 @@ export class MembershipService {
     }
 
     // If demoting from OrgAdmin, ensure they are not the last one
-    if (
-      membership.role === OrganisationRole.OrgAdmin &&
-      role !== OrganisationRole.OrgAdmin
-    ) {
+    if (membership.role === OrganisationRole.OrgAdmin && role !== OrganisationRole.OrgAdmin) {
       await this.ensureNotLastAdmin(organisationId);
     }
 

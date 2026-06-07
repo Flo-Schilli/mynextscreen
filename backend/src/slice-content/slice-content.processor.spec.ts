@@ -2,10 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
-import {
-  SliceContentProcessor,
-  SliceContentJobData,
-} from './slice-content.processor';
+import { SliceContentProcessor, SliceContentJobData } from './slice-content.processor';
 import { SlicedRendition } from './sliced-rendition.entity';
 import { ScreenGroup } from '../screen-group/screen-group.entity';
 import { Screen } from '../screen/screen.entity';
@@ -37,9 +34,7 @@ jest.mock('crypto', () => ({
   }),
 }));
 
-function createMockJob(
-  overrides: Partial<SliceContentJobData> = {},
-): Job<SliceContentJobData> {
+function createMockJob(overrides: Partial<SliceContentJobData> = {}): Job<SliceContentJobData> {
   return {
     id: 'job-1',
     data: {
@@ -65,24 +60,18 @@ function setupSpawnSuccess(stdoutData?: string): void {
 
     setTimeout(() => {
       if (isProbe && stdoutData) {
-        const dataCallback = proc.stdout.on.mock.calls.find(
-          (c: unknown[]) => c[0] === 'data',
-        );
+        const dataCallback = proc.stdout.on.mock.calls.find((c: unknown[]) => c[0] === 'data');
         if (dataCallback) {
           dataCallback[1](Buffer.from(stdoutData));
         }
       }
       if (!isProbe) {
-        const dataCallback = proc.stderr.on.mock.calls.find(
-          (c: unknown[]) => c[0] === 'data',
-        );
+        const dataCallback = proc.stderr.on.mock.calls.find((c: unknown[]) => c[0] === 'data');
         if (dataCallback) {
           dataCallback[1](Buffer.from('frame=1\n'));
         }
       }
-      const closeCallback = proc.on.mock.calls.find(
-        (c: unknown[]) => c[0] === 'close',
-      );
+      const closeCallback = proc.on.mock.calls.find((c: unknown[]) => c[0] === 'close');
       if (closeCallback) {
         closeCallback[1](0);
       }
@@ -104,23 +93,17 @@ function setupSpawnFailure(): void {
 
     setTimeout(() => {
       if (isProbe) {
-        const dataCallback = proc.stdout.on.mock.calls.find(
-          (c: unknown[]) => c[0] === 'data',
-        );
+        const dataCallback = proc.stdout.on.mock.calls.find((c: unknown[]) => c[0] === 'data');
         if (dataCallback) {
           dataCallback[1](Buffer.from('1920x1080\n'));
         }
       } else {
-        const dataCallback = proc.stderr.on.mock.calls.find(
-          (c: unknown[]) => c[0] === 'data',
-        );
+        const dataCallback = proc.stderr.on.mock.calls.find((c: unknown[]) => c[0] === 'data');
         if (dataCallback) {
           dataCallback[1](Buffer.from('Error: crop failed\n'));
         }
       }
-      const closeCallback = proc.on.mock.calls.find(
-        (c: unknown[]) => c[0] === 'close',
-      );
+      const closeCallback = proc.on.mock.calls.find((c: unknown[]) => c[0] === 'close');
       if (closeCallback) {
         closeCallback[1](isProbe ? 0 : 1);
       }
@@ -140,9 +123,7 @@ function setupProbeFailure(): void {
     };
 
     setTimeout(() => {
-      const closeCallback = proc.on.mock.calls.find(
-        (c: unknown[]) => c[0] === 'close',
-      );
+      const closeCallback = proc.on.mock.calls.find((c: unknown[]) => c[0] === 'close');
       if (closeCallback) {
         closeCallback[1](1); // probe fails
       }
@@ -212,9 +193,7 @@ describe('SliceContentProcessor', () => {
 
     renditionRepo = {
       findOne: jest.fn().mockResolvedValue(null),
-      create: jest
-        .fn()
-        .mockImplementation((data) => ({ id: 'rendition-1', ...data })),
+      create: jest.fn().mockImplementation((data) => ({ id: 'rendition-1', ...data })),
       save: jest.fn().mockImplementation((data) => Promise.resolve(data)),
     };
 
@@ -313,9 +292,7 @@ describe('SliceContentProcessor', () => {
           screenId: 'screen-1',
           contentItemId: 'content-1',
           sourceHash: 'abc123hash',
-          filePath: expect.stringContaining(
-            'slices/group-1/screen-1/content-1.mp4',
-          ),
+          filePath: expect.stringContaining('slices/group-1/screen-1/content-1.mp4'),
         }),
       );
     });
@@ -326,10 +303,9 @@ describe('SliceContentProcessor', () => {
 
       await processor.process(job);
 
-      expect(mockMkdir).toHaveBeenCalledWith(
-        expect.stringContaining('slices/group-1/screen-1'),
-        { recursive: true },
-      );
+      expect(mockMkdir).toHaveBeenCalledWith(expect.stringContaining('slices/group-1/screen-1'), {
+        recursive: true,
+      });
     });
   });
 
@@ -470,9 +446,7 @@ describe('SliceContentProcessor', () => {
       setupSpawnFailure();
       const job = createMockJob();
 
-      await expect(processor.process(job)).rejects.toThrow(
-        'FFmpeg exited with code 1',
-      );
+      await expect(processor.process(job)).rejects.toThrow('FFmpeg exited with code 1');
     });
   });
 

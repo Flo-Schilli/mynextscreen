@@ -8,14 +8,8 @@ export class StorageController {
   constructor(private readonly storageService: StorageService) {}
 
   @Get(':orgId/storage')
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
-  getStorage(
-    @Param('orgId', ParseUUIDPipe) orgId: string,
-  ): Promise<StorageInfo> {
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
+  getStorage(@Param('orgId', ParseUUIDPipe) orgId: string): Promise<StorageInfo> {
     return this.storageService.getStorageInfo(orgId);
   }
 }

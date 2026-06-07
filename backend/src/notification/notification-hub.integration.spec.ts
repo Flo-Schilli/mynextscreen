@@ -13,10 +13,7 @@ import { OrganisationNotificationConfig } from './organisation-notification-conf
 import { Screen } from '../screen/screen.entity';
 import { Content } from '../content/content.entity';
 import { ScreenStatusEvent } from '../screen/screen-status.event';
-import {
-  TranscodingCompletedEvent,
-  TranscodingFailedEvent,
-} from '../content/transcoding.event';
+import { TranscodingCompletedEvent, TranscodingFailedEvent } from '../content/transcoding.event';
 
 describe('NotificationHub Integration', () => {
   let module: TestingModule;
@@ -37,9 +34,7 @@ describe('NotificationHub Integration', () => {
   const user2Id = 'user-2';
   const user3Id = 'user-3';
 
-  const makeMembership = (
-    userId: string,
-  ): Partial<UserOrganisationMembership> => ({
+  const makeMembership = (userId: string): Partial<UserOrganisationMembership> => ({
     userId,
     organisationId: orgId,
   });
@@ -152,16 +147,8 @@ describe('NotificationHub Integration', () => {
         resourceId: baseEvent.resourceId,
       };
 
-      expect(inAppChannel.send).toHaveBeenCalledWith(
-        user1Id,
-        orgId,
-        expectedPayload,
-      );
-      expect(emailChannel.send).toHaveBeenCalledWith(
-        user1Id,
-        orgId,
-        expectedPayload,
-      );
+      expect(inAppChannel.send).toHaveBeenCalledWith(user1Id, orgId, expectedPayload);
+      expect(emailChannel.send).toHaveBeenCalledWith(user1Id, orgId, expectedPayload);
       expect(ntfyChannel.send).toHaveBeenCalledWith(orgId, expectedPayload);
     });
 
@@ -260,23 +247,11 @@ describe('NotificationHub Integration', () => {
       await hub.dispatch(baseEvent);
 
       // User 1 gets in-app + email
-      expect(inAppChannel.send).toHaveBeenCalledWith(
-        user1Id,
-        orgId,
-        expect.any(Object),
-      );
-      expect(emailChannel.send).toHaveBeenCalledWith(
-        user1Id,
-        orgId,
-        expect.any(Object),
-      );
+      expect(inAppChannel.send).toHaveBeenCalledWith(user1Id, orgId, expect.any(Object));
+      expect(emailChannel.send).toHaveBeenCalledWith(user1Id, orgId, expect.any(Object));
 
       // User 2 gets email only
-      expect(emailChannel.send).toHaveBeenCalledWith(
-        user2Id,
-        orgId,
-        expect.any(Object),
-      );
+      expect(emailChannel.send).toHaveBeenCalledWith(user2Id, orgId, expect.any(Object));
 
       // In-app called only once (user 1)
       expect(inAppChannel.send).toHaveBeenCalledTimes(1);
@@ -370,8 +345,7 @@ describe('NotificationHub Integration', () => {
         orgId,
         eventType: NotificationEventType.TRANSCODING_COMPLETE,
         title: 'Transcoding complete',
-        message:
-          'Content "Welcome Video" has finished transcoding and is ready to use.',
+        message: 'Content "Welcome Video" has finished transcoding and is ready to use.',
         resourceId: 'content-1',
       });
     });
@@ -385,19 +359,14 @@ describe('NotificationHub Integration', () => {
         organisationId: orgId,
       });
 
-      const event = new TranscodingFailedEvent(
-        'content-1',
-        orgId,
-        'codec not supported',
-      );
+      const event = new TranscodingFailedEvent('content-1', orgId, 'codec not supported');
       await listener.handleTranscodingFailed(event);
 
       expect(hub.dispatch).toHaveBeenCalledWith({
         orgId,
         eventType: NotificationEventType.TRANSCODING_FAILED,
         title: 'Transcoding failed',
-        message:
-          'Content "Promo Clip" failed to transcode. Please re-upload the file.',
+        message: 'Content "Promo Clip" failed to transcode. Please re-upload the file.',
         resourceId: 'content-1',
       });
     });

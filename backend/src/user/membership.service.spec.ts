@@ -1,11 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { MembershipService } from './membership.service';
 import { User } from './user.entity';
@@ -97,11 +93,7 @@ describe('MembershipService', () => {
       membershipRepo.create.mockReturnValue(membership);
       membershipRepo.save.mockResolvedValue(membership);
 
-      const result = await service.addMember(
-        orgId,
-        'test@example.com',
-        OrganisationRole.Editor,
-      );
+      const result = await service.addMember(orgId, 'test@example.com', OrganisationRole.Editor);
 
       expect(userRepo.findOne).toHaveBeenCalledWith({
         where: { email: 'test@example.com' },
@@ -130,11 +122,7 @@ describe('MembershipService', () => {
       membershipRepo.create.mockReturnValue(membership);
       membershipRepo.save.mockResolvedValue(membership);
 
-      const result = await service.addMember(
-        orgId,
-        'new@example.com',
-        OrganisationRole.Viewer,
-      );
+      const result = await service.addMember(orgId, 'new@example.com', OrganisationRole.Viewer);
 
       expect(userRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ email: 'new@example.com', name: null }),
@@ -174,11 +162,7 @@ describe('MembershipService', () => {
         role: OrganisationRole.Editor,
       } as UserOrganisationMembership);
 
-      const result = await service.updateRole(
-        orgId,
-        'u-1',
-        OrganisationRole.Editor,
-      );
+      const result = await service.updateRole(orgId, 'u-1', OrganisationRole.Editor);
 
       expect(result.role).toBe(OrganisationRole.Editor);
     });
@@ -186,9 +170,9 @@ describe('MembershipService', () => {
     it('should throw NotFoundException if membership does not exist', async () => {
       membershipRepo.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.updateRole(orgId, 'u-999', OrganisationRole.Editor),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.updateRole(orgId, 'u-999', OrganisationRole.Editor)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw BadRequestException when demoting the last Org Admin', async () => {
@@ -202,9 +186,9 @@ describe('MembershipService', () => {
       membershipRepo.findOne.mockResolvedValue(membership);
       membershipRepo.count.mockResolvedValue(1);
 
-      await expect(
-        service.updateRole(orgId, 'u-1', OrganisationRole.Editor),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.updateRole(orgId, 'u-1', OrganisationRole.Editor)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should allow demoting an Org Admin when there are other admins', async () => {
@@ -222,11 +206,7 @@ describe('MembershipService', () => {
         role: OrganisationRole.Editor,
       } as UserOrganisationMembership);
 
-      const result = await service.updateRole(
-        orgId,
-        'u-1',
-        OrganisationRole.Editor,
-      );
+      const result = await service.updateRole(orgId, 'u-1', OrganisationRole.Editor);
 
       expect(result.role).toBe(OrganisationRole.Editor);
     });
@@ -242,11 +222,7 @@ describe('MembershipService', () => {
       membershipRepo.findOne.mockResolvedValue(membership);
       membershipRepo.save.mockResolvedValue(membership);
 
-      const result = await service.updateRole(
-        orgId,
-        'u-1',
-        OrganisationRole.OrgAdmin,
-      );
+      const result = await service.updateRole(orgId, 'u-1', OrganisationRole.OrgAdmin);
 
       expect(membershipRepo.count).not.toHaveBeenCalled();
       expect(result.role).toBe(OrganisationRole.OrgAdmin);
@@ -272,9 +248,7 @@ describe('MembershipService', () => {
     it('should throw NotFoundException if membership does not exist', async () => {
       membershipRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.removeMember(orgId, 'u-999')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.removeMember(orgId, 'u-999')).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException when removing the last Org Admin', async () => {
@@ -287,9 +261,7 @@ describe('MembershipService', () => {
       membershipRepo.findOne.mockResolvedValue(membership);
       membershipRepo.count.mockResolvedValue(1);
 
-      await expect(service.removeMember(orgId, 'u-1')).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.removeMember(orgId, 'u-1')).rejects.toThrow(BadRequestException);
     });
 
     it('should allow removing an Org Admin when there are other admins', async () => {

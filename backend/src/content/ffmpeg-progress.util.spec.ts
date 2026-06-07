@@ -1,14 +1,9 @@
-import {
-  parseDuration,
-  parseProgressTime,
-  calculateProgress,
-} from './ffmpeg-progress.util';
+import { parseDuration, parseProgressTime, calculateProgress } from './ffmpeg-progress.util';
 
 describe('ffmpeg-progress.util', () => {
   describe('parseDuration', () => {
     it('should parse a standard duration line', () => {
-      const chunk =
-        '  Duration: 00:05:30.50, start: 0.000000, bitrate: 1234 kb/s';
+      const chunk = '  Duration: 00:05:30.50, start: 0.000000, bitrate: 1234 kb/s';
       expect(parseDuration(chunk)).toBe(330.5);
     });
 

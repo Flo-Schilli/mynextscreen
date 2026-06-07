@@ -54,13 +54,10 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
 
     let currentPlaylistId: string | null = null;
     try {
-      const { playlist } =
-        await this.scheduleService.getCurrentPlaylist(screenId);
+      const { playlist } = await this.scheduleService.getCurrentPlaylist(screenId);
       currentPlaylistId = playlist?.id ?? null;
     } catch {
-      this.logger.warn(
-        `Failed to resolve initial playlist for screen ${screenId}`,
-      );
+      this.logger.warn(`Failed to resolve initial playlist for screen ${screenId}`);
     }
 
     const state: TrackedScreen = {
@@ -82,18 +79,14 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
   }
 
   @OnEvent(SCHEDULE_ENTRY_CHANGED)
-  async handleScheduleEntryChanged(
-    event: ScheduleEntryChangedEvent,
-  ): Promise<void> {
+  async handleScheduleEntryChanged(event: ScheduleEntryChangedEvent): Promise<void> {
     if (this.tracked.has(event.screenId)) {
       await this.scheduleNextBoundary(event.screenId);
     }
   }
 
   @OnEvent(GROUP_SCHEDULE_CHANGED)
-  async handleGroupScheduleChanged(
-    event: GroupScheduleChangedEvent,
-  ): Promise<void> {
+  async handleGroupScheduleChanged(event: GroupScheduleChangedEvent): Promise<void> {
     const screens = await this.screenRepository.find({
       where: { groupId: event.groupId },
     });
@@ -121,29 +114,17 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
 
     if (nextBoundary) {
       const delayMs = nextBoundary.getTime() - Date.now();
-      state.timer = setTimeout(
-        () => void this.onBoundaryReached(screenId),
-        delayMs,
-      );
-      this.logger.debug(
-        `Scheduled boundary for screen ${screenId} in ${delayMs}ms`,
-      );
+      state.timer = setTimeout(() => void this.onBoundaryReached(screenId), delayMs);
+      this.logger.debug(`Scheduled boundary for screen ${screenId} in ${delayMs}ms`);
     } else {
-      state.timer = setTimeout(
-        () => void this.onBoundaryReached(screenId),
-        FALLBACK_REEVAL_MS,
-      );
+      state.timer = setTimeout(() => void this.onBoundaryReached(screenId), FALLBACK_REEVAL_MS);
       this.logger.debug(
         `No boundary found for screen ${screenId}, re-evaluating in ${FALLBACK_REEVAL_MS}ms`,
       );
     }
   }
 
-  private async collectBoundaries(
-    screenId: string,
-    now: Date,
-    windowEnd: Date,
-  ): Promise<Date[]> {
+  private async collectBoundaries(screenId: string, now: Date, windowEnd: Date): Promise<Date[]> {
     const boundaries: Date[] = [];
     const windowStart = new Date(now.getTime() - LOOK_AHEAD_MS);
 
@@ -193,8 +174,7 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
     if (!state) return;
 
     try {
-      const { playlist } =
-        await this.scheduleService.getCurrentPlaylist(screenId);
+      const { playlist } = await this.scheduleService.getCurrentPlaylist(screenId);
       const newPlaylistId = playlist?.id ?? null;
 
       if (newPlaylistId !== state.currentPlaylistId) {
@@ -208,9 +188,7 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
         );
       }
     } catch (error) {
-      this.logger.warn(
-        `Failed to evaluate boundary for screen ${screenId}: ${error}`,
-      );
+      this.logger.warn(`Failed to evaluate boundary for screen ${screenId}: ${error}`);
     }
 
     await this.scheduleNextBoundary(screenId);

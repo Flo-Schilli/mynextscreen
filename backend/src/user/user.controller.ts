@@ -13,10 +13,7 @@ export class UserController {
 
   @Get('profile')
   getProfile(@Req() req: AuthenticatedRequest) {
-    const superAdminIds = this.configService.get<string>(
-      'SUPER_ADMIN_USER_IDS',
-      '',
-    );
+    const superAdminIds = this.configService.get<string>('SUPER_ADMIN_USER_IDS', '');
     const allowedIds = superAdminIds
       .split(',')
       .map((id) => id.trim())
@@ -30,9 +27,7 @@ export class UserController {
   }
 
   @Get('memberships')
-  getMemberships(
-    @Req() req: AuthenticatedRequest,
-  ): Promise<UserOrganisationMembership[]> {
+  getMemberships(@Req() req: AuthenticatedRequest): Promise<UserOrganisationMembership[]> {
     return this.userService.getMemberships(req.user.userId);
   }
 }

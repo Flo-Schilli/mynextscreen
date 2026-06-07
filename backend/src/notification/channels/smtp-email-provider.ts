@@ -19,9 +19,7 @@ export class SmtpEmailProvider implements EmailProvider {
       port: config.port,
       secure: config.secure,
       auth:
-        config.user && config.password
-          ? { user: config.user, pass: config.password }
-          : undefined,
+        config.user && config.password ? { user: config.user, pass: config.password } : undefined,
     });
   }
 

@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
@@ -33,10 +29,7 @@ export class OrganisationService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async create(
-    dto: CreateOrganisationDto,
-    creator?: AuthenticatedUser,
-  ): Promise<Organisation> {
+  async create(dto: CreateOrganisationDto, creator?: AuthenticatedUser): Promise<Organisation> {
     const organisation = this.organisationRepository.create(dto);
     const saved = await this.organisationRepository.save(organisation);
     this.eventEmitter.emit(
@@ -83,10 +76,7 @@ export class OrganisationService {
     const organisation = await this.findOne(id);
     Object.assign(organisation, dto);
     const saved = await this.organisationRepository.save(organisation);
-    this.eventEmitter.emit(
-      AUDIT_ORGANISATION_UPDATED,
-      new AuditOrganisationEvent(id, null, null),
-    );
+    this.eventEmitter.emit(AUDIT_ORGANISATION_UPDATED, new AuditOrganisationEvent(id, null, null));
     return saved;
   }
 
@@ -101,14 +91,10 @@ export class OrganisationService {
         where: { id: playlistId },
       });
       if (!playlist) {
-        throw new NotFoundException(
-          `Playlist with id "${playlistId}" not found`,
-        );
+        throw new NotFoundException(`Playlist with id "${playlistId}" not found`);
       }
       if (playlist.organisationId !== organisationId) {
-        throw new BadRequestException(
-          'Playlist does not belong to this organisation',
-        );
+        throw new BadRequestException('Playlist does not belong to this organisation');
       }
       organisation.defaultPlaylistId = playlistId;
     } else {

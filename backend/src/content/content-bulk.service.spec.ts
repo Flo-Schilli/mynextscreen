@@ -35,11 +35,7 @@ describe('ContentService — bulk operations', () => {
   const contentId3 = '770e8400-e29b-41d4-a716-446655440003';
   const playlistId = '880e8400-e29b-41d4-a716-446655440000';
 
-  const makeContent = (
-    id: string,
-    orgIdOverride?: string,
-    tags: string[] = [],
-  ): Content =>
+  const makeContent = (id: string, orgIdOverride?: string, tags: string[] = []): Content =>
     ({
       id,
       organisationId: orgIdOverride ?? orgId,
@@ -108,11 +104,7 @@ describe('ContentService — bulk operations', () => {
       contentRepository.find.mockResolvedValue(contents);
       contentRepository.remove.mockResolvedValue(contents);
 
-      const result = await service.bulkDelete(
-        orgId,
-        [contentId1, contentId2],
-        userId,
-      );
+      const result = await service.bulkDelete(orgId, [contentId1, contentId2], userId);
 
       expect(contentRepository.remove).toHaveBeenCalledWith(contents);
       expect(result.deleted).toBe(2);
@@ -125,11 +117,7 @@ describe('ContentService — bulk operations', () => {
       contentRepository.findOne.mockResolvedValue(null);
       contentRepository.remove.mockResolvedValue(contents);
 
-      const result = await service.bulkDelete(
-        orgId,
-        [contentId1, contentId2],
-        userId,
-      );
+      const result = await service.bulkDelete(orgId, [contentId1, contentId2], userId);
 
       expect(result.deleted).toBe(1);
       expect(result.notFound).toEqual([contentId2]);
@@ -137,13 +125,11 @@ describe('ContentService — bulk operations', () => {
 
     it('should throw BadRequestException when IDs belong to another org', async () => {
       contentRepository.find.mockResolvedValue([makeContent(contentId1)]);
-      contentRepository.findOne.mockResolvedValue(
-        makeContent(contentId2, otherOrgId),
-      );
+      contentRepository.findOne.mockResolvedValue(makeContent(contentId2, otherOrgId));
 
-      await expect(
-        service.bulkDelete(orgId, [contentId1, contentId2], userId),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.bulkDelete(orgId, [contentId1, contentId2], userId)).rejects.toThrow(
+        BadRequestException,
+      );
 
       try {
         await service.bulkDelete(orgId, [contentId1, contentId2], userId);
@@ -181,14 +167,8 @@ describe('ContentService — bulk operations', () => {
 
       await service.bulkDelete(orgId, [contentId1], userId);
 
-      expect(storageService.subtractOriginalUsage).toHaveBeenCalledWith(
-        orgId,
-        1024,
-      );
-      expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith(
-        orgId,
-        512,
-      );
+      expect(storageService.subtractOriginalUsage).toHaveBeenCalledWith(orgId, 1024);
+      expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith(orgId, 512);
     });
 
     it('should handle empty found set gracefully', async () => {
@@ -213,12 +193,7 @@ describe('ContentService — bulk operations', () => {
       contentRepository.find.mockResolvedValue(contents);
       contentRepository.save.mockResolvedValue(contents);
 
-      const result = await service.bulkTag(
-        orgId,
-        [contentId1, contentId2],
-        ['new-tag'],
-        userId,
-      );
+      const result = await service.bulkTag(orgId, [contentId1, contentId2], ['new-tag'], userId);
 
       expect(result.updated).toBe(2);
       expect(contents[0].tags).toContain('existing');
@@ -241,12 +216,7 @@ describe('ContentService — bulk operations', () => {
       contentRepository.findOne.mockResolvedValue(null);
       contentRepository.save.mockResolvedValue([]);
 
-      const result = await service.bulkTag(
-        orgId,
-        [contentId1, contentId2],
-        ['tag'],
-        userId,
-      );
+      const result = await service.bulkTag(orgId, [contentId1, contentId2], ['tag'], userId);
 
       expect(result.updated).toBe(1);
       expect(result.notFound).toEqual([contentId2]);
@@ -254,13 +224,11 @@ describe('ContentService — bulk operations', () => {
 
     it('should throw BadRequestException on foreign IDs', async () => {
       contentRepository.find.mockResolvedValue([]);
-      contentRepository.findOne.mockResolvedValue(
-        makeContent(contentId1, otherOrgId),
-      );
+      contentRepository.findOne.mockResolvedValue(makeContent(contentId1, otherOrgId));
 
-      await expect(
-        service.bulkTag(orgId, [contentId1], ['tag'], userId),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.bulkTag(orgId, [contentId1], ['tag'], userId)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should emit one audit event per tagged content', async () => {
@@ -307,12 +275,7 @@ describe('ContentService — bulk operations', () => {
       contentRepository.find.mockResolvedValue([content]);
       contentRepository.save.mockResolvedValue([content]);
 
-      const result = await service.bulkUntag(
-        orgId,
-        [contentId1],
-        ['nonexistent'],
-        userId,
-      );
+      const result = await service.bulkUntag(orgId, [contentId1], ['nonexistent'], userId);
 
       expect(result.updated).toBe(1);
       expect(content.tags).toEqual(['unrelated']);
@@ -437,9 +400,7 @@ describe('ContentService — bulk operations', () => {
         organisationId: orgId,
       });
       contentRepository.find.mockResolvedValue([]);
-      contentRepository.findOne.mockResolvedValue(
-        makeContent(contentId1, otherOrgId),
-      );
+      contentRepository.findOne.mockResolvedValue(makeContent(contentId1, otherOrgId));
 
       await expect(
         service.bulkAddToPlaylist(orgId, [contentId1], playlistId, userId),

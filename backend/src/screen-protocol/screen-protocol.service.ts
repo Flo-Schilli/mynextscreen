@@ -9,10 +9,7 @@ import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { Screen } from '../screen/screen.entity';
 import { SlicedRendition } from '../slice-content/sliced-rendition.entity';
 import { ScreenStateService } from '../screen/screen-state.service';
-import {
-  GROUP_SCHEDULE_CHANGED,
-  GroupScheduleChangedEvent,
-} from '../schedule/schedule.event';
+import { GROUP_SCHEDULE_CHANGED, GroupScheduleChangedEvent } from '../schedule/schedule.event';
 import {
   LIVE_STREAM_STARTED,
   LIVE_STREAM_STOPPED,
@@ -36,9 +33,7 @@ export class ScreenProtocolService {
   ) {}
 
   @OnEvent(GROUP_SCHEDULE_CHANGED)
-  async handleGroupScheduleChanged(
-    event: GroupScheduleChangedEvent,
-  ): Promise<void> {
+  async handleGroupScheduleChanged(event: GroupScheduleChangedEvent): Promise<void> {
     const group = await this.screenGroupRepository.findOne({
       where: { id: event.groupId, organisationId: event.organisationId },
       relations: ['screens'],
@@ -54,9 +49,7 @@ export class ScreenProtocolService {
     // (all screens in the group share the same group schedule)
     let currentPlaylist: { id: string; name: string } | null = null;
     try {
-      const result = await this.scheduleService.getCurrentPlaylist(
-        group.screens[0].id,
-      );
+      const result = await this.scheduleService.getCurrentPlaylist(group.screens[0].id);
       currentPlaylist = result.playlist
         ? { id: result.playlist.id, name: result.playlist.name }
         : null;
@@ -65,26 +58,14 @@ export class ScreenProtocolService {
     }
 
     if (group.mode === ScreenGroupMode.Mirror) {
-      await this.fanOutMirror(
-        group,
-        currentPlaylist,
-        syncToken,
-        event.organisationId,
-      );
+      await this.fanOutMirror(group, currentPlaylist, syncToken, event.organisationId);
     } else {
-      await this.fanOutSplit(
-        group,
-        currentPlaylist,
-        syncToken,
-        event.organisationId,
-      );
+      await this.fanOutSplit(group, currentPlaylist, syncToken, event.organisationId);
     }
   }
 
   @OnEvent(LIVE_STREAM_STARTED)
-  async handleGroupLiveStreamStarted(
-    event: ScreenStateChangeEvent,
-  ): Promise<void> {
+  async handleGroupLiveStreamStarted(event: ScreenStateChangeEvent): Promise<void> {
     // Check if this screen belongs to a group
     const screen = await this.screenRepository.findOne({
       where: { id: event.screenId },
@@ -124,9 +105,7 @@ export class ScreenProtocolService {
   }
 
   @OnEvent(LIVE_STREAM_STOPPED)
-  async handleGroupLiveStreamStopped(
-    event: ScreenStateChangeEvent,
-  ): Promise<void> {
+  async handleGroupLiveStreamStopped(event: ScreenStateChangeEvent): Promise<void> {
     // Check if this screen belongs to a group
     const screen = await this.screenRepository.findOne({
       where: { id: event.screenId },

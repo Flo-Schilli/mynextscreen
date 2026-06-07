@@ -1,10 +1,4 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  Table,
-  TableForeignKey,
-  TableIndex,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableForeignKey, TableIndex } from 'typeorm';
 
 export class CreateScheduleEntry1711700006000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -110,14 +104,8 @@ export class CreateScheduleEntry1711700006000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropIndex(
-      'schedule_entries',
-      'IDX_schedule_entry_startTime_endTime',
-    );
-    await queryRunner.dropIndex(
-      'schedule_entries',
-      'IDX_schedule_entry_screenId',
-    );
+    await queryRunner.dropIndex('schedule_entries', 'IDX_schedule_entry_startTime_endTime');
+    await queryRunner.dropIndex('schedule_entries', 'IDX_schedule_entry_screenId');
     await queryRunner.dropTable('schedule_entries');
   }
 }

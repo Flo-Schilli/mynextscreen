@@ -1,10 +1,4 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  Table,
-  TableForeignKey,
-  TableIndex,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableForeignKey, TableIndex } from 'typeorm';
 
 export class CreateNotification1711700011000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -93,14 +87,8 @@ export class CreateNotification1711700011000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropIndex(
-      'notifications',
-      'IDX_notification_userId_createdAt',
-    );
-    await queryRunner.dropIndex(
-      'notifications',
-      'IDX_notification_userId_read',
-    );
+    await queryRunner.dropIndex('notifications', 'IDX_notification_userId_createdAt');
+    await queryRunner.dropIndex('notifications', 'IDX_notification_userId_read');
     await queryRunner.dropTable('notifications');
   }
 }

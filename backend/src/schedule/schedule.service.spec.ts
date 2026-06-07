@@ -2,21 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import {
-  NotFoundException,
-  ConflictException,
-  BadRequestException,
-} from '@nestjs/common';
+import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { ScheduleService } from './schedule.service';
 import { ScheduleEntry } from './schedule-entry.entity';
 import { Organisation } from '../organisation/organisation.entity';
 import { Screen } from '../screen/screen.entity';
 import { Playlist } from '../playlist/playlist.entity';
 import { ScreenGroup } from '../screen-group/screen-group.entity';
-import {
-  SCHEDULE_ENTRY_CHANGED,
-  GROUP_SCHEDULE_CHANGED,
-} from './schedule.event';
+import { SCHEDULE_ENTRY_CHANGED, GROUP_SCHEDULE_CHANGED } from './schedule.event';
 import { SLICE_CONTENT_QUEUE } from '../slice-content';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 
@@ -377,9 +370,7 @@ describe('ScheduleService', () => {
     it('should throw NotFoundException when entry not found', async () => {
       scheduleRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.delete('missing', 'org-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.delete('missing', 'org-1')).rejects.toThrow(NotFoundException);
     });
 
     it('should emit GROUP_SCHEDULE_CHANGED when deleting group entry', async () => {
@@ -463,9 +454,7 @@ describe('ScheduleService', () => {
 
       const result = await service.getCurrentPlaylist('screen-1');
 
-      expect(result.playlist).toEqual(
-        expect.objectContaining({ name: 'Active Playlist' }),
-      );
+      expect(result.playlist).toEqual(expect.objectContaining({ name: 'Active Playlist' }));
       expect(result.isDefault).toBe(false);
     });
 
@@ -495,9 +484,7 @@ describe('ScheduleService', () => {
       const result = await service.getCurrentPlaylist('screen-1');
 
       expect(result.isDefault).toBe(true);
-      expect(result.playlist).toEqual(
-        expect.objectContaining({ name: 'Default Playlist' }),
-      );
+      expect(result.playlist).toEqual(expect.objectContaining({ name: 'Default Playlist' }));
     });
 
     it('should return null playlist when no entries and no default', async () => {
@@ -543,9 +530,7 @@ describe('ScheduleService', () => {
 
       const result = await service.getCurrentPlaylist('screen-1');
 
-      expect(result.playlist).toEqual(
-        expect.objectContaining({ name: 'Group Playlist' }),
-      );
+      expect(result.playlist).toEqual(expect.objectContaining({ name: 'Group Playlist' }));
       expect(result.isDefault).toBe(false);
     });
 
@@ -566,9 +551,7 @@ describe('ScheduleService', () => {
 
       const result = await service.getCurrentPlaylist('screen-1');
 
-      expect(result.playlist).toEqual(
-        expect.objectContaining({ name: 'Screen Playlist' }),
-      );
+      expect(result.playlist).toEqual(expect.objectContaining({ name: 'Screen Playlist' }));
       expect(result.isDefault).toBe(false);
       // Should not have queried group entries
       expect(scheduleRepo.find).toHaveBeenCalledTimes(1);
@@ -744,11 +727,7 @@ describe('ScheduleService', () => {
     it('should include group relation in query', async () => {
       scheduleRepo.find.mockResolvedValue([]);
 
-      await service.findByOrganisation(
-        'org-1',
-        new Date('2026-04-01'),
-        new Date('2026-04-30'),
-      );
+      await service.findByOrganisation('org-1', new Date('2026-04-01'), new Date('2026-04-30'));
 
       expect(scheduleRepo.find).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -767,9 +746,7 @@ describe('ScheduleService', () => {
         colour: '#FF5733',
       };
 
-      await expect(service.create('org-1', dto)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.create('org-1', dto)).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException when both screenId and groupId are set', async () => {
@@ -782,9 +759,7 @@ describe('ScheduleService', () => {
         colour: '#FF5733',
       };
 
-      await expect(service.create('org-1', dto)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.create('org-1', dto)).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -828,9 +803,7 @@ describe('ScheduleService', () => {
         colour: '#FF5733',
       };
 
-      await expect(service.create('org-1', dto)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.create('org-1', dto)).rejects.toThrow(NotFoundException);
     });
 
     it('should enqueue slice-content job when group mode is split', async () => {
@@ -937,8 +910,7 @@ describe('ScheduleService', () => {
       // checkOverlap calls find with { screenId, organisationId } — should not be called
       const overlapCalls = scheduleRepo.find.mock.calls.filter(
         (c: unknown[]) =>
-          (c[0] as { where?: { screenId?: unknown } })?.where?.screenId !==
-          undefined,
+          (c[0] as { where?: { screenId?: unknown } })?.where?.screenId !== undefined,
       );
       expect(overlapCalls).toHaveLength(0);
     });

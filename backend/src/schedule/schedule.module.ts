@@ -11,13 +11,7 @@ import { SliceContentModule } from '../slice-content';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      ScheduleEntry,
-      Organisation,
-      Screen,
-      Playlist,
-      ScreenGroup,
-    ]),
+    TypeOrmModule.forFeature([ScheduleEntry, Organisation, Screen, Playlist, ScreenGroup]),
     SliceContentModule,
   ],
   controllers: [ScheduleController],

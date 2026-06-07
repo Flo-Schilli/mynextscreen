@@ -1,9 +1,4 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { createRemoteJWKSet, jwtVerify, JWTPayload } from 'jose';
@@ -40,10 +35,10 @@ export class JwtAuthGuard implements CanActivate {
       return true;
     }
 
-    const isScreenAuth = this.reflector.getAllAndOverride<boolean>(
-      IS_SCREEN_AUTH_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const isScreenAuth = this.reflector.getAllAndOverride<boolean>(IS_SCREEN_AUTH_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
     if (isScreenAuth) {
       return true;
     }
@@ -101,11 +96,7 @@ export class JwtAuthGuard implements CanActivate {
     let email = '';
     if (typeof rawEmail === 'string') {
       email = rawEmail;
-    } else if (
-      rawEmail &&
-      typeof rawEmail === 'object' &&
-      'address' in rawEmail
-    ) {
+    } else if (rawEmail && typeof rawEmail === 'object' && 'address' in rawEmail) {
       email = (rawEmail as { address: string }).address;
     }
 

@@ -151,9 +151,7 @@ describe('PlaylistService', () => {
     it('should throw NotFoundException when playlist not found', async () => {
       playlistRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.findOne('missing', 'org-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.findOne('missing', 'org-1')).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -169,9 +167,7 @@ describe('PlaylistService', () => {
 
       await service.update('p1', 'org-1', { name: 'New Name' });
 
-      expect(playlistRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'New Name' }),
-      );
+      expect(playlistRepo.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'New Name' }));
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         PLAYLIST_UPDATED,
         expect.objectContaining({ playlistId: 'p1' }),
@@ -615,9 +611,7 @@ describe('PlaylistService', () => {
       playlistRepo.findOne.mockResolvedValue(mockPlaylist);
       playlistItemRepo.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.removeItem('p1', 'missing', 'org-1'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.removeItem('p1', 'missing', 'org-1')).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -665,9 +659,9 @@ describe('PlaylistService', () => {
       const items = [{ id: 'a', playlistId: 'p1', position: 0 }];
       playlistItemRepo.find.mockResolvedValue(items);
 
-      await expect(
-        service.reorderItems('p1', 'org-1', ['a', 'unknown']),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.reorderItems('p1', 'org-1', ['a', 'unknown'])).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw when item count does not match', async () => {
@@ -685,9 +679,7 @@ describe('PlaylistService', () => {
       ];
       playlistItemRepo.find.mockResolvedValue(items);
 
-      await expect(service.reorderItems('p1', 'org-1', ['a'])).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.reorderItems('p1', 'org-1', ['a'])).rejects.toThrow(BadRequestException);
     });
   });
 

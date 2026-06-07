@@ -1,11 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import {
-  BadRequestException,
-  BadGatewayException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { BadRequestException, BadGatewayException, ForbiddenException } from '@nestjs/common';
 import { LiveStreamService } from './live-stream.service';
 import { LiveStream } from './live-stream.entity';
 import { LiveStreamActivation } from './live-stream-activation.entity';
@@ -185,9 +181,7 @@ describe('LiveStreamService – activateStream', () => {
     it('should throw BadGatewayException when FFmpeg start fails and not update stream status', async () => {
       liveStreamRepo.findOne.mockResolvedValue({ ...mockStream });
       screenRepo.find.mockResolvedValue([mockScreens[0]]);
-      ffmpegLiveService.start.mockRejectedValue(
-        new Error('FFmpeg binary not found'),
-      );
+      ffmpegLiveService.start.mockRejectedValue(new Error('FFmpeg binary not found'));
 
       await expect(
         service.activateStream(orgId, streamId, {

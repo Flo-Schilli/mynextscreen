@@ -1,12 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import {
-  Repository,
-  FindOptionsWhere,
-  Between,
-  LessThanOrEqual,
-  MoreThanOrEqual,
-} from 'typeorm';
+import { Repository, FindOptionsWhere, Between, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { AuditEntry } from './audit-entry.entity';
 import { AuditAction } from './audit-action.enum';
 
@@ -28,9 +22,7 @@ export class AuditLogService {
     private readonly repository: Repository<AuditEntry>,
   ) {}
 
-  async record(
-    entry: Omit<AuditEntry, 'id' | 'timestamp'>,
-  ): Promise<AuditEntry> {
+  async record(entry: Omit<AuditEntry, 'id' | 'timestamp'>): Promise<AuditEntry> {
     const auditEntry = this.repository.create(entry);
     return this.repository.save(auditEntry);
   }
@@ -43,9 +35,7 @@ export class AuditLogService {
     return this.query(where, filters);
   }
 
-  async findAll(
-    filters: AuditLogFilters = {},
-  ): Promise<{ data: AuditEntry[]; total: number }> {
+  async findAll(filters: AuditLogFilters = {}): Promise<{ data: AuditEntry[]; total: number }> {
     const where = this.buildWhere(filters);
     return this.query(where, filters);
   }

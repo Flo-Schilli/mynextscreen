@@ -1,8 +1,4 @@
-import {
-  createParamDecorator,
-  ExecutionContext,
-  BadRequestException,
-} from '@nestjs/common';
+import { createParamDecorator, ExecutionContext, BadRequestException } from '@nestjs/common';
 
 /**
  * Parameter decorator that extracts the current organisation ID from the request.

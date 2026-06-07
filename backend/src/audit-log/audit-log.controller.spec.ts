@@ -1,9 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import {
-  AuditLogController,
-  AdminAuditLogController,
-} from './audit-log.controller';
+import { AuditLogController, AdminAuditLogController } from './audit-log.controller';
 import { AuditLogService } from './audit-log.service';
 import { AuditAction } from './audit-action.enum';
 import { AuditEntry } from './audit-entry.entity';
@@ -43,15 +40,12 @@ describe('AuditLogController', () => {
       const result = { data: [mockEntry], total: 1 };
       service.findByOrganisation.mockResolvedValue(result);
 
-      const response = await controller.findByOrganisation(
-        mockEntry.organisationId!,
-        {},
-      );
+      const response = await controller.findByOrganisation(mockEntry.organisationId!, {});
 
-      expect(service.findByOrganisation).toHaveBeenCalledWith(
-        mockEntry.organisationId,
-        { limit: 50, offset: 0 },
-      );
+      expect(service.findByOrganisation).toHaveBeenCalledWith(mockEntry.organisationId, {
+        limit: 50,
+        offset: 0,
+      });
       expect(response).toEqual(result);
     });
 
@@ -69,18 +63,15 @@ describe('AuditLogController', () => {
         offset: '10',
       });
 
-      expect(service.findByOrganisation).toHaveBeenCalledWith(
-        mockEntry.organisationId,
-        {
-          action: AuditAction.ContentUpload,
-          userId: mockEntry.userId,
-          resourceType: 'content',
-          from: new Date('2026-03-01T00:00:00Z'),
-          to: new Date('2026-03-31T23:59:59Z'),
-          limit: 20,
-          offset: 10,
-        },
-      );
+      expect(service.findByOrganisation).toHaveBeenCalledWith(mockEntry.organisationId, {
+        action: AuditAction.ContentUpload,
+        userId: mockEntry.userId,
+        resourceType: 'content',
+        from: new Date('2026-03-01T00:00:00Z'),
+        to: new Date('2026-03-31T23:59:59Z'),
+        limit: 20,
+        offset: 10,
+      });
     });
 
     it('should cap limit at 200', async () => {
@@ -197,9 +188,7 @@ describe('AdminAuditLogController', () => {
 
       await controller.findAll({ limit: '999' });
 
-      expect(service.findAll).toHaveBeenCalledWith(
-        expect.objectContaining({ limit: 200 }),
-      );
+      expect(service.findAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 200 }));
     });
   });
 });

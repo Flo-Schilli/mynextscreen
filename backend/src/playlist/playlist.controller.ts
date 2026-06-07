@@ -39,21 +39,13 @@ export class PlaylistController {
   }
 
   @Get()
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   findAll(@CurrentOrganisation() organisationId: string): Promise<Playlist[]> {
     return this.playlistService.findAll(organisationId);
   }
 
   @Get(':id')
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   findOne(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -78,11 +70,7 @@ export class PlaylistController {
     @Body() dto: BulkDeletePlaylistsDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<{ deleted: number; notFound: string[] }> {
-    return this.playlistService.bulkDelete(
-      organisationId,
-      dto.ids,
-      req.user.userId,
-    );
+    return this.playlistService.bulkDelete(organisationId, dto.ids, req.user.userId);
   }
 
   @Post('bulk-assign-screen')
@@ -151,11 +139,7 @@ export class PlaylistController {
   }
 
   @Get(':id/duration')
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   getTotalDuration(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,

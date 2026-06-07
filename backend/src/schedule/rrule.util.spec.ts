@@ -9,19 +9,11 @@ describe('RRULE expansion utilities', () => {
       const windowStart = new Date('2026-04-01T00:00:00Z');
       const windowEnd = new Date('2026-04-04T23:59:59Z');
 
-      const ranges = expandRRule(
-        'FREQ=DAILY',
-        entryStart,
-        entryEnd,
-        windowStart,
-        windowEnd,
-      );
+      const ranges = expandRRule('FREQ=DAILY', entryStart, entryEnd, windowStart, windowEnd);
 
       expect(ranges.length).toBe(4); // Apr 1, 2, 3, 4
       for (const range of ranges) {
-        expect(range.end.getTime() - range.start.getTime()).toBe(
-          60 * 60 * 1000,
-        ); // 1 hour duration preserved
+        expect(range.end.getTime() - range.start.getTime()).toBe(60 * 60 * 1000); // 1 hour duration preserved
       }
       expect(ranges[0].start).toEqual(new Date('2026-04-01T09:00:00Z'));
       expect(ranges[1].start).toEqual(new Date('2026-04-02T09:00:00Z'));
@@ -33,13 +25,7 @@ describe('RRULE expansion utilities', () => {
       const windowStart = new Date('2026-04-01T00:00:00Z');
       const windowEnd = new Date('2026-04-30T23:59:59Z');
 
-      const ranges = expandRRule(
-        'FREQ=WEEKLY',
-        entryStart,
-        entryEnd,
-        windowStart,
-        windowEnd,
-      );
+      const ranges = expandRRule('FREQ=WEEKLY', entryStart, entryEnd, windowStart, windowEnd);
 
       // Apr 1, 8, 15, 22, 29 — all Wednesdays
       expect(ranges.length).toBe(5);
@@ -87,18 +73,10 @@ describe('RRULE expansion utilities', () => {
       const windowStart = new Date('2026-04-01T00:00:00Z');
       const windowEnd = new Date('2026-04-03T23:59:59Z');
 
-      const ranges = expandRRule(
-        'FREQ=DAILY',
-        entryStart,
-        longEnd,
-        windowStart,
-        windowEnd,
-      );
+      const ranges = expandRRule('FREQ=DAILY', entryStart, longEnd, windowStart, windowEnd);
 
       for (const range of ranges) {
-        expect(range.end.getTime() - range.start.getTime()).toBe(
-          3 * 60 * 60 * 1000,
-        );
+        expect(range.end.getTime() - range.start.getTime()).toBe(3 * 60 * 60 * 1000);
       }
     });
   });
@@ -108,13 +86,7 @@ describe('RRULE expansion utilities', () => {
       const windowStart = new Date('2026-04-01T00:00:00Z');
       const windowEnd = new Date('2026-04-01T23:59:59Z');
 
-      const ranges = getOccurrences(
-        entryStart,
-        entryEnd,
-        null,
-        windowStart,
-        windowEnd,
-      );
+      const ranges = getOccurrences(entryStart, entryEnd, null, windowStart, windowEnd);
 
       expect(ranges).toHaveLength(1);
       expect(ranges[0].start).toEqual(entryStart);
@@ -125,13 +97,7 @@ describe('RRULE expansion utilities', () => {
       const windowStart = new Date('2026-05-01T00:00:00Z');
       const windowEnd = new Date('2026-05-01T23:59:59Z');
 
-      const ranges = getOccurrences(
-        entryStart,
-        entryEnd,
-        null,
-        windowStart,
-        windowEnd,
-      );
+      const ranges = getOccurrences(entryStart, entryEnd, null, windowStart, windowEnd);
 
       expect(ranges).toHaveLength(0);
     });
@@ -140,13 +106,7 @@ describe('RRULE expansion utilities', () => {
       const windowStart = new Date('2026-04-01T00:00:00Z');
       const windowEnd = new Date('2026-04-07T23:59:59Z');
 
-      const ranges = getOccurrences(
-        entryStart,
-        entryEnd,
-        'FREQ=DAILY',
-        windowStart,
-        windowEnd,
-      );
+      const ranges = getOccurrences(entryStart, entryEnd, 'FREQ=DAILY', windowStart, windowEnd);
 
       expect(ranges.length).toBe(7);
     });

@@ -116,9 +116,7 @@ describe('EmailNotificationChannel', () => {
 
     await channel.send(userId, orgId, payload);
 
-    expect(SmtpEmailProvider).toHaveBeenCalledWith(
-      expect.objectContaining({ port: 587 }),
-    );
+    expect(SmtpEmailProvider).toHaveBeenCalledWith(expect.objectContaining({ port: 587 }));
   });
 
   it('should use fallback from address when smtpFrom is null', async () => {
@@ -137,8 +135,6 @@ describe('EmailNotificationChannel', () => {
   it('should propagate errors from the email provider', async () => {
     mockSendMail.mockRejectedValue(new Error('SMTP error'));
 
-    await expect(channel.send(userId, orgId, payload)).rejects.toThrow(
-      'SMTP error',
-    );
+    await expect(channel.send(userId, orgId, payload)).rejects.toThrow('SMTP error');
   });
 });

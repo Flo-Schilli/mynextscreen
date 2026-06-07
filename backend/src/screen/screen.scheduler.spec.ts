@@ -91,9 +91,6 @@ describe('ScreenScheduler', () => {
       customConfig as unknown as ConfigService,
     );
 
-    expect(customConfig.get).toHaveBeenCalledWith(
-      'SCREEN_OFFLINE_THRESHOLD_MS',
-      120_000,
-    );
+    expect(customConfig.get).toHaveBeenCalledWith('SCREEN_OFFLINE_THRESHOLD_MS', 120_000);
   });
 });

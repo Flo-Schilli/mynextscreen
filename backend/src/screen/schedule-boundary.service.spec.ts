@@ -1,9 +1,5 @@
 import { ScheduleBoundaryService } from './schedule-boundary.service';
-import {
-  ScheduleService,
-  ScheduleEntryChangedEvent,
-  GroupScheduleChangedEvent,
-} from '../schedule';
+import { ScheduleService, ScheduleEntryChangedEvent, GroupScheduleChangedEvent } from '../schedule';
 import { SCHEDULE_CHANGED, ScreenStateChangeEvent } from './screen-state.event';
 import { Screen } from './screen.entity';
 import { ScheduleEntry } from '../schedule';
@@ -96,9 +92,7 @@ describe('ScheduleBoundaryService', () => {
       await service.registerScreen(screenId);
 
       // getCurrentPlaylist should not be called again for duplicate registration
-      expect(scheduleService.getCurrentPlaylist).toHaveBeenCalledTimes(
-        callsBefore,
-      );
+      expect(scheduleService.getCurrentPlaylist).toHaveBeenCalledTimes(callsBefore);
     });
 
     it('should set a fallback timer when no schedule entries exist', async () => {
@@ -194,28 +188,20 @@ describe('ScheduleBoundaryService', () => {
       jest.advanceTimersByTime(60_000);
       await jest.advanceTimersToNextTimerAsync();
 
-      expect(eventEmitter.emit).not.toHaveBeenCalledWith(
-        SCHEDULE_CHANGED,
-        expect.anything(),
-      );
+      expect(eventEmitter.emit).not.toHaveBeenCalledWith(SCHEDULE_CHANGED, expect.anything());
     });
 
     it('should handle getCurrentPlaylist errors gracefully', async () => {
       await service.registerScreen(screenId);
       eventEmitter.emit.mockClear();
 
-      scheduleService.getCurrentPlaylist.mockRejectedValue(
-        new Error('DB error'),
-      );
+      scheduleService.getCurrentPlaylist.mockRejectedValue(new Error('DB error'));
 
       jest.advanceTimersByTime(60_000);
       await jest.advanceTimersToNextTimerAsync();
 
       // Should not throw, no event emitted
-      expect(eventEmitter.emit).not.toHaveBeenCalledWith(
-        SCHEDULE_CHANGED,
-        expect.anything(),
-      );
+      expect(eventEmitter.emit).not.toHaveBeenCalledWith(SCHEDULE_CHANGED, expect.anything());
     });
 
     it('should reschedule the next boundary after firing', async () => {
@@ -236,9 +222,7 @@ describe('ScheduleBoundaryService', () => {
       const spy = jest.spyOn(entryRepository, 'find');
       spy.mockClear();
 
-      await service.handleScheduleEntryChanged(
-        new ScheduleEntryChangedEvent(screenId, orgId),
-      );
+      await service.handleScheduleEntryChanged(new ScheduleEntryChangedEvent(screenId, orgId));
 
       // Should have queried entries again for recalculation
       expect(spy).toHaveBeenCalled();
@@ -277,9 +261,7 @@ describe('ScheduleBoundaryService', () => {
     });
 
     it('should skip screens not tracked', async () => {
-      screenRepository.find.mockResolvedValue([
-        { ...mockScreen, id: 'other-screen', groupId },
-      ]);
+      screenRepository.find.mockResolvedValue([{ ...mockScreen, id: 'other-screen', groupId }]);
 
       const spy = jest.spyOn(entryRepository, 'find');
 
@@ -317,12 +299,10 @@ describe('ScheduleBoundaryService', () => {
         playlistId: playlistId2,
       };
 
-      entryRepository.find.mockImplementation(
-        ({ where }: { where: Record<string, string> }) => {
-          if (where.groupId === groupId) return Promise.resolve([groupEntry]);
-          return Promise.resolve([]);
-        },
-      );
+      entryRepository.find.mockImplementation(({ where }: { where: Record<string, string> }) => {
+        if (where.groupId === groupId) return Promise.resolve([groupEntry]);
+        return Promise.resolve([]);
+      });
 
       await service.registerScreen(screenId);
 

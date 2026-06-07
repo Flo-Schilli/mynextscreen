@@ -56,11 +56,7 @@ export function calculateProgress(
   currentTimeSeconds: number | null,
   totalDurationSeconds: number | null,
 ): number | null {
-  if (
-    currentTimeSeconds === null ||
-    totalDurationSeconds === null ||
-    totalDurationSeconds <= 0
-  ) {
+  if (currentTimeSeconds === null || totalDurationSeconds === null || totalDurationSeconds <= 0) {
     return null;
   }
   const pct = (currentTimeSeconds / totalDurationSeconds) * 100;

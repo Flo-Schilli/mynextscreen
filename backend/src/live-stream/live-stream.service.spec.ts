@@ -7,10 +7,7 @@ import { LiveStream } from './live-stream.entity';
 import { LiveStreamActivation } from './live-stream-activation.entity';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
-import {
-  FfmpegLiveService,
-  LiveStreamProcessExitedEvent,
-} from './ffmpeg-live.service';
+import { FfmpegLiveService, LiveStreamProcessExitedEvent } from './ffmpeg-live.service';
 import { ScreenGroupService } from '../screen-group/screen-group.service';
 import { Screen } from '../screen/screen.entity';
 import { LIVE_STREAM_STOPPED } from '../screen/screen-state.event';
@@ -161,17 +158,17 @@ describe('LiveStreamService', () => {
       const activeStream = { ...mockStream, status: LiveStreamStatus.Active };
       repository.findOne.mockResolvedValue(activeStream);
 
-      await expect(
-        service.updateLiveStream(orgId, streamId, { name: 'New Name' }),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.updateLiveStream(orgId, streamId, { name: 'New Name' })).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it('should throw NotFoundException when stream does not exist', async () => {
       repository.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.updateLiveStream(orgId, streamId, { name: 'New Name' }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.updateLiveStream(orgId, streamId, { name: 'New Name' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should emit audit event on update', async () => {
@@ -214,17 +211,13 @@ describe('LiveStreamService', () => {
       const activeStream = { ...mockStream, status: LiveStreamStatus.Active };
       repository.findOne.mockResolvedValue(activeStream);
 
-      await expect(service.removeLiveStream(orgId, streamId)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(service.removeLiveStream(orgId, streamId)).rejects.toThrow(ConflictException);
     });
 
     it('should throw NotFoundException when stream does not exist', async () => {
       repository.findOne.mockResolvedValue(null);
 
-      await expect(service.removeLiveStream(orgId, streamId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.removeLiveStream(orgId, streamId)).rejects.toThrow(NotFoundException);
     });
 
     it('should emit audit event on deletion', async () => {
@@ -327,9 +320,7 @@ describe('LiveStreamService', () => {
           {
             provide: getRepositoryToken(Screen),
             useValue: {
-              find: jest
-                .fn()
-                .mockResolvedValue([{ id: screenId1, organisationId: orgId }]),
+              find: jest.fn().mockResolvedValue([{ id: screenId1, organisationId: orgId }]),
             },
           },
           { provide: FfmpegLiveService, useValue: ffmpegLiveService },
@@ -440,9 +431,7 @@ describe('LiveStreamService', () => {
         status: LiveStreamStatus.Error,
       });
 
-      const activations = [
-        { id: 'a1', streamId, screenId: screenId1, activatedAt: new Date() },
-      ];
+      const activations = [{ id: 'a1', streamId, screenId: screenId1, activatedAt: new Date() }];
       activationRepository.find.mockResolvedValue(activations);
       activationRepository.remove.mockResolvedValue(undefined);
 

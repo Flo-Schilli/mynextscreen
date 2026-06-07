@@ -13,19 +13,10 @@ import { StorageController } from './storage.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      Organisation,
-      Playlist,
-      User,
-      UserOrganisationMembership,
-    ]),
+    TypeOrmModule.forFeature([Organisation, Playlist, User, UserOrganisationMembership]),
     UserModule,
   ],
-  controllers: [
-    OrganisationController,
-    DefaultPlaylistController,
-    StorageController,
-  ],
+  controllers: [OrganisationController, DefaultPlaylistController, StorageController],
   providers: [OrganisationService, StorageService],
   exports: [OrganisationService, StorageService, TypeOrmModule],
 })

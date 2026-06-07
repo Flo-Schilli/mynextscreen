@@ -1,9 +1,4 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -25,10 +20,10 @@ export class ApiKeyAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const isScreenAuth = this.reflector.getAllAndOverride<boolean>(
-      IS_SCREEN_AUTH_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const isScreenAuth = this.reflector.getAllAndOverride<boolean>(IS_SCREEN_AUTH_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
     if (!isScreenAuth) {
       return true;
     }

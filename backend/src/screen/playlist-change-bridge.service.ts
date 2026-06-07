@@ -4,10 +4,7 @@ import { Repository, In } from 'typeorm';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { ScreenStateService } from './screen-state.service';
 import { PLAYLIST_CHANGED, ScreenStateChangeEvent } from './screen-state.event';
-import {
-  PLAYLIST_UPDATED,
-  PlaylistUpdatedEvent,
-} from '../playlist/playlist.event';
+import { PLAYLIST_UPDATED, PlaylistUpdatedEvent } from '../playlist/playlist.event';
 import { ScheduleEntry, getOccurrences } from '../schedule';
 import { Organisation } from '../organisation/organisation.entity';
 import { Screen } from './screen.entity';
@@ -99,9 +96,7 @@ export class PlaylistChangeBridgeService {
         windowEnd,
       );
 
-      const isActive = occurrences.some(
-        (occ) => occ.start <= now && occ.end > now,
-      );
+      const isActive = occurrences.some((occ) => occ.start <= now && occ.end > now);
       if (!isActive) continue;
 
       if (entry.screenId && connectedSet.has(entry.screenId)) {

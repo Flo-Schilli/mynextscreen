@@ -2,10 +2,7 @@ import { NotificationEventListener } from './notification-event-listener.service
 import { NotificationHub } from './notification-hub.service';
 import { NotificationEventType } from './notification-event-type.enum';
 import { ScreenStatusEvent } from '../screen/screen-status.event';
-import {
-  TranscodingCompletedEvent,
-  TranscodingFailedEvent,
-} from '../content/transcoding.event';
+import { TranscodingCompletedEvent, TranscodingFailedEvent } from '../content/transcoding.event';
 import { Screen } from '../screen/screen.entity';
 import { Content } from '../content/content.entity';
 
@@ -95,9 +92,7 @@ describe('NotificationEventListener', () => {
       screenRepo.findOne.mockResolvedValue(mockScreen);
       const event = new ScreenStatusEvent(screenId, orgId, false);
 
-      await expect(
-        listener.handleScreenStatusChanged(event),
-      ).resolves.toBeUndefined();
+      await expect(listener.handleScreenStatusChanged(event)).resolves.toBeUndefined();
     });
   });
 
@@ -112,8 +107,7 @@ describe('NotificationEventListener', () => {
         orgId,
         eventType: NotificationEventType.TRANSCODING_COMPLETE,
         title: 'Transcoding complete',
-        message:
-          'Content "Welcome Video" has finished transcoding and is ready to use.',
+        message: 'Content "Welcome Video" has finished transcoding and is ready to use.',
         resourceId: contentId,
       });
     });
@@ -126,8 +120,7 @@ describe('NotificationEventListener', () => {
 
       expect(notificationHub.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
-          message:
-            'Content "Unknown" has finished transcoding and is ready to use.',
+          message: 'Content "Unknown" has finished transcoding and is ready to use.',
         }),
       );
     });
@@ -137,20 +130,14 @@ describe('NotificationEventListener', () => {
       contentRepo.findOne.mockResolvedValue(mockContent);
       const event = new TranscodingCompletedEvent(contentId, orgId, 1024);
 
-      await expect(
-        listener.handleTranscodingCompleted(event),
-      ).resolves.toBeUndefined();
+      await expect(listener.handleTranscodingCompleted(event)).resolves.toBeUndefined();
     });
   });
 
   describe('handleTranscodingFailed', () => {
     it('should dispatch transcoding.failed notification', async () => {
       contentRepo.findOne.mockResolvedValue(mockContent);
-      const event = new TranscodingFailedEvent(
-        contentId,
-        orgId,
-        'codec not supported',
-      );
+      const event = new TranscodingFailedEvent(contentId, orgId, 'codec not supported');
 
       await listener.handleTranscodingFailed(event);
 
@@ -158,26 +145,20 @@ describe('NotificationEventListener', () => {
         orgId,
         eventType: NotificationEventType.TRANSCODING_FAILED,
         title: 'Transcoding failed',
-        message:
-          'Content "Welcome Video" failed to transcode. Please re-upload the file.',
+        message: 'Content "Welcome Video" failed to transcode. Please re-upload the file.',
         resourceId: contentId,
       });
     });
 
     it('should use fallback title when content is not found', async () => {
       contentRepo.findOne.mockResolvedValue(null);
-      const event = new TranscodingFailedEvent(
-        contentId,
-        orgId,
-        'codec not supported',
-      );
+      const event = new TranscodingFailedEvent(contentId, orgId, 'codec not supported');
 
       await listener.handleTranscodingFailed(event);
 
       expect(notificationHub.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
-          message:
-            'Content "Unknown" failed to transcode. Please re-upload the file.',
+          message: 'Content "Unknown" failed to transcode. Please re-upload the file.',
         }),
       );
     });
@@ -185,15 +166,9 @@ describe('NotificationEventListener', () => {
     it('should catch and log errors without throwing', async () => {
       notificationHub.dispatch.mockRejectedValue(new Error('hub error'));
       contentRepo.findOne.mockResolvedValue(mockContent);
-      const event = new TranscodingFailedEvent(
-        contentId,
-        orgId,
-        'codec not supported',
-      );
+      const event = new TranscodingFailedEvent(contentId, orgId, 'codec not supported');
 
-      await expect(
-        listener.handleTranscodingFailed(event),
-      ).resolves.toBeUndefined();
+      await expect(listener.handleTranscodingFailed(event)).resolves.toBeUndefined();
     });
   });
 });

@@ -1,9 +1,7 @@
 import { validate } from 'class-validator';
 import { Organisation } from './organisation.entity';
 
-function createOrganisation(
-  overrides: Partial<Organisation> = {},
-): Organisation {
+function createOrganisation(overrides: Partial<Organisation> = {}): Organisation {
   const org = new Organisation();
   org.name = 'Test Org';
   org.timeZone = 'Europe/Vienna';

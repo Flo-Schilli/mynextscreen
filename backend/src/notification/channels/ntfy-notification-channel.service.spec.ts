@@ -133,9 +133,7 @@ describe('NtfyNotificationChannel', () => {
   });
 
   it('should not throw on network error (logs warning instead)', async () => {
-    httpService.post.mockReturnValue(
-      throwError(() => new Error('ECONNREFUSED')),
-    );
+    httpService.post.mockReturnValue(throwError(() => new Error('ECONNREFUSED')));
 
     await expect(channel.send(orgId, payload)).resolves.toBeUndefined();
   });

@@ -58,26 +58,20 @@ describe('InAppNotificationChannel', () => {
       read: false,
     });
     expect(notificationRepo.save).toHaveBeenCalledWith(savedNotification);
-    expect(dashboardSseService.emitToUser).toHaveBeenCalledWith(
-      userId,
-      'notification.new',
-      {
-        id: 'notif-1',
-        eventType: payload.eventType,
-        title: payload.title,
-        message: payload.message,
-        read: false,
-        createdAt: savedNotification.createdAt,
-      },
-    );
+    expect(dashboardSseService.emitToUser).toHaveBeenCalledWith(userId, 'notification.new', {
+      id: 'notif-1',
+      eventType: payload.eventType,
+      title: payload.title,
+      message: payload.message,
+      read: false,
+      createdAt: savedNotification.createdAt,
+    });
   });
 
   it('should propagate errors from repository save', async () => {
     notificationRepo.create.mockReturnValue({});
     notificationRepo.save.mockRejectedValue(new Error('DB error'));
 
-    await expect(channel.send(userId, orgId, payload)).rejects.toThrow(
-      'DB error',
-    );
+    await expect(channel.send(userId, orgId, payload)).rejects.toThrow('DB error');
   });
 });

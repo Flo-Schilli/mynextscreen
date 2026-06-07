@@ -4,10 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { NotificationHub } from './notification-hub.service';
 import { NotificationEventType } from './notification-event-type.enum';
-import {
-  ScreenStatusEvent,
-  SCREEN_STATUS_CHANGED,
-} from '../screen/screen-status.event';
+import { ScreenStatusEvent, SCREEN_STATUS_CHANGED } from '../screen/screen-status.event';
 import {
   TranscodingCompletedEvent,
   TranscodingFailedEvent,
@@ -66,9 +63,7 @@ export class NotificationEventListener {
   }
 
   @OnEvent(TRANSCODING_COMPLETED, { async: true })
-  async handleTranscodingCompleted(
-    event: TranscodingCompletedEvent,
-  ): Promise<void> {
+  async handleTranscodingCompleted(event: TranscodingCompletedEvent): Promise<void> {
     try {
       const content = await this.contentRepo.findOne({
         where: { id: event.contentId },

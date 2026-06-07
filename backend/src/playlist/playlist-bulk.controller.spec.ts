@@ -51,11 +51,7 @@ describe('PlaylistController — bulk endpoints', () => {
         mockReq,
       );
 
-      expect(service.bulkDelete).toHaveBeenCalledWith(
-        orgId,
-        [playlistId1, playlistId2],
-        userId,
-      );
+      expect(service.bulkDelete).toHaveBeenCalledWith(orgId, [playlistId1, playlistId2], userId);
       expect(result).toEqual({ deleted: 2, notFound: [] });
     });
 
@@ -118,11 +114,7 @@ describe('PlaylistController — bulk endpoints', () => {
       service.bulkAssignScreen.mockRejectedValue(new Error('Screen not found'));
 
       await expect(
-        controller.bulkAssignScreen(
-          orgId,
-          { ids: [playlistId1], screenId },
-          mockReq,
-        ),
+        controller.bulkAssignScreen(orgId, { ids: [playlistId1], screenId }, mockReq),
       ).rejects.toThrow('Screen not found');
     });
   });

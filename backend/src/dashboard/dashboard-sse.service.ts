@@ -1,14 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import {
-  Observable,
-  Subject,
-  finalize,
-  map,
-  merge,
-  interval,
-  takeUntil,
-} from 'rxjs';
+import { Observable, Subject, finalize, map, merge, interval, takeUntil } from 'rxjs';
 import { randomUUID } from 'crypto';
 import {
   TRANSCODING_COMPLETED,
@@ -18,14 +10,8 @@ import {
   TranscodingFailedEvent,
   TranscodingProgressEvent,
 } from '../content/transcoding.event';
-import {
-  SCREEN_STATUS_CHANGED,
-  ScreenStatusEvent,
-} from '../screen/screen-status.event';
-import {
-  SCHEDULE_ENTRY_CHANGED,
-  ScheduleEntryChangedEvent,
-} from '../schedule/schedule.event';
+import { SCREEN_STATUS_CHANGED, ScreenStatusEvent } from '../screen/screen-status.event';
+import { SCHEDULE_ENTRY_CHANGED, ScheduleEntryChangedEvent } from '../schedule/schedule.event';
 import {
   LIVE_STREAM_HEALTH_CHANGED,
   LiveStreamHealthChangedEvent,

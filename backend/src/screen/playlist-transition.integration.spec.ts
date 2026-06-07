@@ -5,19 +5,12 @@ import { ScheduleBoundaryService } from './schedule-boundary.service';
 import { ScreenStateService } from './screen-state.service';
 import { PlaylistChangeBridgeService } from './playlist-change-bridge.service';
 import { ScreenService } from './screen.service';
-import {
-  SCREEN_PROTOCOL_ADAPTER,
-  ScreenEvent,
-  ScreenEventType,
-} from '../screen-protocol';
+import { SCREEN_PROTOCOL_ADAPTER, ScreenEvent, ScreenEventType } from '../screen-protocol';
 import type { ScreenProtocolAdapter } from '../screen-protocol';
 import { Screen } from './screen.entity';
 import { ScreenGroup } from '../screen-group/screen-group.entity';
 import { Playlist } from '../playlist/playlist.entity';
-import {
-  PlaylistUpdatedEvent,
-  PLAYLIST_UPDATED,
-} from '../playlist/playlist.event';
+import { PlaylistUpdatedEvent, PLAYLIST_UPDATED } from '../playlist/playlist.event';
 import { ScheduleEntry, ScheduleService } from '../schedule';
 import { LiveStreamActivation } from '../live-stream/live-stream-activation.entity';
 import { Organisation } from '../organisation/organisation.entity';
@@ -145,9 +138,7 @@ describe('Playlist Transition Integration', () => {
 
     eventEmitter = module.get<EventEmitter2>(EventEmitter2);
     screenStateService = module.get<ScreenStateService>(ScreenStateService);
-    scheduleBoundaryService = module.get<ScheduleBoundaryService>(
-      ScheduleBoundaryService,
-    );
+    scheduleBoundaryService = module.get<ScheduleBoundaryService>(ScheduleBoundaryService);
   });
 
   afterEach(async () => {
@@ -196,9 +187,7 @@ describe('Playlist Transition Integration', () => {
 
       // The boundary service detected the playlist change and emitted SCHEDULE_CHANGED,
       // which ScreenStateService received via @OnEvent and pushed as SSE
-      const stateChangeEvents = receivedEvents.filter(
-        (e) => e.type === 'state-change',
-      );
+      const stateChangeEvents = receivedEvents.filter((e) => e.type === 'state-change');
       expect(stateChangeEvents.length).toBeGreaterThanOrEqual(1);
       expect(protocolAdapter.renderEvent).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -252,9 +241,7 @@ describe('Playlist Transition Integration', () => {
 
       sub.unsubscribe();
 
-      const stateChangeEvents = receivedEvents.filter(
-        (e) => e.type === 'state-change',
-      );
+      const stateChangeEvents = receivedEvents.filter((e) => e.type === 'state-change');
       expect(stateChangeEvents.length).toBeGreaterThanOrEqual(1);
       expect(protocolAdapter.renderEvent).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -300,9 +287,7 @@ describe('Playlist Transition Integration', () => {
 
       sub.unsubscribe();
 
-      const stateChangeEvents = receivedEvents.filter(
-        (e) => e.type === 'state-change',
-      );
+      const stateChangeEvents = receivedEvents.filter((e) => e.type === 'state-change');
       expect(stateChangeEvents.length).toBeGreaterThanOrEqual(1);
       expect(protocolAdapter.renderEvent).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -336,9 +321,7 @@ describe('Playlist Transition Integration', () => {
 
       sub.unsubscribe();
 
-      const stateChangeEvents = receivedEvents.filter(
-        (e) => e.type === 'state-change',
-      );
+      const stateChangeEvents = receivedEvents.filter((e) => e.type === 'state-change');
       expect(stateChangeEvents.length).toBeGreaterThanOrEqual(1);
       expect(protocolAdapter.renderEvent).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -388,9 +371,7 @@ describe('Playlist Transition Integration', () => {
       // Advance past boundary — must not throw
       await jest.advanceTimersByTimeAsync(10000);
 
-      expect(jest.getTimerCount()).toBeLessThanOrEqual(
-        timerCountAfterDisconnect,
-      );
+      expect(jest.getTimerCount()).toBeLessThanOrEqual(timerCountAfterDisconnect);
 
       // No events pushed to disconnected screen
       expect(protocolAdapter.renderEvent).not.toHaveBeenCalledWith(
@@ -410,10 +391,7 @@ describe('Playlist Transition Integration', () => {
 
       // Emit SCHEDULE_CHANGED for disconnected screen — should be a no-op
       expect(() => {
-        eventEmitter.emit(
-          SCHEDULE_CHANGED,
-          new ScreenStateChangeEvent(screenId, orgId),
-        );
+        eventEmitter.emit(SCHEDULE_CHANGED, new ScreenStateChangeEvent(screenId, orgId));
       }).not.toThrow();
 
       expect(protocolAdapter.renderEvent).not.toHaveBeenCalled();

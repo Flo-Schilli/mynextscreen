@@ -42,10 +42,7 @@ export class ContentController {
     private readonly contentService: ContentService,
     private readonly configService: ConfigService,
   ) {
-    this.mediaBasePath = this.configService.get<string>(
-      'MEDIA_BASE_PATH',
-      './media',
-    );
+    this.mediaBasePath = this.configService.get<string>('MEDIA_BASE_PATH', './media');
   }
 
   @Post('upload')
@@ -66,11 +63,7 @@ export class ContentController {
     @Body() dto: BulkDeleteContentDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<{ deleted: number; notFound: string[] }> {
-    return this.contentService.bulkDelete(
-      organisationId,
-      dto.ids,
-      req.user.userId,
-    );
+    return this.contentService.bulkDelete(organisationId, dto.ids, req.user.userId);
   }
 
   @Post('bulk-tag')
@@ -80,12 +73,7 @@ export class ContentController {
     @Body() dto: BulkTagContentDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<{ updated: number; notFound: string[] }> {
-    return this.contentService.bulkTag(
-      organisationId,
-      dto.ids,
-      dto.tags,
-      req.user.userId,
-    );
+    return this.contentService.bulkTag(organisationId, dto.ids, dto.tags, req.user.userId);
   }
 
   @Post('bulk-untag')
@@ -95,12 +83,7 @@ export class ContentController {
     @Body() dto: BulkUntagContentDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<{ updated: number; notFound: string[] }> {
-    return this.contentService.bulkUntag(
-      organisationId,
-      dto.ids,
-      dto.tags,
-      req.user.userId,
-    );
+    return this.contentService.bulkUntag(organisationId, dto.ids, dto.tags, req.user.userId);
   }
 
   @Post('bulk-add-to-playlist')
@@ -119,11 +102,7 @@ export class ContentController {
   }
 
   @Get()
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   findAll(
     @CurrentOrganisation() organisationId: string,
     @Query('type') type?: ContentType,
@@ -137,11 +116,7 @@ export class ContentController {
   }
 
   @Get(':id')
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   findOne(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -180,25 +155,15 @@ export class ContentController {
   }
 
   @Get(':id/file/original')
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   async serveOriginal(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Res() res: Response,
   ): Promise<void> {
     const content = await this.contentService.findOne(organisationId, id);
-    const ext =
-      path.extname(content.originalFilename).replace('.', '') || 'bin';
-    const filePath = getOriginalPath(
-      this.mediaBasePath,
-      organisationId,
-      id,
-      ext,
-    );
+    const ext = path.extname(content.originalFilename).replace('.', '') || 'bin';
+    const filePath = getOriginalPath(this.mediaBasePath, organisationId, id, ext);
     const absPath = path.resolve(filePath);
     if (!fs.existsSync(absPath)) {
       throw new NotFoundException('Original file not found');
@@ -208,11 +173,7 @@ export class ContentController {
   }
 
   @Get(':id/file/transcoded')
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   async serveTranscoded(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -220,12 +181,7 @@ export class ContentController {
   ): Promise<void> {
     const content = await this.contentService.findOne(organisationId, id);
     const transcodedExt = content.type === ContentType.Video ? 'mp4' : 'webp';
-    const filePath = getTranscodedPath(
-      this.mediaBasePath,
-      organisationId,
-      id,
-      transcodedExt,
-    );
+    const filePath = getTranscodedPath(this.mediaBasePath, organisationId, id, transcodedExt);
     const absPath = path.resolve(filePath);
     if (!fs.existsSync(absPath)) {
       throw new NotFoundException('Transcoded file not found');
@@ -234,10 +190,7 @@ export class ContentController {
       mp4: 'video/mp4',
       webp: 'image/webp',
     };
-    res.setHeader(
-      'Content-Type',
-      mimeMap[transcodedExt] || 'application/octet-stream',
-    );
+    res.setHeader('Content-Type', mimeMap[transcodedExt] || 'application/octet-stream');
     res.sendFile(absPath);
   }
 }

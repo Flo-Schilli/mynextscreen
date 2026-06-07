@@ -11,11 +11,7 @@ export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 
   @Get()
-  @Roles(
-    OrganisationRole.OrgAdmin,
-    OrganisationRole.Editor,
-    OrganisationRole.Viewer,
-  )
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   search(
     @CurrentOrganisation() organisationId: string,
     @Query() query: SearchQueryDto,

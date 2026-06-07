@@ -8,19 +8,11 @@ export interface NotificationPayload {
 }
 
 export interface InAppChannel {
-  send(
-    userId: string,
-    orgId: string,
-    notification: NotificationPayload,
-  ): Promise<void>;
+  send(userId: string, orgId: string, notification: NotificationPayload): Promise<void>;
 }
 
 export interface EmailChannel {
-  send(
-    userId: string,
-    orgId: string,
-    notification: NotificationPayload,
-  ): Promise<void>;
+  send(userId: string, orgId: string, notification: NotificationPayload): Promise<void>;
 }
 
 export interface NtfyChannel {

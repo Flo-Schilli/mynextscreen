@@ -46,10 +46,7 @@ export class AuditLogController {
     @CurrentOrganisation() organisationId: string,
     @Query() query: AuditLogQueryDto,
   ): Promise<{ data: AuditEntry[]; total: number }> {
-    return this.auditLogService.findByOrganisation(
-      organisationId,
-      buildFilters(query),
-    );
+    return this.auditLogService.findByOrganisation(organisationId, buildFilters(query));
   }
 }
 
@@ -59,16 +56,11 @@ export class AdminAuditLogController {
   constructor(private readonly auditLogService: AuditLogService) {}
 
   @Get()
-  findAll(
-    @Query() query: AdminAuditLogQueryDto,
-  ): Promise<{ data: AuditEntry[]; total: number }> {
+  findAll(@Query() query: AdminAuditLogQueryDto): Promise<{ data: AuditEntry[]; total: number }> {
     const filters = buildFilters(query);
 
     if (query.organisationId) {
-      return this.auditLogService.findByOrganisation(
-        query.organisationId,
-        filters,
-      );
+      return this.auditLogService.findByOrganisation(query.organisationId, filters);
     }
 
     return this.auditLogService.findAll(filters);

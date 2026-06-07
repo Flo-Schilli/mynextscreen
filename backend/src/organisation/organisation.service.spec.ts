@@ -117,9 +117,7 @@ describe('OrganisationService', () => {
     it('should throw NotFoundException if organisation not found', async () => {
       repository.findOneBy.mockResolvedValue(null);
 
-      await expect(service.findOne('nonexistent-id')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.findOne('nonexistent-id')).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -143,9 +141,9 @@ describe('OrganisationService', () => {
     it('should throw NotFoundException if organisation not found', async () => {
       repository.findOneBy.mockResolvedValue(null);
 
-      await expect(
-        service.update('nonexistent-id', { name: 'Updated' }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.update('nonexistent-id', { name: 'Updated' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -188,9 +186,9 @@ describe('OrganisationService', () => {
       repository.findOneBy.mockResolvedValue({ ...mockOrganisation });
       playlistRepository.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.setDefaultPlaylist(orgId, playlistId),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.setDefaultPlaylist(orgId, playlistId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw BadRequestException if playlist belongs to different org', async () => {
@@ -203,17 +201,17 @@ describe('OrganisationService', () => {
       repository.findOneBy.mockResolvedValue({ ...mockOrganisation });
       playlistRepository.findOne.mockResolvedValue(otherOrgPlaylist);
 
-      await expect(
-        service.setDefaultPlaylist(orgId, playlistId),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.setDefaultPlaylist(orgId, playlistId)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw NotFoundException if organisation does not exist', async () => {
       repository.findOneBy.mockResolvedValue(null);
 
-      await expect(
-        service.setDefaultPlaylist('nonexistent-id', playlistId),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.setDefaultPlaylist('nonexistent-id', playlistId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

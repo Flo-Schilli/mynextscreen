@@ -58,9 +58,7 @@ export class OrganisationController {
   // ── Super-admin member management (bypasses OrgAdmin role check) ──
 
   @Get(':id/members')
-  listMembers(
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<UserOrganisationMembership[]> {
+  listMembers(@Param('id', ParseUUIDPipe) id: string): Promise<UserOrganisationMembership[]> {
     return this.membershipService.listMembers(id);
   }
 

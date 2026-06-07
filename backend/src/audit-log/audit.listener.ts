@@ -563,10 +563,7 @@ export class AuditListener {
         organisation: null,
       })
       .catch((err) => {
-        this.logger.error(
-          `Failed to record audit entry for ${action}: ${err.message}`,
-          err.stack,
-        );
+        this.logger.error(`Failed to record audit entry for ${action}: ${err.message}`, err.stack);
       });
   }
 }

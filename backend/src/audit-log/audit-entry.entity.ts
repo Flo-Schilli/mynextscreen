@@ -1,10 +1,4 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { Organisation } from '../organisation/organisation.entity';
 import { AuditAction } from './audit-action.enum';

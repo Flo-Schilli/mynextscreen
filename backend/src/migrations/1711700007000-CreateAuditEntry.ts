@@ -1,10 +1,4 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  Table,
-  TableForeignKey,
-  TableIndex,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableForeignKey, TableIndex } from 'typeorm';
 
 export class CreateAuditEntry1711700007000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -96,10 +90,7 @@ export class CreateAuditEntry1711700007000 implements MigrationInterface {
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.dropIndex('audit_entries', 'IDX_audit_entry_action');
     await queryRunner.dropIndex('audit_entries', 'IDX_audit_entry_timestamp');
-    await queryRunner.dropIndex(
-      'audit_entries',
-      'IDX_audit_entry_organisationId',
-    );
+    await queryRunner.dropIndex('audit_entries', 'IDX_audit_entry_organisationId');
     await queryRunner.dropTable('audit_entries');
   }
 }

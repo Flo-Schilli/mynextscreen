@@ -72,9 +72,7 @@ describe('SearchService', () => {
   describe('normal match', () => {
     it('should return categorised results from all entity types', async () => {
       const screenQb = mockQueryBuilder();
-      screenQb.getMany.mockResolvedValue([
-        { id: 's1', name: 'Lobby Screen', location: 'Lobby' },
-      ]);
+      screenQb.getMany.mockResolvedValue([{ id: 's1', name: 'Lobby Screen', location: 'Lobby' }]);
       screenRepo.createQueryBuilder.mockReturnValue(screenQb);
 
       const contentQb = mockQueryBuilder();
@@ -84,15 +82,11 @@ describe('SearchService', () => {
       contentRepo.createQueryBuilder.mockReturnValue(contentQb);
 
       const playlistQb = mockQueryBuilder();
-      playlistQb.getMany.mockResolvedValue([
-        { id: 'p1', name: 'Morning Playlist' },
-      ]);
+      playlistQb.getMany.mockResolvedValue([{ id: 'p1', name: 'Morning Playlist' }]);
       playlistRepo.createQueryBuilder.mockReturnValue(playlistQb);
 
       const scheduleQb = mockQueryBuilder();
-      scheduleQb.getMany.mockResolvedValue([
-        { id: 'se1', playlist: { name: 'Morning Playlist' } },
-      ]);
+      scheduleQb.getMany.mockResolvedValue([{ id: 'se1', playlist: { name: 'Morning Playlist' } }]);
       scheduleRepo.createQueryBuilder.mockReturnValue(scheduleQb);
 
       const result = await service.search('morning', orgId);
@@ -159,22 +153,10 @@ describe('SearchService', () => {
 
       await service.search('test', orgId);
 
-      expect(screenQb.where).toHaveBeenCalledWith(
-        'screen.organisationId = :orgId',
-        { orgId },
-      );
-      expect(contentQb.where).toHaveBeenCalledWith(
-        'content.organisationId = :orgId',
-        { orgId },
-      );
-      expect(playlistQb.where).toHaveBeenCalledWith(
-        'playlist.organisationId = :orgId',
-        { orgId },
-      );
-      expect(scheduleQb.where).toHaveBeenCalledWith(
-        'schedule.organisationId = :orgId',
-        { orgId },
-      );
+      expect(screenQb.where).toHaveBeenCalledWith('screen.organisationId = :orgId', { orgId });
+      expect(contentQb.where).toHaveBeenCalledWith('content.organisationId = :orgId', { orgId });
+      expect(playlistQb.where).toHaveBeenCalledWith('playlist.organisationId = :orgId', { orgId });
+      expect(scheduleQb.where).toHaveBeenCalledWith('schedule.organisationId = :orgId', { orgId });
     });
 
     it('should not return results from another organisation', async () => {
@@ -193,10 +175,9 @@ describe('SearchService', () => {
 
       // Verify it was scoped to the other org, not the primary one
       const screenQb = screenRepo.createQueryBuilder.mock.results[0].value;
-      expect(screenQb.where).toHaveBeenCalledWith(
-        'screen.organisationId = :orgId',
-        { orgId: otherOrgId },
-      );
+      expect(screenQb.where).toHaveBeenCalledWith('screen.organisationId = :orgId', {
+        orgId: otherOrgId,
+      });
     });
   });
 

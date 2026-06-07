@@ -2,10 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { OrgNotificationConfigService } from '../org-notification-config.service';
-import {
-  NtfyChannel,
-  NotificationPayload,
-} from './notification-channel.interfaces';
+import { NtfyChannel, NotificationPayload } from './notification-channel.interfaces';
 
 @Injectable()
 export class NtfyNotificationChannel implements NtfyChannel {
@@ -20,9 +17,7 @@ export class NtfyNotificationChannel implements NtfyChannel {
     const orgConfig = await this.orgConfigService.getForOrg(orgId);
 
     if (!orgConfig?.ntfyUrl || !orgConfig?.ntfyTopic) {
-      this.logger.debug(
-        `Skipping ntfy for org ${orgId}: ntfy URL or topic not configured`,
-      );
+      this.logger.debug(`Skipping ntfy for org ${orgId}: ntfy URL or topic not configured`);
       return;
     }
 
@@ -38,14 +33,11 @@ export class NtfyNotificationChannel implements NtfyChannel {
     }
 
     try {
-      await firstValueFrom(
-        this.httpService.post(url, notification.message, { headers }),
-      );
+      await firstValueFrom(this.httpService.post(url, notification.message, { headers }));
       this.logger.debug(`ntfy notification sent to ${url}`);
     } catch (error) {
-      this.logger.warn(
-        `ntfy notification failed for org ${orgId}: ${error.message}`,
-      );
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`ntfy notification failed for org ${orgId}: ${message}`);
     }
   }
 }

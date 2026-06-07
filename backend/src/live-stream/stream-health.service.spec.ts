@@ -7,10 +7,7 @@ import { LiveStream } from './live-stream.entity';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
 import { TranscodingPreset } from './transcoding-preset.enum';
-import {
-  FfmpegLiveService,
-  LIVE_STREAM_PROCESS_EXITED,
-} from './ffmpeg-live.service';
+import { FfmpegLiveService, LIVE_STREAM_PROCESS_EXITED } from './ffmpeg-live.service';
 import { LIVE_STREAM_HEALTH_CHANGED } from './stream-health.event';
 import { Organisation } from '../organisation/organisation.entity';
 
@@ -51,9 +48,7 @@ describe('StreamHealthService', () => {
 
     ffmpegLiveService = {
       isRunning: jest.fn(),
-      getHlsOutputDir: jest
-        .fn()
-        .mockReturnValue('/tmp/signage-hls/' + streamId),
+      getHlsOutputDir: jest.fn().mockReturnValue('/tmp/signage-hls/' + streamId),
     };
 
     eventEmitter = { emit: jest.fn() };
@@ -287,9 +282,7 @@ describe('StreamHealthService', () => {
       const stream2 = { ...mockStream, id: streamId2, name: 'Camera 2' };
       repository.find.mockResolvedValue([mockStream, stream2]);
       ffmpegLiveService.isRunning.mockReturnValue(true);
-      ffmpegLiveService.getHlsOutputDir.mockReturnValue(
-        '/tmp/signage-hls/test',
-      );
+      ffmpegLiveService.getHlsOutputDir.mockReturnValue('/tmp/signage-hls/test');
       setupFreshSegments();
 
       await service.runHealthChecks();

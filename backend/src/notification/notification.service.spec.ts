@@ -65,10 +65,7 @@ describe('NotificationService', () => {
 
       await service.markAsRead('notif-1', userId);
 
-      expect(repository.update).toHaveBeenCalledWith(
-        { id: 'notif-1', userId },
-        { read: true },
-      );
+      expect(repository.update).toHaveBeenCalledWith({ id: 'notif-1', userId }, { read: true });
     });
   });
 

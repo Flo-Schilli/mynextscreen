@@ -2,9 +2,7 @@ import { validate } from 'class-validator';
 import { Notification } from './notification.entity';
 import { NotificationEventType } from './notification-event-type.enum';
 
-function createNotification(
-  overrides: Partial<Notification> = {},
-): Notification {
+function createNotification(overrides: Partial<Notification> = {}): Notification {
   const notification = new Notification();
   notification.userId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
   notification.organisationId = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';

@@ -13,9 +13,7 @@ describe('SearchController', () => {
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
 
   const mockResults: SearchResultsDto = {
-    screens: [
-      { id: 's-1', type: 'screen', label: 'Lobby Screen', url: '/screens/s-1' },
-    ],
+    screens: [{ id: 's-1', type: 'screen', label: 'Lobby Screen', url: '/screens/s-1' }],
     content: [],
     playlists: [
       {
@@ -88,9 +86,7 @@ describe('SearchController', () => {
       const qError = errors.find((e) => e.property === 'q');
       expect(qError).toBeDefined();
       const messages = Object.values(qError!.constraints ?? {});
-      expect(messages.some((m) => m.includes('at least 2 characters'))).toBe(
-        true,
-      );
+      expect(messages.some((m) => m.includes('at least 2 characters'))).toBe(true);
     });
 
     it('should accept when q is 2 or more characters', async () => {

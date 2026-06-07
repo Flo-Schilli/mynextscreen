@@ -70,9 +70,7 @@ describe('ScreenService', () => {
       const result = await service.createScreen(orgId, dto);
 
       expect(mockedApiKeyUtil.generateApiKey).toHaveBeenCalled();
-      expect(mockedApiKeyUtil.hashApiKey).toHaveBeenCalledWith(
-        'test-api-key-plaintext',
-      );
+      expect(mockedApiKeyUtil.hashApiKey).toHaveBeenCalledWith('test-api-key-plaintext');
       expect(repository.create).toHaveBeenCalledWith({
         name: dto.name,
         resolution: dto.resolution,
@@ -121,9 +119,7 @@ describe('ScreenService', () => {
     it('should throw NotFoundException when screen not found', async () => {
       repository.findOne.mockResolvedValue(null);
 
-      await expect(service.findOne(orgId, screenId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.findOne(orgId, screenId)).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -146,9 +142,9 @@ describe('ScreenService', () => {
     it('should throw NotFoundException when screen not found', async () => {
       repository.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.updateScreen(orgId, screenId, { name: 'X' }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.updateScreen(orgId, screenId, { name: 'X' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -163,9 +159,7 @@ describe('ScreenService', () => {
       const result = await service.regenerateApiKey(orgId, screenId);
 
       expect(mockedApiKeyUtil.generateApiKey).toHaveBeenCalled();
-      expect(mockedApiKeyUtil.hashApiKey).toHaveBeenCalledWith(
-        'test-api-key-plaintext',
-      );
+      expect(mockedApiKeyUtil.hashApiKey).toHaveBeenCalledWith('test-api-key-plaintext');
       expect(result.apiKey).toBe('test-api-key-plaintext');
       expect(result.screen).toBeDefined();
     });
@@ -173,9 +167,7 @@ describe('ScreenService', () => {
     it('should throw NotFoundException when screen not found', async () => {
       repository.findOne.mockResolvedValue(null);
 
-      await expect(service.regenerateApiKey(orgId, screenId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.regenerateApiKey(orgId, screenId)).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -221,9 +213,7 @@ describe('ScreenService', () => {
     it('should throw NotFoundException when screen not found', async () => {
       repository.findOne.mockResolvedValue(null);
 
-      await expect(service.recordHeartbeat(orgId, screenId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.recordHeartbeat(orgId, screenId)).rejects.toThrow(NotFoundException);
     });
   });
 

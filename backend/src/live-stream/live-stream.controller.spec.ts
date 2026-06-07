@@ -180,26 +180,19 @@ describe('LiveStreamController', () => {
 
       const result = await controller.update(orgId, streamId, dto, mockReq);
 
-      expect(service.updateLiveStream).toHaveBeenCalledWith(
-        orgId,
-        streamId,
-        dto,
-        userId,
-      );
+      expect(service.updateLiveStream).toHaveBeenCalledWith(orgId, streamId, dto, userId);
       expect(result).toEqual(updated);
     });
 
     it('should propagate ConflictException when stream is active', async () => {
       const dto = { name: 'Updated Camera' };
       service.updateLiveStream.mockRejectedValue(
-        new ConflictException(
-          'Cannot update a live stream that is currently active.',
-        ),
+        new ConflictException('Cannot update a live stream that is currently active.'),
       );
 
-      await expect(
-        controller.update(orgId, streamId, dto, mockReq),
-      ).rejects.toThrow(ConflictException);
+      await expect(controller.update(orgId, streamId, dto, mockReq)).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
@@ -209,23 +202,15 @@ describe('LiveStreamController', () => {
 
       await controller.remove(orgId, streamId, mockReq);
 
-      expect(service.removeLiveStream).toHaveBeenCalledWith(
-        orgId,
-        streamId,
-        userId,
-      );
+      expect(service.removeLiveStream).toHaveBeenCalledWith(orgId, streamId, userId);
     });
 
     it('should propagate ConflictException when stream is active', async () => {
       service.removeLiveStream.mockRejectedValue(
-        new ConflictException(
-          'Cannot delete a live stream that is currently active.',
-        ),
+        new ConflictException('Cannot delete a live stream that is currently active.'),
       );
 
-      await expect(controller.remove(orgId, streamId, mockReq)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(controller.remove(orgId, streamId, mockReq)).rejects.toThrow(ConflictException);
     });
   });
 
@@ -242,12 +227,7 @@ describe('LiveStreamController', () => {
 
       const result = await controller.activate(orgId, streamId, dto, mockReq);
 
-      expect(service.activateStream).toHaveBeenCalledWith(
-        orgId,
-        streamId,
-        dto,
-        userId,
-      );
+      expect(service.activateStream).toHaveBeenCalledWith(orgId, streamId, dto, userId);
       expect(result.stream.status).toBe(LiveStreamStatus.Active);
       expect(result.warnings).toEqual([]);
     });
@@ -260,9 +240,9 @@ describe('LiveStreamController', () => {
         new BadGatewayException('Failed to start FFmpeg transcoding'),
       );
 
-      await expect(
-        controller.activate(orgId, streamId, dto, mockReq),
-      ).rejects.toThrow(BadGatewayException);
+      await expect(controller.activate(orgId, streamId, dto, mockReq)).rejects.toThrow(
+        BadGatewayException,
+      );
     });
   });
 
@@ -273,11 +253,7 @@ describe('LiveStreamController', () => {
 
       const result = await controller.deactivate(orgId, streamId, mockReq);
 
-      expect(service.deactivateStream).toHaveBeenCalledWith(
-        orgId,
-        streamId,
-        userId,
-      );
+      expect(service.deactivateStream).toHaveBeenCalledWith(orgId, streamId, userId);
       expect(result.status).toBe(LiveStreamStatus.Idle);
     });
   });

@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  BadRequestException,
-  PayloadTooLargeException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException, PayloadTooLargeException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -31,10 +27,7 @@ import {
   AUDIT_CONTENT_BULK_ADDED_TO_PLAYLIST,
   AuditContentEvent,
 } from '../audit-log/audit.events';
-import {
-  CONTENT_DURATION_RESOLVED,
-  ContentDurationResolvedEvent,
-} from './content.event';
+import { CONTENT_DURATION_RESOLVED, ContentDurationResolvedEvent } from './content.event';
 
 const IMAGE_MIME_PREFIX = 'image/';
 const VIDEO_MIME_PREFIX = 'video/';
@@ -58,10 +51,7 @@ export class ContentService {
     private readonly storageService: StorageService,
     private readonly eventEmitter: EventEmitter2,
   ) {
-    this.mediaBasePath = this.configService.get<string>(
-      'MEDIA_BASE_PATH',
-      './media',
-    );
+    this.mediaBasePath = this.configService.get<string>('MEDIA_BASE_PATH', './media');
     this.maxFileSizeBytes = this.configService.get<number>(
       'MAX_FILE_SIZE_BYTES',
       104857600, // 100 MB default
@@ -102,12 +92,7 @@ export class ContentService {
     const saved = await this.contentRepository.save(content);
 
     // Save file to filesystem
-    const filePath = getOriginalPath(
-      this.mediaBasePath,
-      organisationId,
-      saved.id,
-      ext,
-    );
+    const filePath = getOriginalPath(this.mediaBasePath, organisationId, saved.id, ext);
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, file.buffer);
 
@@ -147,9 +132,7 @@ export class ContentService {
     const contents = await this.contentRepository.find({ where });
 
     if (filters?.tags && filters.tags.length > 0) {
-      return contents.filter((c) =>
-        filters.tags!.some((tag) => c.tags.includes(tag)),
-      );
+      return contents.filter((c) => filters.tags!.some((tag) => c.tags.includes(tag)));
     }
 
     return contents;
@@ -213,26 +196,15 @@ export class ContentService {
 
   async delete(organisationId: string, id: string): Promise<void> {
     const content = await this.findOne(organisationId, id);
-    const ext =
-      path.extname(content.originalFilename).replace('.', '') || 'bin';
+    const ext = path.extname(content.originalFilename).replace('.', '') || 'bin';
 
     // Remove original file
-    const originalPath = getOriginalPath(
-      this.mediaBasePath,
-      organisationId,
-      id,
-      ext,
-    );
+    const originalPath = getOriginalPath(this.mediaBasePath, organisationId, id, ext);
     await this.unlinkSafe(originalPath);
 
     // Remove transcoded file (try common extensions)
     const transcodedExt = content.type === ContentType.Video ? 'mp4' : 'webp';
-    const transcodedPath = getTranscodedPath(
-      this.mediaBasePath,
-      organisationId,
-      id,
-      transcodedExt,
-    );
+    const transcodedPath = getTranscodedPath(this.mediaBasePath, organisationId, id, transcodedExt);
     await this.unlinkSafe(transcodedPath);
 
     // Update org storage counters
@@ -257,11 +229,7 @@ export class ContentService {
     );
   }
 
-  async reUpload(
-    organisationId: string,
-    id: string,
-    file: Express.Multer.File,
-  ): Promise<Content> {
+  async reUpload(organisationId: string, id: string, file: Express.Multer.File): Promise<Content> {
     this.validateFile(file);
 
     const content = await this.findOne(organisationId, id);
@@ -272,18 +240,12 @@ export class ContentService {
       await this.storageService.checkOriginalLimit(organisationId, sizeDelta);
     }
 
-    const oldExt =
-      path.extname(content.originalFilename).replace('.', '') || 'bin';
+    const oldExt = path.extname(content.originalFilename).replace('.', '') || 'bin';
     const newExt = path.extname(file.originalname).replace('.', '') || 'bin';
 
     // Remove old original if extension changed
     if (oldExt !== newExt) {
-      const oldPath = getOriginalPath(
-        this.mediaBasePath,
-        organisationId,
-        id,
-        oldExt,
-      );
+      const oldPath = getOriginalPath(this.mediaBasePath, organisationId, id, oldExt);
       await this.unlinkSafe(oldPath);
     }
 
@@ -306,12 +268,7 @@ export class ContentService {
     }
 
     // Write new file
-    const filePath = getOriginalPath(
-      this.mediaBasePath,
-      organisationId,
-      id,
-      newExt,
-    );
+    const filePath = getOriginalPath(this.mediaBasePath, organisationId, id, newExt);
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, file.buffer);
 
@@ -319,10 +276,7 @@ export class ContentService {
     if (sizeDelta > 0) {
       await this.storageService.addOriginalUsage(organisationId, sizeDelta);
     } else if (sizeDelta < 0) {
-      await this.storageService.subtractOriginalUsage(
-        organisationId,
-        Math.abs(sizeDelta),
-      );
+      await this.storageService.subtractOriginalUsage(organisationId, Math.abs(sizeDelta));
     }
 
     // Update content record
@@ -394,14 +348,8 @@ export class ContentService {
     }
 
     for (const content of contents) {
-      const ext =
-        path.extname(content.originalFilename).replace('.', '') || 'bin';
-      const originalPath = getOriginalPath(
-        this.mediaBasePath,
-        organisationId,
-        content.id,
-        ext,
-      );
+      const ext = path.extname(content.originalFilename).replace('.', '') || 'bin';
+      const originalPath = getOriginalPath(this.mediaBasePath, organisationId, content.id, ext);
       await this.unlinkSafe(originalPath);
 
       const transcodedExt = content.type === ContentType.Video ? 'mp4' : 'webp';
