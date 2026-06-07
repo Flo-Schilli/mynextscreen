@@ -312,8 +312,7 @@ describe('SSE Buffer Parsing', () => {
 
   it('should keep incomplete data as remaining', () => {
     const buffer =
-      'data: {"type":"schedule_update","timestamp":"T1","data":{}}\n\n' +
-      'data: {"type":"play';
+      'data: {"type":"schedule_update","timestamp":"T1","data":{}}\n\n' + 'data: {"type":"play';
     const result = parseSseBuffer(buffer);
 
     expect(result.parsed).toHaveLength(1);
@@ -342,8 +341,7 @@ describe('SSE Buffer Parsing', () => {
   });
 
   it('should use event type field if present', () => {
-    const buffer =
-      'event: schedule_update\ndata: {"timestamp":"T1","data":{"screenId":"s1"}}\n\n';
+    const buffer = 'event: schedule_update\ndata: {"timestamp":"T1","data":{"screenId":"s1"}}\n\n';
     const result = parseSseBuffer(buffer);
 
     expect(result.parsed).toHaveLength(1);

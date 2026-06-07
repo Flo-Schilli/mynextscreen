@@ -97,7 +97,11 @@ export class ScheduleService {
       this.emitScheduleChanged(saved.screenId, organisationId);
     }
     if (saved.groupId) {
-      this.emitGroupScheduleChanged(saved.groupId, organisationId, saved.playlistId);
+      this.emitGroupScheduleChanged(
+        saved.groupId,
+        organisationId,
+        saved.playlistId,
+      );
     }
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_CREATED,
@@ -128,7 +132,10 @@ export class ScheduleService {
       await this.validatePlaylist(dto.playlistId, organisationId);
     }
 
-    if (entry.screenId && (dto.startTime || dto.endTime || dto.rrule !== undefined)) {
+    if (
+      entry.screenId &&
+      (dto.startTime || dto.endTime || dto.rrule !== undefined)
+    ) {
       await this.checkOverlap(
         entry.screenId,
         organisationId,
@@ -150,7 +157,11 @@ export class ScheduleService {
       this.emitScheduleChanged(entry.screenId, organisationId);
     }
     if (saved.groupId) {
-      this.emitGroupScheduleChanged(saved.groupId, organisationId, saved.playlistId);
+      this.emitGroupScheduleChanged(
+        saved.groupId,
+        organisationId,
+        saved.playlistId,
+      );
     }
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_UPDATED,
@@ -347,10 +358,7 @@ export class ScheduleService {
     return entry;
   }
 
-  private validateTarget(
-    screenId?: string,
-    groupId?: string,
-  ): void {
+  private validateTarget(screenId?: string, groupId?: string): void {
     if (screenId && groupId) {
       throw new BadRequestException(
         'Exactly one of screenId or groupId must be set, not both',

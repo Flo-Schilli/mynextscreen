@@ -11,7 +11,11 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { ScreenGroupService } from './screen-group.service';
-import { CreateScreenGroupDto, UpdateScreenGroupDto, AssignScreenDto } from './dto';
+import {
+  CreateScreenGroupDto,
+  UpdateScreenGroupDto,
+  AssignScreenDto,
+} from './dto';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
@@ -30,7 +34,11 @@ export class ScreenGroupController {
     @Body() dto: CreateScreenGroupDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<ScreenGroup> {
-    return this.screenGroupService.createGroup(organisationId, dto, req.user.userId);
+    return this.screenGroupService.createGroup(
+      organisationId,
+      dto,
+      req.user.userId,
+    );
   }
 
   @Get()
@@ -66,7 +74,12 @@ export class ScreenGroupController {
     @Body() dto: UpdateScreenGroupDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<ScreenGroup> {
-    return this.screenGroupService.updateGroup(organisationId, id, dto, req.user.userId);
+    return this.screenGroupService.updateGroup(
+      organisationId,
+      id,
+      dto,
+      req.user.userId,
+    );
   }
 
   @Delete(':id')
@@ -76,7 +89,11 @@ export class ScreenGroupController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: AuthenticatedRequest,
   ): Promise<void> {
-    return this.screenGroupService.removeGroup(organisationId, id, req.user.userId);
+    return this.screenGroupService.removeGroup(
+      organisationId,
+      id,
+      req.user.userId,
+    );
   }
 
   @Put(':groupId/screens/:screenId')

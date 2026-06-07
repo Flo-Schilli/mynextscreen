@@ -21,6 +21,7 @@ import {
 import { ScheduleEntry, ScheduleService } from '../schedule';
 import { LiveStreamActivation } from '../live-stream/live-stream-activation.entity';
 import { Organisation } from '../organisation/organisation.entity';
+import { SlicedRendition } from '../slice-content/sliced-rendition.entity';
 import { SCHEDULE_CHANGED, ScreenStateChangeEvent } from './screen-state.event';
 
 describe('Playlist Transition Integration', () => {
@@ -129,6 +130,13 @@ describe('Playlist Transition Integration', () => {
         {
           provide: getRepositoryToken(Organisation),
           useValue: organisationRepository,
+        },
+        {
+          provide: getRepositoryToken(SlicedRendition),
+          useValue: {
+            find: jest.fn().mockResolvedValue([]),
+            findOne: jest.fn().mockResolvedValue(null),
+          },
         },
       ],
     }).compile();

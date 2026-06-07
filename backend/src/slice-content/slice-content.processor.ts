@@ -121,8 +121,7 @@ export class SliceContentProcessor extends WorkerHost {
       }
 
       // Determine source file path (use transcoded version)
-      const sourceExt =
-        content.type === ContentType.Video ? 'mp4' : 'webp';
+      const sourceExt = content.type === ContentType.Video ? 'mp4' : 'webp';
       const sourcePath = getTranscodedPath(
         this.mediaBasePath,
         organisationId,
@@ -184,8 +183,7 @@ export class SliceContentProcessor extends WorkerHost {
         );
 
         // Determine output path and extension
-        const outputExt =
-          content.type === ContentType.Video ? 'mp4' : 'webp';
+        const outputExt = content.type === ContentType.Video ? 'mp4' : 'webp';
         const outputPath = path.join(
           this.mediaBasePath,
           'slices',

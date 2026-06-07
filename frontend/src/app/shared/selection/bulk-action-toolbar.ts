@@ -1,10 +1,4 @@
-import {
-  Component,
-  inject,
-  input,
-  signal,
-  Signal,
-} from '@angular/core';
+import { Component, inject, input, signal, Signal } from '@angular/core';
 import { SelectionService } from './selection.service';
 
 export interface BulkAction {
@@ -21,9 +15,7 @@ export interface BulkAction {
   template: `
     @if (selectionService.hasSelection()) {
       <div class="bulk-toolbar" role="toolbar" aria-label="Bulk actions">
-        <span class="selection-count">
-          {{ selectionService.count() }} item(s) selected
-        </span>
+        <span class="selection-count"> {{ selectionService.count() }} item(s) selected </span>
         <button
           class="clear-btn"
           (click)="selectionService.clearAll()"

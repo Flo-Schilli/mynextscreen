@@ -39,7 +39,11 @@ export class OrganisationService {
     return this.http.post<OrgMember>(`${this.baseUrl}/${orgId}/members`, dto);
   }
 
-  updateMemberRole(orgId: string, userId: string, dto: UpdateOrgMemberRoleRequest): Observable<OrgMember> {
+  updateMemberRole(
+    orgId: string,
+    userId: string,
+    dto: UpdateOrgMemberRoleRequest,
+  ): Observable<OrgMember> {
     return this.http.patch<OrgMember>(`${this.baseUrl}/${orgId}/members/${userId}`, dto);
   }
 

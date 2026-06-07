@@ -6,7 +6,9 @@ import { environment } from '../../environments/environment';
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private hanko = new Hanko(environment.hankoApiUrl);
-  private currentUserSubject = new BehaviorSubject<any>(null);
+  private currentUserSubject = new BehaviorSubject<Awaited<
+    ReturnType<Hanko['validateSession']>
+  > | null>(null);
   public currentUser$ = this.currentUserSubject.asObservable();
 
   constructor() {

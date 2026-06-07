@@ -1,12 +1,6 @@
 import { TestBed, getTestBed } from '@angular/core/testing';
-import {
-  BrowserTestingModule,
-  platformBrowserTesting,
-} from '@angular/platform-browser/testing';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideZonelessChangeDetection } from '@angular/core';
 import {
@@ -15,10 +9,7 @@ import {
 } from './notification-preferences.service';
 
 try {
-  getTestBed().initTestEnvironment(
-    BrowserTestingModule,
-    platformBrowserTesting(),
-  );
+  getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
 } catch {
   // already initialized
 }
@@ -105,9 +96,7 @@ describe('NotificationPreferencesService', () => {
         expect(config.ntfyUrl).toBeNull();
       });
 
-      const req = httpMock.expectOne(
-        '/api/organisations/org-1/notification-config',
-      );
+      const req = httpMock.expectOne('/api/organisations/org-1/notification-config');
       expect(req.request.method).toBe('GET');
       req.flush(mockConfig);
     });

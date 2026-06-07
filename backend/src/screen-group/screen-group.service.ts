@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, FindOptionsWhere } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OrganisationScopedService } from '../organisation/organisation-scope.service';
 import { ScreenGroup } from './screen-group.entity';
@@ -38,14 +38,17 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
 
   override async findAll(organisationId: string): Promise<ScreenGroup[]> {
     return this.repository.find({
-      where: { organisationId } as any,
+      where: { organisationId } as FindOptionsWhere<ScreenGroup>,
       relations: ['screens'],
     });
   }
 
-  override async findOne(organisationId: string, id: string): Promise<ScreenGroup> {
+  override async findOne(
+    organisationId: string,
+    id: string,
+  ): Promise<ScreenGroup> {
     const entity = await this.repository.findOne({
-      where: { organisationId, id } as any,
+      where: { organisationId, id } as FindOptionsWhere<ScreenGroup>,
       relations: ['screens'],
     });
     if (!entity) {
@@ -225,8 +228,10 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
     }
 
     screen.groupId = groupId;
-    screen.gridRow = group.mode === ScreenGroupMode.Split ? (dto.gridRow ?? null) : null;
-    screen.gridColumn = group.mode === ScreenGroupMode.Split ? (dto.gridColumn ?? null) : null;
+    screen.gridRow =
+      group.mode === ScreenGroupMode.Split ? (dto.gridRow ?? null) : null;
+    screen.gridColumn =
+      group.mode === ScreenGroupMode.Split ? (dto.gridColumn ?? null) : null;
 
     const saved = await this.screenRepository.save(screen);
 

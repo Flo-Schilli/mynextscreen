@@ -7,29 +7,19 @@ import { PlaylistItem } from '../player/player.models';
 
 // --- URL building (mirrors PlaybackComponent.buildMediaUrl) ---
 
-function buildMediaUrl(
-  url: string,
-  serverUrl: string,
-  apiKey: string,
-): string {
+function buildMediaUrl(url: string, serverUrl: string, apiKey: string): string {
   const separator = url.includes('?') ? '&' : '?';
   return `${serverUrl}${url}${separator}token=${apiKey}`;
 }
 
 // --- Item sequencing ---
 
-function getCurrentItem(
-  items: PlaylistItem[],
-  index: number,
-): PlaylistItem | null {
+function getCurrentItem(items: PlaylistItem[], index: number): PlaylistItem | null {
   if (items.length === 0) return null;
   return items[index % items.length] ?? null;
 }
 
-function getNextItem(
-  items: PlaylistItem[],
-  index: number,
-): PlaylistItem | null {
+function getNextItem(items: PlaylistItem[], index: number): PlaylistItem | null {
   if (items.length <= 1) return null;
   return items[(index + 1) % items.length] ?? null;
 }
@@ -47,14 +37,8 @@ function shouldPreload(item: PlaylistItem | null): boolean {
 
 describe('Playback URL building', () => {
   it('should append token query param to media URL', () => {
-    const url = buildMediaUrl(
-      '/api/media/org1/content1',
-      'http://localhost:3000',
-      'my-api-key',
-    );
-    expect(url).toBe(
-      'http://localhost:3000/api/media/org1/content1?token=my-api-key',
-    );
+    const url = buildMediaUrl('/api/media/org1/content1', 'http://localhost:3000', 'my-api-key');
+    expect(url).toBe('http://localhost:3000/api/media/org1/content1?token=my-api-key');
   });
 
   it('should use & separator if URL already has query params', () => {
@@ -63,17 +47,11 @@ describe('Playback URL building', () => {
       'http://localhost:3000',
       'key123',
     );
-    expect(url).toBe(
-      'http://localhost:3000/api/media/org1/content1?quality=high&token=key123',
-    );
+    expect(url).toBe('http://localhost:3000/api/media/org1/content1?quality=high&token=key123');
   });
 
   it('should handle empty server URL (proxy mode)', () => {
-    const url = buildMediaUrl(
-      '/api/media/org1/content1',
-      '',
-      'key',
-    );
+    const url = buildMediaUrl('/api/media/org1/content1', '', 'key');
     expect(url).toBe('/api/media/org1/content1?token=key');
   });
 });
@@ -134,15 +112,11 @@ describe('Index advancement', () => {
 
 describe('Preload decisions', () => {
   it('should preload images', () => {
-    expect(
-      shouldPreload({ url: '/img', duration: 10, type: 'image' }),
-    ).toBe(true);
+    expect(shouldPreload({ url: '/img', duration: 10, type: 'image' })).toBe(true);
   });
 
   it('should not preload videos', () => {
-    expect(
-      shouldPreload({ url: '/vid', duration: 0, type: 'video' }),
-    ).toBe(false);
+    expect(shouldPreload({ url: '/vid', duration: 0, type: 'video' })).toBe(false);
   });
 
   it('should not preload null item', () => {

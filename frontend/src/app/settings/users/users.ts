@@ -17,15 +17,15 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
           <h1>User Management</h1>
         </div>
         @if (!loading && members.length > 0) {
-          <button class="btn btn-primary" (click)="openInviteModal()">
-            + Invite User
-          </button>
+          <button class="btn btn-primary" (click)="openInviteModal()">+ Invite User</button>
         }
       </header>
 
       <nav class="settings-nav">
         <a class="settings-nav-link active">User Management</a>
-        <a class="settings-nav-link" routerLink="/settings/org/notifications">Notification Config</a>
+        <a class="settings-nav-link" routerLink="/settings/org/notifications"
+          >Notification Config</a
+        >
       </nav>
 
       @if (loadError) {
@@ -65,7 +65,7 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
                       <option value="viewer">Viewer</option>
                     </select>
                   </td>
-                  <td>{{ member.createdAt | date:'mediumDate' }}</td>
+                  <td>{{ member.createdAt | date: 'mediumDate' }}</td>
                   <td>
                     <button
                       class="btn btn-small btn-danger"
@@ -91,9 +91,21 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
       }
 
       @if (showInviteModal) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Invite user"
-             tabindex="0" (click)="closeInviteModal()" (keydown.escape)="closeInviteModal()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Invite user"
+          tabindex="0"
+          (click)="closeInviteModal()"
+          (keydown.escape)="closeInviteModal()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Invite User</h2>
             <form (ngSubmit)="submitInvite()">
               <div class="form-group">
@@ -119,7 +131,9 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
                 <p class="error">{{ inviteError }}</p>
               }
               <div class="form-actions">
-                <button type="button" class="btn btn-secondary" (click)="closeInviteModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" (click)="closeInviteModal()">
+                  Cancel
+                </button>
                 <button type="submit" class="btn btn-primary" [disabled]="inviting">
                   {{ inviting ? 'Inviting...' : 'Invite' }}
                 </button>
@@ -130,14 +144,33 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
       }
 
       @if (showRemoveConfirm) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Confirm removal"
-             tabindex="0" (click)="cancelRemove()" (keydown.escape)="cancelRemove()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm removal"
+          tabindex="0"
+          (click)="cancelRemove()"
+          (keydown.escape)="cancelRemove()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Remove Member</h2>
-            <p>Are you sure you want to remove <strong>{{ removingMember?.user?.email }}</strong> from this organisation?</p>
+            <p>
+              Are you sure you want to remove
+              <strong>{{ removingMember?.user?.email }}</strong> from this organisation?
+            </p>
             <div class="form-actions">
               <button class="btn btn-secondary" (click)="cancelRemove()">Cancel</button>
-              <button class="btn btn-danger" (click)="executeRemove()" [disabled]="removingUserId !== null">
+              <button
+                class="btn btn-danger"
+                (click)="executeRemove()"
+                [disabled]="removingUserId !== null"
+              >
                 {{ removingUserId ? 'Removing...' : 'Remove' }}
               </button>
             </div>
@@ -196,7 +229,9 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
       text-decoration: none;
       border-bottom: 2px solid transparent;
       cursor: pointer;
-      transition: color 0.15s, border-color 0.15s;
+      transition:
+        color 0.15s,
+        border-color 0.15s;
     }
     .settings-nav-link:hover {
       color: var(--color-text-primary);
@@ -257,7 +292,9 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
       background: var(--color-bg-secondary);
       border-radius: 0.5rem;
       overflow: hidden;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
     thead {
       background: var(--color-bg-tertiary);
@@ -368,7 +405,8 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
       font-size: 0.875rem;
       margin-top: 0.5rem;
     }
-    .loading-text, .empty-text {
+    .loading-text,
+    .empty-text {
       color: var(--color-text-muted);
       font-size: 0.875rem;
     }
@@ -463,17 +501,19 @@ export class Users implements OnInit {
 
     this.inviting = true;
     this.inviteError = '';
-    this.memberService.addMember(this.orgId, { email: this.inviteEmail, role: this.inviteRole }).subscribe({
-      next: () => {
-        this.inviting = false;
-        this.showInviteModal = false;
-        this.loadMembers();
-      },
-      error: (err) => {
-        this.inviteError = err.error?.message || 'Failed to invite user.';
-        this.inviting = false;
-      },
-    });
+    this.memberService
+      .addMember(this.orgId, { email: this.inviteEmail, role: this.inviteRole })
+      .subscribe({
+        next: () => {
+          this.inviting = false;
+          this.showInviteModal = false;
+          this.loadMembers();
+        },
+        error: (err) => {
+          this.inviteError = err.error?.message || 'Failed to invite user.';
+          this.inviting = false;
+        },
+      });
   }
 
   changeRole(member: Membership, newRole: OrganisationRole): void {

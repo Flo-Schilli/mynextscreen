@@ -1,4 +1,8 @@
-import { computeCropParams, buildCropFilter, CropParams } from './crop-computation.util';
+import {
+  computeCropParams,
+  buildCropFilter,
+  CropParams,
+} from './crop-computation.util';
 
 describe('computeCropParams', () => {
   describe('2x2 grid', () => {
@@ -8,22 +12,50 @@ describe('computeCropParams', () => {
     const sourceHeight = 1080;
 
     it('should compute top-left cell (0,0)', () => {
-      const result = computeCropParams(sourceWidth, sourceHeight, gridColumns, gridRows, 0, 0);
+      const result = computeCropParams(
+        sourceWidth,
+        sourceHeight,
+        gridColumns,
+        gridRows,
+        0,
+        0,
+      );
       expect(result).toEqual({ w: 960, h: 540, x: 0, y: 0 });
     });
 
     it('should compute top-right cell (1,0)', () => {
-      const result = computeCropParams(sourceWidth, sourceHeight, gridColumns, gridRows, 1, 0);
+      const result = computeCropParams(
+        sourceWidth,
+        sourceHeight,
+        gridColumns,
+        gridRows,
+        1,
+        0,
+      );
       expect(result).toEqual({ w: 960, h: 540, x: 960, y: 0 });
     });
 
     it('should compute bottom-left cell (0,1)', () => {
-      const result = computeCropParams(sourceWidth, sourceHeight, gridColumns, gridRows, 0, 1);
+      const result = computeCropParams(
+        sourceWidth,
+        sourceHeight,
+        gridColumns,
+        gridRows,
+        0,
+        1,
+      );
       expect(result).toEqual({ w: 960, h: 540, x: 0, y: 540 });
     });
 
     it('should compute bottom-right cell (1,1)', () => {
-      const result = computeCropParams(sourceWidth, sourceHeight, gridColumns, gridRows, 1, 1);
+      const result = computeCropParams(
+        sourceWidth,
+        sourceHeight,
+        gridColumns,
+        gridRows,
+        1,
+        1,
+      );
       expect(result).toEqual({ w: 960, h: 540, x: 960, y: 540 });
     });
   });
@@ -35,17 +67,38 @@ describe('computeCropParams', () => {
     const sourceHeight = 1080;
 
     it('should compute left cell (0,0)', () => {
-      const result = computeCropParams(sourceWidth, sourceHeight, gridColumns, gridRows, 0, 0);
+      const result = computeCropParams(
+        sourceWidth,
+        sourceHeight,
+        gridColumns,
+        gridRows,
+        0,
+        0,
+      );
       expect(result).toEqual({ w: 640, h: 1080, x: 0, y: 0 });
     });
 
     it('should compute center cell (1,0)', () => {
-      const result = computeCropParams(sourceWidth, sourceHeight, gridColumns, gridRows, 1, 0);
+      const result = computeCropParams(
+        sourceWidth,
+        sourceHeight,
+        gridColumns,
+        gridRows,
+        1,
+        0,
+      );
       expect(result).toEqual({ w: 640, h: 1080, x: 640, y: 0 });
     });
 
     it('should compute right cell (2,0)', () => {
-      const result = computeCropParams(sourceWidth, sourceHeight, gridColumns, gridRows, 2, 0);
+      const result = computeCropParams(
+        sourceWidth,
+        sourceHeight,
+        gridColumns,
+        gridRows,
+        2,
+        0,
+      );
       expect(result).toEqual({ w: 640, h: 1080, x: 1280, y: 0 });
     });
   });
@@ -57,17 +110,38 @@ describe('computeCropParams', () => {
     const sourceHeight = 1080;
 
     it('should compute top cell (0,0)', () => {
-      const result = computeCropParams(sourceWidth, sourceHeight, gridColumns, gridRows, 0, 0);
+      const result = computeCropParams(
+        sourceWidth,
+        sourceHeight,
+        gridColumns,
+        gridRows,
+        0,
+        0,
+      );
       expect(result).toEqual({ w: 1920, h: 360, x: 0, y: 0 });
     });
 
     it('should compute middle cell (0,1)', () => {
-      const result = computeCropParams(sourceWidth, sourceHeight, gridColumns, gridRows, 0, 1);
+      const result = computeCropParams(
+        sourceWidth,
+        sourceHeight,
+        gridColumns,
+        gridRows,
+        0,
+        1,
+      );
       expect(result).toEqual({ w: 1920, h: 360, x: 0, y: 360 });
     });
 
     it('should compute bottom cell (0,2)', () => {
-      const result = computeCropParams(sourceWidth, sourceHeight, gridColumns, gridRows, 0, 2);
+      const result = computeCropParams(
+        sourceWidth,
+        sourceHeight,
+        gridColumns,
+        gridRows,
+        0,
+        2,
+      );
       expect(result).toEqual({ w: 1920, h: 360, x: 0, y: 720 });
     });
   });

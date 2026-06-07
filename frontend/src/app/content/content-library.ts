@@ -25,7 +25,12 @@ interface UploadItem {
 @Component({
   selector: 'app-content-library',
   standalone: true,
-  imports: [FormsModule, SelectionCheckboxComponent, SelectAllCheckboxComponent, BulkActionToolbarComponent],
+  imports: [
+    FormsModule,
+    SelectionCheckboxComponent,
+    SelectAllCheckboxComponent,
+    BulkActionToolbarComponent,
+  ],
   providers: [SelectionService],
   template: `
     <div class="page">
@@ -37,9 +42,27 @@ interface UploadItem {
         @if (!selectedContent) {
           <div class="header-right">
             <div class="type-toggle">
-              <button class="toggle-btn" [class.active]="!filterType" (click)="setTypeFilter(undefined)">All</button>
-              <button class="toggle-btn" [class.active]="filterType === 'image'" (click)="setTypeFilter('image')">Images</button>
-              <button class="toggle-btn" [class.active]="filterType === 'video'" (click)="setTypeFilter('video')">Videos</button>
+              <button
+                class="toggle-btn"
+                [class.active]="!filterType"
+                (click)="setTypeFilter(undefined)"
+              >
+                All
+              </button>
+              <button
+                class="toggle-btn"
+                [class.active]="filterType === 'image'"
+                (click)="setTypeFilter('image')"
+              >
+                Images
+              </button>
+              <button
+                class="toggle-btn"
+                [class.active]="filterType === 'video'"
+                (click)="setTypeFilter('video')"
+              >
+                Videos
+              </button>
             </div>
           </div>
         }
@@ -53,17 +76,35 @@ interface UploadItem {
             <span class="storage-values">
               {{ formatBytes(storage.originalUsedBytes + storage.transcodedUsedBytes) }}
               @if (storage.originalLimitBytes > 0 || storage.transcodedLimitBytes > 0) {
-                / {{ formatBytes((storage.originalLimitBytes || Infinity) + (storage.transcodedLimitBytes || Infinity)) }}
+                /
+                {{
+                  formatBytes(
+                    (storage.originalLimitBytes || Infinity) +
+                      (storage.transcodedLimitBytes || Infinity)
+                  )
+                }}
               }
             </span>
           </div>
           <div class="storage-bar">
             <div class="storage-bar-original" [style.width.%]="getOriginalPercent()"></div>
-            <div class="storage-bar-transcoded" [style.width.%]="getTranscodedPercent()" [style.left.%]="getOriginalPercent()"></div>
+            <div
+              class="storage-bar-transcoded"
+              [style.width.%]="getTranscodedPercent()"
+              [style.left.%]="getOriginalPercent()"
+            ></div>
           </div>
           <div class="storage-legend">
-            <span class="legend-item"><span class="legend-dot original"></span> Original ({{ formatBytes(storage.originalUsedBytes) }})</span>
-            <span class="legend-item"><span class="legend-dot transcoded"></span> Transcoded ({{ formatBytes(storage.transcodedUsedBytes) }})</span>
+            <span class="legend-item"
+              ><span class="legend-dot original"></span> Original ({{
+                formatBytes(storage.originalUsedBytes)
+              }})</span
+            >
+            <span class="legend-item"
+              ><span class="legend-dot transcoded"></span> Transcoded ({{
+                formatBytes(storage.transcodedUsedBytes)
+              }})</span
+            >
           </div>
         </div>
       }
@@ -80,7 +121,11 @@ interface UploadItem {
       @if (!loading && !selectedContent && allTags.length > 0) {
         <div class="tag-filter">
           @for (tag of allTags; track tag) {
-            <button class="tag-chip" [class.active]="filterTags.includes(tag)" (click)="toggleTag(tag)">
+            <button
+              class="tag-chip"
+              [class.active]="filterTags.includes(tag)"
+              (click)="toggleTag(tag)"
+            >
               {{ tag }}
             </button>
           }
@@ -171,11 +216,7 @@ interface UploadItem {
             @if (selectedContent.type === 'image') {
               <img [src]="getPreviewUrl(selectedContent)" alt="Preview" class="preview-img" />
             } @else {
-              <video
-                [src]="getPreviewUrl(selectedContent)"
-                controls
-                class="preview-video"
-              ></video>
+              <video [src]="getPreviewUrl(selectedContent)" controls class="preview-video"></video>
             }
           </div>
 
@@ -191,10 +232,15 @@ interface UploadItem {
             </span>
             @if (selectedContent.transcodingStatus === 'processing') {
               <div class="progress-bar transcoding-bar">
-                <div class="progress-fill processing" [style.width.%]="transcodingProgress[selectedContent.id] ?? 0"></div>
+                <div
+                  class="progress-fill processing"
+                  [style.width.%]="transcodingProgress[selectedContent.id] ?? 0"
+                ></div>
               </div>
             }
-            @if (selectedContent.transcodingStatus === 'failed' && selectedContent.transcodingError) {
+            @if (
+              selectedContent.transcodingStatus === 'failed' && selectedContent.transcodingError
+            ) {
               <p class="error">{{ selectedContent.transcodingError }}</p>
             }
           </div>
@@ -207,7 +253,12 @@ interface UploadItem {
             </div>
             <div class="form-group">
               <label for="editDescription">Description</label>
-              <textarea id="editDescription" [(ngModel)]="editDescription" name="editDescription" rows="3"></textarea>
+              <textarea
+                id="editDescription"
+                [(ngModel)]="editDescription"
+                name="editDescription"
+                rows="3"
+              ></textarea>
             </div>
             <div class="form-group">
               <label for="editTags">Tags (comma-separated)</label>
@@ -242,7 +293,11 @@ interface UploadItem {
             </div>
             <div class="detail-item">
               <span class="detail-label">Transcoded Size</span>
-              <span>{{ selectedContent.transcodedSizeBytes !== null ? formatBytes(selectedContent.transcodedSizeBytes) : '—' }}</span>
+              <span>{{
+                selectedContent.transcodedSizeBytes !== null
+                  ? formatBytes(selectedContent.transcodedSizeBytes)
+                  : '—'
+              }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">MIME Type</span>
@@ -263,8 +318,15 @@ interface UploadItem {
         </div>
         <div class="content-grid">
           @for (item of filteredContent; track item.id; let i = $index) {
-            <div class="content-card" [class.selected]="selectionService.isSelected(item.id)()" (click)="selectContent(item)" tabindex="0" role="button"
-                 (keydown.enter)="selectContent(item)" (keydown.space)="selectContent(item)">
+            <div
+              class="content-card"
+              [class.selected]="selectionService.isSelected(item.id)()"
+              (click)="selectContent(item)"
+              tabindex="0"
+              role="button"
+              (keydown.enter)="selectContent(item)"
+              (keydown.space)="selectContent(item)"
+            >
               <div class="card-thumbnail">
                 <div class="card-checkbox" [class.any-selected]="selectionService.hasSelection()">
                   <app-selection-checkbox
@@ -293,7 +355,10 @@ interface UploadItem {
                     } @else if (item.transcodingStatus === 'processing') {
                       <span class="overlay-text">{{ transcodingProgress[item.id] ?? 0 }}%</span>
                       <div class="overlay-bar">
-                        <div class="overlay-fill" [style.width.%]="transcodingProgress[item.id] ?? 0"></div>
+                        <div
+                          class="overlay-fill"
+                          [style.width.%]="transcodingProgress[item.id] ?? 0"
+                        ></div>
                       </div>
                     } @else {
                       <span class="overlay-text failed">Failed</span>
@@ -303,7 +368,9 @@ interface UploadItem {
               </div>
               <div class="card-info">
                 <span class="card-title">{{ item.title }}</span>
-                <span class="card-meta">{{ item.type }} &middot; {{ formatBytes(item.originalSizeBytes) }}</span>
+                <span class="card-meta"
+                  >{{ item.type }} &middot; {{ formatBytes(item.originalSizeBytes) }}</span
+                >
               </div>
             </div>
           }
@@ -320,11 +387,26 @@ interface UploadItem {
 
       <!-- Delete Confirmation Modal -->
       @if (showDeleteConfirm) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Confirm deletion"
-             tabindex="0" (click)="cancelDelete()" (keydown.escape)="cancelDelete()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm deletion"
+          tabindex="0"
+          (click)="cancelDelete()"
+          (keydown.escape)="cancelDelete()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Delete Content</h2>
-            <p>Are you sure you want to delete <strong>{{ selectedContent?.title }}</strong>? This will permanently remove the original and transcoded files.</p>
+            <p>
+              Are you sure you want to delete <strong>{{ selectedContent?.title }}</strong
+              >? This will permanently remove the original and transcoded files.
+            </p>
             <div class="form-actions">
               <button class="btn btn-secondary" (click)="cancelDelete()">Cancel</button>
               <button class="btn btn-danger" (click)="executeDelete()" [disabled]="deleting">
@@ -337,11 +419,27 @@ interface UploadItem {
 
       <!-- Bulk Delete Confirmation Modal -->
       @if (showBulkDeleteConfirm) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Confirm bulk delete"
-             tabindex="0" (click)="cancelBulkDelete()" (keydown.escape)="cancelBulkDelete()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm bulk delete"
+          tabindex="0"
+          (click)="cancelBulkDelete()"
+          (keydown.escape)="cancelBulkDelete()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Delete Content</h2>
-            <p>You are about to permanently delete <strong>{{ selectionService.count() }} item(s)</strong>. This will remove all original and transcoded files. This cannot be undone.</p>
+            <p>
+              You are about to permanently delete
+              <strong>{{ selectionService.count() }} item(s)</strong>. This will remove all original
+              and transcoded files. This cannot be undone.
+            </p>
             <div class="form-actions">
               <button class="btn btn-secondary" (click)="cancelBulkDelete()">Cancel</button>
               <button class="btn btn-danger" (click)="executeBulkDelete()">Delete</button>
@@ -352,18 +450,40 @@ interface UploadItem {
 
       <!-- Tag Entry Modal -->
       @if (showTagModal) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Manage tags"
-             tabindex="0" (click)="cancelTagModal()" (keydown.escape)="cancelTagModal()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Manage tags"
+          tabindex="0"
+          (click)="cancelTagModal()"
+          (keydown.escape)="cancelTagModal()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>{{ tagModalMode === 'add' ? 'Add Tags' : 'Remove Tags' }}</h2>
             <div class="form-group">
               <label for="bulkTagInput">Tags (comma-separated)</label>
-              <input id="bulkTagInput" type="text" [(ngModel)]="bulkTagInput" name="bulkTagInput" placeholder="e.g. promo, seasonal" />
+              <input
+                id="bulkTagInput"
+                type="text"
+                [(ngModel)]="bulkTagInput"
+                name="bulkTagInput"
+                placeholder="e.g. promo, seasonal"
+              />
             </div>
             @if (allTags.length > 0) {
               <div class="tag-suggestions">
                 @for (tag of allTags; track tag) {
-                  <button class="tag-chip" [class.active]="bulkTagInput.split(',').map(t => t.trim()).includes(tag)" (click)="toggleBulkTag(tag)">
+                  <button
+                    class="tag-chip"
+                    [class.active]="bulkTagInput.split(',').map(t => t.trim()).includes(tag)"
+                    (click)="toggleBulkTag(tag)"
+                  >
                     {{ tag }}
                   </button>
                 }
@@ -371,7 +491,11 @@ interface UploadItem {
             }
             <div class="form-actions">
               <button class="btn btn-secondary" (click)="cancelTagModal()">Cancel</button>
-              <button class="btn btn-primary" (click)="executeTagModal()" [disabled]="!bulkTagInput.trim()">
+              <button
+                class="btn btn-primary"
+                (click)="executeTagModal()"
+                [disabled]="!bulkTagInput.trim()"
+              >
                 {{ tagModalMode === 'add' ? 'Add Tags' : 'Remove Tags' }}
               </button>
             </div>
@@ -381,9 +505,21 @@ interface UploadItem {
 
       <!-- Playlist Picker Modal -->
       @if (showPlaylistModal) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Add to playlist"
-             tabindex="0" (click)="cancelPlaylistModal()" (keydown.escape)="cancelPlaylistModal()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add to playlist"
+          tabindex="0"
+          (click)="cancelPlaylistModal()"
+          (keydown.escape)="cancelPlaylistModal()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Add to Playlist</h2>
             @if (playlistsLoading) {
               <p>Loading playlists...</p>
@@ -393,7 +529,12 @@ interface UploadItem {
               <div class="playlist-list">
                 @for (pl of playlists; track pl.id) {
                   <label class="playlist-option">
-                    <input type="radio" name="playlistPick" [value]="pl.id" [(ngModel)]="selectedPlaylistId" />
+                    <input
+                      type="radio"
+                      name="playlistPick"
+                      [value]="pl.id"
+                      [(ngModel)]="selectedPlaylistId"
+                    />
                     <span>{{ pl.name }}</span>
                   </label>
                 }
@@ -404,7 +545,11 @@ interface UploadItem {
             }
             <div class="form-actions">
               <button class="btn btn-secondary" (click)="cancelPlaylistModal()">Cancel</button>
-              <button class="btn btn-primary" (click)="executePlaylistModal()" [disabled]="!selectedPlaylistId || playlistsLoading">
+              <button
+                class="btn btn-primary"
+                (click)="executePlaylistModal()"
+                [disabled]="!selectedPlaylistId || playlistsLoading"
+              >
                 Add to Playlist
               </button>
             </div>
@@ -418,7 +563,12 @@ interface UploadItem {
 
       <!-- Toast -->
       @if (toastMessage) {
-        <div class="toast" [class.toast-error]="toastType === 'error'" [class.toast-success]="toastType === 'success'" [class.toast-warning]="toastType === 'warning'">
+        <div
+          class="toast"
+          [class.toast-error]="toastType === 'error'"
+          [class.toast-success]="toastType === 'success'"
+          [class.toast-warning]="toastType === 'warning'"
+        >
           {{ toastMessage }}
         </div>
       }
@@ -567,7 +717,9 @@ interface UploadItem {
       height: 100%;
       background: #8b5cf6;
       border-radius: 0;
-      transition: width 0.3s, left 0.3s;
+      transition:
+        width 0.3s,
+        left 0.3s;
     }
     .storage-legend {
       display: flex;
@@ -586,8 +738,12 @@ interface UploadItem {
       height: 0.5rem;
       border-radius: 50%;
     }
-    .legend-dot.original { background: var(--color-accent); }
-    .legend-dot.transcoded { background: #8b5cf6; }
+    .legend-dot.original {
+      background: var(--color-accent);
+    }
+    .legend-dot.transcoded {
+      background: #8b5cf6;
+    }
 
     /* Upload Zone */
     .upload-zone {
@@ -646,7 +802,9 @@ interface UploadItem {
       font-size: 0.75rem;
       color: var(--color-text-secondary);
     }
-    .upload-item-status.error { color: #ef4444; }
+    .upload-item-status.error {
+      color: #ef4444;
+    }
 
     /* Progress Bar */
     .progress-bar {
@@ -661,9 +819,15 @@ interface UploadItem {
       border-radius: 9999px;
       transition: width 0.2s;
     }
-    .progress-fill.done { background: #22c55e; }
-    .progress-fill.error { background: #ef4444; }
-    .progress-fill.processing { background: #f59e0b; }
+    .progress-fill.done {
+      background: #22c55e;
+    }
+    .progress-fill.error {
+      background: #ef4444;
+    }
+    .progress-fill.processing {
+      background: #f59e0b;
+    }
     .transcoding-bar {
       margin-top: 0.5rem;
     }
@@ -680,10 +844,15 @@ interface UploadItem {
       border-radius: 0.5rem;
       overflow: hidden;
       cursor: pointer;
-      transition: border-color 0.15s, background-color 0.15s;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      transition:
+        border-color 0.15s,
+        background-color 0.15s;
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
-    .content-card:hover, .content-card:focus {
+    .content-card:hover,
+    .content-card:focus {
       border-color: var(--color-accent);
       background: var(--color-bg-tertiary);
       outline: none;
@@ -708,7 +877,9 @@ interface UploadItem {
       font-size: 2rem;
       color: var(--color-text-muted);
     }
-    .thumb-placeholder.video { background: #1a1a2e; }
+    .thumb-placeholder.video {
+      background: #1a1a2e;
+    }
 
     /* Transcoding overlay on grid cards */
     .transcoding-overlay {
@@ -727,11 +898,13 @@ interface UploadItem {
       font-weight: 600;
       color: #fbbf24;
     }
-    .overlay-text.failed { color: #ef4444; }
+    .overlay-text.failed {
+      color: #ef4444;
+    }
     .overlay-bar {
       width: 80%;
       height: 0.25rem;
-      background: rgba(255,255,255,0.2);
+      background: rgba(255, 255, 255, 0.2);
       border-radius: 9999px;
       overflow: hidden;
     }
@@ -768,9 +941,13 @@ interface UploadItem {
       border-radius: 0.5rem;
       padding: 1.5rem;
       max-width: 52rem;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
-    .detail-card.wide { max-width: 52rem; }
+    .detail-card.wide {
+      max-width: 52rem;
+    }
     .detail-header {
       display: flex;
       justify-content: space-between;
@@ -823,19 +1000,19 @@ interface UploadItem {
       font-weight: 600;
       width: fit-content;
     }
-    .status-badge[data-status="completed"] {
+    .status-badge[data-status='completed'] {
       background: #22c55e20;
       color: #22c55e;
     }
-    .status-badge[data-status="pending"] {
+    .status-badge[data-status='pending'] {
       background: #f59e0b20;
       color: #f59e0b;
     }
-    .status-badge[data-status="processing"] {
+    .status-badge[data-status='processing'] {
       background: #f59e0b20;
       color: #f59e0b;
     }
-    .status-badge[data-status="failed"] {
+    .status-badge[data-status='failed'] {
       background: #ef444420;
       color: #ef4444;
     }
@@ -1020,7 +1197,7 @@ interface UploadItem {
     .playlist-option:hover {
       background: var(--color-bg-tertiary);
     }
-    .playlist-option input[type="radio"] {
+    .playlist-option input[type='radio'] {
       accent-color: var(--color-accent);
     }
 
@@ -1036,12 +1213,27 @@ interface UploadItem {
       z-index: 2000;
       animation: slideUp 0.2s ease-out;
     }
-    .toast-success { background: #166534; color: #bbf7d0; }
-    .toast-error { background: #991b1b; color: #fecaca; }
-    .toast-warning { background: #92400e; color: #fef3c7; }
+    .toast-success {
+      background: #166534;
+      color: #bbf7d0;
+    }
+    .toast-error {
+      background: #991b1b;
+      color: #fecaca;
+    }
+    .toast-warning {
+      background: #92400e;
+      color: #fef3c7;
+    }
     @keyframes slideUp {
-      from { transform: translateY(1rem); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
+      from {
+        transform: translateY(1rem);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
     }
 
     .empty-state {
@@ -1243,8 +1435,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
         this.loading = false;
       },
       error: (err) => {
-        this.loadError =
-          err.status === 403 ? 'Access denied.' : 'Failed to load content.';
+        this.loadError = err.status === 403 ? 'Access denied.' : 'Failed to load content.';
         this.loading = false;
       },
     });
@@ -1268,9 +1459,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
       filtered = filtered.filter((c) => c.type === this.filterType);
     }
     if (this.filterTags.length > 0) {
-      filtered = filtered.filter((c) =>
-        this.filterTags.some((t) => c.tags.includes(t)),
-      );
+      filtered = filtered.filter((c) => this.filterTags.some((t) => c.tags.includes(t)));
     }
     this.filteredContent = filtered;
     this.contentIds = filtered.map((c) => c.id);
@@ -1336,29 +1525,27 @@ export class ContentLibrary implements OnInit, OnDestroy {
       };
       this.uploads.push(item);
 
-      this.contentService
-        .upload(this.orgId, file, item.title, '', [])
-        .subscribe({
-          next: (event: UploadProgress) => {
-            if (event.type === 'progress') {
-              item.progress = event.progress ?? 0;
-            } else if (event.type === 'complete') {
-              item.progress = 100;
-              item.status = 'done';
-              if (event.content) {
-                this.contents.unshift(event.content);
-                this.extractTags();
-                this.applyFilters();
-              }
-              this.loadStorage();
-              this.clearDoneUploads();
+      this.contentService.upload(this.orgId, file, item.title, '', []).subscribe({
+        next: (event: UploadProgress) => {
+          if (event.type === 'progress') {
+            item.progress = event.progress ?? 0;
+          } else if (event.type === 'complete') {
+            item.progress = 100;
+            item.status = 'done';
+            if (event.content) {
+              this.contents.unshift(event.content);
+              this.extractTags();
+              this.applyFilters();
             }
-          },
-          error: (err) => {
-            item.status = 'error';
-            item.error = err.error?.message || 'Upload failed';
-          },
-        });
+            this.loadStorage();
+            this.clearDoneUploads();
+          }
+        },
+        error: (err) => {
+          item.status = 'error';
+          item.error = err.error?.message || 'Upload failed';
+        },
+      });
     }
   }
 
@@ -1416,8 +1603,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
           this.applyFilters();
         },
         error: (err) => {
-          this.metadataError =
-            err.error?.message || 'Failed to save changes.';
+          this.metadataError = err.error?.message || 'Failed to save changes.';
           this.savingMetadata = false;
         },
       });
@@ -1438,32 +1624,28 @@ export class ContentLibrary implements OnInit, OnDestroy {
     };
     this.uploads.push(item);
 
-    this.contentService
-      .reUpload(this.orgId, this.selectedContent.id, file)
-      .subscribe({
-        next: (event: UploadProgress) => {
-          if (event.type === 'progress') {
-            item.progress = event.progress ?? 0;
-          } else if (event.type === 'complete') {
-            item.progress = 100;
-            item.status = 'done';
-            if (event.content) {
-              this.selectedContent = event.content;
-              const idx = this.contents.findIndex(
-                (c) => c.id === event.content!.id,
-              );
-              if (idx >= 0) this.contents[idx] = event.content;
-              this.applyFilters();
-            }
-            this.loadStorage();
-            this.clearDoneUploads();
+    this.contentService.reUpload(this.orgId, this.selectedContent.id, file).subscribe({
+      next: (event: UploadProgress) => {
+        if (event.type === 'progress') {
+          item.progress = event.progress ?? 0;
+        } else if (event.type === 'complete') {
+          item.progress = 100;
+          item.status = 'done';
+          if (event.content) {
+            this.selectedContent = event.content;
+            const idx = this.contents.findIndex((c) => c.id === event.content!.id);
+            if (idx >= 0) this.contents[idx] = event.content;
+            this.applyFilters();
           }
-        },
-        error: (err) => {
-          item.status = 'error';
-          item.error = err.error?.message || 'Re-upload failed';
-        },
-      });
+          this.loadStorage();
+          this.clearDoneUploads();
+        }
+      },
+      error: (err) => {
+        item.status = 'error';
+        item.error = err.error?.message || 'Re-upload failed';
+      },
+    });
   }
 
   // --- Delete ---
@@ -1479,27 +1661,22 @@ export class ContentLibrary implements OnInit, OnDestroy {
     if (!this.selectedContent) return;
     this.deleting = true;
     this.actionError = '';
-    this.contentService
-      .delete(this.orgId, this.selectedContent.id)
-      .subscribe({
-        next: () => {
-          this.contents = this.contents.filter(
-            (c) => c.id !== this.selectedContent!.id,
-          );
-          this.extractTags();
-          this.applyFilters();
-          this.deleting = false;
-          this.showDeleteConfirm = false;
-          this.selectedContent = null;
-          this.loadStorage();
-        },
-        error: (err) => {
-          this.actionError =
-            err.error?.message || 'Failed to delete content.';
-          this.deleting = false;
-          this.showDeleteConfirm = false;
-        },
-      });
+    this.contentService.delete(this.orgId, this.selectedContent.id).subscribe({
+      next: () => {
+        this.contents = this.contents.filter((c) => c.id !== this.selectedContent!.id);
+        this.extractTags();
+        this.applyFilters();
+        this.deleting = false;
+        this.showDeleteConfirm = false;
+        this.selectedContent = null;
+        this.loadStorage();
+      },
+      error: (err) => {
+        this.actionError = err.error?.message || 'Failed to delete content.';
+        this.deleting = false;
+        this.showDeleteConfirm = false;
+      },
+    });
   }
 
   // --- Bulk Operations ---
@@ -1512,7 +1689,10 @@ export class ContentLibrary implements OnInit, OnDestroy {
 
     this.showToast(`${result.deleted} item(s) deleted`, 'success');
     if (result.notFound.length > 0) {
-      this.showToast(`${result.notFound.length} item(s) could not be found and were skipped`, 'warning');
+      this.showToast(
+        `${result.notFound.length} item(s) could not be found and were skipped`,
+        'warning',
+      );
     }
     this.loadContent();
     this.loadStorage();
@@ -1553,9 +1733,15 @@ export class ContentLibrary implements OnInit, OnDestroy {
         ? await firstValueFrom(this.contentService.bulkTag(this.orgId, ids, tags))
         : await firstValueFrom(this.contentService.bulkUntag(this.orgId, ids, tags));
 
-    this.showToast(`${result.updated} item(s) ${mode === 'add' ? 'tagged' : 'untagged'}`, 'success');
+    this.showToast(
+      `${result.updated} item(s) ${mode === 'add' ? 'tagged' : 'untagged'}`,
+      'success',
+    );
     if (result.notFound.length > 0) {
-      this.showToast(`${result.notFound.length} item(s) could not be found and were skipped`, 'warning');
+      this.showToast(
+        `${result.notFound.length} item(s) could not be found and were skipped`,
+        'warning',
+      );
     }
     this.loadContent();
   }
@@ -1604,14 +1790,18 @@ export class ContentLibrary implements OnInit, OnDestroy {
       this.contentService.bulkAddToPlaylist(this.orgId, ids, this.selectedPlaylistId),
     );
 
-    const playlistName = this.playlists.find((p) => p.id === this.selectedPlaylistId)?.name ?? 'selected playlist';
+    const playlistName =
+      this.playlists.find((p) => p.id === this.selectedPlaylistId)?.name ?? 'selected playlist';
     let message = `${result.added} item(s) added to ${playlistName}`;
     if (result.alreadyPresent > 0) {
       message += ` (${result.alreadyPresent} were already in the playlist)`;
     }
     this.showToast(message, 'success');
     if (result.notFound.length > 0) {
-      this.showToast(`${result.notFound.length} item(s) could not be found and were skipped`, 'warning');
+      this.showToast(
+        `${result.notFound.length} item(s) could not be found and were skipped`,
+        'warning',
+      );
     }
     this.loadContent();
   }
@@ -1679,11 +1869,9 @@ export class ContentLibrary implements OnInit, OnDestroy {
   getOriginalPercent(): number {
     if (!this.storage) return 0;
     const combinedLimit =
-      (this.storage.originalLimitBytes || 0) +
-      (this.storage.transcodedLimitBytes || 0);
+      (this.storage.originalLimitBytes || 0) + (this.storage.transcodedLimitBytes || 0);
     if (combinedLimit === 0) {
-      const totalUsed =
-        this.storage.originalUsedBytes + this.storage.transcodedUsedBytes;
+      const totalUsed = this.storage.originalUsedBytes + this.storage.transcodedUsedBytes;
       if (totalUsed === 0) return 0;
       return (this.storage.originalUsedBytes / totalUsed) * 100;
     }
@@ -1693,11 +1881,9 @@ export class ContentLibrary implements OnInit, OnDestroy {
   getTranscodedPercent(): number {
     if (!this.storage) return 0;
     const combinedLimit =
-      (this.storage.originalLimitBytes || 0) +
-      (this.storage.transcodedLimitBytes || 0);
+      (this.storage.originalLimitBytes || 0) + (this.storage.transcodedLimitBytes || 0);
     if (combinedLimit === 0) {
-      const totalUsed =
-        this.storage.originalUsedBytes + this.storage.transcodedUsedBytes;
+      const totalUsed = this.storage.originalUsedBytes + this.storage.transcodedUsedBytes;
       if (totalUsed === 0) return 0;
       return (this.storage.transcodedUsedBytes / totalUsed) * 100;
     }

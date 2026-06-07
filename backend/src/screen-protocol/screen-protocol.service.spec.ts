@@ -1,4 +1,6 @@
+import { Repository } from 'typeorm';
 import { ScreenProtocolService } from './screen-protocol.service';
+import { ScheduleService } from '../schedule';
 import { ScreenEventType } from './screen-event-type.enum';
 import { ScreenEvent } from './screen-event.model';
 import { ScreenGroup } from '../screen-group/screen-group.entity';
@@ -37,7 +39,11 @@ describe('ScreenProtocolService', () => {
   const playlistId = '880e8400-e29b-41d4-a716-446655440000';
   const contentItemId = '990e8400-e29b-41d4-a716-446655440000';
 
-  const makeScreen = (id: string, row: number | null = null, col: number | null = null): Screen => ({
+  const makeScreen = (
+    id: string,
+    row: number | null = null,
+    col: number | null = null,
+  ): Screen => ({
     id,
     organisationId: orgId,
     name: `Screen ${id.slice(-1)}`,
@@ -94,11 +100,11 @@ describe('ScreenProtocolService', () => {
     };
 
     service = new ScreenProtocolService(
-      screenGroupRepository as any,
-      screenRepository as any,
-      slicedRenditionRepository as any,
+      screenGroupRepository as unknown as Repository<ScreenGroup>,
+      screenRepository as unknown as Repository<Screen>,
+      slicedRenditionRepository as unknown as Repository<SlicedRendition>,
       screenStateService as unknown as ScreenStateService,
-      scheduleService as any,
+      scheduleService as unknown as ScheduleService,
     );
   });
 
@@ -114,9 +120,7 @@ describe('ScreenProtocolService', () => {
     });
 
     it('should do nothing if group has no screens', async () => {
-      screenGroupRepository.findOne.mockResolvedValue(
-        makeMirrorGroup([]),
-      );
+      screenGroupRepository.findOne.mockResolvedValue(makeMirrorGroup([]));
 
       await service.handleGroupScheduleChanged(
         new GroupScheduleChangedEvent(groupId, orgId, playlistId),
@@ -128,7 +132,9 @@ describe('ScreenProtocolService', () => {
     describe('mirror mode', () => {
       it('should fan out schedule update to all screens with same payload', async () => {
         const screens = [makeScreen(screenId1), makeScreen(screenId2)];
-        screenGroupRepository.findOne.mockResolvedValue(makeMirrorGroup(screens));
+        screenGroupRepository.findOne.mockResolvedValue(
+          makeMirrorGroup(screens),
+        );
 
         await service.handleGroupScheduleChanged(
           new GroupScheduleChangedEvent(groupId, orgId, playlistId),
@@ -157,27 +163,34 @@ describe('ScreenProtocolService', () => {
 
       it('should include syncToken in all events for synchronisation', async () => {
         const screens = [makeScreen(screenId1), makeScreen(screenId2)];
-        screenGroupRepository.findOne.mockResolvedValue(makeMirrorGroup(screens));
+        screenGroupRepository.findOne.mockResolvedValue(
+          makeMirrorGroup(screens),
+        );
 
         await service.handleGroupScheduleChanged(
           new GroupScheduleChangedEvent(groupId, orgId, playlistId),
         );
 
-        const call1 = screenStateService.pushEvent.mock.calls[0][1] as ScreenEvent;
-        const call2 = screenStateService.pushEvent.mock.calls[1][1] as ScreenEvent;
+        const call1 = screenStateService.pushEvent.mock
+          .calls[0][1] as ScreenEvent;
+        const call2 = screenStateService.pushEvent.mock
+          .calls[1][1] as ScreenEvent;
         expect(call1.payload['syncToken']).toBeDefined();
         expect(call1.payload['syncToken']).toBe(call2.payload['syncToken']);
       });
 
       it('should include groupId in all events', async () => {
         const screens = [makeScreen(screenId1)];
-        screenGroupRepository.findOne.mockResolvedValue(makeMirrorGroup(screens));
+        screenGroupRepository.findOne.mockResolvedValue(
+          makeMirrorGroup(screens),
+        );
 
         await service.handleGroupScheduleChanged(
           new GroupScheduleChangedEvent(groupId, orgId, playlistId),
         );
 
-        const event = screenStateService.pushEvent.mock.calls[0][1] as ScreenEvent;
+        const event = screenStateService.pushEvent.mock
+          .calls[0][1] as ScreenEvent;
         expect(event.payload['groupId']).toBe(groupId);
       });
     });
@@ -190,7 +203,9 @@ describe('ScreenProtocolService', () => {
           makeScreen(screenId3, 1, 0),
           makeScreen(screenId4, 1, 1),
         ];
-        screenGroupRepository.findOne.mockResolvedValue(makeSplitGroup(screens));
+        screenGroupRepository.findOne.mockResolvedValue(
+          makeSplitGroup(screens),
+        );
 
         await service.handleGroupScheduleChanged(
           new GroupScheduleChangedEvent(groupId, orgId, playlistId),
@@ -216,14 +231,17 @@ describe('ScreenProtocolService', () => {
     it('should handle getCurrentPlaylist failure gracefully', async () => {
       const screens = [makeScreen(screenId1)];
       screenGroupRepository.findOne.mockResolvedValue(makeMirrorGroup(screens));
-      scheduleService.getCurrentPlaylist.mockRejectedValue(new Error('DB error'));
+      scheduleService.getCurrentPlaylist.mockRejectedValue(
+        new Error('DB error'),
+      );
 
       await service.handleGroupScheduleChanged(
         new GroupScheduleChangedEvent(groupId, orgId, playlistId),
       );
 
       expect(screenStateService.pushEvent).toHaveBeenCalledTimes(1);
-      const event = screenStateService.pushEvent.mock.calls[0][1] as ScreenEvent;
+      const event = screenStateService.pushEvent.mock
+        .calls[0][1] as ScreenEvent;
       expect(event.payload['currentPlaylist']).toBeNull();
     });
   });
@@ -232,7 +250,9 @@ describe('ScreenProtocolService', () => {
     describe('mirror mode', () => {
       it('should send same contentUrl to all screens', async () => {
         const screens = [makeScreen(screenId1), makeScreen(screenId2)];
-        screenGroupRepository.findOne.mockResolvedValue(makeMirrorGroup(screens));
+        screenGroupRepository.findOne.mockResolvedValue(
+          makeMirrorGroup(screens),
+        );
 
         await service.triggerGroupPlay(
           groupId,
@@ -263,7 +283,9 @@ describe('ScreenProtocolService', () => {
 
       it('should use Promise.all for simultaneous delivery (same syncToken)', async () => {
         const screens = [makeScreen(screenId1), makeScreen(screenId2)];
-        screenGroupRepository.findOne.mockResolvedValue(makeMirrorGroup(screens));
+        screenGroupRepository.findOne.mockResolvedValue(
+          makeMirrorGroup(screens),
+        );
 
         await service.triggerGroupPlay(
           groupId,
@@ -274,16 +296,23 @@ describe('ScreenProtocolService', () => {
           false,
         );
 
-        const call1 = screenStateService.pushEvent.mock.calls[0][1] as ScreenEvent;
-        const call2 = screenStateService.pushEvent.mock.calls[1][1] as ScreenEvent;
+        const call1 = screenStateService.pushEvent.mock
+          .calls[0][1] as ScreenEvent;
+        const call2 = screenStateService.pushEvent.mock
+          .calls[1][1] as ScreenEvent;
         expect(call1.payload['syncToken']).toBe(call2.payload['syncToken']);
       });
     });
 
     describe('split mode', () => {
       it('should send sliced rendition URL when available', async () => {
-        const screens = [makeScreen(screenId1, 0, 0), makeScreen(screenId2, 0, 1)];
-        screenGroupRepository.findOne.mockResolvedValue(makeSplitGroup(screens));
+        const screens = [
+          makeScreen(screenId1, 0, 0),
+          makeScreen(screenId2, 0, 1),
+        ];
+        screenGroupRepository.findOne.mockResolvedValue(
+          makeSplitGroup(screens),
+        );
 
         slicedRenditionRepository.findOne.mockResolvedValue({
           id: 'rendition-1',
@@ -320,7 +349,9 @@ describe('ScreenProtocolService', () => {
 
       it('should send pending event when rendition not yet available', async () => {
         const screens = [makeScreen(screenId1, 0, 0)];
-        screenGroupRepository.findOne.mockResolvedValue(makeSplitGroup(screens));
+        screenGroupRepository.findOne.mockResolvedValue(
+          makeSplitGroup(screens),
+        );
 
         slicedRenditionRepository.findOne.mockResolvedValue(null);
 
@@ -350,9 +381,14 @@ describe('ScreenProtocolService', () => {
 
     describe('live stream', () => {
       it('should always use mirror-mode fan-out regardless of group mode', async () => {
-        const screens = [makeScreen(screenId1, 0, 0), makeScreen(screenId2, 0, 1)];
+        const screens = [
+          makeScreen(screenId1, 0, 0),
+          makeScreen(screenId2, 0, 1),
+        ];
         // Even though group is split mode, live stream uses mirror
-        screenGroupRepository.findOne.mockResolvedValue(makeSplitGroup(screens));
+        screenGroupRepository.findOne.mockResolvedValue(
+          makeSplitGroup(screens),
+        );
 
         await service.triggerGroupPlay(
           groupId,
@@ -406,7 +442,9 @@ describe('ScreenProtocolService', () => {
       const screen2 = makeScreen(screenId2, 0, 1);
       screenRepository.findOne.mockResolvedValue(screen1);
       // Even for split groups, live streams use mirror fan-out
-      screenGroupRepository.findOne.mockResolvedValue(makeSplitGroup([screen1, screen2]));
+      screenGroupRepository.findOne.mockResolvedValue(
+        makeSplitGroup([screen1, screen2]),
+      );
 
       await service.handleGroupLiveStreamStarted(
         new ScreenStateChangeEvent(screenId1, orgId),

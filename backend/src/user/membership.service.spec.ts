@@ -1,7 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { MembershipService } from './membership.service';
 import { User } from './user.entity';
 import { UserOrganisationMembership } from './user-organisation-membership.entity';
@@ -37,6 +42,7 @@ describe('MembershipService', () => {
             count: jest.fn(),
           },
         },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
 
@@ -48,8 +54,18 @@ describe('MembershipService', () => {
   describe('listMembers', () => {
     it('should return all memberships for an organisation', async () => {
       const memberships = [
-        { id: 'm-1', userId: 'u-1', organisationId: orgId, role: OrganisationRole.OrgAdmin },
-        { id: 'm-2', userId: 'u-2', organisationId: orgId, role: OrganisationRole.Editor },
+        {
+          id: 'm-1',
+          userId: 'u-1',
+          organisationId: orgId,
+          role: OrganisationRole.OrgAdmin,
+        },
+        {
+          id: 'm-2',
+          userId: 'u-2',
+          organisationId: orgId,
+          role: OrganisationRole.Editor,
+        },
       ] as UserOrganisationMembership[];
       membershipRepo.find.mockResolvedValue(memberships);
 
@@ -65,7 +81,11 @@ describe('MembershipService', () => {
 
   describe('addMember', () => {
     it('should add an existing user as a member', async () => {
-      const user = { id: 'u-1', email: 'test@example.com', name: 'Test' } as User;
+      const user = {
+        id: 'u-1',
+        email: 'test@example.com',
+        name: 'Test',
+      } as User;
       userRepo.findOne.mockResolvedValue(user);
       membershipRepo.findOne.mockResolvedValue(null);
       const membership = {
@@ -77,9 +97,15 @@ describe('MembershipService', () => {
       membershipRepo.create.mockReturnValue(membership);
       membershipRepo.save.mockResolvedValue(membership);
 
-      const result = await service.addMember(orgId, 'test@example.com', OrganisationRole.Editor);
+      const result = await service.addMember(
+        orgId,
+        'test@example.com',
+        OrganisationRole.Editor,
+      );
 
-      expect(userRepo.findOne).toHaveBeenCalledWith({ where: { email: 'test@example.com' } });
+      expect(userRepo.findOne).toHaveBeenCalledWith({
+        where: { email: 'test@example.com' },
+      });
       expect(userRepo.create).not.toHaveBeenCalled();
       expect(result.role).toBe(OrganisationRole.Editor);
       expect(result.user).toBe(user);
@@ -87,7 +113,11 @@ describe('MembershipService', () => {
 
     it('should create a placeholder user if user does not exist', async () => {
       userRepo.findOne.mockResolvedValue(null);
-      const newUser = { id: 'generated-uuid', email: 'new@example.com', name: null } as User;
+      const newUser = {
+        id: 'generated-uuid',
+        email: 'new@example.com',
+        name: null,
+      } as User;
       userRepo.create.mockReturnValue(newUser);
       userRepo.save.mockResolvedValue(newUser);
       membershipRepo.findOne.mockResolvedValue(null);
@@ -100,7 +130,11 @@ describe('MembershipService', () => {
       membershipRepo.create.mockReturnValue(membership);
       membershipRepo.save.mockResolvedValue(membership);
 
-      const result = await service.addMember(orgId, 'new@example.com', OrganisationRole.Viewer);
+      const result = await service.addMember(
+        orgId,
+        'new@example.com',
+        OrganisationRole.Viewer,
+      );
 
       expect(userRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ email: 'new@example.com', name: null }),
@@ -140,7 +174,11 @@ describe('MembershipService', () => {
         role: OrganisationRole.Editor,
       } as UserOrganisationMembership);
 
-      const result = await service.updateRole(orgId, 'u-1', OrganisationRole.Editor);
+      const result = await service.updateRole(
+        orgId,
+        'u-1',
+        OrganisationRole.Editor,
+      );
 
       expect(result.role).toBe(OrganisationRole.Editor);
     });
@@ -184,7 +222,11 @@ describe('MembershipService', () => {
         role: OrganisationRole.Editor,
       } as UserOrganisationMembership);
 
-      const result = await service.updateRole(orgId, 'u-1', OrganisationRole.Editor);
+      const result = await service.updateRole(
+        orgId,
+        'u-1',
+        OrganisationRole.Editor,
+      );
 
       expect(result.role).toBe(OrganisationRole.Editor);
     });
@@ -200,7 +242,11 @@ describe('MembershipService', () => {
       membershipRepo.findOne.mockResolvedValue(membership);
       membershipRepo.save.mockResolvedValue(membership);
 
-      const result = await service.updateRole(orgId, 'u-1', OrganisationRole.OrgAdmin);
+      const result = await service.updateRole(
+        orgId,
+        'u-1',
+        OrganisationRole.OrgAdmin,
+      );
 
       expect(membershipRepo.count).not.toHaveBeenCalled();
       expect(result.role).toBe(OrganisationRole.OrgAdmin);

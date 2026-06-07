@@ -34,9 +34,7 @@ import { MyMembership } from '../settings/users/member.model';
           <h1>Live Streams</h1>
         </div>
         @if (!loading && !showCreateForm) {
-          <button class="btn btn-primary" (click)="openCreateForm()">
-            + New Stream
-          </button>
+          <button class="btn btn-primary" (click)="openCreateForm()">+ New Stream</button>
         }
       </header>
 
@@ -50,9 +48,21 @@ import { MyMembership } from '../settings/users/member.model';
 
       <!-- Create Stream Modal -->
       @if (showCreateForm) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Create Live Stream"
-             tabindex="0" (click)="cancelCreate()" (keydown.escape)="cancelCreate()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Create Live Stream"
+          tabindex="0"
+          (click)="cancelCreate()"
+          (keydown.escape)="cancelCreate()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Create Live Stream</h2>
             <form (ngSubmit)="submitCreate()">
               <div class="form-group">
@@ -79,7 +89,12 @@ import { MyMembership } from '../settings/users/member.model';
               </div>
               <div class="form-group">
                 <label for="createProtocol">Protocol</label>
-                <select id="createProtocol" [(ngModel)]="createProtocol" name="createProtocol" required>
+                <select
+                  id="createProtocol"
+                  [(ngModel)]="createProtocol"
+                  name="createProtocol"
+                  required
+                >
                   <option value="rtmp">RTMP</option>
                   <option value="rtp">RTP</option>
                 </select>
@@ -94,7 +109,11 @@ import { MyMembership } from '../settings/users/member.model';
               </div>
               <div class="form-group">
                 <label class="checkbox-label">
-                  <input type="checkbox" [(ngModel)]="createAudioEnabled" name="createAudioEnabled" />
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="createAudioEnabled"
+                    name="createAudioEnabled"
+                  />
                   Enable audio
                 </label>
               </div>
@@ -102,7 +121,9 @@ import { MyMembership } from '../settings/users/member.model';
                 <p class="error">{{ createError }}</p>
               }
               <div class="form-actions">
-                <button type="button" class="btn btn-secondary" (click)="cancelCreate()">Cancel</button>
+                <button type="button" class="btn btn-secondary" (click)="cancelCreate()">
+                  Cancel
+                </button>
                 <button type="submit" class="btn btn-primary" [disabled]="creating">
                   {{ creating ? 'Creating...' : 'Create Stream' }}
                 </button>
@@ -162,11 +183,19 @@ import { MyMembership } from '../settings/users/member.model';
                   </td>
                   <td class="actions-cell">
                     @if (stream.status === 'idle' || stream.status === 'error') {
-                      <button class="btn btn-small btn-primary" (click)="openActivateModal(stream)">Activate</button>
-                      <button class="btn btn-small btn-secondary" (click)="editStream(stream)">Edit</button>
-                      <button class="btn btn-small btn-danger" (click)="confirmDelete(stream)">Delete</button>
+                      <button class="btn btn-small btn-primary" (click)="openActivateModal(stream)">
+                        Activate
+                      </button>
+                      <button class="btn btn-small btn-secondary" (click)="editStream(stream)">
+                        Edit
+                      </button>
+                      <button class="btn btn-small btn-danger" (click)="confirmDelete(stream)">
+                        Delete
+                      </button>
                     } @else {
-                      <button class="btn btn-small btn-warning" (click)="deactivateStream(stream)">Deactivate</button>
+                      <button class="btn btn-small btn-warning" (click)="deactivateStream(stream)">
+                        Deactivate
+                      </button>
                     }
                   </td>
                 </tr>
@@ -181,13 +210,20 @@ import { MyMembership } from '../settings/users/member.model';
         <div class="empty-state">
           <div class="empty-icon">
             <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="8" stroke="currentColor" stroke-width="2"/>
-              <path d="M12 12a17 17 0 000 24M36 12a17 17 0 010 24M8 8a23 23 0 000 32M40 8a23 23 0 010 32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="24" cy="24" r="8" stroke="currentColor" stroke-width="2" />
+              <path
+                d="M12 12a17 17 0 000 24M36 12a17 17 0 010 24M8 8a23 23 0 000 32M40 8a23 23 0 010 32"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
             </svg>
           </div>
           <p class="empty-title">No live streams yet</p>
           <p class="empty-text">Create your first live stream to start broadcasting to screens.</p>
-          <button class="btn btn-primary" (click)="openCreateForm()">Create Your First Stream</button>
+          <button class="btn btn-primary" (click)="openCreateForm()">
+            Create Your First Stream
+          </button>
         </div>
       }
 
@@ -200,7 +236,13 @@ import { MyMembership } from '../settings/users/member.model';
         <div class="warning-banner">
           <div class="warning-banner-header">
             <strong>Passthrough Compatibility Warnings</strong>
-            <button class="warning-dismiss" (click)="dismissWarnings()" aria-label="Dismiss warnings">&times;</button>
+            <button
+              class="warning-dismiss"
+              (click)="dismissWarnings()"
+              aria-label="Dismiss warnings"
+            >
+              &times;
+            </button>
           </div>
           <ul class="warning-list">
             @for (warning of passthroughWarnings; track warning) {
@@ -212,9 +254,21 @@ import { MyMembership } from '../settings/users/member.model';
 
       <!-- Edit Stream Modal -->
       @if (editingStream) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Edit Live Stream"
-             tabindex="0" (click)="cancelEdit()" (keydown.escape)="cancelEdit()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit Live Stream"
+          tabindex="0"
+          (click)="cancelEdit()"
+          (keydown.escape)="cancelEdit()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Edit Live Stream</h2>
             <form (ngSubmit)="submitEdit()">
               <div class="form-group">
@@ -223,7 +277,13 @@ import { MyMembership } from '../settings/users/member.model';
               </div>
               <div class="form-group">
                 <label for="editSourceUrl">Source URL</label>
-                <input id="editSourceUrl" type="text" [(ngModel)]="editSourceUrl" name="editSourceUrl" required />
+                <input
+                  id="editSourceUrl"
+                  type="text"
+                  [(ngModel)]="editSourceUrl"
+                  name="editSourceUrl"
+                  required
+                />
               </div>
               <div class="form-group">
                 <label for="editProtocol">Protocol</label>
@@ -250,7 +310,9 @@ import { MyMembership } from '../settings/users/member.model';
                 <p class="error">{{ editError }}</p>
               }
               <div class="form-actions">
-                <button type="button" class="btn btn-secondary" (click)="cancelEdit()">Cancel</button>
+                <button type="button" class="btn btn-secondary" (click)="cancelEdit()">
+                  Cancel
+                </button>
                 <button type="submit" class="btn btn-primary" [disabled]="saving">
                   {{ saving ? 'Saving...' : 'Save Changes' }}
                 </button>
@@ -262,11 +324,26 @@ import { MyMembership } from '../settings/users/member.model';
 
       <!-- Delete Confirmation Modal -->
       @if (deletingStream) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Confirm deletion"
-             tabindex="0" (click)="cancelDelete()" (keydown.escape)="cancelDelete()">
-          <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm deletion"
+          tabindex="0"
+          (click)="cancelDelete()"
+          (keydown.escape)="cancelDelete()"
+        >
+          <div
+            class="modal"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Delete Live Stream</h2>
-            <p>Are you sure you want to delete <strong>{{ deletingStream.name }}</strong>? This action cannot be undone.</p>
+            <p>
+              Are you sure you want to delete <strong>{{ deletingStream.name }}</strong
+              >? This action cannot be undone.
+            </p>
             @if (deleteError) {
               <p class="error">{{ deleteError }}</p>
             }
@@ -282,21 +359,43 @@ import { MyMembership } from '../settings/users/member.model';
 
       <!-- Activate Modal -->
       @if (activatingStream) {
-        <div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Activate Live Stream"
-             tabindex="0" (click)="cancelActivate()" (keydown.escape)="cancelActivate()">
-          <div class="modal modal-wide" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+        <div
+          class="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Activate Live Stream"
+          tabindex="0"
+          (click)="cancelActivate()"
+          (keydown.escape)="cancelActivate()"
+        >
+          <div
+            class="modal modal-wide"
+            role="document"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
             <h2>Activate "{{ activatingStream.name }}"</h2>
             <p>Choose target screens or a screen group to stream to.</p>
 
             <div class="form-group">
-              <label>Target type</label>
+              <span class="form-label">Target type</span>
               <div class="radio-group">
                 <label class="radio-label">
-                  <input type="radio" name="targetType" value="screens" [(ngModel)]="activateTargetType" />
+                  <input
+                    type="radio"
+                    name="targetType"
+                    value="screens"
+                    [(ngModel)]="activateTargetType"
+                  />
                   Individual Screens
                 </label>
                 <label class="radio-label">
-                  <input type="radio" name="targetType" value="group" [(ngModel)]="activateTargetType" />
+                  <input
+                    type="radio"
+                    name="targetType"
+                    value="group"
+                    [(ngModel)]="activateTargetType"
+                  />
                   Screen Group
                 </label>
               </div>
@@ -304,7 +403,7 @@ import { MyMembership } from '../settings/users/member.model';
 
             @if (activateTargetType === 'screens') {
               <div class="form-group">
-                <label>Select screens</label>
+                <span class="form-label">Select screens</span>
                 @if (screens.length === 0) {
                   <p class="text-muted">No screens available.</p>
                 } @else {
@@ -331,7 +430,9 @@ import { MyMembership } from '../settings/users/member.model';
                 <select id="activateGroupId" [(ngModel)]="activateGroupId" name="activateGroupId">
                   <option value="">-- Select a group --</option>
                   @for (group of screenGroups; track group.id) {
-                    <option [value]="group.id">{{ group.name }} ({{ group.screens.length }} screens)</option>
+                    <option [value]="group.id">
+                      {{ group.name }} ({{ group.screens.length }} screens)
+                    </option>
                   }
                 </select>
               </div>
@@ -442,7 +543,9 @@ import { MyMembership } from '../settings/users/member.model';
       background: var(--color-bg-secondary);
       border: 1px solid var(--color-border);
       border-radius: 0.5rem;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
     table {
       width: 100%;
@@ -583,7 +686,7 @@ import { MyMembership } from '../settings/users/member.model';
       font-size: 0.875rem;
       color: var(--color-text-secondary);
     }
-    .form-group input[type="text"],
+    .form-group input[type='text'],
     .form-group select {
       width: 100%;
       padding: 0.5rem 0.75rem;
@@ -815,10 +918,7 @@ export class LiveStreams implements OnInit {
         this.loading = false;
       },
       error: (err) => {
-        this.loadError =
-          err.status === 403
-            ? 'Access denied.'
-            : 'Failed to load live streams.';
+        this.loadError = err.status === 403 ? 'Access denied.' : 'Failed to load live streams.';
         this.loading = false;
       },
     });

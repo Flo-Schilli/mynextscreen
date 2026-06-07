@@ -1,16 +1,10 @@
 import { TestBed, getTestBed, ComponentFixture } from '@angular/core/testing';
-import {
-  BrowserTestingModule,
-  platformBrowserTesting,
-} from '@angular/platform-browser/testing';
+import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
 import { BulkConfirmDialogComponent } from './bulk-confirm-dialog';
 
 try {
-  getTestBed().initTestEnvironment(
-    BrowserTestingModule,
-    platformBrowserTesting(),
-  );
+  getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
 } catch {
   // already initialized
 }
@@ -112,9 +106,7 @@ describe('BulkConfirmDialogComponent', () => {
   });
 
   it('escape key resolves false', () => {
-    getOverlay()!.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
-    );
+    getOverlay()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     fixture.detectChanges();
     expect(host.lastResult).toBe(false);
   });

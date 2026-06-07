@@ -2,7 +2,11 @@ import { Component, inject, OnInit, OnDestroy, ElementRef, ViewChild } from '@an
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ScheduleService } from './schedule.service';
-import { ScheduleEntry, CreateScheduleEntryRequest, UpdateScheduleEntryRequest } from './schedule.model';
+import {
+  ScheduleEntry,
+  CreateScheduleEntryRequest,
+  UpdateScheduleEntryRequest,
+} from './schedule.model';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
 import { PlaylistService } from '../playlists/playlist.service';
@@ -48,8 +52,16 @@ interface TargetOption {
 
 const HOUR_HEIGHT = 60;
 const PRESET_COLOURS = [
-  '#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6',
-  '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#6366f1',
+  '#3b82f6',
+  '#ef4444',
+  '#22c55e',
+  '#f59e0b',
+  '#8b5cf6',
+  '#ec4899',
+  '#06b6d4',
+  '#f97316',
+  '#14b8a6',
+  '#6366f1',
 ];
 
 @Component({
@@ -97,7 +109,9 @@ const PRESET_COLOURS = [
               @if (groupTargets.length > 0) {
                 <optgroup label="Screen Groups">
                   @for (opt of groupTargets; track opt.id) {
-                    <option [value]="'group:' + opt.id">&#9638; {{ opt.name }} ({{ opt.mode }})</option>
+                    <option [value]="'group:' + opt.id">
+                      &#9638; {{ opt.name }} ({{ opt.mode }})
+                    </option>
                   }
                 </optgroup>
               }
@@ -105,21 +119,23 @@ const PRESET_COLOURS = [
           </div>
 
           <div class="view-buttons">
-            <button
-              class="toggle-btn"
-              [class.active]="viewMode === 'day'"
-              (click)="setView('day')"
-            >Day</button>
+            <button class="toggle-btn" [class.active]="viewMode === 'day'" (click)="setView('day')">
+              Day
+            </button>
             <button
               class="toggle-btn"
               [class.active]="viewMode === 'week'"
               (click)="setView('week')"
-            >Week</button>
+            >
+              Week
+            </button>
             <button
               class="toggle-btn"
               [class.active]="viewMode === 'month'"
               (click)="setView('month')"
-            >Month</button>
+            >
+              Month
+            </button>
           </div>
 
           <div class="nav-buttons">
@@ -196,7 +212,13 @@ const PRESET_COLOURS = [
                     </div>
                   }
                 </div>
-                <div class="time-grid-body" (click)="onTimeGridClick($event)" (keydown.enter)="$event.preventDefault()" role="grid" tabindex="0">
+                <div
+                  class="time-grid-body"
+                  (click)="onTimeGridClick($event)"
+                  (keydown.enter)="$event.preventDefault()"
+                  role="grid"
+                  tabindex="0"
+                >
                   <div class="time-gutter">
                     @for (hour of hours; track hour) {
                       <div class="time-label" [style.height.px]="hourHeight">
@@ -252,7 +274,8 @@ const PRESET_COLOURS = [
                               }
                               <span class="block-title">{{ getEntryLabel(block.entry) }}</span>
                               <span class="block-time">
-                                {{ formatBlockTime(block.occurrenceStart) }} - {{ formatBlockTime(block.occurrenceEnd) }}
+                                {{ formatBlockTime(block.occurrenceStart) }} -
+                                {{ formatBlockTime(block.occurrenceEnd) }}
                               </span>
                             </div>
                             <div
@@ -304,7 +327,11 @@ const PRESET_COLOURS = [
 
       <!-- Toast -->
       @if (toastMessage) {
-        <div class="toast" [class.toast-error]="toastType === 'error'" [class.toast-success]="toastType === 'success'">
+        <div
+          class="toast"
+          [class.toast-error]="toastType === 'error'"
+          [class.toast-success]="toastType === 'success'"
+        >
           {{ toastMessage }}
         </div>
       }
@@ -318,7 +345,13 @@ const PRESET_COLOURS = [
           tabindex="-1"
           (keydown.escape)="closeModal()"
         >
-          <div class="modal" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" role="document" tabindex="0">
+          <div
+            class="modal"
+            (click)="$event.stopPropagation()"
+            (keydown.enter)="$event.stopPropagation()"
+            role="document"
+            tabindex="0"
+          >
             <h2>{{ editingEntry ? 'Edit Schedule Entry' : 'Create Schedule Entry' }}</h2>
             <form (ngSubmit)="submitModal()">
               <!-- Target Selector in Modal -->
@@ -343,7 +376,9 @@ const PRESET_COLOURS = [
                     @if (groupTargets.length > 0) {
                       <optgroup label="Screen Groups">
                         @for (opt of groupTargets; track opt.id) {
-                          <option [value]="'group:' + opt.id">&#9638; {{ opt.name }} ({{ opt.mode }})</option>
+                          <option [value]="'group:' + opt.id">
+                            &#9638; {{ opt.name }} ({{ opt.mode }})
+                          </option>
                         }
                       </optgroup>
                     }
@@ -353,15 +388,20 @@ const PRESET_COLOURS = [
                 <!-- Group mode info -->
                 @if (modalTargetGroup) {
                   <div class="info-box">
-                    <span class="info-label">Mode:</span> {{ modalTargetGroup.mode === 'mirror' ? 'Mirror' : 'Split' }}
-                    ({{ modalTargetGroup.mode === 'mirror' ? 'all screens show the same content' : modalTargetGroup.gridColumns + 'x' + modalTargetGroup.gridRows + ' grid' }})
+                    <span class="info-label">Mode:</span>
+                    {{ modalTargetGroup.mode === 'mirror' ? 'Mirror' : 'Split' }} ({{
+                      modalTargetGroup.mode === 'mirror'
+                        ? 'all screens show the same content'
+                        : modalTargetGroup.gridColumns + 'x' + modalTargetGroup.gridRows + ' grid'
+                    }})
                   </div>
                 }
 
                 <!-- Split mode notice -->
                 @if (modalTargetGroup?.mode === 'split') {
                   <div class="info-box info-box-warn">
-                    Content will be pre-sliced for each screen in the video wall. This may take a moment to process after saving.
+                    Content will be pre-sliced for each screen in the video wall. This may take a
+                    moment to process after saving.
                   </div>
                 }
               }
@@ -438,7 +478,9 @@ const PRESET_COLOURS = [
                       [class.selected]="modalColour === c"
                       (click)="modalColour = c"
                       [attr.aria-label]="'Select colour ' + c"
-                    >&nbsp;</button>
+                    >
+                      &nbsp;
+                    </button>
                   }
                   <input
                     id="modalColourCustom"
@@ -452,11 +494,7 @@ const PRESET_COLOURS = [
 
               <div class="form-group">
                 <label for="modalRecurrence">Recurrence</label>
-                <select
-                  id="modalRecurrence"
-                  [(ngModel)]="modalRecurrence"
-                  name="modalRecurrence"
-                >
+                <select id="modalRecurrence" [(ngModel)]="modalRecurrence" name="modalRecurrence">
                   <option value="none">None</option>
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
@@ -487,12 +525,16 @@ const PRESET_COLOURS = [
               }
               <div class="form-actions">
                 @if (editingEntry) {
-                  <button type="button" class="btn btn-danger" (click)="deleteEntry()">Delete</button>
+                  <button type="button" class="btn btn-danger" (click)="deleteEntry()">
+                    Delete
+                  </button>
                 }
                 <div class="form-actions-right">
-                  <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+                  <button type="button" class="btn btn-secondary" (click)="closeModal()">
+                    Cancel
+                  </button>
                   <button type="submit" class="btn btn-primary" [disabled]="submitting">
-                    {{ submitting ? 'Saving...' : (editingEntry ? 'Update' : 'Create') }}
+                    {{ submitting ? 'Saving...' : editingEntry ? 'Update' : 'Create' }}
                   </button>
                 </div>
               </div>
@@ -609,14 +651,35 @@ const PRESET_COLOURS = [
       font-weight: 500;
       transition: background-color 0.15s;
     }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-sm { padding: 0.325rem 0.75rem; font-size: 0.8125rem; }
-    .btn-primary { background: var(--color-accent); color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: var(--color-accent-hover); }
-    .btn-secondary { background: var(--color-bg-tertiary); color: var(--color-text-primary); }
-    .btn-secondary:hover:not(:disabled) { background: var(--color-border); }
-    .btn-danger { background: #991b1b; color: #fecaca; }
-    .btn-danger:hover:not(:disabled) { background: #b91c1c; }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .btn-sm {
+      padding: 0.325rem 0.75rem;
+      font-size: 0.8125rem;
+    }
+    .btn-primary {
+      background: var(--color-accent);
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--color-accent-hover);
+    }
+    .btn-secondary {
+      background: var(--color-bg-tertiary);
+      color: var(--color-text-primary);
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--color-border);
+    }
+    .btn-danger {
+      background: #991b1b;
+      color: #fecaca;
+    }
+    .btn-danger:hover:not(:disabled) {
+      background: #b91c1c;
+    }
 
     /* Slice Processing Status */
     .slice-status {
@@ -640,7 +703,9 @@ const PRESET_COLOURS = [
       animation: spin 0.8s linear infinite;
     }
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     /* Calendar Layout */
@@ -659,7 +724,9 @@ const PRESET_COLOURS = [
       border: 1px solid var(--color-border);
       border-radius: 0.5rem;
       overflow: hidden;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
     .time-grid-header {
       display: flex;
@@ -753,16 +820,16 @@ const PRESET_COLOURS = [
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
     .block-time {
       font-size: 0.625rem;
-      color: rgba(255,255,255,0.85);
-      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      color: rgba(255, 255, 255, 0.85);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
     .repeat-icon {
       font-size: 0.75rem;
-      color: rgba(255,255,255,0.9);
+      color: rgba(255, 255, 255, 0.9);
       margin-right: 0.125rem;
     }
     .repeat-icon-sm {
@@ -777,24 +844,24 @@ const PRESET_COLOURS = [
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.03em;
-      background: rgba(255,255,255,0.25);
+      background: rgba(255, 255, 255, 0.25);
       color: #fff;
       padding: 0.0625rem 0.25rem;
       border-radius: 0.1875rem;
       width: fit-content;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
     .group-badge-sm {
       display: inline-block;
       font-size: 0.5rem;
       font-weight: 700;
-      background: rgba(255,255,255,0.3);
+      background: rgba(255, 255, 255, 0.3);
       color: #fff;
       padding: 0 0.1875rem;
       border-radius: 0.125rem;
       margin-right: 0.125rem;
       line-height: 1.2;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
     .group-badge-inline {
       display: inline-block;
@@ -817,8 +884,12 @@ const PRESET_COLOURS = [
       cursor: ns-resize;
       z-index: 5;
     }
-    .resize-handle-top { top: 0; }
-    .resize-handle-bottom { bottom: 0; }
+    .resize-handle-top {
+      top: 0;
+    }
+    .resize-handle-bottom {
+      bottom: 0;
+    }
 
     /* Gap Indicators */
     .gap-indicator {
@@ -846,7 +917,9 @@ const PRESET_COLOURS = [
       border: 1px solid var(--color-border);
       border-radius: 0.5rem;
       overflow: hidden;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
     .month-header-row {
       display: grid;
@@ -872,9 +945,15 @@ const PRESET_COLOURS = [
       cursor: pointer;
       transition: background 0.15s;
     }
-    .month-day-cell:nth-child(7n) { border-right: none; }
-    .month-day-cell:hover { background: var(--color-bg-tertiary); }
-    .month-day-cell.other-month { opacity: 0.4; }
+    .month-day-cell:nth-child(7n) {
+      border-right: none;
+    }
+    .month-day-cell:hover {
+      background: var(--color-bg-tertiary);
+    }
+    .month-day-cell.other-month {
+      opacity: 0.4;
+    }
     .month-day-cell.today .month-day-number {
       background: var(--color-accent);
       color: #fff;
@@ -905,7 +984,7 @@ const PRESET_COLOURS = [
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
 
     /* Side Panel */
@@ -918,7 +997,9 @@ const PRESET_COLOURS = [
       padding: 1rem;
       max-height: calc(100vh - 14rem);
       overflow-y: auto;
-      box-shadow: 0 1px 3px var(--color-shadow), 0 1px 2px var(--color-shadow);
+      box-shadow:
+        0 1px 3px var(--color-shadow),
+        0 1px 2px var(--color-shadow);
     }
     .side-panel h3 {
       margin: 0 0 0.75rem;
@@ -931,7 +1012,9 @@ const PRESET_COLOURS = [
       padding: 0.5rem 0;
       border-bottom: 1px solid var(--color-border);
     }
-    .timeline-item:last-child { border-bottom: none; }
+    .timeline-item:last-child {
+      border-bottom: none;
+    }
     .timeline-colour {
       width: 0.25rem;
       border-radius: 0.125rem;
@@ -1015,7 +1098,9 @@ const PRESET_COLOURS = [
       display: flex;
       gap: 0.75rem;
     }
-    .form-row .form-group { flex: 1; }
+    .form-row .form-group {
+      flex: 1;
+    }
     .form-label-text {
       display: block;
       margin-bottom: 0.375rem;
@@ -1068,8 +1153,13 @@ const PRESET_COLOURS = [
       cursor: pointer;
       transition: border-color 0.15s;
     }
-    .colour-swatch:hover { border-color: var(--color-text-muted); }
-    .colour-swatch.selected { border-color: #fff; box-shadow: 0 0 0 1px var(--color-accent); }
+    .colour-swatch:hover {
+      border-color: var(--color-text-muted);
+    }
+    .colour-swatch.selected {
+      border-color: #fff;
+      box-shadow: 0 0 0 1px var(--color-accent);
+    }
     .colour-input {
       width: 2rem !important;
       height: 1.5rem;
@@ -1094,7 +1184,7 @@ const PRESET_COLOURS = [
       color: var(--color-text-primary);
       cursor: pointer;
     }
-    .weekday-checkbox input[type="checkbox"] {
+    .weekday-checkbox input[type='checkbox'] {
       width: auto;
       accent-color: var(--color-accent);
     }
@@ -1122,8 +1212,14 @@ const PRESET_COLOURS = [
       border: 1px solid #22c55e;
     }
     @keyframes toast-in {
-      from { opacity: 0; transform: translateY(1rem); }
-      to { opacity: 1; transform: translateY(0); }
+      from {
+        opacity: 0;
+        transform: translateY(1rem);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .empty-text {
@@ -1188,7 +1284,13 @@ export class Schedules implements OnInit, OnDestroy {
   // Computed calendar data
   calendarBlocks: CalendarBlock[] = [];
   gapBlocks: GapBlock[] = [];
-  monthWeeks: { date: Date; dayNumber: number; isCurrentMonth: boolean; isToday: boolean; blocks: CalendarBlock[] }[][] = [];
+  monthWeeks: {
+    date: Date;
+    dayNumber: number;
+    isCurrentMonth: boolean;
+    isToday: boolean;
+    blocks: CalendarBlock[];
+  }[][] = [];
   dayTimeline: DayTimeline[] = [];
 
   // Slice processing status
@@ -1212,8 +1314,16 @@ export class Schedules implements OnInit, OnDestroy {
   submitting = false;
 
   // Drag state
-  dragState: { entryId: string; startY: number; originalTop: number; block: CalendarBlock } | null = null;
-  resizeState: { entryId: string; edge: 'top' | 'bottom'; startY: number; block: CalendarBlock; originalTop: number; originalHeight: number } | null = null;
+  dragState: { entryId: string; startY: number; originalTop: number; block: CalendarBlock } | null =
+    null;
+  resizeState: {
+    entryId: string;
+    edge: 'top' | 'bottom';
+    startY: number;
+    block: CalendarBlock;
+    originalTop: number;
+    originalHeight: number;
+  } | null = null;
 
   // Toast
   toastMessage = '';
@@ -1225,11 +1335,11 @@ export class Schedules implements OnInit, OnDestroy {
   private boundMouseUp = this.onMouseUp.bind(this);
 
   get screenTargets(): TargetOption[] {
-    return this.targetOptions.filter(t => t.type === 'screen');
+    return this.targetOptions.filter((t) => t.type === 'screen');
   }
 
   get groupTargets(): TargetOption[] {
-    return this.targetOptions.filter(t => t.type === 'group');
+    return this.targetOptions.filter((t) => t.type === 'group');
   }
 
   get selectedTargetType(): 'screen' | 'group' | null {
@@ -1257,17 +1367,36 @@ export class Schedules implements OnInit, OnDestroy {
   get currentRangeLabel(): string {
     const opts: Intl.DateTimeFormatOptions = { timeZone: this.orgTimeZone };
     if (this.viewMode === 'day') {
-      return this.currentDate.toLocaleDateString(undefined, { ...opts, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      return this.currentDate.toLocaleDateString(undefined, {
+        ...opts,
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      });
     }
     if (this.viewMode === 'week') {
       const days = this.visibleDays;
       const first = days[0];
       const last = days[6];
-      const fmtStart = first.toLocaleDateString(undefined, { ...opts, month: 'short', day: 'numeric' });
-      const fmtEnd = last.toLocaleDateString(undefined, { ...opts, month: 'short', day: 'numeric', year: 'numeric' });
+      const fmtStart = first.toLocaleDateString(undefined, {
+        ...opts,
+        month: 'short',
+        day: 'numeric',
+      });
+      const fmtEnd = last.toLocaleDateString(undefined, {
+        ...opts,
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
       return `${fmtStart} - ${fmtEnd}`;
     }
-    return this.currentDate.toLocaleDateString(undefined, { ...opts, month: 'long', year: 'numeric' });
+    return this.currentDate.toLocaleDateString(undefined, {
+      ...opts,
+      month: 'long',
+      year: 'numeric',
+    });
   }
 
   ngOnInit(): void {
@@ -1381,22 +1510,24 @@ export class Schedules implements OnInit, OnDestroy {
     const range = this.getQueryRange();
 
     if (this.selectedTargetType === 'screen') {
-      this.scheduleService.getByScreen(this.orgId, this.selectedTargetRawId, range.from, range.to).subscribe({
-        next: (entries) => {
-          this.entries = entries;
-          this.loading = false;
-          this.rebuildCalendar();
-        },
-        error: () => {
-          this.loadError = 'Failed to load schedule entries.';
-          this.loading = false;
-        },
-      });
+      this.scheduleService
+        .getByScreen(this.orgId, this.selectedTargetRawId, range.from, range.to)
+        .subscribe({
+          next: (entries) => {
+            this.entries = entries;
+            this.loading = false;
+            this.rebuildCalendar();
+          },
+          error: () => {
+            this.loadError = 'Failed to load schedule entries.';
+            this.loading = false;
+          },
+        });
     } else {
       // For group targets, fetch all entries by date range and filter client-side
       this.scheduleService.getByDateRange(this.orgId, range.from, range.to).subscribe({
         next: (entries) => {
-          this.entries = entries.filter(e => e.groupId === this.selectedTargetRawId);
+          this.entries = entries.filter((e) => e.groupId === this.selectedTargetRawId);
           this.loading = false;
           this.rebuildCalendar();
         },
@@ -1511,7 +1642,13 @@ export class Schedules implements OnInit, OnDestroy {
     const current = new Date(start);
 
     for (let w = 0; w < 6; w++) {
-      const week: { date: Date; dayNumber: number; isCurrentMonth: boolean; isToday: boolean; blocks: CalendarBlock[] }[] = [];
+      const week: {
+        date: Date;
+        dayNumber: number;
+        isCurrentMonth: boolean;
+        isToday: boolean;
+        blocks: CalendarBlock[];
+      }[] = [];
       for (let d = 0; d < 7; d++) {
         const cellDate = new Date(current);
         const dayStart = new Date(cellDate);
@@ -1578,7 +1715,10 @@ export class Schedules implements OnInit, OnDestroy {
     this.dayTimeline = items;
   }
 
-  private getEntryOccurrencesOnDay(entry: ScheduleEntry, dayStart: Date): { start: Date; end: Date }[] {
+  private getEntryOccurrencesOnDay(
+    entry: ScheduleEntry,
+    dayStart: Date,
+  ): { start: Date; end: Date }[] {
     const dayEnd = new Date(dayStart);
     dayEnd.setDate(dayEnd.getDate() + 1);
     const entryStart = new Date(entry.startTime);
@@ -1611,7 +1751,9 @@ export class Schedules implements OnInit, OnDestroy {
       const occEnd = new Date(occStart.getTime() + duration);
 
       // Only include if the occurrence start is on or after the original entry start date
-      if (occStart >= new Date(entryStart.getFullYear(), entryStart.getMonth(), entryStart.getDate())) {
+      if (
+        occStart >= new Date(entryStart.getFullYear(), entryStart.getMonth(), entryStart.getDate())
+      ) {
         occurrences.push({ start: occStart, end: occEnd });
       }
     }
@@ -1633,12 +1775,24 @@ export class Schedules implements OnInit, OnDestroy {
     };
   }
 
-  private doesDayMatchRrule(day: Date, entryStart: Date, rule: { freq: string; byday?: string[] }): boolean {
+  private doesDayMatchRrule(
+    day: Date,
+    entryStart: Date,
+    rule: { freq: string; byday?: string[] },
+  ): boolean {
     if (rule.freq === 'DAILY') return true;
 
     if (rule.freq === 'WEEKLY') {
       if (rule.byday && rule.byday.length > 0) {
-        const dayMap: Record<number, string> = { 0: 'SU', 1: 'MO', 2: 'TU', 3: 'WE', 4: 'TH', 5: 'FR', 6: 'SA' };
+        const dayMap: Record<number, string> = {
+          0: 'SU',
+          1: 'MO',
+          2: 'TU',
+          3: 'WE',
+          4: 'TH',
+          5: 'FR',
+          6: 'SA',
+        };
         return rule.byday.includes(dayMap[day.getDay()]);
       }
       // Weekly with no BYDAY: same weekday as original
@@ -1649,11 +1803,11 @@ export class Schedules implements OnInit, OnDestroy {
   }
 
   getBlocksForDay(dayIndex: number): CalendarBlock[] {
-    return this.calendarBlocks.filter(b => b.dayIndex === dayIndex);
+    return this.calendarBlocks.filter((b) => b.dayIndex === dayIndex);
   }
 
   getGapsForDay(dayIndex: number): GapBlock[] {
-    return this.gapBlocks.filter(g => g.dayIndex === dayIndex);
+    return this.gapBlocks.filter((g) => g.dayIndex === dayIndex);
   }
 
   getEntryLabel(entry: ScheduleEntry): string {
@@ -1676,7 +1830,11 @@ export class Schedules implements OnInit, OnDestroy {
     } else if (this.viewMode === 'week') {
       this.currentDate = new Date(this.currentDate.getTime() - 7 * 86400000);
     } else {
-      this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() - 1, 1);
+      this.currentDate = new Date(
+        this.currentDate.getFullYear(),
+        this.currentDate.getMonth() - 1,
+        1,
+      );
     }
     this.loadEntries();
   }
@@ -1687,7 +1845,11 @@ export class Schedules implements OnInit, OnDestroy {
     } else if (this.viewMode === 'week') {
       this.currentDate = new Date(this.currentDate.getTime() + 7 * 86400000);
     } else {
-      this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 1);
+      this.currentDate = new Date(
+        this.currentDate.getFullYear(),
+        this.currentDate.getMonth() + 1,
+        1,
+      );
     }
     this.loadEntries();
   }
@@ -1804,7 +1966,7 @@ export class Schedules implements OnInit, OnDestroy {
   private updateModalTargetGroup(): void {
     if (this.modalTargetId.startsWith('group:')) {
       const groupId = this.modalTargetId.replace('group:', '');
-      this.modalTargetGroup = this.screenGroups.find(g => g.id === groupId) || null;
+      this.modalTargetGroup = this.screenGroups.find((g) => g.id === groupId) || null;
     } else {
       this.modalTargetGroup = null;
     }
@@ -2034,8 +2196,9 @@ export class Schedules implements OnInit, OnDestroy {
 
     if (this.resizeState) {
       const block = this.resizeState.block;
-      const changed = Math.abs(block.height - this.resizeState.originalHeight) > 5 ||
-                       Math.abs(block.top - this.resizeState.originalTop) > 5;
+      const changed =
+        Math.abs(block.height - this.resizeState.originalHeight) > 5 ||
+        Math.abs(block.top - this.resizeState.originalTop) > 5;
       if (changed) {
         this.commitDragOrResize(block);
       }
@@ -2134,9 +2297,11 @@ export class Schedules implements OnInit, OnDestroy {
 
   isDayToday(day: Date): boolean {
     const today = new Date();
-    return day.getFullYear() === today.getFullYear() &&
+    return (
+      day.getFullYear() === today.getFullYear() &&
       day.getMonth() === today.getMonth() &&
-      day.getDate() === today.getDate();
+      day.getDate() === today.getDate()
+    );
   }
 
   private getWeekStart(date: Date): Date {

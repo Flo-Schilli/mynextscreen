@@ -15,7 +15,15 @@ import { PlaybackComponent } from './playback/playback.component';
       <app-playback />
     }
   `,
-  styles: [`:host { display: block; width: 100vw; height: 100vh; }`],
+  styles: [
+    `
+      :host {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+    `,
+  ],
 })
 export class App implements OnInit {
   readonly connectionService = inject(ConnectionService);

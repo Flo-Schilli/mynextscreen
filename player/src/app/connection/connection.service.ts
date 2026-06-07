@@ -19,11 +19,7 @@ export class ConnectionService implements OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly onMessage = (event: MessageEvent): void => {
     const data = event.data;
-    if (
-      data == null ||
-      typeof data !== 'object' ||
-      data.type !== 'signage-connect'
-    ) {
+    if (data == null || typeof data !== 'object' || data.type !== 'signage-connect') {
       return;
     }
 
@@ -113,8 +109,7 @@ export class ConnectionService implements OnDestroy {
 
       return true;
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : 'Connection failed';
+      const message = err instanceof Error ? err.message : 'Connection failed';
       this._error.set(message);
       return false;
     } finally {
@@ -146,10 +141,9 @@ export class ConnectionService implements OnDestroy {
 
     try {
       return await firstValueFrom(
-        this.http.get<{ screenId: string; organisationId: string }>(
-          `${serverUrl}/api/screens/me`,
-          { headers },
-        ),
+        this.http.get<{ screenId: string; organisationId: string }>(`${serverUrl}/api/screens/me`, {
+          headers,
+        }),
       );
     } catch {
       throw new Error('Invalid API key or server unreachable');

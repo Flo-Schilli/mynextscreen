@@ -17,10 +17,7 @@ export class ContentService {
   private authService = inject(AuthService);
   private orgState = inject(OrganisationStateService);
 
-  getAll(
-    orgId: string,
-    filters?: { type?: string; tags?: string },
-  ): Observable<Content[]> {
+  getAll(orgId: string, filters?: { type?: string; tags?: string }): Observable<Content[]> {
     let url = '/api/content';
     const params: string[] = [];
     if (filters?.type) params.push(`type=${filters.type}`);
@@ -59,16 +56,13 @@ export class ContentService {
       .pipe(
         filter(
           (event) =>
-            event.type === HttpEventType.UploadProgress ||
-            event.type === HttpEventType.Response,
+            event.type === HttpEventType.UploadProgress || event.type === HttpEventType.Response,
         ),
         map((event) => {
           if (event.type === HttpEventType.UploadProgress) {
             return {
               type: 'progress' as const,
-              progress: event.total
-                ? Math.round((event.loaded / event.total) * 100)
-                : 0,
+              progress: event.total ? Math.round((event.loaded / event.total) * 100) : 0,
             };
           }
           return {
@@ -108,16 +102,13 @@ export class ContentService {
       .pipe(
         filter(
           (event) =>
-            event.type === HttpEventType.UploadProgress ||
-            event.type === HttpEventType.Response,
+            event.type === HttpEventType.UploadProgress || event.type === HttpEventType.Response,
         ),
         map((event) => {
           if (event.type === HttpEventType.UploadProgress) {
             return {
               type: 'progress' as const,
-              progress: event.total
-                ? Math.round((event.loaded / event.total) * 100)
-                : 0,
+              progress: event.total ? Math.round((event.loaded / event.total) * 100) : 0,
             };
           }
           return {
@@ -135,27 +126,55 @@ export class ContentService {
   }
 
   bulkDelete(orgId: string, ids: string[]): Observable<{ deleted: number; notFound: string[] }> {
-    return this.http.post<{ deleted: number; notFound: string[] }>('/api/content/bulk-delete', { ids }, {
-      headers: this.orgHeader(orgId),
-    });
+    return this.http.post<{ deleted: number; notFound: string[] }>(
+      '/api/content/bulk-delete',
+      { ids },
+      {
+        headers: this.orgHeader(orgId),
+      },
+    );
   }
 
-  bulkTag(orgId: string, ids: string[], tags: string[]): Observable<{ updated: number; notFound: string[] }> {
-    return this.http.post<{ updated: number; notFound: string[] }>('/api/content/bulk-tag', { ids, tags }, {
-      headers: this.orgHeader(orgId),
-    });
+  bulkTag(
+    orgId: string,
+    ids: string[],
+    tags: string[],
+  ): Observable<{ updated: number; notFound: string[] }> {
+    return this.http.post<{ updated: number; notFound: string[] }>(
+      '/api/content/bulk-tag',
+      { ids, tags },
+      {
+        headers: this.orgHeader(orgId),
+      },
+    );
   }
 
-  bulkUntag(orgId: string, ids: string[], tags: string[]): Observable<{ updated: number; notFound: string[] }> {
-    return this.http.post<{ updated: number; notFound: string[] }>('/api/content/bulk-untag', { ids, tags }, {
-      headers: this.orgHeader(orgId),
-    });
+  bulkUntag(
+    orgId: string,
+    ids: string[],
+    tags: string[],
+  ): Observable<{ updated: number; notFound: string[] }> {
+    return this.http.post<{ updated: number; notFound: string[] }>(
+      '/api/content/bulk-untag',
+      { ids, tags },
+      {
+        headers: this.orgHeader(orgId),
+      },
+    );
   }
 
-  bulkAddToPlaylist(orgId: string, ids: string[], playlistId: string): Observable<{ added: number; alreadyPresent: number; notFound: string[] }> {
-    return this.http.post<{ added: number; alreadyPresent: number; notFound: string[] }>('/api/content/bulk-add-to-playlist', { ids, playlistId }, {
-      headers: this.orgHeader(orgId),
-    });
+  bulkAddToPlaylist(
+    orgId: string,
+    ids: string[],
+    playlistId: string,
+  ): Observable<{ added: number; alreadyPresent: number; notFound: string[] }> {
+    return this.http.post<{ added: number; alreadyPresent: number; notFound: string[] }>(
+      '/api/content/bulk-add-to-playlist',
+      { ids, playlistId },
+      {
+        headers: this.orgHeader(orgId),
+      },
+    );
   }
 
   getOriginalUrl(id: string): string {

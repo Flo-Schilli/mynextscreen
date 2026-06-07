@@ -1,17 +1,11 @@
 import { TestBed, getTestBed, ComponentFixture } from '@angular/core/testing';
-import {
-  BrowserTestingModule,
-  platformBrowserTesting,
-} from '@angular/platform-browser/testing';
+import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { Component, provideZonelessChangeDetection } from '@angular/core';
 import { SelectionService } from './selection.service';
 import { SelectAllCheckboxComponent } from './select-all-checkbox';
 
 try {
-  getTestBed().initTestEnvironment(
-    BrowserTestingModule,
-    platformBrowserTesting(),
-  );
+  getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
 } catch {
   // already initialized
 }

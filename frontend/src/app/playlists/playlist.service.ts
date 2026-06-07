@@ -46,13 +46,22 @@ export class PlaylistService {
     });
   }
 
-  addItem(orgId: string, playlistId: string, dto: AddPlaylistItemRequest): Observable<PlaylistItem> {
+  addItem(
+    orgId: string,
+    playlistId: string,
+    dto: AddPlaylistItemRequest,
+  ): Observable<PlaylistItem> {
     return this.http.post<PlaylistItem>(`/api/playlists/${playlistId}/items`, dto, {
       headers: this.orgHeader(orgId),
     });
   }
 
-  updateItem(orgId: string, playlistId: string, itemId: string, dto: UpdatePlaylistItemRequest): Observable<PlaylistItem> {
+  updateItem(
+    orgId: string,
+    playlistId: string,
+    itemId: string,
+    dto: UpdatePlaylistItemRequest,
+  ): Observable<PlaylistItem> {
     return this.http.patch<PlaylistItem>(`/api/playlists/${playlistId}/items/${itemId}`, dto, {
       headers: this.orgHeader(orgId),
     });
@@ -64,34 +73,57 @@ export class PlaylistService {
     });
   }
 
-  reorderItems(orgId: string, playlistId: string, dto: ReorderPlaylistItemsRequest): Observable<PlaylistItem[]> {
+  reorderItems(
+    orgId: string,
+    playlistId: string,
+    dto: ReorderPlaylistItemsRequest,
+  ): Observable<PlaylistItem[]> {
     return this.http.put<PlaylistItem[]>(`/api/playlists/${playlistId}/items/reorder`, dto, {
       headers: this.orgHeader(orgId),
     });
   }
 
   getDuration(orgId: string, playlistId: string): Observable<{ totalDurationSeconds: number }> {
-    return this.http.get<{ totalDurationSeconds: number }>(`/api/playlists/${playlistId}/duration`, {
-      headers: this.orgHeader(orgId),
-    });
+    return this.http.get<{ totalDurationSeconds: number }>(
+      `/api/playlists/${playlistId}/duration`,
+      {
+        headers: this.orgHeader(orgId),
+      },
+    );
   }
 
   setAsDefault(orgId: string, playlistId: string | null): Observable<unknown> {
-    return this.http.patch(`/api/organisations/${orgId}/default-playlist`, { playlistId }, {
-      headers: this.orgHeader(orgId),
-    });
+    return this.http.patch(
+      `/api/organisations/${orgId}/default-playlist`,
+      { playlistId },
+      {
+        headers: this.orgHeader(orgId),
+      },
+    );
   }
 
   bulkDelete(orgId: string, ids: string[]): Observable<BulkDeletePlaylistsResponse> {
-    return this.http.post<BulkDeletePlaylistsResponse>('/api/playlists/bulk-delete', { ids }, {
-      headers: this.orgHeader(orgId),
-    });
+    return this.http.post<BulkDeletePlaylistsResponse>(
+      '/api/playlists/bulk-delete',
+      { ids },
+      {
+        headers: this.orgHeader(orgId),
+      },
+    );
   }
 
-  bulkAssignScreen(orgId: string, ids: string[], screenId: string): Observable<BulkAssignScreenResponse> {
-    return this.http.post<BulkAssignScreenResponse>('/api/playlists/bulk-assign-screen', { ids, screenId }, {
-      headers: this.orgHeader(orgId),
-    });
+  bulkAssignScreen(
+    orgId: string,
+    ids: string[],
+    screenId: string,
+  ): Observable<BulkAssignScreenResponse> {
+    return this.http.post<BulkAssignScreenResponse>(
+      '/api/playlists/bulk-assign-screen',
+      { ids, screenId },
+      {
+        headers: this.orgHeader(orgId),
+      },
+    );
   }
 
   private orgHeader(orgId: string): HttpHeaders {

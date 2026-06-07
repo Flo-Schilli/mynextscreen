@@ -169,8 +169,20 @@ describe('SliceContentProcessor', () => {
   };
 
   const mockScreens: Partial<Screen>[] = [
-    { id: 'screen-1', organisationId: 'org-1', groupId: 'group-1', gridRow: 0, gridColumn: 0 },
-    { id: 'screen-2', organisationId: 'org-1', groupId: 'group-1', gridRow: 0, gridColumn: 1 },
+    {
+      id: 'screen-1',
+      organisationId: 'org-1',
+      groupId: 'group-1',
+      gridRow: 0,
+      gridColumn: 0,
+    },
+    {
+      id: 'screen-2',
+      organisationId: 'org-1',
+      groupId: 'group-1',
+      gridRow: 0,
+      gridColumn: 1,
+    },
   ];
 
   const mockContent: Partial<Content> = {
@@ -200,7 +212,9 @@ describe('SliceContentProcessor', () => {
 
     renditionRepo = {
       findOne: jest.fn().mockResolvedValue(null),
-      create: jest.fn().mockImplementation((data) => ({ id: 'rendition-1', ...data })),
+      create: jest
+        .fn()
+        .mockImplementation((data) => ({ id: 'rendition-1', ...data })),
       save: jest.fn().mockImplementation((data) => Promise.resolve(data)),
     };
 
@@ -221,7 +235,10 @@ describe('SliceContentProcessor', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SliceContentProcessor,
-        { provide: getRepositoryToken(SlicedRendition), useValue: renditionRepo },
+        {
+          provide: getRepositoryToken(SlicedRendition),
+          useValue: renditionRepo,
+        },
         { provide: getRepositoryToken(ScreenGroup), useValue: groupRepo },
         { provide: getRepositoryToken(Screen), useValue: screenRepo },
         { provide: getRepositoryToken(Playlist), useValue: playlistRepo },
@@ -296,7 +313,9 @@ describe('SliceContentProcessor', () => {
           screenId: 'screen-1',
           contentItemId: 'content-1',
           sourceHash: 'abc123hash',
-          filePath: expect.stringContaining('slices/group-1/screen-1/content-1.mp4'),
+          filePath: expect.stringContaining(
+            'slices/group-1/screen-1/content-1.mp4',
+          ),
         }),
       );
     });
@@ -406,7 +425,13 @@ describe('SliceContentProcessor', () => {
     it('should skip screens without grid positions', async () => {
       setupSpawnSuccess('1920x1080\n');
       screenRepo.find.mockResolvedValue([
-        { id: 'screen-1', organisationId: 'org-1', groupId: 'group-1', gridRow: null, gridColumn: null },
+        {
+          id: 'screen-1',
+          organisationId: 'org-1',
+          groupId: 'group-1',
+          gridRow: null,
+          gridColumn: null,
+        },
       ]);
 
       const job = createMockJob();
@@ -486,14 +511,25 @@ describe('SliceContentProcessor', () => {
     it('should use correct crop for image at non-square resolution', async () => {
       setupSpawnSuccess('800x600\n');
       screenRepo.find.mockResolvedValue([
-        { id: 'screen-1', organisationId: 'org-1', groupId: 'group-1', gridRow: 1, gridColumn: 1 },
+        {
+          id: 'screen-1',
+          organisationId: 'org-1',
+          groupId: 'group-1',
+          gridRow: 1,
+          gridColumn: 1,
+        },
       ]);
       const imageContent = { ...mockContent, type: ContentType.Image };
       playlistRepo.findOne.mockResolvedValue({
         id: 'playlist-1',
         organisationId: 'org-1',
         items: [
-          { id: 'item-1', contentId: 'content-1', content: imageContent, position: 0 },
+          {
+            id: 'item-1',
+            contentId: 'content-1',
+            content: imageContent,
+            position: 0,
+          },
         ],
       });
 
@@ -513,8 +549,18 @@ describe('SliceContentProcessor', () => {
         id: 'playlist-1',
         organisationId: 'org-1',
         items: [
-          { id: 'item-1', contentId: 'content-1', content: { ...mockContent, id: 'content-1' }, position: 0 },
-          { id: 'item-2', contentId: 'content-2', content: { ...mockContent, id: 'content-2' }, position: 1 },
+          {
+            id: 'item-1',
+            contentId: 'content-1',
+            content: { ...mockContent, id: 'content-1' },
+            position: 0,
+          },
+          {
+            id: 'item-2',
+            contentId: 'content-2',
+            content: { ...mockContent, id: 'content-2' },
+            position: 1,
+          },
         ],
       });
 

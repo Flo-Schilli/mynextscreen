@@ -35,9 +35,7 @@ export class SelectionCheckboxComponent {
 
   private readonly selectionService = inject(SelectionService);
 
-  readonly checked = computed(() =>
-    this.selectionService.selectedIds().has(this.itemId()),
-  );
+  readonly checked = computed(() => this.selectionService.selectedIds().has(this.itemId()));
 
   onClick(event: MouseEvent): void {
     event.preventDefault();
@@ -45,11 +43,7 @@ export class SelectionCheckboxComponent {
     if (event.shiftKey) {
       const lastId = this.selectionService.lastClickedId();
       if (lastId !== null) {
-        this.selectionService.selectRange(
-          this.orderedIds(),
-          lastId,
-          this.itemId(),
-        );
+        this.selectionService.selectRange(this.orderedIds(), lastId, this.itemId());
         return;
       }
     }

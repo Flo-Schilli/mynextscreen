@@ -43,16 +43,28 @@ export class ScreenGroupService {
     });
   }
 
-  assignScreen(orgId: string, groupId: string, screenId: string, dto: AssignScreenRequest): Observable<ScreenGroupScreen> {
-    return this.http.put<ScreenGroupScreen>(`/api/screen-groups/${groupId}/screens/${screenId}`, dto, {
-      headers: this.orgHeader(orgId),
-    });
+  assignScreen(
+    orgId: string,
+    groupId: string,
+    screenId: string,
+    dto: AssignScreenRequest,
+  ): Observable<ScreenGroupScreen> {
+    return this.http.put<ScreenGroupScreen>(
+      `/api/screen-groups/${groupId}/screens/${screenId}`,
+      dto,
+      {
+        headers: this.orgHeader(orgId),
+      },
+    );
   }
 
   removeScreen(orgId: string, groupId: string, screenId: string): Observable<ScreenGroupScreen> {
-    return this.http.delete<ScreenGroupScreen>(`/api/screen-groups/${groupId}/screens/${screenId}`, {
-      headers: this.orgHeader(orgId),
-    });
+    return this.http.delete<ScreenGroupScreen>(
+      `/api/screen-groups/${groupId}/screens/${screenId}`,
+      {
+        headers: this.orgHeader(orgId),
+      },
+    );
   }
 
   private orgHeader(orgId: string): HttpHeaders {

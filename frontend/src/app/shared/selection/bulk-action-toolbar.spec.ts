@@ -1,17 +1,11 @@
 import { TestBed, getTestBed, ComponentFixture } from '@angular/core/testing';
-import {
-  BrowserTestingModule,
-  platformBrowserTesting,
-} from '@angular/platform-browser/testing';
+import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
 import { SelectionService } from './selection.service';
 import { BulkActionToolbarComponent, BulkAction } from './bulk-action-toolbar';
 
 try {
-  getTestBed().initTestEnvironment(
-    BrowserTestingModule,
-    platformBrowserTesting(),
-  );
+  getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
 } catch {
   // already initialized
 }
@@ -19,9 +13,7 @@ try {
 @Component({
   standalone: true,
   imports: [BulkActionToolbarComponent],
-  template: `
-    <app-bulk-action-toolbar [actions]="actions()" />
-  `,
+  template: ` <app-bulk-action-toolbar [actions]="actions()" /> `,
   providers: [SelectionService],
 })
 class TestHostComponent {
@@ -49,9 +41,7 @@ describe('BulkActionToolbarComponent', () => {
   }
 
   function getButtons(): HTMLButtonElement[] {
-    return Array.from(
-      fixture.nativeElement.querySelectorAll('.toolbar-actions .btn'),
-    );
+    return Array.from(fixture.nativeElement.querySelectorAll('.toolbar-actions .btn'));
   }
 
   function getClearButton(): HTMLButtonElement | null {
@@ -118,9 +108,7 @@ describe('BulkActionToolbarComponent', () => {
 
   it('should invoke action handler and clear selection on success', async () => {
     const handler = vi.fn().mockResolvedValue(undefined);
-    fixture.componentInstance.actions.set([
-      { label: 'Delete', variant: 'danger', handler },
-    ]);
+    fixture.componentInstance.actions.set([{ label: 'Delete', variant: 'danger', handler }]);
     service.selectAll(['a', 'b']);
     fixture.detectChanges();
 
@@ -175,9 +163,7 @@ describe('BulkActionToolbarComponent', () => {
 
   it('should re-enable buttons after action fails', async () => {
     const handler = vi.fn().mockRejectedValue(new Error('fail'));
-    fixture.componentInstance.actions.set([
-      { label: 'Delete', variant: 'danger', handler },
-    ]);
+    fixture.componentInstance.actions.set([{ label: 'Delete', variant: 'danger', handler }]);
     service.selectAll(['a', 'b']);
     fixture.detectChanges();
 

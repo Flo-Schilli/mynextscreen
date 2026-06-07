@@ -51,7 +51,10 @@ describe('ScreenScheduler', () => {
     await scheduler.detectOfflineScreens();
 
     expect(screenService.detectOfflineScreens).toHaveBeenCalledWith(120_000);
-    expect(eventEmitter.emit).toHaveBeenCalledTimes(2);
+    const statusChangedCalls = eventEmitter.emit.mock.calls.filter(
+      ([event]) => event === SCREEN_STATUS_CHANGED,
+    );
+    expect(statusChangedCalls).toHaveLength(2);
     expect(eventEmitter.emit).toHaveBeenCalledWith(
       SCREEN_STATUS_CHANGED,
       expect.objectContaining({

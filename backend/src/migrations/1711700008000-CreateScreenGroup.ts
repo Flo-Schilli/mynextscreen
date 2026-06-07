@@ -193,10 +193,18 @@ export class CreateScreenGroup1711700008000 implements MigrationInterface {
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     // Drop triggers on screens
-    await queryRunner.query('DROP TRIGGER IF EXISTS check_screen_grid_column_update');
-    await queryRunner.query('DROP TRIGGER IF EXISTS check_screen_grid_column_insert');
-    await queryRunner.query('DROP TRIGGER IF EXISTS check_screen_grid_row_update');
-    await queryRunner.query('DROP TRIGGER IF EXISTS check_screen_grid_row_insert');
+    await queryRunner.query(
+      'DROP TRIGGER IF EXISTS check_screen_grid_column_update',
+    );
+    await queryRunner.query(
+      'DROP TRIGGER IF EXISTS check_screen_grid_column_insert',
+    );
+    await queryRunner.query(
+      'DROP TRIGGER IF EXISTS check_screen_grid_row_update',
+    );
+    await queryRunner.query(
+      'DROP TRIGGER IF EXISTS check_screen_grid_row_insert',
+    );
 
     // Drop foreign key and columns from screens
     await queryRunner.dropForeignKey('screens', 'FK_screen_group');
@@ -205,10 +213,18 @@ export class CreateScreenGroup1711700008000 implements MigrationInterface {
     await queryRunner.dropColumn('screens', 'groupId');
 
     // Drop triggers on screen_groups
-    await queryRunner.query('DROP TRIGGER IF EXISTS check_screen_group_grid_rows_update');
-    await queryRunner.query('DROP TRIGGER IF EXISTS check_screen_group_grid_rows_insert');
-    await queryRunner.query('DROP TRIGGER IF EXISTS check_screen_group_grid_columns_update');
-    await queryRunner.query('DROP TRIGGER IF EXISTS check_screen_group_grid_columns_insert');
+    await queryRunner.query(
+      'DROP TRIGGER IF EXISTS check_screen_group_grid_rows_update',
+    );
+    await queryRunner.query(
+      'DROP TRIGGER IF EXISTS check_screen_group_grid_rows_insert',
+    );
+    await queryRunner.query(
+      'DROP TRIGGER IF EXISTS check_screen_group_grid_columns_update',
+    );
+    await queryRunner.query(
+      'DROP TRIGGER IF EXISTS check_screen_group_grid_columns_insert',
+    );
 
     // Drop screen_groups table
     await queryRunner.dropTable('screen_groups');

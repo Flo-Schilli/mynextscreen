@@ -108,10 +108,7 @@ export class NotificationBell implements OnInit, OnDestroy {
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
-    if (
-      this.dropdownOpen() &&
-      !this.elementRef.nativeElement.contains(event.target)
-    ) {
+    if (this.dropdownOpen() && !this.elementRef.nativeElement.contains(event.target)) {
       this.dropdownOpen.set(false);
     }
   }

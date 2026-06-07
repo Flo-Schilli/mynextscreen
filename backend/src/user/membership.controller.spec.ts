@@ -4,6 +4,7 @@ import { MembershipService } from './membership.service';
 import { OrganisationRole } from './organisation-role.enum';
 import { UserOrganisationMembership } from './user-organisation-membership.entity';
 import { User } from './user.entity';
+import { Organisation } from '../organisation/organisation.entity';
 
 describe('MembershipController', () => {
   let controller: MembershipController;
@@ -26,7 +27,7 @@ describe('MembershipController', () => {
     organisationId: orgId,
     role: OrganisationRole.Editor,
     user: mockUser,
-    organisation: {} as any,
+    organisation: {} as unknown as Organisation,
     createdAt: new Date(),
   };
 

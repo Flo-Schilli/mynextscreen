@@ -1,11 +1,4 @@
-import {
-  Component,
-  inject,
-  signal,
-  OnInit,
-  HostListener,
-  effect,
-} from '@angular/core';
+import { Component, inject, signal, OnInit, HostListener, effect } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { OrganisationStateService } from './organisation-state.service';
@@ -38,11 +31,7 @@ interface NavItem {
     }
 
     <!-- Sidebar -->
-    <aside
-      class="sidebar"
-      [class.collapsed]="collapsed()"
-      [class.mobile-open]="mobileOpen()"
-    >
+    <aside class="sidebar" [class.collapsed]="collapsed()" [class.mobile-open]="mobileOpen()">
       <div class="sidebar-header">
         @if (!collapsed()) {
           <span class="logo-text">Signage</span>
@@ -54,9 +43,21 @@ interface NavItem {
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             @if (collapsed()) {
-              <path d="M7 4l6 6-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path
+                d="M7 4l6 6-6 6"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
             } @else {
-              <path d="M13 4l-6 6 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path
+                d="M13 4l-6 6 6 6"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
             }
           </svg>
         </button>
@@ -90,7 +91,12 @@ interface NavItem {
           >
             <span class="nav-icon">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M10 1l2.5 3.5H17l-1.5 4L18 13h-4l-2 4h-4l-2-4H2l2.5-4.5L3 5h4.5L10 1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                <path
+                  d="M10 1l2.5 3.5H17l-1.5 4L18 13h-4l-2 4h-4l-2-4H2l2.5-4.5L3 5h4.5L10 1z"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linejoin="round"
+                />
               </svg>
             </span>
             @if (!collapsed()) {
@@ -104,7 +110,13 @@ interface NavItem {
         <button class="nav-item" (click)="logout()" [attr.title]="collapsed() ? 'Logout' : null">
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M7 17H4a1 1 0 01-1-1V4a1 1 0 011-1h3M13 14l4-4-4-4M17 10H7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path
+                d="M7 17H4a1 1 0 01-1-1V4a1 1 0 011-1h3M13 14l4-4-4-4M17 10H7"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
             </svg>
           </span>
           @if (!collapsed()) {
@@ -125,7 +137,12 @@ interface NavItem {
             aria-label="Open menu"
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path
+                d="M3 6h18M3 12h18M3 18h18"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
             </svg>
           </button>
 
@@ -156,12 +173,23 @@ interface NavItem {
           >
             @if (theme.isDark()) {
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <circle cx="10" cy="10" r="4" stroke="currentColor" stroke-width="1.5"/>
-                <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <circle cx="10" cy="10" r="4" stroke="currentColor" stroke-width="1.5" />
+                <path
+                  d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                />
               </svg>
             } @else {
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M17.39 11.39A8 8 0 018.61 2.61 8 8 0 1017.39 11.39z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path
+                  d="M17.39 11.39A8 8 0 018.61 2.61 8 8 0 1017.39 11.39z"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
               </svg>
             }
           </button>
@@ -170,15 +198,27 @@ interface NavItem {
           <app-notification-bell />
 
           <!-- User avatar -->
-          <div class="user-avatar" [class.super-admin]="orgState.isSuperAdmin()" [attr.aria-label]="orgState.isSuperAdmin() ? 'Super Admin' : 'Current user'">
+          <div
+            class="user-avatar"
+            [class.super-admin]="orgState.isSuperAdmin()"
+            [attr.aria-label]="orgState.isSuperAdmin() ? 'Super Admin' : 'Current user'"
+          >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <circle cx="10" cy="8" r="3" stroke="currentColor" stroke-width="1.5"/>
-              <path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <circle cx="10" cy="8" r="3" stroke="currentColor" stroke-width="1.5" />
+              <path
+                d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
             </svg>
             @if (orgState.isSuperAdmin()) {
               <span class="admin-badge" title="Super Admin">
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path d="M5 0.5L6.1 3.5H9.3L6.6 5.3L7.7 8.5L5 6.5L2.3 8.5L3.4 5.3L0.7 3.5H3.9L5 0.5Z" fill="currentColor"/>
+                  <path
+                    d="M5 0.5L6.1 3.5H9.3L6.6 5.3L7.7 8.5L5 6.5L2.3 8.5L3.4 5.3L0.7 3.5H3.9L5 0.5Z"
+                    fill="currentColor"
+                  />
                 </svg>
               </span>
             }
@@ -218,7 +258,9 @@ interface NavItem {
       display: flex;
       flex-direction: column;
       z-index: 50;
-      transition: width 0.2s ease, transform 0.2s ease;
+      transition:
+        width 0.2s ease,
+        transform 0.2s ease;
       overflow: hidden;
     }
     .sidebar.collapsed {
@@ -281,7 +323,9 @@ interface NavItem {
       cursor: pointer;
       width: 100%;
       text-align: left;
-      transition: background 0.15s, color 0.15s;
+      transition:
+        background 0.15s,
+        color 0.15s;
     }
     .nav-item:hover {
       background: var(--color-bg-tertiary);
@@ -458,17 +502,31 @@ interface NavItem {
     }
 
     /* ── Desktop-only / Mobile-only ── */
-    .mobile-only { display: none; }
+    .mobile-only {
+      display: none;
+    }
 
     /* ── Responsive: Tablet (<=1024px) — collapse sidebar ── */
     @media (max-width: 1024px) {
-      .sidebar { width: 60px; }
+      .sidebar {
+        width: 60px;
+      }
       .sidebar .nav-label,
-      .sidebar .logo-text { display: none; }
-      .sidebar .sidebar-header { justify-content: center; }
-      .desktop-only { display: none; }
-      .main-wrapper { margin-left: 60px; }
-      .main-wrapper.sidebar-collapsed { margin-left: 60px; }
+      .sidebar .logo-text {
+        display: none;
+      }
+      .sidebar .sidebar-header {
+        justify-content: center;
+      }
+      .desktop-only {
+        display: none;
+      }
+      .main-wrapper {
+        margin-left: 60px;
+      }
+      .main-wrapper.sidebar-collapsed {
+        margin-left: 60px;
+      }
     }
 
     /* ── Responsive: Mobile (<=768px) — sidebar as overlay ── */
@@ -478,7 +536,9 @@ interface NavItem {
         width: 240px;
       }
       .sidebar .nav-label,
-      .sidebar .logo-text { display: inline; }
+      .sidebar .logo-text {
+        display: inline;
+      }
       .sidebar.mobile-open {
         transform: translateX(0);
       }
@@ -486,9 +546,15 @@ interface NavItem {
       .main-wrapper.sidebar-collapsed {
         margin-left: 0;
       }
-      .mobile-only { display: flex; }
-      app-global-search { display: none; }
-      .content { padding: 1rem; }
+      .mobile-only {
+        display: flex;
+      }
+      app-global-search {
+        display: none;
+      }
+      .content {
+        padding: 1rem;
+      }
     }
   `,
 })
@@ -583,10 +649,14 @@ export class Layout implements OnInit {
 
   formatRole(role: string): string {
     switch (role) {
-      case 'org_admin': return 'Admin';
-      case 'editor': return 'Editor';
-      case 'viewer': return 'Viewer';
-      default: return role;
+      case 'org_admin':
+        return 'Admin';
+      case 'editor':
+        return 'Editor';
+      case 'viewer':
+        return 'Viewer';
+      default:
+        return role;
     }
   }
 

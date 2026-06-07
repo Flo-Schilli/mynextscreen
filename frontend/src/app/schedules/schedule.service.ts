@@ -17,21 +17,14 @@ export class ScheduleService {
     from: string,
     to: string,
   ): Observable<ScheduleEntry[]> {
-    const params = new HttpParams()
-      .set('screenId', screenId)
-      .set('from', from)
-      .set('to', to);
+    const params = new HttpParams().set('screenId', screenId).set('from', from).set('to', to);
     return this.http.get<ScheduleEntry[]>('/api/schedules', {
       headers: this.orgHeader(orgId),
       params,
     });
   }
 
-  getByDateRange(
-    orgId: string,
-    from: string,
-    to: string,
-  ): Observable<ScheduleEntry[]> {
+  getByDateRange(orgId: string, from: string, to: string): Observable<ScheduleEntry[]> {
     const params = new HttpParams().set('from', from).set('to', to);
     return this.http.get<ScheduleEntry[]>('/api/schedules', {
       headers: this.orgHeader(orgId),
