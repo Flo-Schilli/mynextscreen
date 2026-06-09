@@ -15,6 +15,9 @@ jobs:
   lint-test-build:
     name: lint · test · build (${{ matrix.app }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     strategy:
       fail-fast: false
       matrix:
@@ -59,6 +62,24 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Upload coverage artifact
+        if: matrix.app == 'backend'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage/
+          retention-days: 14
+
+      - name: Coverage report PR comment
+        if: matrix.app == 'backend' && github.event_name == 'pull_request'
+        uses: ArtiomTr/jest-coverage-report-action@v2
+        with:
+          working-directory: backend
+          package-manager: npm
+          test-script: npm run test:cov
+          annotations: failed-tests
+          threshold: 92
 
   docker:
     name: docker (${{ matrix.app }})
