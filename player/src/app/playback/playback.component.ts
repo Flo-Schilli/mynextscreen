@@ -14,86 +14,37 @@ import { PlayerService } from '../player/player.service';
 import { ConnectionService } from '../connection/connection.service';
 import { PlaylistItem } from '../player/player.models';
 import { PlaybackStateService } from './playback-state.service';
-import { HlsService } from './hls.service';
 import { StatusOverlayComponent } from './status-overlay.component';
+import { LiveStreamViewComponent } from './live-stream-view.component';
+import { GroupPlayViewComponent } from './group-play-view.component';
+import { resolveTransition, enterAnim, exitAnim, TransitionSpec } from './playback-transitions';
 
 type LayerId = 0 | 1;
 
-const KNOWN_TRANSITIONS = new Set([
-  'cut',
-  'fade',
-  'slide-left',
-  'slide-right',
-  'slide-up',
-  'slide-down',
-  'zoom-in',
-  'zoom-out',
-]);
-
-function resolveTransition(item: PlaylistItem | null): {
-  type: string;
-  duration: number;
-} {
-  if (!item || !KNOWN_TRANSITIONS.has(item.transition)) {
-    return { type: 'fade', duration: 500 };
-  }
-  return { type: item.transition, duration: item.transitionDurationMs ?? 500 };
-}
-
+/**
+ * Smart container + dual-layer transition engine for screen playback. Owns the
+ * playlist sequencing, the two crossfading content layers, transition timing and
+ * the playback mode selection. The live-stream (HLS) and split-mode group-play
+ * modes are delegated to self-contained child views; the status overlay and
+ * next-image preload stay inline.
+ */
 @Component({
   selector: 'app-playback',
-  imports: [StatusOverlayComponent],
+  imports: [StatusOverlayComponent, LiveStreamViewComponent, GroupPlayViewComponent],
   template: `
     <div class="playback-container">
       @if (isLiveStreaming()) {
-        <div class="content-layer layer-active">
-          @if (hlsError()) {
-            <div class="no-content">
-              <p class="text-red-400 text-lg">Live stream unavailable</p>
-            </div>
-          } @else {
-            <video #hlsVideo class="content-media" autoplay muted playsinline></video>
-          }
-        </div>
-
-        @if (isMuted()) {
-          <button class="unmute-overlay" (click)="unmuteHls()" (keydown.enter)="unmuteHls()">
-            <span class="unmute-icon">🔇</span>
-            <span class="text-sm">Click to unmute</span>
-          </button>
-        }
+        <app-live-stream-view [streamId]="liveStreamId()" />
       } @else if (isPending()) {
         <div class="no-content">
           <p class="text-text-muted text-lg">Preparing content…</p>
         </div>
       } @else if (isSplitGroupPlay()) {
-        <div
-          class="content-layer"
-          [class.content-visible]="showCurrent()"
-          [class.content-hidden]="!showCurrent()"
-        >
-          @if (groupPlayContentType() === 'video') {
-            <video
-              #groupPlayVideo
-              [src]="groupPlayMediaUrl()"
-              class="content-media"
-              autoplay
-              muted
-              playsinline
-              (loadeddata)="onGroupPlayVideoReady()"
-              (ended)="onGroupPlayVideoEnded()"
-              (error)="onMediaError($event)"
-            ></video>
-          } @else {
-            <img
-              [src]="groupPlayMediaUrl()"
-              class="content-media"
-              alt=""
-              (load)="onGroupPlayImageLoaded()"
-              (error)="onMediaError($event)"
-            />
-          }
-        </div>
+        <app-group-play-view
+          [mediaUrl]="groupPlayMediaUrl()"
+          [contentType]="groupPlayContentType()"
+          (mediaError)="onMediaError($event)"
+        />
       } @else if (noContent()) {
         <div class="no-content">
           <img src="default-screen.png" class="default-screen-image" alt="" />
@@ -217,17 +168,6 @@ function resolveTransition(item: PlaylistItem | null): {
       .layer-inactive {
         opacity: 0;
         pointer-events: none;
-      }
-
-      /* Group play uses the old show/hide approach */
-      .content-visible {
-        opacity: 1;
-        transition: opacity 0.3s ease-in-out;
-      }
-
-      .content-hidden {
-        opacity: 0;
-        transition: opacity 0.3s ease-in-out;
       }
 
       .content-media {
@@ -410,13 +350,10 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   private readonly playerService = inject(PlayerService);
   private readonly connectionService = inject(ConnectionService);
   private readonly playbackState = inject(PlaybackStateService);
-  private readonly hlsService = inject(HlsService);
   private readonly zone = inject(NgZone);
 
   private readonly layer0Video = viewChild<ElementRef<HTMLVideoElement>>('layer0Video');
   private readonly layer1Video = viewChild<ElementRef<HTMLVideoElement>>('layer1Video');
-  private readonly hlsVideo = viewChild<ElementRef<HTMLVideoElement>>('hlsVideo');
-  private readonly groupPlayVideo = viewChild<ElementRef<HTMLVideoElement>>('groupPlayVideo');
 
   private readonly _currentIndex = signal(0);
   private readonly _activeLayer = signal<LayerId>(0);
@@ -426,25 +363,18 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   private readonly _layer1Anim = signal('');
   private readonly _isTransitioning = signal(false);
   private readonly _initialLoad = signal(true);
-  private readonly _showCurrent = signal(true); // kept for group play mode
   private readonly _isMuted = signal(true);
-  private readonly _hlsError = signal(false);
   private readonly _groupPlayContentUrl = signal<string | null>(null);
   private readonly _groupPlayContentType = signal<string>('image');
   private readonly _isPending = signal(false);
 
   private advanceTimer: ReturnType<typeof setTimeout> | null = null;
   private transitionTimer: ReturnType<typeof setTimeout> | null = null;
-  private hlsFallbackTimer: ReturnType<typeof setTimeout> | null = null;
   private destroyed = false;
-  private currentHlsStreamId: string | null = null;
-  private _pendingTransition: { type: string; duration: number } | null = null;
+  private _pendingTransition: TransitionSpec | null = null;
   private _isPendingImageLoad = false;
 
-  readonly showCurrent = this._showCurrent.asReadonly();
   readonly isMuted = this._isMuted.asReadonly();
-  readonly hlsError = this._hlsError.asReadonly();
-  readonly groupPlayContentUrl = this._groupPlayContentUrl.asReadonly();
   readonly groupPlayContentType = this._groupPlayContentType.asReadonly();
   readonly isPending = this._isPending.asReadonly();
   readonly activeLayer = this._activeLayer.asReadonly();
@@ -455,6 +385,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   readonly layer1Anim = this._layer1Anim.asReadonly();
 
   readonly isLiveStreaming = computed(() => this.playerService.isLiveStreaming());
+  readonly liveStreamId = computed(() => this.playerService.activeLiveStream()?.id ?? null);
   readonly isSplitGroupPlay = computed(() => this._groupPlayContentUrl() !== null);
 
   readonly groupPlayMediaUrl = computed(() => {
@@ -538,16 +469,6 @@ export class PlaybackComponent implements OnInit, OnDestroy {
       this.playbackState.setTotalItems(this.items().length);
     });
 
-    // React to live stream changes — attach/detach HLS
-    effect(() => {
-      const liveStream = this.playerService.activeLiveStream();
-      if (liveStream && liveStream.id) {
-        this.startHls(liveStream.id);
-      } else {
-        this.stopHls();
-      }
-    });
-
     // React to group_play events — display sliced content in split mode
     effect(() => {
       const event = this.playerService.groupPlayEvent();
@@ -555,7 +476,6 @@ export class PlaybackComponent implements OnInit, OnDestroy {
         this._isPending.set(false);
         this._groupPlayContentUrl.set(event.contentUrl);
         this._groupPlayContentType.set(event.contentType ?? 'image');
-        this._showCurrent.set(true);
       }
     });
 
@@ -576,8 +496,6 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     this.destroyed = true;
     this.clearAdvanceTimer();
     this.clearTransitionTimer();
-    this.clearHlsFallbackTimer();
-    this.hlsService.destroy();
     this.playerService.disconnect();
   }
 
@@ -632,26 +550,6 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     }, 1000);
   }
 
-  // ── Group play handlers (unchanged) ──
-
-  onGroupPlayImageLoaded(): void {
-    this._showCurrent.set(true);
-  }
-
-  onGroupPlayVideoReady(): void {
-    const videoEl = this.groupPlayVideo()?.nativeElement;
-    if (videoEl) {
-      videoEl.muted = true;
-      videoEl.play().catch((err: Error) => {
-        console.warn('[Playback] group play play() rejected:', err.message);
-      });
-    }
-  }
-
-  onGroupPlayVideoEnded(): void {
-    // In split mode group_play, content stays until the next group_play event
-  }
-
   // ── Unmute ──
 
   unmute(): void {
@@ -662,70 +560,6 @@ export class PlaybackComponent implements OnInit, OnDestroy {
         : this.layer1Video()?.nativeElement;
     if (videoEl) {
       videoEl.muted = false;
-    }
-  }
-
-  unmuteHls(): void {
-    this._isMuted.set(false);
-    const videoEl = this.hlsVideo()?.nativeElement;
-    if (videoEl) {
-      videoEl.muted = false;
-    }
-  }
-
-  // ── HLS (unchanged) ──
-
-  private startHls(streamId: string): void {
-    if (this.currentHlsStreamId === streamId) return;
-    this.currentHlsStreamId = streamId;
-    this._hlsError.set(false);
-    this._isMuted.set(true);
-    this.clearHlsFallbackTimer();
-
-    // Wait for the template to render the video element
-    setTimeout(() => {
-      if (this.destroyed) return;
-      const videoEl = this.hlsVideo()?.nativeElement;
-      if (videoEl) {
-        this.hlsService.attach(videoEl, streamId);
-        this.monitorHlsHealth();
-      } else {
-        this._hlsError.set(true);
-      }
-    }, 0);
-  }
-
-  private stopHls(): void {
-    this.currentHlsStreamId = null;
-    this.clearHlsFallbackTimer();
-    this.hlsService.destroy();
-    this._hlsError.set(false);
-  }
-
-  private monitorHlsHealth(): void {
-    this.clearHlsFallbackTimer();
-
-    // If stream health becomes 'stopped', show error after a short grace period
-    const checkHealth = () => {
-      if (this.destroyed || !this.isLiveStreaming()) return;
-      const health = this.playbackState.streamHealth();
-      if (health === 'stopped') {
-        this.zone.run(() => {
-          this._hlsError.set(true);
-          this.hlsService.destroy();
-        });
-      } else {
-        this.hlsFallbackTimer = setTimeout(checkHealth, 2000);
-      }
-    };
-
-    this.hlsFallbackTimer = setTimeout(checkHealth, 2000);
-  }
-
-  private clearHlsFallbackTimer(): void {
-    if (this.hlsFallbackTimer !== null) {
-      clearTimeout(this.hlsFallbackTimer);
-      this.hlsFallbackTimer = null;
     }
   }
 
@@ -766,7 +600,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.setLayerAnim(layer, `${type}-enter ${duration}ms ease-in-out both`);
+    this.setLayerAnim(layer, enterAnim(type, duration));
     this.transitionTimer = setTimeout(() => {
       this.zone.run(() => {
         this.setLayerAnim(layer, '');
@@ -818,21 +652,15 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     }
   }
 
-  private executeTransition(transition: { type: string; duration: number }): void {
+  private executeTransition(transition: TransitionSpec): void {
     const activeLayer = this._activeLayer();
     const inactiveLayer: LayerId = activeLayer === 0 ? 1 : 0;
 
     this._isTransitioning.set(true);
 
     // Apply exit animation to outgoing layer, enter animation to incoming layer
-    this.setLayerAnim(
-      activeLayer,
-      `${transition.type}-exit ${transition.duration}ms ease-in-out both`,
-    );
-    this.setLayerAnim(
-      inactiveLayer,
-      `${transition.type}-enter ${transition.duration}ms ease-in-out both`,
-    );
+    this.setLayerAnim(activeLayer, exitAnim(transition.type, transition.duration));
+    this.setLayerAnim(inactiveLayer, enterAnim(transition.type, transition.duration));
 
     this.transitionTimer = setTimeout(() => {
       this.zone.run(() => {
@@ -848,10 +676,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     }, transition.duration);
   }
 
-  private advanceWrapping(
-    item: PlaylistItem,
-    transition: { type: string; duration: number },
-  ): void {
+  private advanceWrapping(item: PlaylistItem, transition: TransitionSpec): void {
     const layer = this._activeLayer();
 
     if (transition.type === 'cut') {
@@ -864,7 +689,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     this._isTransitioning.set(true);
 
     // Exit animation on current layer
-    this.setLayerAnim(layer, `${transition.type}-exit ${transition.duration}ms ease-in-out both`);
+    this.setLayerAnim(layer, exitAnim(transition.type, transition.duration));
 
     this.transitionTimer = setTimeout(() => {
       if (this.destroyed) return;
@@ -872,10 +697,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
         this.restartCurrentItem(item);
 
         // Enter animation on same layer
-        this.setLayerAnim(
-          layer,
-          `${transition.type}-enter ${transition.duration}ms ease-in-out both`,
-        );
+        this.setLayerAnim(layer, enterAnim(transition.type, transition.duration));
 
         this.transitionTimer = setTimeout(() => {
           if (this.destroyed) return;
