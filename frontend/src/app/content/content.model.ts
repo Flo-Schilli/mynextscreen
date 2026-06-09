@@ -22,3 +22,12 @@ export interface StorageInfo {
   transcodedUsedBytes: number;
   transcodedLimitBytes: number;
 }
+
+/** An in-progress (or just-finished) file upload, shown in the upload list. */
+export interface UploadItem {
+  file: File;
+  title: string;
+  progress: number;
+  status: 'uploading' | 'done' | 'error';
+  error?: string;
+}
