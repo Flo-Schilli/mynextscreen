@@ -16,7 +16,7 @@ import { OrganisationRole } from '../user/organisation-role.enum';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { OrgNotificationConfigService } from './org-notification-config.service';
 import { UpdateOrgNotificationConfigDto } from './dto';
-import { OrganisationNotificationConfig } from './organisation-notification-config.entity';
+import type { OrganisationNotificationConfig } from '../db/schema';
 import { SmtpEmailProvider } from './channels/smtp-email-provider';
 
 @Controller('organisations')

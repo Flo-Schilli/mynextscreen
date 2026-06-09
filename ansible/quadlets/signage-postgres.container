@@ -1,0 +1,22 @@
+[Unit]
+Description=Signage PostgreSQL
+After=signage-network.service
+
+[Container]
+ContainerName=signage-postgres
+Image=docker.io/library/postgres:16-alpine
+Pull=newer
+Network=signage.network
+EnvironmentFile=%h/.config/containers/systemd/.env.signage-postgres
+Volume=signage-postgres-data:/var/lib/postgresql/data:Z
+HealthCmd=pg_isready -U signage -d signage
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=20s
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

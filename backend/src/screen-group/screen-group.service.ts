@@ -3,17 +3,18 @@ import {
   BadRequestException,
   ConflictException,
   NotFoundException,
+  Inject,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { and, eq } from 'drizzle-orm';
 import { OrganisationScopedService } from '../organisation/organisation-scope.service';
-import { ScreenGroup } from './screen-group.entity';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { screens, screenGroups, type Screen, type ScreenGroup } from '../db/schema';
 import { ScreenGroupMode } from './screen-group-mode.enum';
 import { CreateScreenGroupDto } from './dto/create-screen-group.dto';
 import { UpdateScreenGroupDto } from './dto/update-screen-group.dto';
 import { AssignScreenDto } from './dto/assign-screen.dto';
-import { Screen } from '../screen/screen.entity';
 import {
   AUDIT_GROUP_CREATED,
   AUDIT_GROUP_UPDATED,
@@ -24,29 +25,28 @@ import {
   AuditGroupEvent,
 } from '../audit-log/audit.events';
 
+type ScreenGroupWithScreens = ScreenGroup & { screens: Screen[] };
+
 @Injectable()
 export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
   constructor(
-    @InjectRepository(ScreenGroup)
-    repository: Repository<ScreenGroup>,
-    @InjectRepository(Screen)
-    private readonly screenRepository: Repository<Screen>,
+    @Inject(DRIZZLE) db: DrizzleDB,
     private readonly eventEmitter: EventEmitter2,
   ) {
-    super(repository, 'ScreenGroup');
+    super(db, screenGroups, 'ScreenGroup');
   }
 
-  override async findAll(organisationId: string): Promise<ScreenGroup[]> {
-    return this.repository.find({
-      where: { organisationId } as FindOptionsWhere<ScreenGroup>,
-      relations: ['screens'],
+  override async findAll(organisationId: string): Promise<ScreenGroupWithScreens[]> {
+    return this.db.query.screenGroups.findMany({
+      where: eq(screenGroups.organisationId, organisationId),
+      with: { screens: true },
     });
   }
 
-  override async findOne(organisationId: string, id: string): Promise<ScreenGroup> {
-    const entity = await this.repository.findOne({
-      where: { organisationId, id } as FindOptionsWhere<ScreenGroup>,
-      relations: ['screens'],
+  override async findOne(organisationId: string, id: string): Promise<ScreenGroupWithScreens> {
+    const entity = await this.db.query.screenGroups.findFirst({
+      where: and(eq(screenGroups.id, id), eq(screenGroups.organisationId, organisationId)),
+      with: { screens: true },
     });
     if (!entity) {
       throw new NotFoundException(
@@ -92,7 +92,7 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
     id: string,
     dto: UpdateScreenGroupDto,
     userId: string | null = null,
-  ): Promise<ScreenGroup> {
+  ): Promise<ScreenGroupWithScreens> {
     const group = await this.findOne(organisationId, id);
     const previousMode = group.mode;
 
@@ -106,18 +106,23 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
       }
     }
 
-    if (dto.name !== undefined) group.name = dto.name;
-    if (dto.mode !== undefined) group.mode = dto.mode;
+    const updates: Partial<ScreenGroup> = {};
+    if (dto.name !== undefined) updates.name = dto.name;
+    if (dto.mode !== undefined) updates.mode = dto.mode;
 
     if (effectiveMode === ScreenGroupMode.Mirror) {
-      group.gridColumns = null;
-      group.gridRows = null;
+      updates.gridColumns = null;
+      updates.gridRows = null;
     } else {
-      if (dto.gridColumns !== undefined) group.gridColumns = dto.gridColumns;
-      if (dto.gridRows !== undefined) group.gridRows = dto.gridRows;
+      if (dto.gridColumns !== undefined) updates.gridColumns = dto.gridColumns;
+      if (dto.gridRows !== undefined) updates.gridRows = dto.gridRows;
     }
 
-    const saved = await this.repository.save(group);
+    const [saved] = await this.db
+      .update(screenGroups)
+      .set(updates)
+      .where(and(eq(screenGroups.id, id), eq(screenGroups.organisationId, organisationId)))
+      .returning();
 
     // Emit mode_changed event if mode actually changed
     if (dto.mode !== undefined && dto.mode !== previousMode) {
@@ -140,7 +145,7 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
       }),
     );
 
-    return saved;
+    return { ...saved, screens: group.screens };
   }
 
   async removeGroup(
@@ -150,9 +155,7 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
   ): Promise<void> {
     const group = await this.findOne(organisationId, id);
 
-    const memberCount = await this.screenRepository.count({
-      where: { groupId: group.id },
-    });
+    const memberCount = await this.db.$count(screens, eq(screens.groupId, group.id));
 
     if (memberCount > 0) {
       throw new ConflictException(
@@ -162,7 +165,7 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
 
     const groupId = group.id;
     const groupName = group.name;
-    await this.repository.remove(group);
+    await this.db.delete(screenGroups).where(eq(screenGroups.id, groupId));
 
     this.eventEmitter.emit(
       AUDIT_GROUP_DELETED,
@@ -181,9 +184,11 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
   ): Promise<Screen> {
     const group = await this.findOne(organisationId, groupId);
 
-    const screen = await this.screenRepository.findOne({
-      where: { id: screenId, organisationId },
-    });
+    const [screen] = await this.db
+      .select()
+      .from(screens)
+      .where(and(eq(screens.id, screenId), eq(screens.organisationId, organisationId)))
+      .limit(1);
     if (!screen) {
       throw new NotFoundException(
         `Screen with id "${screenId}" not found in organisation "${organisationId}"`,
@@ -204,13 +209,17 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
       }
 
       // Check for duplicate grid cell
-      const cellOccupied = await this.screenRepository.findOne({
-        where: {
-          groupId,
-          gridRow: dto.gridRow,
-          gridColumn: dto.gridColumn,
-        },
-      });
+      const [cellOccupied] = await this.db
+        .select()
+        .from(screens)
+        .where(
+          and(
+            eq(screens.groupId, groupId),
+            eq(screens.gridRow, dto.gridRow),
+            eq(screens.gridColumn, dto.gridColumn),
+          ),
+        )
+        .limit(1);
       if (cellOccupied && cellOccupied.id !== screenId) {
         throw new ConflictException(
           `Grid cell (${dto.gridRow}, ${dto.gridColumn}) is already occupied by screen "${cellOccupied.name}"`,
@@ -218,11 +227,15 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
       }
     }
 
-    screen.groupId = groupId;
-    screen.gridRow = group.mode === ScreenGroupMode.Split ? (dto.gridRow ?? null) : null;
-    screen.gridColumn = group.mode === ScreenGroupMode.Split ? (dto.gridColumn ?? null) : null;
-
-    const saved = await this.screenRepository.save(screen);
+    const [saved] = await this.db
+      .update(screens)
+      .set({
+        groupId,
+        gridRow: group.mode === ScreenGroupMode.Split ? (dto.gridRow ?? null) : null,
+        gridColumn: group.mode === ScreenGroupMode.Split ? (dto.gridColumn ?? null) : null,
+      })
+      .where(eq(screens.id, screenId))
+      .returning();
 
     this.eventEmitter.emit(
       AUDIT_GROUP_SCREEN_ADDED,
@@ -245,19 +258,27 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
   ): Promise<Screen> {
     await this.findOne(organisationId, groupId);
 
-    const screen = await this.screenRepository.findOne({
-      where: { id: screenId, organisationId, groupId },
-    });
+    const [screen] = await this.db
+      .select()
+      .from(screens)
+      .where(
+        and(
+          eq(screens.id, screenId),
+          eq(screens.organisationId, organisationId),
+          eq(screens.groupId, groupId),
+        ),
+      )
+      .limit(1);
     if (!screen) {
       throw new NotFoundException(`Screen with id "${screenId}" not found in group "${groupId}"`);
     }
 
     const screenName = screen.name;
-    screen.groupId = null;
-    screen.gridRow = null;
-    screen.gridColumn = null;
-
-    const saved = await this.screenRepository.save(screen);
+    const [saved] = await this.db
+      .update(screens)
+      .set({ groupId: null, gridRow: null, gridColumn: null })
+      .where(eq(screens.id, screenId))
+      .returning();
 
     this.eventEmitter.emit(
       AUDIT_GROUP_SCREEN_REMOVED,

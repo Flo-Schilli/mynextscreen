@@ -1,5 +1,5 @@
-export { User } from './user.entity';
-export { UserOrganisationMembership } from './user-organisation-membership.entity';
+export type { User } from '../db/schema';
+export type { UserOrganisationMembership } from '../db/schema';
 export { OrganisationRole } from './organisation-role.enum';
 export { UserModule } from './user.module';
 export { UserService } from './user.service';

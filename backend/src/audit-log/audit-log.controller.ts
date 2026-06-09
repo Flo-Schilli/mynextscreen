@@ -4,7 +4,7 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { SuperAdminGuard } from '../auth/super-admin.guard';
 import { OrganisationRole } from '../user/organisation-role.enum';
-import { AuditEntry } from './audit-entry.entity';
+import type { AuditEntry } from '../db/schema';
 import { AuditLogQueryDto, AdminAuditLogQueryDto } from './audit-log-query.dto';
 
 function buildFilters(query: AuditLogQueryDto): AuditLogFilters {

@@ -1,20 +1,25 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Notification } from './notification.entity';
+import { Injectable, Inject } from '@nestjs/common';
+import { and, desc, eq } from 'drizzle-orm';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { notifications, type Notification } from '../db/schema';
 
 @Injectable()
 export class NotificationService {
-  constructor(
-    @InjectRepository(Notification)
-    private readonly notificationRepository: Repository<Notification>,
-  ) {}
+  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
   async findUnreadByUser(userId: string, organisationId: string): Promise<Notification[]> {
-    return this.notificationRepository.find({
-      where: { userId, organisationId, read: false },
-      order: { createdAt: 'DESC' },
-    });
+    return this.db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          eq(notifications.organisationId, organisationId),
+          eq(notifications.read, false),
+        ),
+      )
+      .orderBy(desc(notifications.createdAt));
   }
 
   async findRecent(
@@ -22,31 +27,49 @@ export class NotificationService {
     organisationId: string,
     unreadOnly: boolean,
   ): Promise<Notification[]> {
-    const where: Record<string, unknown> = { userId, organisationId };
+    const conditions = [
+      eq(notifications.userId, userId),
+      eq(notifications.organisationId, organisationId),
+    ];
     if (unreadOnly) {
-      where.read = false;
+      conditions.push(eq(notifications.read, false));
     }
-    return this.notificationRepository.find({
-      where,
-      order: { createdAt: 'DESC' },
-      take: 50,
-    });
+    return this.db
+      .select()
+      .from(notifications)
+      .where(and(...conditions))
+      .orderBy(desc(notifications.createdAt))
+      .limit(50);
   }
 
   async countUnread(userId: string, organisationId: string): Promise<number> {
-    return this.notificationRepository.count({
-      where: { userId, organisationId, read: false },
-    });
+    return this.db.$count(
+      notifications,
+      and(
+        eq(notifications.userId, userId),
+        eq(notifications.organisationId, organisationId),
+        eq(notifications.read, false),
+      ),
+    );
   }
 
   async markAsRead(id: string, userId: string): Promise<void> {
-    await this.notificationRepository.update({ id, userId }, { read: true });
+    await this.db
+      .update(notifications)
+      .set({ read: true })
+      .where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
   }
 
   async markAllAsRead(userId: string, organisationId: string): Promise<void> {
-    await this.notificationRepository.update(
-      { userId, organisationId, read: false },
-      { read: true },
-    );
+    await this.db
+      .update(notifications)
+      .set({ read: true })
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          eq(notifications.organisationId, organisationId),
+          eq(notifications.read, false),
+        ),
+      );
   }
 }

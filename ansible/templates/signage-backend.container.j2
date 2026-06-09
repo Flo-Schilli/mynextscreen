@@ -1,6 +1,7 @@
 [Unit]
 Description=Signage Backend
-After=signage-redis.service
+After=signage-redis.service signage-postgres.service
+Requires=signage-postgres.service
 
 [Container]
 ContainerName=signage-backend
@@ -11,7 +12,6 @@ Network=signage.network
 PublishPort=50002:3000
 EnvironmentFile=%h/.config/containers/systemd/.env.signage
 Environment=REDIS_URL=redis://signage-redis:6379
-Volume=%h/app/data:/app/data:Z
 Volume=%h/app/media:/app/media:Z
 HealthCmd=node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 HealthInterval=30s

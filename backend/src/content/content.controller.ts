@@ -30,7 +30,7 @@ import { Roles } from '../auth/roles.decorator';
 import { AuthenticatedRequest } from '../auth';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
-import { Content } from './content.entity';
+import type { Content } from '../db/schema';
 import { ContentType } from './content-type.enum';
 import { getOriginalPath, getTranscodedPath } from './content-storage.util';
 

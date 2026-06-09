@@ -18,8 +18,8 @@ import { OrganisationService } from './organisation.service';
 import { MembershipService } from '../user/membership.service';
 import { CreateOrganisationDto, UpdateOrganisationDto } from './dto';
 import { AddMemberDto, UpdateMemberRoleDto } from '../user/dto';
-import { Organisation } from './organisation.entity';
-import { UserOrganisationMembership } from '../user/user-organisation-membership.entity';
+import type { Organisation } from '../db/schema';
+import type { UserOrganisationMembership } from '../db/schema';
 
 @Controller('organisations')
 @UseGuards(SuperAdminGuard)

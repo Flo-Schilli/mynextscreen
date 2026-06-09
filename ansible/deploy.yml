@@ -24,6 +24,8 @@
     image_registry: "ghcr.io/flo-schilli/digital-signage"
     signage_image_tag: latest
     ghcr_username: flo-schilli
+    # Override via Ansible Vault or --extra-vars in production.
+    signage_postgres_password: "{{ vault_signage_postgres_password | default('signage') }}"
     app_dirs:
       - "{{ service_user_home }}/app"
       - "{{ service_user_home }}/app/data"
@@ -35,6 +37,7 @@
       - player
     services:
       - signage-redis
+      - signage-postgres
       - signage-backend
       - signage-frontend
       - signage-player
@@ -147,20 +150,20 @@
       when: "'caddy_log' not in semodule_list.stdout"
 
     # ─── Database backup ──────────────────────────────────────
-    - name: Check if SQLite database exists
-      ansible.builtin.stat:
-        path: "{{ service_user_home }}/app/data/signage.db"
-      register: db_file
+    - name: Check if PostgreSQL container is running
+      ansible.builtin.command: podman container exists signage-postgres
+      register: pg_running
+      changed_when: false
+      failed_when: false
 
-    - name: Backup existing database
-      ansible.builtin.copy:
-        src: "{{ service_user_home }}/app/data/signage.db"
-        dest: "{{ service_user_home }}/app/backups/signage_{{ ansible_date_time.iso8601_basic_short }}.db"
-        remote_src: true
-        owner: "{{ service_user }}"
-        group: "{{ service_user }}"
-        mode: "0644"
-      when: db_file.stat.exists
+    - name: Backup existing PostgreSQL database (pg_dump custom format)
+      ansible.builtin.shell: >-
+        podman exec signage-postgres pg_dump -U signage -d signage -Fc
+        > "{{ service_user_home }}/app/backups/signage_{{ ansible_date_time.iso8601_basic_short }}.dump"
+      args:
+        executable: /bin/bash
+      when: pg_running.rc == 0
+      changed_when: true
 
     # ─── Quadlet files and env ────────────────────────────────
     - name: Copy static Quadlet files
@@ -173,6 +176,7 @@
       loop:
         - signage.network
         - signage-redis.container
+        - signage-postgres.container
 
     - name: Template application Quadlet files (pin GHCR image tag)
       ansible.builtin.template:
@@ -190,6 +194,14 @@
       ansible.builtin.template:
         src: "{{ playbook_dir }}/templates/env.signage.j2"
         dest: "{{ quadlet_dir }}/.env.signage"
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
+        mode: "0600"
+
+    - name: Generate PostgreSQL environment file
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/templates/env.signage-postgres.j2"
+        dest: "{{ quadlet_dir }}/.env.signage-postgres"
         owner: "{{ service_user }}"
         group: "{{ service_user }}"
         mode: "0600"
@@ -247,6 +259,14 @@
     - name: Pull Redis image
       ansible.builtin.command:
         cmd: podman pull docker.io/library/redis:7-alpine
+      become: true
+      become_user: "{{ service_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ uid_result_early.stdout }}"
+
+    - name: Pull PostgreSQL image
+      ansible.builtin.command:
+        cmd: podman pull docker.io/library/postgres:16-alpine
       become: true
       become_user: "{{ service_user }}"
       environment:

@@ -1,217 +1,203 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
 import { OrganisationService } from './organisation.service';
-import { Organisation } from './organisation.entity';
-import { Playlist } from '../playlist/playlist.entity';
-import { User } from '../user/user.entity';
-import { UserOrganisationMembership } from '../user/user-organisation-membership.entity';
+import { DRIZZLE } from '../db/database.constants';
+import {
+  organisations,
+  playlists,
+  users,
+  userOrganisationMemberships,
+  type Organisation,
+} from '../db/schema';
+import { OrganisationRole } from '../user/organisation-role.enum';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('OrganisationService', () => {
   let service: OrganisationService;
-  let repository: Record<string, jest.Mock>;
-  let playlistRepository: Record<string, jest.Mock>;
+  let db: DrizzleDB;
+  let emit: jest.Mock;
 
-  const orgId = '550e8400-e29b-41d4-a716-446655440000';
-  const playlistId = '660e8400-e29b-41d4-a716-446655440000';
+  beforeAll(async () => {
+    db = await initTestDb();
+  });
 
-  const mockOrganisation: Organisation = {
-    id: orgId,
-    name: 'Test Org',
-    timeZone: 'Europe/Vienna',
-    storageOriginalLimitBytes: 1073741824,
-    storageTranscodedLimitBytes: 2147483648,
-    storageOriginalUsedBytes: 0,
-    storageTranscodedUsedBytes: 0,
-    defaultPlaylistId: null,
-    defaultPlaylist: null as unknown,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  afterAll(async () => {
+    await closeTestDb();
+  });
 
   beforeEach(async () => {
-    repository = {
-      create: jest.fn(),
-      save: jest.fn(),
-      find: jest.fn(),
-      findOneBy: jest.fn(),
-    };
-
-    playlistRepository = {
-      findOne: jest.fn(),
-    };
-
+    await truncateAll();
+    emit = jest.fn();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrganisationService,
-        {
-          provide: getRepositoryToken(Organisation),
-          useValue: repository,
-        },
-        {
-          provide: getRepositoryToken(Playlist),
-          useValue: playlistRepository,
-        },
-        {
-          provide: getRepositoryToken(User),
-          useValue: { findOne: jest.fn(), create: jest.fn(), save: jest.fn() },
-        },
-        {
-          provide: getRepositoryToken(UserOrganisationMembership),
-          useValue: { create: jest.fn(), save: jest.fn() },
-        },
-        {
-          provide: EventEmitter2,
-          useValue: { emit: jest.fn() },
-        },
+        { provide: DRIZZLE, useValue: db },
+        { provide: EventEmitter2, useValue: { emit } },
       ],
     }).compile();
-
     service = module.get<OrganisationService>(OrganisationService);
   });
 
+  async function seedOrg(overrides: Partial<Organisation> = {}): Promise<Organisation> {
+    const [org] = await db
+      .insert(organisations)
+      .values({ name: `Org ${Math.random()}`, timeZone: 'Europe/Vienna', ...overrides })
+      .returning();
+    return org;
+  }
+
   describe('create', () => {
-    it('should create and return an organisation', async () => {
-      const dto = {
-        name: 'Test Org',
+    it('creates and persists an organisation', async () => {
+      const result = await service.create({
+        name: 'Acme',
         timeZone: 'Europe/Vienna',
-        storageOriginalLimitBytes: 1073741824,
-        storageTranscodedLimitBytes: 2147483648,
-      };
+        storageOriginalLimitBytes: 0,
+        storageTranscodedLimitBytes: 0,
+      });
 
-      repository.create.mockReturnValue(mockOrganisation);
-      repository.save.mockResolvedValue(mockOrganisation);
+      expect(result.id).toBeDefined();
+      expect(result.name).toBe('Acme');
+      const rows = await db.select().from(organisations);
+      expect(rows).toHaveLength(1);
+      expect(emit).toHaveBeenCalled();
+    });
 
-      const result = await service.create(dto);
+    it('auto-adds the creator as OrgAdmin (creating the user)', async () => {
+      const result = await service.create(
+        {
+          name: 'WithCreator',
+          timeZone: 'UTC',
+          storageOriginalLimitBytes: 0,
+          storageTranscodedLimitBytes: 0,
+        },
+        { userId: 'hanko-123', email: 'admin@example.com' },
+      );
 
-      expect(repository.create).toHaveBeenCalledWith(dto);
-      expect(repository.save).toHaveBeenCalledWith(mockOrganisation);
-      expect(result).toEqual(mockOrganisation);
+      const [user] = await db.select().from(users).where(eq(users.id, 'hanko-123'));
+      expect(user.email).toBe('admin@example.com');
+      const memberships = await db
+        .select()
+        .from(userOrganisationMemberships)
+        .where(eq(userOrganisationMemberships.organisationId, result.id));
+      expect(memberships).toHaveLength(1);
+      expect(memberships[0].role).toBe(OrganisationRole.OrgAdmin);
+    });
+
+    it('reuses an existing user when the creator already exists', async () => {
+      await db.insert(users).values({ id: 'hanko-123', email: 'old@example.com' });
+
+      const result = await service.create(
+        {
+          name: 'Reuse',
+          timeZone: 'UTC',
+          storageOriginalLimitBytes: 0,
+          storageTranscodedLimitBytes: 0,
+        },
+        { userId: 'hanko-123', email: 'old@example.com' },
+      );
+
+      const allUsers = await db.select().from(users);
+      expect(allUsers).toHaveLength(1);
+      const memberships = await db
+        .select()
+        .from(userOrganisationMemberships)
+        .where(eq(userOrganisationMemberships.organisationId, result.id));
+      expect(memberships).toHaveLength(1);
     });
   });
 
   describe('findAll', () => {
-    it('should return an array of organisations', async () => {
-      repository.find.mockResolvedValue([mockOrganisation]);
-
+    it('returns all organisations', async () => {
+      await seedOrg({ name: 'A' });
+      await seedOrg({ name: 'B' });
       const result = await service.findAll();
-
-      expect(repository.find).toHaveBeenCalled();
-      expect(result).toEqual([mockOrganisation]);
+      expect(result).toHaveLength(2);
     });
   });
 
   describe('findOne', () => {
-    it('should return an organisation by id', async () => {
-      repository.findOneBy.mockResolvedValue(mockOrganisation);
-
-      const result = await service.findOne(mockOrganisation.id);
-
-      expect(repository.findOneBy).toHaveBeenCalledWith({
-        id: mockOrganisation.id,
-      });
-      expect(result).toEqual(mockOrganisation);
+    it('returns an organisation by id', async () => {
+      const org = await seedOrg();
+      const result = await service.findOne(org.id);
+      expect(result.id).toBe(org.id);
     });
 
-    it('should throw NotFoundException if organisation not found', async () => {
-      repository.findOneBy.mockResolvedValue(null);
-
-      await expect(service.findOne('nonexistent-id')).rejects.toThrow(NotFoundException);
+    it('throws NotFoundException when missing', async () => {
+      await expect(service.findOne('00000000-0000-0000-0000-000000000000')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('update', () => {
-    it('should update and return the organisation', async () => {
-      const dto = { name: 'Updated Org' };
-      const updatedOrg = { ...mockOrganisation, name: 'Updated Org' };
-
-      repository.findOneBy.mockResolvedValue(mockOrganisation);
-      repository.save.mockResolvedValue(updatedOrg);
-
-      const result = await service.update(mockOrganisation.id, dto);
-
-      expect(repository.findOneBy).toHaveBeenCalledWith({
-        id: mockOrganisation.id,
-      });
-      expect(repository.save).toHaveBeenCalled();
-      expect(result).toEqual(updatedOrg);
+    it('updates and returns the organisation', async () => {
+      const org = await seedOrg({ name: 'Before' });
+      const result = await service.update(org.id, { name: 'After' });
+      expect(result.name).toBe('After');
+      expect(emit).toHaveBeenCalled();
     });
 
-    it('should throw NotFoundException if organisation not found', async () => {
-      repository.findOneBy.mockResolvedValue(null);
-
-      await expect(service.update('nonexistent-id', { name: 'Updated' })).rejects.toThrow(
-        NotFoundException,
-      );
+    it('throws NotFoundException when missing', async () => {
+      await expect(
+        service.update('00000000-0000-0000-0000-000000000000', { name: 'X' }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('setDefaultPlaylist', () => {
-    it('should set the default playlist', async () => {
-      const mockPlaylist = {
-        id: playlistId,
-        organisationId: orgId,
-        name: 'My Playlist',
-      };
-      const updated = { ...mockOrganisation, defaultPlaylistId: playlistId };
+    it('sets the default playlist', async () => {
+      const org = await seedOrg();
+      const [playlist] = await db
+        .insert(playlists)
+        .values({ organisationId: org.id, name: 'PL' })
+        .returning();
 
-      repository.findOneBy.mockResolvedValue({ ...mockOrganisation });
-      playlistRepository.findOne.mockResolvedValue(mockPlaylist);
-      repository.save.mockResolvedValue(updated);
-
-      const result = await service.setDefaultPlaylist(orgId, playlistId);
-
-      expect(playlistRepository.findOne).toHaveBeenCalledWith({
-        where: { id: playlistId },
-      });
-      expect(repository.save).toHaveBeenCalled();
-      expect(result).toEqual(updated);
+      const result = await service.setDefaultPlaylist(org.id, playlist.id);
+      expect(result.defaultPlaylistId).toBe(playlist.id);
     });
 
-    it('should clear the default playlist when playlistId is null', async () => {
-      const org = { ...mockOrganisation, defaultPlaylistId: playlistId };
-      const cleared = { ...mockOrganisation, defaultPlaylistId: null };
+    it('clears the default playlist when playlistId is null', async () => {
+      const org = await seedOrg();
+      const [playlist] = await db
+        .insert(playlists)
+        .values({ organisationId: org.id, name: 'PL' })
+        .returning();
+      await db
+        .update(organisations)
+        .set({ defaultPlaylistId: playlist.id })
+        .where(eq(organisations.id, org.id));
 
-      repository.findOneBy.mockResolvedValue(org);
-      repository.save.mockResolvedValue(cleared);
-
-      const result = await service.setDefaultPlaylist(orgId, null);
-
-      expect(playlistRepository.findOne).not.toHaveBeenCalled();
+      const result = await service.setDefaultPlaylist(org.id, null);
       expect(result.defaultPlaylistId).toBeNull();
     });
 
-    it('should throw NotFoundException if playlist does not exist', async () => {
-      repository.findOneBy.mockResolvedValue({ ...mockOrganisation });
-      playlistRepository.findOne.mockResolvedValue(null);
-
-      await expect(service.setDefaultPlaylist(orgId, playlistId)).rejects.toThrow(
-        NotFoundException,
-      );
+    it('throws NotFoundException if the playlist does not exist', async () => {
+      const org = await seedOrg();
+      await expect(
+        service.setDefaultPlaylist(org.id, '00000000-0000-0000-0000-000000000000'),
+      ).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw BadRequestException if playlist belongs to different org', async () => {
-      const otherOrgPlaylist = {
-        id: playlistId,
-        organisationId: 'other-org-id',
-        name: 'Other Playlist',
-      };
+    it('throws BadRequestException if the playlist belongs to another org', async () => {
+      const org = await seedOrg();
+      const other = await seedOrg();
+      const [playlist] = await db
+        .insert(playlists)
+        .values({ organisationId: other.id, name: 'Foreign' })
+        .returning();
 
-      repository.findOneBy.mockResolvedValue({ ...mockOrganisation });
-      playlistRepository.findOne.mockResolvedValue(otherOrgPlaylist);
-
-      await expect(service.setDefaultPlaylist(orgId, playlistId)).rejects.toThrow(
+      await expect(service.setDefaultPlaylist(org.id, playlist.id)).rejects.toThrow(
         BadRequestException,
       );
     });
 
-    it('should throw NotFoundException if organisation does not exist', async () => {
-      repository.findOneBy.mockResolvedValue(null);
-
-      await expect(service.setDefaultPlaylist('nonexistent-id', playlistId)).rejects.toThrow(
-        NotFoundException,
-      );
+    it('throws NotFoundException if the organisation does not exist', async () => {
+      await expect(
+        service.setDefaultPlaylist('00000000-0000-0000-0000-000000000000', null),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

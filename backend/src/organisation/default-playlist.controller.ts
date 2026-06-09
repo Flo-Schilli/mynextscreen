@@ -3,7 +3,7 @@ import { Roles } from '../auth/roles.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { OrganisationService } from './organisation.service';
 import { SetDefaultPlaylistDto } from './dto';
-import { Organisation } from './organisation.entity';
+import type { Organisation } from '../db/schema';
 
 @Controller('organisations/:orgId/default-playlist')
 export class DefaultPlaylistController {

@@ -2,8 +2,9 @@
 # Signage Server — Download Database Backup
 # Usage: ansible-playbook -i hosts.ini download_db.yml -K
 #
-# Downloads the SQLite database from the server to a timestamped local backup.
-# Output: ansible/backups/signage_YYYYMMDD_HHMMSS.db
+# Dumps the PostgreSQL database from the server (pg_dump custom format) and
+# fetches it to a timestamped local backup.
+# Output: ansible/backups/signage_YYYYMMDD_HHMMSS.dump
 
 - name: Download database from server
   hosts: servers
@@ -11,19 +12,27 @@
   vars:
     service_user: signage
     service_user_home: "/home/{{ service_user }}"
-    db_path: "{{ service_user_home }}/app/data/signage.db"
     backup_dir: "{{ playbook_dir }}/backups"
+    remote_dump: "/tmp/signage_download.dump"
 
   tasks:
-    - name: Check if database exists on server
-      ansible.builtin.stat:
-        path: "{{ db_path }}"
-      register: db_file
+    - name: Verify PostgreSQL container is running
+      ansible.builtin.command: podman container exists signage-postgres
+      register: pg_running
+      changed_when: false
+      failed_when: false
 
-    - name: Fail if database does not exist
+    - name: Fail if PostgreSQL container is not running
       ansible.builtin.fail:
-        msg: "Database not found at {{ db_path }}"
-      when: not db_file.stat.exists
+        msg: "signage-postgres container is not running on the server"
+      when: pg_running.rc != 0
+
+    - name: Dump database (pg_dump custom format)
+      ansible.builtin.shell: >-
+        podman exec signage-postgres pg_dump -U signage -d signage -Fc > "{{ remote_dump }}"
+      args:
+        executable: /bin/bash
+      changed_when: true
 
     - name: Generate timestamp
       ansible.builtin.set_fact:
@@ -37,12 +46,17 @@
       delegate_to: localhost
       become: false
 
-    - name: Fetch database to local backup
+    - name: Fetch dump to local backup
       ansible.builtin.fetch:
-        src: "{{ db_path }}"
-        dest: "{{ backup_dir }}/signage_{{ backup_timestamp }}.db"
+        src: "{{ remote_dump }}"
+        dest: "{{ backup_dir }}/signage_{{ backup_timestamp }}.dump"
         flat: true
+
+    - name: Remove remote temp dump
+      ansible.builtin.file:
+        path: "{{ remote_dump }}"
+        state: absent
 
     - name: Report backup location
       ansible.builtin.debug:
-        msg: "Database saved to {{ backup_dir }}/signage_{{ backup_timestamp }}.db"
+        msg: "Database saved to {{ backup_dir }}/signage_{{ backup_timestamp }}.dump"

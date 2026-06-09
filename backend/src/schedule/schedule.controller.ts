@@ -15,8 +15,7 @@ import { UpdateScheduleEntryDto } from './dto/update-schedule-entry.dto';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
-import { ScheduleEntry } from './schedule-entry.entity';
-import { Playlist } from '../playlist/playlist.entity';
+import type { ScheduleEntry, Playlist } from '../db/schema';
 
 @Controller('schedules')
 export class ScheduleController {
@@ -51,8 +50,8 @@ export class ScheduleController {
 
     return entries.map((entry) => ({
       ...entry,
-      targetType: entry.targetType,
-      targetId: entry.targetId,
+      targetType: entry.groupId ? 'group' : 'screen',
+      targetId: entry.groupId ?? entry.screenId,
     }));
   }
 

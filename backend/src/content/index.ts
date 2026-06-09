@@ -1,4 +1,4 @@
-export { Content } from './content.entity';
+export type { Content } from '../db/schema';
 export { ContentType } from './content-type.enum';
 export { TranscodingStatus } from './transcoding-status.enum';
 export { ContentModule } from './content.module';

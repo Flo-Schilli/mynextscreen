@@ -37,7 +37,8 @@ LABEL org.opencontainers.image.title="signage-backend" \
 
 EXPOSE 3000
 
-# Database migrations run automatically on boot (TypeORM migrationsRun: true)
+# Drizzle migrations run automatically on boot via migrate() in main.ts
+# (the .sql files in dist/db/migrations are copied by the nest-cli assets config).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 

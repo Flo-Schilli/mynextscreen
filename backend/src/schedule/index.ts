@@ -1,4 +1,4 @@
-export { ScheduleEntry } from './schedule-entry.entity';
+export type { ScheduleEntry } from '../db/schema';
 export { ScheduleEntryModule } from './schedule.module';
 export { ScheduleService } from './schedule.service';
 export { ScheduleController } from './schedule.controller';

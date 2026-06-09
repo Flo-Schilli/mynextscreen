@@ -16,8 +16,8 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
-import { ScreenGroup } from './screen-group.entity';
-import { Screen } from '../screen/screen.entity';
+import type { ScreenGroup } from '../db/schema';
+import type { Screen } from '../db/schema';
 
 @Controller('screen-groups')
 export class ScreenGroupController {

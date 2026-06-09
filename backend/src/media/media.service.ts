@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { and, eq } from 'drizzle-orm';
 import * as fs from 'fs';
 import * as path from 'path';
-import { SlicedRendition } from '../slice-content/sliced-rendition.entity';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { slicedRenditions } from '../db/schema';
 
 export interface MediaFileInfo {
   filePath: string;
@@ -26,8 +27,7 @@ export class MediaService {
 
   constructor(
     private readonly configService: ConfigService,
-    @InjectRepository(SlicedRendition)
-    private readonly slicedRenditionRepository: Repository<SlicedRendition>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
   ) {
     this.mediaBasePath = this.configService.get<string>('MEDIA_BASE_PATH', './data/media');
   }
@@ -51,9 +51,17 @@ export class MediaService {
     screenId: string,
     contentId: string,
   ): Promise<MediaFileInfo> {
-    const rendition = await this.slicedRenditionRepository.findOne({
-      where: { groupId, screenId, contentItemId: contentId },
-    });
+    const [rendition] = await this.db
+      .select()
+      .from(slicedRenditions)
+      .where(
+        and(
+          eq(slicedRenditions.groupId, groupId),
+          eq(slicedRenditions.screenId, screenId),
+          eq(slicedRenditions.contentItemId, contentId),
+        ),
+      )
+      .limit(1);
 
     if (!rendition) {
       throw new NotFoundException('Sliced rendition not found');

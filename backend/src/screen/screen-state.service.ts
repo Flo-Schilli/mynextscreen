@@ -1,6 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { and, asc, eq } from 'drizzle-orm';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Observable, Subject, finalize, map, merge, interval, takeUntil } from 'rxjs';
 import { ScreenService } from './screen.service';
@@ -16,7 +15,18 @@ import {
   Playlist as ProtocolPlaylist,
   LiveStream as ProtocolLiveStream,
 } from '../screen-protocol';
-import { Playlist } from '../playlist/playlist.entity';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import {
+  screenGroups,
+  playlists,
+  playlistItems,
+  liveStreamActivations,
+  slicedRenditions,
+  type Playlist,
+  type PlaylistItem,
+  type Content,
+} from '../db/schema';
 import {
   SCHEDULE_CHANGED,
   PLAYLIST_CHANGED,
@@ -26,11 +36,10 @@ import {
   ScreenStateChangeEvent,
 } from './screen-state.event';
 import { SCHEDULE_ENTRY_CHANGED, ScheduleEntryChangedEvent, ScheduleService } from '../schedule';
-import { LiveStreamActivation } from '../live-stream/live-stream-activation.entity';
 import { LiveStreamStatus } from '../live-stream/live-stream-status.enum';
-import { ScreenGroup } from '../screen-group/screen-group.entity';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
-import { SlicedRendition } from '../slice-content/sliced-rendition.entity';
+
+type FullPlaylist = Playlist & { items: (PlaylistItem & { content: Content })[] };
 
 interface MessageEvent {
   data: unknown;
@@ -53,14 +62,7 @@ export class ScreenStateService implements OnModuleDestroy {
     private readonly protocolAdapter: ScreenProtocolAdapter,
     private readonly scheduleService: ScheduleService,
     private readonly scheduleBoundaryService: ScheduleBoundaryService,
-    @InjectRepository(ScreenGroup)
-    private readonly screenGroupRepository: Repository<ScreenGroup>,
-    @InjectRepository(Playlist)
-    private readonly playlistRepository: Repository<Playlist>,
-    @InjectRepository(LiveStreamActivation)
-    private readonly activationRepository: Repository<LiveStreamActivation>,
-    @InjectRepository(SlicedRendition)
-    private readonly slicedRenditionRepository: Repository<SlicedRendition>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
   ) {}
 
   onModuleDestroy(): void {
@@ -88,9 +90,11 @@ export class ScreenStateService implements OnModuleDestroy {
 
     let groupInfo: GroupInfo | null = null;
     if (screen.groupId) {
-      const group = await this.screenGroupRepository.findOne({
-        where: { id: screen.groupId },
-      });
+      const [group] = await this.db
+        .select()
+        .from(screenGroups)
+        .where(eq(screenGroups.id, screen.groupId))
+        .limit(1);
       if (group) {
         groupInfo = {
           id: group.id,
@@ -124,13 +128,17 @@ export class ScreenStateService implements OnModuleDestroy {
       const applySlicedUrls = async (playlist: ProtocolPlaylist | null): Promise<void> => {
         if (!playlist) return;
         for (const item of playlist.items) {
-          const rendition = await this.slicedRenditionRepository.findOne({
-            where: {
-              groupId: screen.groupId!,
-              screenId: screen.id,
-              contentItemId: item.contentId,
-            },
-          });
+          const [rendition] = await this.db
+            .select()
+            .from(slicedRenditions)
+            .where(
+              and(
+                eq(slicedRenditions.groupId, screen.groupId!),
+                eq(slicedRenditions.screenId, screen.id),
+                eq(slicedRenditions.contentItemId, item.contentId),
+              ),
+            )
+            .limit(1);
           if (rendition) {
             item.contentUrl = `/api/media/slices/${screen.groupId}/${screen.id}/${item.contentId}`;
           }
@@ -142,9 +150,9 @@ export class ScreenStateService implements OnModuleDestroy {
 
     let activeLiveStream: ProtocolLiveStream | null = null;
     try {
-      const activation = await this.activationRepository.findOne({
-        where: { screenId },
-        relations: ['stream'],
+      const activation = await this.db.query.liveStreamActivations.findFirst({
+        where: eq(liveStreamActivations.screenId, screenId),
+        with: { stream: true },
       });
       if (activation?.stream?.status === LiveStreamStatus.Active) {
         activeLiveStream = {
@@ -167,15 +175,19 @@ export class ScreenStateService implements OnModuleDestroy {
     );
   }
 
-  private async loadPlaylistWithItems(playlistId: string): Promise<Playlist | null> {
-    return this.playlistRepository.findOne({
-      where: { id: playlistId },
-      relations: ['items', 'items.content'],
-      order: { items: { position: 'ASC' } },
+  private async loadPlaylistWithItems(playlistId: string): Promise<FullPlaylist | undefined> {
+    return this.db.query.playlists.findFirst({
+      where: eq(playlists.id, playlistId),
+      with: {
+        items: {
+          with: { content: true },
+          orderBy: asc(playlistItems.position),
+        },
+      },
     });
   }
 
-  private mapPlaylist(entity: Playlist): ProtocolPlaylist {
+  private mapPlaylist(entity: FullPlaylist): ProtocolPlaylist {
     return {
       id: entity.id,
       name: entity.name,

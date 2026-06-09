@@ -1,4 +1,4 @@
-export { AuditEntry } from './audit-entry.entity';
+export type { AuditEntry } from '../db/schema';
 export { AuditAction } from './audit-action.enum';
 export { AuditLogModule } from './audit-log.module';
 export { AuditLogService, AuditLogFilters } from './audit-log.service';

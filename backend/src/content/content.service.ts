@@ -1,19 +1,18 @@
-import { Injectable, BadRequestException, PayloadTooLargeException } from '@nestjs/common';
+import { Injectable, BadRequestException, PayloadTooLargeException, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Queue } from 'bullmq';
-import { Repository, FindOptionsWhere, In } from 'typeorm';
+import { and, eq, inArray } from 'drizzle-orm';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { Content } from './content.entity';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { contents, playlists, playlistItems, type Content } from '../db/schema';
 import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
 import { getOriginalPath, getTranscodedPath } from './content-storage.util';
 import { StorageService } from '../organisation/storage.service';
-import { Playlist } from '../playlist/playlist.entity';
-import { PlaylistItem } from '../playlist/playlist-item.entity';
 import { ffprobeDuration } from './ffprobe-duration.util';
 import { UploadContentDto } from './dto/upload-content.dto';
 import { UpdateContentDto } from './dto/update-content.dto';
@@ -39,12 +38,7 @@ export class ContentService {
   private readonly ffprobePath: string;
 
   constructor(
-    @InjectRepository(Content)
-    private readonly contentRepository: Repository<Content>,
-    @InjectRepository(Playlist)
-    private readonly playlistRepository: Repository<Playlist>,
-    @InjectRepository(PlaylistItem)
-    private readonly playlistItemRepository: Repository<PlaylistItem>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
     @InjectQueue('transcoding')
     private readonly transcodingQueue: Queue,
     private readonly configService: ConfigService,
@@ -76,20 +70,22 @@ export class ContentService {
     const ext = path.extname(file.originalname).replace('.', '') || 'bin';
 
     // Create content record first to get the ID
-    const content = this.contentRepository.create({
-      organisationId,
-      title: dto.title,
-      description: dto.description ?? null,
-      tags: dto.tags ?? [],
-      type,
-      originalFilename: file.originalname,
-      originalMimeType: file.mimetype,
-      originalSizeBytes: file.size,
-      transcodedSizeBytes: null,
-      transcodingStatus: TranscodingStatus.Pending,
-      transcodingError: null,
-    });
-    const saved = await this.contentRepository.save(content);
+    const [saved] = await this.db
+      .insert(contents)
+      .values({
+        organisationId,
+        title: dto.title,
+        description: dto.description ?? null,
+        tags: dto.tags ?? [],
+        type,
+        originalFilename: file.originalname,
+        originalMimeType: file.mimetype,
+        originalSizeBytes: file.size,
+        transcodedSizeBytes: null,
+        transcodingStatus: TranscodingStatus.Pending,
+        transcodingError: null,
+      })
+      .returning();
 
     // Save file to filesystem
     const filePath = getOriginalPath(this.mediaBasePath, organisationId, saved.id, ext);
@@ -124,24 +120,29 @@ export class ContentService {
     organisationId: string,
     filters?: { type?: ContentType; tags?: string[] },
   ): Promise<Content[]> {
-    const where: FindOptionsWhere<Content> = { organisationId };
+    const conditions = [eq(contents.organisationId, organisationId)];
     if (filters?.type) {
-      where.type = filters.type;
+      conditions.push(eq(contents.type, filters.type));
     }
 
-    const contents = await this.contentRepository.find({ where });
+    const rows = await this.db
+      .select()
+      .from(contents)
+      .where(and(...conditions));
 
     if (filters?.tags && filters.tags.length > 0) {
-      return contents.filter((c) => filters.tags!.some((tag) => c.tags.includes(tag)));
+      return rows.filter((c) => filters.tags!.some((tag) => c.tags.includes(tag)));
     }
 
-    return contents;
+    return rows;
   }
 
   async findOne(organisationId: string, id: string): Promise<Content> {
-    const content = await this.contentRepository.findOne({
-      where: { id, organisationId },
-    });
+    const [content] = await this.db
+      .select()
+      .from(contents)
+      .where(and(eq(contents.id, id), eq(contents.organisationId, organisationId)))
+      .limit(1);
     if (!content) {
       throw new BadRequestException(
         `Content with id "${id}" not found in organisation "${organisationId}"`,
@@ -168,10 +169,10 @@ export class ContentService {
 
     try {
       const duration = await ffprobeDuration(transcodedPath, this.ffprobePath);
-      content.durationSeconds = duration;
-      await this.contentRepository.update(content.id, {
-        durationSeconds: duration,
-      });
+      await this.db
+        .update(contents)
+        .set({ durationSeconds: duration })
+        .where(eq(contents.id, content.id));
       this.eventEmitter.emit(
         CONTENT_DURATION_RESOLVED,
         new ContentDurationResolvedEvent(content.id, duration),
@@ -187,11 +188,17 @@ export class ContentService {
     id: string,
     dto: UpdateContentDto,
   ): Promise<Content> {
-    const content = await this.findOne(organisationId, id);
-    if (dto.title !== undefined) content.title = dto.title;
-    if (dto.description !== undefined) content.description = dto.description;
-    if (dto.tags !== undefined) content.tags = dto.tags;
-    return this.contentRepository.save(content);
+    await this.findOne(organisationId, id);
+    const updates: Partial<Content> = {};
+    if (dto.title !== undefined) updates.title = dto.title;
+    if (dto.description !== undefined) updates.description = dto.description;
+    if (dto.tags !== undefined) updates.tags = dto.tags;
+    const [saved] = await this.db
+      .update(contents)
+      .set(updates)
+      .where(and(eq(contents.id, id), eq(contents.organisationId, organisationId)))
+      .returning();
+    return saved;
   }
 
   async delete(organisationId: string, id: string): Promise<void> {
@@ -219,7 +226,9 @@ export class ContentService {
       );
     }
 
-    await this.contentRepository.remove(content);
+    await this.db
+      .delete(contents)
+      .where(and(eq(contents.id, id), eq(contents.organisationId, organisationId)));
 
     this.eventEmitter.emit(
       AUDIT_CONTENT_DELETED,
@@ -283,15 +292,20 @@ export class ContentService {
     const type = file.mimetype.startsWith(IMAGE_MIME_PREFIX)
       ? ContentType.Image
       : ContentType.Video;
-    content.originalFilename = file.originalname;
-    content.originalMimeType = file.mimetype;
-    content.originalSizeBytes = file.size;
-    content.type = type;
-    content.transcodedSizeBytes = null;
-    content.durationSeconds = null;
-    content.transcodingStatus = TranscodingStatus.Pending;
-    content.transcodingError = null;
-    const saved = await this.contentRepository.save(content);
+    const [saved] = await this.db
+      .update(contents)
+      .set({
+        originalFilename: file.originalname,
+        originalMimeType: file.mimetype,
+        originalSizeBytes: file.size,
+        type,
+        transcodedSizeBytes: null,
+        durationSeconds: null,
+        transcodingStatus: TranscodingStatus.Pending,
+        transcodingError: null,
+      })
+      .where(and(eq(contents.id, id), eq(contents.organisationId, organisationId)))
+      .returning();
 
     // Enqueue new transcoding job
     await this.transcodingQueue.add('transcode', {
@@ -319,35 +333,10 @@ export class ContentService {
     ids: string[],
     userId: string | null,
   ): Promise<{ deleted: number; notFound: string[] }> {
-    const contents = await this.contentRepository.find({
-      where: { id: In(ids), organisationId },
-    });
+    const found = await this.findScopedOrThrowForeign(organisationId, ids);
+    const notFound = ids.filter((id) => !found.some((c) => c.id === id));
 
-    const foundIds = new Set(contents.map((c) => c.id));
-    const notFound: string[] = [];
-    const foreignIds: string[] = [];
-
-    for (const id of ids) {
-      if (!foundIds.has(id)) {
-        const exists = await this.contentRepository.findOne({
-          where: { id } as FindOptionsWhere<Content>,
-        });
-        if (exists) {
-          foreignIds.push(id);
-        } else {
-          notFound.push(id);
-        }
-      }
-    }
-
-    if (foreignIds.length > 0) {
-      throw new BadRequestException({
-        message: 'Some IDs belong to a different organisation',
-        foreignIds,
-      });
-    }
-
-    for (const content of contents) {
+    for (const content of found) {
       const ext = path.extname(content.originalFilename).replace('.', '') || 'bin';
       const originalPath = getOriginalPath(this.mediaBasePath, organisationId, content.id, ext);
       await this.unlinkSafe(originalPath);
@@ -373,12 +362,17 @@ export class ContentService {
       }
     }
 
-    if (contents.length > 0) {
-      await this.contentRepository.remove(contents);
+    if (found.length > 0) {
+      await this.db.delete(contents).where(
+        inArray(
+          contents.id,
+          found.map((c) => c.id),
+        ),
+      );
     }
 
     const bulkOperationSize = ids.length;
-    for (const content of contents) {
+    for (const content of found) {
       this.eventEmitter.emit(
         AUDIT_CONTENT_BULK_DELETED,
         new AuditContentEvent(content.id, organisationId, userId, {
@@ -388,7 +382,7 @@ export class ContentService {
       );
     }
 
-    return { deleted: contents.length, notFound };
+    return { deleted: found.length, notFound };
   }
 
   async bulkTag(
@@ -397,48 +391,22 @@ export class ContentService {
     tags: string[],
     userId: string | null,
   ): Promise<{ updated: number; notFound: string[] }> {
-    const contents = await this.contentRepository.find({
-      where: { id: In(ids), organisationId },
-    });
+    const found = await this.findScopedOrThrowForeign(organisationId, ids);
+    const notFound = ids.filter((id) => !found.some((c) => c.id === id));
 
-    const foundIds = new Set(contents.map((c) => c.id));
-    const notFound: string[] = [];
-    const foreignIds: string[] = [];
-
-    for (const id of ids) {
-      if (!foundIds.has(id)) {
-        const exists = await this.contentRepository.findOne({
-          where: { id } as FindOptionsWhere<Content>,
-        });
-        if (exists) {
-          foreignIds.push(id);
-        } else {
-          notFound.push(id);
-        }
-      }
-    }
-
-    if (foreignIds.length > 0) {
-      throw new BadRequestException({
-        message: 'Some IDs belong to a different organisation',
-        foreignIds,
-      });
-    }
-
-    for (const content of contents) {
+    for (const content of found) {
       const existingTags = new Set(content.tags);
       for (const tag of tags) {
         existingTags.add(tag);
       }
-      content.tags = [...existingTags];
-    }
-
-    if (contents.length > 0) {
-      await this.contentRepository.save(contents);
+      await this.db
+        .update(contents)
+        .set({ tags: [...existingTags] })
+        .where(eq(contents.id, content.id));
     }
 
     const bulkOperationSize = ids.length;
-    for (const content of contents) {
+    for (const content of found) {
       this.eventEmitter.emit(
         AUDIT_CONTENT_BULK_TAGGED,
         new AuditContentEvent(content.id, organisationId, userId, {
@@ -448,7 +416,7 @@ export class ContentService {
       );
     }
 
-    return { updated: contents.length, notFound };
+    return { updated: found.length, notFound };
   }
 
   async bulkUntag(
@@ -457,45 +425,19 @@ export class ContentService {
     tags: string[],
     userId: string | null,
   ): Promise<{ updated: number; notFound: string[] }> {
-    const contents = await this.contentRepository.find({
-      where: { id: In(ids), organisationId },
-    });
-
-    const foundIds = new Set(contents.map((c) => c.id));
-    const notFound: string[] = [];
-    const foreignIds: string[] = [];
-
-    for (const id of ids) {
-      if (!foundIds.has(id)) {
-        const exists = await this.contentRepository.findOne({
-          where: { id } as FindOptionsWhere<Content>,
-        });
-        if (exists) {
-          foreignIds.push(id);
-        } else {
-          notFound.push(id);
-        }
-      }
-    }
-
-    if (foreignIds.length > 0) {
-      throw new BadRequestException({
-        message: 'Some IDs belong to a different organisation',
-        foreignIds,
-      });
-    }
+    const found = await this.findScopedOrThrowForeign(organisationId, ids);
+    const notFound = ids.filter((id) => !found.some((c) => c.id === id));
 
     const tagsToRemove = new Set(tags);
-    for (const content of contents) {
-      content.tags = content.tags.filter((t) => !tagsToRemove.has(t));
-    }
-
-    if (contents.length > 0) {
-      await this.contentRepository.save(contents);
+    for (const content of found) {
+      await this.db
+        .update(contents)
+        .set({ tags: content.tags.filter((t) => !tagsToRemove.has(t)) })
+        .where(eq(contents.id, content.id));
     }
 
     const bulkOperationSize = ids.length;
-    for (const content of contents) {
+    for (const content of found) {
       this.eventEmitter.emit(
         AUDIT_CONTENT_BULK_UNTAGGED,
         new AuditContentEvent(content.id, organisationId, userId, {
@@ -505,7 +447,7 @@ export class ContentService {
       );
     }
 
-    return { updated: contents.length, notFound };
+    return { updated: found.length, notFound };
   }
 
   async bulkAddToPlaylist(
@@ -515,47 +457,26 @@ export class ContentService {
     userId: string | null,
   ): Promise<{ added: number; alreadyPresent: number; notFound: string[] }> {
     // Verify playlist exists and belongs to org
-    const playlist = await this.playlistRepository.findOne({
-      where: { id: playlistId, organisationId },
-    });
+    const [playlist] = await this.db
+      .select()
+      .from(playlists)
+      .where(and(eq(playlists.id, playlistId), eq(playlists.organisationId, organisationId)))
+      .limit(1);
     if (!playlist) {
       throw new BadRequestException(
         `Playlist with id "${playlistId}" not found in organisation "${organisationId}"`,
       );
     }
 
-    const contents = await this.contentRepository.find({
-      where: { id: In(ids), organisationId },
-    });
-
-    const foundIds = new Set(contents.map((c) => c.id));
-    const notFound: string[] = [];
-    const foreignIds: string[] = [];
-
-    for (const id of ids) {
-      if (!foundIds.has(id)) {
-        const exists = await this.contentRepository.findOne({
-          where: { id } as FindOptionsWhere<Content>,
-        });
-        if (exists) {
-          foreignIds.push(id);
-        } else {
-          notFound.push(id);
-        }
-      }
-    }
-
-    if (foreignIds.length > 0) {
-      throw new BadRequestException({
-        message: 'Some IDs belong to a different organisation',
-        foreignIds,
-      });
-    }
+    const found = await this.findScopedOrThrowForeign(organisationId, ids);
+    const foundIds = new Set(found.map((c) => c.id));
+    const notFound = ids.filter((id) => !foundIds.has(id));
 
     // Get existing playlist items to deduplicate
-    const existingItems = await this.playlistItemRepository.find({
-      where: { playlistId },
-    });
+    const existingItems = await this.db
+      .select()
+      .from(playlistItems)
+      .where(eq(playlistItems.playlistId, playlistId));
     const existingContentIds = new Set(existingItems.map((i) => i.contentId));
 
     // Find max position
@@ -583,13 +504,12 @@ export class ContentService {
       existingContentIds.add(id);
       maxPosition++;
 
-      const item = this.playlistItemRepository.create({
+      await this.db.insert(playlistItems).values({
         playlistId,
         contentId: id,
         position: maxPosition,
         durationSeconds: 10, // default duration
       });
-      await this.playlistItemRepository.save(item);
       added++;
 
       this.eventEmitter.emit(
@@ -602,6 +522,41 @@ export class ContentService {
     }
 
     return { added, alreadyPresent, notFound };
+  }
+
+  /**
+   * Load the scoped contents for the given ids; throws 400 if any id exists in a
+   * different organisation. Returns the rows found within this organisation.
+   */
+  private async findScopedOrThrowForeign(
+    organisationId: string,
+    ids: string[],
+  ): Promise<Content[]> {
+    const found = await this.db
+      .select()
+      .from(contents)
+      .where(and(inArray(contents.id, ids), eq(contents.organisationId, organisationId)));
+
+    const foundIds = new Set(found.map((c) => c.id));
+    const foreignIds: string[] = [];
+
+    for (const id of ids) {
+      if (!foundIds.has(id)) {
+        const [exists] = await this.db.select().from(contents).where(eq(contents.id, id)).limit(1);
+        if (exists) {
+          foreignIds.push(id);
+        }
+      }
+    }
+
+    if (foreignIds.length > 0) {
+      throw new BadRequestException({
+        message: 'Some IDs belong to a different organisation',
+        foreignIds,
+      });
+    }
+
+    return found;
   }
 
   private validateFile(file: Express.Multer.File): void {

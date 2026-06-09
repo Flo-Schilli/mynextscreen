@@ -1,15 +1,20 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { OnEvent } from '@nestjs/event-emitter';
-import { FindOptionsWhere, In, Not, Repository } from 'typeorm';
-import { Playlist } from './playlist.entity';
-import { PlaylistItem } from './playlist-item.entity';
-import { Organisation } from '../organisation/organisation.entity';
-import { Content } from '../content/content.entity';
+import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import {
+  playlists,
+  playlistItems,
+  contents,
+  organisations,
+  screens,
+  scheduleEntries,
+  type Playlist,
+  type PlaylistItem,
+  type Content,
+} from '../db/schema';
 import { ContentType } from '../content/content-type.enum';
-import { Screen } from '../screen/screen.entity';
-import { ScheduleEntry } from '../schedule/schedule-entry.entity';
 import { CreatePlaylistDto } from './dto/create-playlist.dto';
 import { UpdatePlaylistDto } from './dto/update-playlist.dto';
 import { AddPlaylistItemDto } from './dto/add-playlist-item.dto';
@@ -25,30 +30,23 @@ import {
   AuditPlaylistEvent,
 } from '../audit-log/audit.events';
 
+type PlaylistWithItems = Playlist & { items: PlaylistItem[] };
+type PlaylistWithItemsAndContent = Playlist & {
+  items: (PlaylistItem & { content: Content })[];
+};
+
 @Injectable()
 export class PlaylistService {
   constructor(
-    @InjectRepository(Playlist)
-    private readonly playlistRepository: Repository<Playlist>,
-    @InjectRepository(PlaylistItem)
-    private readonly playlistItemRepository: Repository<PlaylistItem>,
-    @InjectRepository(Organisation)
-    private readonly organisationRepository: Repository<Organisation>,
-    @InjectRepository(Content)
-    private readonly contentRepository: Repository<Content>,
-    @InjectRepository(Screen)
-    private readonly screenRepository: Repository<Screen>,
-    @InjectRepository(ScheduleEntry)
-    private readonly scheduleEntryRepository: Repository<ScheduleEntry>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(organisationId: string, dto: CreatePlaylistDto): Promise<Playlist> {
-    const playlist = this.playlistRepository.create({
-      organisationId,
-      name: dto.name,
-    });
-    const saved = await this.playlistRepository.save(playlist);
+    const [saved] = await this.db
+      .insert(playlists)
+      .values({ organisationId, name: dto.name })
+      .returning();
     this.emitPlaylistChanged(saved.id, organisationId);
     this.eventEmitter.emit(
       AUDIT_PLAYLIST_CREATED,
@@ -59,19 +57,23 @@ export class PlaylistService {
     return saved;
   }
 
-  async findAll(organisationId: string): Promise<Playlist[]> {
-    return this.playlistRepository.find({
-      where: { organisationId },
-      relations: ['items'],
-      order: { createdAt: 'ASC' },
+  async findAll(organisationId: string): Promise<PlaylistWithItems[]> {
+    return this.db.query.playlists.findMany({
+      where: eq(playlists.organisationId, organisationId),
+      with: { items: true },
+      orderBy: asc(playlists.createdAt),
     });
   }
 
-  async findOne(id: string, organisationId: string): Promise<Playlist> {
-    const playlist = await this.playlistRepository.findOne({
-      where: { id, organisationId },
-      relations: ['items', 'items.content'],
-      order: { items: { position: 'ASC' } },
+  async findOne(id: string, organisationId: string): Promise<PlaylistWithItemsAndContent> {
+    const playlist = await this.db.query.playlists.findFirst({
+      where: and(eq(playlists.id, id), eq(playlists.organisationId, organisationId)),
+      with: {
+        items: {
+          with: { content: true },
+          orderBy: asc(playlistItems.position),
+        },
+      },
     });
     if (!playlist) {
       throw new NotFoundException(
@@ -82,9 +84,12 @@ export class PlaylistService {
   }
 
   async update(id: string, organisationId: string, dto: UpdatePlaylistDto): Promise<Playlist> {
-    const playlist = await this.findOne(id, organisationId);
-    playlist.name = dto.name;
-    const saved = await this.playlistRepository.save(playlist);
+    await this.findOne(id, organisationId);
+    const [saved] = await this.db
+      .update(playlists)
+      .set({ name: dto.name })
+      .where(and(eq(playlists.id, id), eq(playlists.organisationId, organisationId)))
+      .returning();
     this.emitPlaylistChanged(id, organisationId);
     this.eventEmitter.emit(
       AUDIT_PLAYLIST_UPDATED,
@@ -98,12 +103,14 @@ export class PlaylistService {
     organisationId: string,
     dto: AddPlaylistItemDto,
   ): Promise<PlaylistItem> {
-    const playlist = await this.findOne(id, organisationId);
+    await this.findOne(id, organisationId);
 
     // Verify content exists in the same organisation
-    const content = await this.contentRepository.findOne({
-      where: { id: dto.contentId, organisationId },
-    });
+    const [content] = await this.db
+      .select()
+      .from(contents)
+      .where(and(eq(contents.id, dto.contentId), eq(contents.organisationId, organisationId)))
+      .limit(1);
     if (!content) {
       throw new BadRequestException(
         `Content with id "${dto.contentId}" not found in organisation "${organisationId}"`,
@@ -116,11 +123,12 @@ export class PlaylistService {
       position = dto.position;
     } else {
       // Append to end
-      const maxItem = await this.playlistItemRepository
-        .createQueryBuilder('item')
-        .where('item.playlistId = :playlistId', { playlistId: id })
-        .orderBy('item.position', 'DESC')
-        .getOne();
+      const [maxItem] = await this.db
+        .select()
+        .from(playlistItems)
+        .where(eq(playlistItems.playlistId, id))
+        .orderBy(desc(playlistItems.position))
+        .limit(1);
       position = maxItem ? maxItem.position + 1 : 0;
     }
 
@@ -134,17 +142,19 @@ export class PlaylistService {
       durationSeconds = content.type === ContentType.Video ? 30 : 10;
     }
 
-    const item = this.playlistItemRepository.create({
-      playlistId: playlist.id,
-      contentId: dto.contentId,
-      durationSeconds,
-      position,
-      ...(dto.transition !== undefined && { transition: dto.transition }),
-      ...(dto.transitionDurationMs !== undefined && {
-        transitionDurationMs: dto.transitionDurationMs,
-      }),
-    });
-    const saved = await this.playlistItemRepository.save(item);
+    const [saved] = await this.db
+      .insert(playlistItems)
+      .values({
+        playlistId: id,
+        contentId: dto.contentId,
+        durationSeconds,
+        position,
+        ...(dto.transition !== undefined && { transition: dto.transition }),
+        ...(dto.transitionDurationMs !== undefined && {
+          transitionDurationMs: dto.transitionDurationMs,
+        }),
+      })
+      .returning();
     this.emitPlaylistChanged(id, organisationId);
     return saved;
   }
@@ -157,26 +167,28 @@ export class PlaylistService {
   ): Promise<PlaylistItem> {
     await this.findOne(playlistId, organisationId);
 
-    const item = await this.playlistItemRepository.findOne({
-      where: { id: itemId, playlistId },
-    });
+    const [item] = await this.db
+      .select()
+      .from(playlistItems)
+      .where(and(eq(playlistItems.id, itemId), eq(playlistItems.playlistId, playlistId)))
+      .limit(1);
     if (!item) {
       throw new NotFoundException(
         `Playlist item with id "${itemId}" not found in playlist "${playlistId}"`,
       );
     }
 
-    if (dto.transition !== undefined) {
-      item.transition = dto.transition;
-    }
-    if (dto.transitionDurationMs !== undefined) {
-      item.transitionDurationMs = dto.transitionDurationMs;
-    }
-    if (dto.durationSeconds !== undefined) {
-      item.durationSeconds = dto.durationSeconds;
-    }
+    const updates: Partial<PlaylistItem> = {};
+    if (dto.transition !== undefined) updates.transition = dto.transition;
+    if (dto.transitionDurationMs !== undefined)
+      updates.transitionDurationMs = dto.transitionDurationMs;
+    if (dto.durationSeconds !== undefined) updates.durationSeconds = dto.durationSeconds;
 
-    const saved = await this.playlistItemRepository.save(item);
+    const [saved] = await this.db
+      .update(playlistItems)
+      .set(updates)
+      .where(eq(playlistItems.id, itemId))
+      .returning();
     this.emitPlaylistChanged(playlistId, organisationId);
     return saved;
   }
@@ -185,16 +197,18 @@ export class PlaylistService {
     // Verify playlist belongs to org
     await this.findOne(playlistId, organisationId);
 
-    const item = await this.playlistItemRepository.findOne({
-      where: { id: itemId, playlistId },
-    });
+    const [item] = await this.db
+      .select()
+      .from(playlistItems)
+      .where(and(eq(playlistItems.id, itemId), eq(playlistItems.playlistId, playlistId)))
+      .limit(1);
     if (!item) {
       throw new NotFoundException(
         `Playlist item with id "${itemId}" not found in playlist "${playlistId}"`,
       );
     }
 
-    await this.playlistItemRepository.remove(item);
+    await this.db.delete(playlistItems).where(eq(playlistItems.id, itemId));
     this.emitPlaylistChanged(playlistId, organisationId);
   }
 
@@ -207,9 +221,10 @@ export class PlaylistService {
     await this.findOne(playlistId, organisationId);
 
     // Fetch all items for this playlist
-    const items = await this.playlistItemRepository.find({
-      where: { playlistId },
-    });
+    const items = await this.db
+      .select()
+      .from(playlistItems)
+      .where(eq(playlistItems.playlistId, playlistId));
 
     const itemMap = new Map(items.map((item) => [item.id, item]));
 
@@ -232,29 +247,28 @@ export class PlaylistService {
     // Update positions
     const updated: PlaylistItem[] = [];
     for (let i = 0; i < itemIds.length; i++) {
-      const item = itemMap.get(itemIds[i])!;
-      item.position = i;
-      updated.push(item);
+      const [saved] = await this.db
+        .update(playlistItems)
+        .set({ position: i })
+        .where(eq(playlistItems.id, itemIds[i]))
+        .returning();
+      updated.push(saved);
     }
 
-    const saved = await this.playlistItemRepository.save(updated);
     this.emitPlaylistChanged(playlistId, organisationId);
-    return saved;
+    return updated;
   }
 
   async delete(id: string, organisationId: string): Promise<void> {
     const playlist = await this.findOne(id, organisationId);
 
     // If this playlist is the org's default, clear the reference
-    const org = await this.organisationRepository.findOneBy({
-      id: organisationId,
-    });
-    if (org && org.defaultPlaylistId === id) {
-      org.defaultPlaylistId = null;
-      await this.organisationRepository.save(org);
-    }
+    await this.db
+      .update(organisations)
+      .set({ defaultPlaylistId: null })
+      .where(and(eq(organisations.id, organisationId), eq(organisations.defaultPlaylistId, id)));
 
-    await this.playlistRepository.remove(playlist);
+    await this.db.delete(playlists).where(eq(playlists.id, id));
     this.emitPlaylistChanged(id, organisationId);
     this.eventEmitter.emit(
       AUDIT_PLAYLIST_DELETED,
@@ -275,49 +289,34 @@ export class PlaylistService {
     ids: string[],
     userId: string | null,
   ): Promise<{ deleted: number; notFound: string[] }> {
-    const playlists = await this.playlistRepository.find({
-      where: { id: In(ids), organisationId },
-    });
+    const found = await this.findScopedOrThrowForeign(organisationId, ids);
+    const foundIds = new Set(found.map((p) => p.id));
+    const notFound = ids.filter((id) => !foundIds.has(id));
 
-    const foundIds = new Set(playlists.map((p) => p.id));
-    const notFound: string[] = [];
-    const foreignIds: string[] = [];
-
-    for (const id of ids) {
-      if (!foundIds.has(id)) {
-        const exists = await this.playlistRepository.findOne({
-          where: { id } as FindOptionsWhere<Playlist>,
-        });
-        if (exists) {
-          foreignIds.push(id);
-        } else {
-          notFound.push(id);
-        }
-      }
-    }
-
-    if (foreignIds.length > 0) {
-      throw new BadRequestException({
-        message: 'Some IDs belong to a different organisation',
-        foreignIds,
-      });
-    }
-
-    if (playlists.length > 0) {
+    if (found.length > 0) {
       // Clear defaultPlaylistId on the org if any deleted playlist was the default
-      const org = await this.organisationRepository.findOneBy({
-        id: organisationId,
-      });
+      const [org] = await this.db
+        .select()
+        .from(organisations)
+        .where(eq(organisations.id, organisationId))
+        .limit(1);
       if (org && org.defaultPlaylistId && foundIds.has(org.defaultPlaylistId)) {
-        org.defaultPlaylistId = null;
-        await this.organisationRepository.save(org);
+        await this.db
+          .update(organisations)
+          .set({ defaultPlaylistId: null })
+          .where(eq(organisations.id, organisationId));
       }
 
-      await this.playlistRepository.remove(playlists);
+      await this.db.delete(playlists).where(
+        inArray(
+          playlists.id,
+          found.map((p) => p.id),
+        ),
+      );
     }
 
     const bulkOperationSize = ids.length;
-    for (const playlist of playlists) {
+    for (const playlist of found) {
       this.eventEmitter.emit(
         AUDIT_PLAYLIST_BULK_DELETED,
         new AuditPlaylistEvent(playlist.id, organisationId, userId, {
@@ -326,7 +325,7 @@ export class PlaylistService {
       );
     }
 
-    return { deleted: playlists.length, notFound };
+    return { deleted: found.length, notFound };
   }
 
   /**
@@ -342,14 +341,18 @@ export class PlaylistService {
     userId: string | null,
   ): Promise<{ assigned: number; notFound: string[] }> {
     // Validate the screen belongs to the organisation
-    const screen = await this.screenRepository.findOne({
-      where: { id: screenId, organisationId },
-    });
+    const [screen] = await this.db
+      .select()
+      .from(screens)
+      .where(and(eq(screens.id, screenId), eq(screens.organisationId, organisationId)))
+      .limit(1);
     if (!screen) {
       // Check if screen exists in another org
-      const existsElsewhere = await this.screenRepository.findOne({
-        where: { id: screenId } as FindOptionsWhere<Screen>,
-      });
+      const [existsElsewhere] = await this.db
+        .select()
+        .from(screens)
+        .where(eq(screens.id, screenId))
+        .limit(1);
       if (existsElsewhere) {
         throw new BadRequestException({
           message: 'Screen belongs to a different organisation',
@@ -359,41 +362,16 @@ export class PlaylistService {
       throw new NotFoundException(`Screen with id "${screenId}" not found`);
     }
 
-    const playlists = await this.playlistRepository.find({
-      where: { id: In(ids), organisationId },
-    });
-
-    const foundIds = new Set(playlists.map((p) => p.id));
-    const notFound: string[] = [];
-    const foreignIds: string[] = [];
-
-    for (const id of ids) {
-      if (!foundIds.has(id)) {
-        const exists = await this.playlistRepository.findOne({
-          where: { id } as FindOptionsWhere<Playlist>,
-        });
-        if (exists) {
-          foreignIds.push(id);
-        } else {
-          notFound.push(id);
-        }
-      }
-    }
-
-    if (foreignIds.length > 0) {
-      throw new BadRequestException({
-        message: 'Some IDs belong to a different organisation',
-        foreignIds,
-      });
-    }
+    const found = await this.findScopedOrThrowForeign(organisationId, ids);
+    const notFound = ids.filter((id) => !found.some((p) => p.id === id));
 
     // Create schedule entries for each playlist on the screen
     const now = new Date();
     const farFuture = new Date('2099-12-31T23:59:59.000Z');
     const defaultColour = '#4A90D9';
 
-    for (const playlist of playlists) {
-      const entry = this.scheduleEntryRepository.create({
+    for (const playlist of found) {
+      await this.db.insert(scheduleEntries).values({
         organisationId,
         screenId,
         groupId: null,
@@ -403,11 +381,10 @@ export class PlaylistService {
         rrule: null,
         colour: defaultColour,
       });
-      await this.scheduleEntryRepository.save(entry);
     }
 
     const bulkOperationSize = ids.length;
-    for (const playlist of playlists) {
+    for (const playlist of found) {
       this.eventEmitter.emit(
         AUDIT_PLAYLIST_BULK_SCREEN_ASSIGNED,
         new AuditPlaylistEvent(playlist.id, organisationId, userId, {
@@ -417,7 +394,7 @@ export class PlaylistService {
       );
     }
 
-    return { assigned: playlists.length, notFound };
+    return { assigned: found.length, notFound };
   }
 
   async getTotalDuration(id: string, organisationId: string): Promise<number> {
@@ -441,13 +418,54 @@ export class PlaylistService {
 
   @OnEvent(CONTENT_DURATION_RESOLVED, { async: true })
   async onContentDurationResolved(event: ContentDurationResolvedEvent): Promise<void> {
-    await this.playlistItemRepository.update(
-      {
-        contentId: event.contentId,
-        durationSeconds: Not(event.durationSeconds),
-      },
-      { durationSeconds: event.durationSeconds },
-    );
+    await this.db
+      .update(playlistItems)
+      .set({ durationSeconds: event.durationSeconds })
+      .where(
+        and(
+          eq(playlistItems.contentId, event.contentId),
+          ne(playlistItems.durationSeconds, event.durationSeconds),
+        ),
+      );
+  }
+
+  /**
+   * Load the scoped playlists for the given ids; throws 400 if any id exists in a
+   * different organisation. Returns the rows found within this organisation.
+   */
+  private async findScopedOrThrowForeign(
+    organisationId: string,
+    ids: string[],
+  ): Promise<Playlist[]> {
+    const found = await this.db
+      .select()
+      .from(playlists)
+      .where(and(inArray(playlists.id, ids), eq(playlists.organisationId, organisationId)));
+
+    const foundIds = new Set(found.map((p) => p.id));
+    const foreignIds: string[] = [];
+
+    for (const id of ids) {
+      if (!foundIds.has(id)) {
+        const [exists] = await this.db
+          .select()
+          .from(playlists)
+          .where(eq(playlists.id, id))
+          .limit(1);
+        if (exists) {
+          foreignIds.push(id);
+        }
+      }
+    }
+
+    if (foreignIds.length > 0) {
+      throw new BadRequestException({
+        message: 'Some IDs belong to a different organisation',
+        foreignIds,
+      });
+    }
+
+    return found;
   }
 
   private emitPlaylistChanged(playlistId: string, organisationId: string): void {

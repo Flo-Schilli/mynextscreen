@@ -48,7 +48,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { filename: 'poster.jpg' },
-      organisation: null,
     });
   });
 
@@ -66,7 +65,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { filename: 'old.mp4' },
-      organisation: null,
     });
   });
 
@@ -84,7 +82,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { filename: 'updated.jpg' },
-      organisation: null,
     });
   });
 
@@ -104,7 +101,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { name: 'My Playlist' },
-      organisation: null,
     });
   });
 
@@ -122,7 +118,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { name: 'Renamed' },
-      organisation: null,
     });
   });
 
@@ -140,7 +135,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { name: 'Old Playlist' },
-      organisation: null,
     });
   });
 
@@ -160,7 +154,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { screenId: 'screen-1' },
-      organisation: null,
     });
   });
 
@@ -176,7 +169,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: null,
-      organisation: null,
     });
   });
 
@@ -194,7 +186,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { screenId: 'screen-1' },
-      organisation: null,
     });
   });
 
@@ -214,7 +205,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { name: 'Lobby' },
-      organisation: null,
     });
   });
 
@@ -230,7 +220,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: null,
-      organisation: null,
     });
   });
 
@@ -246,7 +235,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: null,
-      organisation: null,
     });
   });
 
@@ -262,7 +250,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId: null,
       details: null,
-      organisation: null,
     });
   });
 
@@ -278,7 +265,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId: null,
       details: null,
-      organisation: null,
     });
   });
 
@@ -300,7 +286,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { email: 'new@example.com', role: 'editor' },
-      organisation: null,
     });
   });
 
@@ -320,7 +305,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { oldRole: 'viewer', newRole: 'editor' },
-      organisation: null,
     });
   });
 
@@ -337,7 +321,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: null,
-      organisation: null,
     });
   });
 
@@ -357,7 +340,6 @@ describe('AuditListener', () => {
       organisationId: null,
       userId,
       details: { name: 'New Org' },
-      organisation: null,
     });
   });
 
@@ -373,7 +355,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: null,
-      organisation: null,
     });
   });
 
@@ -402,7 +383,6 @@ describe('AuditListener', () => {
         sourceUrl: 'rtmp://example.com/live/stream1',
         protocol: 'rtmp',
       },
-      organisation: null,
     });
   });
 
@@ -429,7 +409,6 @@ describe('AuditListener', () => {
         sourceUrl: 'rtmp://example.com/live/stream2',
         protocol: 'rtmp',
       },
-      organisation: null,
     });
   });
 
@@ -456,7 +435,6 @@ describe('AuditListener', () => {
         sourceUrl: 'rtmp://example.com/live/stream1',
         protocol: 'rtmp',
       },
-      organisation: null,
     });
   });
 
@@ -481,7 +459,6 @@ describe('AuditListener', () => {
         streamName: 'Studio Camera',
         targetScreenIds: ['screen-1', 'screen-2'],
       },
-      organisation: null,
     });
   });
 
@@ -506,7 +483,6 @@ describe('AuditListener', () => {
         streamName: 'Studio Camera',
         reason: 'manual',
       },
-      organisation: null,
     });
   });
 
@@ -533,7 +509,6 @@ describe('AuditListener', () => {
         reason: 'source_disconnected',
         exitCode: 1,
       },
-      organisation: null,
     });
   });
 
@@ -554,7 +529,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { bulkOperationSize: 5, filename: 'old.mp4' },
-      organisation: null,
     });
   });
 
@@ -573,7 +547,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { bulkOperationSize: 3, tags: ['promo', 'summer'] },
-      organisation: null,
     });
   });
 
@@ -592,7 +565,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { bulkOperationSize: 4, tags: ['outdated'] },
-      organisation: null,
     });
   });
 
@@ -612,7 +584,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { bulkOperationSize: 10, playlistId },
-      organisation: null,
     });
   });
 
@@ -632,7 +603,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { bulkOperationSize: 8 },
-      organisation: null,
     });
   });
 
@@ -652,7 +622,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { bulkOperationSize: 6, groupId },
-      organisation: null,
     });
   });
 
@@ -672,7 +641,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { bulkOperationSize: 3 },
-      organisation: null,
     });
   });
 
@@ -692,7 +660,6 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { bulkOperationSize: 5, screenId },
-      organisation: null,
     });
   });
 

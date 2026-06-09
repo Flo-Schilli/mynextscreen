@@ -1,18 +1,15 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Logger, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { and, asc, eq } from 'drizzle-orm';
 import { Job } from 'bullmq';
 import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { SlicedRendition } from './sliced-rendition.entity';
-import { ScreenGroup } from '../screen-group/screen-group.entity';
-import { Screen } from '../screen/screen.entity';
-import { Playlist } from '../playlist/playlist.entity';
-import { Content } from '../content/content.entity';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { slicedRenditions, screenGroups, screens, playlists, playlistItems } from '../db/schema';
 import { ContentType } from '../content/content-type.enum';
 import { computeCropParams, buildCropFilter } from './crop-computation.util';
 import { getTranscodedPath } from '../content/content-storage.util';
@@ -35,16 +32,7 @@ export class SliceContentProcessor extends WorkerHost {
   private readonly videoBufSize: string;
 
   constructor(
-    @InjectRepository(SlicedRendition)
-    private readonly renditionRepository: Repository<SlicedRendition>,
-    @InjectRepository(ScreenGroup)
-    private readonly groupRepository: Repository<ScreenGroup>,
-    @InjectRepository(Screen)
-    private readonly screenRepository: Repository<Screen>,
-    @InjectRepository(Playlist)
-    private readonly playlistRepository: Repository<Playlist>,
-    @InjectRepository(Content)
-    private readonly contentRepository: Repository<Content>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly configService: ConfigService,
   ) {
     super();
@@ -64,40 +52,45 @@ export class SliceContentProcessor extends WorkerHost {
     );
 
     // Load group with grid info
-    const group = await this.groupRepository.findOne({
-      where: { id: groupId, organisationId },
-    });
+    const [group] = await this.db
+      .select()
+      .from(screenGroups)
+      .where(and(eq(screenGroups.id, groupId), eq(screenGroups.organisationId, organisationId)))
+      .limit(1);
     if (!group || !group.gridColumns || !group.gridRows) {
       throw new Error(`Group ${groupId} not found or missing grid configuration`);
     }
+    const gridColumns = group.gridColumns;
+    const gridRows = group.gridRows;
 
     // Load screens in the group
-    const screens = await this.screenRepository.find({
-      where: { groupId, organisationId },
-    });
-    if (screens.length === 0) {
+    const groupScreens = await this.db
+      .select()
+      .from(screens)
+      .where(and(eq(screens.groupId, groupId), eq(screens.organisationId, organisationId)));
+    if (groupScreens.length === 0) {
       this.logger.warn(`No screens in group ${groupId}, skipping slicing`);
       return;
     }
 
     // Load playlist with items and content
-    const playlist = await this.playlistRepository.findOne({
-      where: { id: playlistId, organisationId },
-      relations: ['items', 'items.content'],
+    const playlist = await this.db.query.playlists.findFirst({
+      where: and(eq(playlists.id, playlistId), eq(playlists.organisationId, organisationId)),
+      with: { items: { with: { content: true }, orderBy: asc(playlistItems.position) } },
     });
     if (!playlist || !playlist.items || playlist.items.length === 0) {
       this.logger.warn(`Playlist ${playlistId} not found or empty, skipping slicing`);
       return;
     }
 
-    const totalWork = playlist.items.length * screens.length;
+    const totalWork = playlist.items.length * groupScreens.length;
     let completed = 0;
 
     for (const item of playlist.items) {
       const content = item.content;
       if (!content) {
         this.logger.warn(`Content not found for playlist item ${item.id}, skipping`);
-        completed += screens.length;
+        completed += groupScreens.length;
         await job.updateProgress(Math.round((completed / totalWork) * 100));
         continue;
       }
@@ -118,12 +111,12 @@ export class SliceContentProcessor extends WorkerHost {
       const resolution = await this.probeResolution(sourcePath);
       if (!resolution) {
         this.logger.warn(`Could not determine resolution for content ${content.id}, skipping`);
-        completed += screens.length;
+        completed += groupScreens.length;
         await job.updateProgress(Math.round((completed / totalWork) * 100));
         continue;
       }
 
-      for (const screen of screens) {
+      for (const screen of groupScreens) {
         if (screen.gridRow === null || screen.gridColumn === null) {
           this.logger.warn(`Screen ${screen.id} has no grid position, skipping`);
           completed++;
@@ -132,14 +125,18 @@ export class SliceContentProcessor extends WorkerHost {
         }
 
         // Check if rendition already exists with same source hash
-        const existing = await this.renditionRepository.findOne({
-          where: {
-            groupId,
-            screenId: screen.id,
-            contentItemId: content.id,
-            organisationId,
-          },
-        });
+        const [existing] = await this.db
+          .select()
+          .from(slicedRenditions)
+          .where(
+            and(
+              eq(slicedRenditions.groupId, groupId),
+              eq(slicedRenditions.screenId, screen.id),
+              eq(slicedRenditions.contentItemId, content.id),
+              eq(slicedRenditions.organisationId, organisationId),
+            ),
+          )
+          .limit(1);
 
         if (existing && existing.sourceHash === sourceHash) {
           this.logger.log(
@@ -154,8 +151,8 @@ export class SliceContentProcessor extends WorkerHost {
         const cropParams = computeCropParams(
           resolution.width,
           resolution.height,
-          group.gridColumns,
-          group.gridRows,
+          gridColumns,
+          gridRows,
           screen.gridColumn,
           screen.gridRow,
         );
@@ -181,11 +178,12 @@ export class SliceContentProcessor extends WorkerHost {
 
         // Save or update rendition in database
         if (existing) {
-          existing.filePath = outputPath;
-          existing.sourceHash = sourceHash;
-          await this.renditionRepository.save(existing);
+          await this.db
+            .update(slicedRenditions)
+            .set({ filePath: outputPath, sourceHash })
+            .where(eq(slicedRenditions.id, existing.id));
         } else {
-          const rendition = this.renditionRepository.create({
+          await this.db.insert(slicedRenditions).values({
             organisationId,
             groupId,
             screenId: screen.id,
@@ -193,7 +191,6 @@ export class SliceContentProcessor extends WorkerHost {
             filePath: outputPath,
             sourceHash,
           });
-          await this.renditionRepository.save(rendition);
         }
 
         completed++;

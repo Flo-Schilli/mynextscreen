@@ -1,14 +1,15 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Logger, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { eq } from 'drizzle-orm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Job } from 'bullmq';
 import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { Content } from './content.entity';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { contents } from '../db/schema';
 import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
 import { StorageService } from '../organisation/storage.service';
@@ -44,8 +45,7 @@ export class TranscodingProcessor extends WorkerHost {
   private readonly stripAudio: boolean;
 
   constructor(
-    @InjectRepository(Content)
-    private readonly contentRepository: Repository<Content>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
     private readonly storageService: StorageService,
@@ -96,10 +96,13 @@ export class TranscodingProcessor extends WorkerHost {
         // Limit exceeded: remove the transcoded file and mark as failed
         await this.unlinkSafe(outputPath);
         const limitError = 'Transcoded file would exceed organisation transcoded storage limit';
-        await this.contentRepository.update(contentId, {
-          transcodingStatus: TranscodingStatus.Failed,
-          transcodingError: limitError,
-        });
+        await this.db
+          .update(contents)
+          .set({
+            transcodingStatus: TranscodingStatus.Failed,
+            transcodingError: limitError,
+          })
+          .where(eq(contents.id, contentId));
         this.eventEmitter.emit(
           TRANSCODING_FAILED,
           new TranscodingFailedEvent(contentId, organisationId, limitError),
@@ -122,12 +125,15 @@ export class TranscodingProcessor extends WorkerHost {
       }
 
       // Update content record
-      await this.contentRepository.update(contentId, {
-        transcodedSizeBytes,
-        durationSeconds,
-        transcodingStatus: TranscodingStatus.Completed,
-        transcodingError: null,
-      });
+      await this.db
+        .update(contents)
+        .set({
+          transcodedSizeBytes,
+          durationSeconds,
+          transcodingStatus: TranscodingStatus.Completed,
+          transcodingError: null,
+        })
+        .where(eq(contents.id, contentId));
 
       // Update org storage counter
       await this.storageService.addTranscodedUsage(organisationId, transcodedSizeBytes);
@@ -144,10 +150,13 @@ export class TranscodingProcessor extends WorkerHost {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Transcoding failed for content ${contentId}: ${errorMessage}`);
 
-      await this.contentRepository.update(contentId, {
-        transcodingStatus: TranscodingStatus.Failed,
-        transcodingError: errorMessage,
-      });
+      await this.db
+        .update(contents)
+        .set({
+          transcodingStatus: TranscodingStatus.Failed,
+          transcodingError: errorMessage,
+        })
+        .where(eq(contents.id, contentId));
 
       this.eventEmitter.emit(
         TRANSCODING_FAILED,
@@ -246,9 +255,10 @@ export class TranscodingProcessor extends WorkerHost {
   }
 
   private async updateStatus(contentId: string, status: TranscodingStatus): Promise<void> {
-    await this.contentRepository.update(contentId, {
-      transcodingStatus: status,
-    });
+    await this.db
+      .update(contents)
+      .set({ transcodingStatus: status })
+      .where(eq(contents.id, contentId));
   }
 
   private async unlinkSafe(filePath: string): Promise<void> {

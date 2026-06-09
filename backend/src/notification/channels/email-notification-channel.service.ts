@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from '../../user/user.entity';
+import { Injectable, Logger, Inject } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
+import { DRIZZLE } from '../../db/database.constants';
+import type { DrizzleDB } from '../../db/drizzle.types';
+import { users } from '../../db/schema';
 import { OrgNotificationConfigService } from '../org-notification-config.service';
 import { EmailChannel, NotificationPayload } from './notification-channel.interfaces';
 import { SmtpEmailProvider } from './smtp-email-provider';
@@ -11,8 +12,7 @@ export class EmailNotificationChannel implements EmailChannel {
   private readonly logger = new Logger(EmailNotificationChannel.name);
 
   constructor(
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly orgConfigService: OrgNotificationConfigService,
   ) {}
 
@@ -24,7 +24,7 @@ export class EmailNotificationChannel implements EmailChannel {
       return;
     }
 
-    const user = await this.userRepo.findOne({ where: { id: userId } });
+    const [user] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
     if (!user) {
       this.logger.warn(`Skipping email: user ${userId} not found`);
       return;

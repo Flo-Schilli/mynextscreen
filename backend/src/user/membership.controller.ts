@@ -13,7 +13,7 @@ import { Roles } from '../auth/roles.decorator';
 import { OrganisationRole } from './organisation-role.enum';
 import { MembershipService } from './membership.service';
 import { AddMemberDto, UpdateMemberRoleDto } from './dto';
-import { UserOrganisationMembership } from './user-organisation-membership.entity';
+import type { UserOrganisationMembership } from '../db/schema';
 
 @Controller('organisations/:orgId/members')
 @Roles(OrganisationRole.OrgAdmin)
