@@ -1,7 +1,6 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { CdkDragDrop, CdkDrag, CdkDropList, CdkDragPlaceholder } from '@angular/cdk/drag-drop';
+import { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { ScreenGroupService } from './screen-group.service';
 import {
   ScreenGroup,
@@ -15,18 +14,28 @@ import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { ContentService } from '../content/content.service';
 import { Content } from '../content/content.model';
+import { ScreenGroupGridEditor, GridCell } from './screen-group-grid-editor';
+import { ScreenGroupWallPreview } from './screen-group-wall-preview';
+import { ScreenGroupMirrorList } from './screen-group-mirror-list';
+import { ScreenGroupAddScreenModal } from './screen-group-add-screen-modal';
+import { ScreenGroupSwitchModeModal } from './screen-group-switch-mode-modal';
 
-interface GridCell {
-  row: number;
-  col: number;
-  screen: ScreenGroupScreen | null;
-  dropListId: string;
-}
-
+/**
+ * Smart container for the screen-group detail page. Owns data loading, the org
+ * context, grid construction, all assign/move/remove/switch HTTP orchestration,
+ * and the wall-preview thumbnail extraction. Presentation is delegated to the
+ * grid-editor, wall-preview, mirror-list and modal children.
+ */
 @Component({
   selector: 'app-screen-group-detail',
   standalone: true,
-  imports: [FormsModule, CdkDrag, CdkDropList, CdkDragPlaceholder],
+  imports: [
+    ScreenGroupGridEditor,
+    ScreenGroupWallPreview,
+    ScreenGroupMirrorList,
+    ScreenGroupAddScreenModal,
+    ScreenGroupSwitchModeModal,
+  ],
   template: `
     <div class="page">
       <header class="page-header">
@@ -63,282 +72,71 @@ interface GridCell {
       }
 
       @if (group && !loading) {
-        <!-- Split mode: Grid Editor -->
+        <!-- Split mode: Grid Editor + Wall Preview -->
         @if (group.mode === 'split' && group.gridColumns && group.gridRows) {
-          <div class="grid-editor-layout">
-            <div class="grid-section">
-              <h2 class="section-title">
-                Grid Layout ({{ group.gridColumns }}x{{ group.gridRows }})
-              </h2>
-              <div
-                class="grid-container"
-                [style.grid-template-columns]="'repeat(' + group.gridColumns + ', 1fr)'"
-                [style.grid-template-rows]="'repeat(' + group.gridRows + ', 1fr)'"
-              >
-                @for (cell of gridCells; track cell.dropListId) {
-                  <div
-                    class="grid-cell"
-                    cdkDropList
-                    [id]="cell.dropListId"
-                    [cdkDropListData]="cell"
-                    [cdkDropListConnectedTo]="allDropListIds"
-                    (cdkDropListDropped)="onDropToCell($event)"
-                    [class.occupied]="cell.screen"
-                    [class.dropping]="isDroppingOver === cell.dropListId"
-                  >
-                    @if (cell.screen) {
-                      <div class="cell-screen" cdkDrag [cdkDragData]="cell.screen">
-                        <div class="cell-screen-placeholder" *cdkDragPlaceholder></div>
-                        <span class="cell-screen-name">{{ cell.screen.name }}</span>
-                        <span class="cell-position">{{ cell.col }},{{ cell.row }}</span>
-                      </div>
-                    } @else {
-                      <div class="cell-empty">
-                        <span class="cell-empty-label">Empty</span>
-                        <span class="cell-position">{{ cell.col }},{{ cell.row }}</span>
-                      </div>
-                    }
-                  </div>
-                }
-              </div>
-            </div>
+          <app-screen-group-grid-editor
+            [gridCells]="gridCells"
+            [availableScreens]="availableScreens"
+            [allDropListIds]="allDropListIds"
+            [loadingScreens]="loadingScreens"
+            [gridColumns]="group.gridColumns"
+            [gridRows]="group.gridRows"
+            [groupId]="group.id"
+            [isDroppingOver]="isDroppingOver"
+            (dropToCell)="onDropToCell($event)"
+            (dropToSidebar)="onDropToSidebar($event)"
+          />
 
-            <div class="sidebar-section">
-              <h2 class="section-title">Available Screens</h2>
-              @if (loadingScreens) {
-                <p class="loading-text">Loading screens...</p>
-              } @else if (availableScreens.length === 0) {
-                <p class="sidebar-empty">No unassigned screens available.</p>
-              } @else {
-                <div
-                  class="sidebar-list"
-                  cdkDropList
-                  id="sidebar-list"
-                  [cdkDropListData]="availableScreens"
-                  [cdkDropListConnectedTo]="allDropListIds"
-                  (cdkDropListDropped)="onDropToSidebar($event)"
-                >
-                  @for (screen of availableScreens; track screen.id) {
-                    <div class="sidebar-screen" cdkDrag [cdkDragData]="screen">
-                      <div class="sidebar-screen-placeholder" *cdkDragPlaceholder></div>
-                      <span class="sidebar-screen-name">{{ screen.name }}</span>
-                      @if (screen.groupId && screen.groupId !== group.id) {
-                        <span class="already-assigned-badge">In another group</span>
-                      }
-                    </div>
-                  }
-                </div>
-              }
-            </div>
-          </div>
-
-          <!-- Wall Preview -->
           @if (allCellsAssigned) {
-            <div class="wall-preview-section">
-              <h2 class="section-title">Preview Wall</h2>
-              <div class="preview-content-picker">
-                <label for="previewContentSelect">Select content to preview:</label>
-                @if (loadingContent) {
-                  <span class="loading-text">Loading content...</span>
-                } @else {
-                  <select
-                    id="previewContentSelect"
-                    [(ngModel)]="selectedContentId"
-                    (ngModelChange)="onPreviewContentSelect($event)"
-                  >
-                    <option value="">-- Select content --</option>
-                    @for (item of contentItems; track item.id) {
-                      <option [value]="item.id">{{ item.title }} ({{ item.type }})</option>
-                    }
-                  </select>
-                }
-              </div>
-              @if (previewImageUrl) {
-                <div
-                  class="preview-grid"
-                  [style.grid-template-columns]="'repeat(' + group.gridColumns + ', 1fr)'"
-                  [style.grid-template-rows]="'repeat(' + group.gridRows + ', 1fr)'"
-                  [style.aspect-ratio]="previewAspectRatio"
-                >
-                  @for (cell of gridCells; track cell.dropListId) {
-                    <div
-                      class="preview-cell"
-                      [class.unassigned]="!cell.screen"
-                      [style.background-image]="
-                        cell.screen ? 'url(' + previewImageUrl + ')' : 'none'
-                      "
-                      [style.background-size]="getPreviewBgSize()"
-                      [style.background-position]="getPreviewBgPosition(cell.col, cell.row)"
-                    >
-                      <span class="preview-label">{{ cell.screen?.name ?? 'Empty' }}</span>
-                    </div>
-                  }
-                </div>
-              }
-            </div>
+            <app-screen-group-wall-preview
+              [gridCells]="gridCells"
+              [gridColumns]="group.gridColumns"
+              [gridRows]="group.gridRows"
+              [contentItems]="contentItems"
+              [loadingContent]="loadingContent"
+              [previewImageUrl]="previewImageUrl"
+              [previewAspectRatio]="previewAspectRatio"
+              [(selectedContentId)]="selectedContentId"
+              (selectContent)="onPreviewContentSelect($event)"
+            />
           }
         }
 
         <!-- Mirror mode: Simple List -->
         @if (group.mode === 'mirror') {
-          <div class="mirror-layout">
-            <div class="mirror-section">
-              <div class="mirror-header">
-                <h2 class="section-title">Assigned Screens ({{ group.screens.length }})</h2>
-                <button class="btn btn-primary btn-small" (click)="openAddScreen()">
-                  + Add Screen
-                </button>
-              </div>
-              @if (group.screens.length === 0) {
-                <div class="mirror-empty">
-                  <p>No screens assigned to this group yet.</p>
-                  <button class="btn btn-primary" (click)="openAddScreen()">Add Screen</button>
-                </div>
-              } @else {
-                <div class="mirror-list">
-                  @for (screen of group.screens; track screen.id) {
-                    <div class="mirror-screen">
-                      <div class="mirror-screen-info">
-                        <span class="mirror-screen-name">{{ screen.name }}</span>
-                        <span class="mirror-screen-location">{{ screen.location }}</span>
-                      </div>
-                      <button
-                        class="btn btn-small btn-danger"
-                        (click)="removeScreenFromGroup(screen.id)"
-                        [disabled]="operationInProgress"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  }
-                </div>
-              }
-            </div>
-          </div>
+          <app-screen-group-mirror-list
+            [screens]="group.screens"
+            [operationInProgress]="operationInProgress"
+            (addScreen)="openAddScreen()"
+            (removeScreen)="removeScreenFromGroup($event)"
+          />
         }
       }
 
       <!-- Add Screen Modal (Mirror mode) -->
-      @if (showAddScreen) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Add Screen"
-          tabindex="0"
-          (click)="cancelAddScreen()"
-          (keydown.escape)="cancelAddScreen()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Add Screen to Group</h2>
-            @if (loadingScreens) {
-              <p class="loading-text">Loading screens...</p>
-            } @else if (availableScreens.length === 0) {
-              <p class="sidebar-empty">No unassigned screens available.</p>
-              <div class="form-actions">
-                <button class="btn btn-secondary" (click)="cancelAddScreen()">Close</button>
-              </div>
-            } @else {
-              <div class="add-screen-list">
-                @for (screen of availableScreens; track screen.id) {
-                  <div class="add-screen-item">
-                    <div class="add-screen-info">
-                      <span class="add-screen-name">{{ screen.name }}</span>
-                      @if (screen.groupId && screen.groupId !== group!.id) {
-                        <span class="already-assigned-badge">Already in another group</span>
-                      }
-                    </div>
-                    <button
-                      class="btn btn-small btn-primary"
-                      (click)="addScreenMirror(screen)"
-                      [disabled]="
-                        operationInProgress || !!(screen.groupId && screen.groupId !== group!.id)
-                      "
-                    >
-                      Add
-                    </button>
-                  </div>
-                }
-              </div>
-              @if (addScreenError) {
-                <p class="error">{{ addScreenError }}</p>
-              }
-              <div class="form-actions">
-                <button class="btn btn-secondary" (click)="cancelAddScreen()">Close</button>
-              </div>
-            }
-          </div>
-        </div>
+      @if (showAddScreen && group) {
+        <app-screen-group-add-screen-modal
+          [availableScreens]="availableScreens"
+          [loadingScreens]="loadingScreens"
+          [error]="addScreenError"
+          [groupId]="group.id"
+          [operationInProgress]="operationInProgress"
+          (add)="addScreenMirror($event)"
+          (dismiss)="cancelAddScreen()"
+        />
       }
 
       <!-- Switch Mode Confirmation Modal -->
-      @if (showSwitchMode) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Switch mode"
-          tabindex="0"
-          (click)="cancelSwitchMode()"
-          (keydown.escape)="cancelSwitchMode()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Switch Mode</h2>
-            @if (group!.mode === 'split') {
-              <div class="warning-box">
-                Switching from Split to Mirror will clear all grid positions for assigned screens.
-                This action cannot be undone.
-              </div>
-            }
-            @if (group!.mode === 'mirror') {
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="switchGridColumns">Grid Columns</label>
-                  <input
-                    id="switchGridColumns"
-                    type="number"
-                    [(ngModel)]="switchGridColumns"
-                    name="switchGridColumns"
-                    required
-                    min="1"
-                    max="10"
-                  />
-                </div>
-                <div class="form-group">
-                  <label for="switchGridRows">Grid Rows</label>
-                  <input
-                    id="switchGridRows"
-                    type="number"
-                    [(ngModel)]="switchGridRows"
-                    name="switchGridRows"
-                    required
-                    min="1"
-                    max="10"
-                  />
-                </div>
-              </div>
-            }
-            @if (switchError) {
-              <p class="error">{{ switchError }}</p>
-            }
-            <div class="form-actions">
-              <button class="btn btn-secondary" (click)="cancelSwitchMode()">Cancel</button>
-              <button class="btn btn-primary" (click)="executeSwitchMode()" [disabled]="switching">
-                {{ switching ? 'Switching...' : 'Confirm Switch' }}
-              </button>
-            </div>
-          </div>
-        </div>
+      @if (showSwitchMode && group) {
+        <app-screen-group-switch-mode-modal
+          [mode]="group.mode"
+          [switching]="switching"
+          [error]="switchError"
+          [(gridColumns)]="switchGridColumns"
+          [(gridRows)]="switchGridRows"
+          (confirm)="executeSwitchMode()"
+          (dismiss)="cancelSwitchMode()"
+        />
       }
     </div>
   `,
@@ -360,259 +158,6 @@ interface GridCell {
       color: #a855f7;
     }
 
-    /* Section Titles */
-    .section-title {
-      font-size: 1rem;
-      font-weight: 600;
-      margin: 0 0 1rem;
-    }
-
-    /* Grid Editor Layout */
-    .grid-editor-layout {
-      display: grid;
-      grid-template-columns: 1fr 18rem;
-      gap: 1.5rem;
-      align-items: start;
-    }
-    .grid-section {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.5rem;
-    }
-    .grid-container {
-      display: grid;
-      gap: 0.5rem;
-      aspect-ratio: auto;
-    }
-    .grid-cell {
-      border: 2px dashed var(--color-border);
-      border-radius: 0.375rem;
-      min-height: 5rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition:
-        border-color 0.15s,
-        background-color 0.15s;
-      position: relative;
-    }
-    .grid-cell.occupied {
-      border-style: solid;
-      border-color: var(--color-accent);
-      background: var(--color-accent) 08;
-    }
-    .grid-cell.cdk-drop-list-dragging {
-      border-color: var(--color-accent);
-      background: var(--color-accent) 12;
-    }
-    .cell-screen {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.25rem;
-      padding: 0.75rem;
-      cursor: grab;
-      width: 100%;
-      height: 100%;
-      justify-content: center;
-      box-sizing: border-box;
-    }
-    .cell-screen:active {
-      cursor: grabbing;
-    }
-    .cell-screen-name {
-      font-size: 0.875rem;
-      font-weight: 500;
-      text-align: center;
-      word-break: break-word;
-    }
-    .cell-position {
-      font-size: 0.6875rem;
-      color: var(--color-text-muted);
-    }
-    .cell-empty {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.25rem;
-    }
-    .cell-empty-label {
-      font-size: 0.8125rem;
-      color: var(--color-text-muted);
-    }
-    .cell-screen-placeholder,
-    .sidebar-screen-placeholder {
-      background: var(--color-accent) 20;
-      border: 2px dashed var(--color-accent);
-      border-radius: 0.375rem;
-      min-height: 3rem;
-    }
-
-    /* CDK Drag styles */
-    .cdk-drag-preview {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-accent);
-      border-radius: 0.375rem;
-      padding: 0.5rem 1rem;
-      box-shadow: 0 4px 12px var(--color-shadow);
-      font-size: 0.875rem;
-      font-weight: 500;
-      color: var(--color-text-primary);
-    }
-    .cdk-drag-animating {
-      transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
-    }
-
-    /* Sidebar */
-    .sidebar-section {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.5rem;
-    }
-    .sidebar-list {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      min-height: 3rem;
-    }
-    .sidebar-screen {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.625rem 0.75rem;
-      background: var(--color-bg-tertiary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-      cursor: grab;
-      transition: border-color 0.15s;
-    }
-    .sidebar-screen:hover {
-      border-color: var(--color-accent);
-    }
-    .sidebar-screen:active {
-      cursor: grabbing;
-    }
-    .sidebar-screen-name {
-      font-size: 0.8125rem;
-      font-weight: 500;
-    }
-    .sidebar-empty {
-      color: var(--color-text-muted);
-      font-size: 0.8125rem;
-    }
-    .already-assigned-badge {
-      font-size: 0.6875rem;
-      color: #f59e0b;
-      background: #f59e0b18;
-      padding: 0.125rem 0.375rem;
-      border-radius: 0.25rem;
-    }
-
-    /* Mirror Mode */
-    .mirror-layout {
-      max-width: 40rem;
-    }
-    .mirror-section {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.5rem;
-    }
-    .mirror-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
-    .mirror-header .section-title {
-      margin: 0;
-    }
-    .mirror-empty {
-      text-align: center;
-      padding: 2rem 1rem;
-      color: var(--color-text-muted);
-    }
-    .mirror-empty p {
-      margin: 0 0 1rem;
-      font-size: 0.875rem;
-    }
-    .mirror-list {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    .mirror-screen {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.75rem 1rem;
-      background: var(--color-bg-tertiary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-    }
-    .mirror-screen-info {
-      display: flex;
-      flex-direction: column;
-      gap: 0.125rem;
-    }
-    .mirror-screen-name {
-      font-size: 0.875rem;
-      font-weight: 500;
-    }
-    .mirror-screen-location {
-      font-size: 0.75rem;
-      color: var(--color-text-muted);
-    }
-
-    /* Add Screen Modal */
-    .add-screen-list {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      max-height: 20rem;
-      overflow-y: auto;
-      margin-bottom: 1rem;
-    }
-    .add-screen-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.625rem 0.75rem;
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-    }
-    .add-screen-info {
-      display: flex;
-      flex-direction: column;
-      gap: 0.125rem;
-    }
-    .add-screen-name {
-      font-size: 0.875rem;
-      font-weight: 500;
-    }
-
-    /* Two-column form layout */
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-    }
-
-    /* Warning */
-    .warning-box {
-      background: #92400e20;
-      border: 1px solid #92400e;
-      border-radius: 0.375rem;
-      padding: 0.75rem 1rem;
-      margin-bottom: 1rem;
-      font-size: 0.8125rem;
-      color: #fbbf24;
-      line-height: 1.5;
-    }
-
     /* Errors */
     .action-error {
       background: #991b1b20;
@@ -620,88 +165,6 @@ interface GridCell {
       border-radius: 0.375rem;
       padding: 0.75rem 1rem;
       margin-bottom: 1rem;
-    }
-
-    /* Wall Preview */
-    .wall-preview-section {
-      margin-top: 1.5rem;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.5rem;
-    }
-    .preview-content-picker {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 1rem;
-    }
-    .preview-content-picker label {
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-      white-space: nowrap;
-    }
-    .preview-content-picker select {
-      flex: 1;
-      max-width: 24rem;
-      padding: 0.5rem 0.75rem;
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-      color: var(--color-text-primary);
-      font-size: 0.875rem;
-    }
-    .preview-content-picker select:focus {
-      outline: none;
-      border-color: var(--color-accent);
-    }
-    .preview-grid {
-      display: grid;
-      border: 2px solid var(--color-text-muted);
-      border-radius: 0.375rem;
-      overflow: hidden;
-      max-width: 48rem;
-    }
-    .preview-cell {
-      position: relative;
-      border: 1px solid var(--color-text-muted);
-      background-repeat: no-repeat;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      min-height: 4rem;
-    }
-    .preview-cell.unassigned {
-      background: repeating-linear-gradient(
-        45deg,
-        var(--color-bg-tertiary),
-        var(--color-bg-tertiary) 8px,
-        var(--color-border) 8px,
-        var(--color-border) 16px
-      );
-    }
-    .preview-label {
-      background: rgba(0, 0, 0, 0.65);
-      color: #fff;
-      font-size: 0.6875rem;
-      font-weight: 600;
-      padding: 0.125rem 0.375rem;
-      border-radius: 0.25rem;
-      margin-bottom: 0.25rem;
-      max-width: 90%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    /* Responsive */
-    @media (max-width: 768px) {
-      .grid-editor-layout {
-        grid-template-columns: 1fr;
-      }
-      .form-row {
-        grid-template-columns: 1fr;
-      }
     }
   `,
 })
@@ -1147,19 +610,6 @@ export class ScreenGroupDetail implements OnInit {
       return this.contentService.getTranscodedUrl(content.id);
     }
     return this.contentService.getOriginalUrl(content.id);
-  }
-
-  getPreviewBgSize(): string {
-    if (!this.group?.gridColumns || !this.group?.gridRows) return '100% 100%';
-    return `${this.group.gridColumns * 100}% ${this.group.gridRows * 100}%`;
-  }
-
-  getPreviewBgPosition(col: number, row: number): string {
-    const cols = this.group?.gridColumns ?? 1;
-    const rows = this.group?.gridRows ?? 1;
-    const xPct = cols > 1 ? (col / (cols - 1)) * 100 : 0;
-    const yPct = rows > 1 ? (row / (rows - 1)) * 100 : 0;
-    return `${xPct}% ${yPct}%`;
   }
 
   goBack(): void {
