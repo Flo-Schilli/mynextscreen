@@ -143,6 +143,9 @@ VISION.md                 # Produkt-Vision & Feature-Details (kanonisch)
 - **Versions-Single-source-of-truth = Root-`package.json`.** Release via
   `npm run version:patch && git push --follow-tags`; alles andere (Image-Tags,
   OCI-Labels, `/api/version`, `version.json`) leitet sich daraus ab — nie manuell.
+  Die Sub-`package.json`/`package-lock.json`-Versionen (backend/frontend/player)
+  pflegt der `version`-npm-Hook via `scripts/sync-versions.mjs` aus der Root-Version
+  — nie manuell editieren; CI (`sync-versions.mjs --check`) erzwingt das.
 - Externe Calls (Hanko-JWKS, ntfy, SMTP) hinter Interface/Modul, mockbar.
 - Geheimnisse/API-Keys nie plaintext loggen; Config über ENV (`@nestjs/config`).
 
