@@ -1,23 +1,28 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { DatePipe, TitleCasePipe } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuditLogService } from './audit-log.service';
 import { MemberService } from '../settings/users/member.service';
 import { OrganisationStateService } from '../shell/organisation-state.service';
 import {
   AuditEntry,
-  AuditLogFilters,
-  AUDIT_ACTION_LABELS,
+  AuditLogFilters as AuditLogFilterParams,
   AUDIT_ACTIONS,
   RESOURCE_TYPES,
 } from './audit-log.model';
 import { Membership } from '../settings/users/member.model';
+import { AuditLogFilters } from './audit-log-filters';
+import { AuditLogTable } from './audit-log-table';
 
+/**
+ * Smart container for the audit-log feature. Owns the org-admin gate, data
+ * loading + pagination, the filter state and the resolved user map. Presentation
+ * is delegated to the filter bar and the entries table; navigation to a resource
+ * is handled here.
+ */
 @Component({
   selector: 'app-audit-log',
   standalone: true,
-  imports: [DatePipe, TitleCasePipe, FormsModule],
+  imports: [AuditLogFilters, AuditLogTable],
   template: `
     <div class="page">
       <header class="page-header">
@@ -27,68 +32,18 @@ import { Membership } from '../settings/users/member.model';
       @if (!isOrgAdmin) {
         <p class="error">Access denied. Org Admin privileges required.</p>
       } @else {
-        <!-- Filter bar -->
-        <div class="filter-bar">
-          <div class="filter-group">
-            <label for="filterAction">Action</label>
-            <select id="filterAction" [(ngModel)]="filterAction" (ngModelChange)="applyFilters()">
-              <option value="">All actions</option>
-              @for (action of auditActions; track action) {
-                <option [value]="action">{{ actionLabel(action) }}</option>
-              }
-            </select>
-          </div>
-
-          <div class="filter-group">
-            <label for="filterUser">User</label>
-            <select id="filterUser" [(ngModel)]="filterUserId" (ngModelChange)="applyFilters()">
-              <option value="">All users</option>
-              @for (member of members; track member.userId) {
-                <option [value]="member.userId">{{ member.user.name || member.user.email }}</option>
-              }
-            </select>
-          </div>
-
-          <div class="filter-group">
-            <label for="filterResource">Resource Type</label>
-            <select
-              id="filterResource"
-              [(ngModel)]="filterResourceType"
-              (ngModelChange)="applyFilters()"
-            >
-              <option value="">All types</option>
-              @for (type of resourceTypes; track type) {
-                <option [value]="type">{{ type | titlecase }}</option>
-              }
-            </select>
-          </div>
-
-          <div class="filter-group">
-            <label for="filterFrom">From</label>
-            <input
-              id="filterFrom"
-              type="date"
-              [(ngModel)]="filterFrom"
-              (ngModelChange)="applyFilters()"
-            />
-          </div>
-
-          <div class="filter-group">
-            <label for="filterTo">To</label>
-            <input
-              id="filterTo"
-              type="date"
-              [(ngModel)]="filterTo"
-              (ngModelChange)="applyFilters()"
-            />
-          </div>
-
-          @if (hasActiveFilters()) {
-            <button class="btn btn-secondary btn-small clear-btn" (click)="clearFilters()">
-              Clear filters
-            </button>
-          }
-        </div>
+        <app-audit-log-filters
+          [auditActions]="auditActions"
+          [members]="members"
+          [resourceTypes]="resourceTypes"
+          [(action)]="filterAction"
+          [(userId)]="filterUserId"
+          [(resourceType)]="filterResourceType"
+          [(from)]="filterFrom"
+          [(to)]="filterTo"
+          (apply)="applyFilters()"
+          (clear)="clearFilters()"
+        />
 
         @if (loadError) {
           <p class="error">{{ loadError }}</p>
@@ -103,69 +58,15 @@ import { Membership } from '../settings/users/member.model';
         }
 
         @if (entries.length > 0) {
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Timestamp</th>
-                  <th>User</th>
-                  <th>Action</th>
-                  <th>Resource Type</th>
-                  <th>Resource</th>
-                  <th>Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (entry of entries; track entry.id) {
-                  <tr>
-                    <td class="timestamp-cell">{{ entry.timestamp | date: 'medium' }}</td>
-                    <td>{{ getUserDisplay(entry.userId) }}</td>
-                    <td>
-                      <span
-                        class="action-badge"
-                        [attr.data-category]="actionCategory(entry.action)"
-                      >
-                        {{ actionLabel(entry.action) }}
-                      </span>
-                    </td>
-                    <td class="resource-type-cell">{{ entry.resourceType }}</td>
-                    <td>
-                      @if (entry.resourceId) {
-                        <a
-                          class="resource-link"
-                          (click)="navigateToResource(entry.resourceType, entry.resourceId)"
-                          (keydown.enter)="navigateToResource(entry.resourceType, entry.resourceId)"
-                          tabindex="0"
-                        >
-                          {{ getResourceDisplay(entry) }}
-                        </a>
-                      } @else {
-                        <span class="text-muted">—</span>
-                      }
-                    </td>
-                    <td class="details-cell">
-                      @if (entry.details && hasDetails(entry.details)) {
-                        <span class="details-text" [title]="formatDetailsTooltip(entry.details)">
-                          {{ formatDetails(entry.details) }}
-                        </span>
-                      } @else {
-                        <span class="text-muted">—</span>
-                      }
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-
-          @if (hasMore) {
-            <div class="load-more-container">
-              <button class="btn btn-secondary" (click)="loadMore()" [disabled]="loading">
-                {{ loading ? 'Loading...' : 'Load more' }}
-              </button>
-              <span class="count-text">Showing {{ entries.length }} of {{ total }} entries</span>
-            </div>
-          }
+          <app-audit-log-table
+            [entries]="entries"
+            [total]="total"
+            [loading]="loading"
+            [hasMore]="hasMore"
+            [userMap]="userMap"
+            (loadMore)="loadMore()"
+            (selectResource)="navigateToResource($event.resourceType, $event.resourceId)"
+          />
         }
       }
     </div>
@@ -175,155 +76,6 @@ import { Membership } from '../settings/users/member.model';
       font-size: 1.5rem;
       font-weight: 600;
       margin: 0;
-    }
-
-    /* Filter bar */
-    .filter-bar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      align-items: flex-end;
-      margin-bottom: 1.5rem;
-      padding: 1rem;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-    }
-    .filter-group {
-      display: flex;
-      flex-direction: column;
-      gap: 0.375rem;
-    }
-    .filter-group label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--color-text-secondary);
-    }
-    .filter-group select,
-    .filter-group input {
-      padding: 0.5rem 0.75rem;
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-      color: var(--color-text-primary);
-      font-size: 0.875rem;
-      min-width: 10rem;
-    }
-    .filter-group input[type='date'] {
-      min-width: 9rem;
-    }
-    .filter-group select:focus,
-    .filter-group input:focus {
-      outline: none;
-      border-color: var(--color-accent);
-    }
-    .clear-btn {
-      align-self: flex-end;
-    }
-
-    /* Table */
-    th {
-      white-space: nowrap;
-    }
-    td {
-      vertical-align: top;
-    }
-    tr:hover td {
-      background: var(--color-bg-tertiary);
-    }
-    .timestamp-cell {
-      white-space: nowrap;
-      color: var(--color-text-secondary);
-      font-size: 0.8125rem;
-    }
-    .resource-type-cell {
-      text-transform: capitalize;
-    }
-
-    /* Action badges */
-    .action-badge {
-      display: inline-block;
-      padding: 0.25rem 0.5rem;
-      border-radius: 0.25rem;
-      font-size: 0.8125rem;
-      font-weight: 500;
-      white-space: nowrap;
-    }
-    .action-badge[data-category='content'] {
-      background: rgba(59, 130, 246, 0.15);
-      color: #93c5fd;
-    }
-    .action-badge[data-category='playlist'] {
-      background: rgba(168, 85, 247, 0.15);
-      color: #d8b4fe;
-    }
-    .action-badge[data-category='schedule'] {
-      background: rgba(34, 197, 94, 0.15);
-      color: #86efac;
-    }
-    .action-badge[data-category='screen'] {
-      background: rgba(234, 179, 8, 0.15);
-      color: #fde047;
-    }
-    .action-badge[data-category='user'] {
-      background: rgba(244, 63, 94, 0.15);
-      color: #fda4af;
-    }
-    .action-badge[data-category='organisation'] {
-      background: rgba(20, 184, 166, 0.15);
-      color: #5eead4;
-    }
-
-    /* Resource link */
-    .resource-link {
-      color: var(--color-accent);
-      cursor: pointer;
-      text-decoration: none;
-      font-size: 0.8125rem;
-      font-family: monospace;
-    }
-    .resource-link:hover {
-      text-decoration: underline;
-    }
-
-    /* Details */
-    .details-cell {
-      max-width: 20rem;
-    }
-    .details-text {
-      font-size: 0.8125rem;
-      color: var(--color-text-secondary);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      display: block;
-      max-width: 20rem;
-      cursor: help;
-    }
-
-    /* Load more */
-    .load-more-container {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      margin-top: 1rem;
-      justify-content: center;
-    }
-    .count-text {
-      font-size: 0.8125rem;
-      color: var(--color-text-muted);
-    }
-
-    @media (max-width: 768px) {
-      .filter-bar {
-        flex-direction: column;
-      }
-      .filter-group select,
-      .filter-group input {
-        min-width: 100%;
-      }
     }
   `,
 })
@@ -343,7 +95,7 @@ export class AuditLog implements OnInit {
   isOrgAdmin = false;
 
   members: Membership[] = [];
-  private userMap = new Map<string, string>();
+  readonly userMap = new Map<string, string>();
 
   // Filter state
   filterAction = '';
@@ -388,8 +140,8 @@ export class AuditLog implements OnInit {
     });
   }
 
-  private buildFilters(offset = 0): AuditLogFilters {
-    const filters: AuditLogFilters = {
+  private buildFilters(offset = 0): AuditLogFilterParams {
+    const filters: AuditLogFilterParams = {
       limit: this.pageSize,
       offset,
     };
@@ -460,60 +212,6 @@ export class AuditLog implements OnInit {
     this.filterFrom = '';
     this.filterTo = '';
     this.applyFilters();
-  }
-
-  hasActiveFilters(): boolean {
-    return !!(
-      this.filterAction ||
-      this.filterUserId ||
-      this.filterResourceType ||
-      this.filterFrom ||
-      this.filterTo
-    );
-  }
-
-  actionLabel(action: string): string {
-    return AUDIT_ACTION_LABELS[action] ?? action;
-  }
-
-  actionCategory(action: string): string {
-    return action.split('.')[0];
-  }
-
-  getUserDisplay(userId: string | null): string {
-    if (!userId) return 'System';
-    return this.userMap.get(userId) ?? userId.substring(0, 8) + '...';
-  }
-
-  getResourceDisplay(entry: AuditEntry): string {
-    if (!entry.resourceId) return '—';
-    const details = entry.details;
-    if (details) {
-      const name =
-        (details['name'] as string) ??
-        (details['title'] as string) ??
-        (details['filename'] as string) ??
-        (details['email'] as string);
-      if (name) return name;
-    }
-    return entry.resourceId.substring(0, 8) + '...';
-  }
-
-  hasDetails(details: Record<string, unknown>): boolean {
-    return Object.keys(details).length > 0;
-  }
-
-  formatDetails(details: Record<string, unknown>): string {
-    const parts: string[] = [];
-    for (const [key, value] of Object.entries(details)) {
-      if (key === 'name' || key === 'title' || key === 'filename' || key === 'email') continue;
-      parts.push(`${key}: ${value}`);
-    }
-    return parts.join(', ') || '—';
-  }
-
-  formatDetailsTooltip(details: Record<string, unknown>): string {
-    return JSON.stringify(details, null, 2);
   }
 
   navigateToResource(resourceType: string, resourceId: string | null): void {
