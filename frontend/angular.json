@@ -104,6 +104,25 @@
           "options": {
             "lintFilePatterns": ["src/**/*.ts", "src/**/*.html"]
           }
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "buildTarget": "frontend:build:development",
+            "runner": "vitest",
+            "tsConfig": "tsconfig.spec.json",
+            "runnerConfig": "vitest.config.ts",
+            "watch": false,
+            "coverageInclude": ["src/app/**/*.ts"],
+            "coverageExclude": [
+              "**/*.spec.ts",
+              "**/*.model.ts",
+              "**/*.routes.ts",
+              "**/*.config.ts",
+              "**/main.ts",
+              "**/environments/**"
+            ]
+          }
         }
       }
     }

@@ -6,7 +6,8 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "vitest run",
+    "test": "ng test",
+    "test:cov": "ng test --coverage",
     "lint": "ng lint",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "format": "prettier --write \"src/**/*.{ts,html,css}\"",
@@ -30,11 +31,11 @@
     "tslib": "^2.3.0"
   },
   "devDependencies": {
-    "@analogjs/vitest-angular": "^2.3.1",
     "@angular/build": "^21.2.5",
     "@angular/cli": "^21.2.5",
     "@angular/compiler-cli": "^21.2.0",
     "@eslint/js": "^10.0.1",
+    "@vitest/coverage-v8": "^4.1.8",
     "angular-eslint": "21.3.1",
     "eslint": "^10.0.3",
     "jsdom": "^29.0.1",

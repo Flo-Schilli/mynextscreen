@@ -22,7 +22,7 @@ jobs:
           - app: backend
             test: 'npm run test:cov'
           - app: frontend
-            test: 'npm test'
+            test: 'npm run test:cov'
           - app: player
             test: 'npm test'
     defaults:
