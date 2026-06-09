@@ -1,15 +1,24 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { OrganisationService } from './organisation.service';
 import { Organisation, OrgMember, OrgMemberRole } from './organisation.model';
-import { IANA_TIME_ZONES } from './timezones';
+import { OrgForm, OrganisationFormPayload } from './org-form';
+import { OrgTable } from './org-table';
+import { OrgMemberList } from './org-member-list';
+import { OrgAddMemberModal, AddMemberPayload } from './org-add-member-modal';
+import { OrgRemoveMemberModal } from './org-remove-member-modal';
 
+/**
+ * Smart container for the (super-admin) organisations feature. Owns data
+ * loading, the org/detail/form view orchestration and all HTTP calls
+ * (create/edit org, list/add/update-role/remove members). Presentation is
+ * delegated to the form, list table, member list and the add/remove member
+ * modals; the detail header and org-info tags stay inline.
+ */
 @Component({
   selector: 'app-organisations',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [OrgForm, OrgTable, OrgMemberList, OrgAddMemberModal, OrgRemoveMemberModal],
   template: `
     <div class="page">
       <header class="page-header">
@@ -24,67 +33,13 @@ import { IANA_TIME_ZONES } from './timezones';
 
       <!-- ── Create / Edit Form ── -->
       @if (showForm) {
-        <div class="form-card">
-          <h2>{{ editingId ? 'Edit Organisation' : 'Create Organisation' }}</h2>
-          <form (ngSubmit)="submitForm()">
-            <div class="form-group">
-              <label for="name">Name</label>
-              <input
-                id="name"
-                type="text"
-                [(ngModel)]="formData.name"
-                name="name"
-                required
-                placeholder="Organisation name"
-              />
-            </div>
-
-            <div class="form-group">
-              <label for="timeZone">Time Zone</label>
-              <select id="timeZone" [(ngModel)]="formData.timeZone" name="timeZone" required>
-                <option value="" disabled>Select a time zone</option>
-                @for (tz of timeZones; track tz) {
-                  <option [value]="tz">{{ tz }}</option>
-                }
-              </select>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label for="storageOriginal">Original Storage Limit (MB)</label>
-                <input
-                  id="storageOriginal"
-                  type="number"
-                  [(ngModel)]="storageOriginalMB"
-                  name="storageOriginal"
-                  required
-                  min="0"
-                />
-              </div>
-              <div class="form-group">
-                <label for="storageTranscoded">Transcoded Storage Limit (MB)</label>
-                <input
-                  id="storageTranscoded"
-                  type="number"
-                  [(ngModel)]="storageTranscodedMB"
-                  name="storageTranscoded"
-                  required
-                  min="0"
-                />
-              </div>
-            </div>
-
-            <div class="form-actions">
-              <button type="button" class="btn btn-secondary" (click)="cancelForm()">Cancel</button>
-              <button type="submit" class="btn btn-primary" [disabled]="submitting">
-                {{ editingId ? 'Save Changes' : 'Create' }}
-              </button>
-            </div>
-          </form>
-          @if (formError) {
-            <p class="error">{{ formError }}</p>
-          }
-        </div>
+        <app-org-form
+          [org]="editingOrg"
+          [submitting]="submitting"
+          [error]="formError"
+          (save)="submitForm($event)"
+          (dismiss)="cancelForm()"
+        />
       }
 
       <!-- ── Organisation Detail + Members ── -->
@@ -124,49 +79,13 @@ import { IANA_TIME_ZONES } from './timezones';
         }
 
         @if (!membersLoading && members.length > 0) {
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Joined</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (member of members; track member.id) {
-                  <tr>
-                    <td>{{ member.user.name || '(no name)' }}</td>
-                    <td>{{ member.user.email }}</td>
-                    <td>
-                      <select
-                        class="role-select"
-                        [ngModel]="member.role"
-                        (ngModelChange)="changeMemberRole(member, $event)"
-                        [disabled]="updatingMemberId === member.userId"
-                      >
-                        <option value="org_admin">Org Admin</option>
-                        <option value="editor">Editor</option>
-                        <option value="viewer">Viewer</option>
-                      </select>
-                    </td>
-                    <td>{{ member.createdAt | date: 'mediumDate' }}</td>
-                    <td>
-                      <button
-                        class="btn btn-small btn-danger"
-                        (click)="confirmRemoveMember(member)"
-                        [disabled]="removingMemberId === member.userId"
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
+          <app-org-member-list
+            [members]="members"
+            [updatingMemberId]="updatingMemberId"
+            [removingMemberId]="removingMemberId"
+            (changeRole)="changeMemberRole($event.member, $event.newRole)"
+            (removeMember)="confirmRemoveMember($event)"
+          />
         }
 
         @if (!membersLoading && members.length === 0 && !membersError) {
@@ -189,32 +108,11 @@ import { IANA_TIME_ZONES } from './timezones';
         }
 
         @if (!loading && organisations.length > 0) {
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Time Zone</th>
-                  <th>Members</th>
-                  <th>Original Limit</th>
-                  <th>Transcoded Limit</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (org of organisations; track org.id) {
-                  <tr class="clickable-row" (click)="selectOrg(org)">
-                    <td>{{ org.name }}</td>
-                    <td>{{ org.timeZone }}</td>
-                    <td>{{ memberCounts[org.id] ?? '...' }}</td>
-                    <td>{{ formatBytes(org.storageOriginalLimitBytes) }}</td>
-                    <td>{{ formatBytes(org.storageTranscodedLimitBytes) }}</td>
-                    <td>{{ org.createdAt | date: 'mediumDate' }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
+          <app-org-table
+            [organisations]="organisations"
+            [memberCounts]="memberCounts"
+            (selectOrg)="selectOrg($event)"
+          />
         }
 
         @if (!loading && organisations.length === 0 && !loadError) {
@@ -224,92 +122,22 @@ import { IANA_TIME_ZONES } from './timezones';
 
       <!-- ── Add Member Modal ── -->
       @if (showAddMemberModal) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Add member"
-          tabindex="0"
-          (click)="closeAddMemberModal()"
-          (keydown.escape)="closeAddMemberModal()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Add Member</h2>
-            <form (ngSubmit)="submitAddMember()">
-              <div class="form-group">
-                <label for="memberEmail">Email</label>
-                <input
-                  id="memberEmail"
-                  type="email"
-                  [(ngModel)]="addMemberEmail"
-                  name="memberEmail"
-                  required
-                  placeholder="user@example.com"
-                />
-              </div>
-              <div class="form-group">
-                <label for="memberRole">Role</label>
-                <select id="memberRole" [(ngModel)]="addMemberRole" name="memberRole" required>
-                  <option value="org_admin">Org Admin</option>
-                  <option value="editor">Editor</option>
-                  <option value="viewer">Viewer</option>
-                </select>
-              </div>
-              @if (addMemberError) {
-                <p class="error">{{ addMemberError }}</p>
-              }
-              <div class="form-actions">
-                <button type="button" class="btn btn-secondary" (click)="closeAddMemberModal()">
-                  Cancel
-                </button>
-                <button type="submit" class="btn btn-primary" [disabled]="addingMember">
-                  {{ addingMember ? 'Adding...' : 'Add Member' }}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <app-org-add-member-modal
+          [adding]="addingMember"
+          [error]="addMemberError"
+          (add)="submitAddMember($event)"
+          (dismiss)="closeAddMemberModal()"
+        />
       }
 
       <!-- ── Remove Member Confirm Modal ── -->
-      @if (showRemoveConfirm) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Confirm removal"
-          tabindex="0"
-          (click)="cancelRemoveMember()"
-          (keydown.escape)="cancelRemoveMember()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Remove Member</h2>
-            <p>
-              Are you sure you want to remove
-              <strong>{{ removingMember?.user?.email }}</strong> from this organisation?
-            </p>
-            <div class="form-actions">
-              <button class="btn btn-secondary" (click)="cancelRemoveMember()">Cancel</button>
-              <button
-                class="btn btn-danger"
-                (click)="executeRemoveMember()"
-                [disabled]="removingMemberId !== null"
-              >
-                {{ removingMemberId ? 'Removing...' : 'Remove' }}
-              </button>
-            </div>
-          </div>
-        </div>
+      @if (showRemoveConfirm && removingMember) {
+        <app-org-remove-member-modal
+          [member]="removingMember"
+          [removing]="removingMemberId !== null"
+          (confirm)="executeRemoveMember()"
+          (dismiss)="cancelRemoveMember()"
+        />
       }
     </div>
   `,
@@ -353,53 +181,6 @@ import { IANA_TIME_ZONES } from './timezones';
       font-weight: 600;
       margin: 0;
     }
-
-    /* Form */
-    .form-card {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.5rem;
-      margin-bottom: 2rem;
-      max-width: 40rem;
-    }
-    .form-card h2 {
-      margin: 0 0 1.25rem;
-      font-size: 1.125rem;
-      font-weight: 600;
-    }
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-    }
-
-    /* Table */
-    tr:hover td {
-      background: var(--color-bg-tertiary);
-    }
-    .clickable-row {
-      cursor: pointer;
-    }
-
-    /* Role select */
-    .role-select {
-      padding: 0.25rem 0.5rem;
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-      color: var(--color-text-primary);
-      font-size: 0.8125rem;
-      cursor: pointer;
-    }
-    .role-select:focus {
-      outline: none;
-      border-color: var(--color-accent);
-    }
-    .role-select:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
   `,
 })
 export class Organisations implements OnInit {
@@ -414,13 +195,9 @@ export class Organisations implements OnInit {
 
   // Org form state
   showForm = false;
-  editingId: string | null = null;
+  editingOrg: Organisation | null = null;
   submitting = false;
   formError = '';
-  timeZones = IANA_TIME_ZONES;
-  formData = { name: '', timeZone: '' };
-  storageOriginalMB = 0;
-  storageTranscodedMB = 0;
 
   // Selected org + members state
   selectedOrg: Organisation | null = null;
@@ -431,8 +208,6 @@ export class Organisations implements OnInit {
 
   // Add member modal state
   showAddMemberModal = false;
-  addMemberEmail = '';
-  addMemberRole: OrgMemberRole = 'viewer';
   addMemberError = '';
   addingMember = false;
 
@@ -489,57 +264,40 @@ export class Organisations implements OnInit {
   // ── Org form ──
 
   openCreateForm(): void {
-    this.editingId = null;
-    this.formData = { name: '', timeZone: '' };
-    this.storageOriginalMB = 0;
-    this.storageTranscodedMB = 0;
+    this.editingOrg = null;
     this.formError = '';
     this.showForm = true;
   }
 
   openEditForm(org: Organisation): void {
-    this.editingId = org.id;
-    this.formData = { name: org.name, timeZone: org.timeZone };
-    this.storageOriginalMB = Math.round(org.storageOriginalLimitBytes / (1024 * 1024));
-    this.storageTranscodedMB = Math.round(org.storageTranscodedLimitBytes / (1024 * 1024));
+    this.editingOrg = org;
     this.formError = '';
     this.showForm = true;
   }
 
   cancelForm(): void {
     this.showForm = false;
-    this.editingId = null;
+    this.editingOrg = null;
     this.formError = '';
   }
 
-  submitForm(): void {
-    if (!this.formData.name || !this.formData.timeZone) {
-      this.formError = 'Name and time zone are required.';
-      return;
-    }
-
+  submitForm(payload: OrganisationFormPayload): void {
     this.submitting = true;
     this.formError = '';
 
-    const payload = {
-      name: this.formData.name,
-      timeZone: this.formData.timeZone,
-      storageOriginalLimitBytes: this.storageOriginalMB * 1024 * 1024,
-      storageTranscodedLimitBytes: this.storageTranscodedMB * 1024 * 1024,
-    };
-
-    const request$ = this.editingId
-      ? this.orgService.update(this.editingId, payload)
+    const editingId = this.editingOrg?.id ?? null;
+    const request$ = editingId
+      ? this.orgService.update(editingId, payload)
       : this.orgService.create(payload);
 
     request$.subscribe({
       next: (saved) => {
         this.showForm = false;
         this.submitting = false;
-        if (this.editingId && this.selectedOrg) {
+        if (editingId && this.selectedOrg) {
           this.selectedOrg = saved;
         }
-        this.editingId = null;
+        this.editingOrg = null;
         this.loadOrganisations();
       },
       error: (err) => {
@@ -569,8 +327,6 @@ export class Organisations implements OnInit {
   }
 
   openAddMemberModal(): void {
-    this.addMemberEmail = '';
-    this.addMemberRole = 'viewer';
     this.addMemberError = '';
     this.showAddMemberModal = true;
   }
@@ -579,30 +335,22 @@ export class Organisations implements OnInit {
     this.showAddMemberModal = false;
   }
 
-  submitAddMember(): void {
-    if (!this.addMemberEmail || !this.selectedOrg) {
-      this.addMemberError = 'Email is required.';
-      return;
-    }
+  submitAddMember(payload: AddMemberPayload): void {
+    if (!this.selectedOrg) return;
 
     this.addingMember = true;
     this.addMemberError = '';
-    this.orgService
-      .addMember(this.selectedOrg.id, {
-        email: this.addMemberEmail,
-        role: this.addMemberRole,
-      })
-      .subscribe({
-        next: () => {
-          this.addingMember = false;
-          this.showAddMemberModal = false;
-          this.loadMembers();
-        },
-        error: (err) => {
-          this.addMemberError = err.error?.message || 'Failed to add member.';
-          this.addingMember = false;
-        },
-      });
+    this.orgService.addMember(this.selectedOrg.id, payload).subscribe({
+      next: () => {
+        this.addingMember = false;
+        this.showAddMemberModal = false;
+        this.loadMembers();
+      },
+      error: (err) => {
+        this.addMemberError = err.error?.message || 'Failed to add member.';
+        this.addingMember = false;
+      },
+    });
   }
 
   changeMemberRole(member: OrgMember, newRole: OrgMemberRole): void {
