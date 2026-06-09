@@ -1,258 +1,111 @@
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ConfigService } from '@nestjs/config';
 import { RolesGuard } from './roles.guard';
-import { UserService } from '../user/user.service';
+import { ROLES_KEY } from './roles.decorator';
+import { IS_PUBLIC_KEY } from './public.decorator';
+import { IS_SCREEN_AUTH_KEY } from './screen-auth.decorator';
+import type { UserService } from '../user/user.service';
 import { OrganisationRole } from '../user/organisation-role.enum';
-import { UserOrganisationMembership } from '../user/user-organisation-membership.entity';
-import { User } from '../user/user.entity';
 
 describe('RolesGuard', () => {
   let guard: RolesGuard;
   let reflector: Reflector;
-  let userService: jest.Mocked<UserService>;
-  let configService: jest.Mocked<ConfigService>;
+  let userService: { getMembership: jest.Mock };
 
   beforeEach(() => {
     reflector = new Reflector();
-    userService = {
-      findOrCreate: jest.fn().mockResolvedValue({
-        id: 'user-1',
-        email: 'test@example.com',
-      } as User),
-      getMemberships: jest.fn(),
-      getMembership: jest.fn(),
-    } as unknown as jest.Mocked<UserService>;
-    configService = {
-      get: jest.fn().mockReturnValue(''),
-    } as unknown as jest.Mocked<ConfigService>;
-
-    guard = new RolesGuard(reflector, userService, configService);
+    userService = { getMembership: jest.fn() };
+    guard = new RolesGuard(reflector, userService as unknown as UserService);
   });
 
-  function createMockContext(options: {
-    user?: { userId: string; email: string };
+  function context(opts: {
+    isPublic?: boolean;
+    isScreen?: boolean;
+    roles?: string[];
+    user?: { userId: string; email: string; isSuperAdmin: boolean };
     headers?: Record<string, string>;
     query?: Record<string, string>;
-    isPublic?: boolean;
-    roles?: string[];
   }): ExecutionContext {
+    jest.spyOn(reflector, 'getAllAndOverride').mockImplementation((key: unknown) => {
+      if (key === IS_PUBLIC_KEY) return opts.isPublic ?? false;
+      if (key === IS_SCREEN_AUTH_KEY) return opts.isScreen ?? false;
+      if (key === ROLES_KEY) return opts.roles;
+      return undefined;
+    });
     const request = {
-      headers: options.headers ?? {},
-      query: options.query ?? {},
-      user: options.user,
+      user: opts.user,
+      headers: opts.headers ?? {},
+      query: opts.query ?? {},
     };
-
-    const mockContext = {
+    return {
       switchToHttp: () => ({ getRequest: () => request }),
       getHandler: () => ({}),
       getClass: () => ({}),
     } as unknown as ExecutionContext;
-
-    jest.spyOn(reflector, 'getAllAndOverride').mockImplementation((key) => {
-      if (key === 'isPublic') return options.isPublic ?? false;
-      if (key === 'roles') return options.roles ?? null;
-      return undefined;
-    });
-
-    return mockContext;
   }
 
-  describe('public routes', () => {
-    it('should allow access to public routes', async () => {
-      const context = createMockContext({ isPublic: true });
-      expect(await guard.canActivate(context)).toBe(true);
-      expect(userService.getMembership).not.toHaveBeenCalled();
-    });
+  it('allows public routes', async () => {
+    await expect(guard.canActivate(context({ isPublic: true }))).resolves.toBe(true);
   });
 
-  describe('routes without @Roles()', () => {
-    it('should allow access when no roles are required', async () => {
-      const context = createMockContext({
-        user: { userId: 'user-1', email: 'test@example.com' },
-      });
-      expect(await guard.canActivate(context)).toBe(true);
-      expect(userService.getMembership).not.toHaveBeenCalled();
-    });
+  it('allows screen-authenticated routes', async () => {
+    await expect(guard.canActivate(context({ isScreen: true }))).resolves.toBe(true);
   });
 
-  describe('missing organisation context', () => {
-    it('should throw ForbiddenException when no organisation header or query param', async () => {
-      const context = createMockContext({
-        user: { userId: 'user-1', email: 'test@example.com' },
-        roles: [OrganisationRole.OrgAdmin],
-      });
-      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
-    });
+  it('allows routes without a @Roles() decorator (JWT-only)', async () => {
+    await expect(guard.canActivate(context({ roles: undefined }))).resolves.toBe(true);
   });
 
-  describe('organisation from header', () => {
-    it('should extract organisationId from X-Organisation-Id header', async () => {
-      userService.getMembership.mockResolvedValue({
-        role: OrganisationRole.OrgAdmin,
-      } as UserOrganisationMembership);
-
-      const context = createMockContext({
-        user: { userId: 'user-1', email: 'test@example.com' },
-        headers: { 'x-organisation-id': 'org-1' },
-        roles: [OrganisationRole.OrgAdmin],
-      });
-
-      expect(await guard.canActivate(context)).toBe(true);
-      expect(userService.getMembership).toHaveBeenCalledWith('user-1', 'org-1');
+  it('lets super-admins bypass role checks without a DB lookup', async () => {
+    const ctx = context({
+      roles: [OrganisationRole.OrgAdmin],
+      user: { userId: 'u1', email: 'a@x.com', isSuperAdmin: true },
     });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(userService.getMembership).not.toHaveBeenCalled();
   });
 
-  describe('organisation from query param', () => {
-    it('should extract organisationId from query parameter', async () => {
-      userService.getMembership.mockResolvedValue({
-        role: OrganisationRole.Editor,
-      } as UserOrganisationMembership);
-
-      const context = createMockContext({
-        user: { userId: 'user-1', email: 'test@example.com' },
-        query: { organisationId: 'org-2' },
-        roles: [OrganisationRole.Editor],
-      });
-
-      expect(await guard.canActivate(context)).toBe(true);
-      expect(userService.getMembership).toHaveBeenCalledWith('user-1', 'org-2');
-    });
+  it('throws when no user is present', async () => {
+    const ctx = context({ roles: [OrganisationRole.OrgAdmin], user: undefined });
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
   });
 
-  describe('no membership', () => {
-    it('should throw ForbiddenException when user has no membership in the organisation', async () => {
-      userService.getMembership.mockResolvedValue(null);
-
-      const context = createMockContext({
-        user: { userId: 'user-1', email: 'test@example.com' },
-        headers: { 'x-organisation-id': 'org-1' },
-        roles: [OrganisationRole.OrgAdmin],
-      });
-
-      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        'You are not a member of this organisation',
-      );
+  it('throws when organisation context is missing', async () => {
+    const ctx = context({
+      roles: [OrganisationRole.OrgAdmin],
+      user: { userId: 'u1', email: 'a@x.com', isSuperAdmin: false },
     });
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
   });
 
-  describe('insufficient role', () => {
-    it('should throw ForbiddenException when user role is not in allowed roles', async () => {
-      userService.getMembership.mockResolvedValue({
-        role: OrganisationRole.Viewer,
-      } as UserOrganisationMembership);
-
-      const context = createMockContext({
-        user: { userId: 'user-1', email: 'test@example.com' },
-        headers: { 'x-organisation-id': 'org-1' },
-        roles: [OrganisationRole.OrgAdmin, OrganisationRole.Editor],
-      });
-
-      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
-      await expect(guard.canActivate(context)).rejects.toThrow(
-        'Insufficient role for this operation',
-      );
+  it('throws when the user is not a member of the org', async () => {
+    userService.getMembership.mockResolvedValue(null);
+    const ctx = context({
+      roles: [OrganisationRole.OrgAdmin],
+      user: { userId: 'u1', email: 'a@x.com', isSuperAdmin: false },
+      headers: { 'x-organisation-id': 'org-1' },
     });
-
-    it('should deny editor when only org_admin is required', async () => {
-      userService.getMembership.mockResolvedValue({
-        role: OrganisationRole.Editor,
-      } as UserOrganisationMembership);
-
-      const context = createMockContext({
-        user: { userId: 'user-1', email: 'test@example.com' },
-        headers: { 'x-organisation-id': 'org-1' },
-        roles: [OrganisationRole.OrgAdmin],
-      });
-
-      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
-    });
-
-    it('should deny viewer when editor or admin is required', async () => {
-      userService.getMembership.mockResolvedValue({
-        role: OrganisationRole.Viewer,
-      } as UserOrganisationMembership);
-
-      const context = createMockContext({
-        user: { userId: 'user-1', email: 'test@example.com' },
-        headers: { 'x-organisation-id': 'org-1' },
-        roles: [OrganisationRole.OrgAdmin, OrganisationRole.Editor],
-      });
-
-      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
-    });
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
   });
 
-  describe('allowed roles', () => {
-    it('should allow org_admin when org_admin is required', async () => {
-      userService.getMembership.mockResolvedValue({
-        role: OrganisationRole.OrgAdmin,
-      } as UserOrganisationMembership);
-
-      const context = createMockContext({
-        user: { userId: 'user-1', email: 'test@example.com' },
-        headers: { 'x-organisation-id': 'org-1' },
-        roles: [OrganisationRole.OrgAdmin],
-      });
-
-      expect(await guard.canActivate(context)).toBe(true);
+  it('throws when the membership role is insufficient', async () => {
+    userService.getMembership.mockResolvedValue({ role: OrganisationRole.Viewer });
+    const ctx = context({
+      roles: [OrganisationRole.OrgAdmin],
+      user: { userId: 'u1', email: 'a@x.com', isSuperAdmin: false },
+      headers: { 'x-organisation-id': 'org-1' },
     });
-
-    it('should allow editor when editor or admin is required', async () => {
-      userService.getMembership.mockResolvedValue({
-        role: OrganisationRole.Editor,
-      } as UserOrganisationMembership);
-
-      const context = createMockContext({
-        user: { userId: 'user-1', email: 'test@example.com' },
-        headers: { 'x-organisation-id': 'org-1' },
-        roles: [OrganisationRole.OrgAdmin, OrganisationRole.Editor],
-      });
-
-      expect(await guard.canActivate(context)).toBe(true);
-    });
-
-    it('should allow viewer when all roles are permitted', async () => {
-      userService.getMembership.mockResolvedValue({
-        role: OrganisationRole.Viewer,
-      } as UserOrganisationMembership);
-
-      const context = createMockContext({
-        user: { userId: 'user-1', email: 'test@example.com' },
-        headers: { 'x-organisation-id': 'org-1' },
-        roles: [OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer],
-      });
-
-      expect(await guard.canActivate(context)).toBe(true);
-    });
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
   });
 
-  describe('findOrCreate on first request', () => {
-    it('should call findOrCreate to ensure user record exists', async () => {
-      userService.getMembership.mockResolvedValue({
-        role: OrganisationRole.OrgAdmin,
-      } as UserOrganisationMembership);
-
-      const context = createMockContext({
-        user: { userId: 'new-user', email: 'new@example.com' },
-        headers: { 'x-organisation-id': 'org-1' },
-        roles: [OrganisationRole.OrgAdmin],
-      });
-
-      await guard.canActivate(context);
-      expect(userService.findOrCreate).toHaveBeenCalledWith('new-user', 'new@example.com');
+  it('allows when the membership role matches (org id from query)', async () => {
+    userService.getMembership.mockResolvedValue({ role: OrganisationRole.OrgAdmin });
+    const ctx = context({
+      roles: [OrganisationRole.OrgAdmin],
+      user: { userId: 'u1', email: 'a@x.com', isSuperAdmin: false },
+      query: { organisationId: 'org-1' },
     });
-  });
-
-  describe('missing user', () => {
-    it('should throw ForbiddenException when no user on request', async () => {
-      const context = createMockContext({
-        headers: { 'x-organisation-id': 'org-1' },
-        roles: [OrganisationRole.OrgAdmin],
-      });
-
-      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
-    });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(userService.getMembership).toHaveBeenCalledWith('u1', 'org-1');
   });
 });

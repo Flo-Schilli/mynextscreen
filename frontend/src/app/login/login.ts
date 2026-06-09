@@ -1,35 +1,42 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, inject, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Subscription } from 'rxjs';
-import { register } from '@teamhanko/hanko-elements';
-import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 
 @Component({
   selector: 'app-login',
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
+  imports: [ReactiveFormsModule],
   templateUrl: './login.html',
-  styleUrl: './login.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class Login implements OnInit, OnDestroy {
-  private router = inject(Router);
-  private authService = inject(AuthService);
-  private hankoApiUrl = environment.hankoApiUrl;
-  private subscription?: Subscription;
+export class Login {
+  private readonly fb = inject(FormBuilder);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
-  ngOnInit(): void {
-    register(this.hankoApiUrl).catch((error) =>
-      console.error('Failed to register Hanko elements:', error),
-    );
+  readonly submitting = signal(false);
+  readonly error = signal<string | null>(null);
 
-    this.subscription = this.authService.currentUser$.subscribe((user) => {
-      if (user) {
-        this.router.navigate(['/']);
-      }
-    });
-  }
+  readonly form = this.fb.nonNullable.group({
+    email: ['', [Validators.required, Validators.email]],
+    password: ['', [Validators.required]],
+  });
 
-  ngOnDestroy(): void {
-    this.subscription?.unsubscribe();
+  async submit(): Promise<void> {
+    if (this.form.invalid || this.submitting()) {
+      this.form.markAllAsTouched();
+      return;
+    }
+    this.submitting.set(true);
+    this.error.set(null);
+    const { email, password } = this.form.getRawValue();
+    try {
+      await this.auth.login(email, password);
+      await this.router.navigateByUrl('/');
+    } catch {
+      this.error.set('Invalid email or password.');
+    } finally {
+      this.submitting.set(false);
+    }
   }
 }

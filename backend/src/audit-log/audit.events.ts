@@ -81,6 +81,32 @@ export class AuditUserEvent {
   ) {}
 }
 
+/**
+ * Emitted when a freshly-provisioned invitee (no password yet) is added to an
+ * org. Carries the org context + set-password token so the auth layer can email
+ * an activation link. Not an audit event — consumed by the auth invite mailer.
+ */
+export const AUTH_USER_INVITED = 'auth.user.invited';
+
+export class AuthUserInvitedEvent {
+  constructor(
+    public readonly organisationId: string,
+    public readonly email: string,
+    public readonly setPasswordToken: string,
+  ) {}
+}
+
+/** Emitted on forgot-password so the email layer can send a reset link. */
+export const AUTH_PASSWORD_RESET_REQUESTED = 'auth.password_reset.requested';
+
+export class AuthPasswordResetRequestedEvent {
+  constructor(
+    public readonly organisationId: string,
+    public readonly email: string,
+    public readonly resetToken: string,
+  ) {}
+}
+
 // ── Organisation ─────────────────────────────────────────────────────────────
 export const AUDIT_ORGANISATION_CREATED = 'audit.organisation.created';
 export const AUDIT_ORGANISATION_UPDATED = 'audit.organisation.updated';

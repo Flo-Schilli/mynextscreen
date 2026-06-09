@@ -6,3 +6,6 @@ export { Roles, ROLES_KEY } from './roles.decorator';
 export { RolesGuard } from './roles.guard';
 export { ScreenAuth, IS_SCREEN_AUTH_KEY } from './screen-auth.decorator';
 export { ApiKeyAuthGuard, ScreenAuthenticatedRequest } from './api-key-auth.guard';
+export { AuthService } from './auth.service';
+export { TokenService } from './token.service';
+export { PasswordService } from './password.service';

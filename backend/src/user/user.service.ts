@@ -14,28 +14,63 @@ import {
 export class UserService {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
+  async findById(userId: string): Promise<User | null> {
+    const [user] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
+    return user ?? null;
+  }
+
+  async findByEmail(email: string): Promise<User | null> {
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.email, email.toLowerCase()))
+      .limit(1);
+    return user ?? null;
+  }
+
   /**
-   * Upserts a user on first login from Hanko JWT claims.
-   * If the user already exists, updates email (in case it changed in Hanko).
+   * Create an invitee: a user provisioned by an admin who has no password yet
+   * (null hash). They activate via the set-password link. Idempotent on email.
    */
-  async findOrCreate(userId: string, email: string): Promise<User> {
-    const [existing] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
+  async createInvitee(email: string, name: string | null = null): Promise<User> {
+    const normalised = email.toLowerCase();
+    const existing = await this.findByEmail(normalised);
     if (existing) {
-      if (existing.email !== email) {
-        const [updated] = await this.db
-          .update(users)
-          .set({ email })
-          .where(eq(users.id, userId))
-          .returning();
-        return updated;
-      }
       return existing;
     }
     const [user] = await this.db
       .insert(users)
-      .values({ id: userId, email, name: null })
+      .values({ email: normalised, name, passwordHash: null })
       .returning();
     return user;
+  }
+
+  async findByPasswordResetToken(token: string): Promise<User | null> {
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.passwordResetToken, token))
+      .limit(1);
+    return user ?? null;
+  }
+
+  async setPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<void> {
+    await this.db
+      .update(users)
+      .set({ passwordResetToken: token, passwordResetTokenExpiresAt: expiresAt })
+      .where(eq(users.id, userId));
+  }
+
+  /** Apply a new password hash and clear any outstanding reset token. */
+  async setPassword(userId: string, passwordHash: string): Promise<void> {
+    await this.db
+      .update(users)
+      .set({
+        passwordHash,
+        passwordResetToken: null,
+        passwordResetTokenExpiresAt: null,
+      })
+      .where(eq(users.id, userId));
   }
 
   async getMemberships(

@@ -3,7 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideZonelessChangeDetection } from '@angular/core';
 import { Router } from '@angular/router';
 import { By } from '@angular/platform-browser';
-import { BehaviorSubject } from 'rxjs';
+import { ReactiveFormsModule } from '@angular/forms';
 import { vi } from 'vitest';
 import { Login } from './login';
 import { AuthService } from '../auth/auth.service';
@@ -14,93 +14,68 @@ try {
   // already initialized
 }
 
-type SessionUser = { is_valid: boolean } | null;
-
 interface AuthStub {
-  currentUser$: BehaviorSubject<SessionUser>;
+  login: ReturnType<typeof vi.fn>;
 }
 
-function setup(initialUser: SessionUser): {
+function setup(loginImpl: () => Promise<void> = () => Promise.resolve()): {
   fixture: ComponentFixture<Login>;
-  userSubject: BehaviorSubject<SessionUser>;
+  auth: AuthStub;
   navigate: ReturnType<typeof vi.fn>;
 } {
-  const userSubject = new BehaviorSubject<SessionUser>(initialUser);
-  const authStub: AuthStub = { currentUser$: userSubject };
+  const auth: AuthStub = { login: vi.fn(loginImpl) };
   const navigate = vi.fn(() => Promise.resolve(true));
-  const routerStub = { navigate } as unknown as Router;
+  const routerStub = { navigateByUrl: navigate } as unknown as Router;
 
   TestBed.configureTestingModule({
+    imports: [ReactiveFormsModule],
     providers: [
       provideZonelessChangeDetection(),
-      { provide: AuthService, useValue: authStub },
+      { provide: AuthService, useValue: auth },
       { provide: Router, useValue: routerStub },
     ],
   });
 
   const fixture = TestBed.createComponent(Login);
-  return { fixture, userSubject, navigate };
+  return { fixture, auth, navigate };
 }
 
 describe('Login', () => {
-  it('renders the hanko-auth custom element and title', () => {
-    // Arrange
-    const { fixture } = setup(null);
-
-    // Act
+  it('renders the email/password form and title', () => {
+    const { fixture } = setup();
     fixture.detectChanges();
 
-    // Assert
-    expect(fixture.debugElement.query(By.css('hanko-auth'))).not.toBeNull();
-    const title = fixture.debugElement.query(By.css('.login-title'));
-    expect(title.nativeElement.textContent).toContain('Signage Server');
+    expect(fixture.debugElement.query(By.css('input[formControlName="email"]'))).not.toBeNull();
+    expect(fixture.debugElement.query(By.css('input[formControlName="password"]'))).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Signage Server');
   });
 
-  it('does not navigate while no user session exists', () => {
-    // Arrange
-    const { fixture, navigate } = setup(null);
-
-    // Act
+  it('does not call login when the form is invalid', async () => {
+    const { fixture, auth } = setup();
     fixture.detectChanges();
-
-    // Assert
-    expect(navigate).not.toHaveBeenCalled();
+    await fixture.componentInstance.submit();
+    expect(auth.login).not.toHaveBeenCalled();
   });
 
-  it('redirects to the root route when a session already exists on init', () => {
-    // Arrange
-    const { fixture, navigate } = setup({ is_valid: true });
-
-    // Act
+  it('logs in and navigates to root on valid submit', async () => {
+    const { fixture, auth, navigate } = setup();
     fixture.detectChanges();
+    fixture.componentInstance.form.setValue({ email: 'user@example.com', password: 'pw' });
 
-    // Assert
-    expect(navigate).toHaveBeenCalledWith(['/']);
+    await fixture.componentInstance.submit();
+
+    expect(auth.login).toHaveBeenCalledWith('user@example.com', 'pw');
+    expect(navigate).toHaveBeenCalledWith('/');
   });
 
-  it('redirects to the root route when a session becomes available after init', () => {
-    // Arrange
-    const { fixture, userSubject, navigate } = setup(null);
+  it('shows an error message when login fails', async () => {
+    const { fixture, navigate } = setup(() => Promise.reject(new Error('bad')));
     fixture.detectChanges();
-    expect(navigate).not.toHaveBeenCalled();
+    fixture.componentInstance.form.setValue({ email: 'user@example.com', password: 'pw' });
 
-    // Act
-    userSubject.next({ is_valid: true });
+    await fixture.componentInstance.submit();
 
-    // Assert
-    expect(navigate).toHaveBeenCalledWith(['/']);
-  });
-
-  it('unsubscribes from the session stream on destroy', () => {
-    // Arrange
-    const { fixture, userSubject, navigate } = setup(null);
-    fixture.detectChanges();
-
-    // Act
-    fixture.destroy();
-    userSubject.next({ is_valid: true });
-
-    // Assert: no navigation after teardown
+    expect(fixture.componentInstance.error()).toContain('Invalid');
     expect(navigate).not.toHaveBeenCalled();
   });
 });

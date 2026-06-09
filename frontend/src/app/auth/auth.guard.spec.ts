@@ -13,13 +13,22 @@ try {
 }
 
 interface AuthStub {
-  isValid: () => Promise<boolean>;
+  isAuthenticated: () => boolean;
+  loadCurrent: ReturnType<typeof vi.fn>;
 }
 
 const LOGIN_URL_TREE = {} as UrlTree;
 
-function configure(isValid: boolean): { createUrlTree: ReturnType<typeof vi.fn> } {
-  const authStub: AuthStub = { isValid: () => Promise.resolve(isValid) };
+function configure(opts: { authenticatedBefore: boolean; authenticatedAfterLoad?: boolean }): {
+  createUrlTree: ReturnType<typeof vi.fn>;
+  loadCurrent: ReturnType<typeof vi.fn>;
+} {
+  let authed = opts.authenticatedBefore;
+  const loadCurrent = vi.fn(() => {
+    authed = opts.authenticatedAfterLoad ?? authed;
+    return Promise.resolve();
+  });
+  const authStub: AuthStub = { isAuthenticated: () => authed, loadCurrent };
   const createUrlTree = vi.fn(() => LOGIN_URL_TREE);
   const routerStub = { createUrlTree } as unknown as Router;
   TestBed.configureTestingModule({
@@ -29,39 +38,42 @@ function configure(isValid: boolean): { createUrlTree: ReturnType<typeof vi.fn> 
       { provide: Router, useValue: routerStub },
     ],
   });
-  return { createUrlTree };
+  return { createUrlTree, loadCurrent };
 }
 
 async function runGuard(): Promise<boolean | UrlTree> {
   const route = {} as ActivatedRouteSnapshot;
   const state = {} as RouterStateSnapshot;
-  // authGuard is an async CanActivateFn that always resolves to boolean | UrlTree
-  // (never an Observable), so narrowing the awaited GuardResult is safe here.
   const result = await TestBed.runInInjectionContext(() => authGuard(route, state));
   return result as boolean | UrlTree;
 }
 
 describe('authGuard', () => {
-  it('allows activation by returning true when the session is valid', async () => {
-    // Arrange
-    const { createUrlTree } = configure(true);
-
-    // Act
+  it('allows activation when already authenticated (no profile reload)', async () => {
+    const { createUrlTree, loadCurrent } = configure({ authenticatedBefore: true });
     const result = await runGuard();
+    expect(result).toBe(true);
+    expect(loadCurrent).not.toHaveBeenCalled();
+    expect(createUrlTree).not.toHaveBeenCalled();
+  });
 
-    // Assert
+  it('loads the current user then allows when the access cookie is valid', async () => {
+    const { createUrlTree, loadCurrent } = configure({
+      authenticatedBefore: false,
+      authenticatedAfterLoad: true,
+    });
+    const result = await runGuard();
+    expect(loadCurrent).toHaveBeenCalled();
     expect(result).toBe(true);
     expect(createUrlTree).not.toHaveBeenCalled();
   });
 
-  it('redirects to /login when the session is invalid', async () => {
-    // Arrange
-    const { createUrlTree } = configure(false);
-
-    // Act
+  it('redirects to /login when unauthenticated and no valid cookie', async () => {
+    const { createUrlTree } = configure({
+      authenticatedBefore: false,
+      authenticatedAfterLoad: false,
+    });
     const result = await runGuard();
-
-    // Assert
     expect(createUrlTree).toHaveBeenCalledWith(['/login']);
     expect(result).toBe(LOGIN_URL_TREE);
   });
