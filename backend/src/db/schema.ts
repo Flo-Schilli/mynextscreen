@@ -13,7 +13,7 @@
  *   arithmetic; `mode: 'bigint'` would break it (≈9 PB ceiling is safe).
  * - `tags` / `details` are `jsonb` (Drizzle (de)serialises automatically).
  * - `updatedAt` uses `.$onUpdate(() => new Date())` — Drizzle does NOT auto-bump.
- * - `users.id` stays `text` (Hanko user ID); Phase 2 converts it to uuid.
+ * - `users.id` is a generated `uuid` (internal email+password auth; Hanko retired).
  *
  * Each table exports its `$inferSelect` (row) and `$inferInsert` (new-row) types,
  * which replace the entity classes as the canonical row types across services.
@@ -74,12 +74,22 @@ export const organisations = pgTable('organisations', {
   ...timestamps,
 });
 
-// ── users (Hanko-issued id; text, not generated) ─────────────────────────────
+// ── users (internal email+password auth; uuid PK) ────────────────────────────
 
 export const users = pgTable('users', {
-  id: text().primaryKey(),
-  email: text().notNull(),
+  id: uuid()
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  email: text().notNull().unique(),
   name: text(),
+  // Nullable: an invitee provisioned by a super-admin/org-admin has no password
+  // until they activate via the set-password link. Login MUST reject null hashes.
+  passwordHash: text(),
+  passwordResetToken: text(),
+  passwordResetTokenExpiresAt: timestamp({ withTimezone: true }),
+  // System-level super-admin (carried in the access JWT). Replaces the former
+  // env-based SUPER_ADMIN_USER_IDS list, which is impossible with generated UUIDs.
+  isSuperAdmin: boolean().notNull().default(false),
   ...timestamps,
 });
 
@@ -91,7 +101,7 @@ export const userOrganisationMemberships = pgTable(
     id: uuid()
       .primaryKey()
       .default(sql`gen_random_uuid()`),
-    userId: text()
+    userId: uuid()
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     organisationId: uuid()
@@ -259,7 +269,7 @@ export const notifications = pgTable('notifications', {
   id: uuid()
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  userId: text()
+  userId: uuid()
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   organisationId: uuid()
@@ -301,7 +311,7 @@ export const userNotificationPreferences = pgTable(
     id: uuid()
       .primaryKey()
       .default(sql`gen_random_uuid()`),
-    userId: text()
+    userId: uuid()
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     organisationId: uuid()

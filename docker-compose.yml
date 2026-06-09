@@ -17,8 +17,14 @@ services:
       - FFMPEG_VIDEO_PRESET=slow
       - FFMPEG_VIDEO_MAXRATE=8M
       - FFMPEG_VIDEO_BUFSIZE=16M
-      - HANKO_API_URL=${HANKO_API_URL:?set HANKO_API_URL in .env (copy from .env.example)}
-      - SUPER_ADMIN_USER_IDS=${SUPER_ADMIN_USER_IDS:-}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-dev-insecure-secret-change-me}
+      - JWT_ACCESS_TTL=${JWT_ACCESS_TTL:-15m}
+      - JWT_REFRESH_TTL=${JWT_REFRESH_TTL:-30d}
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
+      - COOKIE_SAMESITE=${COOKIE_SAMESITE:-strict}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
+      - SUPER_ADMIN_EMAILS=${SUPER_ADMIN_EMAILS:-}
+      - SUPER_ADMIN_INITIAL_PASSWORD=${SUPER_ADMIN_INITIAL_PASSWORD:-}
     depends_on:
       - redis
       - postgres

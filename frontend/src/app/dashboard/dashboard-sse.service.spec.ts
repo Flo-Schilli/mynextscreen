@@ -33,18 +33,21 @@ function streamingResponse(chunks: readonly string[], ok = true, status = 200): 
 
 describe('DashboardSseService', () => {
   let service: DashboardSseService;
-  let getToken: ReturnType<typeof vi.fn>;
+  let isAuthenticated: ReturnType<typeof vi.fn>;
   let selectedOrgId: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    getToken = vi.fn(() => 'tok');
+    isAuthenticated = vi.fn(() => true);
     selectedOrgId = vi.fn(() => 'org1');
 
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
         DashboardSseService,
-        { provide: AuthService, useValue: { getToken } },
+        {
+          provide: AuthService,
+          useValue: { isAuthenticated, refreshSession: vi.fn(() => Promise.resolve()) },
+        },
         { provide: OrganisationStateService, useValue: { selectedOrgId } },
       ],
     });
@@ -215,9 +218,9 @@ describe('DashboardSseService', () => {
       );
     }
 
-    it('does not connect when no token is available', () => {
+    it('does not connect when the user is not authenticated', () => {
       // Arrange
-      getToken.mockReturnValue(null);
+      isAuthenticated.mockReturnValue(false);
       const fetchSpy = vi.fn();
       vi.stubGlobal('fetch', fetchSpy);
 
@@ -241,7 +244,7 @@ describe('DashboardSseService', () => {
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
-    it('issues a fetch with auth and organisation headers', async () => {
+    it('issues a credentialed fetch with the organisation header (no bearer token)', async () => {
       // Arrange
       const fetchSpy = vi.fn(() => Promise.resolve(streamingResponse([])));
       vi.stubGlobal('fetch', fetchSpy);
@@ -254,8 +257,9 @@ describe('DashboardSseService', () => {
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [url, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
       expect(url).toBe('/api/dashboard/events');
+      expect(init.credentials).toBe('include');
       const headers = init.headers as Record<string, string>;
-      expect(headers['Authorization']).toBe('Bearer tok');
+      expect(headers['Authorization']).toBeUndefined();
       expect(headers['Accept']).toBe('text/event-stream');
       expect(headers['X-Organisation-Id']).toBe('org1');
     });

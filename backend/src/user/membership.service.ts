@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { and, eq } from 'drizzle-orm';
-import { randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import {
@@ -21,8 +21,12 @@ import {
   AUDIT_USER_INVITED,
   AUDIT_USER_ROLE_CHANGED,
   AUDIT_USER_REMOVED,
+  AUTH_USER_INVITED,
   AuditUserEvent,
+  AuthUserInvitedEvent,
 } from '../audit-log/audit.events';
+
+const SET_PASSWORD_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 
 type MembershipWithUser = UserOrganisationMembership & { user: User };
 
@@ -45,13 +49,19 @@ export class MembershipService {
     email: string,
     role: OrganisationRole,
   ): Promise<MembershipWithUser> {
-    // Find or create user by email
-    let [user] = await this.db.select().from(users).where(eq(users.email, email)).limit(1);
+    const normalisedEmail = email.toLowerCase();
+    // Find or provision the user (invitee) by email. New invitees have a null
+    // password hash and must activate via a set-password link.
+    let [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.email, normalisedEmail))
+      .limit(1);
+    const isNewInvitee = !user;
     if (!user) {
-      // Create placeholder user with a generated ID
       [user] = await this.db
         .insert(users)
-        .values({ id: randomUUID(), email, name: null })
+        .values({ email: normalisedEmail, name: null, passwordHash: null })
         .returning();
     }
 
@@ -74,9 +84,27 @@ export class MembershipService {
       .insert(userOrganisationMemberships)
       .values({ userId: user.id, organisationId, role })
       .returning();
+
+    // For brand-new invitees, issue a set-password token and let the auth layer
+    // email the activation link (decoupled via event to avoid a circular dep).
+    if (isNewInvitee) {
+      const token = randomBytes(32).toString('base64url');
+      await this.db
+        .update(users)
+        .set({
+          passwordResetToken: token,
+          passwordResetTokenExpiresAt: new Date(Date.now() + SET_PASSWORD_TOKEN_TTL_MS),
+        })
+        .where(eq(users.id, user.id));
+      this.eventEmitter.emit(
+        AUTH_USER_INVITED,
+        new AuthUserInvitedEvent(organisationId, user.email, token),
+      );
+    }
+
     this.eventEmitter.emit(
       AUDIT_USER_INVITED,
-      new AuditUserEvent(user.id, organisationId, null, { email, role }),
+      new AuditUserEvent(user.id, organisationId, null, { email: normalisedEmail, role }),
     );
     return { ...saved, user };
   }

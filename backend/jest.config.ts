@@ -7,7 +7,7 @@ const config: Config = {
   transform: {
     '^.+\\.[tj]s$': 'ts-jest',
   },
-  transformIgnorePatterns: ['node_modules/(?!jose)'],
+  transformIgnorePatterns: ['node_modules/'],
   // One Postgres container for the whole run; per-worker DBs (see test/db-harness.ts).
   globalSetup: '<rootDir>/test/global-setup.ts',
   globalTeardown: '<rootDir>/test/global-teardown.ts',
@@ -22,7 +22,6 @@ const config: Config = {
     'audit-log/audit-log.controller.spec.ts',
     'audit-log/audit-log.service.spec.ts',
     'auth/api-key-auth.guard.spec.ts',
-    'auth/roles.guard.spec.ts',
     'content/content-bulk.service.spec.ts',
     'content/content.controller.spec.ts',
     'content/content.service.spec.ts',

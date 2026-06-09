@@ -1,6 +1,5 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ConfigService } from '@nestjs/config';
 import { ROLES_KEY } from './roles.decorator';
 import { IS_PUBLIC_KEY } from './public.decorator';
 import { IS_SCREEN_AUTH_KEY } from './screen-auth.decorator';
@@ -12,7 +11,6 @@ export class RolesGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly userService: UserService,
-    private readonly configService: ConfigService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -49,33 +47,22 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('Access denied');
     }
 
-    // Super-admins bypass role checks
-    const superAdminIds = this.configService.get<string>('SUPER_ADMIN_USER_IDS', '');
-    const allowedIds = superAdminIds
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean);
-    if (allowedIds.includes(user.userId)) {
-      await this.userService.findOrCreate(user.userId, user.email);
+    // Super-admins bypass role checks (flag carried in the access JWT).
+    if (user.isSuperAdmin) {
       return true;
     }
 
     // Extract organisationId from header or query param
-    const httpRequest = context.switchToHttp().getRequest();
     const organisationId =
-      (httpRequest.headers?.['x-organisation-id'] as string) ||
-      (httpRequest.query?.organisationId as string);
+      (request.headers?.['x-organisation-id'] as string | undefined) ??
+      (request.query?.['organisationId'] as string | undefined);
 
     if (!organisationId) {
       throw new ForbiddenException('Organisation context required for role-based access');
     }
 
-    // Ensure user record exists (findOrCreate on first authenticated request)
-    await this.userService.findOrCreate(user.userId, user.email);
-
-    // Look up the user's role in the requested organisation
+    // Users pre-exist (provisioned by a super-admin / org-admin) — look up role.
     const membership = await this.userService.getMembership(user.userId, organisationId);
-
     if (!membership) {
       throw new ForbiddenException('You are not a member of this organisation');
     }
