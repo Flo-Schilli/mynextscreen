@@ -15,6 +15,7 @@
     "typecheck": "npm run typecheck --prefix backend && npm run typecheck --prefix frontend && npm run typecheck --prefix player",
     "format": "npm run format --prefix backend && npm run format --prefix frontend && npm run format --prefix player",
     "format:check": "npm run format:check --prefix backend && npm run format:check --prefix frontend && npm run format:check --prefix player",
+    "version": "node scripts/sync-versions.mjs && git add backend/package.json backend/package-lock.json frontend/package.json frontend/package-lock.json player/package.json player/package-lock.json",
     "version:patch": "npm version patch -m \"chore(release): %s\"",
     "version:minor": "npm version minor -m \"chore(release): %s\"",
     "version:major": "npm version major -m \"chore(release): %s\"",
