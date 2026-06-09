@@ -10,6 +10,7 @@ Pull=newer
 Network=signage.network
 PublishPort=50001:80
 EnvironmentFile=%h/.config/containers/systemd/.env.signage
+Environment=BACKEND_UPSTREAM=signage-backend:3000
 
 [Service]
 Restart=always

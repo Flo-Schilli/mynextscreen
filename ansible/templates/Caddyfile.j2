@@ -3,16 +3,8 @@
 
 # ─── Frontend (Admin Panel) ─────────────────────────────────
 app.{{ domain_name }} {
-	# Proxy API requests to the backend
-	handle /api/* {
-		reverse_proxy localhost:50002 {
-			header_up X-Real-IP {remote_host}
-		}
-	}
-
-	# Serve the Angular SPA
-	handle {
-		reverse_proxy localhost:50001
+	reverse_proxy localhost:50001 {
+		header_up X-Real-IP {remote_host}
 	}
 
 	header {
