@@ -1,10 +1,14 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
+import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { firstValueFrom } from 'rxjs';
 import { PlaylistService } from './playlist.service';
-import { Playlist, PlaylistItem, TransitionType, TRANSITION_OPTIONS } from './playlist.model';
+import { Playlist, PlaylistItem, TransitionType } from './playlist.model';
+import { PlaylistCreateForm } from './playlist-create-form';
+import { PlaylistEditor } from './playlist-editor';
+import { PlaylistGrid } from './playlist-grid';
+import { PlaylistAddContentModal } from './playlist-add-content-modal';
+import { PlaylistAssignScreenModal } from './playlist-assign-screen-modal';
 import { ContentService } from '../content/content.service';
 import { Content } from '../content/content.model';
 import { ScreenService } from '../screens/screen.service';
@@ -13,19 +17,26 @@ import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { OrganisationService } from '../admin/organisations/organisation.service';
 import { SelectionService } from '../shared/selection/selection.service';
-import { SelectionCheckboxComponent } from '../shared/selection/selection-checkbox';
-import { SelectAllCheckboxComponent } from '../shared/selection/select-all-checkbox';
-import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk-action-toolbar';
+import { BulkAction } from '../shared/selection/bulk-action-toolbar';
+import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dialog';
 
+/**
+ * Smart container for the playlists feature. Owns data loading, all HTTP
+ * orchestration (create/rename/delete/default, add/remove/reorder items with
+ * debounced field PATCHes), bulk-action flows, and toast state. Presentation is
+ * delegated to the create-form, editor, grid, and modal children; pure
+ * formatting lives in {@link PlaylistFormatService}.
+ */
 @Component({
   selector: 'app-playlists',
   standalone: true,
   imports: [
-    FormsModule,
-    DragDropModule,
-    SelectionCheckboxComponent,
-    SelectAllCheckboxComponent,
-    BulkActionToolbarComponent,
+    PlaylistCreateForm,
+    PlaylistEditor,
+    PlaylistGrid,
+    PlaylistAddContentModal,
+    PlaylistAssignScreenModal,
+    BulkConfirmDialogComponent,
   ],
   providers: [SelectionService],
   template: `
@@ -50,272 +61,50 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
 
       <!-- Create Playlist Form -->
       @if (showCreateForm) {
-        <div class="form-card">
-          <h2>Create Playlist</h2>
-          <form (ngSubmit)="submitCreate()">
-            <div class="form-group">
-              <label for="createName">Name</label>
-              <input
-                id="createName"
-                type="text"
-                [(ngModel)]="createName"
-                name="createName"
-                required
-                placeholder="e.g. Main Stage Loop"
-              />
-            </div>
-            @if (createError) {
-              <p class="error">{{ createError }}</p>
-            }
-            <div class="form-actions">
-              <button type="button" class="btn btn-secondary" (click)="cancelCreate()">
-                Cancel
-              </button>
-              <button type="submit" class="btn btn-primary" [disabled]="creating">
-                {{ creating ? 'Creating...' : 'Create Playlist' }}
-              </button>
-            </div>
-          </form>
-        </div>
+        <app-playlist-create-form
+          [(name)]="createName"
+          [error]="createError"
+          [creating]="creating"
+          (create)="submitCreate()"
+          (dismiss)="cancelCreate()"
+        />
       }
 
       <!-- Playlist Detail / Editor View -->
       @if (selectedPlaylist) {
-        <div class="editor-card">
-          <div class="editor-header">
-            <div class="editor-title-row">
-              @if (editingName) {
-                <input
-                  class="name-input"
-                  type="text"
-                  [(ngModel)]="editNameValue"
-                  (keydown.enter)="saveName()"
-                  (keydown.escape)="cancelEditName()"
-                />
-                <button class="btn btn-primary btn-sm" (click)="saveName()">Save</button>
-                <button class="btn btn-secondary btn-sm" (click)="cancelEditName()">Cancel</button>
-              } @else {
-                <h2>{{ selectedPlaylist.name }}</h2>
-                <button class="btn btn-secondary btn-sm" (click)="startEditName()">Rename</button>
-              }
-            </div>
-            <div class="editor-actions">
-              @if (isOrgAdmin) {
-                <button
-                  class="btn btn-sm"
-                  [class.btn-primary]="!isDefault"
-                  [class.btn-secondary]="isDefault"
-                  (click)="toggleDefault()"
-                  [disabled]="settingDefault"
-                >
-                  {{ isDefault ? 'Default Playlist' : 'Set as Default' }}
-                </button>
-              }
-              <button class="btn btn-danger btn-sm" (click)="confirmDelete()">Delete</button>
-              <button class="btn btn-secondary btn-sm" (click)="closeDetail()">Close</button>
-            </div>
-          </div>
-
-          @if (editorError) {
-            <p class="error">{{ editorError }}</p>
-          }
-
-          <!-- Playlist Items -->
-          <div class="items-section">
-            <div class="items-header">
-              <h3>Items</h3>
-              <button class="btn btn-primary btn-sm" (click)="openAddContent()">
-                + Add Content
-              </button>
-            </div>
-
-            @if (selectedPlaylist.items.length === 0) {
-              <div class="empty-items">
-                <p class="empty-text">No items in this playlist yet.</p>
-                <button class="btn btn-primary" (click)="openAddContent()">
-                  Add Your First Item
-                </button>
-              </div>
-            } @else {
-              <div cdkDropList class="item-list" (cdkDropListDropped)="onDrop($event)">
-                @for (item of selectedPlaylist.items; track item.id) {
-                  <div class="item-row" cdkDrag>
-                    <div class="drag-handle" cdkDragHandle>
-                      <span class="drag-icon">&#9776;</span>
-                    </div>
-                    <div
-                      class="item-thumbnail"
-                      (click)="previewItem(item)"
-                      tabindex="0"
-                      role="button"
-                      (keydown.enter)="previewItem(item)"
-                      (keydown.space)="previewItem(item)"
-                    >
-                      @if (item.content?.type === 'image') {
-                        <img [src]="getThumbUrl(item)" alt="" class="thumb-img" />
-                      } @else {
-                        <div class="thumb-video">
-                          <span class="video-icon">&#9654;</span>
-                        </div>
-                      }
-                    </div>
-                    <div class="item-info">
-                      <span class="item-title">{{ item.content?.title || 'Untitled' }}</span>
-                      <span
-                        class="item-type"
-                        [class.type-image]="item.content?.type === 'image'"
-                        [class.type-video]="item.content?.type === 'video'"
-                      >
-                        {{ item.content?.type || 'unknown' }}
-                      </span>
-                    </div>
-                    <div class="item-duration">
-                      <label class="duration-label" [attr.for]="'dur_' + item.id">
-                        {{ item.content?.type === 'video' ? 'Video length' : 'Duration' }}
-                      </label>
-                      <div class="duration-input-group">
-                        @if (
-                          item.content?.type === 'video' && item.content?.durationSeconds === null
-                        ) {
-                          <span class="duration-approx">~</span>
-                        }
-                        <input
-                          type="number"
-                          class="duration-input"
-                          [id]="'dur_' + item.id"
-                          [ngModel]="
-                            item.content?.type === 'video'
-                              ? (item.content?.durationSeconds ?? item.durationSeconds)
-                              : item.durationSeconds
-                          "
-                          (ngModelChange)="updateItemDuration(item, $event)"
-                          min="1"
-                          [name]="'dur_' + item.id"
-                          [disabled]="item.content?.type === 'video'"
-                        />
-                        <span class="duration-unit">s</span>
-                      </div>
-                    </div>
-                    <div class="item-transition">
-                      <label class="duration-label" [attr.for]="'trans_' + item.id"
-                        >Transition</label
-                      >
-                      <select
-                        class="transition-select"
-                        [id]="'trans_' + item.id"
-                        [ngModel]="item.transition"
-                        (ngModelChange)="updateItemTransition(item, $event)"
-                        [name]="'trans_' + item.id"
-                      >
-                        @for (opt of transitionOptions; track opt.value) {
-                          <option [value]="opt.value">{{ opt.label }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="item-transition-duration">
-                      <label class="duration-label" [attr.for]="'tdur_' + item.id">Trans. ms</label>
-                      <div class="duration-input-group">
-                        <input
-                          type="number"
-                          class="duration-input"
-                          [id]="'tdur_' + item.id"
-                          [ngModel]="item.transitionDurationMs"
-                          (ngModelChange)="updateItemTransitionDuration(item, $event)"
-                          min="0"
-                          max="3000"
-                          [name]="'tdur_' + item.id"
-                        />
-                        <span class="duration-unit">ms</span>
-                      </div>
-                    </div>
-                    <button class="btn-remove" (click)="removeItem(item)" title="Remove item">
-                      &#10005;
-                    </button>
-                  </div>
-                }
-              </div>
-
-              <div class="total-duration">
-                Total Duration: <strong>{{ formatDuration(totalDuration) }}</strong>
-              </div>
-            }
-          </div>
-
-          <!-- Inline Preview -->
-          @if (previewingItem) {
-            <div class="preview-section">
-              <div class="preview-header">
-                <h3>Preview: {{ previewingItem.content?.title || 'Untitled' }}</h3>
-                <button class="btn btn-secondary btn-sm" (click)="closePreview()">
-                  Close Preview
-                </button>
-              </div>
-              <div class="preview-content">
-                @if (previewingItem.content?.type === 'image') {
-                  <img [src]="getPreviewUrl(previewingItem)" alt="Preview" class="preview-media" />
-                } @else {
-                  <video
-                    [src]="getPreviewUrl(previewingItem)"
-                    controls
-                    class="preview-media"
-                  ></video>
-                }
-              </div>
-            </div>
-          }
-        </div>
+        <app-playlist-editor
+          [playlist]="selectedPlaylist"
+          [isOrgAdmin]="isOrgAdmin"
+          [isDefault]="isDefault"
+          [settingDefault]="settingDefault"
+          [editorError]="editorError"
+          [previewingItem]="previewingItem"
+          [thumbUrl]="getThumbUrl"
+          [previewUrl]="getPreviewUrl"
+          (rename)="onRename($event)"
+          (toggleDefault)="toggleDefault()"
+          (deletePlaylist)="confirmDelete()"
+          (dismiss)="closeDetail()"
+          (addContent)="openAddContent()"
+          (removeItem)="removeItem($event)"
+          (reorder)="onDrop($event)"
+          (durationChange)="updateItemDuration($event.item, $event.value)"
+          (transitionChange)="updateItemTransition($event.item, $event.value)"
+          (transitionDurationChange)="updateItemTransitionDuration($event.item, $event.value)"
+          (previewItem)="previewItem($event)"
+          (closePreview)="closePreview()"
+        />
       }
 
       <!-- Playlist Grid -->
       @if (!loading && !selectedPlaylist && !showCreateForm && playlists.length > 0) {
-        <div class="select-all-row">
-          <app-select-all-checkbox [allIds]="playlistIds" />
-          <span class="select-all-label">Select all</span>
-        </div>
-        <div class="playlist-grid">
-          @for (playlist of playlists; track playlist.id; let i = $index) {
-            <div
-              class="playlist-card"
-              [class.selected]="selectionService.selectedIds().has(playlist.id)"
-              (click)="selectPlaylist(playlist)"
-              tabindex="0"
-              role="button"
-              (keydown.enter)="selectPlaylist(playlist)"
-              (keydown.space)="selectPlaylist(playlist)"
-            >
-              <div class="card-header">
-                <app-selection-checkbox
-                  [itemId]="playlist.id"
-                  [itemIndex]="i"
-                  [orderedIds]="playlistIds"
-                  (click)="$event.stopPropagation()"
-                />
-                <span class="playlist-name">{{ playlist.name }}</span>
-                @if (playlist.id === defaultPlaylistId) {
-                  <span class="default-badge">Default</span>
-                }
-              </div>
-              <div class="card-body">
-                <div class="card-field">
-                  <span class="card-label">Items</span>
-                  <span class="card-value">{{ playlist.items.length }}</span>
-                </div>
-                <div class="card-field">
-                  <span class="card-label">Duration</span>
-                  <span class="card-value">{{
-                    formatDuration(getPlaylistDuration(playlist))
-                  }}</span>
-                </div>
-                <div class="card-field">
-                  <span class="card-label">Created</span>
-                  <span class="card-value">{{ formatDate(playlist.createdAt) }}</span>
-                </div>
-              </div>
-            </div>
-          }
-        </div>
-
-        <app-bulk-action-toolbar [actions]="bulkActions" />
+        <app-playlist-grid
+          [playlists]="playlists"
+          [playlistIds]="playlistIds"
+          [defaultPlaylistId]="defaultPlaylistId"
+          [bulkActions]="bulkActions"
+          (selectItem)="selectPlaylist($event)"
+        />
       }
 
       @if (
@@ -369,165 +158,37 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
 
       <!-- Add Content Modal -->
       @if (showAddContent) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Add content"
-          tabindex="0"
-          (click)="closeAddContent()"
-          (keydown.escape)="closeAddContent()"
-        >
-          <div
-            class="modal modal-lg"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Add Content to Playlist</h2>
-
-            @if (contentLoading) {
-              <p class="loading-text">Loading content library...</p>
-            } @else if (availableContent.length === 0) {
-              <p class="empty-text">No content available. Upload content first.</p>
-            } @else {
-              <div class="content-type-filter">
-                <button
-                  class="toggle-btn"
-                  [class.active]="!contentFilter"
-                  (click)="contentFilter = undefined"
-                >
-                  All
-                </button>
-                <button
-                  class="toggle-btn"
-                  [class.active]="contentFilter === 'image'"
-                  (click)="contentFilter = 'image'"
-                >
-                  Images
-                </button>
-                <button
-                  class="toggle-btn"
-                  [class.active]="contentFilter === 'video'"
-                  (click)="contentFilter = 'video'"
-                >
-                  Videos
-                </button>
-              </div>
-              <div class="content-grid">
-                @for (content of filteredContent; track content.id) {
-                  <div
-                    class="content-item"
-                    (click)="addContentToPlaylist(content)"
-                    tabindex="0"
-                    role="button"
-                    (keydown.enter)="addContentToPlaylist(content)"
-                    (keydown.space)="addContentToPlaylist(content)"
-                  >
-                    @if (content.type === 'image') {
-                      <img [src]="getContentThumbUrl(content)" alt="" class="content-thumb" />
-                    } @else {
-                      <div class="content-thumb-video">
-                        <span class="video-icon">&#9654;</span>
-                      </div>
-                    }
-                    <div class="content-item-info">
-                      <span class="content-item-title">{{ content.title }}</span>
-                      <span
-                        class="content-item-type"
-                        [class.type-image]="content.type === 'image'"
-                        [class.type-video]="content.type === 'video'"
-                      >
-                        {{ content.type }}
-                      </span>
-                    </div>
-                  </div>
-                }
-              </div>
-            }
-
-            <div class="form-actions">
-              <button class="btn btn-secondary" (click)="closeAddContent()">Close</button>
-            </div>
-          </div>
-        </div>
+        <app-playlist-add-content-modal
+          [availableContent]="availableContent"
+          [loading]="contentLoading"
+          [thumbUrl]="getContentThumbUrl"
+          (selectContent)="addContentToPlaylist($event)"
+          (dismiss)="closeAddContent()"
+        />
       }
+
       <!-- Bulk Delete Confirmation Modal -->
       @if (showBulkDeleteConfirm) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Confirm bulk delete"
-          tabindex="0"
-          (click)="cancelBulkDelete()"
-          (keydown.escape)="cancelBulkDelete()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Delete Playlists</h2>
-            <p>
-              You are about to permanently delete
-              <strong>{{ selectionService.count() }} playlist(s)</strong>. This cannot be undone.
-            </p>
-            <div class="form-actions">
-              <button class="btn btn-secondary" (click)="cancelBulkDelete()">Cancel</button>
-              <button class="btn btn-danger" (click)="executeBulkDelete()">Delete</button>
-            </div>
-          </div>
-        </div>
+        <app-bulk-confirm-dialog
+          title="Delete Playlists"
+          [message]="bulkDeleteMessage()"
+          confirmLabel="Delete"
+          [itemCount]="selectionService.count()"
+          (confirmed)="onBulkDeleteConfirmed($event)"
+        />
       }
 
       <!-- Assign to Screen(s) Modal -->
       @if (showAssignScreenModal) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Assign to screens"
-          tabindex="0"
-          (click)="cancelAssignScreen()"
-          (keydown.escape)="cancelAssignScreen()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Assign to Screen</h2>
-            <p>
-              Select a screen to assign
-              <strong>{{ selectionService.count() }} playlist(s)</strong> to:
-            </p>
-            <div class="form-group">
-              <label for="screenSelect">Screen</label>
-              <select id="screenSelect" [(ngModel)]="selectedScreenId" name="screenSelect">
-                <option value="">-- Select a screen --</option>
-                @for (screen of availableScreens; track screen.id) {
-                  <option [value]="screen.id">{{ screen.name }} ({{ screen.location }})</option>
-                }
-              </select>
-            </div>
-            @if (screensLoadError) {
-              <p class="error">{{ screensLoadError }}</p>
-            }
-            <div class="form-actions">
-              <button class="btn btn-secondary" (click)="cancelAssignScreen()">Cancel</button>
-              <button
-                class="btn btn-primary"
-                (click)="executeAssignScreen()"
-                [disabled]="screensLoading || !selectedScreenId"
-              >
-                {{ screensLoading ? 'Loading...' : 'Assign' }}
-              </button>
-            </div>
-          </div>
-        </div>
+        <app-playlist-assign-screen-modal
+          [screens]="availableScreens"
+          [loading]="screensLoading"
+          [loadError]="screensLoadError"
+          [count]="selectionService.count()"
+          [(selectedScreenId)]="selectedScreenId"
+          (confirm)="executeAssignScreen()"
+          (dismiss)="cancelAssignScreen()"
+        />
       }
 
       <!-- Toast -->
@@ -549,409 +210,6 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       padding-bottom: 5rem;
     }
 
-    /* Small button variant */
-    .btn-sm {
-      padding: 0.325rem 0.75rem;
-      font-size: 0.8125rem;
-    }
-
-    /* Select All Row */
-    .select-all-row {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin-bottom: 0.75rem;
-      padding: 0.25rem 0;
-    }
-    .select-all-label {
-      font-size: 0.8125rem;
-      color: var(--color-text-secondary);
-    }
-
-    /* Playlist Grid */
-    .playlist-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
-      gap: 1rem;
-    }
-    .playlist-card {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.25rem;
-      cursor: pointer;
-      transition:
-        border-color 0.15s,
-        background-color 0.15s;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
-    }
-    .playlist-card:hover,
-    .playlist-card:focus {
-      border-color: var(--color-accent);
-      background: var(--color-bg-tertiary);
-      outline: none;
-    }
-    .playlist-card.selected {
-      border-color: var(--color-accent);
-      background: color-mix(in srgb, var(--color-accent) 10%, var(--color-bg-secondary));
-    }
-    .card-header {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-    }
-    .playlist-name {
-      font-size: 1rem;
-      font-weight: 600;
-      flex: 1;
-    }
-    .default-badge {
-      display: inline-block;
-      padding: 0.125rem 0.5rem;
-      border-radius: 9999px;
-      font-size: 0.6875rem;
-      font-weight: 600;
-      background: var(--color-accent);
-      color: #fff;
-    }
-    .card-body {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    .card-field {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.8125rem;
-    }
-    .card-label {
-      color: var(--color-text-secondary);
-    }
-    .card-value {
-      color: var(--color-text-primary);
-    }
-
-    /* Form Card */
-    .form-card {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.5rem;
-      max-width: 40rem;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
-    }
-    .form-card h2 {
-      margin: 0 0 1.25rem;
-      font-size: 1.125rem;
-      font-weight: 600;
-    }
-    /* Editor Card */
-    .editor-card {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.5rem;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
-    }
-    .editor-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-    }
-    .editor-title-row {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    .editor-title-row h2 {
-      margin: 0;
-      font-size: 1.25rem;
-      font-weight: 600;
-    }
-    .name-input {
-      padding: 0.375rem 0.75rem;
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-accent);
-      border-radius: 0.375rem;
-      color: var(--color-text-primary);
-      font-size: 1.125rem;
-      font-weight: 600;
-    }
-    .name-input:focus {
-      outline: none;
-    }
-    .editor-actions {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-    }
-
-    /* Items Section */
-    .items-section {
-      border-top: 1px solid var(--color-border);
-      padding-top: 1.25rem;
-    }
-    .items-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
-    .items-header h3 {
-      margin: 0;
-      font-size: 1rem;
-      font-weight: 600;
-    }
-    .empty-items {
-      text-align: center;
-      padding: 2rem;
-    }
-
-    /* Item List */
-    .item-list {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    .item-row {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.625rem 0.75rem;
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-      transition: border-color 0.15s;
-    }
-    .item-row:hover {
-      border-color: var(--color-text-muted);
-    }
-    .drag-handle {
-      cursor: grab;
-      color: var(--color-text-muted);
-      font-size: 1rem;
-      padding: 0.25rem;
-      user-select: none;
-      display: flex;
-      align-items: center;
-    }
-    .drag-handle:active {
-      cursor: grabbing;
-    }
-    .drag-icon {
-      font-size: 0.875rem;
-    }
-    .item-thumbnail {
-      width: 3.5rem;
-      height: 2.5rem;
-      border-radius: 0.25rem;
-      overflow: hidden;
-      flex-shrink: 0;
-      cursor: pointer;
-      background: var(--color-bg-tertiary);
-    }
-    .thumb-img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    .thumb-video {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-muted);
-      font-size: 1rem;
-    }
-    .item-info {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.125rem;
-    }
-    .item-title {
-      font-size: 0.875rem;
-      font-weight: 500;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .item-type {
-      font-size: 0.6875rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .type-image {
-      color: #22c55e;
-    }
-    .type-video {
-      color: #a78bfa;
-    }
-    .item-duration {
-      display: flex;
-      flex-direction: column;
-      gap: 0.125rem;
-      flex-shrink: 0;
-    }
-    .duration-label {
-      font-size: 0.625rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--color-text-secondary);
-    }
-    .duration-input-group {
-      display: flex;
-      align-items: center;
-      gap: 0.25rem;
-    }
-    .duration-input {
-      width: 4rem;
-      padding: 0.25rem 0.5rem;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.25rem;
-      color: var(--color-text-primary);
-      font-size: 0.8125rem;
-      text-align: right;
-    }
-    .duration-input:focus {
-      outline: none;
-      border-color: var(--color-accent);
-    }
-    .duration-input:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    .duration-approx {
-      font-size: 0.8125rem;
-      color: var(--color-text-muted);
-      margin-right: -0.125rem;
-    }
-    .duration-unit {
-      font-size: 0.75rem;
-      color: var(--color-text-muted);
-    }
-    .item-transition,
-    .item-transition-duration {
-      display: flex;
-      flex-direction: column;
-      gap: 0.125rem;
-      flex-shrink: 0;
-    }
-    .transition-select {
-      padding: 0.25rem 0.5rem;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.25rem;
-      color: var(--color-text-primary);
-      font-size: 0.8125rem;
-    }
-    .transition-select:focus {
-      outline: none;
-      border-color: var(--color-accent);
-    }
-    .btn-remove {
-      background: none;
-      border: none;
-      color: var(--color-text-muted);
-      cursor: pointer;
-      font-size: 0.875rem;
-      padding: 0.25rem 0.5rem;
-      border-radius: 0.25rem;
-      transition:
-        color 0.15s,
-        background-color 0.15s;
-    }
-    .btn-remove:hover {
-      color: #ef4444;
-      background: #ef444420;
-    }
-
-    /* CDK Drag & Drop */
-    .cdk-drag-preview {
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-accent);
-      border-radius: 0.375rem;
-      padding: 0.625rem 0.75rem;
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-    }
-    .cdk-drag-placeholder {
-      opacity: 0.3;
-    }
-    .cdk-drag-animating {
-      transition: transform 200ms ease;
-    }
-    .item-list.cdk-drop-list-dragging .item-row:not(.cdk-drag-placeholder) {
-      transition: transform 200ms ease;
-    }
-
-    /* Total Duration */
-    .total-duration {
-      margin-top: 1rem;
-      padding: 0.75rem 1rem;
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-      text-align: right;
-    }
-    .total-duration strong {
-      color: var(--color-text-primary);
-    }
-
-    /* Preview */
-    .preview-section {
-      margin-top: 1.5rem;
-      border-top: 1px solid var(--color-border);
-      padding-top: 1.25rem;
-    }
-    .preview-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
-    .preview-header h3 {
-      margin: 0;
-      font-size: 1rem;
-      font-weight: 600;
-    }
-    .preview-content {
-      text-align: center;
-    }
-    .preview-media {
-      max-width: 100%;
-      max-height: 24rem;
-      border-radius: 0.375rem;
-      border: 1px solid var(--color-border);
-    }
-
-    /* Large modal variant */
-    .modal-lg {
-      max-width: 52rem;
-      width: 90vw;
-      max-height: 80vh;
-      overflow-y: auto;
-    }
     .warning-text {
       color: #fbbf24 !important;
       background: #92400e20;
@@ -959,91 +217,6 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       border-radius: 0.375rem;
       padding: 0.75rem 1rem;
       font-size: 0.8125rem !important;
-    }
-
-    /* Add Content Modal */
-    .content-type-filter {
-      display: flex;
-      gap: 0.375rem;
-      margin-bottom: 1rem;
-    }
-    .toggle-btn {
-      padding: 0.375rem 0.75rem;
-      border-radius: 0.375rem;
-      border: 1px solid var(--color-border);
-      background: transparent;
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      font-size: 0.8125rem;
-      transition: all 0.15s;
-    }
-    .toggle-btn:hover {
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-primary);
-    }
-    .toggle-btn.active {
-      background: var(--color-accent);
-      color: #fff;
-      border-color: var(--color-accent);
-    }
-    .content-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
-      gap: 0.75rem;
-      margin-bottom: 1rem;
-      max-height: 50vh;
-      overflow-y: auto;
-    }
-    .content-item {
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-      overflow: hidden;
-      cursor: pointer;
-      transition: border-color 0.15s;
-    }
-    .content-item:hover,
-    .content-item:focus {
-      border-color: var(--color-accent);
-      outline: none;
-    }
-    .content-thumb {
-      width: 100%;
-      height: 6rem;
-      object-fit: cover;
-      display: block;
-    }
-    .content-thumb-video {
-      width: 100%;
-      height: 6rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-muted);
-      font-size: 1.5rem;
-    }
-    .video-icon {
-      opacity: 0.6;
-    }
-    .content-item-info {
-      padding: 0.5rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.125rem;
-    }
-    .content-item-title {
-      font-size: 0.75rem;
-      font-weight: 500;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .content-item-type {
-      font-size: 0.625rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
     }
 
     /* Toast */
@@ -1112,10 +285,6 @@ export class Playlists implements OnInit {
   selectedPlaylist: Playlist | null = null;
   editorError = '';
 
-  // Rename
-  editingName = false;
-  editNameValue = '';
-
   // Delete
   showDeleteConfirm = false;
   deleting = false;
@@ -1127,13 +296,9 @@ export class Playlists implements OnInit {
   showAddContent = false;
   availableContent: Content[] = [];
   contentLoading = false;
-  contentFilter: 'image' | 'video' | undefined;
 
   // Preview
   previewingItem: PlaylistItem | null = null;
-
-  // Transition options for dropdown
-  transitionOptions = TRANSITION_OPTIONS;
 
   // Debounce timers for item field updates
   private durationTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -1175,19 +340,6 @@ export class Playlists implements OnInit {
 
   get isDefault(): boolean {
     return this.selectedPlaylist?.id === this.defaultPlaylistId;
-  }
-
-  get totalDuration(): number {
-    if (!this.selectedPlaylist) return 0;
-    return this.selectedPlaylist.items.reduce((sum, item) => sum + item.durationSeconds, 0);
-  }
-
-  get filteredContent(): Content[] {
-    let content = this.availableContent.filter((c) => c.transcodingStatus === 'completed');
-    if (this.contentFilter) {
-      content = content.filter((c) => c.type === this.contentFilter);
-    }
-    return content;
   }
 
   ngOnInit(): void {
@@ -1283,7 +435,6 @@ export class Playlists implements OnInit {
   selectPlaylist(playlist: Playlist): void {
     this.editorError = '';
     this.previewingItem = null;
-    this.editingName = false;
     // Reload full detail with items
     this.playlistService.getOne(this.orgId, playlist.id).subscribe({
       next: (full) => {
@@ -1302,31 +453,18 @@ export class Playlists implements OnInit {
   }
 
   // --- Rename ---
-  startEditName(): void {
+  onRename(name: string): void {
     if (!this.selectedPlaylist) return;
-    this.editNameValue = this.selectedPlaylist.name;
-    this.editingName = true;
-  }
-
-  cancelEditName(): void {
-    this.editingName = false;
-  }
-
-  saveName(): void {
-    if (!this.selectedPlaylist || !this.editNameValue.trim()) return;
-    this.playlistService
-      .update(this.orgId, this.selectedPlaylist.id, { name: this.editNameValue.trim() })
-      .subscribe({
-        next: (updated) => {
-          if (this.selectedPlaylist) {
-            this.selectedPlaylist.name = updated.name;
-          }
-          this.editingName = false;
-        },
-        error: (err) => {
-          this.editorError = err.error?.message || 'Failed to rename playlist.';
-        },
-      });
+    this.playlistService.update(this.orgId, this.selectedPlaylist.id, { name }).subscribe({
+      next: (updated) => {
+        if (this.selectedPlaylist) {
+          this.selectedPlaylist.name = updated.name;
+        }
+      },
+      error: (err) => {
+        this.editorError = err.error?.message || 'Failed to rename playlist.';
+      },
+    });
   }
 
   // --- Delete ---
@@ -1381,7 +519,6 @@ export class Playlists implements OnInit {
   // --- Add Content ---
   openAddContent(): void {
     this.showAddContent = true;
-    this.contentFilter = undefined;
     this.contentLoading = true;
     this.contentService.getAll(this.orgId).subscribe({
       next: (content) => {
@@ -1505,36 +642,17 @@ export class Playlists implements OnInit {
     });
   }
 
-  getThumbUrl(item: PlaylistItem): string {
+  getThumbUrl = (item: PlaylistItem): string => {
     return this.contentService.getTranscodedUrl(item.contentId);
-  }
+  };
 
-  getPreviewUrl(item: PlaylistItem): string {
+  getPreviewUrl = (item: PlaylistItem): string => {
     return this.contentService.getTranscodedUrl(item.contentId);
-  }
+  };
 
-  getContentThumbUrl(content: Content): string {
+  getContentThumbUrl = (content: Content): string => {
     return this.contentService.getTranscodedUrl(content.id);
-  }
-
-  getPlaylistDuration(playlist: Playlist): number {
-    if (!playlist.items) return 0;
-    return playlist.items.reduce((sum, item) => sum + item.durationSeconds, 0);
-  }
-
-  formatDuration(seconds: number): string {
-    if (seconds < 60) return `${seconds}s`;
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    if (m < 60) return s > 0 ? `${m}m ${s}s` : `${m}m`;
-    const h = Math.floor(m / 60);
-    const rm = m % 60;
-    return rm > 0 ? `${h}h ${rm}m` : `${h}h`;
-  }
-
-  formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString();
-  }
+  };
 
   // --- Bulk Delete ---
   async handleBulkDelete(): Promise<void> {
@@ -1561,15 +679,16 @@ export class Playlists implements OnInit {
     });
   }
 
-  cancelBulkDelete(): void {
-    this.showBulkDeleteConfirm = false;
-    this.bulkDeleteResolve?.(false);
-    this.bulkDeleteResolve = null;
+  bulkDeleteMessage(): string {
+    return (
+      `You are about to permanently delete ${this.selectionService.count()} playlist(s). ` +
+      'This cannot be undone.'
+    );
   }
 
-  executeBulkDelete(): void {
+  onBulkDeleteConfirmed(confirmed: boolean): void {
     this.showBulkDeleteConfirm = false;
-    this.bulkDeleteResolve?.(true);
+    this.bulkDeleteResolve?.(confirmed);
     this.bulkDeleteResolve = null;
   }
 
