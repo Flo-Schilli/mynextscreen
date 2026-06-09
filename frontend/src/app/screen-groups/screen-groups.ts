@@ -1,20 +1,28 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ScreenGroupService } from './screen-group.service';
 import {
   ScreenGroup,
-  ScreenGroupMode,
   CreateScreenGroupRequest,
   UpdateScreenGroupRequest,
 } from './screen-group.model';
+import { ScreenGroupTable } from './screen-group-table';
+import { ScreenGroupCreateModal } from './screen-group-create-modal';
+import { ScreenGroupEditModal } from './screen-group-edit-modal';
+import { ScreenGroupDeleteModal } from './screen-group-delete-modal';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 
+/**
+ * Smart container for the screen-groups list feature. Owns data loading, the org
+ * context and all HTTP orchestration (create/edit/delete), exposing the result
+ * via plain state. Presentation is delegated to the table and the create/edit/
+ * delete modal children.
+ */
 @Component({
   selector: 'app-screen-groups',
   standalone: true,
-  imports: [FormsModule],
+  imports: [ScreenGroupTable, ScreenGroupCreateModal, ScreenGroupEditModal, ScreenGroupDeleteModal],
   template: `
     <div class="page">
       <header class="page-header">
@@ -37,143 +45,22 @@ import { MyMembership } from '../settings/users/member.model';
 
       <!-- Create Group Modal -->
       @if (showCreateForm) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Create Screen Group"
-          tabindex="0"
-          (click)="cancelCreate()"
-          (keydown.escape)="cancelCreate()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Create Screen Group</h2>
-            <form (ngSubmit)="submitCreate()">
-              <div class="form-group">
-                <label for="createName">Name</label>
-                <input
-                  id="createName"
-                  type="text"
-                  [(ngModel)]="createName"
-                  name="createName"
-                  required
-                  placeholder="e.g. Lobby Video Wall"
-                />
-              </div>
-              <div class="form-group">
-                <label for="createMode">Mode</label>
-                <select id="createMode" [(ngModel)]="createMode" name="createMode" required>
-                  <option value="mirror">Mirror</option>
-                  <option value="split">Split (Video Wall)</option>
-                </select>
-              </div>
-              @if (createMode === 'split') {
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="createGridColumns">Grid Columns</label>
-                    <input
-                      id="createGridColumns"
-                      type="number"
-                      [(ngModel)]="createGridColumns"
-                      name="createGridColumns"
-                      required
-                      min="1"
-                      max="10"
-                      placeholder="e.g. 2"
-                    />
-                  </div>
-                  <div class="form-group">
-                    <label for="createGridRows">Grid Rows</label>
-                    <input
-                      id="createGridRows"
-                      type="number"
-                      [(ngModel)]="createGridRows"
-                      name="createGridRows"
-                      required
-                      min="1"
-                      max="10"
-                      placeholder="e.g. 2"
-                    />
-                  </div>
-                </div>
-              }
-              @if (createError) {
-                <p class="error">{{ createError }}</p>
-              }
-              <div class="form-actions">
-                <button type="button" class="btn btn-secondary" (click)="cancelCreate()">
-                  Cancel
-                </button>
-                <button type="submit" class="btn btn-primary" [disabled]="creating">
-                  {{ creating ? 'Creating...' : 'Create Group' }}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <app-screen-group-create-modal
+          [creating]="creating"
+          [error]="createError"
+          (create)="submitCreate($event)"
+          (dismiss)="cancelCreate()"
+        />
       }
 
       <!-- Groups Table -->
       @if (!loading && groups.length > 0) {
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Mode</th>
-                <th>Grid Size</th>
-                <th>Screen Count</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (group of groups; track group.id) {
-                <tr>
-                  <td class="name-cell">
-                    <a
-                      class="group-link"
-                      tabindex="0"
-                      role="link"
-                      (click)="viewGroup(group)"
-                      (keydown.enter)="viewGroup(group)"
-                      >{{ group.name }}</a
-                    >
-                  </td>
-                  <td>
-                    <span
-                      class="mode-badge"
-                      [class.mirror]="group.mode === 'mirror'"
-                      [class.split]="group.mode === 'split'"
-                    >
-                      {{ group.mode === 'mirror' ? 'Mirror' : 'Split' }}
-                    </span>
-                  </td>
-                  <td>
-                    {{
-                      group.mode === 'split' && group.gridColumns && group.gridRows
-                        ? group.gridColumns + 'x' + group.gridRows
-                        : '-'
-                    }}
-                  </td>
-                  <td>{{ group.screens.length }}</td>
-                  <td class="actions-cell">
-                    <button class="btn btn-small btn-secondary" (click)="editGroup(group)">
-                      Edit
-                    </button>
-                    <button class="btn btn-small btn-danger" (click)="confirmDelete(group)">
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+        <app-screen-group-table
+          [groups]="groups"
+          (view)="viewGroup($event)"
+          (edit)="editGroup($event)"
+          (delete)="confirmDelete($event)"
+        />
       }
 
       <!-- Empty State -->
@@ -242,179 +129,26 @@ import { MyMembership } from '../settings/users/member.model';
 
       <!-- Edit Group Modal -->
       @if (editingGroup) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Edit Screen Group"
-          tabindex="0"
-          (click)="cancelEdit()"
-          (keydown.escape)="cancelEdit()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Edit Screen Group</h2>
-            <form (ngSubmit)="submitEdit()">
-              <div class="form-group">
-                <label for="editName">Name</label>
-                <input id="editName" type="text" [(ngModel)]="editName" name="editName" required />
-              </div>
-              <div class="form-group">
-                <label for="editMode">Mode</label>
-                <select id="editMode" [(ngModel)]="editMode" name="editMode" required>
-                  <option value="mirror">Mirror</option>
-                  <option value="split">Split (Video Wall)</option>
-                </select>
-              </div>
-              @if (editMode === 'split') {
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="editGridColumns">Grid Columns</label>
-                    <input
-                      id="editGridColumns"
-                      type="number"
-                      [(ngModel)]="editGridColumns"
-                      name="editGridColumns"
-                      required
-                      min="1"
-                      max="10"
-                    />
-                  </div>
-                  <div class="form-group">
-                    <label for="editGridRows">Grid Rows</label>
-                    <input
-                      id="editGridRows"
-                      type="number"
-                      [(ngModel)]="editGridRows"
-                      name="editGridRows"
-                      required
-                      min="1"
-                      max="10"
-                    />
-                  </div>
-                </div>
-              }
-              @if (editError) {
-                <p class="error">{{ editError }}</p>
-              }
-              <div class="form-actions">
-                <button type="button" class="btn btn-secondary" (click)="cancelEdit()">
-                  Cancel
-                </button>
-                <button type="submit" class="btn btn-primary" [disabled]="saving">
-                  {{ saving ? 'Saving...' : 'Save Changes' }}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <app-screen-group-edit-modal
+          [group]="editingGroup"
+          [saving]="saving"
+          [error]="editError"
+          (save)="submitEdit($event)"
+          (dismiss)="cancelEdit()"
+        />
       }
 
       <!-- Delete Confirmation Modal -->
       @if (deletingGroup) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Confirm deletion"
-          tabindex="0"
-          (click)="cancelDelete()"
-          (keydown.escape)="cancelDelete()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Delete Screen Group</h2>
-            @if (deletingGroup.screens.length > 0) {
-              <div class="delete-blocked">
-                Cannot delete "{{ deletingGroup.name }}" because it still has
-                {{ deletingGroup.screens.length }} assigned screen(s). Remove all screens from the
-                group before deleting it.
-              </div>
-              <div class="form-actions">
-                <button class="btn btn-secondary" (click)="cancelDelete()">Close</button>
-              </div>
-            } @else {
-              <p>
-                Are you sure you want to delete the screen group
-                <strong>{{ deletingGroup.name }}</strong
-                >? This action cannot be undone.
-              </p>
-              @if (deleteError) {
-                <p class="error">{{ deleteError }}</p>
-              }
-              <div class="form-actions">
-                <button class="btn btn-secondary" (click)="cancelDelete()">Cancel</button>
-                <button class="btn btn-danger" (click)="executeDelete()" [disabled]="deleting">
-                  {{ deleting ? 'Deleting...' : 'Delete' }}
-                </button>
-              </div>
-            }
-          </div>
-        </div>
+        <app-screen-group-delete-modal
+          [group]="deletingGroup"
+          [deleting]="deleting"
+          [error]="deleteError"
+          (confirm)="executeDelete()"
+          (dismiss)="cancelDelete()"
+        />
       }
     </div>
-  `,
-  styles: `
-    /* Group name link */
-    .group-link {
-      color: var(--color-accent);
-      cursor: pointer;
-      text-decoration: none;
-    }
-    .group-link:hover {
-      text-decoration: underline;
-    }
-
-    /* Mode badge */
-    .mode-badge {
-      display: inline-block;
-      padding: 0.125rem 0.5rem;
-      border-radius: 9999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      width: fit-content;
-    }
-    .mode-badge.mirror {
-      background: #3b82f620;
-      color: #3b82f6;
-    }
-    .mode-badge.split {
-      background: #a855f720;
-      color: #a855f7;
-    }
-
-    /* Two-column form layout */
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-    }
-
-    /* Delete blocked notice */
-    .delete-blocked {
-      background: #92400e20;
-      border: 1px solid #92400e;
-      border-radius: 0.375rem;
-      padding: 0.75rem 1rem;
-      margin-bottom: 1rem;
-      font-size: 0.8125rem;
-      color: #fbbf24;
-      line-height: 1.5;
-    }
-
-    @media (max-width: 768px) {
-      .form-row {
-        grid-template-columns: 1fr;
-      }
-    }
   `,
 })
 export class ScreenGroups implements OnInit {
@@ -430,19 +164,11 @@ export class ScreenGroups implements OnInit {
 
   // Create form state
   showCreateForm = false;
-  createName = '';
-  createMode: ScreenGroupMode = 'mirror';
-  createGridColumns = 2;
-  createGridRows = 2;
   createError = '';
   creating = false;
 
   // Edit state
   editingGroup: ScreenGroup | null = null;
-  editName = '';
-  editMode: ScreenGroupMode = 'mirror';
-  editGridColumns = 2;
-  editGridRows = 2;
   editError = '';
   saving = false;
 
@@ -495,10 +221,6 @@ export class ScreenGroups implements OnInit {
 
   // --- Create ---
   openCreateForm(): void {
-    this.createName = '';
-    this.createMode = 'mirror';
-    this.createGridColumns = 2;
-    this.createGridRows = 2;
     this.createError = '';
     this.showCreateForm = true;
   }
@@ -507,25 +229,9 @@ export class ScreenGroups implements OnInit {
     this.showCreateForm = false;
   }
 
-  submitCreate(): void {
-    if (!this.createName) {
-      this.createError = 'Name is required.';
-      return;
-    }
-    if (this.createMode === 'split' && (!this.createGridColumns || !this.createGridRows)) {
-      this.createError = 'Grid columns and rows are required for split mode.';
-      return;
-    }
-
+  submitCreate(dto: CreateScreenGroupRequest): void {
     this.creating = true;
     this.createError = '';
-    const dto: CreateScreenGroupRequest = {
-      name: this.createName,
-      mode: this.createMode,
-      ...(this.createMode === 'split'
-        ? { gridColumns: this.createGridColumns, gridRows: this.createGridRows }
-        : {}),
-    };
     this.screenGroupService.create(this.orgId, dto).subscribe({
       next: () => {
         this.creating = false;
@@ -542,10 +248,6 @@ export class ScreenGroups implements OnInit {
   // --- Edit ---
   editGroup(group: ScreenGroup): void {
     this.editingGroup = group;
-    this.editName = group.name;
-    this.editMode = group.mode;
-    this.editGridColumns = group.gridColumns ?? 2;
-    this.editGridRows = group.gridRows ?? 2;
     this.editError = '';
   }
 
@@ -553,26 +255,11 @@ export class ScreenGroups implements OnInit {
     this.editingGroup = null;
   }
 
-  submitEdit(): void {
+  submitEdit(dto: UpdateScreenGroupRequest): void {
     if (!this.editingGroup) return;
-    if (!this.editName) {
-      this.editError = 'Name is required.';
-      return;
-    }
-    if (this.editMode === 'split' && (!this.editGridColumns || !this.editGridRows)) {
-      this.editError = 'Grid columns and rows are required for split mode.';
-      return;
-    }
 
     this.saving = true;
     this.editError = '';
-    const dto: UpdateScreenGroupRequest = {
-      name: this.editName,
-      mode: this.editMode,
-      ...(this.editMode === 'split'
-        ? { gridColumns: this.editGridColumns, gridRows: this.editGridRows }
-        : {}),
-    };
     this.screenGroupService.update(this.orgId, this.editingGroup.id, dto).subscribe({
       next: () => {
         this.saving = false;
