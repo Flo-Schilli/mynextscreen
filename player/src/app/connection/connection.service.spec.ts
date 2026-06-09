@@ -33,11 +33,11 @@ function createPostMessageHandler(connectFn: ConnectFn): (event: { data: unknown
 }
 
 describe('ConnectionService postMessage listener', () => {
-  let connectFn: jest.Mock;
+  let connectFn: ReturnType<typeof vi.fn>;
   let handler: (event: { data: unknown }) => void;
 
   beforeEach(() => {
-    connectFn = jest.fn();
+    connectFn = vi.fn();
     handler = createPostMessageHandler(connectFn);
   });
 

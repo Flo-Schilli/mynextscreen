@@ -7,7 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "lint": "ng lint",
-    "test": "jest --config jest.config.ts",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "format": "prettier --write \"src/**/*.{ts,html,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,html,css}\""
@@ -29,18 +29,19 @@
     "tslib": "^2.3.0"
   },
   "devDependencies": {
+    "@analogjs/vite-plugin-angular": "2.3.1",
+    "@analogjs/vitest-angular": "2.3.1",
     "@angular/build": "^21.2.5",
     "@angular/cli": "^21.2.5",
     "@angular/compiler-cli": "^21.2.0",
     "@eslint/js": "^10.0.1",
-    "@types/jest": "^30.0.0",
     "angular-eslint": "21.3.1",
     "eslint": "^10.0.3",
-    "jest": "^30.3.0",
+    "jsdom": "^29.0.1",
     "prettier": "^3.8.1",
-    "ts-jest": "^29.4.6",
     "typescript": "~5.9.2",
     "typescript-eslint": "8.56.1",
+    "vitest": "^4.1.2",
     "zone.js": "^0.16.1"
   }
 }
