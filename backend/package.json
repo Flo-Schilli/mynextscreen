@@ -1,6 +1,6 @@
 {
   "name": "signage-server-backend",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Signage Server - NestJS Backend",
   "private": true,
   "license": "UNLICENSED",
