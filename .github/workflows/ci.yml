@@ -18,6 +18,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      checks: write # ArtiomTr/jest-coverage-report-action publishes failed-test annotations
     strategy:
       fail-fast: false
       matrix:
