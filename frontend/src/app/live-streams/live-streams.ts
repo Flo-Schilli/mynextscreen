@@ -1,20 +1,19 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { UpperCasePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { LiveStreamService } from './live-stream.service';
 import {
   LiveStream,
-  LiveStreamProtocol,
-  TranscodingPreset,
   CreateLiveStreamRequest,
   UpdateLiveStreamRequest,
   ActivateLiveStreamRequest,
   ActivateStreamResponse,
-  TRANSCODING_PRESET_LABELS,
-  TRANSCODING_PRESETS,
 } from './live-stream.model';
+import { LiveStreamTable } from './live-stream-table';
+import { LiveStreamCreateModal } from './live-stream-create-modal';
+import { LiveStreamEditModal } from './live-stream-edit-modal';
+import { LiveStreamDeleteModal } from './live-stream-delete-modal';
+import { LiveStreamActivateModal } from './live-stream-activate-modal';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
 import { ScreenGroupService } from '../screen-groups/screen-group.service';
@@ -22,10 +21,23 @@ import { ScreenGroup } from '../screen-groups/screen-group.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 
+/**
+ * Smart container for the live-streams feature. Owns data loading (streams +
+ * screens + groups), the org context and all HTTP orchestration (create/edit/
+ * delete/activate/deactivate). Presentation is delegated to the table and the
+ * create/edit/delete/activate modal children; the small deactivate action and
+ * the passthrough-warnings banner stay inline.
+ */
 @Component({
   selector: 'app-live-streams',
   standalone: true,
-  imports: [FormsModule, UpperCasePipe],
+  imports: [
+    LiveStreamTable,
+    LiveStreamCreateModal,
+    LiveStreamEditModal,
+    LiveStreamDeleteModal,
+    LiveStreamActivateModal,
+  ],
   template: `
     <div class="page">
       <header class="page-header">
@@ -48,161 +60,23 @@ import { MyMembership } from '../settings/users/member.model';
 
       <!-- Create Stream Modal -->
       @if (showCreateForm) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Create Live Stream"
-          tabindex="0"
-          (click)="cancelCreate()"
-          (keydown.escape)="cancelCreate()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Create Live Stream</h2>
-            <form (ngSubmit)="submitCreate()">
-              <div class="form-group">
-                <label for="createName">Name</label>
-                <input
-                  id="createName"
-                  type="text"
-                  [(ngModel)]="createName"
-                  name="createName"
-                  required
-                  placeholder="e.g. Lobby Camera"
-                />
-              </div>
-              <div class="form-group">
-                <label for="createSourceUrl">Source URL</label>
-                <input
-                  id="createSourceUrl"
-                  type="text"
-                  [(ngModel)]="createSourceUrl"
-                  name="createSourceUrl"
-                  required
-                  placeholder="rtmp://example.com/live/stream-key"
-                />
-              </div>
-              <div class="form-group">
-                <label for="createProtocol">Protocol</label>
-                <select
-                  id="createProtocol"
-                  [(ngModel)]="createProtocol"
-                  name="createProtocol"
-                  required
-                >
-                  <option value="rtmp">RTMP</option>
-                  <option value="rtp">RTP</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="createPreset">Quality Preset</label>
-                <select id="createPreset" [(ngModel)]="createPreset" name="createPreset">
-                  @for (preset of transcodingPresets; track preset) {
-                    <option [value]="preset">{{ presetLabel(preset) }}</option>
-                  }
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="checkbox-label">
-                  <input
-                    type="checkbox"
-                    [(ngModel)]="createAudioEnabled"
-                    name="createAudioEnabled"
-                  />
-                  Enable audio
-                </label>
-              </div>
-              @if (createError) {
-                <p class="error">{{ createError }}</p>
-              }
-              <div class="form-actions">
-                <button type="button" class="btn btn-secondary" (click)="cancelCreate()">
-                  Cancel
-                </button>
-                <button type="submit" class="btn btn-primary" [disabled]="creating">
-                  {{ creating ? 'Creating...' : 'Create Stream' }}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <app-live-stream-create-modal
+          [creating]="creating"
+          [error]="createError"
+          (create)="submitCreate($event)"
+          (dismiss)="cancelCreate()"
+        />
       }
 
       <!-- Streams Table -->
       @if (!loading && streams.length > 0) {
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Source URL</th>
-                <th>Protocol</th>
-                <th>Quality</th>
-                <th>Status</th>
-                <th>Health</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (stream of streams; track stream.id) {
-                <tr>
-                  <td class="name-cell">{{ stream.name }}</td>
-                  <td class="url-cell" [title]="stream.sourceUrl">{{ stream.sourceUrl }}</td>
-                  <td>
-                    <span class="protocol-badge">{{ stream.protocol | uppercase }}</span>
-                  </td>
-                  <td>{{ presetLabel(stream.transcodingPreset) }}</td>
-                  <td>
-                    <span
-                      class="status-badge"
-                      [class.status-idle]="stream.status === 'idle'"
-                      [class.status-active]="stream.status === 'active'"
-                      [class.status-error]="stream.status === 'error'"
-                    >
-                      {{ stream.status }}
-                    </span>
-                  </td>
-                  <td>
-                    @if (stream.status === 'active' && stream.health) {
-                      <span
-                        class="health-badge"
-                        [class.health-healthy]="stream.health.health === 'healthy'"
-                        [class.health-degraded]="stream.health.health === 'degraded'"
-                        [class.health-stopped]="stream.health.health === 'stopped'"
-                      >
-                        {{ stream.health.health }}
-                      </span>
-                    } @else {
-                      <span class="text-muted">-</span>
-                    }
-                  </td>
-                  <td class="actions-cell">
-                    @if (stream.status === 'idle' || stream.status === 'error') {
-                      <button class="btn btn-small btn-primary" (click)="openActivateModal(stream)">
-                        Activate
-                      </button>
-                      <button class="btn btn-small btn-secondary" (click)="editStream(stream)">
-                        Edit
-                      </button>
-                      <button class="btn btn-small btn-danger" (click)="confirmDelete(stream)">
-                        Delete
-                      </button>
-                    } @else {
-                      <button class="btn btn-small btn-warning" (click)="deactivateStream(stream)">
-                        Deactivate
-                      </button>
-                    }
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+        <app-live-stream-table
+          [streams]="streams"
+          (activate)="openActivateModal($event)"
+          (edit)="editStream($event)"
+          (delete)="confirmDelete($event)"
+          (deactivate)="deactivateStream($event)"
+        />
       }
 
       <!-- Empty State -->
@@ -254,201 +128,37 @@ import { MyMembership } from '../settings/users/member.model';
 
       <!-- Edit Stream Modal -->
       @if (editingStream) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Edit Live Stream"
-          tabindex="0"
-          (click)="cancelEdit()"
-          (keydown.escape)="cancelEdit()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Edit Live Stream</h2>
-            <form (ngSubmit)="submitEdit()">
-              <div class="form-group">
-                <label for="editName">Name</label>
-                <input id="editName" type="text" [(ngModel)]="editName" name="editName" required />
-              </div>
-              <div class="form-group">
-                <label for="editSourceUrl">Source URL</label>
-                <input
-                  id="editSourceUrl"
-                  type="text"
-                  [(ngModel)]="editSourceUrl"
-                  name="editSourceUrl"
-                  required
-                />
-              </div>
-              <div class="form-group">
-                <label for="editProtocol">Protocol</label>
-                <select id="editProtocol" [(ngModel)]="editProtocol" name="editProtocol" required>
-                  <option value="rtmp">RTMP</option>
-                  <option value="rtp">RTP</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="editPreset">Quality Preset</label>
-                <select id="editPreset" [(ngModel)]="editPreset" name="editPreset">
-                  @for (preset of transcodingPresets; track preset) {
-                    <option [value]="preset">{{ presetLabel(preset) }}</option>
-                  }
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" [(ngModel)]="editAudioEnabled" name="editAudioEnabled" />
-                  Enable audio
-                </label>
-              </div>
-              @if (editError) {
-                <p class="error">{{ editError }}</p>
-              }
-              <div class="form-actions">
-                <button type="button" class="btn btn-secondary" (click)="cancelEdit()">
-                  Cancel
-                </button>
-                <button type="submit" class="btn btn-primary" [disabled]="saving">
-                  {{ saving ? 'Saving...' : 'Save Changes' }}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <app-live-stream-edit-modal
+          [stream]="editingStream"
+          [saving]="saving"
+          [error]="editError"
+          (save)="submitEdit($event)"
+          (dismiss)="cancelEdit()"
+        />
       }
 
       <!-- Delete Confirmation Modal -->
       @if (deletingStream) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Confirm deletion"
-          tabindex="0"
-          (click)="cancelDelete()"
-          (keydown.escape)="cancelDelete()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Delete Live Stream</h2>
-            <p>
-              Are you sure you want to delete <strong>{{ deletingStream.name }}</strong
-              >? This action cannot be undone.
-            </p>
-            @if (deleteError) {
-              <p class="error">{{ deleteError }}</p>
-            }
-            <div class="form-actions">
-              <button class="btn btn-secondary" (click)="cancelDelete()">Cancel</button>
-              <button class="btn btn-danger" (click)="executeDelete()" [disabled]="deleting">
-                {{ deleting ? 'Deleting...' : 'Delete' }}
-              </button>
-            </div>
-          </div>
-        </div>
+        <app-live-stream-delete-modal
+          [stream]="deletingStream"
+          [deleting]="deleting"
+          [error]="deleteError"
+          (confirm)="executeDelete()"
+          (dismiss)="cancelDelete()"
+        />
       }
 
       <!-- Activate Modal -->
       @if (activatingStream) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Activate Live Stream"
-          tabindex="0"
-          (click)="cancelActivate()"
-          (keydown.escape)="cancelActivate()"
-        >
-          <div
-            class="modal modal-wide"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Activate "{{ activatingStream.name }}"</h2>
-            <p>Choose target screens or a screen group to stream to.</p>
-
-            <div class="form-group">
-              <span class="form-label">Target type</span>
-              <div class="radio-group">
-                <label class="radio-label">
-                  <input
-                    type="radio"
-                    name="targetType"
-                    value="screens"
-                    [(ngModel)]="activateTargetType"
-                  />
-                  Individual Screens
-                </label>
-                <label class="radio-label">
-                  <input
-                    type="radio"
-                    name="targetType"
-                    value="group"
-                    [(ngModel)]="activateTargetType"
-                  />
-                  Screen Group
-                </label>
-              </div>
-            </div>
-
-            @if (activateTargetType === 'screens') {
-              <div class="form-group">
-                <span class="form-label">Select screens</span>
-                @if (screens.length === 0) {
-                  <p class="text-muted">No screens available.</p>
-                } @else {
-                  <div class="checkbox-list">
-                    @for (screen of screens; track screen.id) {
-                      <label class="checkbox-label">
-                        <input
-                          type="checkbox"
-                          [checked]="activateScreenIds.has(screen.id)"
-                          (change)="toggleScreen(screen.id)"
-                        />
-                        {{ screen.name }}
-                        @if (screen.location) {
-                          <span class="text-muted">({{ screen.location }})</span>
-                        }
-                      </label>
-                    }
-                  </div>
-                }
-              </div>
-            } @else {
-              <div class="form-group">
-                <label for="activateGroupId">Select screen group</label>
-                <select id="activateGroupId" [(ngModel)]="activateGroupId" name="activateGroupId">
-                  <option value="">-- Select a group --</option>
-                  @for (group of screenGroups; track group.id) {
-                    <option [value]="group.id">
-                      {{ group.name }} ({{ group.screens.length }} screens)
-                    </option>
-                  }
-                </select>
-              </div>
-            }
-
-            @if (activateError) {
-              <p class="error">{{ activateError }}</p>
-            }
-            <div class="form-actions">
-              <button class="btn btn-secondary" (click)="cancelActivate()">Cancel</button>
-              <button class="btn btn-primary" (click)="submitActivate()" [disabled]="activating">
-                {{ activating ? 'Activating...' : 'Activate' }}
-              </button>
-            </div>
-          </div>
-        </div>
+        <app-live-stream-activate-modal
+          [stream]="activatingStream"
+          [screens]="screens"
+          [screenGroups]="screenGroups"
+          [activating]="activating"
+          [error]="activateError"
+          (activate)="submitActivate($event)"
+          (dismiss)="cancelActivate()"
+        />
       }
     </div>
   `,
@@ -468,26 +178,13 @@ export class LiveStreams implements OnInit {
   loadError = '';
   actionError = '';
 
-  // Preset options
-  transcodingPresets = TRANSCODING_PRESETS;
-
   // Create form state
   showCreateForm = false;
-  createName = '';
-  createSourceUrl = '';
-  createProtocol: LiveStreamProtocol = 'rtmp';
-  createPreset: TranscodingPreset = 'high_1080p';
-  createAudioEnabled = true;
   createError = '';
   creating = false;
 
   // Edit state
   editingStream: LiveStream | null = null;
-  editName = '';
-  editSourceUrl = '';
-  editProtocol: LiveStreamProtocol = 'rtmp';
-  editPreset: TranscodingPreset = 'high_1080p';
-  editAudioEnabled = true;
   editError = '';
   saving = false;
 
@@ -498,9 +195,6 @@ export class LiveStreams implements OnInit {
 
   // Activate state
   activatingStream: LiveStream | null = null;
-  activateTargetType: 'screens' | 'group' = 'screens';
-  activateScreenIds = new Set<string>();
-  activateGroupId = '';
   activateError = '';
   activating = false;
 
@@ -557,11 +251,6 @@ export class LiveStreams implements OnInit {
 
   // --- Create ---
   openCreateForm(): void {
-    this.createName = '';
-    this.createSourceUrl = '';
-    this.createProtocol = 'rtmp';
-    this.createPreset = 'high_1080p';
-    this.createAudioEnabled = true;
     this.createError = '';
     this.showCreateForm = true;
   }
@@ -570,25 +259,9 @@ export class LiveStreams implements OnInit {
     this.showCreateForm = false;
   }
 
-  submitCreate(): void {
-    if (!this.createName) {
-      this.createError = 'Name is required.';
-      return;
-    }
-    if (!this.createSourceUrl) {
-      this.createError = 'Source URL is required.';
-      return;
-    }
-
+  submitCreate(dto: CreateLiveStreamRequest): void {
     this.creating = true;
     this.createError = '';
-    const dto: CreateLiveStreamRequest = {
-      name: this.createName,
-      sourceUrl: this.createSourceUrl,
-      protocol: this.createProtocol,
-      transcodingPreset: this.createPreset,
-      audioEnabled: this.createAudioEnabled,
-    };
     this.liveStreamService.create(this.orgId, dto).subscribe({
       next: () => {
         this.creating = false;
@@ -605,11 +278,6 @@ export class LiveStreams implements OnInit {
   // --- Edit ---
   editStream(stream: LiveStream): void {
     this.editingStream = stream;
-    this.editName = stream.name;
-    this.editSourceUrl = stream.sourceUrl;
-    this.editProtocol = stream.protocol;
-    this.editPreset = stream.transcodingPreset;
-    this.editAudioEnabled = stream.audioEnabled;
     this.editError = '';
   }
 
@@ -617,26 +285,11 @@ export class LiveStreams implements OnInit {
     this.editingStream = null;
   }
 
-  submitEdit(): void {
+  submitEdit(dto: UpdateLiveStreamRequest): void {
     if (!this.editingStream) return;
-    if (!this.editName) {
-      this.editError = 'Name is required.';
-      return;
-    }
-    if (!this.editSourceUrl) {
-      this.editError = 'Source URL is required.';
-      return;
-    }
 
     this.saving = true;
     this.editError = '';
-    const dto: UpdateLiveStreamRequest = {
-      name: this.editName,
-      sourceUrl: this.editSourceUrl,
-      protocol: this.editProtocol,
-      transcodingPreset: this.editPreset,
-      audioEnabled: this.editAudioEnabled,
-    };
     this.liveStreamService.update(this.orgId, this.editingStream.id, dto).subscribe({
       next: () => {
         this.saving = false;
@@ -682,9 +335,6 @@ export class LiveStreams implements OnInit {
   // --- Activate ---
   openActivateModal(stream: LiveStream): void {
     this.activatingStream = stream;
-    this.activateTargetType = 'screens';
-    this.activateScreenIds = new Set<string>();
-    this.activateGroupId = '';
     this.activateError = '';
   }
 
@@ -692,32 +342,8 @@ export class LiveStreams implements OnInit {
     this.activatingStream = null;
   }
 
-  toggleScreen(screenId: string): void {
-    if (this.activateScreenIds.has(screenId)) {
-      this.activateScreenIds.delete(screenId);
-    } else {
-      this.activateScreenIds.add(screenId);
-    }
-  }
-
-  submitActivate(): void {
+  submitActivate(dto: ActivateLiveStreamRequest): void {
     if (!this.activatingStream) return;
-
-    const dto: ActivateLiveStreamRequest = {};
-
-    if (this.activateTargetType === 'screens') {
-      if (this.activateScreenIds.size === 0) {
-        this.activateError = 'Select at least one screen.';
-        return;
-      }
-      dto.targetScreenIds = Array.from(this.activateScreenIds);
-    } else {
-      if (!this.activateGroupId) {
-        this.activateError = 'Select a screen group.';
-        return;
-      }
-      dto.targetGroupId = this.activateGroupId;
-    }
 
     this.activating = true;
     this.activateError = '';
@@ -754,9 +380,5 @@ export class LiveStreams implements OnInit {
 
   dismissWarnings(): void {
     this.passthroughWarnings = [];
-  }
-
-  presetLabel(preset: TranscodingPreset): string {
-    return TRANSCODING_PRESET_LABELS[preset] ?? preset;
   }
 }
