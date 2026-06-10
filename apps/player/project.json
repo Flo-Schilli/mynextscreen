@@ -1,0 +1,102 @@
+{
+  "name": "player",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/player/src",
+  "prefix": "app",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@angular/build:application",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/player",
+        "browser": "apps/player/src/main.ts",
+        "tsConfig": "apps/player/tsconfig.app.json",
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "apps/player/public"
+          }
+        ],
+        "styles": ["apps/player/src/styles.css"]
+      },
+      "configurations": {
+        "production": {
+          "budgets": [
+            {
+              "type": "initial",
+              "maximumWarning": "800kB",
+              "maximumError": "1.2MB"
+            },
+            {
+              "type": "anyComponentStyle",
+              "maximumWarning": "6kB",
+              "maximumError": "12kB"
+            }
+          ],
+          "outputHashing": "all"
+        },
+        "development": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true
+        }
+      },
+      "defaultConfiguration": "production"
+    },
+    "serve": {
+      "executor": "@angular/build:dev-server",
+      "configurations": {
+        "production": {
+          "buildTarget": "player:build:production"
+        },
+        "development": {
+          "buildTarget": "player:build:development"
+        }
+      },
+      "defaultConfiguration": "development",
+      "options": {
+        "port": 4300,
+        "proxyConfig": "apps/player/proxy.conf.json",
+        "liveReload": true,
+        "hmr": true
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "eslint \"src/**/*.ts\" \"src/**/*.html\"",
+        "cwd": "apps/player"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "apps/player"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit -p tsconfig.app.json",
+        "cwd": "apps/player"
+      }
+    },
+    "format": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prettier --write \"src/**/*.{ts,html,css}\"",
+        "cwd": "apps/player"
+      }
+    },
+    "format:check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prettier --check \"src/**/*.{ts,html,css}\"",
+        "cwd": "apps/player"
+      }
+    }
+  }
+}
