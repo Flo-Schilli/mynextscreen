@@ -8,7 +8,7 @@
     "assets": [
       {
         "include": "db/migrations/**/*.sql",
-        "outDir": "dist",
+        "outDir": "../../dist/apps/backend",
         "watchAssets": true
       }
     ]
