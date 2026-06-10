@@ -3,7 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { of, throwError } from 'rxjs';
 import { OrgNotificationConfigController } from './org-notification-config.controller';
 import { OrgNotificationConfigService } from './org-notification-config.service';
-import { OrganisationNotificationConfig } from './organisation-notification-config.entity';
+import type { OrganisationNotificationConfig } from '../db/schema';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 
 // Mock SmtpEmailProvider
@@ -33,7 +33,6 @@ describe('OrgNotificationConfigController', () => {
     ntfyUrl: 'https://ntfy.sh',
     ntfyTopic: 'my-topic',
     ntfyToken: 'token123',
-    organisation: {} as OrganisationNotificationConfig['organisation'],
   };
 
   const mockReq = {

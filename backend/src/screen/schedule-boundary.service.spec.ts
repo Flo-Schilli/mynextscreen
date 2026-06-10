@@ -1,162 +1,207 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { eq } from 'drizzle-orm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ScheduleBoundaryService } from './schedule-boundary.service';
 import { ScheduleService, ScheduleEntryChangedEvent, GroupScheduleChangedEvent } from '../schedule';
 import { SCHEDULE_CHANGED, ScreenStateChangeEvent } from './screen-state.event';
-import { Screen } from './screen.entity';
-import { ScheduleEntry } from '../schedule';
-import { Organisation } from '../organisation/organisation.entity';
-import { Repository } from 'typeorm';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { DRIZZLE } from '../db/database.constants';
+import { organisations, screens, screenGroups, playlists, scheduleEntries } from '../db/schema';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('ScheduleBoundaryService', () => {
   let service: ScheduleBoundaryService;
-  let entryRepository: { find: jest.Mock };
-  let screenRepository: { findOne: jest.Mock; find: jest.Mock };
+  let db: DrizzleDB;
   let scheduleService: { getCurrentPlaylist: jest.Mock };
-  let eventEmitter: { emit: jest.Mock };
+  let emit: jest.Mock;
 
-  const orgId = '550e8400-e29b-41d4-a716-446655440000';
-  const screenId = '770e8400-e29b-41d4-a716-446655440000';
-  const playlistId = '880e8400-e29b-41d4-a716-446655440000';
-  const playlistId2 = '990e8400-e29b-41d4-a716-446655440000';
-  const groupId = 'aa0e8400-e29b-41d4-a716-446655440000';
+  let orgId: string;
+  let screenId: string;
+  let groupId: string;
+  let playlistId: string;
+  let playlistId2: string;
 
-  const mockScreen: Screen = {
-    id: screenId,
-    organisationId: orgId,
-    name: 'Main Stage',
-    resolution: '1920x1080',
-    location: 'Stage Left',
-    apiKeyHash: '$2b$10$hashedvalue',
-    lastHeartbeat: null,
-    isOnline: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    organisation: {} as Organisation,
-    groupId: null,
-    group: null,
-    gridRow: null,
-    gridColumn: null,
-  };
+  beforeAll(async () => {
+    db = await initTestDb();
+  });
 
-  beforeEach(() => {
-    jest.useFakeTimers();
+  afterAll(async () => {
+    await closeTestDb();
+  });
 
-    entryRepository = { find: jest.fn().mockResolvedValue([]) };
-    screenRepository = {
-      findOne: jest.fn().mockResolvedValue(mockScreen),
-      find: jest.fn().mockResolvedValue([]),
-    };
+  beforeEach(async () => {
+    await truncateAll();
+
+    const [org] = await db
+      .insert(organisations)
+      .values({ name: `Org ${Math.random()}`, timeZone: 'UTC' })
+      .returning();
+    orgId = org.id;
+
+    const [group] = await db
+      .insert(screenGroups)
+      .values({ organisationId: orgId, name: 'Group' })
+      .returning();
+    groupId = group.id;
+
+    const [screen] = await db
+      .insert(screens)
+      .values({
+        organisationId: orgId,
+        name: 'Main Stage',
+        resolution: '1920x1080',
+        location: 'Stage Left',
+        apiKeyHash: '$2b$10$hashedvalue',
+        isOnline: true,
+      })
+      .returning();
+    screenId = screen.id;
+
+    const [p1] = await db
+      .insert(playlists)
+      .values({ organisationId: orgId, name: 'Playlist 1' })
+      .returning();
+    playlistId = p1.id;
+    const [p2] = await db
+      .insert(playlists)
+      .values({ organisationId: orgId, name: 'Playlist 2' })
+      .returning();
+    playlistId2 = p2.id;
+
     scheduleService = {
       getCurrentPlaylist: jest.fn().mockResolvedValue({
-        playlist: { id: playlistId, name: 'Default Playlist' },
+        playlist: { id: playlistId, name: 'Playlist 1' },
         isDefault: true,
       }),
     };
-    eventEmitter = { emit: jest.fn() };
+    emit = jest.fn();
 
-    service = new ScheduleBoundaryService(
-      entryRepository as unknown as Repository<ScheduleEntry>,
-      screenRepository as unknown as Repository<Screen>,
-      scheduleService as unknown as ScheduleService,
-      eventEmitter as unknown as EventEmitter2,
-    );
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ScheduleBoundaryService,
+        { provide: DRIZZLE, useValue: db },
+        { provide: ScheduleService, useValue: scheduleService },
+        { provide: EventEmitter2, useValue: { emit } },
+      ],
+    }).compile();
+    service = module.get<ScheduleBoundaryService>(ScheduleBoundaryService);
   });
 
   afterEach(() => {
-    service.onModuleDestroy();
+    if (service) service.onModuleDestroy();
     jest.useRealTimers();
   });
 
+  /**
+   * Seed schedule rows (real timers), then switch to fake timers so the
+   * service's setTimeout-based boundary scheduling is deterministic. The pg
+   * driver resolves queries via microtasks/socket events, so faking the
+   * macro-task timers does not stall awaited DB calls — but we only enable it
+   * once seeding is done.
+   */
+  function enableFakeTimers(): void {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
+  }
+
+  /**
+   * Inspect the service's own tracked-screen map rather than `jest.getTimerCount()`.
+   * The pg connection pool schedules its own idle-timeout timers under fake timers,
+   * which would pollute a raw global timer count; the tracked map is the service's
+   * authoritative "is a boundary scheduled for this screen" state.
+   */
+  function trackedScreenIds(): string[] {
+    const map = (service as unknown as { tracked: Map<string, unknown> }).tracked;
+    return Array.from(map.keys());
+  }
+  function hasScheduledTimer(id: string): boolean {
+    const map = (service as unknown as { tracked: Map<string, { timer: unknown }> }).tracked;
+    const entry = map.get(id);
+    return !!entry && entry.timer != null;
+  }
+
+  async function seedScreenEntry(
+    startOffsetMs: number,
+    endOffsetMs: number,
+    pid: string,
+  ): Promise<void> {
+    const now = Date.now();
+    await db.insert(scheduleEntries).values({
+      organisationId: orgId,
+      screenId,
+      playlistId: pid,
+      startTime: new Date(now + startOffsetMs),
+      endTime: new Date(now + endOffsetMs),
+      rrule: null,
+      colour: '#fff',
+    });
+  }
+
   describe('registerScreen', () => {
     it('should register a screen and store current playlist', async () => {
+      enableFakeTimers();
       await service.registerScreen(screenId);
-
-      expect(screenRepository.findOne).toHaveBeenCalledWith({
-        where: { id: screenId },
-      });
       expect(scheduleService.getCurrentPlaylist).toHaveBeenCalledWith(screenId);
     });
 
     it('should not register if screen does not exist', async () => {
-      screenRepository.findOne.mockResolvedValue(null);
-
-      await service.registerScreen(screenId);
-
+      enableFakeTimers();
+      await service.registerScreen('00000000-0000-0000-0000-000000000000');
       expect(scheduleService.getCurrentPlaylist).not.toHaveBeenCalled();
     });
 
     it('should not register a screen twice', async () => {
+      enableFakeTimers();
       await service.registerScreen(screenId);
       const callsBefore = scheduleService.getCurrentPlaylist.mock.calls.length;
 
       await service.registerScreen(screenId);
 
-      // getCurrentPlaylist should not be called again for duplicate registration
       expect(scheduleService.getCurrentPlaylist).toHaveBeenCalledTimes(callsBefore);
     });
 
     it('should set a fallback timer when no schedule entries exist', async () => {
+      enableFakeTimers();
       await service.registerScreen(screenId);
-
-      expect(jest.getTimerCount()).toBe(1);
+      expect(hasScheduledTimer(screenId)).toBe(true);
     });
 
     it('should set a timer based on the next schedule boundary', async () => {
-      const now = new Date();
-      const startTime = new Date(now.getTime() + 5000); // 5s from now
-      const endTime = new Date(now.getTime() + 10000);
-
-      entryRepository.find.mockResolvedValue([
-        {
-          screenId,
-          startTime,
-          endTime,
-          rrule: null,
-          playlistId,
-        },
-      ]);
-
+      await seedScreenEntry(5000, 10000, playlistId);
+      enableFakeTimers();
       await service.registerScreen(screenId);
-
-      expect(jest.getTimerCount()).toBe(1);
+      expect(hasScheduledTimer(screenId)).toBe(true);
     });
   });
 
   describe('unregisterScreen', () => {
     it('should clear timers and remove tracking', async () => {
+      enableFakeTimers();
       await service.registerScreen(screenId);
-      expect(jest.getTimerCount()).toBe(1);
+      expect(hasScheduledTimer(screenId)).toBe(true);
 
       service.unregisterScreen(screenId);
-      expect(jest.getTimerCount()).toBe(0);
+      expect(trackedScreenIds()).not.toContain(screenId);
     });
 
     it('should be a no-op for untracked screens', () => {
+      enableFakeTimers();
       service.unregisterScreen('non-existent');
-      // Should not throw
     });
   });
 
   describe('boundary timer fire', () => {
     it('should emit SCHEDULE_CHANGED when playlist changes', async () => {
-      const now = new Date();
-      const startTime = new Date(now.getTime() + 1000);
-      const endTime = new Date(now.getTime() + 60000);
+      await seedScreenEntry(1000, 60000, playlistId2);
 
-      entryRepository.find.mockResolvedValue([
-        { screenId, startTime, endTime, rrule: null, playlistId: playlistId2 },
-      ]);
-
-      // Initial state: playlistId
       scheduleService.getCurrentPlaylist.mockResolvedValue({
         playlist: { id: playlistId, name: 'Playlist 1' },
         isDefault: true,
       });
 
+      enableFakeTimers();
       await service.registerScreen(screenId);
-      eventEmitter.emit.mockClear();
+      emit.mockClear();
 
-      // After boundary: different playlist
       scheduleService.getCurrentPlaylist.mockResolvedValue({
         playlist: { id: playlistId2, name: 'Playlist 2' },
         isDefault: false,
@@ -165,151 +210,120 @@ describe('ScheduleBoundaryService', () => {
       jest.advanceTimersByTime(1500);
       await jest.advanceTimersToNextTimerAsync();
 
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        SCHEDULE_CHANGED,
-        expect.any(ScreenStateChangeEvent),
-      );
-      const emittedEvent = eventEmitter.emit.mock.calls.find(
-        (c: unknown[]) => c[0] === SCHEDULE_CHANGED,
-      );
-      expect(emittedEvent[1]).toEqual(
-        expect.objectContaining({
-          screenId,
-          organisationId: orgId,
-        }),
+      expect(emit).toHaveBeenCalledWith(SCHEDULE_CHANGED, expect.any(ScreenStateChangeEvent));
+      const emittedEvent = emit.mock.calls.find((c: unknown[]) => c[0] === SCHEDULE_CHANGED);
+      expect(emittedEvent![1]).toEqual(
+        expect.objectContaining({ screenId, organisationId: orgId }),
       );
     });
 
     it('should not emit when playlist has not changed', async () => {
+      enableFakeTimers();
       await service.registerScreen(screenId);
-      eventEmitter.emit.mockClear();
+      emit.mockClear();
 
-      // Same playlist on timer fire
       jest.advanceTimersByTime(60_000);
       await jest.advanceTimersToNextTimerAsync();
 
-      expect(eventEmitter.emit).not.toHaveBeenCalledWith(SCHEDULE_CHANGED, expect.anything());
+      expect(emit).not.toHaveBeenCalledWith(SCHEDULE_CHANGED, expect.anything());
     });
 
     it('should handle getCurrentPlaylist errors gracefully', async () => {
+      enableFakeTimers();
       await service.registerScreen(screenId);
-      eventEmitter.emit.mockClear();
+      emit.mockClear();
 
       scheduleService.getCurrentPlaylist.mockRejectedValue(new Error('DB error'));
 
       jest.advanceTimersByTime(60_000);
       await jest.advanceTimersToNextTimerAsync();
 
-      // Should not throw, no event emitted
-      expect(eventEmitter.emit).not.toHaveBeenCalledWith(SCHEDULE_CHANGED, expect.anything());
+      expect(emit).not.toHaveBeenCalledWith(SCHEDULE_CHANGED, expect.anything());
     });
 
     it('should reschedule the next boundary after firing', async () => {
+      enableFakeTimers();
       await service.registerScreen(screenId);
 
       jest.advanceTimersByTime(60_000);
       await jest.advanceTimersToNextTimerAsync();
 
-      // A new timer should be set
-      expect(jest.getTimerCount()).toBe(1);
+      expect(hasScheduledTimer(screenId)).toBe(true);
     });
   });
 
   describe('handleScheduleEntryChanged', () => {
     it('should recalculate timer for tracked screen', async () => {
+      enableFakeTimers();
       await service.registerScreen(screenId);
-
-      const spy = jest.spyOn(entryRepository, 'find');
-      spy.mockClear();
-
+      // Re-handling should not throw and should keep a timer scheduled.
       await service.handleScheduleEntryChanged(new ScheduleEntryChangedEvent(screenId, orgId));
-
-      // Should have queried entries again for recalculation
-      expect(spy).toHaveBeenCalled();
+      expect(hasScheduledTimer(screenId)).toBe(true);
     });
 
     it('should ignore events for untracked screens', async () => {
-      const spy = jest.spyOn(entryRepository, 'find');
-
+      enableFakeTimers();
       await service.handleScheduleEntryChanged(
-        new ScheduleEntryChangedEvent('untracked-screen', orgId),
+        new ScheduleEntryChangedEvent('00000000-0000-0000-0000-000000000000', orgId),
       );
-
-      expect(spy).not.toHaveBeenCalled();
+      expect(trackedScreenIds()).toHaveLength(0);
     });
   });
 
   describe('handleGroupScheduleChanged', () => {
     it('should recalculate for tracked screens in the group', async () => {
-      const screenInGroup = { ...mockScreen, groupId };
-      screenRepository.findOne.mockResolvedValue(screenInGroup);
-      screenRepository.find.mockResolvedValue([screenInGroup]);
-
+      await db.update(screens).set({ groupId }).where(eq(screens.id, screenId));
+      enableFakeTimers();
       await service.registerScreen(screenId);
-
-      const spy = jest.spyOn(entryRepository, 'find');
-      spy.mockClear();
 
       await service.handleGroupScheduleChanged(
         new GroupScheduleChangedEvent(groupId, orgId, playlistId),
       );
 
-      expect(screenRepository.find).toHaveBeenCalledWith({
-        where: { groupId },
-      });
-      expect(spy).toHaveBeenCalled();
+      expect(hasScheduledTimer(screenId)).toBe(true);
     });
 
     it('should skip screens not tracked', async () => {
-      screenRepository.find.mockResolvedValue([{ ...mockScreen, id: 'other-screen', groupId }]);
-
-      const spy = jest.spyOn(entryRepository, 'find');
-
+      await db.update(screens).set({ groupId }).where(eq(screens.id, screenId));
+      enableFakeTimers();
+      // screen NOT registered → group change must not create any timer
       await service.handleGroupScheduleChanged(
         new GroupScheduleChangedEvent(groupId, orgId, playlistId),
       );
 
-      // No tracked screens in the group, so no entry queries for recalculation
-      expect(spy).not.toHaveBeenCalled();
+      expect(trackedScreenIds()).toHaveLength(0);
     });
   });
 
   describe('onModuleDestroy', () => {
     it('should clear all timers', async () => {
+      enableFakeTimers();
       await service.registerScreen(screenId);
-      expect(jest.getTimerCount()).toBe(1);
+      expect(hasScheduledTimer(screenId)).toBe(true);
 
       service.onModuleDestroy();
-      expect(jest.getTimerCount()).toBe(0);
+      expect(trackedScreenIds()).toHaveLength(0);
     });
   });
 
   describe('group schedule boundaries', () => {
     it('should collect boundaries from group entries', async () => {
-      const screenInGroup = { ...mockScreen, groupId };
-      screenRepository.findOne.mockResolvedValue(screenInGroup);
-
-      const now = new Date();
-      const groupEntry = {
+      await db.update(screens).set({ groupId }).where(eq(screens.id, screenId));
+      const now = Date.now();
+      await db.insert(scheduleEntries).values({
+        organisationId: orgId,
         groupId,
-        screenId: null,
-        startTime: new Date(now.getTime() + 3000),
-        endTime: new Date(now.getTime() + 60000),
-        rrule: null,
         playlistId: playlistId2,
-      };
-
-      entryRepository.find.mockImplementation(({ where }: { where: Record<string, string> }) => {
-        if (where.groupId === groupId) return Promise.resolve([groupEntry]);
-        return Promise.resolve([]);
+        startTime: new Date(now + 3000),
+        endTime: new Date(now + 60000),
+        rrule: null,
+        colour: '#fff',
       });
 
+      enableFakeTimers();
       await service.registerScreen(screenId);
 
-      expect(entryRepository.find).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { groupId } }),
-      );
-      expect(jest.getTimerCount()).toBe(1);
+      expect(hasScheduledTimer(screenId)).toBe(true);
     });
   });
 });

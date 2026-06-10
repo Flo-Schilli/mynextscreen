@@ -1,134 +1,184 @@
-import { Repository } from 'typeorm';
+import { Test, TestingModule } from '@nestjs/testing';
 import { SearchService } from './search.service';
-import { Screen } from '../screen/screen.entity';
-import { Content } from '../content/content.entity';
-import { Playlist } from '../playlist/playlist.entity';
-import { ScheduleEntry } from '../schedule/schedule-entry.entity';
+import { DRIZZLE } from '../db/database.constants';
+import {
+  organisations,
+  screens,
+  contents,
+  playlists,
+  scheduleEntries,
+  type Organisation,
+} from '../db/schema';
+import { ContentType } from '../content/content-type.enum';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('SearchService', () => {
   let service: SearchService;
-  let screenRepo: Record<string, jest.Mock>;
-  let contentRepo: Record<string, jest.Mock>;
-  let playlistRepo: Record<string, jest.Mock>;
-  let scheduleRepo: Record<string, jest.Mock>;
+  let db: DrizzleDB;
 
-  const orgId = '550e8400-e29b-41d4-a716-446655440000';
-  const otherOrgId = '660e8400-e29b-41d4-a716-446655440000';
-
-  const mockQueryBuilder = () => {
-    const qb: Record<string, jest.Mock> = {
-      where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      take: jest.fn().mockReturnThis(),
-      leftJoinAndSelect: jest.fn().mockReturnThis(),
-      getMany: jest.fn().mockResolvedValue([]),
-    };
-    return qb;
-  };
-
-  beforeEach(() => {
-    screenRepo = { createQueryBuilder: jest.fn() };
-    contentRepo = { createQueryBuilder: jest.fn() };
-    playlistRepo = { createQueryBuilder: jest.fn() };
-    scheduleRepo = { createQueryBuilder: jest.fn() };
-
-    service = new SearchService(
-      screenRepo as unknown as Repository<Screen>,
-      contentRepo as unknown as Repository<Content>,
-      playlistRepo as unknown as Repository<Playlist>,
-      scheduleRepo as unknown as Repository<ScheduleEntry>,
-    );
+  beforeAll(async () => {
+    db = await initTestDb();
   });
 
-  describe('empty query', () => {
-    it('should return empty results without hitting the database', async () => {
-      const result = await service.search('', orgId);
+  afterAll(async () => {
+    await closeTestDb();
+  });
 
-      expect(result).toEqual({
-        screens: [],
-        content: [],
-        playlists: [],
-        schedules: [],
-      });
-      expect(screenRepo.createQueryBuilder).not.toHaveBeenCalled();
-      expect(contentRepo.createQueryBuilder).not.toHaveBeenCalled();
-      expect(playlistRepo.createQueryBuilder).not.toHaveBeenCalled();
-      expect(scheduleRepo.createQueryBuilder).not.toHaveBeenCalled();
+  beforeEach(async () => {
+    await truncateAll();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [SearchService, { provide: DRIZZLE, useValue: db }],
+    }).compile();
+    service = module.get<SearchService>(SearchService);
+  });
+
+  async function seedOrg(name: string): Promise<Organisation> {
+    const [org] = await db.insert(organisations).values({ name, timeZone: 'UTC' }).returning();
+    return org;
+  }
+
+  async function seedScreen(
+    organisationId: string,
+    name: string,
+    location = 'Lobby',
+  ): Promise<string> {
+    const [row] = await db
+      .insert(screens)
+      .values({
+        organisationId,
+        name,
+        resolution: '1920x1080',
+        location,
+        apiKeyHash: `hash-${Math.random()}`,
+      })
+      .returning();
+    return row.id;
+  }
+
+  async function seedContent(organisationId: string, title: string): Promise<string> {
+    const [row] = await db
+      .insert(contents)
+      .values({
+        organisationId,
+        title,
+        type: ContentType.Image,
+        originalFilename: 'file.png',
+        originalMimeType: 'image/png',
+        originalSizeBytes: 1024,
+      })
+      .returning();
+    return row.id;
+  }
+
+  async function seedPlaylist(organisationId: string, name: string): Promise<string> {
+    const [row] = await db.insert(playlists).values({ organisationId, name }).returning();
+    return row.id;
+  }
+
+  async function seedSchedule(
+    organisationId: string,
+    playlistId: string,
+    screenId: string,
+  ): Promise<string> {
+    const [row] = await db
+      .insert(scheduleEntries)
+      .values({
+        organisationId,
+        playlistId,
+        screenId,
+        startTime: new Date('2026-01-01T08:00:00Z'),
+        endTime: new Date('2026-01-01T18:00:00Z'),
+        colour: '#ff0000',
+      })
+      .returning();
+    return row.id;
+  }
+
+  describe('empty query', () => {
+    it('returns empty results for an empty query without hitting the database', async () => {
+      const org = await seedOrg('Org A');
+      await seedScreen(org.id, 'Lobby Screen');
+
+      const result = await service.search('', org.id);
+
+      expect(result).toEqual({ screens: [], content: [], playlists: [], schedules: [] });
     });
 
-    it('should return empty results for whitespace-only query', async () => {
-      const result = await service.search('   ', orgId);
+    it('returns empty results for a whitespace-only query', async () => {
+      const org = await seedOrg('Org A');
+      await seedScreen(org.id, 'Lobby Screen');
 
-      expect(result).toEqual({
-        screens: [],
-        content: [],
-        playlists: [],
-        schedules: [],
-      });
-      expect(screenRepo.createQueryBuilder).not.toHaveBeenCalled();
+      const result = await service.search('   ', org.id);
+
+      expect(result).toEqual({ screens: [], content: [], playlists: [], schedules: [] });
     });
   });
 
   describe('normal match', () => {
-    it('should return categorised results from all entity types', async () => {
-      const screenQb = mockQueryBuilder();
-      screenQb.getMany.mockResolvedValue([{ id: 's1', name: 'Lobby Screen', location: 'Lobby' }]);
-      screenRepo.createQueryBuilder.mockReturnValue(screenQb);
+    it('returns categorised results from all entity types', async () => {
+      const org = await seedOrg('Org A');
+      const screenId = await seedScreen(org.id, 'Morning Lobby Screen');
+      const contentId = await seedContent(org.id, 'Morning Welcome Video');
+      const playlistId = await seedPlaylist(org.id, 'Morning Playlist');
+      const scheduleId = await seedSchedule(org.id, playlistId, screenId);
 
-      const contentQb = mockQueryBuilder();
-      contentQb.getMany.mockResolvedValue([
-        { id: 'c1', title: 'Welcome Video', description: null, tags: [] },
-      ]);
-      contentRepo.createQueryBuilder.mockReturnValue(contentQb);
-
-      const playlistQb = mockQueryBuilder();
-      playlistQb.getMany.mockResolvedValue([{ id: 'p1', name: 'Morning Playlist' }]);
-      playlistRepo.createQueryBuilder.mockReturnValue(playlistQb);
-
-      const scheduleQb = mockQueryBuilder();
-      scheduleQb.getMany.mockResolvedValue([{ id: 'se1', playlist: { name: 'Morning Playlist' } }]);
-      scheduleRepo.createQueryBuilder.mockReturnValue(scheduleQb);
-
-      const result = await service.search('morning', orgId);
+      const result = await service.search('morning', org.id);
 
       expect(result.screens).toEqual([
-        { id: 's1', type: 'screen', label: 'Lobby Screen', url: '/screens/s1' },
+        {
+          id: screenId,
+          type: 'screen',
+          label: 'Morning Lobby Screen',
+          url: `/screens/${screenId}`,
+        },
       ]);
       expect(result.content).toEqual([
         {
-          id: 'c1',
+          id: contentId,
           type: 'content',
-          label: 'Welcome Video',
-          url: '/content/c1',
+          label: 'Morning Welcome Video',
+          url: `/content/${contentId}`,
         },
       ]);
       expect(result.playlists).toEqual([
         {
-          id: 'p1',
+          id: playlistId,
           type: 'playlist',
           label: 'Morning Playlist',
-          url: '/playlists/p1',
+          url: `/playlists/${playlistId}`,
         },
       ]);
       expect(result.schedules).toEqual([
         {
-          id: 'se1',
+          id: scheduleId,
           type: 'schedule',
           label: 'Morning Playlist',
-          url: '/schedules/se1',
+          url: `/schedules/${scheduleId}`,
         },
+      ]);
+    });
+
+    it('matches screens by location', async () => {
+      const org = await seedOrg('Org A');
+      const screenId = await seedScreen(org.id, 'Display One', 'Main Entrance');
+
+      const result = await service.search('entrance', org.id);
+
+      expect(result.screens).toEqual([
+        { id: screenId, type: 'screen', label: 'Display One', url: `/screens/${screenId}` },
       ]);
     });
   });
 
   describe('no results', () => {
-    it('should return empty arrays when no entities match', async () => {
-      screenRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder());
-      contentRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder());
-      playlistRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder());
-      scheduleRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder());
+    it('returns empty arrays when no entities match', async () => {
+      const org = await seedOrg('Org A');
+      await seedScreen(org.id, 'Lobby Screen');
+      await seedContent(org.id, 'Welcome Video');
+      await seedPlaylist(org.id, 'Daytime Playlist');
 
-      const result = await service.search('nonexistent', orgId);
+      const result = await service.search('nonexistent', org.id);
 
       expect(result.screens).toEqual([]);
       expect(result.content).toEqual([]);
@@ -138,85 +188,78 @@ describe('SearchService', () => {
   });
 
   describe('org-scoping', () => {
-    it('should pass organisationId to all queries', async () => {
-      const screenQb = mockQueryBuilder();
-      screenRepo.createQueryBuilder.mockReturnValue(screenQb);
+    it('only returns results from the queried organisation', async () => {
+      const orgA = await seedOrg('Org A');
+      const orgB = await seedOrg('Org B');
+      const screenA = await seedScreen(orgA.id, 'Shared Screen');
+      await seedScreen(orgB.id, 'Shared Screen');
+      const contentA = await seedContent(orgA.id, 'Shared Content');
+      await seedContent(orgB.id, 'Shared Content');
+      const playlistA = await seedPlaylist(orgA.id, 'Shared Playlist');
+      await seedPlaylist(orgB.id, 'Shared Playlist');
 
-      const contentQb = mockQueryBuilder();
-      contentRepo.createQueryBuilder.mockReturnValue(contentQb);
+      const result = await service.search('shared', orgA.id);
 
-      const playlistQb = mockQueryBuilder();
-      playlistRepo.createQueryBuilder.mockReturnValue(playlistQb);
-
-      const scheduleQb = mockQueryBuilder();
-      scheduleRepo.createQueryBuilder.mockReturnValue(scheduleQb);
-
-      await service.search('test', orgId);
-
-      expect(screenQb.where).toHaveBeenCalledWith('screen.organisationId = :orgId', { orgId });
-      expect(contentQb.where).toHaveBeenCalledWith('content.organisationId = :orgId', { orgId });
-      expect(playlistQb.where).toHaveBeenCalledWith('playlist.organisationId = :orgId', { orgId });
-      expect(scheduleQb.where).toHaveBeenCalledWith('schedule.organisationId = :orgId', { orgId });
+      expect(result.screens).toEqual([
+        { id: screenA, type: 'screen', label: 'Shared Screen', url: `/screens/${screenA}` },
+      ]);
+      expect(result.content).toEqual([
+        { id: contentA, type: 'content', label: 'Shared Content', url: `/content/${contentA}` },
+      ]);
+      expect(result.playlists).toEqual([
+        {
+          id: playlistA,
+          type: 'playlist',
+          label: 'Shared Playlist',
+          url: `/playlists/${playlistA}`,
+        },
+      ]);
     });
 
-    it('should not return results from another organisation', async () => {
-      // All query builders return empty — simulating org-scoped filtering
-      screenRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder());
-      contentRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder());
-      playlistRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder());
-      scheduleRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder());
+    it("does not leak another organisation's data", async () => {
+      const orgA = await seedOrg('Org A');
+      const orgB = await seedOrg('Org B');
+      await seedScreen(orgB.id, 'Secret Screen');
+      await seedContent(orgB.id, 'Secret Content');
+      await seedPlaylist(orgB.id, 'Secret Playlist');
 
-      const result = await service.search('test', otherOrgId);
+      const result = await service.search('secret', orgA.id);
 
       expect(result.screens).toEqual([]);
       expect(result.content).toEqual([]);
       expect(result.playlists).toEqual([]);
       expect(result.schedules).toEqual([]);
-
-      // Verify it was scoped to the other org, not the primary one
-      const screenQb = screenRepo.createQueryBuilder.mock.results[0].value;
-      expect(screenQb.where).toHaveBeenCalledWith('screen.organisationId = :orgId', {
-        orgId: otherOrgId,
-      });
     });
   });
 
   describe('result capping', () => {
-    it('should request a maximum of 5 results per entity type', async () => {
-      const screenQb = mockQueryBuilder();
-      screenRepo.createQueryBuilder.mockReturnValue(screenQb);
+    it('returns at most 5 results per entity type', async () => {
+      const org = await seedOrg('Org A');
+      for (let i = 0; i < 7; i += 1) {
+        await seedScreen(org.id, `Lobby Screen ${i}`);
+        await seedContent(org.id, `Lobby Content ${i}`);
+        await seedPlaylist(org.id, `Lobby Playlist ${i}`);
+      }
 
-      const contentQb = mockQueryBuilder();
-      contentRepo.createQueryBuilder.mockReturnValue(contentQb);
+      const result = await service.search('lobby', org.id);
 
-      const playlistQb = mockQueryBuilder();
-      playlistRepo.createQueryBuilder.mockReturnValue(playlistQb);
-
-      const scheduleQb = mockQueryBuilder();
-      scheduleRepo.createQueryBuilder.mockReturnValue(scheduleQb);
-
-      await service.search('test', orgId);
-
-      expect(screenQb.take).toHaveBeenCalledWith(5);
-      expect(contentQb.take).toHaveBeenCalledWith(5);
-      expect(playlistQb.take).toHaveBeenCalledWith(5);
-      expect(scheduleQb.take).toHaveBeenCalledWith(5);
+      expect(result.screens).toHaveLength(5);
+      expect(result.content).toHaveLength(5);
+      expect(result.playlists).toHaveLength(5);
     });
   });
 
   describe('LIKE pattern sanitisation', () => {
-    it('should escape % and _ characters in the query', async () => {
-      const screenQb = mockQueryBuilder();
-      screenRepo.createQueryBuilder.mockReturnValue(screenQb);
-      contentRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder());
-      playlistRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder());
-      scheduleRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder());
+    it('treats % and _ as literal characters, not wildcards', async () => {
+      const org = await seedOrg('Org A');
+      const literalId = await seedScreen(org.id, '100%_done');
+      await seedScreen(org.id, '100abcdone');
 
-      await service.search('100%_done', orgId);
+      const result = await service.search('100%_done', org.id);
 
-      expect(screenQb.andWhere).toHaveBeenCalledWith(expect.any(String), {
-        q: '%100\\%\\_done%',
-      });
+      expect(result.screens).toEqual([
+        { id: literalId, type: 'screen', label: '100%_done', url: `/screens/${literalId}` },
+      ]);
     });
   });
 });

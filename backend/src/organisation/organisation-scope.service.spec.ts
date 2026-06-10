@@ -1,147 +1,144 @@
 import { NotFoundException } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
 import { OrganisationScopedService, OrganisationScoped } from './organisation-scope.service';
+import { organisations, playlists } from '../db/schema';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
-interface TestEntity extends OrganisationScoped {
+/**
+ * The base service is exercised against the real `playlists` table — it has the
+ * `id` + `organisationId` columns every tenant-scoped table exposes plus a free
+ * `name` column to mutate, so the generic CRUD/scoping behaviour is fully covered.
+ */
+interface PlaylistRow extends OrganisationScoped {
   id: string;
   organisationId: string;
   name: string;
 }
 
 describe('OrganisationScopedService', () => {
-  let service: OrganisationScopedService<TestEntity>;
-  let repository: Record<string, jest.Mock>;
+  let service: OrganisationScopedService<PlaylistRow>;
+  let db: DrizzleDB;
+  let orgId: string;
+  let otherOrgId: string;
 
-  const orgId = '550e8400-e29b-41d4-a716-446655440000';
-  const otherOrgId = '660e8400-e29b-41d4-a716-446655440000';
-  const entityId = '770e8400-e29b-41d4-a716-446655440000';
-
-  const mockEntity: TestEntity = {
-    id: entityId,
-    organisationId: orgId,
-    name: 'Test Entity',
-  };
-
-  beforeEach(() => {
-    repository = {
-      find: jest.fn(),
-      findOne: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn(),
-      remove: jest.fn(),
-    };
-
-    service = new OrganisationScopedService(
-      repository as unknown as import('typeorm').Repository<TestEntity>,
-      'TestEntity',
-    );
+  beforeAll(async () => {
+    db = await initTestDb();
   });
+
+  afterAll(async () => {
+    await closeTestDb();
+  });
+
+  beforeEach(async () => {
+    await truncateAll();
+    const [org] = await db
+      .insert(organisations)
+      .values({ name: 'Primary', timeZone: 'UTC' })
+      .returning();
+    const [other] = await db
+      .insert(organisations)
+      .values({ name: 'Other', timeZone: 'UTC' })
+      .returning();
+    orgId = org.id;
+    otherOrgId = other.id;
+
+    service = new OrganisationScopedService<PlaylistRow>(db, playlists, 'Playlist');
+  });
+
+  async function seedPlaylist(organisationId: string, name: string): Promise<PlaylistRow> {
+    const [row] = await db.insert(playlists).values({ organisationId, name }).returning();
+    return row as PlaylistRow;
+  }
 
   describe('findAll', () => {
     it('should scope queries by organisationId', async () => {
-      repository.find.mockResolvedValue([mockEntity]);
+      await seedPlaylist(orgId, 'Mine');
+      await seedPlaylist(otherOrgId, 'Theirs');
 
       const result = await service.findAll(orgId);
 
-      expect(repository.find).toHaveBeenCalledWith({
-        where: { organisationId: orgId },
-      });
-      expect(result).toEqual([mockEntity]);
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Mine');
     });
 
     it('should return empty array for organisation with no entities', async () => {
-      repository.find.mockResolvedValue([]);
-
       const result = await service.findAll(otherOrgId);
 
-      expect(repository.find).toHaveBeenCalledWith({
-        where: { organisationId: otherOrgId },
-      });
       expect(result).toEqual([]);
     });
   });
 
   describe('findOne', () => {
     it('should scope single-entity query by organisationId and id', async () => {
-      repository.findOne.mockResolvedValue(mockEntity);
+      const entity = await seedPlaylist(orgId, 'Target');
 
-      const result = await service.findOne(orgId, entityId);
+      const result = await service.findOne(orgId, entity.id);
 
-      expect(repository.findOne).toHaveBeenCalledWith({
-        where: { organisationId: orgId, id: entityId },
-      });
-      expect(result).toEqual(mockEntity);
+      expect(result.id).toBe(entity.id);
+      expect(result.name).toBe('Target');
     });
 
-    it('should throw NotFoundException when entity not found in organisation', async () => {
-      repository.findOne.mockResolvedValue(null);
+    it('should throw NotFoundException when entity belongs to another organisation', async () => {
+      const entity = await seedPlaylist(orgId, 'Target');
 
-      await expect(service.findOne(otherOrgId, entityId)).rejects.toThrow(NotFoundException);
-      await expect(service.findOne(otherOrgId, entityId)).rejects.toThrow(
-        `TestEntity with id "${entityId}" not found in organisation "${otherOrgId}"`,
+      await expect(service.findOne(otherOrgId, entity.id)).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(otherOrgId, entity.id)).rejects.toThrow(
+        `Playlist with id "${entity.id}" not found in organisation "${otherOrgId}"`,
       );
     });
   });
 
   describe('create', () => {
     it('should set organisationId on the created entity', async () => {
-      const data = { name: 'New Entity' };
-      const created = { ...mockEntity, name: 'New Entity' };
-      repository.create.mockReturnValue(created);
-      repository.save.mockResolvedValue(created);
+      const result = await service.create(orgId, { name: 'New Entity' });
 
-      const result = await service.create(orgId, data);
-
-      expect(repository.create).toHaveBeenCalledWith({
-        ...data,
-        organisationId: orgId,
-      });
-      expect(repository.save).toHaveBeenCalledWith(created);
-      expect(result).toEqual(created);
+      expect(result.organisationId).toBe(orgId);
+      expect(result.name).toBe('New Entity');
+      const [persisted] = await db.select().from(playlists).where(eq(playlists.id, result.id));
+      expect(persisted.organisationId).toBe(orgId);
     });
   });
 
   describe('update', () => {
     it('should update an entity scoped to the organisation', async () => {
-      const data = { name: 'Updated' };
-      const updated = { ...mockEntity, name: 'Updated' };
-      repository.findOne.mockResolvedValue({ ...mockEntity });
-      repository.save.mockResolvedValue(updated);
+      const entity = await seedPlaylist(orgId, 'Before');
 
-      const result = await service.update(orgId, entityId, data);
+      const result = await service.update(orgId, entity.id, { name: 'Updated' });
 
-      expect(repository.findOne).toHaveBeenCalledWith({
-        where: { organisationId: orgId, id: entityId },
-      });
-      expect(repository.save).toHaveBeenCalled();
-      expect(result).toEqual(updated);
+      expect(result.name).toBe('Updated');
+      const [persisted] = await db.select().from(playlists).where(eq(playlists.id, entity.id));
+      expect(persisted.name).toBe('Updated');
     });
 
-    it('should throw NotFoundException when entity not found', async () => {
-      repository.findOne.mockResolvedValue(null);
+    it('should throw NotFoundException when entity belongs to another organisation', async () => {
+      const entity = await seedPlaylist(orgId, 'Before');
 
-      await expect(service.update(otherOrgId, entityId, { name: 'Updated' })).rejects.toThrow(
+      await expect(service.update(otherOrgId, entity.id, { name: 'Updated' })).rejects.toThrow(
         NotFoundException,
       );
+      // unchanged in the real org
+      const [persisted] = await db.select().from(playlists).where(eq(playlists.id, entity.id));
+      expect(persisted.name).toBe('Before');
     });
   });
 
   describe('remove', () => {
     it('should remove an entity scoped to the organisation', async () => {
-      repository.findOne.mockResolvedValue(mockEntity);
-      repository.remove.mockResolvedValue(mockEntity);
+      const entity = await seedPlaylist(orgId, 'Doomed');
 
-      await service.remove(orgId, entityId);
+      await service.remove(orgId, entity.id);
 
-      expect(repository.findOne).toHaveBeenCalledWith({
-        where: { organisationId: orgId, id: entityId },
-      });
-      expect(repository.remove).toHaveBeenCalledWith(mockEntity);
+      const rows = await db.select().from(playlists).where(eq(playlists.id, entity.id));
+      expect(rows).toHaveLength(0);
     });
 
-    it('should throw NotFoundException when entity not found', async () => {
-      repository.findOne.mockResolvedValue(null);
+    it('should throw NotFoundException when entity belongs to another organisation', async () => {
+      const entity = await seedPlaylist(orgId, 'Doomed');
 
-      await expect(service.remove(otherOrgId, entityId)).rejects.toThrow(NotFoundException);
+      await expect(service.remove(otherOrgId, entity.id)).rejects.toThrow(NotFoundException);
+      const rows = await db.select().from(playlists).where(eq(playlists.id, entity.id));
+      expect(rows).toHaveLength(1);
     });
   });
 });

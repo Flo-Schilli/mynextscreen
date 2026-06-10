@@ -1,9 +1,13 @@
+import { Test, TestingModule } from '@nestjs/testing';
 import { EmailNotificationChannel } from './email-notification-channel.service';
 import { NotificationEventType } from '../notification-event-type.enum';
 import { NotificationPayload } from './notification-channel.interfaces';
 import { OrgNotificationConfigService } from '../org-notification-config.service';
-import { OrganisationNotificationConfig } from '../organisation-notification-config.entity';
-import { User } from '../../user/user.entity';
+import { DRIZZLE } from '../../db/database.constants';
+import { organisations, users, type Organisation, type User } from '../../db/schema';
+import { initTestDb, truncateAll, closeTestDb } from '../../test/db-harness';
+import type { DrizzleDB } from '../../db/drizzle.types';
+import type { OrganisationNotificationConfig } from '../../db/schema';
 
 // Mock SmtpEmailProvider before importing the module
 const mockSendMail = jest.fn();
@@ -17,11 +21,11 @@ import { SmtpEmailProvider } from './smtp-email-provider';
 
 describe('EmailNotificationChannel', () => {
   let channel: EmailNotificationChannel;
-  let userRepo: Record<string, jest.Mock>;
-  let orgConfigService: Record<string, jest.Mock>;
+  let db: DrizzleDB;
+  let getForOrg: jest.Mock;
+  let org: Organisation;
+  let user: User;
 
-  const userId = 'user-1';
-  const orgId = 'org-1';
   const payload: NotificationPayload = {
     eventType: NotificationEventType.SCREEN_OFFLINE,
     title: 'Screen offline',
@@ -29,44 +33,46 @@ describe('EmailNotificationChannel', () => {
     resourceId: 'screen-1',
   };
 
-  const mockOrgConfig: Partial<OrganisationNotificationConfig> = {
+  const mockOrgConfig = (): Partial<OrganisationNotificationConfig> => ({
     smtpHost: 'smtp.example.com',
     smtpPort: 587,
     smtpUser: 'user@example.com',
     smtpPassword: 'secret',
     smtpFrom: 'noreply@example.com',
     smtpSecure: false,
-  };
+  });
 
-  const mockUser: Partial<User> = {
-    id: userId,
-    email: 'recipient@example.com',
-  };
+  beforeAll(async () => {
+    db = await initTestDb();
+  });
 
-  beforeEach(() => {
+  afterAll(async () => {
+    await closeTestDb();
+  });
+
+  beforeEach(async () => {
+    await truncateAll();
     jest.clearAllMocks();
     mockSendMail.mockResolvedValue(undefined);
+    getForOrg = jest.fn().mockResolvedValue(mockOrgConfig());
 
-    userRepo = {
-      findOne: jest.fn().mockResolvedValue(mockUser),
-    };
-    orgConfigService = {
-      getForOrg: jest.fn().mockResolvedValue(mockOrgConfig),
-    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        EmailNotificationChannel,
+        { provide: DRIZZLE, useValue: db },
+        { provide: OrgNotificationConfigService, useValue: { getForOrg } },
+      ],
+    }).compile();
+    channel = module.get<EmailNotificationChannel>(EmailNotificationChannel);
 
-    channel = new EmailNotificationChannel(
-      userRepo as unknown as import('typeorm').Repository<User>,
-      orgConfigService as unknown as OrgNotificationConfigService,
-    );
+    [org] = await db.insert(organisations).values({ name: 'Org', timeZone: 'UTC' }).returning();
+    [user] = await db.insert(users).values({ email: 'recipient@example.com' }).returning();
   });
 
   it('should send an email with correct subject and body', async () => {
-    await channel.send(userId, orgId, payload);
+    await channel.send(user.id, org.id, payload);
 
-    expect(orgConfigService.getForOrg).toHaveBeenCalledWith(orgId);
-    expect(userRepo.findOne).toHaveBeenCalledWith({
-      where: { id: userId },
-    });
+    expect(getForOrg).toHaveBeenCalledWith(org.id);
     expect(SmtpEmailProvider).toHaveBeenCalledWith({
       host: 'smtp.example.com',
       port: 587,
@@ -83,49 +89,39 @@ describe('EmailNotificationChannel', () => {
   });
 
   it('should skip silently when SMTP host is not configured', async () => {
-    orgConfigService.getForOrg.mockResolvedValue({ smtpHost: null });
+    getForOrg.mockResolvedValue({ smtpHost: null });
 
-    await channel.send(userId, orgId, payload);
+    await channel.send(user.id, org.id, payload);
 
-    expect(userRepo.findOne).not.toHaveBeenCalled();
     expect(mockSendMail).not.toHaveBeenCalled();
   });
 
   it('should skip silently when org config is null', async () => {
-    orgConfigService.getForOrg.mockResolvedValue(null);
+    getForOrg.mockResolvedValue(null);
 
-    await channel.send(userId, orgId, payload);
+    await channel.send(user.id, org.id, payload);
 
-    expect(userRepo.findOne).not.toHaveBeenCalled();
     expect(mockSendMail).not.toHaveBeenCalled();
   });
 
   it('should skip when user is not found', async () => {
-    userRepo.findOne.mockResolvedValue(null);
-
-    await channel.send(userId, orgId, payload);
+    await channel.send('00000000-0000-0000-0000-000000000000', org.id, payload);
 
     expect(mockSendMail).not.toHaveBeenCalled();
   });
 
   it('should use default port 587 when smtpPort is null', async () => {
-    orgConfigService.getForOrg.mockResolvedValue({
-      ...mockOrgConfig,
-      smtpPort: null,
-    });
+    getForOrg.mockResolvedValue({ ...mockOrgConfig(), smtpPort: null });
 
-    await channel.send(userId, orgId, payload);
+    await channel.send(user.id, org.id, payload);
 
     expect(SmtpEmailProvider).toHaveBeenCalledWith(expect.objectContaining({ port: 587 }));
   });
 
   it('should use fallback from address when smtpFrom is null', async () => {
-    orgConfigService.getForOrg.mockResolvedValue({
-      ...mockOrgConfig,
-      smtpFrom: null,
-    });
+    getForOrg.mockResolvedValue({ ...mockOrgConfig(), smtpFrom: null });
 
-    await channel.send(userId, orgId, payload);
+    await channel.send(user.id, org.id, payload);
 
     expect(SmtpEmailProvider).toHaveBeenCalledWith(
       expect.objectContaining({ from: 'noreply@smtp.example.com' }),
@@ -135,6 +131,6 @@ describe('EmailNotificationChannel', () => {
   it('should propagate errors from the email provider', async () => {
     mockSendMail.mockRejectedValue(new Error('SMTP error'));
 
-    await expect(channel.send(userId, orgId, payload)).rejects.toThrow('SMTP error');
+    await expect(channel.send(user.id, org.id, payload)).rejects.toThrow('SMTP error');
   });
 });

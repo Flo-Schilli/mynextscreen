@@ -3,11 +3,10 @@ import { LiveStreamController } from './live-stream.controller';
 import { LiveStreamService } from './live-stream.service';
 import { FfmpegLiveService } from './ffmpeg-live.service';
 import { StreamHealthService } from './stream-health.service';
-import { LiveStream } from './live-stream.entity';
+import type { LiveStream } from '../db/schema';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
 import { TranscodingPreset } from './transcoding-preset.enum';
-import { Organisation } from '../organisation/organisation.entity';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { BadGatewayException, ConflictException } from '@nestjs/common';
 
@@ -32,7 +31,6 @@ describe('LiveStreamController', () => {
     updatedAt: new Date(),
     transcodingPreset: TranscodingPreset.High1080p,
     audioEnabled: true,
-    organisation: {} as Organisation,
   };
 
   beforeEach(async () => {

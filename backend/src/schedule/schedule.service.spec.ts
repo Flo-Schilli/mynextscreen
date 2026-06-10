@@ -1,131 +1,132 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
 import { ScheduleService } from './schedule.service';
-import { ScheduleEntry } from './schedule-entry.entity';
-import { Organisation } from '../organisation/organisation.entity';
-import { Screen } from '../screen/screen.entity';
-import { Playlist } from '../playlist/playlist.entity';
-import { ScreenGroup } from '../screen-group/screen-group.entity';
-import { SCHEDULE_ENTRY_CHANGED, GROUP_SCHEDULE_CHANGED } from './schedule.event';
-import { SLICE_CONTENT_QUEUE } from '../slice-content';
+import { DRIZZLE } from '../db/database.constants';
+import {
+  organisations,
+  screens,
+  screenGroups,
+  playlists,
+  scheduleEntries,
+  type Organisation,
+  type Screen,
+  type ScreenGroup,
+  type Playlist,
+} from '../db/schema';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
+import { SCHEDULE_ENTRY_CHANGED, GROUP_SCHEDULE_CHANGED } from './schedule.event';
+import { AUDIT_SCHEDULE_DELETED } from '../audit-log/audit.events';
+import { SLICE_CONTENT_QUEUE } from '../slice-content';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('ScheduleService', () => {
   let service: ScheduleService;
-  let scheduleRepo: Record<string, jest.Mock>;
-  let organisationRepo: Record<string, jest.Mock>;
-  let screenRepo: Record<string, jest.Mock>;
-  let playlistRepo: Record<string, jest.Mock>;
-  let screenGroupRepo: Record<string, jest.Mock>;
-  let sliceContentQueue: Record<string, jest.Mock>;
-  let eventEmitter: Record<string, jest.Mock>;
+  let db: DrizzleDB;
+  let emit: jest.Mock;
+  let queueAdd: jest.Mock;
+
+  beforeAll(async () => {
+    db = await initTestDb();
+  });
+
+  afterAll(async () => {
+    await closeTestDb();
+  });
 
   beforeEach(async () => {
-    scheduleRepo = {
-      create: jest.fn((data) => ({ id: 'entry-1', ...data })),
-      save: jest.fn((entity) => Promise.resolve({ ...entity })),
-      find: jest.fn().mockResolvedValue([]),
-      findOne: jest.fn().mockResolvedValue(null),
-      remove: jest.fn().mockResolvedValue(undefined),
-    };
-
-    organisationRepo = {
-      findOne: jest.fn().mockResolvedValue(null),
-    };
-
-    screenRepo = {
-      findOne: jest.fn().mockResolvedValue({
-        id: 'screen-1',
-        organisationId: 'org-1',
-      }),
-    };
-
-    playlistRepo = {
-      findOne: jest.fn().mockResolvedValue({
-        id: 'playlist-1',
-        organisationId: 'org-1',
-        name: 'Test Playlist',
-      }),
-    };
-
-    screenGroupRepo = {
-      findOne: jest.fn().mockResolvedValue(null),
-    };
-
-    sliceContentQueue = {
-      add: jest.fn().mockResolvedValue(undefined),
-    };
-
-    eventEmitter = {
-      emit: jest.fn(),
-    };
-
+    await truncateAll();
+    emit = jest.fn();
+    queueAdd = jest.fn().mockResolvedValue(undefined);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ScheduleService,
-        {
-          provide: getRepositoryToken(ScheduleEntry),
-          useValue: scheduleRepo,
-        },
-        {
-          provide: getRepositoryToken(Organisation),
-          useValue: organisationRepo,
-        },
-        { provide: getRepositoryToken(Screen), useValue: screenRepo },
-        { provide: getRepositoryToken(Playlist), useValue: playlistRepo },
-        { provide: getRepositoryToken(ScreenGroup), useValue: screenGroupRepo },
-        {
-          provide: getQueueToken(SLICE_CONTENT_QUEUE),
-          useValue: sliceContentQueue,
-        },
-        { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: DRIZZLE, useValue: db },
+        { provide: getQueueToken(SLICE_CONTENT_QUEUE), useValue: { add: queueAdd } },
+        { provide: EventEmitter2, useValue: { emit } },
       ],
     }).compile();
-
     service = module.get<ScheduleService>(ScheduleService);
   });
 
+  async function seedOrg(overrides: Partial<Organisation> = {}): Promise<Organisation> {
+    const [org] = await db
+      .insert(organisations)
+      .values({ name: `Org ${Math.random()}`, timeZone: 'UTC', ...overrides })
+      .returning();
+    return org;
+  }
+
+  async function seedPlaylist(organisationId: string, name = 'PL'): Promise<Playlist> {
+    const [playlist] = await db.insert(playlists).values({ organisationId, name }).returning();
+    return playlist;
+  }
+
+  async function seedScreen(
+    organisationId: string,
+    overrides: Partial<Screen> = {},
+  ): Promise<Screen> {
+    const [screen] = await db
+      .insert(screens)
+      .values({
+        organisationId,
+        name: 'Screen',
+        resolution: '1920x1080',
+        location: 'Lobby',
+        apiKeyHash: `hash-${Math.random()}`,
+        ...overrides,
+      })
+      .returning();
+    return screen;
+  }
+
+  async function seedGroup(
+    organisationId: string,
+    overrides: Partial<ScreenGroup> = {},
+  ): Promise<ScreenGroup> {
+    const [group] = await db
+      .insert(screenGroups)
+      .values({ organisationId, name: 'Group', mode: ScreenGroupMode.Mirror, ...overrides })
+      .returning();
+    return group;
+  }
+
   describe('create', () => {
     it('should create a schedule entry and emit event', async () => {
-      const dto = {
-        screenId: 'screen-1',
-        playlistId: 'playlist-1',
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id);
+
+      const result = await service.create(org.id, {
+        screenId: screen.id,
+        playlistId: playlist.id,
         startTime: '2026-04-01T10:00:00Z',
         endTime: '2026-04-01T12:00:00Z',
         colour: '#FF5733',
-      };
+      });
 
-      const result = await service.create('org-1', dto);
-
-      expect(scheduleRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          organisationId: 'org-1',
-          screenId: 'screen-1',
-          playlistId: 'playlist-1',
-          colour: '#FF5733',
-        }),
-      );
-      expect(scheduleRepo.save).toHaveBeenCalled();
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      expect(result.organisationId).toBe(org.id);
+      expect(result.screenId).toBe(screen.id);
+      expect(result.colour).toBe('#FF5733');
+      const rows = await db.select().from(scheduleEntries).where(eq(scheduleEntries.id, result.id));
+      expect(rows).toHaveLength(1);
+      expect(emit).toHaveBeenCalledWith(
         SCHEDULE_ENTRY_CHANGED,
-        expect.objectContaining({
-          screenId: 'screen-1',
-          organisationId: 'org-1',
-        }),
+        expect.objectContaining({ screenId: screen.id, organisationId: org.id }),
       );
-      expect(result.organisationId).toBe('org-1');
     });
 
     it('should throw NotFoundException when screen not found', async () => {
-      screenRepo.findOne.mockResolvedValue(null);
+      const org = await seedOrg();
+      const playlist = await seedPlaylist(org.id);
 
       await expect(
-        service.create('org-1', {
-          screenId: 'bad-screen',
-          playlistId: 'playlist-1',
+        service.create(org.id, {
+          screenId: '00000000-0000-0000-0000-000000000000',
+          playlistId: playlist.id,
           startTime: '2026-04-01T10:00:00Z',
           endTime: '2026-04-01T12:00:00Z',
           colour: '#FF5733',
@@ -134,12 +135,13 @@ describe('ScheduleService', () => {
     });
 
     it('should throw NotFoundException when playlist not found', async () => {
-      playlistRepo.findOne.mockResolvedValue(null);
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
 
       await expect(
-        service.create('org-1', {
-          screenId: 'screen-1',
-          playlistId: 'bad-playlist',
+        service.create(org.id, {
+          screenId: screen.id,
+          playlistId: '00000000-0000-0000-0000-000000000000',
           startTime: '2026-04-01T10:00:00Z',
           endTime: '2026-04-01T12:00:00Z',
           colour: '#FF5733',
@@ -150,20 +152,23 @@ describe('ScheduleService', () => {
 
   describe('overlap detection — single entries', () => {
     it('should throw ConflictException when entries overlap', async () => {
-      const existingEntry = {
-        id: 'existing-1',
-        screenId: 'screen-1',
-        organisationId: 'org-1',
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id);
+      await db.insert(scheduleEntries).values({
+        organisationId: org.id,
+        screenId: screen.id,
+        playlistId: playlist.id,
         startTime: new Date('2026-04-01T10:00:00Z'),
         endTime: new Date('2026-04-01T12:00:00Z'),
         rrule: null,
-      };
-      scheduleRepo.find.mockResolvedValue([existingEntry]);
+        colour: '#FF5733',
+      });
 
       await expect(
-        service.create('org-1', {
-          screenId: 'screen-1',
-          playlistId: 'playlist-1',
+        service.create(org.id, {
+          screenId: screen.id,
+          playlistId: playlist.id,
           startTime: '2026-04-01T11:00:00Z',
           endTime: '2026-04-01T13:00:00Z',
           colour: '#FF5733',
@@ -172,47 +177,57 @@ describe('ScheduleService', () => {
     });
 
     it('should allow non-overlapping entries', async () => {
-      const existingEntry = {
-        id: 'existing-1',
-        screenId: 'screen-1',
-        organisationId: 'org-1',
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id);
+      await db.insert(scheduleEntries).values({
+        organisationId: org.id,
+        screenId: screen.id,
+        playlistId: playlist.id,
         startTime: new Date('2026-04-01T10:00:00Z'),
         endTime: new Date('2026-04-01T12:00:00Z'),
         rrule: null,
-      };
-      scheduleRepo.find.mockResolvedValue([existingEntry]);
+        colour: '#FF5733',
+      });
 
-      const result = await service.create('org-1', {
-        screenId: 'screen-1',
-        playlistId: 'playlist-1',
+      const result = await service.create(org.id, {
+        screenId: screen.id,
+        playlistId: playlist.id,
         startTime: '2026-04-01T12:00:00Z',
         endTime: '2026-04-01T14:00:00Z',
         colour: '#FF5733',
       });
 
       expect(result).toBeDefined();
-      expect(scheduleRepo.save).toHaveBeenCalled();
+      const rows = await db
+        .select()
+        .from(scheduleEntries)
+        .where(eq(scheduleEntries.screenId, screen.id));
+      expect(rows).toHaveLength(2);
     });
   });
 
   describe('overlap detection — recurring entries', () => {
     it('should detect overlap between recurring and single entry', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id);
       // Existing: daily recurring 10:00-12:00
-      const existingEntry = {
-        id: 'existing-1',
-        screenId: 'screen-1',
-        organisationId: 'org-1',
+      await db.insert(scheduleEntries).values({
+        organisationId: org.id,
+        screenId: screen.id,
+        playlistId: playlist.id,
         startTime: new Date('2026-04-01T10:00:00Z'),
         endTime: new Date('2026-04-01T12:00:00Z'),
         rrule: 'FREQ=DAILY;COUNT=10',
-      };
-      scheduleRepo.find.mockResolvedValue([existingEntry]);
+        colour: '#FF5733',
+      });
 
       // New entry on April 3rd 11:00-13:00 should overlap with the recurring entry
       await expect(
-        service.create('org-1', {
-          screenId: 'screen-1',
-          playlistId: 'playlist-1',
+        service.create(org.id, {
+          screenId: screen.id,
+          playlistId: playlist.id,
           startTime: '2026-04-03T11:00:00Z',
           endTime: '2026-04-03T13:00:00Z',
           colour: '#FF5733',
@@ -221,21 +236,24 @@ describe('ScheduleService', () => {
     });
 
     it('should allow non-overlapping with recurring entry', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id);
       // Existing: daily recurring 10:00-12:00
-      const existingEntry = {
-        id: 'existing-1',
-        screenId: 'screen-1',
-        organisationId: 'org-1',
+      await db.insert(scheduleEntries).values({
+        organisationId: org.id,
+        screenId: screen.id,
+        playlistId: playlist.id,
         startTime: new Date('2026-04-01T10:00:00Z'),
         endTime: new Date('2026-04-01T12:00:00Z'),
         rrule: 'FREQ=DAILY;COUNT=10',
-      };
-      scheduleRepo.find.mockResolvedValue([existingEntry]);
+        colour: '#FF5733',
+      });
 
       // New entry on April 3rd 13:00-15:00 should not overlap
-      const result = await service.create('org-1', {
-        screenId: 'screen-1',
-        playlistId: 'playlist-1',
+      const result = await service.create(org.id, {
+        screenId: screen.id,
+        playlistId: playlist.id,
         startTime: '2026-04-03T13:00:00Z',
         endTime: '2026-04-03T15:00:00Z',
         colour: '#FF5733',
@@ -246,101 +264,104 @@ describe('ScheduleService', () => {
   });
 
   describe('update (move/resize)', () => {
-    it('should update start and end times (move)', async () => {
-      const existingEntry = {
-        id: 'entry-1',
-        screenId: 'screen-1',
-        organisationId: 'org-1',
-        playlistId: 'playlist-1',
-        startTime: new Date('2026-04-01T10:00:00Z'),
-        endTime: new Date('2026-04-01T12:00:00Z'),
-        rrule: null,
-        colour: '#FF5733',
-        playlist: { id: 'playlist-1', name: 'Test' },
-      };
-      scheduleRepo.findOne.mockResolvedValue(existingEntry);
-      scheduleRepo.find.mockResolvedValue([existingEntry]);
+    async function seedEntry(
+      orgId: string,
+      screenId: string,
+      playlistId: string,
+      start: string,
+      end: string,
+    ): Promise<string> {
+      const [entry] = await db
+        .insert(scheduleEntries)
+        .values({
+          organisationId: orgId,
+          screenId,
+          playlistId,
+          startTime: new Date(start),
+          endTime: new Date(end),
+          rrule: null,
+          colour: '#FF5733',
+        })
+        .returning();
+      return entry.id;
+    }
 
-      await service.update('entry-1', 'org-1', {
+    it('should update start and end times (move)', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id);
+      const id = await seedEntry(
+        org.id,
+        screen.id,
+        playlist.id,
+        '2026-04-01T10:00:00Z',
+        '2026-04-01T12:00:00Z',
+      );
+
+      const saved = await service.update(id, org.id, {
         startTime: '2026-04-01T14:00:00Z',
         endTime: '2026-04-01T16:00:00Z',
       });
 
-      expect(scheduleRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          startTime: new Date('2026-04-01T14:00:00Z'),
-          endTime: new Date('2026-04-01T16:00:00Z'),
-        }),
-      );
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      expect(saved.startTime).toEqual(new Date('2026-04-01T14:00:00Z'));
+      expect(saved.endTime).toEqual(new Date('2026-04-01T16:00:00Z'));
+      expect(emit).toHaveBeenCalledWith(
         SCHEDULE_ENTRY_CHANGED,
-        expect.objectContaining({ screenId: 'screen-1' }),
+        expect.objectContaining({ screenId: screen.id }),
       );
     });
 
     it('should update only end time (resize)', async () => {
-      const existingEntry = {
-        id: 'entry-1',
-        screenId: 'screen-1',
-        organisationId: 'org-1',
-        playlistId: 'playlist-1',
-        startTime: new Date('2026-04-01T10:00:00Z'),
-        endTime: new Date('2026-04-01T12:00:00Z'),
-        rrule: null,
-        colour: '#FF5733',
-        playlist: { id: 'playlist-1', name: 'Test' },
-      };
-      scheduleRepo.findOne.mockResolvedValue(existingEntry);
-      scheduleRepo.find.mockResolvedValue([existingEntry]);
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id);
+      const id = await seedEntry(
+        org.id,
+        screen.id,
+        playlist.id,
+        '2026-04-01T10:00:00Z',
+        '2026-04-01T12:00:00Z',
+      );
 
-      await service.update('entry-1', 'org-1', {
+      const saved = await service.update(id, org.id, {
         endTime: '2026-04-01T14:00:00Z',
       });
 
-      expect(scheduleRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          startTime: new Date('2026-04-01T10:00:00Z'),
-          endTime: new Date('2026-04-01T14:00:00Z'),
-        }),
-      );
+      expect(saved.startTime).toEqual(new Date('2026-04-01T10:00:00Z'));
+      expect(saved.endTime).toEqual(new Date('2026-04-01T14:00:00Z'));
     });
 
     it('should throw NotFoundException when entry not found', async () => {
-      scheduleRepo.findOne.mockResolvedValue(null);
+      const org = await seedOrg();
 
       await expect(
-        service.update('missing', 'org-1', {
+        service.update('00000000-0000-0000-0000-000000000000', org.id, {
           startTime: '2026-04-01T14:00:00Z',
         }),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should reject update that causes overlap', async () => {
-      const entry1 = {
-        id: 'entry-1',
-        screenId: 'screen-1',
-        organisationId: 'org-1',
-        playlistId: 'playlist-1',
-        startTime: new Date('2026-04-01T10:00:00Z'),
-        endTime: new Date('2026-04-01T12:00:00Z'),
-        rrule: null,
-        colour: '#FF5733',
-        playlist: { id: 'playlist-1', name: 'Test' },
-      };
-      const entry2 = {
-        id: 'entry-2',
-        screenId: 'screen-1',
-        organisationId: 'org-1',
-        playlistId: 'playlist-1',
-        startTime: new Date('2026-04-01T14:00:00Z'),
-        endTime: new Date('2026-04-01T16:00:00Z'),
-        rrule: null,
-      };
-      scheduleRepo.findOne.mockResolvedValue(entry1);
-      scheduleRepo.find.mockResolvedValue([entry1, entry2]);
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id);
+      const id1 = await seedEntry(
+        org.id,
+        screen.id,
+        playlist.id,
+        '2026-04-01T10:00:00Z',
+        '2026-04-01T12:00:00Z',
+      );
+      await seedEntry(
+        org.id,
+        screen.id,
+        playlist.id,
+        '2026-04-01T14:00:00Z',
+        '2026-04-01T16:00:00Z',
+      );
 
       await expect(
-        service.update('entry-1', 'org-1', {
+        service.update(id1, org.id, {
           startTime: '2026-04-01T13:00:00Z',
           endTime: '2026-04-01T15:00:00Z',
         }),
@@ -350,89 +371,119 @@ describe('ScheduleService', () => {
 
   describe('delete', () => {
     it('should delete entry and emit event', async () => {
-      const entry = {
-        id: 'entry-1',
-        screenId: 'screen-1',
-        organisationId: 'org-1',
-        playlist: { id: 'playlist-1' },
-      };
-      scheduleRepo.findOne.mockResolvedValue(entry);
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id);
+      const [entry] = await db
+        .insert(scheduleEntries)
+        .values({
+          organisationId: org.id,
+          screenId: screen.id,
+          playlistId: playlist.id,
+          startTime: new Date('2026-04-01T10:00:00Z'),
+          endTime: new Date('2026-04-01T12:00:00Z'),
+          rrule: null,
+          colour: '#FF5733',
+        })
+        .returning();
 
-      await service.delete('entry-1', 'org-1');
+      await service.delete(entry.id, org.id);
 
-      expect(scheduleRepo.remove).toHaveBeenCalledWith(entry);
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      const rows = await db.select().from(scheduleEntries).where(eq(scheduleEntries.id, entry.id));
+      expect(rows).toHaveLength(0);
+      expect(emit).toHaveBeenCalledWith(
         SCHEDULE_ENTRY_CHANGED,
-        expect.objectContaining({ screenId: 'screen-1' }),
+        expect.objectContaining({ screenId: screen.id }),
       );
     });
 
     it('should throw NotFoundException when entry not found', async () => {
-      scheduleRepo.findOne.mockResolvedValue(null);
-
-      await expect(service.delete('missing', 'org-1')).rejects.toThrow(NotFoundException);
+      const org = await seedOrg();
+      await expect(service.delete('00000000-0000-0000-0000-000000000000', org.id)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should emit GROUP_SCHEDULE_CHANGED when deleting group entry', async () => {
-      const entry = {
-        id: 'entry-1',
-        screenId: null,
-        groupId: 'group-1',
-        organisationId: 'org-1',
-        playlistId: 'playlist-1',
-        playlist: { id: 'playlist-1' },
-      };
-      scheduleRepo.findOne.mockResolvedValue(entry);
+      const org = await seedOrg();
+      const group = await seedGroup(org.id);
+      const playlist = await seedPlaylist(org.id);
+      const [entry] = await db
+        .insert(scheduleEntries)
+        .values({
+          organisationId: org.id,
+          screenId: null,
+          groupId: group.id,
+          playlistId: playlist.id,
+          startTime: new Date('2026-04-01T10:00:00Z'),
+          endTime: new Date('2026-04-01T12:00:00Z'),
+          rrule: null,
+          colour: '#FF5733',
+        })
+        .returning();
 
-      await service.delete('entry-1', 'org-1');
+      await service.delete(entry.id, org.id);
 
-      expect(scheduleRepo.remove).toHaveBeenCalledWith(entry);
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      expect(emit).toHaveBeenCalledWith(
         GROUP_SCHEDULE_CHANGED,
         expect.objectContaining({
-          groupId: 'group-1',
-          organisationId: 'org-1',
-          playlistId: 'playlist-1',
+          groupId: group.id,
+          organisationId: org.id,
+          playlistId: playlist.id,
         }),
       );
     });
 
     it('should not emit SCHEDULE_ENTRY_CHANGED when deleting group entry', async () => {
-      const entry = {
-        id: 'entry-1',
-        screenId: null,
-        groupId: 'group-1',
-        organisationId: 'org-1',
-        playlistId: 'playlist-1',
-        playlist: { id: 'playlist-1' },
-      };
-      scheduleRepo.findOne.mockResolvedValue(entry);
+      const org = await seedOrg();
+      const group = await seedGroup(org.id);
+      const playlist = await seedPlaylist(org.id);
+      const [entry] = await db
+        .insert(scheduleEntries)
+        .values({
+          organisationId: org.id,
+          screenId: null,
+          groupId: group.id,
+          playlistId: playlist.id,
+          startTime: new Date('2026-04-01T10:00:00Z'),
+          endTime: new Date('2026-04-01T12:00:00Z'),
+          rrule: null,
+          colour: '#FF5733',
+        })
+        .returning();
 
-      await service.delete('entry-1', 'org-1');
+      await service.delete(entry.id, org.id);
 
-      const screenChangedCalls = eventEmitter.emit.mock.calls.filter(
+      const screenChangedCalls = emit.mock.calls.filter(
         (c: unknown[]) => c[0] === SCHEDULE_ENTRY_CHANGED,
       );
       expect(screenChangedCalls).toHaveLength(0);
     });
 
     it('should include groupId in audit event when deleting group entry', async () => {
-      const entry = {
-        id: 'entry-1',
-        screenId: null,
-        groupId: 'group-1',
-        organisationId: 'org-1',
-        playlistId: 'playlist-1',
-        playlist: { id: 'playlist-1' },
-      };
-      scheduleRepo.findOne.mockResolvedValue(entry);
+      const org = await seedOrg();
+      const group = await seedGroup(org.id);
+      const playlist = await seedPlaylist(org.id);
+      const [entry] = await db
+        .insert(scheduleEntries)
+        .values({
+          organisationId: org.id,
+          screenId: null,
+          groupId: group.id,
+          playlistId: playlist.id,
+          startTime: new Date('2026-04-01T10:00:00Z'),
+          endTime: new Date('2026-04-01T12:00:00Z'),
+          rrule: null,
+          colour: '#FF5733',
+        })
+        .returning();
 
-      await service.delete('entry-1', 'org-1');
+      await service.delete(entry.id, org.id);
 
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        'audit.schedule.deleted',
+      expect(emit).toHaveBeenCalledWith(
+        AUDIT_SCHEDULE_DELETED,
         expect.objectContaining({
-          details: expect.objectContaining({ groupId: 'group-1' }),
+          details: expect.objectContaining({ groupId: group.id }),
         }),
       );
     });
@@ -440,586 +491,448 @@ describe('ScheduleService', () => {
 
   describe('getCurrentPlaylist', () => {
     it('should return the active playlist when a schedule entry is active', async () => {
-      const now = new Date();
-      const entry = {
-        id: 'entry-1',
-        screenId: 'screen-1',
-        organisationId: 'org-1',
-        startTime: new Date(now.getTime() - 60 * 60 * 1000), // 1 hour ago
-        endTime: new Date(now.getTime() + 60 * 60 * 1000), // 1 hour from now
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id, 'Active Playlist');
+      const now = Date.now();
+      await db.insert(scheduleEntries).values({
+        organisationId: org.id,
+        screenId: screen.id,
+        playlistId: playlist.id,
+        startTime: new Date(now - 60 * 60 * 1000),
+        endTime: new Date(now + 60 * 60 * 1000),
         rrule: null,
-        playlist: { id: 'playlist-1', name: 'Active Playlist' },
-      };
-      scheduleRepo.find.mockResolvedValue([entry]);
+        colour: '#FF5733',
+      });
 
-      const result = await service.getCurrentPlaylist('screen-1');
+      const result = await service.getCurrentPlaylist(screen.id);
 
       expect(result.playlist).toEqual(expect.objectContaining({ name: 'Active Playlist' }));
       expect(result.isDefault).toBe(false);
     });
 
     it('should return the fallback playlist when no entry is active', async () => {
-      const now = new Date();
-      const entry = {
-        id: 'entry-1',
-        screenId: 'screen-1',
-        organisationId: 'org-1',
-        startTime: new Date(now.getTime() + 60 * 60 * 1000), // 1 hour from now
-        endTime: new Date(now.getTime() + 2 * 60 * 60 * 1000), // 2 hours from now
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const future = await seedPlaylist(org.id, 'Future Playlist');
+      const fallback = await seedPlaylist(org.id, 'Default Playlist');
+      await db
+        .update(organisations)
+        .set({ defaultPlaylistId: fallback.id })
+        .where(eq(organisations.id, org.id));
+      const now = Date.now();
+      await db.insert(scheduleEntries).values({
+        organisationId: org.id,
+        screenId: screen.id,
+        playlistId: future.id,
+        startTime: new Date(now + 60 * 60 * 1000),
+        endTime: new Date(now + 2 * 60 * 60 * 1000),
         rrule: null,
-        playlist: { id: 'playlist-1', name: 'Future Playlist' },
-      };
-      scheduleRepo.find.mockResolvedValue([entry]);
-
-      organisationRepo.findOne.mockResolvedValue({
-        id: 'org-1',
-        defaultPlaylistId: 'default-playlist-1',
-      });
-      // Override playlistRepo for fallback lookup
-      playlistRepo.findOne.mockResolvedValue({
-        id: 'default-playlist-1',
-        name: 'Default Playlist',
+        colour: '#FF5733',
       });
 
-      const result = await service.getCurrentPlaylist('screen-1');
+      const result = await service.getCurrentPlaylist(screen.id);
 
       expect(result.isDefault).toBe(true);
       expect(result.playlist).toEqual(expect.objectContaining({ name: 'Default Playlist' }));
     });
 
     it('should return null playlist when no entries and no default', async () => {
-      scheduleRepo.find.mockResolvedValue([]);
-      screenRepo.findOne.mockResolvedValue({
-        id: 'screen-1',
-        organisationId: 'org-1',
-      });
-      organisationRepo.findOne.mockResolvedValue({
-        id: 'org-1',
-        defaultPlaylistId: null,
-      });
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
 
-      const result = await service.getCurrentPlaylist('screen-1');
+      const result = await service.getCurrentPlaylist(screen.id);
 
       expect(result.playlist).toBeNull();
       expect(result.isDefault).toBe(true);
     });
 
     it('should resolve group schedule when no direct screen schedule is active', async () => {
-      const now = new Date();
-      // No direct screen entries
-      scheduleRepo.find
-        .mockResolvedValueOnce([]) // direct screen entries
-        .mockResolvedValueOnce([
-          // group entries
-          {
-            id: 'group-entry-1',
-            groupId: 'group-1',
-            organisationId: 'org-1',
-            startTime: new Date(now.getTime() - 60 * 60 * 1000),
-            endTime: new Date(now.getTime() + 60 * 60 * 1000),
-            rrule: null,
-            playlist: { id: 'group-playlist-1', name: 'Group Playlist' },
-          },
-        ]);
-
-      screenRepo.findOne.mockResolvedValue({
-        id: 'screen-1',
-        organisationId: 'org-1',
-        groupId: 'group-1',
+      const org = await seedOrg();
+      const group = await seedGroup(org.id);
+      const screen = await seedScreen(org.id, { groupId: group.id });
+      const groupPlaylist = await seedPlaylist(org.id, 'Group Playlist');
+      const now = Date.now();
+      await db.insert(scheduleEntries).values({
+        organisationId: org.id,
+        screenId: null,
+        groupId: group.id,
+        playlistId: groupPlaylist.id,
+        startTime: new Date(now - 60 * 60 * 1000),
+        endTime: new Date(now + 60 * 60 * 1000),
+        rrule: null,
+        colour: '#FF5733',
       });
 
-      const result = await service.getCurrentPlaylist('screen-1');
+      const result = await service.getCurrentPlaylist(screen.id);
 
       expect(result.playlist).toEqual(expect.objectContaining({ name: 'Group Playlist' }));
       expect(result.isDefault).toBe(false);
     });
 
     it('should prefer direct screen schedule over group schedule', async () => {
-      const now = new Date();
-      // Direct screen entry is active
-      scheduleRepo.find.mockResolvedValueOnce([
+      const org = await seedOrg();
+      const group = await seedGroup(org.id);
+      const screen = await seedScreen(org.id, { groupId: group.id });
+      const screenPlaylist = await seedPlaylist(org.id, 'Screen Playlist');
+      const groupPlaylist = await seedPlaylist(org.id, 'Group Playlist');
+      const now = Date.now();
+      await db.insert(scheduleEntries).values([
         {
-          id: 'screen-entry-1',
-          screenId: 'screen-1',
-          organisationId: 'org-1',
-          startTime: new Date(now.getTime() - 60 * 60 * 1000),
-          endTime: new Date(now.getTime() + 60 * 60 * 1000),
+          organisationId: org.id,
+          screenId: screen.id,
+          playlistId: screenPlaylist.id,
+          startTime: new Date(now - 60 * 60 * 1000),
+          endTime: new Date(now + 60 * 60 * 1000),
           rrule: null,
-          playlist: { id: 'screen-playlist-1', name: 'Screen Playlist' },
+          colour: '#FF5733',
+        },
+        {
+          organisationId: org.id,
+          screenId: null,
+          groupId: group.id,
+          playlistId: groupPlaylist.id,
+          startTime: new Date(now - 60 * 60 * 1000),
+          endTime: new Date(now + 60 * 60 * 1000),
+          rrule: null,
+          colour: '#00FF00',
         },
       ]);
 
-      const result = await service.getCurrentPlaylist('screen-1');
+      const result = await service.getCurrentPlaylist(screen.id);
 
       expect(result.playlist).toEqual(expect.objectContaining({ name: 'Screen Playlist' }));
       expect(result.isDefault).toBe(false);
-      // Should not have queried group entries
-      expect(scheduleRepo.find).toHaveBeenCalledTimes(1);
     });
 
     it('should fall back to default when screen has group but no active group schedule', async () => {
-      const now = new Date();
-      // No active direct entries
-      scheduleRepo.find.mockResolvedValueOnce([]).mockResolvedValueOnce([
-        // group entries — but not active
-        {
-          id: 'group-entry-1',
-          groupId: 'group-1',
-          organisationId: 'org-1',
-          startTime: new Date(now.getTime() + 60 * 60 * 1000), // future
-          endTime: new Date(now.getTime() + 2 * 60 * 60 * 1000),
-          rrule: null,
-          playlist: { id: 'group-playlist-1', name: 'Group Playlist' },
-        },
-      ]);
-
-      screenRepo.findOne.mockResolvedValue({
-        id: 'screen-1',
-        organisationId: 'org-1',
-        groupId: 'group-1',
+      const org = await seedOrg();
+      const group = await seedGroup(org.id);
+      const screen = await seedScreen(org.id, { groupId: group.id });
+      const groupPlaylist = await seedPlaylist(org.id, 'Group Playlist');
+      const now = Date.now();
+      await db.insert(scheduleEntries).values({
+        organisationId: org.id,
+        screenId: null,
+        groupId: group.id,
+        playlistId: groupPlaylist.id,
+        startTime: new Date(now + 60 * 60 * 1000), // future
+        endTime: new Date(now + 2 * 60 * 60 * 1000),
+        rrule: null,
+        colour: '#FF5733',
       });
 
-      organisationRepo.findOne.mockResolvedValue({
-        id: 'org-1',
-        defaultPlaylistId: null,
-      });
-
-      const result = await service.getCurrentPlaylist('screen-1');
+      const result = await service.getCurrentPlaylist(screen.id);
 
       expect(result.isDefault).toBe(true);
+      expect(result.playlist).toBeNull();
     });
 
     it('should skip group lookup when screen has no groupId', async () => {
-      scheduleRepo.find.mockResolvedValue([]);
-      screenRepo.findOne.mockResolvedValue({
-        id: 'screen-1',
-        organisationId: 'org-1',
-        groupId: null,
-      });
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id, { groupId: null });
 
-      organisationRepo.findOne.mockResolvedValue({
-        id: 'org-1',
-        defaultPlaylistId: null,
-      });
-
-      const result = await service.getCurrentPlaylist('screen-1');
+      const result = await service.getCurrentPlaylist(screen.id);
 
       expect(result.isDefault).toBe(true);
-      // Should only have been called once (direct screen entries)
-      expect(scheduleRepo.find).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('group schedule events', () => {
-    it('should emit GROUP_SCHEDULE_CHANGED when creating entry with groupId', async () => {
-      const dto = {
-        groupId: 'group-1',
-        playlistId: 'playlist-1',
-        startTime: '2026-04-01T10:00:00Z',
-        endTime: '2026-04-01T12:00:00Z',
-        colour: '#FF5733',
-      };
-
-      screenGroupRepo.findOne.mockResolvedValue({
-        id: 'group-1',
-        organisationId: 'org-1',
-        mode: ScreenGroupMode.Mirror,
-      });
-
-      scheduleRepo.create.mockReturnValue({
-        id: 'entry-1',
-        groupId: 'group-1',
-        screenId: null,
-        playlistId: 'playlist-1',
-        organisationId: 'org-1',
-      });
-      scheduleRepo.save.mockResolvedValue({
-        id: 'entry-1',
-        groupId: 'group-1',
-        screenId: null,
-        playlistId: 'playlist-1',
-        organisationId: 'org-1',
-      });
-
-      await service.create('org-1', dto);
-
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        GROUP_SCHEDULE_CHANGED,
-        expect.objectContaining({
-          groupId: 'group-1',
-          organisationId: 'org-1',
-        }),
-      );
+      expect(result.playlist).toBeNull();
     });
 
-    it('should not emit GROUP_SCHEDULE_CHANGED when entry has no groupId', async () => {
-      const dto = {
-        screenId: 'screen-1',
-        playlistId: 'playlist-1',
-        startTime: '2026-04-01T10:00:00Z',
-        endTime: '2026-04-01T12:00:00Z',
-        colour: '#FF5733',
-      };
-
-      await service.create('org-1', dto);
-
-      const groupCalls = eventEmitter.emit.mock.calls.filter(
-        (c: unknown[]) => c[0] === GROUP_SCHEDULE_CHANGED,
-      );
-      expect(groupCalls).toHaveLength(0);
+    it('should return null when the screen does not exist', async () => {
+      const result = await service.getCurrentPlaylist('00000000-0000-0000-0000-000000000000');
+      expect(result.playlist).toBeNull();
+      expect(result.isDefault).toBe(false);
     });
   });
 
   describe('findByScreen', () => {
     it('should return entries for a screen', async () => {
-      const entries = [
-        {
-          id: 'e1',
-          screenId: 'screen-1',
-          organisationId: 'org-1',
-          startTime: new Date('2026-04-01T10:00:00Z'),
-          endTime: new Date('2026-04-01T12:00:00Z'),
-        },
-      ];
-      scheduleRepo.find.mockResolvedValue(entries);
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id);
+      await db.insert(scheduleEntries).values({
+        organisationId: org.id,
+        screenId: screen.id,
+        playlistId: playlist.id,
+        startTime: new Date('2026-04-01T10:00:00Z'),
+        endTime: new Date('2026-04-01T12:00:00Z'),
+        rrule: null,
+        colour: '#FF5733',
+      });
 
       const result = await service.findByScreen(
-        'screen-1',
-        'org-1',
+        screen.id,
+        org.id,
         new Date('2026-04-01'),
         new Date('2026-04-02'),
       );
 
-      expect(result).toEqual(entries);
-      expect(scheduleRepo.find).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { screenId: 'screen-1', organisationId: 'org-1' },
-        }),
-      );
+      expect(result).toHaveLength(1);
+      expect(result[0].screenId).toBe(screen.id);
+      expect(result[0].playlist).toEqual(expect.objectContaining({ id: playlist.id }));
     });
   });
 
   describe('findByOrganisation', () => {
-    it('should return entries for an organisation', async () => {
-      const entries = [
+    it('should return entries for an organisation with relations', async () => {
+      const org = await seedOrg();
+      const group = await seedGroup(org.id);
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id);
+      await db.insert(scheduleEntries).values([
         {
-          id: 'e1',
-          screenId: 'screen-1',
-          organisationId: 'org-1',
+          organisationId: org.id,
+          screenId: screen.id,
+          playlistId: playlist.id,
+          startTime: new Date('2026-04-01T10:00:00Z'),
+          endTime: new Date('2026-04-01T12:00:00Z'),
+          rrule: null,
+          colour: '#FF5733',
         },
         {
-          id: 'e2',
-          screenId: 'screen-2',
-          organisationId: 'org-1',
+          organisationId: org.id,
+          screenId: null,
+          groupId: group.id,
+          playlistId: playlist.id,
+          startTime: new Date('2026-04-02T10:00:00Z'),
+          endTime: new Date('2026-04-02T12:00:00Z'),
+          rrule: null,
+          colour: '#00FF00',
         },
-      ];
-      scheduleRepo.find.mockResolvedValue(entries);
+      ]);
 
       const result = await service.findByOrganisation(
-        'org-1',
+        org.id,
         new Date('2026-04-01'),
         new Date('2026-04-30'),
       );
 
-      expect(result).toEqual(entries);
-    });
-
-    it('should include group relation in query', async () => {
-      scheduleRepo.find.mockResolvedValue([]);
-
-      await service.findByOrganisation('org-1', new Date('2026-04-01'), new Date('2026-04-30'));
-
-      expect(scheduleRepo.find).toHaveBeenCalledWith(
-        expect.objectContaining({
-          relations: expect.arrayContaining(['group']),
-        }),
+      expect(result).toHaveLength(2);
+      const groupEntry = result.find((e) => e.groupId === group.id);
+      expect(groupEntry).toBeDefined();
+      expect((groupEntry as unknown as { group: ScreenGroup }).group).toEqual(
+        expect.objectContaining({ id: group.id }),
       );
     });
   });
 
   describe('target validation (screenId / groupId)', () => {
     it('should throw BadRequestException when neither screenId nor groupId is set', async () => {
-      const dto = {
-        playlistId: 'playlist-1',
-        startTime: '2026-04-01T10:00:00Z',
-        endTime: '2026-04-01T12:00:00Z',
-        colour: '#FF5733',
-      };
+      const org = await seedOrg();
+      const playlist = await seedPlaylist(org.id);
 
-      await expect(service.create('org-1', dto)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.create(org.id, {
+          playlistId: playlist.id,
+          startTime: '2026-04-01T10:00:00Z',
+          endTime: '2026-04-01T12:00:00Z',
+          colour: '#FF5733',
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException when both screenId and groupId are set', async () => {
-      const dto = {
-        screenId: 'screen-1',
-        groupId: 'group-1',
-        playlistId: 'playlist-1',
-        startTime: '2026-04-01T10:00:00Z',
-        endTime: '2026-04-01T12:00:00Z',
-        colour: '#FF5733',
-      };
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const group = await seedGroup(org.id);
+      const playlist = await seedPlaylist(org.id);
 
-      await expect(service.create('org-1', dto)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.create(org.id, {
+          screenId: screen.id,
+          groupId: group.id,
+          playlistId: playlist.id,
+          startTime: '2026-04-01T10:00:00Z',
+          endTime: '2026-04-01T12:00:00Z',
+          colour: '#FF5733',
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('group-based scheduling', () => {
     it('should create a schedule entry targeting a group', async () => {
-      const dto = {
-        groupId: 'group-1',
-        playlistId: 'playlist-1',
+      const org = await seedOrg();
+      const group = await seedGroup(org.id, { mode: ScreenGroupMode.Mirror });
+      const playlist = await seedPlaylist(org.id);
+
+      const result = await service.create(org.id, {
+        groupId: group.id,
+        playlistId: playlist.id,
         startTime: '2026-04-01T10:00:00Z',
         endTime: '2026-04-01T12:00:00Z',
         colour: '#FF5733',
-      };
-
-      screenGroupRepo.findOne.mockResolvedValue({
-        id: 'group-1',
-        organisationId: 'org-1',
-        mode: ScreenGroupMode.Mirror,
       });
 
-      const result = await service.create('org-1', dto);
-
-      expect(scheduleRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          organisationId: 'org-1',
-          groupId: 'group-1',
-          screenId: null,
-          playlistId: 'playlist-1',
-        }),
+      expect(result.groupId).toBe(group.id);
+      expect(result.screenId).toBeNull();
+      expect(result.playlistId).toBe(playlist.id);
+      expect(emit).toHaveBeenCalledWith(
+        GROUP_SCHEDULE_CHANGED,
+        expect.objectContaining({ groupId: group.id, organisationId: org.id }),
       );
-      expect(result).toBeDefined();
     });
 
     it('should throw NotFoundException when group not found in organisation', async () => {
-      screenGroupRepo.findOne.mockResolvedValue(null);
+      const org = await seedOrg();
+      const playlist = await seedPlaylist(org.id);
 
-      const dto = {
-        groupId: 'bad-group',
-        playlistId: 'playlist-1',
-        startTime: '2026-04-01T10:00:00Z',
-        endTime: '2026-04-01T12:00:00Z',
-        colour: '#FF5733',
-      };
-
-      await expect(service.create('org-1', dto)).rejects.toThrow(NotFoundException);
+      await expect(
+        service.create(org.id, {
+          groupId: '00000000-0000-0000-0000-000000000000',
+          playlistId: playlist.id,
+          startTime: '2026-04-01T10:00:00Z',
+          endTime: '2026-04-01T12:00:00Z',
+          colour: '#FF5733',
+        }),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should enqueue slice-content job when group mode is split', async () => {
-      const dto = {
-        groupId: 'group-1',
-        playlistId: 'playlist-1',
+      const org = await seedOrg();
+      const group = await seedGroup(org.id, { mode: ScreenGroupMode.Split });
+      const playlist = await seedPlaylist(org.id);
+
+      await service.create(org.id, {
+        groupId: group.id,
+        playlistId: playlist.id,
         startTime: '2026-04-01T10:00:00Z',
         endTime: '2026-04-01T12:00:00Z',
         colour: '#FF5733',
-      };
-
-      screenGroupRepo.findOne
-        .mockResolvedValueOnce({
-          id: 'group-1',
-          organisationId: 'org-1',
-          mode: ScreenGroupMode.Split,
-        })
-        .mockResolvedValueOnce({
-          id: 'group-1',
-          organisationId: 'org-1',
-          mode: ScreenGroupMode.Split,
-        });
-
-      scheduleRepo.create.mockReturnValue({
-        id: 'entry-1',
-        groupId: 'group-1',
-        screenId: null,
-        playlistId: 'playlist-1',
-        organisationId: 'org-1',
-      });
-      scheduleRepo.save.mockResolvedValue({
-        id: 'entry-1',
-        groupId: 'group-1',
-        screenId: null,
-        playlistId: 'playlist-1',
-        organisationId: 'org-1',
       });
 
-      await service.create('org-1', dto);
-
-      expect(sliceContentQueue.add).toHaveBeenCalledWith(
+      expect(queueAdd).toHaveBeenCalledWith(
         'slice',
         expect.objectContaining({
-          groupId: 'group-1',
-          playlistId: 'playlist-1',
-          organisationId: 'org-1',
+          groupId: group.id,
+          playlistId: playlist.id,
+          organisationId: org.id,
         }),
       );
     });
 
     it('should not enqueue slice-content job when group mode is mirror', async () => {
-      const dto = {
-        groupId: 'group-1',
-        playlistId: 'playlist-1',
+      const org = await seedOrg();
+      const group = await seedGroup(org.id, { mode: ScreenGroupMode.Mirror });
+      const playlist = await seedPlaylist(org.id);
+
+      await service.create(org.id, {
+        groupId: group.id,
+        playlistId: playlist.id,
         startTime: '2026-04-01T10:00:00Z',
         endTime: '2026-04-01T12:00:00Z',
         colour: '#FF5733',
-      };
-
-      screenGroupRepo.findOne.mockResolvedValue({
-        id: 'group-1',
-        organisationId: 'org-1',
-        mode: ScreenGroupMode.Mirror,
       });
 
-      scheduleRepo.create.mockReturnValue({
-        id: 'entry-1',
-        groupId: 'group-1',
-        screenId: null,
-        playlistId: 'playlist-1',
-        organisationId: 'org-1',
-      });
-      scheduleRepo.save.mockResolvedValue({
-        id: 'entry-1',
-        groupId: 'group-1',
-        screenId: null,
-        playlistId: 'playlist-1',
-        organisationId: 'org-1',
-      });
-
-      await service.create('org-1', dto);
-
-      expect(sliceContentQueue.add).not.toHaveBeenCalled();
+      expect(queueAdd).not.toHaveBeenCalled();
     });
 
     it('should not run overlap check for group-targeted entries', async () => {
-      const dto = {
-        groupId: 'group-1',
-        playlistId: 'playlist-1',
-        startTime: '2026-04-01T10:00:00Z',
-        endTime: '2026-04-01T12:00:00Z',
-        colour: '#FF5733',
-      };
-
-      screenGroupRepo.findOne.mockResolvedValue({
-        id: 'group-1',
-        organisationId: 'org-1',
-        mode: ScreenGroupMode.Mirror,
-      });
-
-      await service.create('org-1', dto);
-
-      // find is only called by save/create, not by checkOverlap
-      // checkOverlap calls find with { screenId, organisationId } — should not be called
-      const overlapCalls = scheduleRepo.find.mock.calls.filter(
-        (c: unknown[]) =>
-          (c[0] as { where?: { screenId?: unknown } })?.where?.screenId !== undefined,
-      );
-      expect(overlapCalls).toHaveLength(0);
-    });
-
-    it('should enqueue slice-content job on update when group mode is split', async () => {
-      const existingEntry = {
-        id: 'entry-1',
+      const org = await seedOrg();
+      const group = await seedGroup(org.id, { mode: ScreenGroupMode.Mirror });
+      const playlist = await seedPlaylist(org.id);
+      // A group entry that would overlap if overlap-checked — but groups are never checked.
+      await db.insert(scheduleEntries).values({
+        organisationId: org.id,
         screenId: null,
-        groupId: 'group-1',
-        organisationId: 'org-1',
-        playlistId: 'playlist-1',
+        groupId: group.id,
+        playlistId: playlist.id,
         startTime: new Date('2026-04-01T10:00:00Z'),
         endTime: new Date('2026-04-01T12:00:00Z'),
         rrule: null,
         colour: '#FF5733',
-        playlist: { id: 'playlist-1', name: 'Test' },
-      };
-      scheduleRepo.findOne.mockResolvedValue(existingEntry);
-      scheduleRepo.save.mockResolvedValue({
-        ...existingEntry,
-        endTime: new Date('2026-04-01T14:00:00Z'),
       });
 
-      screenGroupRepo.findOne.mockResolvedValue({
-        id: 'group-1',
-        organisationId: 'org-1',
-        mode: ScreenGroupMode.Split,
+      const result = await service.create(org.id, {
+        groupId: group.id,
+        playlistId: playlist.id,
+        startTime: '2026-04-01T11:00:00Z',
+        endTime: '2026-04-01T13:00:00Z',
+        colour: '#FF5733',
       });
 
-      await service.update('entry-1', 'org-1', {
-        endTime: '2026-04-01T14:00:00Z',
-      });
+      expect(result).toBeDefined();
+    });
 
-      expect(sliceContentQueue.add).toHaveBeenCalledWith(
+    it('should enqueue slice-content job on update when group mode is split', async () => {
+      const org = await seedOrg();
+      const group = await seedGroup(org.id, { mode: ScreenGroupMode.Split });
+      const playlist = await seedPlaylist(org.id);
+      const [entry] = await db
+        .insert(scheduleEntries)
+        .values({
+          organisationId: org.id,
+          screenId: null,
+          groupId: group.id,
+          playlistId: playlist.id,
+          startTime: new Date('2026-04-01T10:00:00Z'),
+          endTime: new Date('2026-04-01T12:00:00Z'),
+          rrule: null,
+          colour: '#FF5733',
+        })
+        .returning();
+      queueAdd.mockClear();
+
+      await service.update(entry.id, org.id, { endTime: '2026-04-01T14:00:00Z' });
+
+      expect(queueAdd).toHaveBeenCalledWith(
         'slice',
         expect.objectContaining({
-          groupId: 'group-1',
-          playlistId: 'playlist-1',
-          organisationId: 'org-1',
+          groupId: group.id,
+          playlistId: playlist.id,
+          organisationId: org.id,
         }),
       );
     });
 
     it('should not enqueue slice-content job on update when group mode is mirror', async () => {
-      const existingEntry = {
-        id: 'entry-1',
-        screenId: null,
-        groupId: 'group-1',
-        organisationId: 'org-1',
-        playlistId: 'playlist-1',
-        startTime: new Date('2026-04-01T10:00:00Z'),
-        endTime: new Date('2026-04-01T12:00:00Z'),
-        rrule: null,
-        colour: '#FF5733',
-        playlist: { id: 'playlist-1', name: 'Test' },
-      };
-      scheduleRepo.findOne.mockResolvedValue(existingEntry);
-      scheduleRepo.save.mockResolvedValue({
-        ...existingEntry,
-        endTime: new Date('2026-04-01T14:00:00Z'),
-      });
+      const org = await seedOrg();
+      const group = await seedGroup(org.id, { mode: ScreenGroupMode.Mirror });
+      const playlist = await seedPlaylist(org.id);
+      const [entry] = await db
+        .insert(scheduleEntries)
+        .values({
+          organisationId: org.id,
+          screenId: null,
+          groupId: group.id,
+          playlistId: playlist.id,
+          startTime: new Date('2026-04-01T10:00:00Z'),
+          endTime: new Date('2026-04-01T12:00:00Z'),
+          rrule: null,
+          colour: '#FF5733',
+        })
+        .returning();
+      queueAdd.mockClear();
 
-      screenGroupRepo.findOne.mockResolvedValue({
-        id: 'group-1',
-        organisationId: 'org-1',
-        mode: ScreenGroupMode.Mirror,
-      });
+      await service.update(entry.id, org.id, { endTime: '2026-04-01T14:00:00Z' });
 
-      await service.update('entry-1', 'org-1', {
-        endTime: '2026-04-01T14:00:00Z',
-      });
-
-      expect(sliceContentQueue.add).not.toHaveBeenCalled();
+      expect(queueAdd).not.toHaveBeenCalled();
     });
 
     it('should emit GROUP_SCHEDULE_CHANGED on update when entry has groupId', async () => {
-      const existingEntry = {
-        id: 'entry-1',
-        screenId: null,
-        groupId: 'group-1',
-        organisationId: 'org-1',
-        playlistId: 'playlist-1',
-        startTime: new Date('2026-04-01T10:00:00Z'),
-        endTime: new Date('2026-04-01T12:00:00Z'),
-        rrule: null,
-        colour: '#FF5733',
-        playlist: { id: 'playlist-1', name: 'Test' },
-      };
-      scheduleRepo.findOne.mockResolvedValue(existingEntry);
-      scheduleRepo.save.mockResolvedValue({
-        ...existingEntry,
-        endTime: new Date('2026-04-01T14:00:00Z'),
-      });
+      const org = await seedOrg();
+      const group = await seedGroup(org.id, { mode: ScreenGroupMode.Mirror });
+      const playlist = await seedPlaylist(org.id);
+      const [entry] = await db
+        .insert(scheduleEntries)
+        .values({
+          organisationId: org.id,
+          screenId: null,
+          groupId: group.id,
+          playlistId: playlist.id,
+          startTime: new Date('2026-04-01T10:00:00Z'),
+          endTime: new Date('2026-04-01T12:00:00Z'),
+          rrule: null,
+          colour: '#FF5733',
+        })
+        .returning();
+      emit.mockClear();
 
-      screenGroupRepo.findOne.mockResolvedValue({
-        id: 'group-1',
-        mode: ScreenGroupMode.Mirror,
-      });
+      await service.update(entry.id, org.id, { endTime: '2026-04-01T14:00:00Z' });
 
-      await service.update('entry-1', 'org-1', {
-        endTime: '2026-04-01T14:00:00Z',
-      });
-
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      expect(emit).toHaveBeenCalledWith(
         GROUP_SCHEDULE_CHANGED,
-        expect.objectContaining({
-          groupId: 'group-1',
-          organisationId: 'org-1',
-        }),
+        expect.objectContaining({ groupId: group.id, organisationId: org.id }),
       );
     });
   });

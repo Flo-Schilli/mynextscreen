@@ -1,54 +1,68 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as fs from 'fs';
+import { eq } from 'drizzle-orm';
 import { StreamHealthService } from './stream-health.service';
-import { LiveStream } from './live-stream.entity';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
 import { TranscodingPreset } from './transcoding-preset.enum';
 import { FfmpegLiveService, LIVE_STREAM_PROCESS_EXITED } from './ffmpeg-live.service';
 import { LIVE_STREAM_HEALTH_CHANGED } from './stream-health.event';
-import { Organisation } from '../organisation/organisation.entity';
+import { DRIZZLE } from '../db/database.constants';
+import { organisations, liveStreams, type LiveStream, type NewLiveStream } from '../db/schema';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('StreamHealthService', () => {
   let service: StreamHealthService;
-  let repository: Record<string, jest.Mock>;
+  let db: DrizzleDB;
   let ffmpegLiveService: Record<string, jest.Mock>;
-  let eventEmitter: Record<string, jest.Mock>;
+  let eventEmitter: { emit: jest.Mock };
 
   let existsSyncSpy: jest.SpyInstance;
   let readdirSyncSpy: jest.SpyInstance;
   let statSyncSpy: jest.SpyInstance;
 
-  const orgId = '550e8400-e29b-41d4-a716-446655440000';
-  const streamId = '660e8400-e29b-41d4-a716-446655440000';
-  const streamId2 = '660e8400-e29b-41d4-a716-446655440099';
+  let orgId: string;
+  let streamId: string;
 
-  const mockStream: LiveStream = {
-    id: streamId,
-    organisationId: orgId,
-    name: 'Studio Camera',
-    sourceUrl: 'rtmp://example.com/live/stream1',
-    protocol: LiveStreamProtocol.Rtmp,
-    status: LiveStreamStatus.Active,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    transcodingPreset: TranscodingPreset.High1080p,
-    audioEnabled: true,
-    organisation: {} as Organisation,
-  };
+  beforeAll(async () => {
+    db = await initTestDb();
+  });
+
+  afterAll(async () => {
+    await closeTestDb();
+  });
+
+  async function seedStream(overrides: Partial<NewLiveStream> = {}): Promise<LiveStream> {
+    const [stream] = await db
+      .insert(liveStreams)
+      .values({
+        organisationId: orgId,
+        name: 'Studio Camera',
+        sourceUrl: 'rtmp://example.com/live/stream1',
+        protocol: LiveStreamProtocol.Rtmp,
+        status: LiveStreamStatus.Active,
+        transcodingPreset: TranscodingPreset.High1080p,
+        audioEnabled: true,
+        ...overrides,
+      })
+      .returning();
+    return stream;
+  }
 
   beforeEach(async () => {
-    jest.useFakeTimers();
+    await truncateAll();
 
-    repository = {
-      find: jest.fn().mockResolvedValue([]),
-    };
+    const [org] = await db
+      .insert(organisations)
+      .values({ name: `Org ${Math.random()}`, timeZone: 'UTC' })
+      .returning();
+    orgId = org.id;
 
     ffmpegLiveService = {
       isRunning: jest.fn(),
-      getHlsOutputDir: jest.fn().mockReturnValue('/tmp/signage-hls/' + streamId),
+      getHlsOutputDir: jest.fn().mockReturnValue('/tmp/signage-hls/stream'),
     };
 
     eventEmitter = { emit: jest.fn() };
@@ -60,13 +74,16 @@ describe('StreamHealthService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StreamHealthService,
-        { provide: getRepositoryToken(LiveStream), useValue: repository },
+        { provide: DRIZZLE, useValue: db },
         { provide: FfmpegLiveService, useValue: ffmpegLiveService },
         { provide: EventEmitter2, useValue: eventEmitter },
       ],
     }).compile();
 
     service = module.get<StreamHealthService>(StreamHealthService);
+
+    const stream = await seedStream();
+    streamId = stream.id;
   });
 
   afterEach(() => {
@@ -74,7 +91,6 @@ describe('StreamHealthService', () => {
     existsSyncSpy.mockRestore();
     readdirSyncSpy.mockRestore();
     statSyncSpy.mockRestore();
-    jest.useRealTimers();
   });
 
   function setupFreshSegments(): void {
@@ -91,7 +107,6 @@ describe('StreamHealthService', () => {
 
   describe('healthy path', () => {
     it('should detect a healthy stream (process running + fresh segments)', async () => {
-      repository.find.mockResolvedValue([mockStream]);
       ffmpegLiveService.isRunning.mockReturnValue(true);
       setupFreshSegments();
 
@@ -112,7 +127,6 @@ describe('StreamHealthService', () => {
 
   describe('stale segment detection', () => {
     it('should detect degraded health when process running but segments are stale', async () => {
-      repository.find.mockResolvedValue([mockStream]);
       ffmpegLiveService.isRunning.mockReturnValue(true);
       setupStaleSegments();
 
@@ -135,7 +149,6 @@ describe('StreamHealthService', () => {
     });
 
     it('should detect degraded when HLS directory has no .ts files', async () => {
-      repository.find.mockResolvedValue([mockStream]);
       ffmpegLiveService.isRunning.mockReturnValue(true);
       existsSyncSpy.mockReturnValue(true);
       readdirSyncSpy.mockReturnValue(['index.m3u8']);
@@ -147,7 +160,6 @@ describe('StreamHealthService', () => {
     });
 
     it('should detect degraded when HLS directory does not exist', async () => {
-      repository.find.mockResolvedValue([mockStream]);
       ffmpegLiveService.isRunning.mockReturnValue(true);
       existsSyncSpy.mockReturnValue(false);
 
@@ -160,7 +172,6 @@ describe('StreamHealthService', () => {
 
   describe('stopped detection', () => {
     it('should detect stopped health when process is not running', async () => {
-      repository.find.mockResolvedValue([mockStream]);
       ffmpegLiveService.isRunning.mockReturnValue(false);
 
       await service.runHealthChecks();
@@ -189,7 +200,6 @@ describe('StreamHealthService', () => {
     });
 
     it('should not re-trigger fallback if already stopped on previous check', async () => {
-      repository.find.mockResolvedValue([mockStream]);
       ffmpegLiveService.isRunning.mockReturnValue(false);
 
       // First check: detects stopped
@@ -197,7 +207,6 @@ describe('StreamHealthService', () => {
       eventEmitter.emit.mockClear();
 
       // Second check: still stopped — should not trigger fallback again
-      repository.find.mockResolvedValue([mockStream]);
       await service.runHealthChecks();
 
       const processExitedCalls = eventEmitter.emit.mock.calls.filter(
@@ -209,7 +218,6 @@ describe('StreamHealthService', () => {
 
   describe('dashboard event emission', () => {
     it('should emit dashboard event on degraded detection', async () => {
-      repository.find.mockResolvedValue([mockStream]);
       ffmpegLiveService.isRunning.mockReturnValue(true);
       existsSyncSpy.mockReturnValue(false);
 
@@ -228,7 +236,6 @@ describe('StreamHealthService', () => {
     });
 
     it('should emit dashboard event on stopped detection', async () => {
-      repository.find.mockResolvedValue([mockStream]);
       ffmpegLiveService.isRunning.mockReturnValue(false);
 
       await service.runHealthChecks();
@@ -243,7 +250,6 @@ describe('StreamHealthService', () => {
     });
 
     it('should not emit dashboard event when stream is healthy', async () => {
-      repository.find.mockResolvedValue([mockStream]);
       ffmpegLiveService.isRunning.mockReturnValue(true);
       setupFreshSegments();
 
@@ -256,15 +262,17 @@ describe('StreamHealthService', () => {
   describe('cleanup', () => {
     it('should remove health states for streams that are no longer active', async () => {
       // First check: stream is active
-      repository.find.mockResolvedValue([mockStream]);
       ffmpegLiveService.isRunning.mockReturnValue(true);
       setupFreshSegments();
 
       await service.runHealthChecks();
       expect(service.getHealth(streamId)).toBeDefined();
 
-      // Second check: stream no longer active
-      repository.find.mockResolvedValue([]);
+      // Second check: stream no longer active (set idle in DB)
+      await db
+        .update(liveStreams)
+        .set({ status: LiveStreamStatus.Idle })
+        .where(eq(liveStreams.id, streamId));
       await service.runHealthChecks();
 
       expect(service.getHealth(streamId)).toBeUndefined();
@@ -279,8 +287,7 @@ describe('StreamHealthService', () => {
 
   describe('getAllHealthStates', () => {
     it('should return all health states', async () => {
-      const stream2 = { ...mockStream, id: streamId2, name: 'Camera 2' };
-      repository.find.mockResolvedValue([mockStream, stream2]);
+      await seedStream({ name: 'Camera 2' });
       ffmpegLiveService.isRunning.mockReturnValue(true);
       ffmpegLiveService.getHlsOutputDir.mockReturnValue('/tmp/signage-hls/test');
       setupFreshSegments();

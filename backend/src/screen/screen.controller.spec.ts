@@ -2,8 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ScreenController } from './screen.controller';
 import { ScreenService } from './screen.service';
 import { ScreenStateService } from './screen-state.service';
-import { Screen } from './screen.entity';
-import { Organisation } from '../organisation/organisation.entity';
+import type { Screen } from '../db/schema';
 import { ScreenAuthenticatedRequest } from '../auth';
 
 describe('ScreenController', () => {
@@ -24,9 +23,7 @@ describe('ScreenController', () => {
     isOnline: false,
     createdAt: new Date(),
     updatedAt: new Date(),
-    organisation: {} as Organisation,
     groupId: null,
-    group: null,
     gridRow: null,
     gridColumn: null,
   };

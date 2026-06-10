@@ -1,23 +1,25 @@
-# Drizzle Test Migration — Follow-up
+# Drizzle Test Migration — DONE ✅
 
-The TypeORM→Drizzle/Postgres migration (PR #1) rewrote all production code and
-introduced a **Testcontainers-backed Jest harness** (`backend/src/test/`). The
-spec suite is being re-migrated from the old repository-mock style to real-DB
-assertions against that harness.
+The TypeORM→Drizzle/Postgres migration rewrote all production code and introduced
+a **Testcontainers-backed Jest harness** (`backend/src/test/`). The full spec
+suite has now been re-migrated from the old repository-mock style to real-DB
+assertions against that harness, all specs un-quarantined, and the coverage gate
+restored.
 
-## Status
+## Final state
 
-- **Harness landed** — `backend/src/test/{global-setup,global-teardown,db-harness}.ts`.
+- **Harness** — `backend/src/test/{global-setup,global-teardown,db-harness}.ts`.
   One Postgres 16 container per run; each Jest worker provisions an isolated
   `test_w<id>` database, migrates it, and `TRUNCATE … CASCADE` between tests.
-- **Migrated reference specs (green):**
-  - `organisation/organisation.service.spec.ts`
-  - `organisation/storage.service.spec.ts`
-- **Coverage gate temporarily lowered** in `backend/jest.config.ts`
-  (was 92/83/84/92). Restore to the original values once the specs below are
-  migrated and un-quarantined (`testPathIgnorePatterns`).
+- **All ~48 quarantined specs migrated and un-quarantined.**
+  `testPathIgnorePatterns` is back to just `['/node_modules/']`.
+- **Coverage gate restored** in `backend/jest.config.ts` to the pre-migration
+  values **92/83/84/92** (statements/branches/functions/lines). The CI PR-comment
+  threshold (`.github/workflows/ci.yml`, ArtiomTr action) remains 92.
+- **Full suite green:** 83 suites / 891 tests; measured coverage
+  ~92.7 / 84.51 / 87.87 / 92.99.
 
-## Migration pattern
+## Migration pattern (kept for reference)
 
 ```ts
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
@@ -35,67 +37,21 @@ beforeEach(async () => {
 });
 ```
 
-- Service specs: seed rows with `db.insert(table).values(...)`, call the service,
-  assert **DB state** (`db.select()...`) instead of repository-mock call args.
-- Controller specs: mostly mock the service (no DB) — they only need the entity
-  import redirected to `../db/schema` (type-only) and entity-relation fields
-  (`organisation`, `group`, `defaultPlaylist`, …) removed from fixtures, since
-  the Drizzle row types don't carry relations.
+- **Service specs:** seed rows with `db.insert(table).values(...)`, call the
+  service, assert **DB state** (`db.select()...`) instead of repository-mock args.
+- **Controller specs:** mostly mock the service (no DB) — entity imports redirected
+  to type-only `../db/schema` and entity-relation fields removed from fixtures.
 
-## Quarantined specs to migrate (remove from `testPathIgnorePatterns` as done)
+## Known harness caveat
 
-### Service specs (real-DB rewrite)
-- [ ] audit-log/audit-log.service.spec.ts
-- [ ] content/content.service.spec.ts
-- [ ] content/content-bulk.service.spec.ts
-- [ ] live-stream/live-stream.service.spec.ts
-- [ ] live-stream/live-stream-activation.service.spec.ts
-- [ ] live-stream/stream-health.service.spec.ts
-- [ ] media/media.service.spec.ts
-- [ ] notification/notification.service.spec.ts
-- [ ] notification/notification-hub.service.spec.ts
-- [ ] notification/notification-event-listener.service.spec.ts
-- [ ] notification/org-notification-config.service.spec.ts
-- [ ] notification/user-notification-preference.service.spec.ts
-- [ ] notification/channels/in-app-notification-channel.service.spec.ts
-- [ ] notification/channels/email-notification-channel.service.spec.ts
-- [ ] notification/channels/ntfy-notification-channel.service.spec.ts
-- [ ] organisation/organisation-scope.service.spec.ts
-- [ ] playlist/playlist.service.spec.ts
-- [ ] schedule/schedule.service.spec.ts
-- [ ] screen-group/screen-group.service.spec.ts
-- [ ] screen/screen.service.spec.ts
-- [ ] screen/screen-bulk.service.spec.ts
-- [ ] screen/screen-state.service.spec.ts
-- [ ] screen/schedule-boundary.service.spec.ts
-- [ ] screen/playlist-change-bridge.service.spec.ts
-- [ ] screen-protocol/screen-protocol.service.spec.ts
-- [ ] search/search.service.spec.ts
-- [ ] slice-content/slice-content.processor.spec.ts
-- [ ] content/transcoding.processor.spec.ts
-- [ ] user/user.service.spec.ts
-- [ ] user/membership.service.spec.ts
-- [ ] auth/api-key-auth.guard.spec.ts
+The harness keys the per-run Postgres URI off a fixed temp file
+(`os.tmpdir()/signage-test-pg-uri`) and worker DB name `test_w<JEST_WORKER_ID>`.
+This is correct for a single Jest invocation with multiple workers (the CI run),
+but **two concurrent `npx jest` processes race** on that file / DB name. If
+parallel local verification is ever needed, give each run a unique URI-file path
+or a lockfile.
 
-### Controller specs (import redirect + fixture trim, service mocked)
-- [ ] audit-log/audit-log.controller.spec.ts
-- [ ] content/content.controller.spec.ts
-- [ ] live-stream/live-stream.controller.spec.ts
-- [ ] media/media.controller.spec.ts
-- [ ] notification/notification.controller.spec.ts
-- [ ] notification/notification-preferences.controller.spec.ts
-- [ ] notification/org-notification-config.controller.spec.ts
-- [ ] organisation/organisation.controller.spec.ts
-- [ ] organisation/default-playlist.controller.spec.ts
-- [ ] playlist/playlist.controller.spec.ts
-- [ ] screen-group/screen-group.controller.spec.ts
-- [ ] screen/screen.controller.spec.ts
-- [ ] user/user.controller.spec.ts
-- [ ] user/membership.controller.spec.ts
+## Reference specs
 
-### Other
-- [ ] auth/roles.guard.spec.ts (entity-type import redirect)
-- [ ] live-stream/ffmpeg-live.service.spec.ts (entity-type import redirect)
-- [ ] screen/screen.scheduler.spec.ts (entity-type import redirect)
-- [ ] notification/notification-hub.integration.spec.ts
-- [ ] screen/playlist-transition.integration.spec.ts
+- `organisation/organisation.service.spec.ts`
+- `organisation/storage.service.spec.ts`

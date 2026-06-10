@@ -1,38 +1,53 @@
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Repository } from 'typeorm';
 import { ApiKeyAuthGuard } from './api-key-auth.guard';
 import { IS_SCREEN_AUTH_KEY } from './screen-auth.decorator';
-import { Screen } from '../screen/screen.entity';
 import { hashApiKey } from '../screen/api-key.util';
+import { organisations, screens } from '../db/schema';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('ApiKeyAuthGuard', () => {
   let guard: ApiKeyAuthGuard;
   let reflector: Reflector;
-  let screenRepository: jest.Mocked<Repository<Screen>>;
+  let db: DrizzleDB;
 
   const VALID_API_KEY = 'test-api-key-1234567890abcdef';
   let validKeyHash: string;
 
-  const mockScreen = {
-    id: 'screen-uuid-1',
-    organisationId: 'org-uuid-1',
-    apiKeyHash: '', // set in beforeAll
-  } as Screen;
-
   beforeAll(async () => {
+    db = await initTestDb();
     validKeyHash = await hashApiKey(VALID_API_KEY);
-    mockScreen.apiKeyHash = validKeyHash;
   });
 
-  beforeEach(() => {
+  afterAll(async () => {
+    await closeTestDb();
+  });
+
+  beforeEach(async () => {
+    await truncateAll();
     reflector = new Reflector();
-    screenRepository = {
-      find: jest.fn(),
-    } as unknown as jest.Mocked<Repository<Screen>>;
-
-    guard = new ApiKeyAuthGuard(reflector, screenRepository);
+    guard = new ApiKeyAuthGuard(reflector, db);
   });
+
+  /** Seed an organisation and a screen carrying the given api-key hash. */
+  async function seedScreen(apiKeyHash: string): Promise<{ screenId: string; orgId: string }> {
+    const [org] = await db
+      .insert(organisations)
+      .values({ name: `Org ${Math.random()}`, timeZone: 'UTC' })
+      .returning();
+    const [screen] = await db
+      .insert(screens)
+      .values({
+        organisationId: org.id,
+        name: 'Lobby',
+        resolution: '1920x1080',
+        location: 'Entrance',
+        apiKeyHash,
+      })
+      .returning();
+    return { screenId: screen.id, orgId: org.id };
+  }
 
   function createMockContext(
     headers: Record<string, string> = {},
@@ -60,10 +75,15 @@ describe('ApiKeyAuthGuard', () => {
 
   describe('non-screen-auth routes', () => {
     it('should skip and allow access when route is not @ScreenAuth()', async () => {
+      await seedScreen(validKeyHash);
       const context = createMockContext({}, false);
+
       const result = await guard.canActivate(context);
+
       expect(result).toBe(true);
-      expect(screenRepository.find).not.toHaveBeenCalled();
+      const request = context.switchToHttp().getRequest();
+      expect(request.screenId).toBeUndefined();
+      expect(request.organisationId).toBeUndefined();
     });
   });
 
@@ -87,22 +107,16 @@ describe('ApiKeyAuthGuard', () => {
 
   describe('invalid key', () => {
     it('should throw UnauthorizedException when API key does not match any screen', async () => {
-      screenRepository.find.mockResolvedValue([mockScreen]);
+      await seedScreen(validKeyHash);
 
-      const context = createMockContext({
-        authorization: 'Bearer wrong-api-key',
-      });
+      const context = createMockContext({ authorization: 'Bearer wrong-api-key' });
 
       await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
       await expect(guard.canActivate(context)).rejects.toThrow('Invalid API key');
     });
 
     it('should throw UnauthorizedException when no screens exist', async () => {
-      screenRepository.find.mockResolvedValue([]);
-
-      const context = createMockContext({
-        authorization: `Bearer ${VALID_API_KEY}`,
-      });
+      const context = createMockContext({ authorization: `Bearer ${VALID_API_KEY}` });
 
       await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });
@@ -110,39 +124,30 @@ describe('ApiKeyAuthGuard', () => {
 
   describe('valid key', () => {
     it('should allow access and attach screenId and organisationId to request', async () => {
-      screenRepository.find.mockResolvedValue([mockScreen]);
+      const { screenId, orgId } = await seedScreen(validKeyHash);
 
-      const context = createMockContext({
-        authorization: `Bearer ${VALID_API_KEY}`,
-      });
+      const context = createMockContext({ authorization: `Bearer ${VALID_API_KEY}` });
 
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
       const request = context.switchToHttp().getRequest();
-      expect(request.screenId).toBe('screen-uuid-1');
-      expect(request.organisationId).toBe('org-uuid-1');
+      expect(request.screenId).toBe(screenId);
+      expect(request.organisationId).toBe(orgId);
     });
 
     it('should match the correct screen among multiple screens', async () => {
-      const otherScreen = {
-        id: 'screen-uuid-2',
-        organisationId: 'org-uuid-2',
-        apiKeyHash: await hashApiKey('other-api-key'),
-      } as Screen;
+      await seedScreen(await hashApiKey('other-api-key'));
+      const { screenId, orgId } = await seedScreen(validKeyHash);
 
-      screenRepository.find.mockResolvedValue([otherScreen, mockScreen]);
-
-      const context = createMockContext({
-        authorization: `Bearer ${VALID_API_KEY}`,
-      });
+      const context = createMockContext({ authorization: `Bearer ${VALID_API_KEY}` });
 
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
       const request = context.switchToHttp().getRequest();
-      expect(request.screenId).toBe('screen-uuid-1');
-      expect(request.organisationId).toBe('org-uuid-1');
+      expect(request.screenId).toBe(screenId);
+      expect(request.organisationId).toBe(orgId);
     });
   });
 });

@@ -1,7 +1,7 @@
 import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
-import { Notification } from './notification.entity';
+import type { Notification } from '../db/schema';
 import { NotificationEventType } from './notification-event-type.enum';
 
 describe('NotificationController', () => {

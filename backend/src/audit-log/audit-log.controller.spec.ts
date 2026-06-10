@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuditLogController, AdminAuditLogController } from './audit-log.controller';
 import { AuditLogService } from './audit-log.service';
 import { AuditAction } from './audit-action.enum';
-import { AuditEntry } from './audit-entry.entity';
+import type { AuditEntry } from '../db/schema';
 
 describe('AuditLogController', () => {
   let controller: AuditLogController;
@@ -14,7 +14,6 @@ describe('AuditLogController', () => {
     timestamp: new Date('2026-03-30T10:00:00Z'),
     userId: '550e8400-e29b-41d4-a716-446655440002',
     organisationId: '550e8400-e29b-41d4-a716-446655440000',
-    organisation: null,
     action: AuditAction.ContentUpload,
     resourceType: 'content',
     resourceId: '550e8400-e29b-41d4-a716-446655440003',
@@ -109,7 +108,6 @@ describe('AdminAuditLogController', () => {
     timestamp: new Date('2026-03-30T10:00:00Z'),
     userId: '550e8400-e29b-41d4-a716-446655440002',
     organisationId: '550e8400-e29b-41d4-a716-446655440000',
-    organisation: null,
     action: AuditAction.ContentUpload,
     resourceType: 'content',
     resourceId: '550e8400-e29b-41d4-a716-446655440003',

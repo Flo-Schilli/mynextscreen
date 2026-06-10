@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DefaultPlaylistController } from './default-playlist.controller';
 import { OrganisationService } from './organisation.service';
-import { Organisation } from './organisation.entity';
+import type { Organisation } from '../db/schema';
 
 describe('DefaultPlaylistController', () => {
   let controller: DefaultPlaylistController;
@@ -19,7 +19,6 @@ describe('DefaultPlaylistController', () => {
     storageOriginalUsedBytes: 0,
     storageTranscodedUsedBytes: 0,
     defaultPlaylistId: playlistId,
-    defaultPlaylist: null as unknown,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

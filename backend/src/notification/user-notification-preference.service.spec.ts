@@ -1,113 +1,130 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { and, eq } from 'drizzle-orm';
 import { UserNotificationPreferenceService } from './user-notification-preference.service';
-import { UserNotificationPreference } from './user-notification-preference.entity';
+import { DRIZZLE } from '../db/database.constants';
+import {
+  organisations,
+  users,
+  userNotificationPreferences,
+  type Organisation,
+  type User,
+} from '../db/schema';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('UserNotificationPreferenceService', () => {
   let service: UserNotificationPreferenceService;
-  let repo: Record<string, jest.Mock>;
+  let db: DrizzleDB;
+  let org: Organisation;
+  let user: User;
 
-  const userId = 'user-1';
-  const orgId = 'org-1';
-
-  const defaultPref: UserNotificationPreference = {
-    id: 'pref-1',
-    userId,
-    organisationId: orgId,
-    inAppEnabled: true,
-    emailEnabled: false,
-    ntfyEnabled: false,
-    user: {} as UserNotificationPreference['user'],
-    organisation: {} as UserNotificationPreference['organisation'],
-  };
-
-  beforeEach(() => {
-    repo = {
-      findOne: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn(),
-    };
-
-    service = new UserNotificationPreferenceService(
-      repo as unknown as import('typeorm').Repository<UserNotificationPreference>,
-    );
+  beforeAll(async () => {
+    db = await initTestDb();
   });
+
+  afterAll(async () => {
+    await closeTestDb();
+  });
+
+  beforeEach(async () => {
+    await truncateAll();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [UserNotificationPreferenceService, { provide: DRIZZLE, useValue: db }],
+    }).compile();
+    service = module.get<UserNotificationPreferenceService>(UserNotificationPreferenceService);
+
+    [org] = await db.insert(organisations).values({ name: 'Org', timeZone: 'UTC' }).returning();
+    [user] = await db.insert(users).values({ email: 'user@example.com' }).returning();
+  });
+
+  async function findPref() {
+    const [pref] = await db
+      .select()
+      .from(userNotificationPreferences)
+      .where(
+        and(
+          eq(userNotificationPreferences.userId, user.id),
+          eq(userNotificationPreferences.organisationId, org.id),
+        ),
+      );
+    return pref;
+  }
 
   describe('getForUser', () => {
     it('should return existing preference', async () => {
-      repo.findOne.mockResolvedValue(defaultPref);
+      const [existing] = await db
+        .insert(userNotificationPreferences)
+        .values({
+          userId: user.id,
+          organisationId: org.id,
+          inAppEnabled: true,
+          emailEnabled: true,
+          ntfyEnabled: false,
+        })
+        .returning();
 
-      const result = await service.getForUser(userId, orgId);
+      const result = await service.getForUser(user.id, org.id);
 
-      expect(repo.findOne).toHaveBeenCalledWith({
-        where: { userId, organisationId: orgId },
-      });
-      expect(result).toEqual(defaultPref);
+      expect(result.id).toBe(existing.id);
+      expect(result.emailEnabled).toBe(true);
     });
 
     it('should create default preference if none exists', async () => {
-      repo.findOne.mockResolvedValue(null);
-      repo.create.mockReturnValue(defaultPref);
-      repo.save.mockResolvedValue(defaultPref);
+      const result = await service.getForUser(user.id, org.id);
 
-      const result = await service.getForUser(userId, orgId);
+      expect(result.inAppEnabled).toBe(true);
+      expect(result.emailEnabled).toBe(false);
+      expect(result.ntfyEnabled).toBe(false);
 
-      expect(repo.create).toHaveBeenCalledWith({
-        userId,
-        organisationId: orgId,
-        inAppEnabled: true,
-        emailEnabled: false,
-        ntfyEnabled: false,
-      });
-      expect(repo.save).toHaveBeenCalledWith(defaultPref);
-      expect(result).toEqual(defaultPref);
+      const persisted = await findPref();
+      expect(persisted).toBeDefined();
+      expect(persisted.id).toBe(result.id);
     });
   });
 
   describe('upsert', () => {
     it('should update existing preference', async () => {
-      const existing = { ...defaultPref };
-      repo.findOne.mockResolvedValue(existing);
-      const updated = { ...existing, emailEnabled: true };
-      repo.save.mockResolvedValue(updated);
-
-      const result = await service.upsert(userId, orgId, {
-        emailEnabled: true,
+      await db.insert(userNotificationPreferences).values({
+        userId: user.id,
+        organisationId: org.id,
+        inAppEnabled: true,
+        emailEnabled: false,
+        ntfyEnabled: false,
       });
 
-      expect(existing.emailEnabled).toBe(true);
-      expect(repo.save).toHaveBeenCalledWith(existing);
-      expect(result).toEqual(updated);
+      const result = await service.upsert(user.id, org.id, { emailEnabled: true });
+
+      expect(result.emailEnabled).toBe(true);
+      const persisted = await findPref();
+      expect(persisted.emailEnabled).toBe(true);
     });
 
     it('should only update provided fields', async () => {
-      const existing = { ...defaultPref };
-      repo.findOne.mockResolvedValue(existing);
-      repo.save.mockResolvedValue(existing);
+      await db.insert(userNotificationPreferences).values({
+        userId: user.id,
+        organisationId: org.id,
+        inAppEnabled: true,
+        emailEnabled: false,
+        ntfyEnabled: false,
+      });
 
-      await service.upsert(userId, orgId, { ntfyEnabled: true });
+      await service.upsert(user.id, org.id, { ntfyEnabled: true });
 
-      expect(existing.ntfyEnabled).toBe(true);
-      expect(existing.inAppEnabled).toBe(true);
-      expect(existing.emailEnabled).toBe(false);
+      const persisted = await findPref();
+      expect(persisted.ntfyEnabled).toBe(true);
+      expect(persisted.inAppEnabled).toBe(true);
+      expect(persisted.emailEnabled).toBe(false);
     });
 
     it('should create new preference if none exists', async () => {
-      repo.findOne.mockResolvedValue(null);
-      const newPref = { ...defaultPref, emailEnabled: true };
-      repo.create.mockReturnValue(newPref);
-      repo.save.mockResolvedValue(newPref);
+      const result = await service.upsert(user.id, org.id, { emailEnabled: true });
 
-      const result = await service.upsert(userId, orgId, {
-        emailEnabled: true,
-      });
+      expect(result.inAppEnabled).toBe(true);
+      expect(result.emailEnabled).toBe(true);
+      expect(result.ntfyEnabled).toBe(false);
 
-      expect(repo.create).toHaveBeenCalledWith({
-        userId,
-        organisationId: orgId,
-        inAppEnabled: true,
-        emailEnabled: true,
-        ntfyEnabled: false,
-      });
-      expect(result).toEqual(newPref);
+      const persisted = await findPref();
+      expect(persisted.id).toBe(result.id);
     });
   });
 });
