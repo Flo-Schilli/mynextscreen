@@ -86,7 +86,11 @@ jobs:
           # Deps are already installed by the root `npm ci` above; the monorepo has
           # no per-app package.json, so the action's own install step must be skipped.
           skip-step: install
-          test-script: jest --coverage
+          # jest lives only in the root node_modules (no apps/backend/node_modules),
+          # so invoke it via `npx` to resolve it up the tree. The action appends
+          # `--ci --json --coverage --testLocationInResults --outputFile=report.json`,
+          # so the base command must NOT include those flags itself.
+          test-script: npx jest
           annotations: failed-tests
           threshold: 92
 
