@@ -142,7 +142,9 @@ describe('AuthService', () => {
 
     it('propagates the conflict when setup is already completed', async () => {
       passwords.hash.mockResolvedValue('new-hash');
-      users.createFirstSuperAdmin.mockRejectedValue(new ConflictException('Setup already completed'));
+      users.createFirstSuperAdmin.mockRejectedValue(
+        new ConflictException('Setup already completed'),
+      );
 
       await expect(
         service.setupFirstSuperAdmin('admin@example.com', 'supersecret'),
