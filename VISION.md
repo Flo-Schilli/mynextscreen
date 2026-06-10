@@ -15,7 +15,7 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 
 ### Users & Roles
 
-- Authenticated via **Hanko**
+- Authenticated via **internal auth** (email + password)
 - A user can belong to **multiple organisations**, with a separate role per organisation
 - Three roles per organisation:
   - **Org Admin** — full control within the organisation (users, screens, content, schedules, live streams)
@@ -163,7 +163,7 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 ## Tech Stack
 
 - **Frontend:** Angular 21, Tailwind CSS v4, PostCSS
-- **Backend:** NestJS, TypeORM, SQLite3 (initial database)
-- **Authentication:** Hanko (users), API keys (screens)
+- **Backend:** NestJS, Drizzle ORM, PostgreSQL
+- **Authentication:** internal email + password — JWT access cookie + Redis refresh tokens (users), API keys (screens)
 - **Storage:** Filesystem for transcoded and original media
 - **Screen protocol:** JSON over HTTP + SSE (protocol abstraction layer; extensible to additional protocols such as SMIL)

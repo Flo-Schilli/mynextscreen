@@ -21,21 +21,22 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 | Layer          | Technology                              |
 | -------------- | --------------------------------------- |
 | Frontend       | Angular 21, Tailwind CSS v4             |
-| Backend        | NestJS 11, TypeORM                      |
-| Database       | SQLite (better-sqlite3)                 |
+| Backend        | NestJS 11, Drizzle ORM                  |
+| Database       | PostgreSQL 16                           |
 | Job Queue      | BullMQ + Redis                          |
-| Authentication | Hanko Cloud (users), API keys (screens) |
+| Authentication | Internal email + password — JWT access cookie + Redis refresh tokens (users), API keys (screens) |
 | Real-time      | Server-Sent Events (SSE)                |
 | Media          | FFmpeg (transcoding + HLS)              |
 | Runtime        | Node.js 22                              |
+| Monorepo       | Nx (single root `package.json`)         |
 
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose
-- A [Hanko Cloud](https://www.hanko.io/) project (free tier available)
 
 For local development without Docker:
 - Node.js 22+
+- PostgreSQL 16+
 - Redis 7+
 - FFmpeg installed and available on `PATH`
 
@@ -43,67 +44,65 @@ For local development without Docker:
 
 ```bash
 # 1. Clone the repository
-git clone https://codeberg.org/fschillhammer/signage-server.git
-cd signage-server
+git clone https://github.com/Flo-Schilli/digital-signage.git
+cd digital-signage
 
 # 2. Create your environment file
 cp .env.example .env
 
 # 3. Configure environment variables (see section below)
-#    At minimum, set HANKO_API_URL
+#    At minimum, set JWT_ACCESS_SECRET
 
-# 4. Start all services
+# 4. Start all services (backend, frontend, player, redis, postgres)
 npm run dev
 ```
 
 The application will be available at:
 - **Frontend:** http://localhost:4200
+- **Player:** http://localhost:4300
 - **Backend API:** http://localhost:3000
 
 ## Environment Variables
 
 Copy `.env.example` to `.env` and configure the values below.
 
-### Hanko Authentication (Required)
+### Authentication (Required)
 
-Signage Server uses [Hanko Cloud](https://www.hanko.io/) for user authentication. You need a Hanko project to run the application.
+Signage Server uses **internal authentication** (email + password). Passwords are hashed with bcrypt; login issues a short-lived JWT **access token** (HTTP-only cookie) plus a **refresh token** stored in Redis. There is no external identity provider and no self-registration — super-admins are seeded from configuration on boot and provision everyone else.
 
-#### Setting up Hanko
+#### Auth Environment Variables
 
-1. Create a free account at [cloud.hanko.io](https://cloud.hanko.io)
-2. Create a new project
-3. In your project settings, add your application URL to the **Allowed Origins** (e.g., `http://localhost:4200` for local development)
-4. Copy the **API URL** from the project dashboard — it looks like `https://abcdef12-3456-7890-abcd-ef1234567890.hanko.io`
+| Variable                       | Description                                                              | Required |
+| ------------------------------ | ------------------------------------------------------------------------ | -------- |
+| `JWT_ACCESS_SECRET`            | Secret used to sign JWT access tokens. Generate with `openssl rand -base64 48` | **Yes**  |
+| `JWT_ACCESS_TTL`               | Access-token lifetime (e.g. `15m`)                                       | No (`15m`) |
+| `JWT_REFRESH_TTL`              | Refresh-token lifetime (e.g. `30d`)                                      | No (`30d`) |
+| `COOKIE_SECURE`                | Force `Secure` cookies (defaults to `true` only when `NODE_ENV=production`) | No       |
+| `COOKIE_SAMESITE`              | Cookie `SameSite` policy: `strict` (default) \| `lax` \| `none`          | No       |
+| `PUBLIC_BASE_URL`              | Admin SPA base URL — used to build set-password/reset links and to lock down CORS | No       |
+| `SUPER_ADMIN_EMAILS`           | Comma-separated emails seeded as system super-admins on boot             | No       |
+| `SUPER_ADMIN_INITIAL_PASSWORD` | Optional initial password for seeded super-admins (otherwise password-less → must use `/set-password`) | No       |
 
-#### Hanko Environment Variables
-
-| Variable              | Description                                                      | Required |
-| --------------------- | ---------------------------------------------------------------- | -------- |
-| `HANKO_API_URL`       | Your Hanko project API URL (e.g., `https://your-project.hanko.io`) | **Yes**  |
-| `SUPER_ADMIN_USER_IDS` | Comma-separated Hanko user IDs that should have super-admin access | No       |
-
-The backend validates JWT tokens by fetching the JWKS from `HANKO_API_URL/.well-known/jwks.json`. The frontend uses the same URL to render the Hanko login/registration UI via `@teamhanko/hanko-elements`.
-
-**Finding your Hanko User ID:** After your first login, your user ID is visible in the Hanko Cloud dashboard under **Users**. Add it to `SUPER_ADMIN_USER_IDS` to gain super-admin access for creating organisations.
+**Bootstrapping super-admin access:** set `SUPER_ADMIN_EMAILS` (and optionally `SUPER_ADMIN_INITIAL_PASSWORD`) before first boot. The listed emails are seeded as system super-admins who can then provision organisations.
 
 ### All Environment Variables
 
 | Variable              | Description                                   | Default                | Required |
 | --------------------- | --------------------------------------------- | ---------------------- | -------- |
-| `DATABASE_PATH`       | Path to the SQLite database file              | `./data/signage.db`    | No       |
-| `REDIS_URL`           | Redis connection string for BullMQ job queue  | `redis://localhost:6379` | No       |
+| `DATABASE_URL`        | PostgreSQL connection string                  | —                      | **Yes**  |
+| `REDIS_URL`           | Redis connection string (BullMQ + refresh tokens) | `redis://localhost:6379` | No   |
 | `MEDIA_BASE_PATH`     | Base path for uploaded and transcoded media    | `./media`              | No       |
+| `MAX_FILE_SIZE_BYTES` | Upload size limit                             | —                      | No       |
 | `FFMPEG_PATH`         | Path to FFmpeg binary                         | `ffmpeg` (system PATH) | No       |
-| `FFMPEG_VIDEO_BITRATE`| Video transcoding bitrate                     | `2M`                   | No       |
-| `HLS_OUTPUT_DIR`      | Directory for HLS live stream segments        | `/tmp/signage-hls`     | No       |
-| `HANKO_API_URL`       | Hanko Cloud project API URL                   | —                      | **Yes**  |
-| `SUPER_ADMIN_USER_IDS`| Comma-separated super-admin Hanko user IDs    | —                      | No       |
+| `FFMPEG_VIDEO_CRF` / `_PRESET` / `_MAXRATE` / `_BUFSIZE` | Video transcoding quality   | see `.env.example`     | No       |
+| `JWT_ACCESS_SECRET`   | Secret for signing JWT access tokens          | —                      | **Yes**  |
+| `SUPER_ADMIN_EMAILS`  | Comma-separated super-admin emails            | —                      | No       |
 
 ### Example `.env`
 
 ```env
-# Database
-DATABASE_PATH=./data/signage.db
+# Database (PostgreSQL)
+DATABASE_URL=postgres://signage:signage@localhost:5432/signage
 
 # Redis
 REDIS_URL=redis://localhost:6379
@@ -113,26 +112,31 @@ MEDIA_BASE_PATH=./media
 
 # FFmpeg
 # FFMPEG_PATH=/usr/bin/ffmpeg
-# FFMPEG_VIDEO_BITRATE=2M
+# FFMPEG_VIDEO_CRF=18
 
-# Hanko Cloud (REQUIRED)
-HANKO_API_URL=https://abcdef12-3456-7890-abcd-ef1234567890.hanko.io
+# Internal auth (REQUIRED) — generate with: openssl rand -base64 48
+JWT_ACCESS_SECRET=change-me-in-production
+JWT_ACCESS_TTL=15m
+JWT_REFRESH_TTL=30d
 
-# Super-admin access
-SUPER_ADMIN_USER_IDS=your-hanko-user-id
+# Super-admin seeding
+SUPER_ADMIN_EMAILS=admin@example.com
+# SUPER_ADMIN_INITIAL_PASSWORD=change-me-on-first-login
 ```
 
 ## Docker Setup
 
 ### Development (Docker Compose)
 
-The default `docker-compose.yml` spins up three services with hot-reload enabled:
+The default `docker-compose.yml` spins up five services with hot-reload enabled:
 
 | Service    | Port | Description                            |
 | ---------- | ---- | -------------------------------------- |
 | `frontend` | 4200 | Angular dev server with proxy to backend |
+| `player`   | 4300 | Angular player app                     |
 | `backend`  | 3000 | NestJS in watch mode                   |
-| `redis`    | 6379 | Redis 7 (Alpine) for BullMQ           |
+| `redis`    | 6379 | Redis 7 (Alpine) — BullMQ + refresh tokens |
+| `postgres` | 5432 | PostgreSQL 16 (Alpine)                 |
 
 ```bash
 # Start all services with hot-reload
@@ -142,38 +146,25 @@ npm run dev
 docker compose up --build
 ```
 
-Source code is mounted as volumes, so changes to `backend/src/` and `frontend/src/` are picked up automatically.
+Source code is mounted as volumes, so changes to `apps/backend/src/`, `apps/frontend/src/`, and `apps/player/src/` are picked up automatically. The compose file sets sensible dev defaults for all env vars (including `DATABASE_URL` and a dev `JWT_ACCESS_SECRET`), so it runs out of the box.
 
 Persistent data is stored in Docker volumes:
-- `db-data` — SQLite database
+- `signage-postgres-data` — PostgreSQL data directory
 - `media-data` — uploaded and transcoded media files
 
 ### Passing Environment Variables to Docker
 
-To configure Hanko and other settings in Docker, you have two options:
+The compose file already wires backend env vars for dev. To override (e.g. a real `JWT_ACCESS_SECRET` or super-admin seeding), use one of:
 
-**Option 1: Using an `.env` file (recommended)**
-
-Docker Compose automatically reads `.env` from the project root. Add variables to your docker-compose.yml's `environment` section:
-
-```yaml
-services:
-  backend:
-    environment:
-      - DATABASE_PATH=/app/data/signage.db
-      - REDIS_URL=redis://redis:6379
-      - MEDIA_BASE_PATH=/app/media
-      - HANKO_API_URL=https://your-project.hanko.io
-      - SUPER_ADMIN_USER_IDS=your-hanko-user-id
-```
-
-**Option 2: Inline with `docker compose`**
+**Option 1: Inline with `docker compose`**
 
 ```bash
-HANKO_API_URL=https://your-project.hanko.io docker compose up --build
+JWT_ACCESS_SECRET=$(openssl rand -base64 48) \
+SUPER_ADMIN_EMAILS=admin@example.com \
+docker compose up --build
 ```
 
-**Option 3: Using `env_file` in docker-compose.yml**
+**Option 2: Using `env_file` in docker-compose.yml**
 
 Add to the backend service:
 
@@ -184,121 +175,107 @@ services:
       - .env
 ```
 
-> **Note:** The `HANKO_API_URL` is needed by both the backend (for JWT validation) and the frontend (for the login UI). The backend reads it from the environment. The frontend uses it via `environment.ts` — for production builds, the placeholder `${HANKO_API_URL}` in `environment.production.ts` should be replaced at build time or via a runtime config mechanism.
+> **Note:** Several compose vars use `${VAR:-default}` substitution (e.g. `JWT_ACCESS_SECRET`, `COOKIE_SECURE`, `SUPER_ADMIN_EMAILS`), so values exported in your shell or `.env` override the dev defaults automatically.
 
 ### Production Deployment
 
-The included Dockerfiles are development-oriented (they run dev servers). For production:
-
-1. Build optimized images with production commands (`npm run build` + a static file server for the frontend, `npm run start` for the backend)
-2. Set `HANKO_API_URL` and other environment variables in your deployment platform
-3. Use a reverse proxy (e.g., nginx, Caddy) to serve the frontend and proxy `/api` requests to the backend
-4. Ensure FFmpeg is installed in the backend container for media transcoding
+Production does **not** use this compose file. CI builds the three app images (`apps/<app>/Dockerfile.prod`) and publishes them to **GHCR**; **Ansible** (`ansible/deploy.yml`) pulls them and runs them as rootless **Podman** Quadlets behind **Caddy** (the single public reverse proxy, with SSE pass-through). PostgreSQL and Redis are provisioned alongside. See `ansible/` for the full deployment. At minimum, production requires a strong `JWT_ACCESS_SECRET`, a `DATABASE_URL` pointing at PostgreSQL, and FFmpeg in the backend image (already included).
 
 ## Local Development (Without Docker)
 
+This is an **Nx monorepo** — there is a single root `package.json`, so install once at the root (no per-app `npm install`). PostgreSQL, Redis, and FFmpeg must be reachable.
+
 ```bash
-# Terminal 1: Start Redis
-redis-server
+# 1. Install all dependencies (root only)
+npm ci
 
-# Terminal 2: Backend
-cd backend
-npm install
-cp ../.env.example .env  # Edit with your settings
-npm run start:dev
+# 2. Configure environment
+cp .env.example .env   # set JWT_ACCESS_SECRET + DATABASE_URL
 
-# Terminal 3: Frontend
-cd frontend
-npm install
-npm start
+# 3. Apply the database schema
+npx nx run backend:db-migrate
+
+# 4. Start the apps (separate terminals)
+npx nx serve backend     # NestJS watch mode → :3000
+npx nx serve frontend    # Angular dev server → :4200
+npx nx serve player      # Angular dev server → :4300
 ```
 
-### Database Migrations
+### Database Migrations (Drizzle)
+
+Run from the repo root via Nx (delegates to `drizzle-kit`, cwd `apps/backend`):
 
 ```bash
-cd backend
+# Generate a migration from schema changes (src/db/)
+npx nx run backend:db-generate
 
-# Run pending migrations
-npm run migration:run
+# Apply pending migrations
+npx nx run backend:db-migrate
 
-# Generate a migration from entity changes
-npm run migration:generate -- src/migrations/MigrationName
+# Push schema directly (dev only — never in prod)
+npx nx run backend:db-push
 
-# Revert the last migration
-npm run migration:revert
+# Open Drizzle Studio
+npx nx run backend:db-studio
 ```
 
 ## Available Scripts
 
-### Root
+### Root (fan out across all projects via `nx run-many`)
 
-| Script        | Command                         |
-| ------------- | ------------------------------- |
-| `npm run dev` | Start all services via Docker Compose |
-| `npm run lint` | Run linters for backend + frontend |
-| `npm run test` | Run frontend unit tests         |
-| `npm run typecheck` | TypeScript type checking (backend) |
+| Script              | Command                                            |
+| ------------------- | -------------------------------------------------- |
+| `npm run dev`       | Start all services via Docker Compose              |
+| `npm run lint`      | Lint backend + frontend + player + shared-types    |
+| `npm run test`      | Run all tests (backend Jest · frontend/player Vitest) |
+| `npm run typecheck` | TypeScript type checking across all projects       |
+| `npm run format:check` | Prettier check across all projects              |
 
-### Backend (`cd backend`)
+### Per project (via Nx)
 
-| Script                     | Command                              |
-| -------------------------- | ------------------------------------ |
-| `npm run start:dev`        | Start in watch mode                  |
-| `npm run start`            | Start in production mode             |
-| `npm run build`            | Compile TypeScript                   |
-| `npm run test`             | Run unit tests (Jest)                |
-| `npm run test:cov`         | Run tests with coverage              |
-| `npm run lint` / `lint:fix`| ESLint                               |
-| `npm run migration:run`    | Run pending database migrations      |
-| `npm run migration:revert` | Revert last migration                |
+```bash
+npx nx build  <app>       # backend → dist/apps/backend · frontend/player → dist/apps/<app>/browser
+npx nx serve  <app>       # backend: nest start --watch · frontend/player: ng/vite dev server
+npx nx test   <app>       # backend: jest --coverage (gate) · frontend/player: Vitest
+npx nx lint <app> / typecheck <app> / format:check <app>
 
-### Frontend (`cd frontend`)
-
-| Script          | Command                     |
-| --------------- | --------------------------- |
-| `npm start`     | Start Angular dev server    |
-| `npm run build` | Production build            |
-| `npm test`      | Run unit tests (Vitest)     |
-| `npm run lint`  | ESLint                      |
-| `npm run format`| Prettier formatting         |
+# Only projects affected by the current diff (how CI runs on PRs):
+npx nx affected -t lint typecheck test build
+```
 
 ## Project Structure
 
 ```
-signage-server/
-├── backend/                  # NestJS API server
-│   └── src/
-│       ├── auth/             # Hanko JWT validation, API key auth, role guards
-│       ├── organisation/     # Multi-tenant org management
-│       ├── user/             # User-org membership and roles
-│       ├── screen/           # Screen registration and management
-│       ├── screen-group/     # Screen grouping (mirror/split modes)
-│       ├── content/          # Content library and transcoding pipeline
-│       ├── playlist/         # Playlist CRUD
-│       ├── schedule/         # Calendar scheduling with RRULE support
-│       ├── live-stream/      # Live stream management (FFmpeg + HLS)
-│       ├── screen-protocol/  # Protocol abstraction (JSON adapter; SMIL planned)
-│       ├── notification/     # In-app, email, ntfy notifications
-│       ├── audit-log/        # Audit trail
-│       ├── dashboard/        # SSE service for real-time updates
-│       ├── media/            # Filesystem media management
-│       ├── search/           # Global search
-│       └── migrations/       # TypeORM database migrations
-├── frontend/                 # Angular 21 SPA
-│   └── src/app/
-│       ├── login/            # Hanko authentication UI
-│       ├── auth/             # Auth service (token management)
-│       ├── admin/            # Admin dashboard
-│       ├── screens/          # Screen management
-│       ├── content/          # Content library
-│       ├── playlists/        # Playlist management
-│       ├── schedules/        # Calendar scheduling
-│       ├── screen-groups/    # Group management
-│       ├── notifications/    # Notification center
-│       ├── audit-log/        # Audit log viewer
-│       ├── settings/         # User and org settings
-│       └── shared/           # Shared components
-├── docker-compose.yml        # Development orchestration
+digital-signage/
+├── apps/
+│   ├── backend/              # NestJS API server
+│   │   ├── project.json      # Nx targets: build/serve/test/… + db-* (drizzle-kit)
+│   │   └── src/
+│   │       ├── auth/         # Internal email+password auth, API key auth, role guards
+│   │       ├── organisation/ # Multi-tenant org management
+│   │       ├── user/         # User-org membership and roles
+│   │       ├── screen/       # Screen registration and management
+│   │       ├── screen-group/ # Screen grouping (mirror/split modes)
+│   │       ├── content/      # Content library and transcoding pipeline
+│   │       ├── playlist/     # Playlist CRUD
+│   │       ├── schedule/     # Calendar scheduling with RRULE support
+│   │       ├── live-stream/  # Live stream management (FFmpeg + HLS)
+│   │       ├── screen-protocol/ # Protocol abstraction (JSON adapter; SMIL planned)
+│   │       ├── notification/ # In-app, email, ntfy notifications
+│   │       ├── audit-log/    # Audit trail
+│   │       ├── dashboard/    # SSE service for real-time updates
+│   │       ├── media/        # Filesystem media management
+│   │       ├── search/       # Global search
+│   │       └── db/           # Drizzle schema + migrations/ (generated SQL)
+│   ├── frontend/             # Angular 21 admin SPA (src/app/<domain>, shell/, shared/)
+│   └── player/               # Angular 21 player app (connection/, playback/, player/)
+├── libs/
+│   └── shared-types/         # Shared TypeScript types (@signage/shared-types)
+├── nx.json                   # Nx targets, named inputs, caching
+├── tsconfig.base.json        # TS path mappings
+├── package.json              # Single source of truth: version + all deps
+├── docker-compose.yml        # Dev orchestration (backend/frontend/player/redis/postgres)
+├── ansible/                  # Production deployment (Podman Quadlets + Caddy)
 ├── .env.example              # Environment variables template
 ├── ARCHITECTURE.md           # Technical architecture documentation
 └── VISION.md                 # Product vision and feature details
@@ -306,10 +283,10 @@ signage-server/
 
 ## Authentication Flow
 
-1. User visits the frontend and is presented with the Hanko login/registration UI
-2. Hanko handles authentication (passkeys, email/password) and issues a JWT
-3. The frontend includes the JWT as a `Bearer` token in all API requests
-4. The backend validates the JWT against Hanko's JWKS endpoint (`HANKO_API_URL/.well-known/jwks.json`)
+1. User opens the frontend and signs in with **email + password** on the built-in login screen
+2. The backend verifies the bcrypt password hash, then issues a short-lived JWT **access token** as an HTTP-only cookie and stores a **refresh token** in Redis
+3. The browser sends the access cookie automatically with each API request; the backend validates it with `JWT_ACCESS_SECRET` and refreshes via the refresh token when it expires
+4. Org/role scope is resolved server-side per request from the user's memberships — every query is scoped by `organisationId`
 5. Screens authenticate separately using API keys issued by Org Admins
 
 ## License

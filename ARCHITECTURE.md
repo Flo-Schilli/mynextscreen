@@ -2,7 +2,7 @@
 
 ## Overview
 
-A multi-tenant digital signage platform built with **NestJS** (backend), **Angular 21** (frontend), **SQLite3** (database), and **Redis** (job queue). The server manages screens, content, playlists, schedules, and live streams for concert venues. Screens communicate via a protocol abstraction layer (JSON over HTTP + SSE as the first implementation).
+A multi-tenant digital signage platform built with **NestJS** (backend), **Angular 21** (frontend), **PostgreSQL** (database, via Drizzle ORM), and **Redis** (job queue + auth refresh tokens). The server manages screens, content, playlists, schedules, and live streams for concert venues. Screens communicate via a protocol abstraction layer (JSON over HTTP + SSE as the first implementation).
 
 ## Monorepo & Build
 
@@ -17,7 +17,7 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
 
 - **REST API** over HTTP, JSON request/response bodies
 - **Authentication:**
-  - **Users** — Hanko Cloud (external identity provider), JWT tokens carrying `userId`, `organisationId`, and `role` claims
+  - **Users** — internal email + password (bcrypt). Login issues a short-lived JWT access token (HTTP-only cookie) plus a refresh token stored in Redis; JWT claims carry `userId` and `role`. Org/role scope is resolved server-side per request from memberships.
   - **Screens** — API key per screen, passed via `Authorization` header
 - **Authorisation** — NestJS guards enforce role-based access per organisation:
   - Super-admin: system-level operations (provision orgs, view global audit log)
@@ -32,8 +32,8 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
 ### Runtime & Startup
 
 - **NestJS** application with modular architecture (one module per domain)
-- **TypeORM** with SQLite3 for relational data
-- **BullMQ + Redis** for background job processing
+- **Drizzle ORM** with PostgreSQL for relational data (schema in `src/db/`, migrations via drizzle-kit)
+- **BullMQ + Redis** for background job processing (Redis also stores auth refresh tokens)
 - **FFmpeg** as a child process for content and live stream transcoding
 - On startup: initialise DB connection, connect to Redis, register BullMQ workers
 
@@ -41,7 +41,7 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
 
 | Module | Responsibility |
 |---|---|
-| **AuthModule** | Hanko Cloud JWT validation, API key validation, guards for role-based access |
+| **AuthModule** | Internal email+password auth (bcrypt), JWT access cookie + Redis refresh tokens, API key validation, guards for role-based access |
 | **OrganisationModule** | CRUD for organisations, storage limit enforcement, default playlist config, time zone |
 | **UserModule** | User-org membership, role assignment, notification preferences |
 | **ScreenModule** | Screen registration, API key generation/regeneration, heartbeat tracking, online/offline status |
@@ -59,13 +59,13 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
 
 ## Data & Persistence
 
-- **SQLite3** — all relational data: organisations, users, memberships, screens, groups, content metadata, playlists, schedules, audit log, notifications
+- **PostgreSQL** (via Drizzle ORM) — all relational data: organisations, users, memberships, screens, groups, content metadata, playlists, schedules, audit log, notifications
 - **Filesystem** — media storage in a configurable base path:
   ```
   /data/media/{organisationId}/originals/{contentId}.{ext}
   /data/media/{organisationId}/transcoded/{contentId}.{ext}
   ```
-- **Redis** — BullMQ job queue for transcoding jobs; no application data stored in Redis
+- **Redis** — BullMQ job queue for transcoding jobs plus auth refresh-token storage; no other application data stored in Redis
 - **Storage tracking** — per-organisation byte counters for originals and transcoded files, checked on upload against configurable limits
 
 ## Screen Communication
@@ -145,19 +145,20 @@ interface ScreenProtocolAdapter {
 
 ## Deployment
 
-- **Docker Compose** for both local development and production
+- **Local dev** — **Docker Compose** (`docker compose up`) starts backend, frontend, player, `redis`, and `postgres` with hot-reload.
+- **Production** — images are built in CI and published to **GHCR**; **Ansible** + rootless **Podman** Quadlets deploy them behind **Caddy** (single public reverse proxy, SSE pass-through). Redis comes from the official image; PostgreSQL is provisioned alongside.
 - **Services:**
-  - `signage-server` — NestJS application (API + SSE + BullMQ workers)
-  - `redis` — job queue backend
-- **External services:**
-  - Hanko Cloud — authentication (no self-hosted container needed)
+  - `backend` — NestJS application (API + SSE + BullMQ workers)
+  - `frontend` / `player` — Angular SPAs (served as static builds in prod)
+  - `redis` — job queue + auth refresh tokens
+  - `postgres` — relational data store
 - **Volumes:**
-  - `db-data` — SQLite database file
+  - `postgres-data` — PostgreSQL data directory
   - `media-data` — original and transcoded media files
-- **Configuration** — environment variables:
-  - `DATABASE_PATH` — SQLite file location
+- **Configuration** — key environment variables:
+  - `DATABASE_URL` — PostgreSQL connection string
   - `MEDIA_BASE_PATH` — media storage root
   - `REDIS_URL` — Redis connection string
-  - `HANKO_API_URL` — Hanko Cloud endpoint for JWT validation
+  - `JWT_ACCESS_SECRET` — secret for signing JWT access tokens (**required**)
+  - `SUPER_ADMIN_EMAILS` — comma-separated emails seeded as system super-admins
   - `FFMPEG_PATH` — path to FFmpeg binary (default: system PATH)
-- **Local dev:** `docker compose up` starts all services; hot-reload for both backend and frontend

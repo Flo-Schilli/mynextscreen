@@ -70,7 +70,7 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
 ## Stack
 - **Frontend (Admin):** Angular ~21.2 (Standalone, Signals, **zoneless-orientiert**),
   Tailwind CSS v4 (`@tailwindcss/postcss`), eigene Auth-UI (email+password). Tests: **Vitest**.
-- **Player:** eigene Angular-21-App (`player/`), **hls.js** für Live-Streams. Tests: **Jest**.
+- **Player:** eigene Angular-21-App (`player/`), **hls.js** für Live-Streams. Tests: **Vitest**.
 - **Backend:** NestJS 11 (modular, ein Modul pro Domain), **Drizzle ORM** + **PostgreSQL**
   (`pg`), **BullMQ + Redis** (Transcoding-Jobs), `@nestjs/schedule`, `@nestjs/jwt` + `bcrypt`
   (interne Auth), `rrule`, `nodemailer`, `class-validator`/`class-transformer`. Tests: **Jest**.
