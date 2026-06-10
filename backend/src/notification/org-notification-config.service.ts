@@ -51,6 +51,12 @@ export class OrgNotificationConfigService {
       if (config.ntfyToken !== undefined && config.ntfyToken !== '') {
         updates.ntfyToken = config.ntfyToken;
       }
+      // Nothing to change (e.g. only a blank secret was sent): skip the write.
+      // Drizzle's .set({}) throws "No values to set", and the blank-secret rule
+      // intentionally keeps the stored value — so a no-op update returns as-is.
+      if (Object.keys(updates).length === 0) {
+        return existing;
+      }
       const [saved] = await this.db
         .update(organisationNotificationConfigs)
         .set(updates)

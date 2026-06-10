@@ -1,7 +1,12 @@
 # Plan — Fix empty `.set({})` in `OrgNotificationConfigService.upsert`
 
-> Status: **open** · Severity: **low** (not user-triggerable today) · Surfaced by the
-> Drizzle test-migration (see `docs/drizzle-test-migration-todo.md`).
+> Status: **DONE ✅** · Severity: **low** (not user-triggerable today) · Surfaced by the
+> Drizzle test-migration (see `docs/done/drizzle-test-migration-todo.md`).
+>
+> Implemented: empty-`updates` guard in `org-notification-config.service.ts`
+> (`if (Object.keys(updates).length === 0) return existing;`) + regression test
+> "should no-op when only a blank secret is sent" in the service spec. Backend
+> suite + typecheck + lint green.
 
 ## Problem
 
