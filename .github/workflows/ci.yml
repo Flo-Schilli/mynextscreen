@@ -35,9 +35,14 @@ jobs:
       - name: Check version sync
         run: node scripts/sync-versions.mjs --check
 
-      # Derives NX_BASE / NX_HEAD for `nx affected`. On main pushes the base is
-      # the previous successful commit; on PRs it is the merge base with the target.
+      # Derives NX_BASE / NX_HEAD for `nx affected` from the merge base with the
+      # target branch. Only needed on PRs — push events (main/tags) run `nx
+      # run-many`, which ignores these SHAs. Gating on PRs also avoids the
+      # workflow-runs API call that nx-set-shas makes on push events, which needs
+      # `actions: read` the job does not grant ("Resource not accessible by
+      # integration") and which broke the first tag/main release build.
       - name: Derive nx SHAs
+        if: github.event_name == 'pull_request'
         uses: nrwl/nx-set-shas@v4
 
       # On the default branch we run the full graph (run-many) so nothing is skipped;
