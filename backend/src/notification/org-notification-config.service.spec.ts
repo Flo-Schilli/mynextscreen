@@ -117,6 +117,22 @@ describe('OrgNotificationConfigService', () => {
       expect(persisted.ntfyTopic).toBe('new-topic');
     });
 
+    it('should no-op when only a blank secret is sent (no values to set)', async () => {
+      const seeded = await seedConfig();
+
+      // Only a blank secret reaches the service: every branch is skipped, so the
+      // update payload is empty. Drizzle's .set({}) would throw "No values to set"
+      // without the guard — instead we keep the row untouched and return it as-is.
+      const result = await service.upsert(org.id, { smtpPassword: '' });
+
+      expect(result.id).toBe(seeded.id);
+      expect(result.smtpPassword).toBe('secret');
+
+      const persisted = await readConfig();
+      expect(persisted.smtpPassword).toBe('secret');
+      expect(persisted.smtpHost).toBe('smtp.example.com');
+    });
+
     it('should create new config if none exists', async () => {
       const result = await service.upsert(org.id, {
         smtpHost: 'smtp.example.com',
