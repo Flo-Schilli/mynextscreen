@@ -1,4 +1,4 @@
-import { NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import type { User } from '../db/schema';
 import type { UserService } from '../user/user.service';
 import type { PasswordService } from './password.service';
@@ -29,6 +29,7 @@ describe('AuthService', () => {
       | 'findByPasswordResetToken'
       | 'setPasswordResetToken'
       | 'setPassword'
+      | 'createFirstSuperAdmin'
     >
   >;
   let passwords: jest.Mocked<Pick<PasswordService, 'hash' | 'verify'>>;
@@ -54,6 +55,7 @@ describe('AuthService', () => {
       findByPasswordResetToken: jest.fn(),
       setPasswordResetToken: jest.fn(),
       setPassword: jest.fn(),
+      createFirstSuperAdmin: jest.fn(),
     } as never;
     passwords = { hash: jest.fn(), verify: jest.fn() } as never;
     tokens = {
@@ -99,6 +101,52 @@ describe('AuthService', () => {
       users.findByEmail.mockResolvedValue(makeUser());
       passwords.verify.mockResolvedValue(false);
       await expect(service.login('user@example.com', 'bad')).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('setupFirstSuperAdmin', () => {
+    it('hashes the password, creates the first super-admin and issues tokens', async () => {
+      passwords.hash.mockResolvedValue('new-hash');
+      users.createFirstSuperAdmin.mockResolvedValue(
+        makeUser({ id: 'admin-1', email: 'admin@example.com', isSuperAdmin: true }),
+      );
+
+      const result = await service.setupFirstSuperAdmin('admin@example.com', 'supersecret', 'Boss');
+
+      expect(passwords.hash).toHaveBeenCalledWith('supersecret');
+      expect(users.createFirstSuperAdmin).toHaveBeenCalledWith(
+        'admin@example.com',
+        'new-hash',
+        'Boss',
+      );
+      expect(result.accessToken).toBe(issuedAccess);
+      expect(result.refreshToken).toBe(issuedRefresh);
+      expect(tokens.issueAccessToken).toHaveBeenCalledWith('admin-1', {
+        email: 'admin@example.com',
+        isSuperAdmin: true,
+      });
+    });
+
+    it('passes a null name through when none is provided', async () => {
+      passwords.hash.mockResolvedValue('new-hash');
+      users.createFirstSuperAdmin.mockResolvedValue(makeUser({ isSuperAdmin: true }));
+
+      await service.setupFirstSuperAdmin('admin@example.com', 'supersecret');
+
+      expect(users.createFirstSuperAdmin).toHaveBeenCalledWith(
+        'admin@example.com',
+        'new-hash',
+        null,
+      );
+    });
+
+    it('propagates the conflict when setup is already completed', async () => {
+      passwords.hash.mockResolvedValue('new-hash');
+      users.createFirstSuperAdmin.mockRejectedValue(new ConflictException('Setup already completed'));
+
+      await expect(
+        service.setupFirstSuperAdmin('admin@example.com', 'supersecret'),
+      ).rejects.toThrow(ConflictException);
     });
   });
 

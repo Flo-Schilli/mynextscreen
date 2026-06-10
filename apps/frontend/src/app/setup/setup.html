@@ -1,0 +1,77 @@
+<div class="flex min-h-screen items-center justify-center bg-gray-100 px-4">
+  <div class="w-full max-w-sm rounded-lg bg-white p-8 shadow-md">
+    <h1 class="mb-1 text-center text-2xl font-semibold text-gray-900">Welcome</h1>
+    <p class="mb-6 text-center text-sm text-gray-600">Create the first administrator account.</p>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4">
+      <div>
+        <label for="name" class="mb-1 block text-sm font-medium text-gray-700">
+          Name <span class="text-gray-400">(optional)</span>
+        </label>
+        <input
+          id="name"
+          type="text"
+          formControlName="name"
+          autocomplete="name"
+          class="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      </div>
+
+      <div>
+        <label for="email" class="mb-1 block text-sm font-medium text-gray-700">Email</label>
+        <input
+          id="email"
+          type="email"
+          formControlName="email"
+          autocomplete="username"
+          class="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        @if (form.controls.email.touched && form.controls.email.invalid) {
+          <p class="mt-1 text-sm text-red-600">Enter a valid email address.</p>
+        }
+      </div>
+
+      <div>
+        <label for="password" class="mb-1 block text-sm font-medium text-gray-700">Password</label>
+        <input
+          id="password"
+          type="password"
+          formControlName="password"
+          autocomplete="new-password"
+          class="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        @if (form.controls.password.touched && form.controls.password.invalid) {
+          <p class="mt-1 text-sm text-red-600">Password must be at least 8 characters.</p>
+        }
+      </div>
+
+      <div>
+        <label for="confirmPassword" class="mb-1 block text-sm font-medium text-gray-700">
+          Confirm password
+        </label>
+        <input
+          id="confirmPassword"
+          type="password"
+          formControlName="confirmPassword"
+          autocomplete="new-password"
+          class="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        @if (form.controls.confirmPassword.touched && form.hasError('mismatch')) {
+          <p class="mt-1 text-sm text-red-600">Passwords do not match.</p>
+        }
+      </div>
+
+      @if (error()) {
+        <p class="text-sm text-red-600" role="alert">{{ error() }}</p>
+      }
+
+      <button
+        type="submit"
+        [disabled]="submitting()"
+        class="w-full rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {{ submitting() ? 'Creating account…' : 'Create admin account' }}
+      </button>
+    </form>
+  </div>
+</div>

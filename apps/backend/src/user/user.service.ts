@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { ConflictException, Injectable, Inject } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
@@ -17,6 +17,37 @@ export class UserService {
   async findById(userId: string): Promise<User | null> {
     const [user] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
     return user ?? null;
+  }
+
+  /** True if at least one user exists. Drives the first-run setup gate. */
+  async hasAnyUser(): Promise<boolean> {
+    const [user] = await this.db.select({ id: users.id }).from(users).limit(1);
+    return !!user;
+  }
+
+  /**
+   * First-run setup: create the very first system super-admin via the UI
+   * (replaces env-based seeding). Atomic — the existence check and insert run in
+   * one transaction so a concurrent setup race cannot create two "first" admins.
+   * Throws ConflictException once any user exists.
+   */
+  async createFirstSuperAdmin(
+    email: string,
+    passwordHash: string,
+    name: string | null = null,
+  ): Promise<User> {
+    const normalised = email.toLowerCase();
+    return this.db.transaction(async (tx) => {
+      const [existing] = await tx.select({ id: users.id }).from(users).limit(1);
+      if (existing) {
+        throw new ConflictException('Setup already completed');
+      }
+      const [user] = await tx
+        .insert(users)
+        .values({ email: normalised, name, passwordHash, isSuperAdmin: true })
+        .returning();
+      return user;
+    });
   }
 
   async findByEmail(email: string): Promise<User | null> {

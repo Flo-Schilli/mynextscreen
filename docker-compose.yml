@@ -23,8 +23,6 @@ services:
       - COOKIE_SECURE=${COOKIE_SECURE:-false}
       - COOKIE_SAMESITE=${COOKIE_SAMESITE:-strict}
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
-      - SUPER_ADMIN_EMAILS=${SUPER_ADMIN_EMAILS:-}
-      - SUPER_ADMIN_INITIAL_PASSWORD=${SUPER_ADMIN_INITIAL_PASSWORD:-}
     depends_on:
       - redis
       - postgres

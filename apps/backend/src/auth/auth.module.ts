@@ -10,7 +10,6 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
-import { SuperAdminSeeder } from './super-admin.seeder';
 import { UserModule } from '../user/user.module';
 
 @Module({
@@ -30,7 +29,6 @@ import { UserModule } from '../user/user.module';
     AuthService,
     PasswordService,
     TokenService,
-    SuperAdminSeeder,
     // Order matters: ThrottlerGuard first (rate limit before any work), then
     // JWT (sets req.user), then API-key (screen routes), then roles.
     {

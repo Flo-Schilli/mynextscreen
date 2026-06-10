@@ -75,7 +75,9 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
   (`pg`), **BullMQ + Redis** (Transcoding-Jobs), `@nestjs/schedule`, `@nestjs/jwt` + `bcrypt`
   (interne Auth), `rrule`, `nodemailer`, `class-validator`/`class-transformer`. Tests: **Jest**.
 - **Auth:** **Interne Auth** (email+password, JWT-Access-Cookie + Redis-Refresh-Tokens,
-  bcrypt-Hashing), **API-Keys** (Screens).
+  bcrypt-Hashing), **API-Keys** (Screens). Erster Super-Admin wird **nicht** per Env
+  geseedet, sondern über ein **UI-First-Run-Setup** angelegt (`GET /api/auth/setup-status`,
+  `POST /api/auth/setup`; nur möglich, solange kein User existiert — atomar).
 - **Media:** **FFmpeg** als Child-Process (Transcoding + HLS-Live).
 - **Echtzeit:** **SSE** (Dashboard-Updates + Screen-Pushes).
 - **Runtime:** Node.js 22. **Package-Manager: npm** (npm@11.6.2, kein pnpm/yarn).
@@ -248,8 +250,6 @@ npx nx run backend:db-studio      # drizzle-kit studio
 | `JWT_ACCESS_TTL` / `JWT_REFRESH_TTL` | Token-Lebensdauer (z. B. `15m` / `30d`) |
 | `COOKIE_SECURE` / `COOKIE_SAMESITE` | Cookie-Härtung (Secure default nur bei `NODE_ENV=production`) |
 | `PUBLIC_BASE_URL` | Basis-URL der Admin-SPA (Set-Password/Reset-Links + CORS) |
-| `SUPER_ADMIN_EMAILS` | Komma-getrennte E-Mails, beim Boot als System-Super-Admins geseedet |
-| `SUPER_ADMIN_INITIAL_PASSWORD` | Optionales Initial-Passwort für geseedete Super-Admins |
 | `MAX_FILE_SIZE_BYTES` | Upload-Limit |
 | `FFMPEG_PATH` | FFmpeg-Binary (default: System-PATH) |
 | `FFMPEG_VIDEO_CRF` / `_PRESET` / `_MAXRATE` / `_BUFSIZE` | Transcoding-Qualität |

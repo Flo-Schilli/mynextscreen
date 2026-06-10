@@ -160,5 +160,9 @@ interface ScreenProtocolAdapter {
   - `MEDIA_BASE_PATH` — media storage root
   - `REDIS_URL` — Redis connection string
   - `JWT_ACCESS_SECRET` — secret for signing JWT access tokens (**required**)
-  - `SUPER_ADMIN_EMAILS` — comma-separated emails seeded as system super-admins
   - `FFMPEG_PATH` — path to FFmpeg binary (default: system PATH)
+
+The first system super-admin is **not** seeded from config. On a fresh deployment
+(no user yet) the public endpoints `GET /api/auth/setup-status` and `POST /api/auth/setup`
+back a UI first-run flow that creates the initial super-admin; the create call is gated
+on "no user exists" (atomic) and closes once the first account is made.

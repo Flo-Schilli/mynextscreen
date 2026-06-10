@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { and, eq } from 'drizzle-orm';
 import { UserService } from './user.service';
@@ -56,6 +57,41 @@ describe('UserService', () => {
       const result = await service.createInvitee('MixedCase@Example.COM');
 
       expect(result.email).toBe('mixedcase@example.com');
+    });
+  });
+
+  describe('hasAnyUser', () => {
+    it('returns false when no user exists', async () => {
+      await expect(service.hasAnyUser()).resolves.toBe(false);
+    });
+
+    it('returns true once a user exists', async () => {
+      await db.insert(users).values({ email: 'someone@example.com' });
+      await expect(service.hasAnyUser()).resolves.toBe(true);
+    });
+  });
+
+  describe('createFirstSuperAdmin', () => {
+    it('creates the first super-admin with a hashed password and lower-cased email', async () => {
+      const user = await service.createFirstSuperAdmin('Boss@Example.COM', 'hash', 'Boss');
+
+      expect(user.email).toBe('boss@example.com');
+      expect(user.name).toBe('Boss');
+      expect(user.isSuperAdmin).toBe(true);
+      expect(user.passwordHash).toBe('hash');
+      const all = await db.select().from(users);
+      expect(all).toHaveLength(1);
+    });
+
+    it('throws ConflictException when any user already exists', async () => {
+      await db.insert(users).values({ email: 'existing@example.com' });
+
+      await expect(service.createFirstSuperAdmin('new@example.com', 'hash')).rejects.toThrow(
+        ConflictException,
+      );
+      // No second user was created.
+      const all = await db.select().from(users);
+      expect(all).toHaveLength(1);
     });
   });
 

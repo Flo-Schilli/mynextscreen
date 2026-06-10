@@ -80,10 +80,8 @@ Signage Server uses **internal authentication** (email + password). Passwords ar
 | `COOKIE_SECURE`                | Force `Secure` cookies (defaults to `true` only when `NODE_ENV=production`) | No       |
 | `COOKIE_SAMESITE`              | Cookie `SameSite` policy: `strict` (default) \| `lax` \| `none`          | No       |
 | `PUBLIC_BASE_URL`              | Admin SPA base URL — used to build set-password/reset links and to lock down CORS | No       |
-| `SUPER_ADMIN_EMAILS`           | Comma-separated emails seeded as system super-admins on boot             | No       |
-| `SUPER_ADMIN_INITIAL_PASSWORD` | Optional initial password for seeded super-admins (otherwise password-less → must use `/set-password`) | No       |
 
-**Bootstrapping super-admin access:** set `SUPER_ADMIN_EMAILS` (and optionally `SUPER_ADMIN_INITIAL_PASSWORD`) before first boot. The listed emails are seeded as system super-admins who can then provision organisations.
+**First super-admin (first-run setup):** there is no env-based seeding. On a fresh deployment — while no user exists yet — opening the app routes you to a one-time setup screen where you create the initial super-admin account; you are logged in immediately and can then provision organisations. Once any user exists the setup screen is closed and normal login applies.
 
 ### All Environment Variables
 
@@ -96,7 +94,6 @@ Signage Server uses **internal authentication** (email + password). Passwords ar
 | `FFMPEG_PATH`         | Path to FFmpeg binary                         | `ffmpeg` (system PATH) | No       |
 | `FFMPEG_VIDEO_CRF` / `_PRESET` / `_MAXRATE` / `_BUFSIZE` | Video transcoding quality   | see `.env.example`     | No       |
 | `JWT_ACCESS_SECRET`   | Secret for signing JWT access tokens          | —                      | **Yes**  |
-| `SUPER_ADMIN_EMAILS`  | Comma-separated super-admin emails            | —                      | No       |
 
 ### Example `.env`
 
@@ -119,9 +116,7 @@ JWT_ACCESS_SECRET=change-me-in-production
 JWT_ACCESS_TTL=15m
 JWT_REFRESH_TTL=30d
 
-# Super-admin seeding
-SUPER_ADMIN_EMAILS=admin@example.com
-# SUPER_ADMIN_INITIAL_PASSWORD=change-me-on-first-login
+# Super-admin: no env seeding — create the first one via the UI on first run.
 ```
 
 ## Docker Setup
@@ -154,13 +149,12 @@ Persistent data is stored in Docker volumes:
 
 ### Passing Environment Variables to Docker
 
-The compose file already wires backend env vars for dev. To override (e.g. a real `JWT_ACCESS_SECRET` or super-admin seeding), use one of:
+The compose file already wires backend env vars for dev. To override (e.g. a real `JWT_ACCESS_SECRET`), use one of:
 
 **Option 1: Inline with `docker compose`**
 
 ```bash
 JWT_ACCESS_SECRET=$(openssl rand -base64 48) \
-SUPER_ADMIN_EMAILS=admin@example.com \
 docker compose up --build
 ```
 
@@ -175,7 +169,7 @@ services:
       - .env
 ```
 
-> **Note:** Several compose vars use `${VAR:-default}` substitution (e.g. `JWT_ACCESS_SECRET`, `COOKIE_SECURE`, `SUPER_ADMIN_EMAILS`), so values exported in your shell or `.env` override the dev defaults automatically.
+> **Note:** Several compose vars use `${VAR:-default}` substitution (e.g. `JWT_ACCESS_SECRET`, `COOKIE_SECURE`), so values exported in your shell or `.env` override the dev defaults automatically.
 
 ### Production Deployment
 

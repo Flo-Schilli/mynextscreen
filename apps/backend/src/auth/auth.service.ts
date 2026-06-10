@@ -41,6 +41,23 @@ export class AuthService {
     return { user, accessToken, refreshToken };
   }
 
+  /**
+   * First-run setup: create the first system super-admin (UI-driven, replaces
+   * env seeding) and immediately log them in — same token issuance as login().
+   * Atomicity / "setup already done" guard lives in createFirstSuperAdmin.
+   */
+  async setupFirstSuperAdmin(email: string, password: string, name?: string): Promise<LoginResult> {
+    const passwordHash = await this.passwords.hash(password);
+    const user = await this.users.createFirstSuperAdmin(email, passwordHash, name ?? null);
+    const accessToken = await this.tokens.issueAccessToken(user.id, {
+      email: user.email,
+      isSuperAdmin: user.isSuperAdmin,
+    });
+    const refreshToken = await this.tokens.issueInitialRefreshToken(user.id);
+    this.logger.log(`First super-admin created userId=${user.id} family=${refreshToken.familyId}`);
+    return { user, accessToken, refreshToken };
+  }
+
   async refresh(rawRefreshToken: string): Promise<RefreshResult> {
     const result = await this.tokens.rotateRefreshToken(rawRefreshToken);
 

@@ -10,6 +10,11 @@
         "include": "db/migrations/**/*.sql",
         "outDir": "../../dist/apps/backend",
         "watchAssets": true
+      },
+      {
+        "include": "db/migrations/meta/**/*.json",
+        "outDir": "../../dist/apps/backend",
+        "watchAssets": true
       }
     ]
   }

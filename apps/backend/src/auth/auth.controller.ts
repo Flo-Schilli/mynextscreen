@@ -26,6 +26,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
+import { SetupDto } from './dto/setup.dto';
 import type { AuthenticatedUserView } from './auth.types';
 
 interface AuthSuccessResponse {
@@ -40,6 +41,33 @@ export class AuthController {
     private readonly users: UserService,
     private readonly events: EventEmitter2,
   ) {}
+
+  @Public()
+  @Get('setup-status')
+  async setupStatus(): Promise<{ setupNeeded: boolean }> {
+    const hasUser = await this.users.hasAnyUser();
+    return { setupNeeded: !hasUser };
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('setup')
+  @HttpCode(HttpStatus.OK)
+  async setup(
+    @Body() dto: SetupDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthSuccessResponse> {
+    const { user, accessToken, refreshToken } = await this.auth.setupFirstSuperAdmin(
+      dto.email,
+      dto.password,
+      dto.name,
+    );
+    setAccessCookie(res, this.config, accessToken.token, accessToken.expiresAt);
+    setRefreshCookie(res, this.config, refreshToken.token, refreshToken.expiresAt);
+    return {
+      user: { userId: user.id, email: user.email, isSuperAdmin: user.isSuperAdmin },
+    };
+  }
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })

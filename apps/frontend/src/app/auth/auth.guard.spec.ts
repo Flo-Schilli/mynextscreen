@@ -5,6 +5,7 @@ import { ActivatedRouteSnapshot, RouterStateSnapshot, Router, UrlTree } from '@a
 import { vi } from 'vitest';
 import { authGuard } from './auth.guard';
 import { AuthService } from './auth.service';
+import { SetupService } from '../setup/setup.service';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -17,11 +18,16 @@ interface AuthStub {
   loadCurrent: ReturnType<typeof vi.fn>;
 }
 
-const LOGIN_URL_TREE = {} as UrlTree;
+const REDIRECT_URL_TREE = {} as UrlTree;
 
-function configure(opts: { authenticatedBefore: boolean; authenticatedAfterLoad?: boolean }): {
+function configure(opts: {
+  authenticatedBefore: boolean;
+  authenticatedAfterLoad?: boolean;
+  setupNeeded?: boolean;
+}): {
   createUrlTree: ReturnType<typeof vi.fn>;
   loadCurrent: ReturnType<typeof vi.fn>;
+  checkStatus: ReturnType<typeof vi.fn>;
 } {
   let authed = opts.authenticatedBefore;
   const loadCurrent = vi.fn(() => {
@@ -29,16 +35,19 @@ function configure(opts: { authenticatedBefore: boolean; authenticatedAfterLoad?
     return Promise.resolve();
   });
   const authStub: AuthStub = { isAuthenticated: () => authed, loadCurrent };
-  const createUrlTree = vi.fn(() => LOGIN_URL_TREE);
+  const checkStatus = vi.fn(() => Promise.resolve(opts.setupNeeded ?? false));
+  const setupStub = { checkStatus } as unknown as SetupService;
+  const createUrlTree = vi.fn(() => REDIRECT_URL_TREE);
   const routerStub = { createUrlTree } as unknown as Router;
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
       { provide: AuthService, useValue: authStub },
+      { provide: SetupService, useValue: setupStub },
       { provide: Router, useValue: routerStub },
     ],
   });
-  return { createUrlTree, loadCurrent };
+  return { createUrlTree, loadCurrent, checkStatus };
 }
 
 async function runGuard(): Promise<boolean | UrlTree> {
@@ -68,13 +77,27 @@ describe('authGuard', () => {
     expect(createUrlTree).not.toHaveBeenCalled();
   });
 
-  it('redirects to /login when unauthenticated and no valid cookie', async () => {
-    const { createUrlTree } = configure({
+  it('redirects to /login when unauthenticated, no valid cookie, and setup is done', async () => {
+    const { createUrlTree, checkStatus } = configure({
       authenticatedBefore: false,
       authenticatedAfterLoad: false,
+      setupNeeded: false,
     });
     const result = await runGuard();
+    expect(checkStatus).toHaveBeenCalled();
     expect(createUrlTree).toHaveBeenCalledWith(['/login']);
-    expect(result).toBe(LOGIN_URL_TREE);
+    expect(result).toBe(REDIRECT_URL_TREE);
+  });
+
+  it('redirects to /setup when unauthenticated and no user exists yet', async () => {
+    const { createUrlTree, checkStatus } = configure({
+      authenticatedBefore: false,
+      authenticatedAfterLoad: false,
+      setupNeeded: true,
+    });
+    const result = await runGuard();
+    expect(checkStatus).toHaveBeenCalled();
+    expect(createUrlTree).toHaveBeenCalledWith(['/setup']);
+    expect(result).toBe(REDIRECT_URL_TREE);
   });
 });
