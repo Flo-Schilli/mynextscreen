@@ -1,7 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { eq } from 'drizzle-orm';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { screens, contents } from '../db/schema';
 import { NotificationHub } from './notification-hub.service';
 import { NotificationEventType } from './notification-event-type.enum';
 import { ScreenStatusEvent, SCREEN_STATUS_CHANGED } from '../screen/screen-status.event';
@@ -11,8 +13,6 @@ import {
   TRANSCODING_COMPLETED,
   TRANSCODING_FAILED,
 } from '../content/transcoding.event';
-import { Screen } from '../screen/screen.entity';
-import { Content } from '../content/content.entity';
 
 @Injectable()
 export class NotificationEventListener {
@@ -20,18 +20,17 @@ export class NotificationEventListener {
 
   constructor(
     private readonly notificationHub: NotificationHub,
-    @InjectRepository(Screen)
-    private readonly screenRepo: Repository<Screen>,
-    @InjectRepository(Content)
-    private readonly contentRepo: Repository<Content>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
   ) {}
 
   @OnEvent(SCREEN_STATUS_CHANGED, { async: true })
   async handleScreenStatusChanged(event: ScreenStatusEvent): Promise<void> {
     try {
-      const screen = await this.screenRepo.findOne({
-        where: { id: event.screenId },
-      });
+      const [screen] = await this.db
+        .select()
+        .from(screens)
+        .where(eq(screens.id, event.screenId))
+        .limit(1);
 
       const screenName = screen?.name ?? 'Unknown';
       const location = screen?.location ?? 'Unknown';
@@ -65,9 +64,11 @@ export class NotificationEventListener {
   @OnEvent(TRANSCODING_COMPLETED, { async: true })
   async handleTranscodingCompleted(event: TranscodingCompletedEvent): Promise<void> {
     try {
-      const content = await this.contentRepo.findOne({
-        where: { id: event.contentId },
-      });
+      const [content] = await this.db
+        .select()
+        .from(contents)
+        .where(eq(contents.id, event.contentId))
+        .limit(1);
 
       const contentTitle = content?.title ?? 'Unknown';
 
@@ -90,9 +91,11 @@ export class NotificationEventListener {
   @OnEvent(TRANSCODING_FAILED, { async: true })
   async handleTranscodingFailed(event: TranscodingFailedEvent): Promise<void> {
     try {
-      const content = await this.contentRepo.findOne({
-        where: { id: event.contentId },
-      });
+      const [content] = await this.db
+        .select()
+        .from(contents)
+        .where(eq(contents.id, event.contentId))
+        .limit(1);
 
       const contentTitle = content?.title ?? 'Unknown';
 

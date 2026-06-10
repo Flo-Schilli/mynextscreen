@@ -7,10 +7,9 @@ services:
       - "3000:3000"
     volumes:
       - ./backend/src:/app/src
-      - ./test-data/data:/app/data
       - ./test-data/media:/app/media
     environment:
-      - DATABASE_PATH=/app/data/signage.db
+      - DATABASE_URL=postgres://signage:signage@postgres:5432/signage
       - REDIS_URL=redis://redis:6379
       - MEDIA_BASE_PATH=/app/media
       - MAX_FILE_SIZE_BYTES=1073741824
@@ -22,6 +21,7 @@ services:
       - SUPER_ADMIN_USER_IDS=${SUPER_ADMIN_USER_IDS:-}
     depends_on:
       - redis
+      - postgres
 
   frontend:
     build:
@@ -47,5 +47,19 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=signage
+      - POSTGRES_PASSWORD=signage
+      - POSTGRES_DB=signage
+    volumes:
+      - signage-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  signage-postgres-data:
 
 

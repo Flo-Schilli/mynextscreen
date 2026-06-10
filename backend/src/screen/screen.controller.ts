@@ -7,7 +7,7 @@ import { Roles } from '../auth/roles.decorator';
 import { ScreenAuth, ScreenAuthenticatedRequest, AuthenticatedRequest } from '../auth';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
-import { Screen } from './screen.entity';
+import type { Screen } from '../db/schema';
 
 interface MessageEvent {
   data: unknown;

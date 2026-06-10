@@ -1,10 +1,10 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Injectable, Logger, OnModuleDestroy, Inject } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
-import { Screen } from './screen.entity';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { screens, scheduleEntries } from '../db/schema';
 import {
-  ScheduleEntry,
   ScheduleService,
   getOccurrences,
   SCHEDULE_ENTRY_CHANGED,
@@ -29,10 +29,7 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
   private readonly tracked = new Map<string, TrackedScreen>();
 
   constructor(
-    @InjectRepository(ScheduleEntry)
-    private readonly entryRepository: Repository<ScheduleEntry>,
-    @InjectRepository(Screen)
-    private readonly screenRepository: Repository<Screen>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly scheduleService: ScheduleService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
@@ -47,9 +44,7 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
   async registerScreen(screenId: string): Promise<void> {
     if (this.tracked.has(screenId)) return;
 
-    const screen = await this.screenRepository.findOne({
-      where: { id: screenId },
-    });
+    const [screen] = await this.db.select().from(screens).where(eq(screens.id, screenId)).limit(1);
     if (!screen) return;
 
     let currentPlaylistId: string | null = null;
@@ -87,10 +82,11 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
 
   @OnEvent(GROUP_SCHEDULE_CHANGED)
   async handleGroupScheduleChanged(event: GroupScheduleChangedEvent): Promise<void> {
-    const screens = await this.screenRepository.find({
-      where: { groupId: event.groupId },
-    });
-    for (const screen of screens) {
+    const groupScreens = await this.db
+      .select()
+      .from(screens)
+      .where(eq(screens.groupId, event.groupId));
+    for (const screen of groupScreens) {
       if (this.tracked.has(screen.id)) {
         await this.scheduleNextBoundary(screen.id);
       }
@@ -128,9 +124,10 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
     const boundaries: Date[] = [];
     const windowStart = new Date(now.getTime() - LOOK_AHEAD_MS);
 
-    const directEntries = await this.entryRepository.find({
-      where: { screenId },
-    });
+    const directEntries = await this.db
+      .select()
+      .from(scheduleEntries)
+      .where(eq(scheduleEntries.screenId, screenId));
 
     for (const entry of directEntries) {
       const occurrences = getOccurrences(
@@ -145,13 +142,12 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
       }
     }
 
-    const screen = await this.screenRepository.findOne({
-      where: { id: screenId },
-    });
+    const [screen] = await this.db.select().from(screens).where(eq(screens.id, screenId)).limit(1);
     if (screen?.groupId) {
-      const groupEntries = await this.entryRepository.find({
-        where: { groupId: screen.groupId },
-      });
+      const groupEntries = await this.db
+        .select()
+        .from(scheduleEntries)
+        .where(eq(scheduleEntries.groupId, screen.groupId));
       for (const entry of groupEntries) {
         const occurrences = getOccurrences(
           entry.startTime,

@@ -2,10 +2,10 @@
 # Signage Server — Upload Database Restore
 # Usage: ansible-playbook -i hosts.ini upload_db.yml -K
 #
-# Uploads a local SQLite database to the server, replacing the existing one.
-# The backend service is stopped during the upload and restarted afterward.
+# Restores a local PostgreSQL dump (pg_dump custom format) to the server,
+# replacing the existing database. The backend is stopped during the restore.
 #
-# Place the database file at: ansible/signage.db
+# Place the dump file at: ansible/signage.dump
 
 - name: Upload database to server
   hosts: servers
@@ -13,21 +13,21 @@
   vars:
     service_user: signage
     service_user_home: "/home/{{ service_user }}"
-    db_dest: "{{ service_user_home }}/app/data/signage.db"
-    local_db: "{{ playbook_dir }}/signage.db"
+    local_dump: "{{ playbook_dir }}/signage.dump"
+    remote_dump: "/tmp/signage_restore.dump"
 
   tasks:
-    - name: Check if local database file exists
+    - name: Check if local dump file exists
       ansible.builtin.stat:
-        path: "{{ local_db }}"
+        path: "{{ local_dump }}"
       delegate_to: localhost
       become: false
-      register: local_db_file
+      register: local_dump_file
 
-    - name: Fail if local database file is missing
+    - name: Fail if local dump file is missing
       ansible.builtin.fail:
-        msg: "Local database not found at {{ local_db }}. Place the database file at ansible/signage.db"
-      when: not local_db_file.stat.exists
+        msg: "Local dump not found at {{ local_dump }}. Place the dump file at ansible/signage.dump"
+      when: not local_dump_file.stat.exists
 
     - name: Get service user UID
       ansible.builtin.command:
@@ -48,13 +48,33 @@
         XDG_RUNTIME_DIR: "/run/user/{{ service_user_uid }}"
         DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ service_user_uid }}/bus"
 
-    - name: Upload database to server
+    - name: Upload dump to server
       ansible.builtin.copy:
-        src: "{{ local_db }}"
-        dest: "{{ db_dest }}"
+        src: "{{ local_dump }}"
+        dest: "{{ remote_dump }}"
         owner: "{{ service_user }}"
         group: "{{ service_user }}"
         mode: "0644"
+
+    - name: Drop and recreate the database (clean restore)
+      ansible.builtin.shell: >-
+        podman exec signage-postgres psql -U signage -d postgres -c
+        "DROP DATABASE IF EXISTS signage WITH (FORCE); CREATE DATABASE signage;"
+      args:
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Restore dump (pg_restore)
+      ansible.builtin.shell: >-
+        podman exec -i signage-postgres pg_restore -U signage -d signage --no-owner < "{{ remote_dump }}"
+      args:
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Remove remote temp dump
+      ansible.builtin.file:
+        path: "{{ remote_dump }}"
+        state: absent
 
     - name: Start backend service
       ansible.builtin.command:
@@ -67,4 +87,4 @@
 
     - name: Report success
       ansible.builtin.debug:
-        msg: "Database uploaded to {{ db_dest }} and backend service restarted"
+        msg: "Database restored from {{ local_dump }} and backend service restarted"

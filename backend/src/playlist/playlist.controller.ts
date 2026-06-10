@@ -22,8 +22,8 @@ import { Roles } from '../auth/roles.decorator';
 import { AuthenticatedRequest } from '../auth';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
-import { Playlist } from './playlist.entity';
-import { PlaylistItem } from './playlist-item.entity';
+import type { Playlist } from '../db/schema';
+import type { PlaylistItem } from '../db/schema';
 
 @Controller('playlists')
 export class PlaylistController {

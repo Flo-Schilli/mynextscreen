@@ -1,9 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { HttpModule } from '@nestjs/axios';
-import { Notification } from './notification.entity';
-import { UserNotificationPreference } from './user-notification-preference.entity';
-import { OrganisationNotificationConfig } from './organisation-notification-config.entity';
 import { NotificationService } from './notification.service';
 import { UserNotificationPreferenceService } from './user-notification-preference.service';
 import { OrgNotificationConfigService } from './org-notification-config.service';
@@ -22,18 +18,7 @@ import { ScreenModule } from '../screen/screen.module';
 import { ContentModule } from '../content/content.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([
-      Notification,
-      UserNotificationPreference,
-      OrganisationNotificationConfig,
-    ]),
-    HttpModule,
-    UserModule,
-    DashboardModule,
-    ScreenModule,
-    ContentModule,
-  ],
+  imports: [HttpModule, UserModule, DashboardModule, ScreenModule, ContentModule],
   controllers: [
     NotificationPreferencesController,
     OrgNotificationConfigController,
@@ -66,7 +51,6 @@ import { ContentModule } from '../content/content.module';
     UserNotificationPreferenceService,
     OrgNotificationConfigService,
     NotificationHub,
-    TypeOrmModule,
   ],
 })
 export class NotificationModule {}

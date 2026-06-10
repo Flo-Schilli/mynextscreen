@@ -1,24 +1,15 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Screen } from '../screen/screen.entity';
-import { Content } from '../content/content.entity';
-import { Playlist } from '../playlist/playlist.entity';
-import { ScheduleEntry } from '../schedule/schedule-entry.entity';
+import { Injectable, Inject } from '@nestjs/common';
+import { and, eq, ilike, or, sql } from 'drizzle-orm';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { screens, contents, playlists, scheduleEntries, screenGroups } from '../db/schema';
 import { SearchResultsDto, SearchResultItemDto } from './dto/search-results.dto';
+
+const MAX_RESULTS_PER_TYPE = 5;
 
 @Injectable()
 export class SearchService {
-  constructor(
-    @InjectRepository(Screen)
-    private readonly screenRepository: Repository<Screen>,
-    @InjectRepository(Content)
-    private readonly contentRepository: Repository<Content>,
-    @InjectRepository(Playlist)
-    private readonly playlistRepository: Repository<Playlist>,
-    @InjectRepository(ScheduleEntry)
-    private readonly scheduleEntryRepository: Repository<ScheduleEntry>,
-  ) {}
+  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
   async search(query: string, organisationId: string): Promise<SearchResultsDto> {
     const trimmed = query.trim();
@@ -29,14 +20,19 @@ export class SearchService {
     const sanitised = this.sanitiseLikePattern(trimmed);
     const likePattern = `%${sanitised}%`;
 
-    const [screens, content, playlists, schedules] = await Promise.all([
+    const [screenResults, contentResults, playlistResults, scheduleResults] = await Promise.all([
       this.searchScreens(likePattern, organisationId),
       this.searchContent(likePattern, organisationId),
       this.searchPlaylists(likePattern, organisationId),
       this.searchSchedules(likePattern, organisationId),
     ]);
 
-    return { screens, content, playlists, schedules };
+    return {
+      screens: screenResults,
+      content: contentResults,
+      playlists: playlistResults,
+      schedules: scheduleResults,
+    };
   }
 
   private sanitiseLikePattern(query: string): string {
@@ -47,14 +43,16 @@ export class SearchService {
     likePattern: string,
     organisationId: string,
   ): Promise<SearchResultItemDto[]> {
-    const results = await this.screenRepository
-      .createQueryBuilder('screen')
-      .where('screen.organisationId = :orgId', { orgId: organisationId })
-      .andWhere('(LOWER(screen.name) LIKE LOWER(:q) OR LOWER(screen.location) LIKE LOWER(:q))', {
-        q: likePattern,
-      })
-      .take(5)
-      .getMany();
+    const results = await this.db
+      .select()
+      .from(screens)
+      .where(
+        and(
+          eq(screens.organisationId, organisationId),
+          or(ilike(screens.name, likePattern), ilike(screens.location, likePattern)),
+        ),
+      )
+      .limit(MAX_RESULTS_PER_TYPE);
 
     return results.map((s) => ({
       id: s.id,
@@ -68,15 +66,20 @@ export class SearchService {
     likePattern: string,
     organisationId: string,
   ): Promise<SearchResultItemDto[]> {
-    const results = await this.contentRepository
-      .createQueryBuilder('content')
-      .where('content.organisationId = :orgId', { orgId: organisationId })
-      .andWhere(
-        '(LOWER(content.title) LIKE LOWER(:q) OR LOWER(content.description) LIKE LOWER(:q) OR LOWER(content.tags) LIKE LOWER(:q))',
-        { q: likePattern },
+    const results = await this.db
+      .select()
+      .from(contents)
+      .where(
+        and(
+          eq(contents.organisationId, organisationId),
+          or(
+            ilike(contents.title, likePattern),
+            ilike(contents.description, likePattern),
+            sql`${contents.tags}::text ilike ${likePattern}`,
+          ),
+        ),
       )
-      .take(5)
-      .getMany();
+      .limit(MAX_RESULTS_PER_TYPE);
 
     return results.map((c) => ({
       id: c.id,
@@ -90,12 +93,11 @@ export class SearchService {
     likePattern: string,
     organisationId: string,
   ): Promise<SearchResultItemDto[]> {
-    const results = await this.playlistRepository
-      .createQueryBuilder('playlist')
-      .where('playlist.organisationId = :orgId', { orgId: organisationId })
-      .andWhere('LOWER(playlist.name) LIKE LOWER(:q)', { q: likePattern })
-      .take(5)
-      .getMany();
+    const results = await this.db
+      .select()
+      .from(playlists)
+      .where(and(eq(playlists.organisationId, organisationId), ilike(playlists.name, likePattern)))
+      .limit(MAX_RESULTS_PER_TYPE);
 
     return results.map((p) => ({
       id: p.id,
@@ -109,23 +111,28 @@ export class SearchService {
     likePattern: string,
     organisationId: string,
   ): Promise<SearchResultItemDto[]> {
-    const results = await this.scheduleEntryRepository
-      .createQueryBuilder('schedule')
-      .leftJoinAndSelect('schedule.playlist', 'playlist')
-      .leftJoinAndSelect('schedule.screen', 'screen')
-      .leftJoinAndSelect('schedule.group', 'group')
-      .where('schedule.organisationId = :orgId', { orgId: organisationId })
-      .andWhere(
-        '(LOWER(playlist.name) LIKE LOWER(:q) OR LOWER(screen.name) LIKE LOWER(:q) OR LOWER(group.name) LIKE LOWER(:q))',
-        { q: likePattern },
+    const results = await this.db
+      .select({ id: scheduleEntries.id, playlistName: playlists.name })
+      .from(scheduleEntries)
+      .leftJoin(playlists, eq(scheduleEntries.playlistId, playlists.id))
+      .leftJoin(screens, eq(scheduleEntries.screenId, screens.id))
+      .leftJoin(screenGroups, eq(scheduleEntries.groupId, screenGroups.id))
+      .where(
+        and(
+          eq(scheduleEntries.organisationId, organisationId),
+          or(
+            ilike(playlists.name, likePattern),
+            ilike(screens.name, likePattern),
+            ilike(screenGroups.name, likePattern),
+          ),
+        ),
       )
-      .take(5)
-      .getMany();
+      .limit(MAX_RESULTS_PER_TYPE);
 
     return results.map((s) => ({
       id: s.id,
       type: 'schedule' as const,
-      label: s.playlist?.name ?? 'Schedule',
+      label: s.playlistName ?? 'Schedule',
       url: `/schedules/${s.id}`,
     }));
   }

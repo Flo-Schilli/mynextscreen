@@ -1,194 +1,108 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
 import { StorageService } from './storage.service';
-import { Organisation } from './organisation.entity';
-
-function createMockOrg(overrides: Partial<Organisation> = {}): Organisation {
-  const org = new Organisation();
-  org.id = 'org-1';
-  org.name = 'Test Org';
-  org.timeZone = 'UTC';
-  org.storageOriginalLimitBytes = 10485760; // 10 MB
-  org.storageTranscodedLimitBytes = 10485760;
-  org.storageOriginalUsedBytes = 0;
-  org.storageTranscodedUsedBytes = 0;
-  org.defaultPlaylistId = null;
-  Object.assign(org, overrides);
-  return org;
-}
+import { DRIZZLE } from '../db/database.constants';
+import { organisations, type Organisation } from '../db/schema';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('StorageService', () => {
   let service: StorageService;
-  let orgRepo: Record<string, jest.Mock>;
+  let db: DrizzleDB;
+
+  beforeAll(async () => {
+    db = await initTestDb();
+  });
+
+  afterAll(async () => {
+    await closeTestDb();
+  });
 
   beforeEach(async () => {
-    orgRepo = {
-      findOneByOrFail: jest.fn().mockResolvedValue(createMockOrg()),
-      save: jest.fn((entity) => Promise.resolve({ ...entity })),
-    };
-
+    await truncateAll();
     const module: TestingModule = await Test.createTestingModule({
-      providers: [StorageService, { provide: getRepositoryToken(Organisation), useValue: orgRepo }],
+      providers: [StorageService, { provide: DRIZZLE, useValue: db }],
     }).compile();
-
     service = module.get<StorageService>(StorageService);
   });
 
+  async function seedOrg(overrides: Partial<Organisation> = {}): Promise<Organisation> {
+    const [org] = await db
+      .insert(organisations)
+      .values({ name: `Org ${Math.random()}`, timeZone: 'UTC', ...overrides })
+      .returning();
+    return org;
+  }
+
   describe('checkOriginalLimit', () => {
-    it('should pass when under limit', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(
-        createMockOrg({
-          storageOriginalUsedBytes: 1000,
-          storageOriginalLimitBytes: 10485760,
-        }),
-      );
-
-      await expect(service.checkOriginalLimit('org-1', 5000)).resolves.toBeUndefined();
+    it('passes when within limit', async () => {
+      const org = await seedOrg({ storageOriginalLimitBytes: 1000, storageOriginalUsedBytes: 100 });
+      await expect(service.checkOriginalLimit(org.id, 500)).resolves.toBeUndefined();
     });
 
-    it('should throw when limit would be exceeded', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(
-        createMockOrg({
-          storageOriginalUsedBytes: 10485000,
-          storageOriginalLimitBytes: 10485760,
-        }),
-      );
-
-      await expect(service.checkOriginalLimit('org-1', 1000)).rejects.toThrow(BadRequestException);
+    it('throws when exceeding limit', async () => {
+      const org = await seedOrg({ storageOriginalLimitBytes: 1000, storageOriginalUsedBytes: 900 });
+      await expect(service.checkOriginalLimit(org.id, 200)).rejects.toThrow(BadRequestException);
     });
 
-    it('should allow unlimited when limit is 0', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(createMockOrg({ storageOriginalLimitBytes: 0 }));
+    it('is unlimited when limit is 0', async () => {
+      const org = await seedOrg({ storageOriginalLimitBytes: 0 });
+      await expect(service.checkOriginalLimit(org.id, 10 ** 12)).resolves.toBeUndefined();
+    });
 
-      await expect(service.checkOriginalLimit('org-1', 999999999)).resolves.toBeUndefined();
+    it('throws NotFoundException for a missing org', async () => {
+      await expect(
+        service.checkOriginalLimit('00000000-0000-0000-0000-000000000000', 1),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('checkTranscodedLimit', () => {
-    it('should pass when under limit', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(
-        createMockOrg({
-          storageTranscodedUsedBytes: 1000,
-          storageTranscodedLimitBytes: 10485760,
-        }),
-      );
-
-      await expect(service.checkTranscodedLimit('org-1', 5000)).resolves.toBeUndefined();
-    });
-
-    it('should throw when limit would be exceeded', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(
-        createMockOrg({
-          storageTranscodedUsedBytes: 10485000,
-          storageTranscodedLimitBytes: 10485760,
-        }),
-      );
-
-      await expect(service.checkTranscodedLimit('org-1', 1000)).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('should allow unlimited when limit is 0', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(createMockOrg({ storageTranscodedLimitBytes: 0 }));
-
-      await expect(service.checkTranscodedLimit('org-1', 999999999)).resolves.toBeUndefined();
+    it('throws when exceeding limit', async () => {
+      const org = await seedOrg({
+        storageTranscodedLimitBytes: 1000,
+        storageTranscodedUsedBytes: 900,
+      });
+      await expect(service.checkTranscodedLimit(org.id, 200)).rejects.toThrow(BadRequestException);
     });
   });
 
-  describe('addOriginalUsage', () => {
-    it('should increment original usage', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(createMockOrg({ storageOriginalUsedBytes: 1000 }));
+  describe('usage counters', () => {
+    it('adds and subtracts original usage (clamped at 0)', async () => {
+      const org = await seedOrg({ storageOriginalUsedBytes: 0 });
+      await service.addOriginalUsage(org.id, 500);
+      let [row] = await db.select().from(organisations).where(eq(organisations.id, org.id));
+      expect(Number(row.storageOriginalUsedBytes)).toBe(500);
 
-      await service.addOriginalUsage('org-1', 5000);
-
-      expect(orgRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ storageOriginalUsedBytes: 6000 }),
-      );
-    });
-  });
-
-  describe('subtractOriginalUsage', () => {
-    it('should decrement original usage', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(createMockOrg({ storageOriginalUsedBytes: 5000 }));
-
-      await service.subtractOriginalUsage('org-1', 3000);
-
-      expect(orgRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ storageOriginalUsedBytes: 2000 }),
-      );
+      await service.subtractOriginalUsage(org.id, 1000);
+      [row] = await db.select().from(organisations).where(eq(organisations.id, org.id));
+      expect(Number(row.storageOriginalUsedBytes)).toBe(0);
     });
 
-    it('should not go below zero', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(createMockOrg({ storageOriginalUsedBytes: 1000 }));
-
-      await service.subtractOriginalUsage('org-1', 5000);
-
-      expect(orgRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ storageOriginalUsedBytes: 0 }),
-      );
-    });
-  });
-
-  describe('addTranscodedUsage', () => {
-    it('should increment transcoded usage', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(
-        createMockOrg({ storageTranscodedUsedBytes: 2000 }),
-      );
-
-      await service.addTranscodedUsage('org-1', 3000);
-
-      expect(orgRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ storageTranscodedUsedBytes: 5000 }),
-      );
-    });
-  });
-
-  describe('subtractTranscodedUsage', () => {
-    it('should decrement transcoded usage', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(
-        createMockOrg({ storageTranscodedUsedBytes: 5000 }),
-      );
-
-      await service.subtractTranscodedUsage('org-1', 2000);
-
-      expect(orgRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ storageTranscodedUsedBytes: 3000 }),
-      );
-    });
-
-    it('should not go below zero', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(
-        createMockOrg({ storageTranscodedUsedBytes: 1000 }),
-      );
-
-      await service.subtractTranscodedUsage('org-1', 5000);
-
-      expect(orgRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ storageTranscodedUsedBytes: 0 }),
-      );
+    it('adds and subtracts transcoded usage', async () => {
+      const org = await seedOrg({ storageTranscodedUsedBytes: 100 });
+      await service.addTranscodedUsage(org.id, 50);
+      await service.subtractTranscodedUsage(org.id, 30);
+      const [row] = await db.select().from(organisations).where(eq(organisations.id, org.id));
+      expect(Number(row.storageTranscodedUsedBytes)).toBe(120);
     });
   });
 
   describe('getStorageInfo', () => {
-    it('should return current usage and limits', async () => {
-      orgRepo.findOneByOrFail.mockResolvedValue(
-        createMockOrg({
-          storageOriginalUsedBytes: 5000,
-          storageOriginalLimitBytes: 10485760,
-          storageTranscodedUsedBytes: 3000,
-          storageTranscodedLimitBytes: 20971520,
-        }),
-      );
-
-      const info = await service.getStorageInfo('org-1');
-
+    it('returns all counters as numbers', async () => {
+      const org = await seedOrg({
+        storageOriginalLimitBytes: 10,
+        storageTranscodedLimitBytes: 20,
+        storageOriginalUsedBytes: 1,
+        storageTranscodedUsedBytes: 2,
+      });
+      const info = await service.getStorageInfo(org.id);
       expect(info).toEqual({
-        originalUsedBytes: 5000,
-        originalLimitBytes: 10485760,
-        transcodedUsedBytes: 3000,
-        transcodedLimitBytes: 20971520,
+        originalUsedBytes: 1,
+        originalLimitBytes: 10,
+        transcodedUsedBytes: 2,
+        transcodedLimitBytes: 20,
       });
     });
   });

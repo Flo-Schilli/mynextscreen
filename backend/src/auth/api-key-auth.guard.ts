@@ -1,9 +1,15 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+  Inject,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { IS_SCREEN_AUTH_KEY } from './screen-auth.decorator';
-import { Screen } from '../screen/screen.entity';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { screens } from '../db/schema';
 import { verifyApiKey } from '../screen/api-key.util';
 
 export interface ScreenAuthenticatedRequest extends Request {
@@ -11,12 +17,17 @@ export interface ScreenAuthenticatedRequest extends Request {
   organisationId: string;
 }
 
+interface ScreenApiKeyRow {
+  id: string;
+  organisationId: string;
+  apiKeyHash: string;
+}
+
 @Injectable()
 export class ApiKeyAuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    @InjectRepository(Screen)
-    private readonly screenRepository: Repository<Screen>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -65,12 +76,16 @@ export class ApiKeyAuthGuard implements CanActivate {
     return null;
   }
 
-  private async findScreenByApiKey(apiKey: string): Promise<Screen | null> {
-    const screens = await this.screenRepository.find({
-      select: ['id', 'organisationId', 'apiKeyHash'],
-    });
+  private async findScreenByApiKey(apiKey: string): Promise<ScreenApiKeyRow | null> {
+    const rows = await this.db
+      .select({
+        id: screens.id,
+        organisationId: screens.organisationId,
+        apiKeyHash: screens.apiKeyHash,
+      })
+      .from(screens);
 
-    for (const screen of screens) {
+    for (const screen of rows) {
       const match = await verifyApiKey(apiKey, screen.apiKeyHash);
       if (match) {
         return screen;

@@ -1,13 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Injectable, Logger, Inject } from '@nestjs/common';
+import { and, eq, inArray } from 'drizzle-orm';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { organisations, screens, scheduleEntries } from '../db/schema';
 import { ScreenStateService } from './screen-state.service';
 import { PLAYLIST_CHANGED, ScreenStateChangeEvent } from './screen-state.event';
 import { PLAYLIST_UPDATED, PlaylistUpdatedEvent } from '../playlist/playlist.event';
-import { ScheduleEntry, getOccurrences } from '../schedule';
-import { Organisation } from '../organisation/organisation.entity';
-import { Screen } from './screen.entity';
+import { getOccurrences } from '../schedule';
 
 @Injectable()
 export class PlaylistChangeBridgeService {
@@ -15,12 +15,7 @@ export class PlaylistChangeBridgeService {
 
   constructor(
     private readonly screenStateService: ScreenStateService,
-    @InjectRepository(ScheduleEntry)
-    private readonly entryRepository: Repository<ScheduleEntry>,
-    @InjectRepository(Organisation)
-    private readonly organisationRepository: Repository<Organisation>,
-    @InjectRepository(Screen)
-    private readonly screenRepository: Repository<Screen>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -81,9 +76,15 @@ export class PlaylistChangeBridgeService {
     windowEnd: Date,
     affectedScreenIds: Set<string>,
   ): Promise<void> {
-    const entries = await this.entryRepository.find({
-      where: { playlistId, organisationId },
-    });
+    const entries = await this.db
+      .select()
+      .from(scheduleEntries)
+      .where(
+        and(
+          eq(scheduleEntries.playlistId, playlistId),
+          eq(scheduleEntries.organisationId, organisationId),
+        ),
+      );
 
     const connectedSet = new Set(connectedIds);
 
@@ -104,9 +105,10 @@ export class PlaylistChangeBridgeService {
       }
 
       if (entry.groupId) {
-        const groupScreens = await this.screenRepository.find({
-          where: { groupId: entry.groupId },
-        });
+        const groupScreens = await this.db
+          .select()
+          .from(screens)
+          .where(eq(screens.groupId, entry.groupId));
         for (const screen of groupScreens) {
           if (connectedSet.has(screen.id)) {
             affectedScreenIds.add(screen.id);
@@ -122,14 +124,17 @@ export class PlaylistChangeBridgeService {
     connectedIds: string[],
     affectedScreenIds: Set<string>,
   ): Promise<void> {
-    const org = await this.organisationRepository.findOne({
-      where: { id: organisationId },
-    });
+    const [org] = await this.db
+      .select()
+      .from(organisations)
+      .where(eq(organisations.id, organisationId))
+      .limit(1);
     if (!org || org.defaultPlaylistId !== playlistId) return;
 
-    const connectedOrgScreens = await this.screenRepository.find({
-      where: { id: In(connectedIds), organisationId },
-    });
+    const connectedOrgScreens = await this.db
+      .select()
+      .from(screens)
+      .where(and(inArray(screens.id, connectedIds), eq(screens.organisationId, organisationId)));
 
     for (const screen of connectedOrgScreens) {
       affectedScreenIds.add(screen.id);

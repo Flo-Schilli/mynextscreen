@@ -10,18 +10,19 @@ import {
   Header,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { Inject } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
 import { ScreenAuth, ScreenAuthenticatedRequest } from '../auth';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { screens } from '../db/schema';
 import { MediaService } from './media.service';
-import { Screen } from '../screen/screen.entity';
 
 @Controller('media')
 export class MediaController {
   constructor(
     private readonly mediaService: MediaService,
-    @InjectRepository(Screen)
-    private readonly screenRepository: Repository<Screen>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
   ) {}
 
   @Get(':organisationId/:contentId')
@@ -61,10 +62,15 @@ export class MediaController {
       throw new ForbiddenException('Authenticated screen does not match the requested screen');
     }
 
-    const screen = await this.screenRepository.findOne({
-      where: { id: screenId },
-      select: ['id', 'organisationId', 'groupId'],
-    });
+    const [screen] = await this.db
+      .select({
+        id: screens.id,
+        organisationId: screens.organisationId,
+        groupId: screens.groupId,
+      })
+      .from(screens)
+      .where(eq(screens.id, screenId))
+      .limit(1);
 
     if (!screen) {
       throw new NotFoundException('Screen not found');

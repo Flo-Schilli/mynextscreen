@@ -2,7 +2,7 @@ import { Controller, Get, Req } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { UserService } from './user.service';
-import { UserOrganisationMembership } from './user-organisation-membership.entity';
+import type { UserOrganisationMembership } from '../db/schema';
 
 @Controller('me')
 export class UserController {

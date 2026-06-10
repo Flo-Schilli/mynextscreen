@@ -1,4 +1,4 @@
-export { Screen } from './screen.entity';
+export type { Screen } from '../db/schema';
 export { ScreenModule } from './screen.module';
 export { ScreenService } from './screen.service';
 export { ScreenStateService } from './screen-state.service';

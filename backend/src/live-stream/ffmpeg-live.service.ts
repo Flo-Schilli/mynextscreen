@@ -5,7 +5,7 @@ import { spawn, execFile, ChildProcess } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { LiveStream } from './live-stream.entity';
+import type { LiveStream } from '../db/schema';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { TranscodingPreset } from './transcoding-preset.enum';
 

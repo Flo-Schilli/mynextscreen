@@ -3,17 +3,23 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  Inject,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Repository } from 'typeorm';
 import { Queue } from 'bullmq';
-import { ScheduleEntry } from './schedule-entry.entity';
-import { Organisation } from '../organisation/organisation.entity';
-import { Screen } from '../screen/screen.entity';
-import { Playlist } from '../playlist/playlist.entity';
-import { ScreenGroup } from '../screen-group/screen-group.entity';
+import { and, asc, eq } from 'drizzle-orm';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import {
+  scheduleEntries,
+  organisations,
+  screens,
+  playlists,
+  screenGroups,
+  type ScheduleEntry,
+  type Playlist,
+} from '../db/schema';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { CreateScheduleEntryDto } from './dto/create-schedule-entry.dto';
 import { UpdateScheduleEntryDto } from './dto/update-schedule-entry.dto';
@@ -38,16 +44,7 @@ const OVERLAP_WINDOW_DAYS = 365;
 @Injectable()
 export class ScheduleService {
   constructor(
-    @InjectRepository(ScheduleEntry)
-    private readonly scheduleEntryRepository: Repository<ScheduleEntry>,
-    @InjectRepository(Organisation)
-    private readonly organisationRepository: Repository<Organisation>,
-    @InjectRepository(Screen)
-    private readonly screenRepository: Repository<Screen>,
-    @InjectRepository(Playlist)
-    private readonly playlistRepository: Repository<Playlist>,
-    @InjectRepository(ScreenGroup)
-    private readonly screenGroupRepository: Repository<ScreenGroup>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
     @InjectQueue(SLICE_CONTENT_QUEUE)
     private readonly sliceContentQueue: Queue<SliceContentJobData>,
     private readonly eventEmitter: EventEmitter2,
@@ -78,18 +75,19 @@ export class ScheduleService {
       );
     }
 
-    const entry = this.scheduleEntryRepository.create({
-      organisationId,
-      screenId: dto.screenId ?? null,
-      groupId: dto.groupId ?? null,
-      playlistId: dto.playlistId,
-      startTime,
-      endTime,
-      rrule: dto.rrule ?? null,
-      colour: dto.colour,
-    });
-
-    const saved = await this.scheduleEntryRepository.save(entry);
+    const [saved] = await this.db
+      .insert(scheduleEntries)
+      .values({
+        organisationId,
+        screenId: dto.screenId ?? null,
+        groupId: dto.groupId ?? null,
+        playlistId: dto.playlistId,
+        startTime,
+        endTime,
+        rrule: dto.rrule ?? null,
+        colour: dto.colour,
+      })
+      .returning();
     if (saved.screenId) {
       this.emitScheduleChanged(saved.screenId, organisationId);
     }
@@ -136,15 +134,20 @@ export class ScheduleService {
       );
     }
 
-    if (dto.playlistId !== undefined) entry.playlistId = dto.playlistId;
-    if (dto.startTime !== undefined) entry.startTime = startTime;
-    if (dto.endTime !== undefined) entry.endTime = endTime;
-    if (dto.rrule !== undefined) entry.rrule = rrule ?? null;
-    if (dto.colour !== undefined) entry.colour = dto.colour;
+    const updates: Partial<ScheduleEntry> = {};
+    if (dto.playlistId !== undefined) updates.playlistId = dto.playlistId;
+    if (dto.startTime !== undefined) updates.startTime = startTime;
+    if (dto.endTime !== undefined) updates.endTime = endTime;
+    if (dto.rrule !== undefined) updates.rrule = rrule ?? null;
+    if (dto.colour !== undefined) updates.colour = dto.colour;
 
-    const saved = await this.scheduleEntryRepository.save(entry);
-    if (entry.screenId) {
-      this.emitScheduleChanged(entry.screenId, organisationId);
+    const [saved] = await this.db
+      .update(scheduleEntries)
+      .set(updates)
+      .where(and(eq(scheduleEntries.id, id), eq(scheduleEntries.organisationId, organisationId)))
+      .returning();
+    if (saved.screenId) {
+      this.emitScheduleChanged(saved.screenId, organisationId);
     }
     if (saved.groupId) {
       this.emitGroupScheduleChanged(saved.groupId, organisationId, saved.playlistId);
@@ -152,7 +155,7 @@ export class ScheduleService {
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_UPDATED,
       new AuditScheduleEvent(saved.id, organisationId, null, {
-        screenId: entry.screenId,
+        screenId: saved.screenId,
       }),
     );
 
@@ -166,7 +169,9 @@ export class ScheduleService {
     const screenId = entry.screenId;
     const groupId = entry.groupId;
     const playlistId = entry.playlistId;
-    await this.scheduleEntryRepository.remove(entry);
+    await this.db
+      .delete(scheduleEntries)
+      .where(and(eq(scheduleEntries.id, id), eq(scheduleEntries.organisationId, organisationId)));
     if (screenId) {
       this.emitScheduleChanged(screenId, organisationId);
     }
@@ -184,14 +189,14 @@ export class ScheduleService {
     organisationId: string,
     _from: Date,
     _to: Date,
-  ): Promise<ScheduleEntry[]> {
-    return this.scheduleEntryRepository.find({
-      where: {
-        screenId,
-        organisationId,
-      },
-      relations: ['playlist'],
-      order: { startTime: 'ASC' },
+  ): Promise<(ScheduleEntry & { playlist: Playlist })[]> {
+    return this.db.query.scheduleEntries.findMany({
+      where: and(
+        eq(scheduleEntries.screenId, screenId),
+        eq(scheduleEntries.organisationId, organisationId),
+      ),
+      with: { playlist: true },
+      orderBy: asc(scheduleEntries.startTime),
     });
   }
 
@@ -200,12 +205,10 @@ export class ScheduleService {
     _from: Date,
     _to: Date,
   ): Promise<ScheduleEntry[]> {
-    return this.scheduleEntryRepository.find({
-      where: {
-        organisationId,
-      },
-      relations: ['playlist', 'screen', 'group'],
-      order: { startTime: 'ASC' },
+    return this.db.query.scheduleEntries.findMany({
+      where: eq(scheduleEntries.organisationId, organisationId),
+      with: { playlist: true, screen: true, group: true },
+      orderBy: asc(scheduleEntries.startTime),
     });
   }
 
@@ -215,9 +218,9 @@ export class ScheduleService {
     const now = new Date();
 
     // Find all direct entries for this screen
-    const entries = await this.scheduleEntryRepository.find({
-      where: { screenId },
-      relations: ['playlist'],
+    const entries = await this.db.query.scheduleEntries.findMany({
+      where: eq(scheduleEntries.screenId, screenId),
+      with: { playlist: true },
     });
 
     // Check if any direct entry is currently active
@@ -238,17 +241,15 @@ export class ScheduleService {
     }
 
     // No direct schedule active — check group schedule as fallback
-    const screen = await this.screenRepository.findOne({
-      where: { id: screenId },
-    });
+    const [screen] = await this.db.select().from(screens).where(eq(screens.id, screenId)).limit(1);
     if (!screen) {
       return { playlist: null, isDefault: false };
     }
 
     if (screen.groupId) {
-      const groupEntries = await this.scheduleEntryRepository.find({
-        where: { groupId: screen.groupId },
-        relations: ['playlist'],
+      const groupEntries = await this.db.query.scheduleEntries.findMany({
+        where: eq(scheduleEntries.groupId, screen.groupId),
+        with: { playlist: true },
       });
 
       for (const entry of groupEntries) {
@@ -286,9 +287,15 @@ export class ScheduleService {
     const newOccurrences = getOccurrences(startTime, endTime, rrule, windowStart, windowEnd);
 
     // Get all existing entries for this screen
-    const existingEntries = await this.scheduleEntryRepository.find({
-      where: { screenId, organisationId },
-    });
+    const existingEntries = await this.db
+      .select()
+      .from(scheduleEntries)
+      .where(
+        and(
+          eq(scheduleEntries.screenId, screenId),
+          eq(scheduleEntries.organisationId, organisationId),
+        ),
+      );
 
     for (const existing of existingEntries) {
       if (excludeEntryId && existing.id === excludeEntryId) continue;
@@ -321,10 +328,11 @@ export class ScheduleService {
   }
 
   private async findOneOrFail(id: string, organisationId: string): Promise<ScheduleEntry> {
-    const entry = await this.scheduleEntryRepository.findOne({
-      where: { id, organisationId },
-      relations: ['playlist'],
-    });
+    const [entry] = await this.db
+      .select()
+      .from(scheduleEntries)
+      .where(and(eq(scheduleEntries.id, id), eq(scheduleEntries.organisationId, organisationId)))
+      .limit(1);
     if (!entry) {
       throw new NotFoundException(
         `Schedule entry with id "${id}" not found in organisation "${organisationId}"`,
@@ -343,9 +351,11 @@ export class ScheduleService {
   }
 
   private async validateGroup(groupId: string, organisationId: string): Promise<void> {
-    const group = await this.screenGroupRepository.findOne({
-      where: { id: groupId, organisationId },
-    });
+    const [group] = await this.db
+      .select()
+      .from(screenGroups)
+      .where(and(eq(screenGroups.id, groupId), eq(screenGroups.organisationId, organisationId)))
+      .limit(1);
     if (!group) {
       throw new NotFoundException(
         `Screen group with id "${groupId}" not found in organisation "${organisationId}"`,
@@ -354,9 +364,11 @@ export class ScheduleService {
   }
 
   private async validateScreen(screenId: string, organisationId: string): Promise<void> {
-    const screen = await this.screenRepository.findOne({
-      where: { id: screenId, organisationId },
-    });
+    const [screen] = await this.db
+      .select()
+      .from(screens)
+      .where(and(eq(screens.id, screenId), eq(screens.organisationId, organisationId)))
+      .limit(1);
     if (!screen) {
       throw new NotFoundException(
         `Screen with id "${screenId}" not found in organisation "${organisationId}"`,
@@ -365,9 +377,11 @@ export class ScheduleService {
   }
 
   private async validatePlaylist(playlistId: string, organisationId: string): Promise<void> {
-    const playlist = await this.playlistRepository.findOne({
-      where: { id: playlistId, organisationId },
-    });
+    const [playlist] = await this.db
+      .select()
+      .from(playlists)
+      .where(and(eq(playlists.id, playlistId), eq(playlists.organisationId, organisationId)))
+      .limit(1);
     if (!playlist) {
       throw new NotFoundException(
         `Playlist with id "${playlistId}" not found in organisation "${organisationId}"`,
@@ -378,15 +392,19 @@ export class ScheduleService {
   private async getFallbackPlaylist(
     organisationId: string,
   ): Promise<{ playlist: Playlist | null; isDefault: boolean }> {
-    const org = await this.organisationRepository.findOne({
-      where: { id: organisationId },
-    });
+    const [org] = await this.db
+      .select()
+      .from(organisations)
+      .where(eq(organisations.id, organisationId))
+      .limit(1);
     if (!org?.defaultPlaylistId) {
       return { playlist: null, isDefault: true };
     }
-    const playlist = await this.playlistRepository.findOne({
-      where: { id: org.defaultPlaylistId },
-    });
+    const [playlist] = await this.db
+      .select()
+      .from(playlists)
+      .where(eq(playlists.id, org.defaultPlaylistId))
+      .limit(1);
     return { playlist: playlist ?? null, isDefault: true };
   }
 
@@ -411,9 +429,11 @@ export class ScheduleService {
   private async enqueueSliceJobIfNeeded(entry: ScheduleEntry): Promise<void> {
     if (!entry.groupId) return;
 
-    const group = await this.screenGroupRepository.findOne({
-      where: { id: entry.groupId },
-    });
+    const [group] = await this.db
+      .select()
+      .from(screenGroups)
+      .where(eq(screenGroups.id, entry.groupId))
+      .limit(1);
 
     if (!group || group.mode !== ScreenGroupMode.Split) return;
 

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
+import { DatabaseModule } from './db/database.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AuthModule } from './auth';
@@ -28,17 +28,7 @@ import { VersionController } from './version.controller';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    TypeOrmModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'better-sqlite3',
-        database: config.get<string>('DATABASE_PATH', './data/signage.db'),
-        autoLoadEntities: true,
-        synchronize: false,
-        migrations: [__dirname + '/migrations/*{.ts,.js}'],
-        migrationsRun: true,
-      }),
-    }),
+    DatabaseModule,
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({

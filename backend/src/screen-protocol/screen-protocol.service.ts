@@ -1,13 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { and, eq } from 'drizzle-orm';
 import { ScreenEvent } from './screen-event.model';
 import { ScreenEventType } from './screen-event-type.enum';
-import { ScreenGroup } from '../screen-group/screen-group.entity';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import {
+  screenGroups,
+  screens,
+  slicedRenditions,
+  type ScreenGroup,
+  type Screen,
+} from '../db/schema';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
-import { Screen } from '../screen/screen.entity';
-import { SlicedRendition } from '../slice-content/sliced-rendition.entity';
 import { ScreenStateService } from '../screen/screen-state.service';
 import { GROUP_SCHEDULE_CHANGED, GroupScheduleChangedEvent } from '../schedule/schedule.event';
 import {
@@ -17,26 +22,26 @@ import {
 } from '../screen/screen-state.event';
 import { ScheduleService } from '../schedule/schedule.service';
 
+type GroupWithScreens = ScreenGroup & { screens: Screen[] };
+
 @Injectable()
 export class ScreenProtocolService {
   private readonly logger = new Logger(ScreenProtocolService.name);
 
   constructor(
-    @InjectRepository(ScreenGroup)
-    private readonly screenGroupRepository: Repository<ScreenGroup>,
-    @InjectRepository(Screen)
-    private readonly screenRepository: Repository<Screen>,
-    @InjectRepository(SlicedRendition)
-    private readonly slicedRenditionRepository: Repository<SlicedRendition>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly screenStateService: ScreenStateService,
     private readonly scheduleService: ScheduleService,
   ) {}
 
   @OnEvent(GROUP_SCHEDULE_CHANGED)
   async handleGroupScheduleChanged(event: GroupScheduleChangedEvent): Promise<void> {
-    const group = await this.screenGroupRepository.findOne({
-      where: { id: event.groupId, organisationId: event.organisationId },
-      relations: ['screens'],
+    const group = await this.db.query.screenGroups.findFirst({
+      where: and(
+        eq(screenGroups.id, event.groupId),
+        eq(screenGroups.organisationId, event.organisationId),
+      ),
+      with: { screens: true },
     });
 
     if (!group || !group.screens || group.screens.length === 0) {
@@ -66,19 +71,8 @@ export class ScreenProtocolService {
 
   @OnEvent(LIVE_STREAM_STARTED)
   async handleGroupLiveStreamStarted(event: ScreenStateChangeEvent): Promise<void> {
-    // Check if this screen belongs to a group
-    const screen = await this.screenRepository.findOne({
-      where: { id: event.screenId },
-    });
-
-    if (!screen?.groupId) return;
-
-    const group = await this.screenGroupRepository.findOne({
-      where: { id: screen.groupId },
-      relations: ['screens'],
-    });
-
-    if (!group || !group.screens || group.screens.length === 0) return;
+    const group = await this.resolveGroupForScreen(event.screenId);
+    if (!group) return;
 
     const syncToken = Date.now().toString();
 
@@ -106,19 +100,8 @@ export class ScreenProtocolService {
 
   @OnEvent(LIVE_STREAM_STOPPED)
   async handleGroupLiveStreamStopped(event: ScreenStateChangeEvent): Promise<void> {
-    // Check if this screen belongs to a group
-    const screen = await this.screenRepository.findOne({
-      where: { id: event.screenId },
-    });
-
-    if (!screen?.groupId) return;
-
-    const group = await this.screenGroupRepository.findOne({
-      where: { id: screen.groupId },
-      relations: ['screens'],
-    });
-
-    if (!group || !group.screens || group.screens.length === 0) return;
+    const group = await this.resolveGroupForScreen(event.screenId);
+    if (!group) return;
 
     const syncToken = Date.now().toString();
 
@@ -151,9 +134,9 @@ export class ScreenProtocolService {
     contentType: 'video' | 'image',
     isLiveStream: boolean,
   ): Promise<void> {
-    const group = await this.screenGroupRepository.findOne({
-      where: { id: groupId, organisationId },
-      relations: ['screens'],
+    const group = await this.db.query.screenGroups.findFirst({
+      where: and(eq(screenGroups.id, groupId), eq(screenGroups.organisationId, organisationId)),
+      with: { screens: true },
     });
 
     if (!group || !group.screens || group.screens.length === 0) return;
@@ -192,8 +175,21 @@ export class ScreenProtocolService {
     }
   }
 
+  private async resolveGroupForScreen(screenId: string): Promise<GroupWithScreens | null> {
+    const [screen] = await this.db.select().from(screens).where(eq(screens.id, screenId)).limit(1);
+    if (!screen?.groupId) return null;
+
+    const group = await this.db.query.screenGroups.findFirst({
+      where: eq(screenGroups.id, screen.groupId),
+      with: { screens: true },
+    });
+
+    if (!group || !group.screens || group.screens.length === 0) return null;
+    return group;
+  }
+
   private async fanOutMirror(
-    group: ScreenGroup,
+    group: GroupWithScreens,
     currentPlaylist: { id: string; name: string } | null,
     syncToken: string,
     organisationId: string,
@@ -217,7 +213,7 @@ export class ScreenProtocolService {
   }
 
   private async fanOutSplit(
-    group: ScreenGroup,
+    group: GroupWithScreens,
     currentPlaylist: { id: string; name: string } | null,
     syncToken: string,
     organisationId: string,
@@ -241,7 +237,7 @@ export class ScreenProtocolService {
   }
 
   private async fanOutSplitPlay(
-    group: ScreenGroup,
+    group: GroupWithScreens,
     contentUrl: string,
     contentItemId: string,
     contentType: 'video' | 'image',
@@ -249,13 +245,17 @@ export class ScreenProtocolService {
     organisationId: string,
   ): Promise<void> {
     const pushes = group.screens.map(async (screen) => {
-      const rendition = await this.slicedRenditionRepository.findOne({
-        where: {
-          groupId: group.id,
-          screenId: screen.id,
-          contentItemId,
-        },
-      });
+      const [rendition] = await this.db
+        .select()
+        .from(slicedRenditions)
+        .where(
+          and(
+            eq(slicedRenditions.groupId, group.id),
+            eq(slicedRenditions.screenId, screen.id),
+            eq(slicedRenditions.contentItemId, contentItemId),
+          ),
+        )
+        .limit(1);
 
       if (rendition) {
         this.screenStateService.pushEvent(

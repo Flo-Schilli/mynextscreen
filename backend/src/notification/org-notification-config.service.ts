@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { OrganisationNotificationConfig } from './organisation-notification-config.entity';
+import { Injectable, Inject } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { organisationNotificationConfigs, type OrganisationNotificationConfig } from '../db/schema';
 
 export interface OrgNotificationConfigData {
   smtpHost?: string | null;
@@ -17,51 +18,62 @@ export interface OrgNotificationConfigData {
 
 @Injectable()
 export class OrgNotificationConfigService {
-  constructor(
-    @InjectRepository(OrganisationNotificationConfig)
-    private readonly repo: Repository<OrganisationNotificationConfig>,
-  ) {}
+  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
   async getForOrg(organisationId: string): Promise<OrganisationNotificationConfig | null> {
-    return this.repo.findOne({ where: { organisationId } });
+    const [config] = await this.db
+      .select()
+      .from(organisationNotificationConfigs)
+      .where(eq(organisationNotificationConfigs.organisationId, organisationId))
+      .limit(1);
+    return config ?? null;
   }
 
   async upsert(
     organisationId: string,
     config: OrgNotificationConfigData,
   ): Promise<OrganisationNotificationConfig> {
-    const existing = await this.repo.findOne({ where: { organisationId } });
+    const existing = await this.getForOrg(organisationId);
 
     if (existing) {
-      // For smtpPassword: blank/undefined means keep existing value
-      if (config.smtpHost !== undefined) existing.smtpHost = config.smtpHost;
-      if (config.smtpPort !== undefined) existing.smtpPort = config.smtpPort;
-      if (config.smtpUser !== undefined) existing.smtpUser = config.smtpUser;
+      const updates: Partial<OrganisationNotificationConfig> = {};
+      // For smtpPassword/ntfyToken: blank/undefined means keep existing value
+      if (config.smtpHost !== undefined) updates.smtpHost = config.smtpHost;
+      if (config.smtpPort !== undefined) updates.smtpPort = config.smtpPort;
+      if (config.smtpUser !== undefined) updates.smtpUser = config.smtpUser;
       if (config.smtpPassword !== undefined && config.smtpPassword !== '') {
-        existing.smtpPassword = config.smtpPassword;
+        updates.smtpPassword = config.smtpPassword;
       }
-      if (config.smtpFrom !== undefined) existing.smtpFrom = config.smtpFrom;
-      if (config.smtpSecure !== undefined) existing.smtpSecure = config.smtpSecure;
-      if (config.ntfyUrl !== undefined) existing.ntfyUrl = config.ntfyUrl;
-      if (config.ntfyTopic !== undefined) existing.ntfyTopic = config.ntfyTopic;
+      if (config.smtpFrom !== undefined) updates.smtpFrom = config.smtpFrom;
+      if (config.smtpSecure !== undefined) updates.smtpSecure = config.smtpSecure;
+      if (config.ntfyUrl !== undefined) updates.ntfyUrl = config.ntfyUrl;
+      if (config.ntfyTopic !== undefined) updates.ntfyTopic = config.ntfyTopic;
       if (config.ntfyToken !== undefined && config.ntfyToken !== '') {
-        existing.ntfyToken = config.ntfyToken;
+        updates.ntfyToken = config.ntfyToken;
       }
-      return this.repo.save(existing);
+      const [saved] = await this.db
+        .update(organisationNotificationConfigs)
+        .set(updates)
+        .where(eq(organisationNotificationConfigs.id, existing.id))
+        .returning();
+      return saved;
     }
 
-    const record = this.repo.create({
-      organisationId,
-      smtpHost: config.smtpHost ?? null,
-      smtpPort: config.smtpPort ?? null,
-      smtpUser: config.smtpUser ?? null,
-      smtpPassword: config.smtpPassword || null,
-      smtpFrom: config.smtpFrom ?? null,
-      smtpSecure: config.smtpSecure ?? false,
-      ntfyUrl: config.ntfyUrl ?? null,
-      ntfyTopic: config.ntfyTopic ?? null,
-      ntfyToken: config.ntfyToken || null,
-    });
-    return this.repo.save(record);
+    const [saved] = await this.db
+      .insert(organisationNotificationConfigs)
+      .values({
+        organisationId,
+        smtpHost: config.smtpHost ?? null,
+        smtpPort: config.smtpPort ?? null,
+        smtpUser: config.smtpUser ?? null,
+        smtpPassword: config.smtpPassword || null,
+        smtpFrom: config.smtpFrom ?? null,
+        smtpSecure: config.smtpSecure ?? false,
+        ntfyUrl: config.ntfyUrl ?? null,
+        ntfyTopic: config.ntfyTopic ?? null,
+        ntfyToken: config.ntfyToken || null,
+      })
+      .returning();
+    return saved;
   }
 }

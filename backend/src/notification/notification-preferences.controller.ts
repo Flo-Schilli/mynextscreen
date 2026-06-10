@@ -5,7 +5,7 @@ import { Roles } from '../auth/roles.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { UserNotificationPreferenceService } from './user-notification-preference.service';
 import { UpdateNotificationPreferencesDto } from './dto';
-import { UserNotificationPreference } from './user-notification-preference.entity';
+import type { UserNotificationPreference } from '../db/schema';
 
 @Controller('me/notification-preferences')
 export class NotificationPreferencesController {

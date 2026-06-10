@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { BadRequestException, Injectable, Inject } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { FindOptionsWhere, In, LessThan, Repository } from 'typeorm';
+import { and, eq, inArray, lt } from 'drizzle-orm';
 import { OrganisationScopedService } from '../organisation/organisation-scope.service';
-import { Screen } from './screen.entity';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { screens, type Screen } from '../db/schema';
 import { CreateScreenDto } from './dto/create-screen.dto';
 import { UpdateScreenDto } from './dto/update-screen.dto';
 import { generateApiKey, hashApiKey } from './api-key.util';
@@ -21,11 +22,10 @@ import {
 @Injectable()
 export class ScreenService extends OrganisationScopedService<Screen> {
   constructor(
-    @InjectRepository(Screen)
-    repository: Repository<Screen>,
+    @Inject(DRIZZLE) db: DrizzleDB,
     private readonly eventEmitter: EventEmitter2,
   ) {
-    super(repository, 'Screen');
+    super(db, screens, 'Screen');
   }
 
   /**
@@ -76,10 +76,14 @@ export class ScreenService extends OrganisationScopedService<Screen> {
     organisationId: string,
     id: string,
   ): Promise<{ screen: Screen; apiKey: string }> {
-    const screen = await this.findOne(organisationId, id);
+    await this.findOne(organisationId, id);
     const apiKey = generateApiKey();
-    screen.apiKeyHash = await hashApiKey(apiKey);
-    const saved = await this.repository.save(screen);
+    const apiKeyHash = await hashApiKey(apiKey);
+    const [saved] = await this.db
+      .update(screens)
+      .set({ apiKeyHash })
+      .where(and(eq(screens.id, id), eq(screens.organisationId, organisationId)))
+      .returning();
     this.eventEmitter.emit(
       AUDIT_SCREEN_KEY_REGENERATED,
       new AuditScreenEvent(id, organisationId, null, null),
@@ -94,9 +98,11 @@ export class ScreenService extends OrganisationScopedService<Screen> {
   async recordHeartbeat(organisationId: string, id: string): Promise<Screen> {
     const screen = await this.findOne(organisationId, id);
     const wasOffline = !screen.isOnline;
-    screen.lastHeartbeat = new Date();
-    screen.isOnline = true;
-    const saved = await this.repository.save(screen);
+    const [saved] = await this.db
+      .update(screens)
+      .set({ lastHeartbeat: new Date(), isOnline: true })
+      .where(and(eq(screens.id, id), eq(screens.organisationId, organisationId)))
+      .returning();
 
     if (wasOffline) {
       this.eventEmitter.emit(
@@ -122,20 +128,18 @@ export class ScreenService extends OrganisationScopedService<Screen> {
     ids: string[],
     userId: string | null,
   ): Promise<{ deleted: number; notFound: string[] }> {
-    const screens = await this.repository.find({
-      where: { id: In(ids), organisationId },
-    });
+    const found = await this.db
+      .select()
+      .from(screens)
+      .where(and(inArray(screens.id, ids), eq(screens.organisationId, organisationId)));
 
-    const foundIds = new Set(screens.map((s) => s.id));
+    const foundIds = new Set(found.map((s) => s.id));
     const notFound: string[] = [];
     const foreignIds: string[] = [];
 
     for (const id of ids) {
       if (!foundIds.has(id)) {
-        // Check if the screen exists in another org
-        const exists = await this.repository.findOne({
-          where: { id } as FindOptionsWhere<Screen>,
-        });
+        const [exists] = await this.db.select().from(screens).where(eq(screens.id, id)).limit(1);
         if (exists) {
           foreignIds.push(id);
         } else {
@@ -151,12 +155,17 @@ export class ScreenService extends OrganisationScopedService<Screen> {
       });
     }
 
-    if (screens.length > 0) {
-      await this.repository.remove(screens);
+    if (found.length > 0) {
+      await this.db.delete(screens).where(
+        inArray(
+          screens.id,
+          found.map((s) => s.id),
+        ),
+      );
     }
 
     const bulkOperationSize = ids.length;
-    for (const screen of screens) {
+    for (const screen of found) {
       this.eventEmitter.emit(
         AUDIT_SCREEN_BULK_DELETED,
         new AuditScreenEvent(screen.id, organisationId, userId, {
@@ -165,7 +174,7 @@ export class ScreenService extends OrganisationScopedService<Screen> {
       );
     }
 
-    return { deleted: screens.length, notFound };
+    return { deleted: found.length, notFound };
   }
 
   /**
@@ -179,19 +188,18 @@ export class ScreenService extends OrganisationScopedService<Screen> {
     groupId: string | null,
     userId: string | null,
   ): Promise<{ updated: number; notFound: string[] }> {
-    const screens = await this.repository.find({
-      where: { id: In(ids), organisationId },
-    });
+    const found = await this.db
+      .select()
+      .from(screens)
+      .where(and(inArray(screens.id, ids), eq(screens.organisationId, organisationId)));
 
-    const foundIds = new Set(screens.map((s) => s.id));
+    const foundIds = new Set(found.map((s) => s.id));
     const notFound: string[] = [];
     const foreignIds: string[] = [];
 
     for (const id of ids) {
       if (!foundIds.has(id)) {
-        const exists = await this.repository.findOne({
-          where: { id } as FindOptionsWhere<Screen>,
-        });
+        const [exists] = await this.db.select().from(screens).where(eq(screens.id, id)).limit(1);
         if (exists) {
           foreignIds.push(id);
         } else {
@@ -207,15 +215,20 @@ export class ScreenService extends OrganisationScopedService<Screen> {
       });
     }
 
-    if (screens.length > 0) {
-      await this.repository.update(
-        screens.map((s) => s.id),
-        { groupId },
-      );
+    if (found.length > 0) {
+      await this.db
+        .update(screens)
+        .set({ groupId })
+        .where(
+          inArray(
+            screens.id,
+            found.map((s) => s.id),
+          ),
+        );
     }
 
     const bulkOperationSize = ids.length;
-    for (const screen of screens) {
+    for (const screen of found) {
       this.eventEmitter.emit(
         AUDIT_SCREEN_BULK_GROUP_ASSIGNED,
         new AuditScreenEvent(screen.id, organisationId, userId, {
@@ -225,7 +238,7 @@ export class ScreenService extends OrganisationScopedService<Screen> {
       );
     }
 
-    return { updated: screens.length, notFound };
+    return { updated: found.length, notFound };
   }
 
   /**
@@ -235,18 +248,21 @@ export class ScreenService extends OrganisationScopedService<Screen> {
    */
   async detectOfflineScreens(thresholdMs: number): Promise<Screen[]> {
     const cutoff = new Date(Date.now() - thresholdMs);
-    const staleScreens = await this.repository.find({
-      where: {
-        isOnline: true,
-        lastHeartbeat: LessThan(cutoff),
-      },
-    });
+    const staleScreens = await this.db
+      .select()
+      .from(screens)
+      .where(and(eq(screens.isOnline, true), lt(screens.lastHeartbeat, cutoff)));
 
     if (staleScreens.length > 0) {
-      await this.repository.update(
-        staleScreens.map((s) => s.id),
-        { isOnline: false },
-      );
+      await this.db
+        .update(screens)
+        .set({ isOnline: false })
+        .where(
+          inArray(
+            screens.id,
+            staleScreens.map((s) => s.id),
+          ),
+        );
     }
 
     return staleScreens;

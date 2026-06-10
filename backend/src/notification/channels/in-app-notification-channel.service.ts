@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Notification } from '../notification.entity';
+import { Injectable, Logger, Inject } from '@nestjs/common';
+import { DRIZZLE } from '../../db/database.constants';
+import type { DrizzleDB } from '../../db/drizzle.types';
+import { notifications } from '../../db/schema';
 import { DashboardSseService } from '../../dashboard/dashboard-sse.service';
 import { InAppChannel, NotificationPayload } from './notification-channel.interfaces';
 
@@ -10,22 +10,22 @@ export class InAppNotificationChannel implements InAppChannel {
   private readonly logger = new Logger(InAppNotificationChannel.name);
 
   constructor(
-    @InjectRepository(Notification)
-    private readonly notificationRepo: Repository<Notification>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly dashboardSseService: DashboardSseService,
   ) {}
 
   async send(userId: string, orgId: string, notification: NotificationPayload): Promise<void> {
-    const entity = this.notificationRepo.create({
-      userId,
-      organisationId: orgId,
-      eventType: notification.eventType,
-      title: notification.title,
-      message: notification.message,
-      read: false,
-    });
-
-    const saved = await this.notificationRepo.save(entity);
+    const [saved] = await this.db
+      .insert(notifications)
+      .values({
+        userId,
+        organisationId: orgId,
+        eventType: notification.eventType,
+        title: notification.title,
+        message: notification.message,
+        read: false,
+      })
+      .returning();
 
     this.dashboardSseService.emitToUser(userId, 'notification.new', {
       id: saved.id,

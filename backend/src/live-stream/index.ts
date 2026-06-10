@@ -1,5 +1,5 @@
-export { LiveStream } from './live-stream.entity';
-export { LiveStreamActivation } from './live-stream-activation.entity';
+export type { LiveStream } from '../db/schema';
+export type { LiveStreamActivation } from '../db/schema';
 export { LiveStreamProtocol } from './live-stream-protocol.enum';
 export { LiveStreamStatus } from './live-stream-status.enum';
 export { TranscodingPreset } from './transcoding-preset.enum';

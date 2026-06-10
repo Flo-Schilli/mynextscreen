@@ -1,7 +1,8 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { UserOrganisationMembership } from '../user/user-organisation-membership.entity';
+import { eq } from 'drizzle-orm';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { userOrganisationMemberships } from '../db/schema';
 import { UserNotificationPreferenceService } from './user-notification-preference.service';
 import { OrgNotificationConfigService } from './org-notification-config.service';
 import { NotificationEvent } from './notification-event.interface';
@@ -19,8 +20,7 @@ export class NotificationHub {
   private readonly logger = new Logger(NotificationHub.name);
 
   constructor(
-    @InjectRepository(UserOrganisationMembership)
-    private readonly membershipRepo: Repository<UserOrganisationMembership>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly userPrefService: UserNotificationPreferenceService,
     private readonly orgConfigService: OrgNotificationConfigService,
     @Optional()
@@ -35,9 +35,10 @@ export class NotificationHub {
   ) {}
 
   async dispatch(event: NotificationEvent): Promise<void> {
-    const memberships = await this.membershipRepo.find({
-      where: { organisationId: event.orgId },
-    });
+    const memberships = await this.db
+      .select()
+      .from(userOrganisationMemberships)
+      .where(eq(userOrganisationMemberships.organisationId, event.orgId));
 
     const orgConfig = await this.orgConfigService.getForOrg(event.orgId);
 

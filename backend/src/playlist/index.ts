@@ -1,5 +1,5 @@
-export { Playlist } from './playlist.entity';
-export { PlaylistItem } from './playlist-item.entity';
+export type { Playlist } from '../db/schema';
+export type { PlaylistItem } from '../db/schema';
 export { PlaylistModule } from './playlist.module';
 export { PlaylistService } from './playlist.service';
 export { PlaylistController } from './playlist.controller';

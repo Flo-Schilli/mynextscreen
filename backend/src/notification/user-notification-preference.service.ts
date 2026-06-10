@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { UserNotificationPreference } from './user-notification-preference.entity';
+import { Injectable, Inject } from '@nestjs/common';
+import { and, eq } from 'drizzle-orm';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { userNotificationPreferences, type UserNotificationPreference } from '../db/schema';
 
 export interface UserNotificationPreferenceData {
   inAppEnabled?: boolean;
@@ -11,28 +12,43 @@ export interface UserNotificationPreferenceData {
 
 @Injectable()
 export class UserNotificationPreferenceService {
-  constructor(
-    @InjectRepository(UserNotificationPreference)
-    private readonly repo: Repository<UserNotificationPreference>,
-  ) {}
+  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
+
+  private async find(
+    userId: string,
+    organisationId: string,
+  ): Promise<UserNotificationPreference | null> {
+    const [pref] = await this.db
+      .select()
+      .from(userNotificationPreferences)
+      .where(
+        and(
+          eq(userNotificationPreferences.userId, userId),
+          eq(userNotificationPreferences.organisationId, organisationId),
+        ),
+      )
+      .limit(1);
+    return pref ?? null;
+  }
 
   async getForUser(userId: string, organisationId: string): Promise<UserNotificationPreference> {
-    const existing = await this.repo.findOne({
-      where: { userId, organisationId },
-    });
+    const existing = await this.find(userId, organisationId);
     if (existing) {
       return existing;
     }
 
     // Create default record if none exists
-    const pref = this.repo.create({
-      userId,
-      organisationId,
-      inAppEnabled: true,
-      emailEnabled: false,
-      ntfyEnabled: false,
-    });
-    return this.repo.save(pref);
+    const [pref] = await this.db
+      .insert(userNotificationPreferences)
+      .values({
+        userId,
+        organisationId,
+        inAppEnabled: true,
+        emailEnabled: false,
+        ntfyEnabled: false,
+      })
+      .returning();
+    return pref;
   }
 
   async upsert(
@@ -40,30 +56,31 @@ export class UserNotificationPreferenceService {
     organisationId: string,
     prefs: UserNotificationPreferenceData,
   ): Promise<UserNotificationPreference> {
-    const existing = await this.repo.findOne({
-      where: { userId, organisationId },
-    });
+    const existing = await this.find(userId, organisationId);
 
     if (existing) {
-      if (prefs.inAppEnabled !== undefined) {
-        existing.inAppEnabled = prefs.inAppEnabled;
-      }
-      if (prefs.emailEnabled !== undefined) {
-        existing.emailEnabled = prefs.emailEnabled;
-      }
-      if (prefs.ntfyEnabled !== undefined) {
-        existing.ntfyEnabled = prefs.ntfyEnabled;
-      }
-      return this.repo.save(existing);
+      const updates: Partial<UserNotificationPreference> = {};
+      if (prefs.inAppEnabled !== undefined) updates.inAppEnabled = prefs.inAppEnabled;
+      if (prefs.emailEnabled !== undefined) updates.emailEnabled = prefs.emailEnabled;
+      if (prefs.ntfyEnabled !== undefined) updates.ntfyEnabled = prefs.ntfyEnabled;
+      const [saved] = await this.db
+        .update(userNotificationPreferences)
+        .set(updates)
+        .where(eq(userNotificationPreferences.id, existing.id))
+        .returning();
+      return saved;
     }
 
-    const pref = this.repo.create({
-      userId,
-      organisationId,
-      inAppEnabled: prefs.inAppEnabled ?? true,
-      emailEnabled: prefs.emailEnabled ?? false,
-      ntfyEnabled: prefs.ntfyEnabled ?? false,
-    });
-    return this.repo.save(pref);
+    const [pref] = await this.db
+      .insert(userNotificationPreferences)
+      .values({
+        userId,
+        organisationId,
+        inAppEnabled: prefs.inAppEnabled ?? true,
+        emailEnabled: prefs.emailEnabled ?? false,
+        ntfyEnabled: prefs.ntfyEnabled ?? false,
+      })
+      .returning();
+    return pref;
   }
 }

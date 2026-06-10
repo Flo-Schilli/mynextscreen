@@ -5,14 +5,14 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
+  Inject,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { OnEvent } from '@nestjs/event-emitter';
-import { In, Repository } from 'typeorm';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import { and, eq, inArray } from 'drizzle-orm';
 import { OrganisationScopedService } from '../organisation/organisation-scope.service';
-import { LiveStream } from './live-stream.entity';
-import { LiveStreamActivation } from './live-stream-activation.entity';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { liveStreams, liveStreamActivations, screens, type LiveStream } from '../db/schema';
 import { LiveStreamStatus } from './live-stream-status.enum';
 import { CreateLiveStreamDto } from './dto/create-live-stream.dto';
 import { UpdateLiveStreamDto } from './dto/update-live-stream.dto';
@@ -24,7 +24,6 @@ import {
 } from './ffmpeg-live.service';
 import { TranscodingPreset } from './transcoding-preset.enum';
 import { ScreenGroupService } from '../screen-group/screen-group.service';
-import { Screen } from '../screen/screen.entity';
 import {
   LIVE_STREAM_STARTED,
   LIVE_STREAM_STOPPED,
@@ -50,17 +49,12 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
   private readonly logger = new Logger(LiveStreamService.name);
 
   constructor(
-    @InjectRepository(LiveStream)
-    repository: Repository<LiveStream>,
-    @InjectRepository(LiveStreamActivation)
-    private readonly activationRepository: Repository<LiveStreamActivation>,
-    @InjectRepository(Screen)
-    private readonly screenRepository: Repository<Screen>,
+    @Inject(DRIZZLE) db: DrizzleDB,
     private readonly ffmpegLiveService: FfmpegLiveService,
     private readonly screenGroupService: ScreenGroupService,
     private readonly eventEmitter: EventEmitter2,
   ) {
-    super(repository, 'LiveStream');
+    super(db, liveStreams, 'LiveStream');
   }
 
   async createLiveStream(
@@ -97,8 +91,11 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       );
     }
 
-    Object.assign(stream, dto);
-    const saved = await this.repository.save(stream);
+    const [saved] = await this.db
+      .update(liveStreams)
+      .set(dto)
+      .where(and(eq(liveStreams.id, id), eq(liveStreams.organisationId, organisationId)))
+      .returning();
 
     this.eventEmitter.emit(
       AUDIT_LIVE_STREAM_UPDATED,
@@ -126,12 +123,11 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       );
     }
 
-    const streamId = stream.id;
-    const streamName = stream.name;
-    const sourceUrl = stream.sourceUrl;
-    const protocol = stream.protocol;
+    const { id: streamId, name: streamName, sourceUrl, protocol } = stream;
 
-    await this.repository.remove(stream);
+    await this.db
+      .delete(liveStreams)
+      .where(and(eq(liveStreams.id, id), eq(liveStreams.organisationId, organisationId)));
 
     this.eventEmitter.emit(
       AUDIT_LIVE_STREAM_DELETED,
@@ -200,13 +196,14 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     }
 
     // Validate all target screens belong to the current org
-    const screens = await this.screenRepository.find({
-      where: { id: In(targetScreenIds), organisationId },
-    });
+    const targetScreens = await this.db
+      .select()
+      .from(screens)
+      .where(and(inArray(screens.id, targetScreenIds), eq(screens.organisationId, organisationId)));
 
-    if (screens.length !== targetScreenIds.length) {
-      const foundIds = new Set(screens.map((s) => s.id));
-      const missing = targetScreenIds.filter((id) => !foundIds.has(id));
+    if (targetScreens.length !== targetScreenIds.length) {
+      const foundIds = new Set(targetScreens.map((s) => s.id));
+      const missing = targetScreenIds.filter((screenId) => !foundIds.has(screenId));
       throw new ForbiddenException(
         `The following screen IDs do not belong to this organisation or do not exist: ${missing.join(', ')}`,
       );
@@ -221,9 +218,10 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     }
 
     // Handle duplicate overrides: deactivate any previous stream on these screens
-    const existingActivations = await this.activationRepository.find({
-      where: { screenId: In(targetScreenIds) },
-    });
+    const existingActivations = await this.db
+      .select()
+      .from(liveStreamActivations)
+      .where(inArray(liveStreamActivations.screenId, targetScreenIds));
 
     if (existingActivations.length > 0) {
       // Group by streamId to check if we need to clean up other streams
@@ -232,35 +230,44 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       );
 
       // Remove existing activations for these screens
-      await this.activationRepository.remove(existingActivations);
+      await this.db.delete(liveStreamActivations).where(
+        inArray(
+          liveStreamActivations.id,
+          existingActivations.map((a) => a.id),
+        ),
+      );
 
       // For each other stream that lost all its screens, set status back to idle and stop FFmpeg
       for (const otherStreamId of otherStreamIds) {
-        const remainingCount = await this.activationRepository.count({
-          where: { streamId: otherStreamId },
-        });
+        const remainingCount = await this.db.$count(
+          liveStreamActivations,
+          eq(liveStreamActivations.streamId, otherStreamId),
+        );
 
         if (remainingCount === 0) {
-          await this.repository.update(otherStreamId, {
-            status: LiveStreamStatus.Idle,
-          });
+          await this.db
+            .update(liveStreams)
+            .set({ status: LiveStreamStatus.Idle })
+            .where(eq(liveStreams.id, otherStreamId));
           await this.ffmpegLiveService.stop(otherStreamId);
         }
       }
     }
 
     // Create activation records
-    const activations = targetScreenIds.map((screenId) => {
-      const activation = new LiveStreamActivation();
-      activation.streamId = id;
-      activation.screenId = screenId;
-      return activation;
-    });
-    await this.activationRepository.save(activations);
+    await this.db.insert(liveStreamActivations).values(
+      targetScreenIds.map((screenId) => ({
+        streamId: id,
+        screenId,
+      })),
+    );
 
     // Update stream status
-    stream.status = LiveStreamStatus.Active;
-    const saved = await this.repository.save(stream);
+    const [saved] = await this.db
+      .update(liveStreams)
+      .set({ status: LiveStreamStatus.Active })
+      .where(eq(liveStreams.id, id))
+      .returning();
 
     // Send SSE events to target screens
     for (const screenId of targetScreenIds) {
@@ -296,19 +303,23 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     await this.ffmpegLiveService.stop(id);
 
     // Resolve active target screens before clearing
-    const activations = await this.activationRepository.find({
-      where: { streamId: id },
-    });
+    const activations = await this.db
+      .select()
+      .from(liveStreamActivations)
+      .where(eq(liveStreamActivations.streamId, id));
     const targetScreenIds = activations.map((a) => a.screenId);
 
     // Clear activation records
     if (activations.length > 0) {
-      await this.activationRepository.remove(activations);
+      await this.db.delete(liveStreamActivations).where(eq(liveStreamActivations.streamId, id));
     }
 
     // Set status back to idle
-    stream.status = LiveStreamStatus.Idle;
-    const saved = await this.repository.save(stream);
+    const [saved] = await this.db
+      .update(liveStreams)
+      .set({ status: LiveStreamStatus.Idle })
+      .where(eq(liveStreams.id, id))
+      .returning();
 
     // Send SSE stop events to previously targeted screens
     for (const screenId of targetScreenIds) {
@@ -338,28 +349,35 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     );
 
     // Find the stream — it may have been deleted between the exit and this handler
-    const stream = await this.repository.findOne({
-      where: { id: event.streamId },
-    });
+    const [stream] = await this.db
+      .select()
+      .from(liveStreams)
+      .where(eq(liveStreams.id, event.streamId))
+      .limit(1);
 
     if (!stream) {
       return;
     }
 
     // Resolve active target screens
-    const activations = await this.activationRepository.find({
-      where: { streamId: event.streamId },
-    });
+    const activations = await this.db
+      .select()
+      .from(liveStreamActivations)
+      .where(eq(liveStreamActivations.streamId, event.streamId));
     const targetScreenIds = activations.map((a) => a.screenId);
 
     // Clear activation records
     if (activations.length > 0) {
-      await this.activationRepository.remove(activations);
+      await this.db
+        .delete(liveStreamActivations)
+        .where(eq(liveStreamActivations.streamId, event.streamId));
     }
 
     // Set status to error
-    stream.status = LiveStreamStatus.Error;
-    await this.repository.save(stream);
+    await this.db
+      .update(liveStreams)
+      .set({ status: LiveStreamStatus.Error })
+      .where(eq(liveStreams.id, event.streamId));
 
     // Send SSE stop events to previously targeted screens
     for (const screenId of targetScreenIds) {

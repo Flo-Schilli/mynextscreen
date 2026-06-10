@@ -1,10 +1,11 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Injectable, Logger, OnModuleDestroy, Inject } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Repository } from 'typeorm';
+import { eq } from 'drizzle-orm';
 import * as fs from 'fs';
 import * as path from 'path';
-import { LiveStream } from './live-stream.entity';
+import { DRIZZLE } from '../db/database.constants';
+import type { DrizzleDB } from '../db/drizzle.types';
+import { liveStreams } from '../db/schema';
 import { LiveStreamStatus } from './live-stream-status.enum';
 import { FfmpegLiveService } from './ffmpeg-live.service';
 import {
@@ -31,8 +32,7 @@ export class StreamHealthService implements OnModuleDestroy {
   private static readonly STALE_SEGMENT_THRESHOLD_MS = 15_000;
 
   constructor(
-    @InjectRepository(LiveStream)
-    private readonly repository: Repository<LiveStream>,
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly ffmpegLiveService: FfmpegLiveService,
     private readonly eventEmitter: EventEmitter2,
   ) {
@@ -58,9 +58,10 @@ export class StreamHealthService implements OnModuleDestroy {
   }
 
   async runHealthChecks(): Promise<void> {
-    const activeStreams = await this.repository.find({
-      where: { status: LiveStreamStatus.Active },
-    });
+    const activeStreams = await this.db
+      .select()
+      .from(liveStreams)
+      .where(eq(liveStreams.status, LiveStreamStatus.Active));
 
     for (const stream of activeStreams) {
       const health = this.checkStreamHealth(stream.id);

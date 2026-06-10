@@ -24,7 +24,7 @@ import { Roles } from '../auth/roles.decorator';
 import { ScreenAuth } from '../auth/screen-auth.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
-import { LiveStream } from './live-stream.entity';
+import type { LiveStream } from '../db/schema';
 import { LiveStreamStatus } from './live-stream-status.enum';
 
 export interface LiveStreamWithHealth extends LiveStream {
