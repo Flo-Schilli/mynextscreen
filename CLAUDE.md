@@ -69,17 +69,18 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
 
 ## Stack
 - **Frontend (Admin):** Angular ~21.2 (Standalone, Signals, **zoneless-orientiert**),
-  Tailwind CSS v4 (`@tailwindcss/postcss`), Hanko-Elements für Auth-UI. Tests: **Vitest**.
+  Tailwind CSS v4 (`@tailwindcss/postcss`), eigene Auth-UI (email+password). Tests: **Vitest**.
 - **Player:** eigene Angular-21-App (`player/`), **hls.js** für Live-Streams. Tests: **Jest**.
-- **Backend:** NestJS 11 (modular, ein Modul pro Domain), **TypeORM** + **better-sqlite3**
-  (SQLite), **BullMQ + Redis** (Transcoding-Jobs), `@nestjs/schedule`, `jose` (JWT/JWKS),
-  `rrule`, `nodemailer`, `class-validator`/`class-transformer`. Tests: **Jest**.
-- **Auth:** **Hanko Cloud** (User-JWT, validiert gegen JWKS), **API-Keys** (Screens).
+- **Backend:** NestJS 11 (modular, ein Modul pro Domain), **Drizzle ORM** + **PostgreSQL**
+  (`pg`), **BullMQ + Redis** (Transcoding-Jobs), `@nestjs/schedule`, `@nestjs/jwt` + `bcrypt`
+  (interne Auth), `rrule`, `nodemailer`, `class-validator`/`class-transformer`. Tests: **Jest**.
+- **Auth:** **Interne Auth** (email+password, JWT-Access-Cookie + Redis-Refresh-Tokens,
+  bcrypt-Hashing), **API-Keys** (Screens).
 - **Media:** **FFmpeg** als Child-Process (Transcoding + HLS-Live).
 - **Echtzeit:** **SSE** (Dashboard-Updates + Screen-Pushes).
 - **Runtime:** Node.js 22. **Package-Manager: npm** (npm@11.6.2, kein pnpm/yarn).
 - **Deployment:** Docker Compose (dev) · Ansible + rootless Podman Quadlets + Caddy
-  (prod, `ansible/`). Repo-Remote: Codeberg (`codeberg.org/fschillhammer/signage-server`).
+  (prod, `ansible/`). Repo-Remote: GitHub (`github.com/Flo-Schilli/digital-signage`).
 
 ## Project Structure
 > **Nx integrated monorepo.** EIN Root-`package.json` + EIN `package-lock.json`
@@ -128,7 +129,7 @@ package-lock.json         # einziges Lockfile
 player-applications/      # Native/Plattform-Player
   lg-tvos/                # LG webOS App (app.js, appinfo.json)
 ansible/                  # Prod-Deployment: quadlets/, templates/ (Caddy, fail2ban), *.yml
-docker-compose.yml        # Dev: backend(3000) · frontend(4200) · player(4300) · redis
+docker-compose.yml        # Dev: backend(3000) · frontend(4200) · player(4300) · redis · postgres(5432)
 ARCHITECTURE.md           # Technische Architektur (kanonisch)
 VISION.md                 # Produkt-Vision & Feature-Details (kanonisch)
 .maggus/                  # Maggus-Task-Runner (features/, bugs/, config.yml)
@@ -156,8 +157,8 @@ VISION.md                 # Produkt-Vision & Feature-Details (kanonisch)
   in Services, nicht in Components.
 - **NestJS: ein Modul pro Domain.** DTOs immer mit `class-validator` validieren
   (`dto/`-Ordner pro Modul). Multi-Tenancy in Guards/Services durchsetzen.
-- **TypeORM-Entities sind die Schema-Quelle.** Schema-Änderungen immer per
-  Migration (`migration:generate`), nie Auto-Sync in Prod.
+- **Drizzle-Schema (`src/db/`) ist die Schema-Quelle.** Schema-Änderungen immer per
+  Migration (`nx run backend:db-generate` → `db-migrate`), nie Auto-Sync/`db-push` in Prod.
 - **TailwindCSS only** (v4), möglichst kein Custom-CSS.
 - **Prettier** für Formatierung (alle drei Apps haben `.prettierrc` + `format`/`format:check`), **ESLint** ohne Formatierungsregeln.
 - **npm** als Package-Manager — nie pnpm/yarn.
@@ -167,7 +168,7 @@ VISION.md                 # Produkt-Vision & Feature-Details (kanonisch)
   Die Sub-`package.json`/`package-lock.json`-Versionen (backend/frontend/player)
   pflegt der `version`-npm-Hook via `scripts/sync-versions.mjs` aus der Root-Version
   — nie manuell editieren; CI (`sync-versions.mjs --check`) erzwingt das.
-- Externe Calls (Hanko-JWKS, ntfy, SMTP) hinter Interface/Modul, mockbar.
+- Externe Calls (ntfy, SMTP) hinter Interface/Modul, mockbar.
 - Geheimnisse/API-Keys nie plaintext loggen; Config über ENV (`@nestjs/config`).
 
 ## Do NOT
@@ -175,7 +176,7 @@ VISION.md                 # Produkt-Vision & Feature-Details (kanonisch)
 - Keine Business-Logik in Angular-Components — immer Services.
 - Multi-Tenancy nicht nur im Frontend „verstecken" — serverseitig per Scope/Guard.
 - Transcoded/Original-Files nicht in die DB schreiben — Filesystem unter `MEDIA_BASE_PATH`.
-- Schema nicht manuell in der SQLite-DB ändern — immer Migration.
+- Schema nicht manuell in der Postgres-DB ändern — immer Migration.
 - Nicht manuell formatieren — Prettier macht das.
 - Kein pnpm/yarn. Keine `.env`-Dateien committen.
 - README-Stack-Tabelle nicht blind übernehmen (Echtzeit = **SSE**, Protokoll = **JSON**).
@@ -209,8 +210,9 @@ npx nx run backend:db-push        # drizzle-kit push
 npx nx run backend:db-studio      # drizzle-kit studio
 ```
 
-> **Lokal ohne Docker:** Redis (7+) und FFmpeg müssen auf dem `PATH` sein; Hanko-
-> Projekt anlegen und `HANKO_API_URL` setzen (`.env.example` → `.env`).
+> **Lokal ohne Docker:** PostgreSQL (16+), Redis (7+) und FFmpeg müssen erreichbar/auf
+> dem `PATH` sein; `.env.example` → `.env` kopieren und `JWT_ACCESS_SECRET` setzen
+> (`openssl rand -base64 48`). Schema via `nx run backend:db-migrate` anlegen.
 
 ## Tests & Quality Gates
 - **CI:** `.github/workflows/ci.yml` — Trigger push `main`, Tags `v*.*.*`, PRs.
@@ -239,11 +241,15 @@ npx nx run backend:db-studio      # drizzle-kit studio
 ## Environment (wichtigste Variablen)
 | Variable | Zweck |
 | --- | --- |
-| `DATABASE_PATH` | SQLite-Datei (z. B. `./data/signage.db`) |
-| `REDIS_URL` | BullMQ-Queue (`redis://localhost:6379`) |
+| `DATABASE_URL` | PostgreSQL-DSN (z. B. `postgres://signage:signage@localhost:5432/signage`) |
+| `REDIS_URL` | BullMQ-Queue + Refresh-Tokens (`redis://localhost:6379`) |
 | `MEDIA_BASE_PATH` | Root für Original/Transcoded Media |
-| `HANKO_API_URL` | Hanko-Cloud-Endpoint für JWT/JWKS-Validierung |
-| `SUPER_ADMIN_USER_IDS` | Komma-getrennte Hanko-User-IDs (system-level) |
+| `JWT_ACCESS_SECRET` | **Pflicht** — Secret für JWT-Access-Token (`openssl rand -base64 48`) |
+| `JWT_ACCESS_TTL` / `JWT_REFRESH_TTL` | Token-Lebensdauer (z. B. `15m` / `30d`) |
+| `COOKIE_SECURE` / `COOKIE_SAMESITE` | Cookie-Härtung (Secure default nur bei `NODE_ENV=production`) |
+| `PUBLIC_BASE_URL` | Basis-URL der Admin-SPA (Set-Password/Reset-Links + CORS) |
+| `SUPER_ADMIN_EMAILS` | Komma-getrennte E-Mails, beim Boot als System-Super-Admins geseedet |
+| `SUPER_ADMIN_INITIAL_PASSWORD` | Optionales Initial-Passwort für geseedete Super-Admins |
 | `MAX_FILE_SIZE_BYTES` | Upload-Limit |
 | `FFMPEG_PATH` | FFmpeg-Binary (default: System-PATH) |
 | `FFMPEG_VIDEO_CRF` / `_PRESET` / `_MAXRATE` / `_BUFSIZE` | Transcoding-Qualität |
@@ -264,5 +270,5 @@ npx nx run backend:db-studio      # drizzle-kit studio
   wegen Host-Bind-Mounts (`%h/app/{data,media}`); erzwungenes `USER 1001` würde
   Schreibrechte auf die Volumes brechen.
 - DB-Backup/Restore über `ansible/download_db.yml` / `upload_db.yml`.
-- Auth-Flow: Frontend ↔ Hanko (Passkey/E-Mail) → JWT als `Bearer`; Backend
-  validiert gegen `HANKO_API_URL/.well-known/jwks.json`. Screens nutzen API-Keys.
+- Auth-Flow: Frontend ↔ Backend (email+password) → JWT-Access-Cookie + Redis-
+  Refresh-Token; Backend signiert/validiert mit `JWT_ACCESS_SECRET`. Screens nutzen API-Keys.
