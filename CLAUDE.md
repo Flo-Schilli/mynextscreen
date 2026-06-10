@@ -82,30 +82,49 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
   (prod, `ansible/`). Repo-Remote: Codeberg (`codeberg.org/fschillhammer/signage-server`).
 
 ## Project Structure
+> **Nx integrated monorepo.** EIN Root-`package.json` + EIN `package-lock.json`
+> (Single Source of Truth, Version + alle Deps), `nx.json` (Targets/Caching),
+> `tsconfig.base.json` (Path-Mappings, u. a. `@signage/shared-types`). Apps haben
+> **kein** eigenes `package.json` — nur ein `project.json` mit Nx-Targets
+> (`nx:run-commands`). Gemischte Test-Runner: **Jest** (backend, Coverage-Gate),
+> **Vitest** (frontend via `ng test`, player via `vitest run`).
 ```
-backend/                  # NestJS API (REST + SSE + BullMQ-Worker)
-  src/
-    auth/                 # Hanko-JWT-Validierung, API-Key-Auth, Role-Guards
-    organisation/         # Tenant-Mgmt, Storage-Limits, Fallback-Playlist, Time Zone
-    user/                 # Org-Membership, Rollen, Notification-Prefs
-    screen/               # Registrierung, API-Key, Heartbeat, State-Service
-    screen-group/         # Mirror/Split-Modi, Grid-Layout
-    content/              # Upload, Metadata, triggert Transcoding-Jobs (dto/)
-    slice-content/        # Video-Wall-Slicing pro Screen-Viewport
-    playlist/             # Playlist-CRUD, geordnete Items mit Dauer
-    schedule/             # Kalender-CRUD, RRULE-Recurrence, Overlap/Fallback
-    live-stream/          # Stream-URL, FFmpeg-Lifecycle, Override/Fallback (HLS)
-    screen-protocol/      # Adapter-Abstraktion; JsonProtocolAdapter (erster Impl)
-    notification/         # Hub + channels/ (in-app, email, ntfy)
-    audit-log/            # Audit-Trail
-    dashboard/            # SSE-Service + Controller für Echtzeit-Updates
-    media/                # Filesystem-Media-Handling
-    search/               # Globale Suche (screens/content/playlists, org-scoped)
-    migrations/           # TypeORM-Migrations
-    data-source.ts        # TypeORM DataSource (für migration:* CLI)
-    health.controller.ts  # Healthcheck
-frontend/                 # Angular 21 Admin-SPA (src/app/<domain>, shell/, shared/)
-player/                   # Angular 21 Player-App für Screens (connection/, playback/, player/)
+apps/
+  backend/                # NestJS API (REST + SSE + BullMQ-Worker)
+    project.json          # Nx-Targets: build/serve/test/typecheck/lint/format + db-* (drizzle-kit)
+    jest.config.ts        # Coverage-Gate 92/83/84/92; coverage → apps/backend/coverage
+    drizzle.config.ts     # Drizzle-Kit Config (generate/migrate/push/studio)
+    src/
+      auth/               # Auth (Cookie email+password, API-Key-Auth, Role-Guards)
+      organisation/       # Tenant-Mgmt, Storage-Limits, Fallback-Playlist, Time Zone
+      user/               # Org-Membership, Rollen, Notification-Prefs
+      screen/             # Registrierung, API-Key, Heartbeat, State-Service
+      screen-group/       # Mirror/Split-Modi, Grid-Layout
+      content/            # Upload, Metadata, triggert Transcoding-Jobs (dto/)
+      slice-content/      # Video-Wall-Slicing pro Screen-Viewport
+      playlist/           # Playlist-CRUD, geordnete Items mit Dauer
+      schedule/           # Kalender-CRUD, RRULE-Recurrence, Overlap/Fallback
+      live-stream/        # Stream-URL, FFmpeg-Lifecycle, Override/Fallback (HLS)
+      screen-protocol/    # Adapter-Abstraktion; JsonProtocolAdapter (erster Impl)
+      notification/       # Hub + channels/ (in-app, email, ntfy)
+      audit-log/          # Audit-Trail
+      dashboard/          # SSE-Service + Controller für Echtzeit-Updates
+      media/              # Filesystem-Media-Handling
+      search/             # Globale Suche (screens/content/playlists, org-scoped)
+      db/                 # Drizzle-Schema + migrations/ (generierte SQL)
+      health.controller.ts # Healthcheck
+    Dockerfile.prod       # baut aus Repo-Root-Context (COPY package*.json …)
+  frontend/               # Angular 21 Admin-SPA (src/app/<domain>, shell/, shared/)
+    project.json          # build (@angular/build), serve, test (ng test → Vitest), …
+    angular.json          # minimal — hält Vitest-Root am App-Dir (TestBed-Isolation)
+  player/                 # Angular 21 Player-App (connection/, playback/, player/)
+    project.json          # build (@angular/build), serve, test (vitest run), …
+libs/
+  shared-types/           # geteilte TS-Typen (Lib; nur lint/typecheck-Targets)
+nx.json                   # Nx-Targets, namedInputs (production), Caching
+tsconfig.base.json        # Path-Mappings (@signage/shared-types) für alle Projekte
+package.json              # Single Source: Version + alle Deps (Root)
+package-lock.json         # einziges Lockfile
 player-applications/      # Native/Plattform-Player
   lg-tvos/                # LG webOS App (app.js, appinfo.json)
 ansible/                  # Prod-Deployment: quadlets/, templates/ (Caddy, fail2ban), *.yml
@@ -114,6 +133,8 @@ ARCHITECTURE.md           # Technische Architektur (kanonisch)
 VISION.md                 # Produkt-Vision & Feature-Details (kanonisch)
 .maggus/                  # Maggus-Task-Runner (features/, bugs/, config.yml)
 ```
+> Build-Outputs: backend → `dist/apps/backend/main.js`; frontend/player →
+> `dist/apps/{frontend,player}/browser`.
 
 ## Active ECC Rules
 - common
@@ -163,28 +184,29 @@ VISION.md                 # Produkt-Vision & Feature-Details (kanonisch)
 ```bash
 # Alles per Docker (dev): backend:3000 · frontend:4200 · player:4300 · redis:6379
 npm run dev                       # docker compose up --build
-# Root-Scripts fächern über ALLE drei Apps (backend + frontend + player):
-npm run lint
-npm run test                      # backend (Jest) + frontend (Vitest) + player (Jest)
-npm run typecheck
-npm run format:check
-# Release + lokale Prod-Images
+
+# Root-Scripts fächern per `nx run-many` über ALLE Projekte (backend/frontend/player/shared-types):
+npm run lint                      # nx run-many -t lint
+npm run test                      # nx run-many -t test  (backend Jest · frontend/player Vitest)
+npm run typecheck                 # nx run-many -t typecheck
+npm run format:check              # nx run-many -t format:check
+# Release + lokale Prod-Images (Version aus Root-package.json):
 npm run version:patch             # bump + commit + tag (push: git push --follow-tags)
-npm run images:build              # baut alle 3 prod-Images mit Versions-Metadaten
+npm run images:build              # baut alle 3 prod-Images aus Repo-Root-Context
 
-# Backend (cd backend)
-npm run start:dev                 # NestJS watch-mode
-npm run build                     # nest build
-npm run test:cov                  # Jest + Coverage (Gate ~80%, siehe unten)
-npm run lint:fix                  # ESLint --fix
-npm run migration:generate -- src/migrations/<Name>   # Migration aus Entity-Diff
-npm run migration:run / revert    # (Prod: Migrationen laufen via migrationsRun beim Boot)
+# Nx direkt (vom Repo-Root):
+npx nx affected -t lint typecheck test build   # nur vom Diff betroffene Projekte (so läuft CI auf PRs)
+npx nx run-many -t lint typecheck test build   # alle Projekte (so läuft CI auf main)
+npx nx build  <app>               # backend → dist/apps/backend · frontend/player → dist/apps/<app>/browser
+npx nx serve  <app>               # backend: nest start --watch · frontend/player: ng dev-server (4200/4300)
+npx nx test   <app>               # backend: jest --coverage (Gate) · frontend: ng test · player: vitest run
+npx nx typecheck <app> / lint <app> / format:check <app>
 
-# Frontend (cd frontend) / Player (cd player)
-npm start                         # ng serve (frontend:4200 / player:4300)
-npm run build                     # Prod-Build
-npm test                          # frontend: Vitest · player: Jest
-npm run typecheck / format / format:check
+# Backend-DB (Drizzle, via Nx run-commands → drizzle-kit, cwd apps/backend):
+npx nx run backend:db-generate    # drizzle-kit generate (Migration aus Schema-Diff)
+npx nx run backend:db-migrate     # drizzle-kit migrate
+npx nx run backend:db-push        # drizzle-kit push
+npx nx run backend:db-studio      # drizzle-kit studio
 ```
 
 > **Lokal ohne Docker:** Redis (7+) und FFmpeg müssen auf dem `PATH` sein; Hanko-
@@ -192,9 +214,15 @@ npm run typecheck / format / format:check
 
 ## Tests & Quality Gates
 - **CI:** `.github/workflows/ci.yml` — Trigger push `main`, Tags `v*.*.*`, PRs.
-  Job 1 `lint-test-build` (Matrix backend/frontend/player): `format:check` · `lint`
-  · `typecheck` · `test` · `build`. Job 2 `docker` (Matrix): baut alle drei
-  prod-Images, **published nach GHCR nur auf main/Tags** (nicht bei PRs).
+  Job 1 `lint-test-build` (EIN Job, kein Matrix mehr): `npm ci` am Root,
+  `sync-versions.mjs --check`, dann `nrwl/nx-set-shas` + `nx affected -t
+  format:check / lint typecheck build / test` auf **PRs** bzw. `nx run-many`
+  auf **main** (nichts wird übersprungen). Backend-Coverage-Gate läuft im
+  `test`-Target (Jest); zusätzlich `ArtiomTr/jest-coverage-report-action`
+  (`working-directory: apps/backend`) für PR-Kommentar + Artifact aus
+  `apps/backend/coverage`. Job 2 `docker` (Matrix backend/frontend/player):
+  baut alle drei prod-Images aus Repo-Root-Context (`file: apps/<app>/Dockerfile.prod`),
+  **published nach GHCR nur auf main/Tags** (nicht bei PRs).
 - **Coverage-Gate nur Backend** (`backend/jest.config.ts`, ~80% — gemessen ~85%).
   Frontend/Player ohne Schwelle (Test-Abdeckung dort dünn: ~8 bzw. ~3 Specs;
   Backend ~83 Suites / 900+ Tests). Keine künstlichen Tests nur fürs Gate.

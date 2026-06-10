@@ -13,72 +13,77 @@ concurrency:
 
 jobs:
   lint-test-build:
-    name: lint · test · build (${{ matrix.app }})
+    name: lint · typecheck · test · build (nx affected)
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
       checks: write # ArtiomTr/jest-coverage-report-action publishes failed-test annotations
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - app: backend
-            test: 'npm run test:cov'
-          - app: frontend
-            test: 'npm run test:cov'
-          - app: player
-            test: 'npm test'
-    defaults:
-      run:
-        working-directory: ${{ matrix.app }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # full history so nx-set-shas can resolve the affected base
 
       - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ${{ matrix.app }}/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
       - name: Check version sync
-        if: matrix.app == 'backend'
-        working-directory: ${{ github.workspace }}
         run: node scripts/sync-versions.mjs --check
 
+      # Derives NX_BASE / NX_HEAD for `nx affected`. On main pushes the base is
+      # the previous successful commit; on PRs it is the merge base with the target.
+      - name: Derive nx SHAs
+        uses: nrwl/nx-set-shas@v4
+
+      # On the default branch we run the full graph (run-many) so nothing is skipped;
+      # on PRs we run only what the change set affects.
       - name: Format check
-        run: npm run format:check
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            npx nx affected -t format:check
+          else
+            npx nx run-many -t format:check
+          fi
 
-      - name: Lint
-        run: npm run lint
+      - name: Lint · typecheck · build
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            npx nx affected -t lint typecheck build
+          else
+            npx nx run-many -t lint typecheck build
+          fi
 
-      - name: Typecheck
-        run: npm run typecheck
-
+      # Backend Jest enforces the coverage gate (92/83/84/92) inside jest.config.ts,
+      # so a regression fails this step. Frontend uses ng test (Vitest), player vitest.
       - name: Test
-        run: ${{ matrix.test }}
-
-      - name: Build
-        run: npm run build
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            npx nx affected -t test
+          else
+            npx nx run-many -t test
+          fi
 
       - name: Upload coverage artifact
-        if: matrix.app == 'backend'
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: backend-coverage
-          path: backend/coverage/
+          path: apps/backend/coverage/
           retention-days: 14
+          if-no-files-found: ignore
 
       - name: Coverage report PR comment
-        if: matrix.app == 'backend' && github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request'
         uses: ArtiomTr/jest-coverage-report-action@v2
         with:
-          working-directory: backend
+          working-directory: apps/backend
           package-manager: npm
-          test-script: npm run test:cov
+          test-script: jest --coverage
           annotations: failed-tests
           threshold: 92
 
@@ -137,11 +142,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Prod images build from the repo-root context (monorepo); the Dockerfile lives
+      # under apps/<app>/ and copies the single root package.json + lockfile.
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
-          context: ./${{ matrix.app }}
-          file: ./${{ matrix.app }}/Dockerfile.prod
+          context: .
+          file: ./apps/${{ matrix.app }}/Dockerfile.prod
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.tags.outputs.tags }}
           labels: ${{ steps.tags.outputs.labels }}
