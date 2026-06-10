@@ -41,7 +41,7 @@ jobs:
       # integration") and which broke the first tag/main release build.
       - name: Derive nx SHAs
         if: github.event_name == 'pull_request'
-        uses: nrwl/nx-set-shas@v4
+        uses: nrwl/nx-set-shas@v5
 
       # On the default branch we run the full graph (run-many) so nothing is skipped;
       # on PRs we run only what the change set affects.
