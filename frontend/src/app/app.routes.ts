@@ -6,6 +6,10 @@ import { Layout } from './shell/layout';
 export const routes: Routes = [
   { path: 'login', component: Login },
   {
+    path: 'set-password',
+    loadComponent: () => import('./auth/set-password').then((m) => m.SetPassword),
+  },
+  {
     path: '',
     canActivate: [authGuard],
     component: Layout,

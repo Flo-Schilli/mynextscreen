@@ -8,7 +8,9 @@
 #
 # Required variables (set in hosts.ini, group_vars, or -e):
 #   domain_name:        Base domain (e.g., signage.example.com)
-#   hanko_api_host:     Hanko API hostname (e.g., your-project.hanko.io)
+#   jwt_access_secret:  Strong random secret for signing access JWTs (vault it)
+#   super_admin_emails: Comma-separated emails seeded as super-admins on boot
+#   super_admin_initial_password: Optional bootstrap password for those admins
 #   service_user:       Linux user that runs Podman (default: signage)
 #   signage_image_tag:  GHCR tag to deploy (default: latest; pin e.g. "1.2.3")
 #   ghcr_username:      GHCR user for `podman login` (default: image owner)

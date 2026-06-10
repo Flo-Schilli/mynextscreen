@@ -5,7 +5,6 @@ import { provideHttpClient, HttpEventType, HttpResponse } from '@angular/common/
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ContentService, UploadProgress } from './content.service';
 import { Content, StorageInfo } from './content.model';
-import { AuthService } from '../auth/auth.service';
 import { OrganisationStateService } from '../shell/organisation-state.service';
 
 try {
@@ -15,7 +14,6 @@ try {
 }
 
 const ORG_ID = 'org1';
-const TOKEN = 'tok';
 
 function buildContent(overrides: Partial<Content> = {}): Content {
   return {
@@ -49,7 +47,6 @@ describe('ContentService', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         ContentService,
-        { provide: AuthService, useValue: { getToken: () => TOKEN } },
         { provide: OrganisationStateService, useValue: { selectedOrgId: () => ORG_ID } },
       ],
     });
@@ -390,48 +387,26 @@ describe('ContentService', () => {
   });
 
   describe('getOriginalUrl', () => {
-    it('should build the original file URL with token and organisationId query params', () => {
+    it('should build the original file URL with the organisationId query param (cookie auth)', () => {
       // Act
       const url = service.getOriginalUrl('c1');
 
-      // Assert
-      expect(url).toBe(`/api/content/c1/file/original?token=${TOKEN}&organisationId=${ORG_ID}`);
+      // Assert: no token query — same-origin <img> sends the httpOnly cookie.
+      expect(url).toBe(`/api/content/c1/file/original?organisationId=${ORG_ID}`);
     });
   });
 
   describe('getTranscodedUrl', () => {
-    it('should build the transcoded file URL with token and organisationId query params', () => {
+    it('should build the transcoded file URL with the organisationId query param', () => {
       // Act
       const url = service.getTranscodedUrl('c1');
 
       // Assert
-      expect(url).toBe(`/api/content/c1/file/transcoded?token=${TOKEN}&organisationId=${ORG_ID}`);
+      expect(url).toBe(`/api/content/c1/file/transcoded?organisationId=${ORG_ID}`);
     });
   });
 
   describe('media URL edge cases', () => {
-    it('should omit the token param when no token is available', () => {
-      // Arrange
-      TestBed.resetTestingModule();
-      TestBed.configureTestingModule({
-        providers: [
-          provideZonelessChangeDetection(),
-          provideHttpClient(),
-          provideHttpClientTesting(),
-          ContentService,
-          { provide: AuthService, useValue: { getToken: () => null } },
-          { provide: OrganisationStateService, useValue: { selectedOrgId: () => ORG_ID } },
-        ],
-      });
-      const scoped = TestBed.inject(ContentService);
-
-      // Act
-      const url = scoped.getOriginalUrl('c1');
-
-      // Assert
-      expect(url).toBe(`/api/content/c1/file/original?organisationId=${ORG_ID}`);
-    });
-
     it('should omit the organisationId param when no org is selected', () => {
       // Arrange
       TestBed.resetTestingModule();
@@ -441,7 +416,6 @@ describe('ContentService', () => {
           provideHttpClient(),
           provideHttpClientTesting(),
           ContentService,
-          { provide: AuthService, useValue: { getToken: () => TOKEN } },
           { provide: OrganisationStateService, useValue: { selectedOrgId: () => null } },
         ],
       });
@@ -451,7 +425,7 @@ describe('ContentService', () => {
       const url = scoped.getTranscodedUrl('c1');
 
       // Assert
-      expect(url).toBe(`/api/content/c1/file/transcoded?token=${TOKEN}`);
+      expect(url).toBe('/api/content/c1/file/transcoded');
     });
   });
 

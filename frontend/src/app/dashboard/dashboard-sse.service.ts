@@ -34,9 +34,8 @@ export class DashboardSseService implements OnDestroy {
   readonly liveStreamHealth$ = new Subject<DashboardEvent>();
 
   connect(): void {
-    const token = this.authService.getToken();
     const orgId = this.orgState.selectedOrgId();
-    if (!token || !orgId) return;
+    if (!this.authService.isAuthenticated() || !orgId) return;
 
     // No-op if already connected to the same org
     if (this.sseAbortController && this.connectedOrgId === orgId) return;
@@ -49,7 +48,7 @@ export class DashboardSseService implements OnDestroy {
     this.sseAbortController = controller;
 
     this.zone.runOutsideAngular(() => {
-      this.startSseStream(token, controller);
+      void this.startSseStream(controller);
     });
   }
 
@@ -71,16 +70,24 @@ export class DashboardSseService implements OnDestroy {
     this.disconnect();
   }
 
-  private async startSseStream(token: string, controller: AbortController): Promise<void> {
+  private async startSseStream(controller: AbortController): Promise<void> {
     try {
       const response = await fetch('/api/dashboard/events', {
         headers: {
-          Authorization: `Bearer ${token}`,
           Accept: 'text/event-stream',
           'X-Organisation-Id': this.connectedOrgId!,
         },
+        // Send the httpOnly access cookie (same-origin) instead of a bearer token.
+        credentials: 'include',
         signal: controller.signal,
       });
+
+      // On 401 the access token has expired: refresh once, then let the
+      // reconnect loop re-establish the stream with the fresh cookie.
+      if (response.status === 401) {
+        await this.authService.refreshSession().catch(() => undefined);
+        throw new Error('SSE unauthorized; refreshed and will reconnect');
+      }
 
       if (!response.ok || !response.body) {
         throw new Error(`SSE connection failed: ${response.status}`);
@@ -196,17 +203,15 @@ export class DashboardSseService implements OnDestroy {
 
     this.sseRetryTimeout = setTimeout(() => {
       this.sseRetryDelay = Math.min(this.sseRetryDelay * 2, SSE_MAX_RETRY_MS);
-      // Re-read token in case it was refreshed
-      const token = this.authService.getToken();
       const orgId = this.orgState.selectedOrgId();
-      if (!token || !orgId) return;
+      if (!this.authService.isAuthenticated() || !orgId) return;
 
       const controller = new AbortController();
       this.sseAbortController = controller;
       this.connectedOrgId = orgId;
 
       this.zone.runOutsideAngular(() => {
-        this.startSseStream(token, controller);
+        void this.startSseStream(controller);
       });
     }, this.sseRetryDelay);
   }

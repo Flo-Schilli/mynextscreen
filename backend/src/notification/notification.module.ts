@@ -11,6 +11,7 @@ import { NotificationController } from './notification.controller';
 import { InAppNotificationChannel } from './channels/in-app-notification-channel.service';
 import { EmailNotificationChannel } from './channels/email-notification-channel.service';
 import { NtfyNotificationChannel } from './channels/ntfy-notification-channel.service';
+import { AuthEmailService } from './channels/auth-email.service';
 import { IN_APP_CHANNEL, EMAIL_CHANNEL, NTFY_CHANNEL } from './channels';
 import { UserModule } from '../user/user.module';
 import { DashboardModule } from '../dashboard/dashboard.module';
@@ -45,6 +46,7 @@ import { ContentModule } from '../content/content.module';
       provide: NTFY_CHANNEL,
       useExisting: NtfyNotificationChannel,
     },
+    AuthEmailService,
   ],
   exports: [
     NotificationService,

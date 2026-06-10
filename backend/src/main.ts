@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import * as cookieParser from 'cookie-parser';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
@@ -32,7 +33,15 @@ async function bootstrap() {
 
   await runMigrations(config.getOrThrow<string>('DATABASE_URL'));
 
-  app.enableCors();
+  app.use(cookieParser());
+  // Same-origin admin SPA (served at app.{domain}/api/*) needs credentialed
+  // cookies. Restrict the allowed origin when PUBLIC_BASE_URL is set; otherwise
+  // (dev) reflect the request origin so the Vite dev server can send cookies.
+  const publicBaseUrl = config.get<string>('PUBLIC_BASE_URL');
+  app.enableCors({
+    origin: publicBaseUrl ? publicBaseUrl : true,
+    credentials: true,
+  });
   app.setGlobalPrefix('api');
   app.useGlobalPipes(
     new ValidationPipe({

@@ -1,56 +1,96 @@
-import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
-import { Hanko } from '@teamhanko/hanko-elements';
-import { environment } from '../../environments/environment';
+import { HttpClient } from '@angular/common/http';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 
+export interface AuthenticatedUser {
+  userId: string;
+  email: string;
+  isSuperAdmin: boolean;
+}
+
+interface AuthSuccessResponse {
+  user: AuthenticatedUser;
+}
+
+/**
+ * Internal email+password auth. The access/refresh tokens live in httpOnly
+ * cookies set by the backend, so the SPA never stores or reads a token — it
+ * only tracks the current user (a signal) and calls the cookie-backed
+ * endpoints with `withCredentials`.
+ */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private hanko = new Hanko(environment.hankoApiUrl);
-  private currentUserSubject = new BehaviorSubject<Awaited<
-    ReturnType<Hanko['validateSession']>
-  > | null>(null);
-  public currentUser$ = this.currentUserSubject.asObservable();
+  private readonly http = inject(HttpClient);
 
-  constructor() {
-    this.checkSession();
+  readonly user = signal<AuthenticatedUser | null>(null);
+  readonly isAuthenticated = computed(() => this.user() !== null);
+  readonly loading = signal(false);
 
-    this.hanko.onSessionCreated(() => {
-      this.checkSession();
-    });
-
-    this.hanko.onSessionExpired(() => {
-      this.currentUserSubject.next(null);
-    });
-  }
-
-  private async checkSession() {
+  async login(email: string, password: string): Promise<void> {
+    this.loading.set(true);
     try {
-      const session = await this.hanko.validateSession();
-      if (session && session.is_valid) {
-        this.currentUserSubject.next(session);
-      } else {
-        this.currentUserSubject.next(null);
-      }
-    } catch {
-      this.currentUserSubject.next(null);
+      const res = await firstValueFrom(
+        this.http.post<AuthSuccessResponse>(
+          '/api/auth/login',
+          { email, password },
+          { withCredentials: true },
+        ),
+      );
+      this.user.set(res.user);
+    } finally {
+      this.loading.set(false);
     }
-  }
-
-  async isValid(): Promise<boolean> {
-    try {
-      const session = await this.hanko.validateSession();
-      return session.is_valid;
-    } catch {
-      return false;
-    }
-  }
-
-  getToken(): string {
-    return this.hanko.getSessionToken();
   }
 
   async logout(): Promise<void> {
-    await this.hanko.logout();
-    this.currentUserSubject.next(null);
+    try {
+      await firstValueFrom(this.http.post<void>('/api/auth/logout', {}, { withCredentials: true }));
+    } finally {
+      this.user.set(null);
+    }
+  }
+
+  async refreshSession(): Promise<void> {
+    await firstValueFrom(
+      this.http.post<{ refreshed: true }>('/api/auth/refresh', {}, { withCredentials: true }),
+    );
+  }
+
+  /** Loads the current user from the access cookie. Clears state on failure. */
+  async loadCurrent(): Promise<void> {
+    try {
+      const me = await firstValueFrom(
+        this.http.get<AuthenticatedUser>('/api/auth/me', { withCredentials: true }),
+      );
+      this.user.set(me);
+    } catch {
+      this.user.set(null);
+    }
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await firstValueFrom(
+      this.http.post<void>(
+        '/api/auth/change-password',
+        { currentPassword, newPassword },
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  async setPassword(token: string, newPassword: string): Promise<void> {
+    await firstValueFrom(
+      this.http.post<void>(
+        '/api/auth/set-password',
+        { token, newPassword },
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  async forgotPassword(email: string): Promise<void> {
+    await firstValueFrom(
+      this.http.post<void>('/api/auth/forgot-password', { email }, { withCredentials: true }),
+    );
   }
 }

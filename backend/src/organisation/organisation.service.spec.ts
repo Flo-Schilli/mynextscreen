@@ -15,6 +15,8 @@ import { OrganisationRole } from '../user/organisation-role.enum';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 
+const CREATOR_ID = '11111111-1111-1111-1111-111111111111';
+
 describe('OrganisationService', () => {
   let service: OrganisationService;
   let db: DrizzleDB;
@@ -73,10 +75,10 @@ describe('OrganisationService', () => {
           storageOriginalLimitBytes: 0,
           storageTranscodedLimitBytes: 0,
         },
-        { userId: 'hanko-123', email: 'admin@example.com' },
+        { userId: CREATOR_ID, email: 'admin@example.com', isSuperAdmin: false },
       );
 
-      const [user] = await db.select().from(users).where(eq(users.id, 'hanko-123'));
+      const [user] = await db.select().from(users).where(eq(users.id, CREATOR_ID));
       expect(user.email).toBe('admin@example.com');
       const memberships = await db
         .select()
@@ -87,7 +89,7 @@ describe('OrganisationService', () => {
     });
 
     it('reuses an existing user when the creator already exists', async () => {
-      await db.insert(users).values({ id: 'hanko-123', email: 'old@example.com' });
+      await db.insert(users).values({ id: CREATOR_ID, email: 'old@example.com' });
 
       const result = await service.create(
         {
@@ -96,7 +98,7 @@ describe('OrganisationService', () => {
           storageOriginalLimitBytes: 0,
           storageTranscodedLimitBytes: 0,
         },
-        { userId: 'hanko-123', email: 'old@example.com' },
+        { userId: CREATOR_ID, email: 'old@example.com', isSuperAdmin: false },
       );
 
       const allUsers = await db.select().from(users);

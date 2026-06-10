@@ -6,9 +6,13 @@ export const authGuard: CanActivateFn = async () => {
   const authService = inject(AuthService);
   const router = inject(Router);
 
-  const valid = await authService.isValid();
-  if (!valid) {
-    return router.createUrlTree(['/login']);
+  if (authService.isAuthenticated()) {
+    return true;
   }
-  return true;
+  // No in-memory user yet (e.g. fresh page load): try the access cookie.
+  await authService.loadCurrent();
+  if (authService.isAuthenticated()) {
+    return true;
+  }
+  return router.createUrlTree(['/login']);
 };

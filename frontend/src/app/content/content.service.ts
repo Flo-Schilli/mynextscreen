@@ -2,7 +2,6 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpEventType } from '@angular/common/http';
 import { Observable, map, filter } from 'rxjs';
 import { Content, StorageInfo } from './content.model';
-import { AuthService } from '../auth/auth.service';
 import { OrganisationStateService } from '../shell/organisation-state.service';
 
 export interface UploadProgress {
@@ -14,7 +13,6 @@ export interface UploadProgress {
 @Injectable({ providedIn: 'root' })
 export class ContentService {
   private http = inject(HttpClient);
-  private authService = inject(AuthService);
   private orgState = inject(OrganisationStateService);
 
   getAll(orgId: string, filters?: { type?: string; tags?: string }): Observable<Content[]> {
@@ -186,16 +184,15 @@ export class ContentService {
   }
 
   private buildMediaUrl(base: string): string {
+    // Same-origin <img>/<video> send the httpOnly access cookie automatically;
+    // the org scope travels as a query param since image tags cannot set headers.
     const params = new URLSearchParams();
-    const token = this.authService.getToken();
-    if (token) {
-      params.set('token', token);
-    }
     const orgId = this.orgState.selectedOrgId();
     if (orgId) {
       params.set('organisationId', orgId);
     }
-    return `${base}?${params.toString()}`;
+    const query = params.toString();
+    return query ? `${base}?${query}` : base;
   }
 
   private orgHeader(orgId: string): HttpHeaders {
