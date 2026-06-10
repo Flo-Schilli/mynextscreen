@@ -83,6 +83,9 @@ jobs:
         with:
           working-directory: apps/backend
           package-manager: npm
+          # Deps are already installed by the root `npm ci` above; the monorepo has
+          # no per-app package.json, so the action's own install step must be skipped.
+          skip-step: install
           test-script: jest --coverage
           annotations: failed-tests
           threshold: 92
