@@ -1,276 +1,323 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
+import { and, eq } from 'drizzle-orm';
 import { AuditLogService } from './audit-log.service';
-import { AuditEntry } from './audit-entry.entity';
 import { AuditAction } from './audit-action.enum';
+import { DRIZZLE } from '../db/database.constants';
+import { auditEntries, organisations, type AuditEntry, type Organisation } from '../db/schema';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
+
+const USER_ID = '660e8400-e29b-41d4-a716-446655440000';
+const RESOURCE_ID = '770e8400-e29b-41d4-a716-446655440000';
 
 describe('AuditLogService', () => {
   let service: AuditLogService;
-  let repository: Record<string, jest.Mock>;
+  let db: DrizzleDB;
 
-  const orgId = '550e8400-e29b-41d4-a716-446655440000';
-  const userId = '660e8400-e29b-41d4-a716-446655440000';
-  const resourceId = '770e8400-e29b-41d4-a716-446655440000';
+  beforeAll(async () => {
+    db = await initTestDb();
+  });
 
-  const mockEntry: AuditEntry = {
-    id: '880e8400-e29b-41d4-a716-446655440000',
-    timestamp: new Date('2026-03-30T10:00:00Z'),
-    userId,
-    organisationId: orgId,
-    action: AuditAction.ContentUpload,
-    resourceType: 'content',
-    resourceId,
-    details: { filename: 'poster.jpg', sizeBytes: 1024 },
-    organisation: null,
-  };
+  afterAll(async () => {
+    await closeTestDb();
+  });
 
   beforeEach(async () => {
-    repository = {
-      create: jest.fn(),
-      save: jest.fn(),
-      findAndCount: jest.fn(),
-    };
-
+    await truncateAll();
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AuditLogService,
-        {
-          provide: getRepositoryToken(AuditEntry),
-          useValue: repository,
-        },
-      ],
+      providers: [AuditLogService, { provide: DRIZZLE, useValue: db }],
     }).compile();
-
     service = module.get<AuditLogService>(AuditLogService);
   });
 
+  async function seedOrg(overrides: Partial<Organisation> = {}): Promise<Organisation> {
+    const [org] = await db
+      .insert(organisations)
+      .values({ name: `Org ${Math.random()}`, timeZone: 'UTC', ...overrides })
+      .returning();
+    return org;
+  }
+
+  async function seedEntry(
+    values: Partial<AuditEntry> & { action: AuditAction },
+  ): Promise<AuditEntry> {
+    const [entry] = await db
+      .insert(auditEntries)
+      .values({
+        resourceType: 'content',
+        ...values,
+      })
+      .returning();
+    return entry;
+  }
+
   describe('record', () => {
-    it('should create and save an audit entry', async () => {
-      const input = {
-        userId,
-        organisationId: orgId,
+    it('persists an audit entry and returns it', async () => {
+      const org = await seedOrg();
+      const result = await service.record({
+        userId: USER_ID,
+        organisationId: org.id,
         action: AuditAction.ContentUpload,
         resourceType: 'content',
-        resourceId,
-        details: { filename: 'poster.jpg' },
-        organisation: null,
-      };
+        resourceId: RESOURCE_ID,
+        details: { filename: 'poster.jpg', sizeBytes: 1024 },
+      });
 
-      repository.create.mockReturnValue(mockEntry);
-      repository.save.mockResolvedValue(mockEntry);
-
-      const result = await service.record(input);
-
-      expect(repository.create).toHaveBeenCalledWith(input);
-      expect(repository.save).toHaveBeenCalledWith(mockEntry);
-      expect(result).toEqual(mockEntry);
+      expect(result.id).toBeDefined();
+      expect(result.timestamp).toBeInstanceOf(Date);
+      const [row] = await db.select().from(auditEntries).where(eq(auditEntries.id, result.id));
+      expect(row.action).toBe(AuditAction.ContentUpload);
+      expect(row.userId).toBe(USER_ID);
+      expect(row.organisationId).toBe(org.id);
+      expect(row.details).toEqual({ filename: 'poster.jpg', sizeBytes: 1024 });
     });
 
-    it('should allow null userId for system actions', async () => {
-      const systemEntry = {
-        ...mockEntry,
+    it('allows null userId for system actions', async () => {
+      const org = await seedOrg();
+      const result = await service.record({
         userId: null,
-      };
-      const input = {
-        userId: null,
-        organisationId: orgId,
+        organisationId: org.id,
         action: AuditAction.ScreenOffline,
         resourceType: 'screen',
-        resourceId,
+        resourceId: RESOURCE_ID,
         details: null,
-        organisation: null,
-      };
-
-      repository.create.mockReturnValue(systemEntry);
-      repository.save.mockResolvedValue(systemEntry);
-
-      const result = await service.record(input);
+      });
 
       expect(result.userId).toBeNull();
     });
 
-    it('should allow null organisationId for super-admin actions', async () => {
-      const superAdminEntry = {
-        ...mockEntry,
-        organisationId: null,
-      };
-      const input = {
-        userId,
+    it('allows null organisationId for super-admin actions', async () => {
+      const result = await service.record({
+        userId: USER_ID,
         organisationId: null,
         action: AuditAction.OrganisationCreated,
         resourceType: 'organisation',
-        resourceId: orgId,
+        resourceId: RESOURCE_ID,
         details: { name: 'New Org' },
-        organisation: null,
-      };
-
-      repository.create.mockReturnValue(superAdminEntry);
-      repository.save.mockResolvedValue(superAdminEntry);
-
-      const result = await service.record(input);
+      });
 
       expect(result.organisationId).toBeNull();
     });
   });
 
   describe('findByOrganisation', () => {
-    it('should return entries scoped to an organisation', async () => {
-      repository.findAndCount.mockResolvedValue([[mockEntry], 1]);
+    it('returns entries scoped to an organisation', async () => {
+      const org = await seedOrg();
+      const other = await seedOrg();
+      await seedEntry({ organisationId: org.id, action: AuditAction.ContentUpload });
+      await seedEntry({ organisationId: other.id, action: AuditAction.ContentUpload });
 
-      const result = await service.findByOrganisation(orgId);
+      const result = await service.findByOrganisation(org.id);
 
-      expect(repository.findAndCount).toHaveBeenCalledWith({
-        where: { organisationId: orgId },
-        order: { timestamp: 'DESC' },
-        take: 50,
-        skip: 0,
-      });
-      expect(result).toEqual({ data: [mockEntry], total: 1 });
+      expect(result.total).toBe(1);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].organisationId).toBe(org.id);
     });
 
-    it('should apply action filter', async () => {
-      repository.findAndCount.mockResolvedValue([[mockEntry], 1]);
+    it('orders entries by timestamp descending', async () => {
+      const org = await seedOrg();
+      const older = await seedEntry({
+        organisationId: org.id,
+        action: AuditAction.ContentUpload,
+        timestamp: new Date('2026-01-01T00:00:00Z'),
+      });
+      const newer = await seedEntry({
+        organisationId: org.id,
+        action: AuditAction.ContentDelete,
+        timestamp: new Date('2026-02-01T00:00:00Z'),
+      });
 
-      await service.findByOrganisation(orgId, {
+      const result = await service.findByOrganisation(org.id);
+
+      expect(result.data.map((e) => e.id)).toEqual([newer.id, older.id]);
+    });
+
+    it('applies the action filter', async () => {
+      const org = await seedOrg();
+      await seedEntry({ organisationId: org.id, action: AuditAction.ContentUpload });
+      await seedEntry({ organisationId: org.id, action: AuditAction.ContentDelete });
+
+      const result = await service.findByOrganisation(org.id, {
         action: AuditAction.ContentUpload,
       });
 
-      expect(repository.findAndCount).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            organisationId: orgId,
-            action: AuditAction.ContentUpload,
-          },
-        }),
-      );
+      expect(result.total).toBe(1);
+      expect(result.data[0].action).toBe(AuditAction.ContentUpload);
     });
 
-    it('should apply userId filter', async () => {
-      repository.findAndCount.mockResolvedValue([[], 0]);
+    it('applies the userId filter', async () => {
+      const org = await seedOrg();
+      await seedEntry({
+        organisationId: org.id,
+        action: AuditAction.ContentUpload,
+        userId: USER_ID,
+      });
+      await seedEntry({
+        organisationId: org.id,
+        action: AuditAction.ContentUpload,
+        userId: 'other-user',
+      });
 
-      await service.findByOrganisation(orgId, { userId });
+      const result = await service.findByOrganisation(org.id, { userId: USER_ID });
 
-      expect(repository.findAndCount).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            organisationId: orgId,
-            userId,
-          },
-        }),
-      );
+      expect(result.total).toBe(1);
+      expect(result.data[0].userId).toBe(USER_ID);
     });
 
-    it('should apply resourceType filter', async () => {
-      repository.findAndCount.mockResolvedValue([[], 0]);
+    it('applies the resourceType filter', async () => {
+      const org = await seedOrg();
+      await seedEntry({
+        organisationId: org.id,
+        action: AuditAction.ScreenRegister,
+        resourceType: 'screen',
+      });
+      await seedEntry({
+        organisationId: org.id,
+        action: AuditAction.ContentUpload,
+        resourceType: 'content',
+      });
 
-      await service.findByOrganisation(orgId, { resourceType: 'screen' });
+      const result = await service.findByOrganisation(org.id, { resourceType: 'screen' });
 
-      expect(repository.findAndCount).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            organisationId: orgId,
-            resourceType: 'screen',
-          },
-        }),
-      );
+      expect(result.total).toBe(1);
+      expect(result.data[0].resourceType).toBe('screen');
     });
 
-    it('should apply date range filter', async () => {
-      const from = new Date('2026-03-01');
-      const to = new Date('2026-03-31');
+    it('applies a from/to date range filter', async () => {
+      const org = await seedOrg();
+      await seedEntry({
+        organisationId: org.id,
+        action: AuditAction.ContentUpload,
+        timestamp: new Date('2026-02-15T00:00:00Z'),
+      });
+      await seedEntry({
+        organisationId: org.id,
+        action: AuditAction.ContentUpload,
+        timestamp: new Date('2026-05-15T00:00:00Z'),
+      });
 
-      repository.findAndCount.mockResolvedValue([[], 0]);
+      const result = await service.findByOrganisation(org.id, {
+        from: new Date('2026-03-01T00:00:00Z'),
+        to: new Date('2026-03-31T00:00:00Z'),
+      });
 
-      await service.findByOrganisation(orgId, { from, to });
-
-      const call = repository.findAndCount.mock.calls[0][0];
-      expect(call.where.organisationId).toBe(orgId);
-      expect(call.where.timestamp).toBeDefined();
+      expect(result.total).toBe(0);
     });
 
-    it('should apply from-only date filter', async () => {
-      const from = new Date('2026-03-01');
+    it('applies a from-only date filter', async () => {
+      const org = await seedOrg();
+      await seedEntry({
+        organisationId: org.id,
+        action: AuditAction.ContentUpload,
+        timestamp: new Date('2026-01-01T00:00:00Z'),
+      });
+      await seedEntry({
+        organisationId: org.id,
+        action: AuditAction.ContentUpload,
+        timestamp: new Date('2026-06-01T00:00:00Z'),
+      });
 
-      repository.findAndCount.mockResolvedValue([[], 0]);
+      const result = await service.findByOrganisation(org.id, {
+        from: new Date('2026-03-01T00:00:00Z'),
+      });
 
-      await service.findByOrganisation(orgId, { from });
-
-      const call = repository.findAndCount.mock.calls[0][0];
-      expect(call.where.timestamp).toBeDefined();
+      expect(result.total).toBe(1);
     });
 
-    it('should apply to-only date filter', async () => {
-      const to = new Date('2026-03-31');
+    it('applies a to-only date filter', async () => {
+      const org = await seedOrg();
+      await seedEntry({
+        organisationId: org.id,
+        action: AuditAction.ContentUpload,
+        timestamp: new Date('2026-01-01T00:00:00Z'),
+      });
+      await seedEntry({
+        organisationId: org.id,
+        action: AuditAction.ContentUpload,
+        timestamp: new Date('2026-06-01T00:00:00Z'),
+      });
 
-      repository.findAndCount.mockResolvedValue([[], 0]);
+      const result = await service.findByOrganisation(org.id, {
+        to: new Date('2026-03-01T00:00:00Z'),
+      });
 
-      await service.findByOrganisation(orgId, { to });
-
-      const call = repository.findAndCount.mock.calls[0][0];
-      expect(call.where.timestamp).toBeDefined();
+      expect(result.total).toBe(1);
     });
 
-    it('should apply pagination', async () => {
-      repository.findAndCount.mockResolvedValue([[], 0]);
+    it('applies pagination (limit/offset) while reporting the full total', async () => {
+      const org = await seedOrg();
+      for (let i = 0; i < 5; i += 1) {
+        await seedEntry({
+          organisationId: org.id,
+          action: AuditAction.ContentUpload,
+          timestamp: new Date(`2026-01-0${i + 1}T00:00:00Z`),
+        });
+      }
 
-      await service.findByOrganisation(orgId, { limit: 10, offset: 20 });
+      const result = await service.findByOrganisation(org.id, { limit: 2, offset: 1 });
 
-      expect(repository.findAndCount).toHaveBeenCalledWith(
-        expect.objectContaining({
-          take: 10,
-          skip: 20,
-        }),
-      );
+      expect(result.total).toBe(5);
+      expect(result.data).toHaveLength(2);
     });
 
-    it('should use default pagination values', async () => {
-      repository.findAndCount.mockResolvedValue([[], 0]);
+    it('uses default pagination values', async () => {
+      const org = await seedOrg();
+      for (let i = 0; i < 60; i += 1) {
+        await seedEntry({ organisationId: org.id, action: AuditAction.ContentUpload });
+      }
 
-      await service.findByOrganisation(orgId);
+      const result = await service.findByOrganisation(org.id);
 
-      expect(repository.findAndCount).toHaveBeenCalledWith(
-        expect.objectContaining({
-          take: 50,
-          skip: 0,
-        }),
-      );
+      expect(result.total).toBe(60);
+      expect(result.data).toHaveLength(50);
     });
   });
 
   describe('findAll', () => {
-    it('should return all entries without organisation scope', async () => {
-      repository.findAndCount.mockResolvedValue([[mockEntry], 1]);
+    it('returns entries across all organisations', async () => {
+      const org = await seedOrg();
+      const other = await seedOrg();
+      await seedEntry({ organisationId: org.id, action: AuditAction.ContentUpload });
+      await seedEntry({ organisationId: other.id, action: AuditAction.ContentUpload });
 
       const result = await service.findAll();
 
-      expect(repository.findAndCount).toHaveBeenCalledWith({
-        where: {},
-        order: { timestamp: 'DESC' },
-        take: 50,
-        skip: 0,
-      });
-      expect(result).toEqual({ data: [mockEntry], total: 1 });
+      expect(result.total).toBe(2);
+      expect(result.data).toHaveLength(2);
     });
 
-    it('should apply filters to findAll', async () => {
-      repository.findAndCount.mockResolvedValue([[], 0]);
+    it('applies filters to findAll', async () => {
+      const org = await seedOrg();
+      await seedEntry({
+        organisationId: org.id,
+        action: AuditAction.ScreenRegister,
+        resourceType: 'screen',
+      });
+      await seedEntry({
+        organisationId: org.id,
+        action: AuditAction.ContentUpload,
+        resourceType: 'content',
+      });
 
-      await service.findAll({
+      const result = await service.findAll({
         action: AuditAction.ScreenRegister,
         resourceType: 'screen',
         limit: 25,
-        offset: 5,
+        offset: 0,
       });
 
-      expect(repository.findAndCount).toHaveBeenCalledWith({
-        where: {
-          action: AuditAction.ScreenRegister,
-          resourceType: 'screen',
-        },
-        order: { timestamp: 'DESC' },
-        take: 25,
-        skip: 5,
-      });
+      expect(result.total).toBe(1);
+      expect(result.data[0].action).toBe(AuditAction.ScreenRegister);
+      const matching = await db
+        .select()
+        .from(auditEntries)
+        .where(
+          and(
+            eq(auditEntries.action, AuditAction.ScreenRegister),
+            eq(auditEntries.resourceType, 'screen'),
+          ),
+        );
+      expect(matching).toHaveLength(1);
     });
   });
 });

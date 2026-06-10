@@ -1,14 +1,21 @@
-import { BadRequestException } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Repository } from 'typeorm';
-import { Queue } from 'bullmq';
+import { Test, TestingModule } from '@nestjs/testing';
+import { getQueueToken } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { BadRequestException } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
 import { ContentService } from './content.service';
-import { Content } from './content.entity';
+import { DRIZZLE } from '../db/database.constants';
+import {
+  contents,
+  organisations,
+  playlists,
+  playlistItems,
+  type Content,
+  type Organisation,
+} from '../db/schema';
 import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
-import { Playlist } from '../playlist/playlist.entity';
-import { PlaylistItem } from '../playlist/playlist-item.entity';
 import { StorageService } from '../organisation/storage.service';
 import {
   AUDIT_CONTENT_BULK_DELETED,
@@ -16,233 +23,227 @@ import {
   AUDIT_CONTENT_BULK_UNTAGGED,
   AUDIT_CONTENT_BULK_ADDED_TO_PLAYLIST,
 } from '../audit-log/audit.events';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
+
+jest.mock('fs/promises', () => ({
+  ...jest.requireActual('fs/promises'),
+  mkdir: jest.fn().mockResolvedValue(undefined),
+  writeFile: jest.fn().mockResolvedValue(undefined),
+  unlink: jest.fn().mockResolvedValue(undefined),
+}));
 
 describe('ContentService — bulk operations', () => {
   let service: ContentService;
-  let contentRepository: Record<string, jest.Mock>;
-  let playlistRepository: Record<string, jest.Mock>;
-  let playlistItemRepository: Record<string, jest.Mock>;
+  let db: DrizzleDB;
   let storageService: Record<string, jest.Mock>;
-  let eventEmitter: { emit: jest.Mock };
-  let configService: Record<string, jest.Mock>;
-  let transcodingQueue: Record<string, jest.Mock>;
+  let emit: jest.Mock;
 
-  const orgId = '550e8400-e29b-41d4-a716-446655440000';
-  const otherOrgId = '550e8400-e29b-41d4-a716-446655440099';
-  const userId = '660e8400-e29b-41d4-a716-446655440000';
-  const contentId1 = '770e8400-e29b-41d4-a716-446655440001';
-  const contentId2 = '770e8400-e29b-41d4-a716-446655440002';
-  const contentId3 = '770e8400-e29b-41d4-a716-446655440003';
-  const playlistId = '880e8400-e29b-41d4-a716-446655440000';
+  beforeAll(async () => {
+    db = await initTestDb();
+  });
 
-  const makeContent = (id: string, orgIdOverride?: string, tags: string[] = []): Content =>
-    ({
-      id,
-      organisationId: orgIdOverride ?? orgId,
-      title: `Content ${id.slice(-1)}`,
-      description: null,
-      tags,
-      type: ContentType.Image,
-      originalFilename: `file-${id.slice(-1)}.png`,
-      originalMimeType: 'image/png',
-      originalSizeBytes: 1024,
-      transcodedSizeBytes: null,
-      transcodingStatus: TranscodingStatus.Completed,
-      transcodingError: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }) as Content;
+  afterAll(async () => {
+    await closeTestDb();
+  });
 
-  beforeEach(() => {
-    contentRepository = {
-      find: jest.fn(),
-      findOne: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn(),
-      remove: jest.fn(),
-    };
-
-    playlistRepository = {
-      findOne: jest.fn(),
-    };
-
-    playlistItemRepository = {
-      find: jest.fn(),
-      create: jest.fn((data) => data),
-      save: jest.fn((data) => Promise.resolve({ id: 'new-item-id', ...data })),
-    };
+  beforeEach(async () => {
+    await truncateAll();
+    jest.clearAllMocks();
 
     storageService = {
       subtractOriginalUsage: jest.fn().mockResolvedValue(undefined),
       subtractTranscodedUsage: jest.fn().mockResolvedValue(undefined),
     };
+    emit = jest.fn();
 
-    eventEmitter = { emit: jest.fn() };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ContentService,
+        { provide: DRIZZLE, useValue: db },
+        { provide: StorageService, useValue: storageService },
+        { provide: getQueueToken('transcoding'), useValue: { add: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit } },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn((_key: string, defaultValue: unknown) => defaultValue) },
+        },
+      ],
+    }).compile();
 
-    configService = {
-      get: jest.fn((key: string, defaultValue: unknown) => defaultValue),
-    };
-
-    transcodingQueue = {
-      add: jest.fn(),
-    };
-
-    service = new ContentService(
-      contentRepository as unknown as Repository<Content>,
-      playlistRepository as unknown as Repository<Playlist>,
-      playlistItemRepository as unknown as Repository<PlaylistItem>,
-      transcodingQueue as unknown as Queue,
-      configService as unknown as ConfigService,
-      storageService as unknown as StorageService,
-      eventEmitter as unknown as EventEmitter2,
-    );
+    service = module.get<ContentService>(ContentService);
   });
+
+  async function seedOrg(name = `Org ${Math.random()}`): Promise<Organisation> {
+    const [org] = await db.insert(organisations).values({ name, timeZone: 'UTC' }).returning();
+    return org;
+  }
+
+  async function seedContent(
+    organisationId: string,
+    overrides: Partial<Content> = {},
+  ): Promise<Content> {
+    const [content] = await db
+      .insert(contents)
+      .values({
+        organisationId,
+        title: 'Content',
+        tags: [],
+        type: ContentType.Image,
+        originalFilename: 'file.png',
+        originalMimeType: 'image/png',
+        originalSizeBytes: 1024,
+        transcodingStatus: TranscodingStatus.Completed,
+        ...overrides,
+      })
+      .returning();
+    return content;
+  }
 
   describe('bulkDelete', () => {
     it('should delete all found content and return count', async () => {
-      const contents = [makeContent(contentId1), makeContent(contentId2)];
-      contentRepository.find.mockResolvedValue(contents);
-      contentRepository.remove.mockResolvedValue(contents);
+      const org = await seedOrg();
+      const c1 = await seedContent(org.id);
+      const c2 = await seedContent(org.id);
 
-      const result = await service.bulkDelete(orgId, [contentId1, contentId2], userId);
+      const result = await service.bulkDelete(org.id, [c1.id, c2.id], 'user-1');
 
-      expect(contentRepository.remove).toHaveBeenCalledWith(contents);
       expect(result.deleted).toBe(2);
       expect(result.notFound).toEqual([]);
+      const rows = await db.select().from(contents).where(eq(contents.organisationId, org.id));
+      expect(rows).toHaveLength(0);
     });
 
     it('should return notFound IDs for content that does not exist', async () => {
-      const contents = [makeContent(contentId1)];
-      contentRepository.find.mockResolvedValue(contents);
-      contentRepository.findOne.mockResolvedValue(null);
-      contentRepository.remove.mockResolvedValue(contents);
+      const org = await seedOrg();
+      const c1 = await seedContent(org.id);
+      const missing = '770e8400-e29b-41d4-a716-446655440002';
 
-      const result = await service.bulkDelete(orgId, [contentId1, contentId2], userId);
+      const result = await service.bulkDelete(org.id, [c1.id, missing], 'user-1');
 
       expect(result.deleted).toBe(1);
-      expect(result.notFound).toEqual([contentId2]);
+      expect(result.notFound).toEqual([missing]);
     });
 
     it('should throw BadRequestException when IDs belong to another org', async () => {
-      contentRepository.find.mockResolvedValue([makeContent(contentId1)]);
-      contentRepository.findOne.mockResolvedValue(makeContent(contentId2, otherOrgId));
+      const org = await seedOrg();
+      const otherOrg = await seedOrg();
+      const c1 = await seedContent(org.id);
+      const foreign = await seedContent(otherOrg.id);
 
-      await expect(service.bulkDelete(orgId, [contentId1, contentId2], userId)).rejects.toThrow(
+      await expect(service.bulkDelete(org.id, [c1.id, foreign.id], 'user-1')).rejects.toThrow(
         BadRequestException,
       );
 
       try {
-        await service.bulkDelete(orgId, [contentId1, contentId2], userId);
+        await service.bulkDelete(org.id, [c1.id, foreign.id], 'user-1');
       } catch (err: unknown) {
         expect((err as BadRequestException).getResponse()).toEqual(
-          expect.objectContaining({ foreignIds: [contentId2] }),
+          expect.objectContaining({ foreignIds: [foreign.id] }),
         );
       }
     });
 
     it('should emit one audit event per deleted content', async () => {
-      const contents = [makeContent(contentId1), makeContent(contentId2)];
-      contentRepository.find.mockResolvedValue(contents);
-      contentRepository.remove.mockResolvedValue(contents);
+      const org = await seedOrg();
+      const c1 = await seedContent(org.id);
+      const c2 = await seedContent(org.id);
 
-      await service.bulkDelete(orgId, [contentId1, contentId2], userId);
+      await service.bulkDelete(org.id, [c1.id, c2.id], 'user-1');
 
-      expect(eventEmitter.emit).toHaveBeenCalledTimes(2);
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      expect(emit).toHaveBeenCalledTimes(2);
+      expect(emit).toHaveBeenCalledWith(
         AUDIT_CONTENT_BULK_DELETED,
         expect.objectContaining({
-          contentId: contentId1,
-          organisationId: orgId,
-          userId,
+          contentId: c1.id,
+          organisationId: org.id,
+          userId: 'user-1',
           details: expect.objectContaining({ bulkOperationSize: 2 }),
         }),
       );
     });
 
     it('should subtract storage usage for each deleted content', async () => {
-      const content = makeContent(contentId1);
-      content.transcodedSizeBytes = 512;
-      contentRepository.find.mockResolvedValue([content]);
-      contentRepository.remove.mockResolvedValue([content]);
+      const org = await seedOrg();
+      const c1 = await seedContent(org.id, { originalSizeBytes: 1024, transcodedSizeBytes: 512 });
 
-      await service.bulkDelete(orgId, [contentId1], userId);
+      await service.bulkDelete(org.id, [c1.id], 'user-1');
 
-      expect(storageService.subtractOriginalUsage).toHaveBeenCalledWith(orgId, 1024);
-      expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith(orgId, 512);
+      expect(storageService.subtractOriginalUsage).toHaveBeenCalledWith(org.id, 1024);
+      expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith(org.id, 512);
     });
 
     it('should handle empty found set gracefully', async () => {
-      contentRepository.find.mockResolvedValue([]);
-      contentRepository.findOne.mockResolvedValue(null);
+      const org = await seedOrg();
+      const missing = '770e8400-e29b-41d4-a716-446655440001';
 
-      const result = await service.bulkDelete(orgId, [contentId1], userId);
+      const result = await service.bulkDelete(org.id, [missing], 'user-1');
 
       expect(result.deleted).toBe(0);
-      expect(result.notFound).toEqual([contentId1]);
-      expect(contentRepository.remove).not.toHaveBeenCalled();
-      expect(eventEmitter.emit).not.toHaveBeenCalled();
+      expect(result.notFound).toEqual([missing]);
+      expect(emit).not.toHaveBeenCalled();
     });
   });
 
   describe('bulkTag', () => {
     it('should add tags to all found content items', async () => {
-      const contents = [
-        makeContent(contentId1, orgId, ['existing']),
-        makeContent(contentId2, orgId, []),
-      ];
-      contentRepository.find.mockResolvedValue(contents);
-      contentRepository.save.mockResolvedValue(contents);
+      const org = await seedOrg();
+      const c1 = await seedContent(org.id, { tags: ['existing'] });
+      const c2 = await seedContent(org.id, { tags: [] });
 
-      const result = await service.bulkTag(orgId, [contentId1, contentId2], ['new-tag'], userId);
+      const result = await service.bulkTag(org.id, [c1.id, c2.id], ['new-tag'], 'user-1');
 
       expect(result.updated).toBe(2);
-      expect(contents[0].tags).toContain('existing');
-      expect(contents[0].tags).toContain('new-tag');
-      expect(contents[1].tags).toContain('new-tag');
+      const [row1] = await db.select().from(contents).where(eq(contents.id, c1.id));
+      const [row2] = await db.select().from(contents).where(eq(contents.id, c2.id));
+      expect(row1.tags).toContain('existing');
+      expect(row1.tags).toContain('new-tag');
+      expect(row2.tags).toContain('new-tag');
     });
 
     it('should not duplicate existing tags', async () => {
-      const content = makeContent(contentId1, orgId, ['tag-a']);
-      contentRepository.find.mockResolvedValue([content]);
-      contentRepository.save.mockResolvedValue([content]);
+      const org = await seedOrg();
+      const c1 = await seedContent(org.id, { tags: ['tag-a'] });
 
-      await service.bulkTag(orgId, [contentId1], ['tag-a', 'tag-b'], userId);
+      await service.bulkTag(org.id, [c1.id], ['tag-a', 'tag-b'], 'user-1');
 
-      expect(content.tags).toEqual(['tag-a', 'tag-b']);
+      const [row] = await db.select().from(contents).where(eq(contents.id, c1.id));
+      expect(row.tags).toEqual(['tag-a', 'tag-b']);
     });
 
     it('should return notFound IDs', async () => {
-      contentRepository.find.mockResolvedValue([makeContent(contentId1)]);
-      contentRepository.findOne.mockResolvedValue(null);
-      contentRepository.save.mockResolvedValue([]);
+      const org = await seedOrg();
+      const c1 = await seedContent(org.id);
+      const missing = '770e8400-e29b-41d4-a716-446655440002';
 
-      const result = await service.bulkTag(orgId, [contentId1, contentId2], ['tag'], userId);
+      const result = await service.bulkTag(org.id, [c1.id, missing], ['tag'], 'user-1');
 
       expect(result.updated).toBe(1);
-      expect(result.notFound).toEqual([contentId2]);
+      expect(result.notFound).toEqual([missing]);
     });
 
     it('should throw BadRequestException on foreign IDs', async () => {
-      contentRepository.find.mockResolvedValue([]);
-      contentRepository.findOne.mockResolvedValue(makeContent(contentId1, otherOrgId));
+      const org = await seedOrg();
+      const otherOrg = await seedOrg();
+      const foreign = await seedContent(otherOrg.id);
 
-      await expect(service.bulkTag(orgId, [contentId1], ['tag'], userId)).rejects.toThrow(
+      await expect(service.bulkTag(org.id, [foreign.id], ['tag'], 'user-1')).rejects.toThrow(
         BadRequestException,
       );
     });
 
     it('should emit one audit event per tagged content', async () => {
-      const contents = [makeContent(contentId1), makeContent(contentId2)];
-      contentRepository.find.mockResolvedValue(contents);
-      contentRepository.save.mockResolvedValue(contents);
+      const org = await seedOrg();
+      const c1 = await seedContent(org.id);
+      const c2 = await seedContent(org.id);
 
-      await service.bulkTag(orgId, [contentId1, contentId2], ['tag-a'], userId);
+      await service.bulkTag(org.id, [c1.id, c2.id], ['tag-a'], 'user-1');
 
-      expect(eventEmitter.emit).toHaveBeenCalledTimes(2);
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      expect(emit).toHaveBeenCalledTimes(2);
+      expect(emit).toHaveBeenCalledWith(
         AUDIT_CONTENT_BULK_TAGGED,
         expect.objectContaining({
-          contentId: contentId1,
+          contentId: c1.id,
           details: { bulkOperationSize: 2, tags: ['tag-a'] },
         }),
       );
@@ -251,47 +252,40 @@ describe('ContentService — bulk operations', () => {
 
   describe('bulkUntag', () => {
     it('should remove specified tags from all found content items', async () => {
-      const contents = [
-        makeContent(contentId1, orgId, ['keep', 'remove-me']),
-        makeContent(contentId2, orgId, ['remove-me', 'also-keep']),
-      ];
-      contentRepository.find.mockResolvedValue(contents);
-      contentRepository.save.mockResolvedValue(contents);
+      const org = await seedOrg();
+      const c1 = await seedContent(org.id, { tags: ['keep', 'remove-me'] });
+      const c2 = await seedContent(org.id, { tags: ['remove-me', 'also-keep'] });
 
-      const result = await service.bulkUntag(
-        orgId,
-        [contentId1, contentId2],
-        ['remove-me'],
-        userId,
-      );
+      const result = await service.bulkUntag(org.id, [c1.id, c2.id], ['remove-me'], 'user-1');
 
       expect(result.updated).toBe(2);
-      expect(contents[0].tags).toEqual(['keep']);
-      expect(contents[1].tags).toEqual(['also-keep']);
+      const [row1] = await db.select().from(contents).where(eq(contents.id, c1.id));
+      const [row2] = await db.select().from(contents).where(eq(contents.id, c2.id));
+      expect(row1.tags).toEqual(['keep']);
+      expect(row2.tags).toEqual(['also-keep']);
     });
 
     it('should handle content with none of the specified tags', async () => {
-      const content = makeContent(contentId1, orgId, ['unrelated']);
-      contentRepository.find.mockResolvedValue([content]);
-      contentRepository.save.mockResolvedValue([content]);
+      const org = await seedOrg();
+      const c1 = await seedContent(org.id, { tags: ['unrelated'] });
 
-      const result = await service.bulkUntag(orgId, [contentId1], ['nonexistent'], userId);
+      const result = await service.bulkUntag(org.id, [c1.id], ['nonexistent'], 'user-1');
 
       expect(result.updated).toBe(1);
-      expect(content.tags).toEqual(['unrelated']);
+      const [row] = await db.select().from(contents).where(eq(contents.id, c1.id));
+      expect(row.tags).toEqual(['unrelated']);
     });
 
     it('should emit one audit event per untagged content', async () => {
-      const contents = [makeContent(contentId1, orgId, ['tag-a'])];
-      contentRepository.find.mockResolvedValue(contents);
-      contentRepository.save.mockResolvedValue(contents);
+      const org = await seedOrg();
+      const c1 = await seedContent(org.id, { tags: ['tag-a'] });
 
-      await service.bulkUntag(orgId, [contentId1], ['tag-a'], userId);
+      await service.bulkUntag(org.id, [c1.id], ['tag-a'], 'user-1');
 
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      expect(emit).toHaveBeenCalledWith(
         AUDIT_CONTENT_BULK_UNTAGGED,
         expect.objectContaining({
-          contentId: contentId1,
+          contentId: c1.id,
           details: { bulkOperationSize: 1, tags: ['tag-a'] },
         }),
       );
@@ -299,153 +293,125 @@ describe('ContentService — bulk operations', () => {
   });
 
   describe('bulkAddToPlaylist', () => {
-    it('should add content items to the playlist', async () => {
-      playlistRepository.findOne.mockResolvedValue({
-        id: playlistId,
-        organisationId: orgId,
-      });
-      const contents = [makeContent(contentId1), makeContent(contentId2)];
-      contentRepository.find.mockResolvedValue(contents);
-      playlistItemRepository.find.mockResolvedValue([]);
+    async function seedPlaylist(organisationId: string): Promise<string> {
+      const [pl] = await db.insert(playlists).values({ organisationId, name: 'PL' }).returning();
+      return pl.id;
+    }
 
-      const result = await service.bulkAddToPlaylist(
-        orgId,
-        [contentId1, contentId2],
-        playlistId,
-        userId,
-      );
+    it('should add content items to the playlist', async () => {
+      const org = await seedOrg();
+      const playlistId = await seedPlaylist(org.id);
+      const c1 = await seedContent(org.id);
+      const c2 = await seedContent(org.id);
+
+      const result = await service.bulkAddToPlaylist(org.id, [c1.id, c2.id], playlistId, 'user-1');
 
       expect(result.added).toBe(2);
       expect(result.alreadyPresent).toBe(0);
       expect(result.notFound).toEqual([]);
-      expect(playlistItemRepository.save).toHaveBeenCalledTimes(2);
+      const items = await db
+        .select()
+        .from(playlistItems)
+        .where(eq(playlistItems.playlistId, playlistId));
+      expect(items).toHaveLength(2);
     });
 
     it('should deduplicate items already in the playlist', async () => {
-      playlistRepository.findOne.mockResolvedValue({
-        id: playlistId,
-        organisationId: orgId,
-      });
-      const contents = [makeContent(contentId1), makeContent(contentId2)];
-      contentRepository.find.mockResolvedValue(contents);
-      playlistItemRepository.find.mockResolvedValue([
-        { id: 'existing-item', playlistId, contentId: contentId1, position: 0 },
-      ]);
+      const org = await seedOrg();
+      const playlistId = await seedPlaylist(org.id);
+      const c1 = await seedContent(org.id);
+      const c2 = await seedContent(org.id);
+      await db
+        .insert(playlistItems)
+        .values({ playlistId, contentId: c1.id, position: 0, durationSeconds: 10 });
 
-      const result = await service.bulkAddToPlaylist(
-        orgId,
-        [contentId1, contentId2],
-        playlistId,
-        userId,
-      );
+      const result = await service.bulkAddToPlaylist(org.id, [c1.id, c2.id], playlistId, 'user-1');
 
       expect(result.added).toBe(1);
       expect(result.alreadyPresent).toBe(1);
-      expect(playlistItemRepository.save).toHaveBeenCalledTimes(1);
     });
 
     it('should deduplicate within the same batch', async () => {
-      playlistRepository.findOne.mockResolvedValue({
-        id: playlistId,
-        organisationId: orgId,
-      });
-      const content = makeContent(contentId1);
-      contentRepository.find.mockResolvedValue([content]);
-      playlistItemRepository.find.mockResolvedValue([]);
+      const org = await seedOrg();
+      const playlistId = await seedPlaylist(org.id);
+      const c1 = await seedContent(org.id);
 
-      // Pass same ID twice
-      const result = await service.bulkAddToPlaylist(
-        orgId,
-        [contentId1, contentId1],
-        playlistId,
-        userId,
-      );
+      const result = await service.bulkAddToPlaylist(org.id, [c1.id, c1.id], playlistId, 'user-1');
 
-      // Second occurrence treated as already present after the first is added
       expect(result.added).toBe(1);
       expect(result.alreadyPresent).toBe(1);
     });
 
     it('should throw BadRequestException for non-existent playlist', async () => {
-      playlistRepository.findOne.mockResolvedValue(null);
+      const org = await seedOrg();
+      const c1 = await seedContent(org.id);
+      const missingPlaylist = '880e8400-e29b-41d4-a716-446655440000';
 
       await expect(
-        service.bulkAddToPlaylist(orgId, [contentId1], playlistId, userId),
+        service.bulkAddToPlaylist(org.id, [c1.id], missingPlaylist, 'user-1'),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should return notFound for missing content IDs', async () => {
-      playlistRepository.findOne.mockResolvedValue({
-        id: playlistId,
-        organisationId: orgId,
-      });
-      contentRepository.find.mockResolvedValue([makeContent(contentId1)]);
-      contentRepository.findOne.mockResolvedValue(null);
-      playlistItemRepository.find.mockResolvedValue([]);
+      const org = await seedOrg();
+      const playlistId = await seedPlaylist(org.id);
+      const c1 = await seedContent(org.id);
+      const missing = '770e8400-e29b-41d4-a716-446655440002';
 
       const result = await service.bulkAddToPlaylist(
-        orgId,
-        [contentId1, contentId2],
+        org.id,
+        [c1.id, missing],
         playlistId,
-        userId,
+        'user-1',
       );
 
       expect(result.added).toBe(1);
-      expect(result.notFound).toEqual([contentId2]);
+      expect(result.notFound).toEqual([missing]);
     });
 
     it('should throw BadRequestException on foreign content IDs', async () => {
-      playlistRepository.findOne.mockResolvedValue({
-        id: playlistId,
-        organisationId: orgId,
-      });
-      contentRepository.find.mockResolvedValue([]);
-      contentRepository.findOne.mockResolvedValue(makeContent(contentId1, otherOrgId));
+      const org = await seedOrg();
+      const otherOrg = await seedOrg();
+      const playlistId = await seedPlaylist(org.id);
+      const foreign = await seedContent(otherOrg.id);
 
       await expect(
-        service.bulkAddToPlaylist(orgId, [contentId1], playlistId, userId),
+        service.bulkAddToPlaylist(org.id, [foreign.id], playlistId, 'user-1'),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should emit one audit event per added content', async () => {
-      playlistRepository.findOne.mockResolvedValue({
-        id: playlistId,
-        organisationId: orgId,
-      });
-      contentRepository.find.mockResolvedValue([makeContent(contentId1)]);
-      playlistItemRepository.find.mockResolvedValue([]);
+      const org = await seedOrg();
+      const playlistId = await seedPlaylist(org.id);
+      const c1 = await seedContent(org.id);
 
-      await service.bulkAddToPlaylist(orgId, [contentId1], playlistId, userId);
+      await service.bulkAddToPlaylist(org.id, [c1.id], playlistId, 'user-1');
 
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      expect(emit).toHaveBeenCalledWith(
         AUDIT_CONTENT_BULK_ADDED_TO_PLAYLIST,
         expect.objectContaining({
-          contentId: contentId1,
+          contentId: c1.id,
           details: { bulkOperationSize: 1, playlistId },
         }),
       );
     });
 
     it('should append items after existing max position', async () => {
-      playlistRepository.findOne.mockResolvedValue({
-        id: playlistId,
-        organisationId: orgId,
-      });
-      contentRepository.find.mockResolvedValue([makeContent(contentId1)]);
-      playlistItemRepository.find.mockResolvedValue([
-        {
-          id: 'existing',
-          playlistId,
-          contentId: contentId3,
-          position: 5,
-        },
-      ]);
+      const org = await seedOrg();
+      const playlistId = await seedPlaylist(org.id);
+      const existing = await seedContent(org.id);
+      const c1 = await seedContent(org.id);
+      await db
+        .insert(playlistItems)
+        .values({ playlistId, contentId: existing.id, position: 5, durationSeconds: 10 });
 
-      await service.bulkAddToPlaylist(orgId, [contentId1], playlistId, userId);
+      await service.bulkAddToPlaylist(org.id, [c1.id], playlistId, 'user-1');
 
-      expect(playlistItemRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({ position: 6 }),
-      );
+      const [added] = await db
+        .select()
+        .from(playlistItems)
+        .where(eq(playlistItems.contentId, c1.id));
+      expect(added.position).toBe(6);
     });
   });
 });

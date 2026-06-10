@@ -1,25 +1,42 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { eq } from 'drizzle-orm';
+import { firstValueFrom, take } from 'rxjs';
 import { ScreenStateService } from './screen-state.service';
 import { ScreenService } from './screen.service';
 import { ScheduleBoundaryService } from './schedule-boundary.service';
-import { ScreenState, ScreenEvent, ScreenEventType } from '../screen-protocol';
+import {
+  ScreenState,
+  ScreenEvent,
+  ScreenEventType,
+  SCREEN_PROTOCOL_ADAPTER,
+} from '../screen-protocol';
 import type { ScreenProtocolAdapter } from '../screen-protocol';
-import { Screen } from './screen.entity';
-import { Organisation } from '../organisation/organisation.entity';
 import { ScreenStateChangeEvent } from './screen-state.event';
 import { ScheduleEntryChangedEvent, ScheduleService } from '../schedule';
-import { Playlist } from '../playlist/playlist.entity';
-import { Repository } from 'typeorm';
-import { ScreenGroup } from '../screen-group/screen-group.entity';
-import { LiveStreamActivation } from '../live-stream/live-stream-activation.entity';
-import { SlicedRendition } from '../slice-content/sliced-rendition.entity';
-import { PlaylistItem } from '../playlist/playlist-item.entity';
 import { TransitionType } from '../playlist/transition-type.enum';
-import { Content } from '../content/content.entity';
-import { firstValueFrom, take } from 'rxjs';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
+import { ContentType } from '../content/content-type.enum';
+import { TranscodingStatus } from '../content/transcoding-status.enum';
+import { DRIZZLE } from '../db/database.constants';
+import {
+  organisations,
+  screenGroups,
+  contents,
+  playlists,
+  playlistItems,
+  slicedRenditions,
+  liveStreams,
+  liveStreamActivations,
+  screens,
+  type Screen,
+} from '../db/schema';
+import { LiveStreamStatus } from '../live-stream/live-stream-status.enum';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('ScreenStateService', () => {
   let service: ScreenStateService;
+  let db: DrizzleDB;
   let screenService: { findOne: jest.Mock };
   let protocolAdapter: jest.Mocked<ScreenProtocolAdapter>;
   let scheduleService: { getCurrentPlaylist: jest.Mock };
@@ -27,60 +44,70 @@ describe('ScreenStateService', () => {
     registerScreen: jest.Mock;
     unregisterScreen: jest.Mock;
   };
-  let screenGroupRepository: { findOne: jest.Mock };
-  let playlistRepository: { findOne: jest.Mock };
-  let activationRepository: { findOne: jest.Mock };
-  let slicedRenditionRepository: { findOne: jest.Mock };
 
-  const orgId = '550e8400-e29b-41d4-a716-446655440000';
+  let orgId: string;
   const screenId = '770e8400-e29b-41d4-a716-446655440000';
-  const playlistId = '880e8400-e29b-41d4-a716-446655440000';
+  let playlistId: string;
 
-  const mockScreen: Screen = {
-    id: screenId,
-    organisationId: orgId,
-    name: 'Main Stage',
-    resolution: '1920x1080',
-    location: 'Stage Left',
-    apiKeyHash: '$2b$10$hashedvalue',
-    lastHeartbeat: null,
-    isOnline: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    organisation: {} as Organisation,
-    groupId: null,
-    group: null,
-    gridRow: null,
-    gridColumn: null,
-  };
+  /** Base screen object the (mocked) screenService.findOne returns. */
+  function makeScreen(overrides: Partial<Screen> = {}): Screen {
+    return {
+      id: screenId,
+      organisationId: orgId,
+      name: 'Main Stage',
+      resolution: '1920x1080',
+      location: 'Stage Left',
+      apiKeyHash: '$2b$10$hashedvalue',
+      lastHeartbeat: null,
+      isOnline: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      groupId: null,
+      gridRow: null,
+      gridColumn: null,
+      ...overrides,
+    };
+  }
 
-  const mockPlaylistItem: Partial<PlaylistItem> = {
-    contentId: 'content-1',
-    durationSeconds: 30,
-    position: 0,
-    transition: TransitionType.SlideLeft,
-    transitionDurationMs: 1000,
-    content: { type: 'video' } as Content,
-  };
+  beforeAll(async () => {
+    db = await initTestDb();
+  });
 
-  const mockPlaylist: Playlist = {
-    id: playlistId,
-    organisationId: orgId,
-    name: 'Morning Playlist',
-    items: [],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    organisation: {} as Organisation,
-  } as Playlist;
+  afterAll(async () => {
+    await closeTestDb();
+  });
 
-  const mockPlaylistWithItems: Playlist = {
-    ...mockPlaylist,
-    items: [mockPlaylistItem as PlaylistItem],
-  } as Playlist;
+  beforeEach(async () => {
+    await truncateAll();
 
-  beforeEach(() => {
+    const [org] = await db
+      .insert(organisations)
+      .values({ name: `Org ${Math.random()}`, timeZone: 'UTC' })
+      .returning();
+    orgId = org.id;
+
+    // Seed a content + playlist that the (mocked) schedule service points at.
+    await db
+      .insert(contents)
+      .values({
+        organisationId: orgId,
+        title: 'Clip',
+        type: ContentType.Video,
+        originalFilename: 'clip.mp4',
+        originalMimeType: 'video/mp4',
+        originalSizeBytes: 1000,
+        transcodingStatus: TranscodingStatus.Completed,
+      })
+      .returning();
+
+    const [playlist] = await db
+      .insert(playlists)
+      .values({ organisationId: orgId, name: 'Morning Playlist' })
+      .returning();
+    playlistId = playlist.id;
+
     screenService = {
-      findOne: jest.fn().mockResolvedValue(mockScreen),
+      findOne: jest.fn().mockImplementation(async () => makeScreen()),
     };
 
     protocolAdapter = {
@@ -99,10 +126,10 @@ describe('ScreenStateService', () => {
     };
 
     scheduleService = {
-      getCurrentPlaylist: jest.fn().mockResolvedValue({
-        playlist: mockPlaylist,
+      getCurrentPlaylist: jest.fn().mockImplementation(async () => ({
+        playlist: { id: playlistId, name: 'Morning Playlist' },
         isDefault: false,
-      }),
+      })),
     };
 
     scheduleBoundaryService = {
@@ -110,37 +137,68 @@ describe('ScreenStateService', () => {
       unregisterScreen: jest.fn(),
     };
 
-    screenGroupRepository = {
-      findOne: jest.fn().mockResolvedValue(null),
-    };
-
-    playlistRepository = {
-      findOne: jest.fn().mockResolvedValue(mockPlaylist),
-    };
-
-    activationRepository = {
-      findOne: jest.fn().mockResolvedValue(null),
-    };
-
-    slicedRenditionRepository = {
-      findOne: jest.fn().mockResolvedValue(null),
-    };
-
-    service = new ScreenStateService(
-      screenService as unknown as ScreenService,
-      protocolAdapter,
-      scheduleService as unknown as ScheduleService,
-      scheduleBoundaryService as unknown as ScheduleBoundaryService,
-      screenGroupRepository as unknown as Repository<ScreenGroup>,
-      playlistRepository as unknown as Repository<Playlist>,
-      activationRepository as unknown as Repository<LiveStreamActivation>,
-      slicedRenditionRepository as unknown as Repository<SlicedRendition>,
-    );
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ScreenStateService,
+        { provide: ScreenService, useValue: screenService },
+        { provide: SCREEN_PROTOCOL_ADAPTER, useValue: protocolAdapter },
+        { provide: ScheduleService, useValue: scheduleService },
+        { provide: ScheduleBoundaryService, useValue: scheduleBoundaryService },
+        { provide: DRIZZLE, useValue: db },
+      ],
+    }).compile();
+    service = module.get<ScreenStateService>(ScreenStateService);
   });
 
   afterEach(() => {
     service.onModuleDestroy();
   });
+
+  /** Seed one playlist item (with content) into the schedule's playlist. */
+  async function seedItem(
+    overrides: { type?: ContentType; durationSeconds?: number | null } = {},
+    itemOverrides: Partial<{
+      durationSeconds: number;
+      transition: TransitionType;
+      transitionDurationMs: number;
+    }> = {},
+  ): Promise<void> {
+    const [content] = await db
+      .insert(contents)
+      .values({
+        organisationId: orgId,
+        title: 'Item content',
+        type: overrides.type ?? ContentType.Video,
+        originalFilename: 'item.mp4',
+        originalMimeType: 'video/mp4',
+        originalSizeBytes: 1000,
+        durationSeconds: overrides.durationSeconds === undefined ? null : overrides.durationSeconds,
+        transcodingStatus: TranscodingStatus.Completed,
+      })
+      .returning();
+    await db.insert(playlistItems).values({
+      playlistId,
+      contentId: content.id,
+      position: 0,
+      durationSeconds: itemOverrides.durationSeconds ?? 30,
+      transition: itemOverrides.transition ?? TransitionType.Fade,
+      transitionDurationMs: itemOverrides.transitionDurationMs ?? 500,
+    });
+  }
+
+  async function seedSplitGroup(): Promise<string> {
+    const [group] = await db
+      .insert(screenGroups)
+      .values({
+        organisationId: orgId,
+        name: 'Video Wall',
+        mode: ScreenGroupMode.Split,
+        gridRows: 1,
+        gridColumns: 2,
+      })
+      .returning();
+    return group.id;
+  }
 
   describe('assembleState', () => {
     it('should assemble a ScreenState from the screen entity', async () => {
@@ -171,7 +229,10 @@ describe('ScreenStateService', () => {
     });
 
     it('should map transition fields from playlist items to protocol model', async () => {
-      playlistRepository.findOne.mockResolvedValue(mockPlaylistWithItems);
+      await seedItem(
+        { type: ContentType.Video },
+        { transition: TransitionType.SlideLeft, transitionDurationMs: 1000 },
+      );
       const state = await service.assembleState(orgId, screenId);
       const items = state.currentPlaylist!.items;
       expect(items).toHaveLength(1);
@@ -180,58 +241,19 @@ describe('ScreenStateService', () => {
     });
 
     it('should use Content.durationSeconds for video items when available', async () => {
-      const playlistWithVideoDuration = {
-        ...mockPlaylist,
-        items: [
-          {
-            contentId: 'content-1',
-            durationSeconds: 30,
-            position: 0,
-            transition: TransitionType.Fade,
-            transitionDurationMs: 500,
-            content: { type: 'video', durationSeconds: 58 } as Content,
-          } as PlaylistItem,
-        ],
-      } as Playlist;
-      playlistRepository.findOne.mockResolvedValue(playlistWithVideoDuration);
+      await seedItem({ type: ContentType.Video, durationSeconds: 58 }, { durationSeconds: 30 });
       const state = await service.assembleState(orgId, screenId);
       expect(state.currentPlaylist!.items[0].duration).toBe(58);
     });
 
     it('should fall back to item.durationSeconds for video when Content.durationSeconds is null', async () => {
-      const playlistWithNullDuration = {
-        ...mockPlaylist,
-        items: [
-          {
-            contentId: 'content-1',
-            durationSeconds: 30,
-            position: 0,
-            transition: TransitionType.Fade,
-            transitionDurationMs: 500,
-            content: { type: 'video', durationSeconds: null } as Content,
-          } as PlaylistItem,
-        ],
-      } as Playlist;
-      playlistRepository.findOne.mockResolvedValue(playlistWithNullDuration);
+      await seedItem({ type: ContentType.Video, durationSeconds: null }, { durationSeconds: 30 });
       const state = await service.assembleState(orgId, screenId);
       expect(state.currentPlaylist!.items[0].duration).toBe(30);
     });
 
     it('should use item.durationSeconds for image items regardless of Content.durationSeconds', async () => {
-      const playlistWithImage = {
-        ...mockPlaylist,
-        items: [
-          {
-            contentId: 'content-1',
-            durationSeconds: 15,
-            position: 0,
-            transition: TransitionType.Fade,
-            transitionDurationMs: 500,
-            content: { type: 'image', durationSeconds: null } as Content,
-          } as PlaylistItem,
-        ],
-      } as Playlist;
-      playlistRepository.findOne.mockResolvedValue(playlistWithImage);
+      await seedItem({ type: ContentType.Image, durationSeconds: 99 }, { durationSeconds: 15 });
       const state = await service.assembleState(orgId, screenId);
       expect(state.currentPlaylist!.items[0].duration).toBe(15);
     });
@@ -255,9 +277,29 @@ describe('ScreenStateService', () => {
       expect(state.activeLiveStream).toBeNull();
     });
 
+    it('should return an active live stream when one is activated for the screen', async () => {
+      const [stream] = await db
+        .insert(liveStreams)
+        .values({
+          organisationId: orgId,
+          name: 'Stage Cam',
+          sourceUrl: 'rtmp://example/live',
+          status: LiveStreamStatus.Active,
+        })
+        .returning();
+      await db.insert(liveStreamActivations).values({ streamId: stream.id, screenId });
+
+      const state = await service.assembleState(orgId, screenId);
+      expect(state.activeLiveStream).toEqual({
+        id: stream.id,
+        streamUrl: `/api/live-streams/${stream.id}/hls/index.m3u8`,
+        startedAt: expect.any(String),
+      });
+    });
+
     it('should return fallbackPlaylist when default playlist is configured', async () => {
       scheduleService.getCurrentPlaylist.mockResolvedValue({
-        playlist: mockPlaylist,
+        playlist: { id: playlistId, name: 'Morning Playlist' },
         isDefault: true,
       });
       const state = await service.assembleState(orgId, screenId);
@@ -279,83 +321,85 @@ describe('ScreenStateService', () => {
     });
 
     describe('split-mode URL substitution', () => {
-      const groupId = 'group-001';
+      let groupId: string;
 
-      const splitScreen: Screen = {
-        ...mockScreen,
-        groupId,
-        gridRow: 0,
-        gridColumn: 1,
-      };
-
-      beforeEach(() => {
-        screenService.findOne.mockResolvedValue(splitScreen);
-        screenGroupRepository.findOne.mockResolvedValue({
-          id: groupId,
-          name: 'Video Wall',
-          mode: ScreenGroupMode.Split,
-          gridRows: 1,
-          gridColumns: 2,
+      beforeEach(async () => {
+        groupId = await seedSplitGroup();
+        // Insert a real screen row so sliced_renditions FK (screen_id) holds.
+        await db.insert(screens).values({
+          id: screenId,
+          organisationId: orgId,
+          name: 'Main Stage',
+          resolution: '1920x1080',
+          location: 'Stage Left',
+          apiKeyHash: '$2b$10$hashedvalue',
+          groupId,
+          gridRow: 0,
+          gridColumn: 1,
         });
-        playlistRepository.findOne.mockResolvedValue(mockPlaylistWithItems);
+        screenService.findOne.mockImplementation(async () =>
+          makeScreen({ groupId, gridRow: 0, gridColumn: 1 }),
+        );
+        await seedItem({ type: ContentType.Video });
       });
 
       it('should substitute sliced rendition URL when rendition exists', async () => {
-        slicedRenditionRepository.findOne.mockResolvedValue({
-          id: 'rendition-1',
-          filePath: '/data/slices/group-001/screen-001/content-1.mp4',
+        const [item] = await db.select().from(playlistItems);
+        await db.insert(slicedRenditions).values({
+          organisationId: orgId,
+          groupId,
+          screenId,
+          contentItemId: item.contentId,
+          filePath: '/data/slices/x.mp4',
+          sourceHash: 'hash',
         });
 
         const state = await service.assembleState(orgId, screenId);
         expect(state.currentPlaylist!.items[0].contentUrl).toBe(
-          `/api/media/slices/${groupId}/${screenId}/content-1`,
+          `/api/media/slices/${groupId}/${screenId}/${item.contentId}`,
         );
       });
 
       it('should fall back to empty contentUrl when no rendition exists yet', async () => {
-        slicedRenditionRepository.findOne.mockResolvedValue(null);
+        const state = await service.assembleState(orgId, screenId);
+        expect(state.currentPlaylist!.items[0].contentUrl).toBe('');
+      });
+
+      it('should not substitute URLs for mirror-mode groups', async () => {
+        await db
+          .update(screenGroups)
+          .set({ mode: ScreenGroupMode.Mirror, gridRows: null, gridColumns: null })
+          .where(eq(screenGroups.id, groupId));
 
         const state = await service.assembleState(orgId, screenId);
         expect(state.currentPlaylist!.items[0].contentUrl).toBe('');
       });
 
-      it('should not query sliced renditions for mirror-mode groups', async () => {
-        screenGroupRepository.findOne.mockResolvedValue({
-          id: groupId,
-          name: 'Mirror Wall',
-          mode: ScreenGroupMode.Mirror,
-          gridRows: null,
-          gridColumns: null,
-        });
+      it('should not substitute URLs for ungrouped screens', async () => {
+        screenService.findOne.mockImplementation(async () => makeScreen());
 
         const state = await service.assembleState(orgId, screenId);
-        expect(slicedRenditionRepository.findOne).not.toHaveBeenCalled();
-        expect(state.currentPlaylist!.items[0].contentUrl).toBe('');
-      });
-
-      it('should not query sliced renditions for ungrouped screens', async () => {
-        screenService.findOne.mockResolvedValue(mockScreen);
-        screenGroupRepository.findOne.mockResolvedValue(null);
-        playlistRepository.findOne.mockResolvedValue(mockPlaylistWithItems);
-
-        const state = await service.assembleState(orgId, screenId);
-        expect(slicedRenditionRepository.findOne).not.toHaveBeenCalled();
         expect(state.currentPlaylist!.items[0].contentUrl).toBe('');
       });
 
       it('should substitute URLs in fallback playlist for split-mode', async () => {
+        const [item] = await db.select().from(playlistItems);
         scheduleService.getCurrentPlaylist.mockResolvedValue({
-          playlist: mockPlaylist,
+          playlist: { id: playlistId, name: 'Morning Playlist' },
           isDefault: true,
         });
-        slicedRenditionRepository.findOne.mockResolvedValue({
-          id: 'rendition-2',
-          filePath: '/data/slices/group-001/screen-001/content-1.mp4',
+        await db.insert(slicedRenditions).values({
+          organisationId: orgId,
+          groupId,
+          screenId,
+          contentItemId: item.contentId,
+          filePath: '/data/slices/y.mp4',
+          sourceHash: 'hash',
         });
 
         const state = await service.assembleState(orgId, screenId);
         expect(state.fallbackPlaylist!.items[0].contentUrl).toBe(
-          `/api/media/slices/${groupId}/${screenId}/content-1`,
+          `/api/media/slices/${groupId}/${screenId}/${item.contentId}`,
         );
       });
     });
@@ -406,7 +450,6 @@ describe('ScreenStateService', () => {
       const obs1 = service.subscribe(screenId);
       const obs2 = service.subscribe(screenId);
 
-      // Both should work — they share the same underlying subject
       expect(obs1).toBeDefined();
       expect(obs2).toBeDefined();
     });
@@ -431,7 +474,6 @@ describe('ScreenStateService', () => {
     });
 
     it('should be a no-op when no subscriber exists', () => {
-      // Should not throw
       service.pushEvent('non-existent-id', new ScreenEvent(ScreenEventType.PlaylistUpdate, {}));
     });
   });
@@ -461,7 +503,7 @@ describe('ScreenStateService', () => {
 
     it('should include fallback playlist when no schedule is active', async () => {
       scheduleService.getCurrentPlaylist.mockResolvedValue({
-        playlist: mockPlaylist,
+        playlist: { id: playlistId, name: 'Morning Playlist' },
         isDefault: true,
       });
 
@@ -504,7 +546,6 @@ describe('ScreenStateService', () => {
     });
 
     it('should not send event if screen has no active SSE connection', async () => {
-      // No subscribe() call — screen is not connected
       await service.handleScheduleEntryChanged(new ScheduleEntryChangedEvent(screenId, orgId));
 
       expect(scheduleService.getCurrentPlaylist).not.toHaveBeenCalled();
@@ -514,7 +555,6 @@ describe('ScreenStateService', () => {
     it('should only route event to the affected screen', async () => {
       const otherScreenId = '990e8400-e29b-41d4-a716-446655440000';
 
-      // Subscribe both screens
       const obs1 = service.subscribe(screenId);
       service.subscribe(otherScreenId);
 
@@ -525,7 +565,6 @@ describe('ScreenStateService', () => {
       const msg = await eventPromise;
       expect(msg.type).toBe('state-change');
 
-      // getCurrentPlaylist should only be called once for the affected screen
       expect(scheduleService.getCurrentPlaylist).toHaveBeenCalledTimes(1);
       expect(scheduleService.getCurrentPlaylist).toHaveBeenCalledWith(screenId);
     });

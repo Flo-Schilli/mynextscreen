@@ -1,144 +1,142 @@
+import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { eq } from 'drizzle-orm';
 import { ScreenService } from './screen.service';
-import { Screen } from './screen.entity';
-import { Organisation } from '../organisation/organisation.entity';
+import { DRIZZLE } from '../db/database.constants';
+import { organisations, screens, screenGroups, type Organisation, type Screen } from '../db/schema';
 import {
   AUDIT_SCREEN_BULK_DELETED,
   AUDIT_SCREEN_BULK_GROUP_ASSIGNED,
 } from '../audit-log/audit.events';
-import * as apiKeyUtil from './api-key.util';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
-jest.mock('./api-key.util');
-
-const mockedApiKeyUtil = apiKeyUtil as jest.Mocked<typeof apiKeyUtil>;
+const MISSING_ID = '00000000-0000-0000-0000-000000000000';
 
 describe('ScreenService — bulk operations', () => {
   let service: ScreenService;
-  let repository: Record<string, jest.Mock>;
-  let eventEmitter: { emit: jest.Mock };
+  let db: DrizzleDB;
+  let emit: jest.Mock;
 
-  const orgId = '550e8400-e29b-41d4-a716-446655440000';
-  const otherOrgId = '550e8400-e29b-41d4-a716-446655440099';
   const userId = '660e8400-e29b-41d4-a716-446655440000';
-  const screenId1 = '770e8400-e29b-41d4-a716-446655440001';
-  const screenId2 = '770e8400-e29b-41d4-a716-446655440002';
-  const screenId3 = '770e8400-e29b-41d4-a716-446655440003';
-  const groupId = '880e8400-e29b-41d4-a716-446655440000';
 
-  const makeScreen = (id: string, orgIdOverride?: string): Screen => ({
-    id,
-    organisationId: orgIdOverride ?? orgId,
-    name: `Screen ${id.slice(-1)}`,
-    resolution: '1920x1080',
-    location: 'Test',
-    apiKeyHash: '$2b$10$hash',
-    lastHeartbeat: null,
-    isOnline: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    organisation: {} as Organisation,
-    groupId: null,
-    group: null,
-    gridRow: null,
-    gridColumn: null,
+  beforeAll(async () => {
+    db = await initTestDb();
   });
 
-  beforeEach(() => {
-    repository = {
-      find: jest.fn(),
-      findOne: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn(),
-      remove: jest.fn(),
-      update: jest.fn(),
-    };
-
-    eventEmitter = { emit: jest.fn() };
-
-    service = new ScreenService(
-      repository as unknown as import('typeorm').Repository<Screen>,
-      eventEmitter as unknown as EventEmitter2,
-    );
-
-    mockedApiKeyUtil.generateApiKey.mockReturnValue('test-key');
-    mockedApiKeyUtil.hashApiKey.mockResolvedValue('$2b$10$hash');
+  afterAll(async () => {
+    await closeTestDb();
   });
+
+  beforeEach(async () => {
+    await truncateAll();
+    emit = jest.fn();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ScreenService,
+        { provide: DRIZZLE, useValue: db },
+        { provide: EventEmitter2, useValue: { emit } },
+      ],
+    }).compile();
+    service = module.get<ScreenService>(ScreenService);
+  });
+
+  async function seedOrg(): Promise<Organisation> {
+    const [org] = await db
+      .insert(organisations)
+      .values({ name: `Org ${Math.random()}`, timeZone: 'UTC' })
+      .returning();
+    return org;
+  }
+
+  async function seedScreen(organisationId: string, name = 'Screen'): Promise<Screen> {
+    const [screen] = await db
+      .insert(screens)
+      .values({
+        organisationId,
+        name,
+        resolution: '1920x1080',
+        location: 'Test',
+        apiKeyHash: '$2b$10$hash',
+      })
+      .returning();
+    return screen;
+  }
+
+  async function seedGroup(organisationId: string): Promise<string> {
+    const [group] = await db
+      .insert(screenGroups)
+      .values({ organisationId, name: 'Group' })
+      .returning();
+    return group.id;
+  }
 
   describe('bulkDelete', () => {
     it('should delete all found screens and return count', async () => {
-      const screens = [makeScreen(screenId1), makeScreen(screenId2)];
-      repository.find.mockResolvedValue(screens);
-      repository.remove.mockResolvedValue(screens);
+      const org = await seedOrg();
+      const a = await seedScreen(org.id);
+      const b = await seedScreen(org.id);
 
-      const result = await service.bulkDelete(orgId, [screenId1, screenId2], userId);
+      const result = await service.bulkDelete(org.id, [a.id, b.id], userId);
 
-      expect(repository.find).toHaveBeenCalledWith({
-        where: {
-          id: expect.objectContaining({
-            _type: 'in',
-            _value: [screenId1, screenId2],
-          }),
-          organisationId: orgId,
-        },
-      });
-      expect(repository.remove).toHaveBeenCalledWith(screens);
       expect(result.deleted).toBe(2);
       expect(result.notFound).toEqual([]);
+      const remaining = await db.select().from(screens).where(eq(screens.organisationId, org.id));
+      expect(remaining).toHaveLength(0);
     });
 
     it('should return notFound IDs for screens that do not exist anywhere', async () => {
-      const screens = [makeScreen(screenId1)];
-      repository.find.mockResolvedValue(screens);
-      repository.findOne.mockResolvedValue(null); // screenId2 not found anywhere
-      repository.remove.mockResolvedValue(screens);
+      const org = await seedOrg();
+      const a = await seedScreen(org.id);
 
-      const result = await service.bulkDelete(orgId, [screenId1, screenId2], userId);
+      const result = await service.bulkDelete(org.id, [a.id, MISSING_ID], userId);
 
       expect(result.deleted).toBe(1);
-      expect(result.notFound).toEqual([screenId2]);
+      expect(result.notFound).toEqual([MISSING_ID]);
     });
 
     it('should throw BadRequestException when IDs belong to another org', async () => {
-      repository.find.mockResolvedValue([makeScreen(screenId1)]);
-      // screenId2 exists but in another org
-      repository.findOne.mockResolvedValue(makeScreen(screenId2, otherOrgId));
+      const org = await seedOrg();
+      const other = await seedOrg();
+      const a = await seedScreen(org.id);
+      const foreign = await seedScreen(other.id);
 
-      await expect(service.bulkDelete(orgId, [screenId1, screenId2], userId)).rejects.toThrow(
+      await expect(service.bulkDelete(org.id, [a.id, foreign.id], userId)).rejects.toThrow(
         BadRequestException,
       );
 
       try {
-        await service.bulkDelete(orgId, [screenId1, screenId2], userId);
+        await service.bulkDelete(org.id, [a.id, foreign.id], userId);
       } catch (err: unknown) {
         expect((err as BadRequestException).getResponse()).toEqual(
-          expect.objectContaining({ foreignIds: [screenId2] }),
+          expect.objectContaining({ foreignIds: [foreign.id] }),
         );
       }
     });
 
     it('should emit one audit event per deleted screen', async () => {
-      const screens = [makeScreen(screenId1), makeScreen(screenId2)];
-      repository.find.mockResolvedValue(screens);
-      repository.remove.mockResolvedValue(screens);
+      const org = await seedOrg();
+      const a = await seedScreen(org.id);
+      const b = await seedScreen(org.id);
 
-      await service.bulkDelete(orgId, [screenId1, screenId2], userId);
+      await service.bulkDelete(org.id, [a.id, b.id], userId);
 
-      expect(eventEmitter.emit).toHaveBeenCalledTimes(2);
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      expect(emit).toHaveBeenCalledTimes(2);
+      expect(emit).toHaveBeenCalledWith(
         AUDIT_SCREEN_BULK_DELETED,
         expect.objectContaining({
-          screenId: screenId1,
-          organisationId: orgId,
+          screenId: a.id,
+          organisationId: org.id,
           userId,
           details: { bulkOperationSize: 2 },
         }),
       );
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      expect(emit).toHaveBeenCalledWith(
         AUDIT_SCREEN_BULK_DELETED,
         expect.objectContaining({
-          screenId: screenId2,
-          organisationId: orgId,
+          screenId: b.id,
+          organisationId: org.id,
           userId,
           details: { bulkOperationSize: 2 },
         }),
@@ -146,79 +144,81 @@ describe('ScreenService — bulk operations', () => {
     });
 
     it('should handle empty found set gracefully', async () => {
-      repository.find.mockResolvedValue([]);
-      repository.findOne.mockResolvedValue(null);
+      const org = await seedOrg();
 
-      const result = await service.bulkDelete(orgId, [screenId1], userId);
+      const result = await service.bulkDelete(org.id, [MISSING_ID], userId);
 
       expect(result.deleted).toBe(0);
-      expect(result.notFound).toEqual([screenId1]);
-      expect(repository.remove).not.toHaveBeenCalled();
-      expect(eventEmitter.emit).not.toHaveBeenCalled();
+      expect(result.notFound).toEqual([MISSING_ID]);
+      expect(emit).not.toHaveBeenCalled();
     });
   });
 
   describe('bulkAssignGroup', () => {
     it('should assign all found screens to the group', async () => {
-      const screens = [makeScreen(screenId1), makeScreen(screenId2)];
-      repository.find.mockResolvedValue(screens);
-      repository.update.mockResolvedValue({ affected: 2 });
+      const org = await seedOrg();
+      const groupId = await seedGroup(org.id);
+      const a = await seedScreen(org.id);
+      const b = await seedScreen(org.id);
 
-      const result = await service.bulkAssignGroup(orgId, [screenId1, screenId2], groupId, userId);
+      const result = await service.bulkAssignGroup(org.id, [a.id, b.id], groupId, userId);
 
-      expect(repository.update).toHaveBeenCalledWith([screenId1, screenId2], {
-        groupId,
-      });
       expect(result.updated).toBe(2);
       expect(result.notFound).toEqual([]);
+      const rows = await db.select().from(screens).where(eq(screens.organisationId, org.id));
+      expect(rows.every((s) => s.groupId === groupId)).toBe(true);
     });
 
     it('should set groupId to null to unassign screens', async () => {
-      const screens = [makeScreen(screenId1)];
-      repository.find.mockResolvedValue(screens);
-      repository.update.mockResolvedValue({ affected: 1 });
+      const org = await seedOrg();
+      const groupId = await seedGroup(org.id);
+      const a = await seedScreen(org.id);
+      await db.update(screens).set({ groupId }).where(eq(screens.id, a.id));
 
-      const result = await service.bulkAssignGroup(orgId, [screenId1], null, userId);
+      const result = await service.bulkAssignGroup(org.id, [a.id], null, userId);
 
-      expect(repository.update).toHaveBeenCalledWith([screenId1], {
-        groupId: null,
-      });
       expect(result.updated).toBe(1);
+      const [row] = await db.select().from(screens).where(eq(screens.id, a.id));
+      expect(row.groupId).toBeNull();
     });
 
     it('should return notFound IDs for screens that do not exist', async () => {
-      repository.find.mockResolvedValue([makeScreen(screenId1)]);
-      repository.findOne.mockResolvedValue(null);
-      repository.update.mockResolvedValue({ affected: 1 });
+      const org = await seedOrg();
+      const groupId = await seedGroup(org.id);
+      const a = await seedScreen(org.id);
 
-      const result = await service.bulkAssignGroup(orgId, [screenId1, screenId3], groupId, userId);
+      const result = await service.bulkAssignGroup(org.id, [a.id, MISSING_ID], groupId, userId);
 
       expect(result.updated).toBe(1);
-      expect(result.notFound).toEqual([screenId3]);
+      expect(result.notFound).toEqual([MISSING_ID]);
     });
 
     it('should throw BadRequestException when IDs belong to another org', async () => {
-      repository.find.mockResolvedValue([makeScreen(screenId1)]);
-      repository.findOne.mockResolvedValue(makeScreen(screenId2, otherOrgId));
+      const org = await seedOrg();
+      const other = await seedOrg();
+      const groupId = await seedGroup(org.id);
+      const a = await seedScreen(org.id);
+      const foreign = await seedScreen(other.id);
 
       await expect(
-        service.bulkAssignGroup(orgId, [screenId1, screenId2], groupId, userId),
+        service.bulkAssignGroup(org.id, [a.id, foreign.id], groupId, userId),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should emit one audit event per updated screen', async () => {
-      const screens = [makeScreen(screenId1), makeScreen(screenId2)];
-      repository.find.mockResolvedValue(screens);
-      repository.update.mockResolvedValue({ affected: 2 });
+      const org = await seedOrg();
+      const groupId = await seedGroup(org.id);
+      const a = await seedScreen(org.id);
+      const b = await seedScreen(org.id);
 
-      await service.bulkAssignGroup(orgId, [screenId1, screenId2], groupId, userId);
+      await service.bulkAssignGroup(org.id, [a.id, b.id], groupId, userId);
 
-      expect(eventEmitter.emit).toHaveBeenCalledTimes(2);
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      expect(emit).toHaveBeenCalledTimes(2);
+      expect(emit).toHaveBeenCalledWith(
         AUDIT_SCREEN_BULK_GROUP_ASSIGNED,
         expect.objectContaining({
-          screenId: screenId1,
-          organisationId: orgId,
+          screenId: a.id,
+          organisationId: org.id,
           userId,
           details: { bulkOperationSize: 2, groupId },
         }),
@@ -226,14 +226,14 @@ describe('ScreenService — bulk operations', () => {
     });
 
     it('should not call update when no screens found', async () => {
-      repository.find.mockResolvedValue([]);
-      repository.findOne.mockResolvedValue(null);
+      const org = await seedOrg();
+      const groupId = await seedGroup(org.id);
 
-      const result = await service.bulkAssignGroup(orgId, [screenId1], groupId, userId);
+      const result = await service.bulkAssignGroup(org.id, [MISSING_ID], groupId, userId);
 
       expect(result.updated).toBe(0);
-      expect(result.notFound).toEqual([screenId1]);
-      expect(repository.update).not.toHaveBeenCalled();
+      expect(result.notFound).toEqual([MISSING_ID]);
+      expect(emit).not.toHaveBeenCalled();
     });
   });
 });

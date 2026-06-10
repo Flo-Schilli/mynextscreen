@@ -1,15 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BadRequestException } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
 import { Job } from 'bullmq';
 import { TranscodingProcessor, TranscodeJobData } from './transcoding.processor';
-import { Content } from './content.entity';
+import { DRIZZLE } from '../db/database.constants';
+import { contents, organisations, type Content, type Organisation } from '../db/schema';
 import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
 import { StorageService } from '../organisation/storage.service';
 import { TRANSCODING_COMPLETED, TRANSCODING_FAILED } from './transcoding.event';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
 // Mock child_process
 const mockOn = jest.fn();
@@ -19,8 +22,9 @@ jest.mock('child_process', () => ({
   spawn: (...args: unknown[]) => mockSpawn(...args),
 }));
 
-// Mock fs/promises
+// Mock fs/promises (preserve real module for the Drizzle migrator in the harness)
 jest.mock('fs/promises', () => ({
+  ...jest.requireActual('fs/promises'),
   mkdir: jest.fn().mockResolvedValue(undefined),
   stat: jest.fn().mockResolvedValue({ size: 5000 }),
   unlink: jest.fn().mockResolvedValue(undefined),
@@ -32,33 +36,10 @@ jest.mock('./ffprobe-duration.util', () => ({
   ffprobeDuration: (...args: unknown[]) => mockFfprobeDuration(...args),
 }));
 
-function createMockJob(overrides: Partial<TranscodeJobData> = {}): Job<TranscodeJobData> {
-  return {
-    id: 'job-1',
-    data: {
-      contentId: 'content-1',
-      organisationId: 'org-1',
-      originalPath: '/tmp/media/org-1/originals/content-1.mp4',
-      mimeType: 'video/mp4',
-      type: ContentType.Video,
-      ...overrides,
-    },
-    updateProgress: jest.fn().mockResolvedValue(undefined),
-  } as unknown as Job<TranscodeJobData>;
-}
-
 function setupSpawnSuccess(): void {
   mockSpawn.mockImplementation(() => {
-    const proc = {
-      stderr: { on: mockStderrOn },
-      on: mockOn,
-      stdin: null,
-      stdout: null,
-    };
-
-    // Simulate FFmpeg completing successfully
+    const proc = { stderr: { on: mockStderrOn }, on: mockOn, stdin: null, stdout: null };
     setTimeout(() => {
-      // Emit some stderr data with duration
       const dataCallback = mockStderrOn.mock.calls.find((c: unknown[]) => c[0] === 'data');
       if (dataCallback) {
         dataCallback[1](
@@ -70,26 +51,18 @@ function setupSpawnSuccess(): void {
           ),
         );
       }
-      // Close with success
       const closeCallback = mockOn.mock.calls.find((c: unknown[]) => c[0] === 'close');
       if (closeCallback) {
         closeCallback[1](0);
       }
     }, 10);
-
     return proc;
   });
 }
 
 function setupSpawnFailure(exitCode: number): void {
   mockSpawn.mockImplementation(() => {
-    const proc = {
-      stderr: { on: mockStderrOn },
-      on: mockOn,
-      stdin: null,
-      stdout: null,
-    };
-
+    const proc = { stderr: { on: mockStderrOn }, on: mockOn, stdin: null, stdout: null };
     setTimeout(() => {
       const dataCallback = mockStderrOn.mock.calls.find((c: unknown[]) => c[0] === 'data');
       if (dataCallback) {
@@ -100,40 +73,41 @@ function setupSpawnFailure(exitCode: number): void {
         closeCallback[1](exitCode);
       }
     }, 10);
-
     return proc;
   });
 }
 
 describe('TranscodingProcessor', () => {
   let processor: TranscodingProcessor;
-  let contentRepo: Record<string, jest.Mock>;
+  let db: DrizzleDB;
   let storageService: Record<string, jest.Mock>;
-  let eventEmitter: { emit: jest.Mock };
+  let emit: jest.Mock;
+
+  beforeAll(async () => {
+    db = await initTestDb();
+  });
+
+  afterAll(async () => {
+    await closeTestDb();
+  });
 
   beforeEach(async () => {
+    await truncateAll();
     jest.clearAllMocks();
     mockFfprobeDuration.mockResolvedValue(60);
-
-    contentRepo = {
-      update: jest.fn().mockResolvedValue({ affected: 1 }),
-    };
 
     storageService = {
       checkTranscodedLimit: jest.fn().mockResolvedValue(undefined),
       addTranscodedUsage: jest.fn().mockResolvedValue(undefined),
     };
-
-    eventEmitter = {
-      emit: jest.fn(),
-    };
+    emit = jest.fn();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TranscodingProcessor,
-        { provide: getRepositoryToken(Content), useValue: contentRepo },
+        { provide: DRIZZLE, useValue: db },
         { provide: StorageService, useValue: storageService },
-        { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: EventEmitter2, useValue: { emit } },
         {
           provide: ConfigService,
           useValue: {
@@ -154,56 +128,101 @@ describe('TranscodingProcessor', () => {
     processor = module.get<TranscodingProcessor>(TranscodingProcessor);
   });
 
+  async function seedOrg(): Promise<Organisation> {
+    const [org] = await db
+      .insert(organisations)
+      .values({ name: `Org ${Math.random()}`, timeZone: 'UTC' })
+      .returning();
+    return org;
+  }
+
+  async function seedContent(
+    organisationId: string,
+    type: ContentType = ContentType.Video,
+  ): Promise<Content> {
+    const [content] = await db
+      .insert(contents)
+      .values({
+        organisationId,
+        title: 'Seed',
+        tags: [],
+        type,
+        originalFilename: type === ContentType.Video ? 'v.mp4' : 'i.png',
+        originalMimeType: type === ContentType.Video ? 'video/mp4' : 'image/png',
+        originalSizeBytes: 1000,
+        transcodingStatus: TranscodingStatus.Pending,
+      })
+      .returning();
+    return content;
+  }
+
+  function createJob(
+    contentId: string,
+    organisationId: string,
+    overrides: Partial<TranscodeJobData> = {},
+  ): Job<TranscodeJobData> {
+    return {
+      id: 'job-1',
+      data: {
+        contentId,
+        organisationId,
+        originalPath: `/tmp/media/${organisationId}/originals/${contentId}.mp4`,
+        mimeType: 'video/mp4',
+        type: ContentType.Video,
+        ...overrides,
+      },
+      updateProgress: jest.fn().mockResolvedValue(undefined),
+    } as unknown as Job<TranscodeJobData>;
+  }
+
   describe('process — video transcoding', () => {
-    it('should set status to processing, then completed on success', async () => {
+    it('should set status to completed with size and duration on success', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id);
       setupSpawnSuccess();
-      const job = createMockJob();
 
-      await processor.process(job);
+      await processor.process(createJob(content.id, org.id));
 
-      // First call: set to processing
-      expect(contentRepo.update).toHaveBeenCalledWith('content-1', {
-        transcodingStatus: TranscodingStatus.Processing,
-      });
-
-      // Second call: set to completed with transcoded size and duration
-      expect(contentRepo.update).toHaveBeenCalledWith('content-1', {
-        transcodedSizeBytes: 5000,
-        durationSeconds: 60,
-        transcodingStatus: TranscodingStatus.Completed,
-        transcodingError: null,
-      });
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(row.transcodingStatus).toBe(TranscodingStatus.Completed);
+      expect(Number(row.transcodedSizeBytes)).toBe(5000);
+      expect(row.durationSeconds).toBe(60);
+      expect(row.transcodingError).toBeNull();
     });
 
     it('should update org storage counter on success', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id);
       setupSpawnSuccess();
-      const job = createMockJob();
 
-      await processor.process(job);
+      await processor.process(createJob(content.id, org.id));
 
-      expect(storageService.checkTranscodedLimit).toHaveBeenCalledWith('org-1', 5000);
-      expect(storageService.addTranscodedUsage).toHaveBeenCalledWith('org-1', 5000);
+      expect(storageService.checkTranscodedLimit).toHaveBeenCalledWith(org.id, 5000);
+      expect(storageService.addTranscodedUsage).toHaveBeenCalledWith(org.id, 5000);
     });
 
     it('should emit TRANSCODING_COMPLETED event on success', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id);
       setupSpawnSuccess();
-      const job = createMockJob();
 
-      await processor.process(job);
+      await processor.process(createJob(content.id, org.id));
 
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      expect(emit).toHaveBeenCalledWith(
         TRANSCODING_COMPLETED,
         expect.objectContaining({
-          contentId: 'content-1',
-          organisationId: 'org-1',
+          contentId: content.id,
+          organisationId: org.id,
           transcodedSizeBytes: 5000,
         }),
       );
     });
 
     it('should report progress via job.updateProgress', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id);
       setupSpawnSuccess();
-      const job = createMockJob();
+      const job = createJob(content.id, org.id);
 
       await processor.process(job);
 
@@ -211,8 +230,10 @@ describe('TranscodingProcessor', () => {
     });
 
     it('should spawn ffmpeg with correct video args', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id);
       setupSpawnSuccess();
-      const job = createMockJob();
+      const job = createJob(content.id, org.id);
 
       await processor.process(job);
 
@@ -244,68 +265,70 @@ describe('TranscodingProcessor', () => {
     });
 
     it('should call ffprobe on the transcoded file for videos', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id);
       setupSpawnSuccess();
-      const job = createMockJob();
 
-      await processor.process(job);
+      await processor.process(createJob(content.id, org.id));
 
       expect(mockFfprobeDuration).toHaveBeenCalledWith(
-        expect.stringContaining('content-1.mp4'),
+        expect.stringContaining(`${content.id}.mp4`),
         'ffprobe',
       );
     });
 
     it('should save durationSeconds as null when ffprobe fails for video', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id);
       setupSpawnSuccess();
       mockFfprobeDuration.mockRejectedValue(new Error('ffprobe failed'));
-      const job = createMockJob();
 
-      await processor.process(job);
+      await processor.process(createJob(content.id, org.id));
 
-      expect(contentRepo.update).toHaveBeenCalledWith('content-1', {
-        transcodedSizeBytes: 5000,
-        durationSeconds: null,
-        transcodingStatus: TranscodingStatus.Completed,
-        transcodingError: null,
-      });
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(row.transcodingStatus).toBe(TranscodingStatus.Completed);
+      expect(Number(row.transcodedSizeBytes)).toBe(5000);
+      expect(row.durationSeconds).toBeNull();
     });
   });
 
   describe('process — image transcoding', () => {
     it('should spawn ffmpeg for image (webp output)', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id, ContentType.Image);
       setupSpawnSuccess();
-      const job = createMockJob({
-        type: ContentType.Image,
-        mimeType: 'image/png',
-        originalPath: '/tmp/media/org-1/originals/content-1.png',
-      });
+      const originalPath = `/tmp/media/${org.id}/originals/${content.id}.png`;
 
-      await processor.process(job);
+      await processor.process(
+        createJob(content.id, org.id, {
+          type: ContentType.Image,
+          mimeType: 'image/png',
+          originalPath,
+        }),
+      );
 
       expect(mockSpawn).toHaveBeenCalledWith(
         'ffmpeg',
-        expect.arrayContaining(['-i', '/tmp/media/org-1/originals/content-1.png', '-y']),
+        expect.arrayContaining(['-i', originalPath, '-y']),
         expect.any(Object),
       );
-
-      expect(contentRepo.update).toHaveBeenCalledWith(
-        'content-1',
-        expect.objectContaining({
-          transcodingStatus: TranscodingStatus.Completed,
-          durationSeconds: null,
-        }),
-      );
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(row.transcodingStatus).toBe(TranscodingStatus.Completed);
+      expect(row.durationSeconds).toBeNull();
     });
 
     it('should not call ffprobe for images', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id, ContentType.Image);
       setupSpawnSuccess();
-      const job = createMockJob({
-        type: ContentType.Image,
-        mimeType: 'image/png',
-        originalPath: '/tmp/media/org-1/originals/content-1.png',
-      });
 
-      await processor.process(job);
+      await processor.process(
+        createJob(content.id, org.id, {
+          type: ContentType.Image,
+          mimeType: 'image/png',
+          originalPath: `/tmp/media/${org.id}/originals/${content.id}.png`,
+        }),
+      );
 
       expect(mockFfprobeDuration).not.toHaveBeenCalled();
     });
@@ -313,31 +336,34 @@ describe('TranscodingProcessor', () => {
 
   describe('process — failure handling', () => {
     it('should set status to failed and emit event on FFmpeg error', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id);
       setupSpawnFailure(1);
-      const job = createMockJob();
 
-      await expect(processor.process(job)).rejects.toThrow('FFmpeg exited with code 1');
+      await expect(processor.process(createJob(content.id, org.id))).rejects.toThrow(
+        'FFmpeg exited with code 1',
+      );
 
-      expect(contentRepo.update).toHaveBeenCalledWith('content-1', {
-        transcodingStatus: TranscodingStatus.Failed,
-        transcodingError: expect.stringContaining('FFmpeg exited with code 1'),
-      });
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(row.transcodingStatus).toBe(TranscodingStatus.Failed);
+      expect(row.transcodingError).toContain('FFmpeg exited with code 1');
 
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      expect(emit).toHaveBeenCalledWith(
         TRANSCODING_FAILED,
         expect.objectContaining({
-          contentId: 'content-1',
-          organisationId: 'org-1',
+          contentId: content.id,
+          organisationId: org.id,
           error: expect.stringContaining('FFmpeg exited with code 1'),
         }),
       );
     });
 
     it('should not update org storage on failure', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id);
       setupSpawnFailure(1);
-      const job = createMockJob();
 
-      await expect(processor.process(job)).rejects.toThrow();
+      await expect(processor.process(createJob(content.id, org.id))).rejects.toThrow();
 
       expect(storageService.addTranscodedUsage).not.toHaveBeenCalled();
     });
@@ -345,33 +371,32 @@ describe('TranscodingProcessor', () => {
 
   describe('process — transcoded storage limit exceeded', () => {
     it('should mark as failed and not save transcoded file when limit exceeded', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id);
       setupSpawnSuccess();
       storageService.checkTranscodedLimit.mockRejectedValue(
         new BadRequestException(
           'Transcoded file would exceed organisation transcoded storage limit',
         ),
       );
-      const job = createMockJob();
 
-      await processor.process(job);
+      await processor.process(createJob(content.id, org.id));
 
-      // Should mark as failed with storage limit error
-      expect(contentRepo.update).toHaveBeenCalledWith('content-1', {
-        transcodingStatus: TranscodingStatus.Failed,
-        transcodingError: 'Transcoded file would exceed organisation transcoded storage limit',
-      });
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(row.transcodingStatus).toBe(TranscodingStatus.Failed);
+      expect(row.transcodingError).toBe(
+        'Transcoded file would exceed organisation transcoded storage limit',
+      );
 
-      // Should emit TRANSCODING_FAILED event
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      expect(emit).toHaveBeenCalledWith(
         TRANSCODING_FAILED,
         expect.objectContaining({
-          contentId: 'content-1',
-          organisationId: 'org-1',
+          contentId: content.id,
+          organisationId: org.id,
           error: 'Transcoded file would exceed organisation transcoded storage limit',
         }),
       );
 
-      // Should NOT add transcoded usage
       expect(storageService.addTranscodedUsage).not.toHaveBeenCalled();
     });
   });

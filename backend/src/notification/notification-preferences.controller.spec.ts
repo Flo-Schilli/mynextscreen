@@ -1,6 +1,6 @@
 import { NotificationPreferencesController } from './notification-preferences.controller';
 import { UserNotificationPreferenceService } from './user-notification-preference.service';
-import { UserNotificationPreference } from './user-notification-preference.entity';
+import type { UserNotificationPreference } from '../db/schema';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 
 describe('NotificationPreferencesController', () => {
@@ -17,8 +17,6 @@ describe('NotificationPreferencesController', () => {
     inAppEnabled: true,
     emailEnabled: false,
     ntfyEnabled: false,
-    user: {} as UserNotificationPreference['user'],
-    organisation: {} as UserNotificationPreference['organisation'],
   };
 
   const mockReq = {

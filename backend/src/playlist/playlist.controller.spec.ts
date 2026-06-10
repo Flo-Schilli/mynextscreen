@@ -1,8 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PlaylistController } from './playlist.controller';
 import { PlaylistService } from './playlist.service';
-import { Playlist } from './playlist.entity';
-import { PlaylistItem } from './playlist-item.entity';
+import type { Playlist, PlaylistItem } from '../db/schema';
 import { AuthenticatedRequest } from '../auth';
 import { TransitionType } from './transition-type.enum';
 
@@ -23,7 +22,6 @@ describe('PlaylistController', () => {
     id: playlistId,
     organisationId: orgId,
     name: 'Test Playlist',
-    items: [],
   };
 
   const mockItem: Partial<PlaylistItem> = {

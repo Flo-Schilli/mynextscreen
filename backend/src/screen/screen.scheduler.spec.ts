@@ -2,8 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ScreenScheduler } from './screen.scheduler';
 import { ScreenService } from './screen.service';
-import { Screen } from './screen.entity';
-import { Organisation } from '../organisation/organisation.entity';
+import type { Screen } from '../db/schema';
 import { SCREEN_STATUS_CHANGED } from './screen-status.event';
 
 describe('ScreenScheduler', () => {
@@ -25,9 +24,7 @@ describe('ScreenScheduler', () => {
     isOnline: true,
     createdAt: new Date(),
     updatedAt: new Date(),
-    organisation: {} as Organisation,
     groupId: null,
-    group: null,
     gridRow: null,
     gridColumn: null,
   });

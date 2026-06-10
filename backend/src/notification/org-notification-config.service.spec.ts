@@ -1,55 +1,74 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { eq } from 'drizzle-orm';
 import { OrgNotificationConfigService } from './org-notification-config.service';
-import { OrganisationNotificationConfig } from './organisation-notification-config.entity';
+import { DRIZZLE } from '../db/database.constants';
+import { organisations, organisationNotificationConfigs, type Organisation } from '../db/schema';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('OrgNotificationConfigService', () => {
   let service: OrgNotificationConfigService;
-  let repo: Record<string, jest.Mock>;
+  let db: DrizzleDB;
+  let org: Organisation;
 
-  const orgId = 'org-1';
-
-  const existingConfig: OrganisationNotificationConfig = {
-    id: 'config-1',
-    organisationId: orgId,
-    smtpHost: 'smtp.example.com',
-    smtpPort: 587,
-    smtpUser: 'user@example.com',
-    smtpPassword: 'secret',
-    smtpFrom: 'noreply@example.com',
-    smtpSecure: false,
-    ntfyUrl: 'https://ntfy.sh',
-    ntfyTopic: 'my-topic',
-    ntfyToken: 'token123',
-    organisation: {} as OrganisationNotificationConfig['organisation'],
-  };
-
-  beforeEach(() => {
-    repo = {
-      findOne: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn(),
-    };
-
-    service = new OrgNotificationConfigService(
-      repo as unknown as import('typeorm').Repository<OrganisationNotificationConfig>,
-    );
+  beforeAll(async () => {
+    db = await initTestDb();
   });
+
+  afterAll(async () => {
+    await closeTestDb();
+  });
+
+  beforeEach(async () => {
+    await truncateAll();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [OrgNotificationConfigService, { provide: DRIZZLE, useValue: db }],
+    }).compile();
+    service = module.get<OrgNotificationConfigService>(OrgNotificationConfigService);
+
+    [org] = await db.insert(organisations).values({ name: 'Org', timeZone: 'UTC' }).returning();
+  });
+
+  async function seedConfig() {
+    const [config] = await db
+      .insert(organisationNotificationConfigs)
+      .values({
+        organisationId: org.id,
+        smtpHost: 'smtp.example.com',
+        smtpPort: 587,
+        smtpUser: 'user@example.com',
+        smtpPassword: 'secret',
+        smtpFrom: 'noreply@example.com',
+        smtpSecure: false,
+        ntfyUrl: 'https://ntfy.sh',
+        ntfyTopic: 'my-topic',
+        ntfyToken: 'token123',
+      })
+      .returning();
+    return config;
+  }
+
+  async function readConfig() {
+    const [config] = await db
+      .select()
+      .from(organisationNotificationConfigs)
+      .where(eq(organisationNotificationConfigs.organisationId, org.id));
+    return config;
+  }
 
   describe('getForOrg', () => {
     it('should return config if exists', async () => {
-      repo.findOne.mockResolvedValue(existingConfig);
+      const seeded = await seedConfig();
 
-      const result = await service.getForOrg(orgId);
+      const result = await service.getForOrg(org.id);
 
-      expect(repo.findOne).toHaveBeenCalledWith({
-        where: { organisationId: orgId },
-      });
-      expect(result).toEqual(existingConfig);
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe(seeded.id);
+      expect(result?.smtpHost).toBe('smtp.example.com');
     });
 
     it('should return null if no config exists', async () => {
-      repo.findOne.mockResolvedValue(null);
-
-      const result = await service.getForOrg(orgId);
+      const result = await service.getForOrg(org.id);
 
       expect(result).toBeNull();
     });
@@ -57,70 +76,63 @@ describe('OrgNotificationConfigService', () => {
 
   describe('upsert', () => {
     it('should update existing config fields', async () => {
-      const existing = { ...existingConfig };
-      repo.findOne.mockResolvedValue(existing);
-      repo.save.mockResolvedValue(existing);
+      await seedConfig();
 
-      await service.upsert(orgId, { smtpHost: 'new-host.example.com' });
+      await service.upsert(org.id, { smtpHost: 'new-host.example.com' });
 
-      expect(existing.smtpHost).toBe('new-host.example.com');
-      expect(repo.save).toHaveBeenCalledWith(existing);
+      const persisted = await readConfig();
+      expect(persisted.smtpHost).toBe('new-host.example.com');
     });
 
     it('should preserve existing password when blank password is provided', async () => {
-      const existing = { ...existingConfig };
-      repo.findOne.mockResolvedValue(existing);
-      repo.save.mockResolvedValue(existing);
+      await seedConfig();
 
-      await service.upsert(orgId, { smtpPassword: '' });
+      // A blank password means "keep existing"; it is sent alongside other edits
+      // (as the config form always does), so the existing secret is untouched.
+      await service.upsert(org.id, { smtpUser: 'changed@example.com', smtpPassword: '' });
 
-      expect(existing.smtpPassword).toBe('secret');
+      const persisted = await readConfig();
+      expect(persisted.smtpPassword).toBe('secret');
+      expect(persisted.smtpUser).toBe('changed@example.com');
     });
 
     it('should update password when non-blank value is provided', async () => {
-      const existing = { ...existingConfig };
-      repo.findOne.mockResolvedValue(existing);
-      repo.save.mockResolvedValue(existing);
+      await seedConfig();
 
-      await service.upsert(orgId, { smtpPassword: 'new-secret' });
+      await service.upsert(org.id, { smtpPassword: 'new-secret' });
 
-      expect(existing.smtpPassword).toBe('new-secret');
+      const persisted = await readConfig();
+      expect(persisted.smtpPassword).toBe('new-secret');
     });
 
     it('should preserve existing ntfy token when blank token is provided', async () => {
-      const existing = { ...existingConfig };
-      repo.findOne.mockResolvedValue(existing);
-      repo.save.mockResolvedValue(existing);
+      await seedConfig();
 
-      await service.upsert(orgId, { ntfyToken: '' });
+      // A blank token means "keep existing"; sent alongside other edits, the
+      // existing token is preserved while the other field is updated.
+      await service.upsert(org.id, { ntfyTopic: 'new-topic', ntfyToken: '' });
 
-      expect(existing.ntfyToken).toBe('token123');
+      const persisted = await readConfig();
+      expect(persisted.ntfyToken).toBe('token123');
+      expect(persisted.ntfyTopic).toBe('new-topic');
     });
 
     it('should create new config if none exists', async () => {
-      repo.findOne.mockResolvedValue(null);
-      const newConfig = { ...existingConfig };
-      repo.create.mockReturnValue(newConfig);
-      repo.save.mockResolvedValue(newConfig);
-
-      const result = await service.upsert(orgId, {
+      const result = await service.upsert(org.id, {
         smtpHost: 'smtp.example.com',
         smtpPort: 587,
       });
 
-      expect(repo.create).toHaveBeenCalledWith({
-        organisationId: orgId,
-        smtpHost: 'smtp.example.com',
-        smtpPort: 587,
-        smtpUser: null,
-        smtpPassword: null,
-        smtpFrom: null,
-        smtpSecure: false,
-        ntfyUrl: null,
-        ntfyTopic: null,
-        ntfyToken: null,
-      });
-      expect(result).toEqual(newConfig);
+      expect(result.organisationId).toBe(org.id);
+      expect(result.smtpHost).toBe('smtp.example.com');
+      expect(result.smtpPort).toBe(587);
+      expect(result.smtpUser).toBeNull();
+      expect(result.smtpPassword).toBeNull();
+      expect(result.smtpSecure).toBe(false);
+      expect(result.ntfyToken).toBeNull();
+
+      const persisted = await readConfig();
+      expect(persisted.id).toBe(result.id);
     });
   });
 });

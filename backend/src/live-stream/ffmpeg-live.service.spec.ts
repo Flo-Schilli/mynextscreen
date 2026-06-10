@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventEmitter } from 'events';
 import { FfmpegLiveService, LIVE_STREAM_PROCESS_EXITED, PRESET_MAP } from './ffmpeg-live.service';
-import { LiveStream } from './live-stream.entity';
+import type { LiveStream } from '../db/schema';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
 import { TranscodingPreset } from './transcoding-preset.enum';

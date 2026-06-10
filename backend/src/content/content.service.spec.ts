@@ -1,19 +1,21 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { getQueueToken } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
 import { ContentService } from './content.service';
-import { Content } from './content.entity';
+import { DRIZZLE } from '../db/database.constants';
+import { contents, organisations, type Content, type Organisation } from '../db/schema';
 import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
-import { Playlist } from '../playlist/playlist.entity';
-import { PlaylistItem } from '../playlist/playlist-item.entity';
 import { StorageService } from '../organisation/storage.service';
-import { EventEmitter2, EventEmitterModule } from '@nestjs/event-emitter';
 import { CONTENT_DURATION_RESOLVED } from './content.event';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
 jest.mock('fs/promises', () => ({
+  ...jest.requireActual('fs/promises'),
   mkdir: jest.fn().mockResolvedValue(undefined),
   writeFile: jest.fn().mockResolvedValue(undefined),
   unlink: jest.fn().mockResolvedValue(undefined),
@@ -42,20 +44,22 @@ function createMockFile(overrides: Partial<Express.Multer.File> = {}): Express.M
 
 describe('ContentService', () => {
   let service: ContentService;
-  let contentRepo: Record<string, jest.Mock>;
+  let db: DrizzleDB;
   let storageService: Record<string, jest.Mock>;
-  let queue: Record<string, jest.Mock>;
-  let eventEmitter: EventEmitter2;
+  let queue: { add: jest.Mock };
+  let emit: jest.Mock;
+
+  beforeAll(async () => {
+    db = await initTestDb();
+  });
+
+  afterAll(async () => {
+    await closeTestDb();
+  });
 
   beforeEach(async () => {
-    contentRepo = {
-      create: jest.fn((data) => ({ id: 'content-1', ...data })),
-      save: jest.fn((entity) => Promise.resolve({ ...entity })),
-      find: jest.fn().mockResolvedValue([]),
-      findOne: jest.fn().mockResolvedValue(null),
-      remove: jest.fn().mockResolvedValue(undefined),
-      update: jest.fn().mockResolvedValue({ affected: 1 }),
-    };
+    await truncateAll();
+    jest.clearAllMocks();
 
     storageService = {
       checkOriginalLimit: jest.fn().mockResolvedValue(undefined),
@@ -64,27 +68,18 @@ describe('ContentService', () => {
       subtractOriginalUsage: jest.fn().mockResolvedValue(undefined),
       addTranscodedUsage: jest.fn().mockResolvedValue(undefined),
       subtractTranscodedUsage: jest.fn().mockResolvedValue(undefined),
-      getStorageInfo: jest.fn().mockResolvedValue({
-        originalUsedBytes: 0,
-        originalLimitBytes: 10485760,
-        transcodedUsedBytes: 0,
-        transcodedLimitBytes: 10485760,
-      }),
     };
 
-    queue = {
-      add: jest.fn().mockResolvedValue({ id: 'job-1' }),
-    };
+    queue = { add: jest.fn().mockResolvedValue({ id: 'job-1' }) };
+    emit = jest.fn();
 
     const module: TestingModule = await Test.createTestingModule({
-      imports: [EventEmitterModule.forRoot()],
       providers: [
         ContentService,
-        { provide: getRepositoryToken(Content), useValue: contentRepo },
-        { provide: getRepositoryToken(Playlist), useValue: {} },
-        { provide: getRepositoryToken(PlaylistItem), useValue: {} },
+        { provide: DRIZZLE, useValue: db },
         { provide: StorageService, useValue: storageService },
         { provide: getQueueToken('transcoding'), useValue: queue },
+        { provide: EventEmitter2, useValue: { emit } },
         {
           provide: ConfigService,
           useValue: {
@@ -100,278 +95,282 @@ describe('ContentService', () => {
     }).compile();
 
     service = module.get<ContentService>(ContentService);
-    eventEmitter = module.get<EventEmitter2>(EventEmitter2);
   });
 
+  async function seedOrg(overrides: Partial<Organisation> = {}): Promise<Organisation> {
+    const [org] = await db
+      .insert(organisations)
+      .values({ name: `Org ${Math.random()}`, timeZone: 'UTC', ...overrides })
+      .returning();
+    return org;
+  }
+
+  async function seedContent(
+    organisationId: string,
+    overrides: Partial<Content> = {},
+  ): Promise<Content> {
+    const [content] = await db
+      .insert(contents)
+      .values({
+        organisationId,
+        title: 'Seed',
+        tags: [],
+        type: ContentType.Image,
+        originalFilename: 'seed.png',
+        originalMimeType: 'image/png',
+        originalSizeBytes: 1024,
+        transcodingStatus: TranscodingStatus.Pending,
+        ...overrides,
+      })
+      .returning();
+    return content;
+  }
+
   describe('upload', () => {
-    it('should upload a file and create content record', async () => {
+    it('should upload a file and create a content record', async () => {
+      const org = await seedOrg();
       const file = createMockFile();
-      const dto = { title: 'Test Image' };
 
-      await service.upload('org-1', file, dto);
+      const result = await service.upload(org.id, file, { title: 'Test Image' });
 
-      expect(contentRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          organisationId: 'org-1',
-          title: 'Test Image',
-          type: ContentType.Image,
-          originalFilename: 'test.png',
-          originalMimeType: 'image/png',
-          originalSizeBytes: 1024,
-          transcodingStatus: TranscodingStatus.Pending,
-        }),
-      );
-      expect(contentRepo.save).toHaveBeenCalled();
+      expect(result.id).toBeDefined();
+      const [row] = await db.select().from(contents).where(eq(contents.id, result.id));
+      expect(row.organisationId).toBe(org.id);
+      expect(row.title).toBe('Test Image');
+      expect(row.type).toBe(ContentType.Image);
+      expect(row.originalFilename).toBe('test.png');
+      expect(row.originalMimeType).toBe('image/png');
+      expect(Number(row.originalSizeBytes)).toBe(1024);
+      expect(row.transcodingStatus).toBe(TranscodingStatus.Pending);
       expect(queue.add).toHaveBeenCalledWith(
         'transcode',
         expect.objectContaining({
-          contentId: 'content-1',
-          organisationId: 'org-1',
+          contentId: result.id,
+          organisationId: org.id,
           type: ContentType.Image,
         }),
       );
     });
 
     it('should detect video type from mimetype', async () => {
-      const file = createMockFile({
-        originalname: 'clip.mp4',
-        mimetype: 'video/mp4',
-      });
-      const dto = { title: 'Test Video' };
+      const org = await seedOrg();
+      const file = createMockFile({ originalname: 'clip.mp4', mimetype: 'video/mp4' });
 
-      await service.upload('org-1', file, dto);
+      const result = await service.upload(org.id, file, { title: 'Test Video' });
 
-      expect(contentRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ type: ContentType.Video }),
-      );
+      const [row] = await db.select().from(contents).where(eq(contents.id, result.id));
+      expect(row.type).toBe(ContentType.Video);
     });
 
     it('should update org storage counter on upload', async () => {
+      const org = await seedOrg();
       const file = createMockFile({ size: 5000 });
-      const dto = { title: 'Test' };
 
-      await service.upload('org-1', file, dto);
+      await service.upload(org.id, file, { title: 'Test' });
 
-      expect(storageService.addOriginalUsage).toHaveBeenCalledWith('org-1', 5000);
+      expect(storageService.addOriginalUsage).toHaveBeenCalledWith(org.id, 5000);
     });
 
     it('should reject upload when storage limit would be exceeded', async () => {
+      const org = await seedOrg();
       storageService.checkOriginalLimit.mockRejectedValue(
         new BadRequestException('Upload would exceed organisation original storage limit'),
       );
-
       const file = createMockFile({ size: 1000 });
-      const dto = { title: 'Too big' };
 
-      await expect(service.upload('org-1', file, dto)).rejects.toThrow(BadRequestException);
+      await expect(service.upload(org.id, file, { title: 'Too big' })).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should allow upload when storage limit is 0 (unlimited)', async () => {
-      storageService.checkOriginalLimit.mockResolvedValue(undefined);
-
+      const org = await seedOrg();
       const file = createMockFile({ size: 50000000 }); // 50 MB, under the per-file limit
-      const dto = { title: 'Big file' };
 
-      await expect(service.upload('org-1', file, dto)).resolves.toBeDefined();
+      await expect(service.upload(org.id, file, { title: 'Big file' })).resolves.toBeDefined();
     });
 
     it('should reject unsupported MIME types', async () => {
+      const org = await seedOrg();
       const file = createMockFile({ mimetype: 'application/pdf' });
-      const dto = { title: 'PDF' };
 
-      await expect(service.upload('org-1', file, dto)).rejects.toThrow(BadRequestException);
+      await expect(service.upload(org.id, file, { title: 'PDF' })).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should reject files exceeding max file size', async () => {
+      const org = await seedOrg();
       const file = createMockFile({ size: 200000000 }); // 200 MB > 100 MB limit
-      const dto = { title: 'Huge' };
 
-      await expect(service.upload('org-1', file, dto)).rejects.toThrow(PayloadTooLargeException);
+      await expect(service.upload(org.id, file, { title: 'Huge' })).rejects.toThrow(
+        PayloadTooLargeException,
+      );
     });
   });
 
   describe('findAll', () => {
     it('should return contents for an organisation', async () => {
-      const mockContents = [
-        { id: '1', organisationId: 'org-1', tags: ['banner'] },
-        { id: '2', organisationId: 'org-1', tags: ['logo'] },
-      ];
-      contentRepo.find.mockResolvedValue(mockContents);
+      const org = await seedOrg();
+      await seedContent(org.id, { title: 'A', tags: ['banner'] });
+      await seedContent(org.id, { title: 'B', tags: ['logo'] });
 
-      const results = await service.findAll('org-1');
-      expect(results).toEqual(mockContents);
-      expect(contentRepo.find).toHaveBeenCalledWith({
-        where: { organisationId: 'org-1' },
-      });
+      const results = await service.findAll(org.id);
+      expect(results).toHaveLength(2);
     });
 
     it('should filter by type', async () => {
-      contentRepo.find.mockResolvedValue([]);
-
-      await service.findAll('org-1', { type: ContentType.Image });
-      expect(contentRepo.find).toHaveBeenCalledWith({
-        where: { organisationId: 'org-1', type: ContentType.Image },
+      const org = await seedOrg();
+      await seedContent(org.id, { type: ContentType.Image });
+      await seedContent(org.id, {
+        type: ContentType.Video,
+        originalFilename: 'v.mp4',
+        originalMimeType: 'video/mp4',
       });
+
+      const results = await service.findAll(org.id, { type: ContentType.Image });
+      expect(results).toHaveLength(1);
+      expect(results[0].type).toBe(ContentType.Image);
     });
 
     it('should filter by tags', async () => {
-      contentRepo.find.mockResolvedValue([
-        { id: '1', tags: ['banner', 'welcome'] },
-        { id: '2', tags: ['logo'] },
-      ]);
+      const org = await seedOrg();
+      const tagged = await seedContent(org.id, { tags: ['banner', 'welcome'] });
+      await seedContent(org.id, { tags: ['logo'] });
 
-      const result = await service.findAll('org-1', { tags: ['banner'] });
+      const result = await service.findAll(org.id, { tags: ['banner'] });
       expect(result).toHaveLength(1);
-      expect(result[0].id).toBe('1');
+      expect(result[0].id).toBe(tagged.id);
     });
   });
 
   describe('findOne', () => {
     it('should return a content item', async () => {
-      const mockContent = { id: 'c1', organisationId: 'org-1' };
-      contentRepo.findOne.mockResolvedValue(mockContent);
+      const org = await seedOrg();
+      const content = await seedContent(org.id);
 
-      const result = await service.findOne('org-1', 'c1');
-      expect(result).toEqual(mockContent);
+      const result = await service.findOne(org.id, content.id);
+      expect(result.id).toBe(content.id);
     });
 
     it('should throw when content not found', async () => {
-      contentRepo.findOne.mockResolvedValue(null);
-      await expect(service.findOne('org-1', 'missing')).rejects.toThrow(BadRequestException);
+      const org = await seedOrg();
+      await expect(service.findOne(org.id, '00000000-0000-0000-0000-000000000000')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
   describe('delete', () => {
     it('should delete content and update storage counters', async () => {
-      const mockContent = {
-        id: 'c1',
-        organisationId: 'org-1',
-        originalFilename: 'test.png',
+      const org = await seedOrg();
+      const content = await seedContent(org.id, {
         originalSizeBytes: 5000,
         transcodedSizeBytes: 3000,
         type: ContentType.Image,
-      } as Content;
-      contentRepo.findOne.mockResolvedValue(mockContent);
+      });
 
-      await service.delete('org-1', 'c1');
+      await service.delete(org.id, content.id);
 
-      expect(contentRepo.remove).toHaveBeenCalledWith(mockContent);
-      expect(storageService.subtractOriginalUsage).toHaveBeenCalledWith('org-1', 5000);
-      expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith('org-1', 3000);
+      const rows = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(rows).toHaveLength(0);
+      expect(storageService.subtractOriginalUsage).toHaveBeenCalledWith(org.id, 5000);
+      expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith(org.id, 3000);
     });
 
     it('should handle delete when no transcoded file exists', async () => {
-      const mockContent = {
-        id: 'c1',
-        organisationId: 'org-1',
+      const org = await seedOrg();
+      const content = await seedContent(org.id, {
         originalFilename: 'test.mp4',
+        originalMimeType: 'video/mp4',
         originalSizeBytes: 5000,
         transcodedSizeBytes: null,
         type: ContentType.Video,
-      } as Content;
-      contentRepo.findOne.mockResolvedValue(mockContent);
+      });
 
-      await service.delete('org-1', 'c1');
+      await service.delete(org.id, content.id);
 
-      expect(contentRepo.remove).toHaveBeenCalled();
-      expect(storageService.subtractOriginalUsage).toHaveBeenCalledWith('org-1', 5000);
+      const rows = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(rows).toHaveLength(0);
+      expect(storageService.subtractOriginalUsage).toHaveBeenCalledWith(org.id, 5000);
       expect(storageService.subtractTranscodedUsage).not.toHaveBeenCalled();
     });
   });
 
   describe('updateMetadata', () => {
     it('should update title and tags', async () => {
-      const mockContent = {
-        id: 'c1',
-        organisationId: 'org-1',
-        title: 'Old Title',
-        tags: ['old'],
-      } as Content;
-      contentRepo.findOne.mockResolvedValue(mockContent);
+      const org = await seedOrg();
+      const content = await seedContent(org.id, { title: 'Old Title', tags: ['old'] });
 
-      await service.updateMetadata('org-1', 'c1', {
+      const result = await service.updateMetadata(org.id, content.id, {
         title: 'New Title',
         tags: ['new', 'updated'],
       });
 
-      expect(contentRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'New Title',
-          tags: ['new', 'updated'],
-        }),
-      );
+      expect(result.title).toBe('New Title');
+      expect(result.tags).toEqual(['new', 'updated']);
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(row.title).toBe('New Title');
+      expect(row.tags).toEqual(['new', 'updated']);
     });
   });
 
   describe('reUpload', () => {
     it('should replace file and reset transcoding status', async () => {
-      const mockContent = {
-        id: 'c1',
-        organisationId: 'org-1',
+      const org = await seedOrg();
+      const content = await seedContent(org.id, {
         originalFilename: 'old.png',
         originalMimeType: 'image/png',
         originalSizeBytes: 2000,
         transcodedSizeBytes: 1000,
         type: ContentType.Image,
         transcodingStatus: TranscodingStatus.Completed,
-      } as Content;
-      contentRepo.findOne.mockResolvedValue(mockContent);
-
-      const file = createMockFile({
-        originalname: 'new.png',
-        mimetype: 'image/png',
-        size: 3000,
       });
 
-      await service.reUpload('org-1', 'c1', file);
+      const file = createMockFile({ originalname: 'new.png', mimetype: 'image/png', size: 3000 });
 
-      expect(contentRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          originalFilename: 'new.png',
-          originalSizeBytes: 3000,
-          transcodingStatus: TranscodingStatus.Pending,
-          transcodedSizeBytes: null,
-          transcodingError: null,
-        }),
-      );
-      // sizeDelta = 3000 - 2000 = 1000 (positive), so checkOriginalLimit + addOriginalUsage
-      expect(storageService.checkOriginalLimit).toHaveBeenCalledWith('org-1', 1000);
-      expect(storageService.addOriginalUsage).toHaveBeenCalledWith('org-1', 1000);
-      expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith('org-1', 1000);
+      const result = await service.reUpload(org.id, content.id, file);
+
+      expect(result.originalFilename).toBe('new.png');
+      expect(Number(result.originalSizeBytes)).toBe(3000);
+      expect(result.transcodingStatus).toBe(TranscodingStatus.Pending);
+      expect(result.transcodedSizeBytes).toBeNull();
+      expect(result.transcodingError).toBeNull();
+      // sizeDelta = 3000 - 2000 = 1000 (positive)
+      expect(storageService.checkOriginalLimit).toHaveBeenCalledWith(org.id, 1000);
+      expect(storageService.addOriginalUsage).toHaveBeenCalledWith(org.id, 1000);
+      expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith(org.id, 1000);
       expect(queue.add).toHaveBeenCalledWith(
         'transcode',
-        expect.objectContaining({ contentId: 'c1' }),
+        expect.objectContaining({ contentId: content.id }),
       );
     });
 
     it('should reject re-upload that would exceed storage limit', async () => {
-      const mockContent = {
-        id: 'c1',
-        organisationId: 'org-1',
+      const org = await seedOrg();
+      const content = await seedContent(org.id, {
         originalFilename: 'old.png',
         originalSizeBytes: 1000,
         transcodedSizeBytes: null,
         type: ContentType.Image,
-      } as Content;
-      contentRepo.findOne.mockResolvedValue(mockContent);
+      });
       storageService.checkOriginalLimit.mockRejectedValue(
         new BadRequestException('Upload would exceed organisation original storage limit'),
       );
 
       const file = createMockFile({ size: 5000 }); // delta = 5000-1000 = 4000
 
-      await expect(service.reUpload('org-1', 'c1', file)).rejects.toThrow(BadRequestException);
+      await expect(service.reUpload(org.id, content.id, file)).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('ensureDuration', () => {
     it('should return null for image content', async () => {
-      const content = {
-        id: 'c1',
-        organisationId: 'org-1',
+      const org = await seedOrg();
+      const content = await seedContent(org.id, {
         type: ContentType.Image,
         durationSeconds: null,
-      } as Content;
+      });
 
       const result = await service.ensureDuration(content);
       expect(result).toBeNull();
@@ -379,12 +378,13 @@ describe('ContentService', () => {
     });
 
     it('should return existing duration if already set', async () => {
-      const content = {
-        id: 'c1',
-        organisationId: 'org-1',
+      const org = await seedOrg();
+      const content = await seedContent(org.id, {
         type: ContentType.Video,
+        originalFilename: 'v.mp4',
+        originalMimeType: 'video/mp4',
         durationSeconds: 58,
-      } as Content;
+      });
 
       const result = await service.ensureDuration(content);
       expect(result).toBe(58);
@@ -393,81 +393,81 @@ describe('ContentService', () => {
 
     it('should run ffprobe and save duration for video without duration', async () => {
       mockFfprobeDuration.mockResolvedValue(42);
-      const content = {
-        id: 'c1',
-        organisationId: 'org-1',
+      const org = await seedOrg();
+      const content = await seedContent(org.id, {
         type: ContentType.Video,
+        originalFilename: 'v.mp4',
+        originalMimeType: 'video/mp4',
         durationSeconds: null,
-      } as Content;
+      });
 
       const result = await service.ensureDuration(content);
 
       expect(result).toBe(42);
-      expect(content.durationSeconds).toBe(42);
       expect(mockFfprobeDuration).toHaveBeenCalledWith(
-        expect.stringContaining('c1.mp4'),
+        expect.stringContaining(`${content.id}.mp4`),
         'ffprobe',
       );
-      expect(contentRepo.update).toHaveBeenCalledWith('c1', {
-        durationSeconds: 42,
-      });
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(row.durationSeconds).toBe(42);
     });
 
     it('should emit content.duration_resolved event on successful backfill', async () => {
       mockFfprobeDuration.mockResolvedValue(42);
-      const emitSpy = jest.spyOn(eventEmitter, 'emit');
-      const content = {
-        id: 'c1',
-        organisationId: 'org-1',
+      const org = await seedOrg();
+      const content = await seedContent(org.id, {
         type: ContentType.Video,
+        originalFilename: 'v.mp4',
+        originalMimeType: 'video/mp4',
         durationSeconds: null,
-      } as Content;
+      });
 
       await service.ensureDuration(content);
 
-      expect(emitSpy).toHaveBeenCalledWith(
+      expect(emit).toHaveBeenCalledWith(
         CONTENT_DURATION_RESOLVED,
-        expect.objectContaining({ contentId: 'c1', durationSeconds: 42 }),
+        expect.objectContaining({ contentId: content.id, durationSeconds: 42 }),
       );
     });
 
     it('should not emit event when duration already set', async () => {
-      const emitSpy = jest.spyOn(eventEmitter, 'emit');
-      const content = {
-        id: 'c1',
-        organisationId: 'org-1',
+      const org = await seedOrg();
+      const content = await seedContent(org.id, {
         type: ContentType.Video,
+        originalFilename: 'v.mp4',
+        originalMimeType: 'video/mp4',
         durationSeconds: 58,
-      } as Content;
+      });
 
       await service.ensureDuration(content);
 
-      expect(emitSpy).not.toHaveBeenCalledWith(CONTENT_DURATION_RESOLVED, expect.anything());
+      expect(emit).not.toHaveBeenCalledWith(CONTENT_DURATION_RESOLVED, expect.anything());
     });
 
     it('should not emit event when ffprobe fails', async () => {
       mockFfprobeDuration.mockRejectedValue(new Error('ffprobe not found'));
-      const emitSpy = jest.spyOn(eventEmitter, 'emit');
-      const content = {
-        id: 'c1',
-        organisationId: 'org-1',
+      const org = await seedOrg();
+      const content = await seedContent(org.id, {
         type: ContentType.Video,
+        originalFilename: 'v.mp4',
+        originalMimeType: 'video/mp4',
         durationSeconds: null,
-      } as Content;
+      });
 
       await service.ensureDuration(content);
 
-      expect(emitSpy).not.toHaveBeenCalledWith(CONTENT_DURATION_RESOLVED, expect.anything());
+      expect(emit).not.toHaveBeenCalledWith(CONTENT_DURATION_RESOLVED, expect.anything());
     });
 
     it('should return null when ffprobe fails', async () => {
       mockFfprobeDuration.mockRejectedValue(new Error('ffprobe not found'));
-      const content = {
-        id: 'c1',
-        organisationId: 'org-1',
+      const org = await seedOrg();
+      const content = await seedContent(org.id, {
         type: ContentType.Video,
+        originalFilename: 'v.mp4',
+        originalMimeType: 'video/mp4',
         durationSeconds: null,
-      } as Content;
+      });
 
       const result = await service.ensureDuration(content);
 

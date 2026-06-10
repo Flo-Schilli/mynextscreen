@@ -2,7 +2,7 @@ import { NtfyNotificationChannel } from './ntfy-notification-channel.service';
 import { NotificationEventType } from '../notification-event-type.enum';
 import { NotificationPayload } from './notification-channel.interfaces';
 import { OrgNotificationConfigService } from '../org-notification-config.service';
-import { OrganisationNotificationConfig } from '../organisation-notification-config.entity';
+import type { OrganisationNotificationConfig } from '../../db/schema';
 import { HttpService } from '@nestjs/axios';
 import { of, throwError } from 'rxjs';
 import { AxiosResponse } from 'axios';

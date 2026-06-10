@@ -1,283 +1,217 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { and, eq } from 'drizzle-orm';
 import { MembershipService } from './membership.service';
-import { User } from './user.entity';
-import { UserOrganisationMembership } from './user-organisation-membership.entity';
+import { DRIZZLE } from '../db/database.constants';
+import { users, organisations, userOrganisationMemberships, type Organisation } from '../db/schema';
 import { OrganisationRole } from './organisation-role.enum';
+import { AUTH_USER_INVITED } from '../audit-log/audit.events';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('MembershipService', () => {
   let service: MembershipService;
-  let userRepo: jest.Mocked<Repository<User>>;
-  let membershipRepo: jest.Mocked<Repository<UserOrganisationMembership>>;
+  let db: DrizzleDB;
+  let emit: jest.Mock;
 
-  const orgId = '550e8400-e29b-41d4-a716-446655440000';
+  beforeAll(async () => {
+    db = await initTestDb();
+  });
+
+  afterAll(async () => {
+    await closeTestDb();
+  });
 
   beforeEach(async () => {
+    await truncateAll();
+    emit = jest.fn();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MembershipService,
-        {
-          provide: getRepositoryToken(User),
-          useValue: {
-            findOne: jest.fn(),
-            create: jest.fn(),
-            save: jest.fn(),
-          },
-        },
-        {
-          provide: getRepositoryToken(UserOrganisationMembership),
-          useValue: {
-            find: jest.fn(),
-            findOne: jest.fn(),
-            create: jest.fn(),
-            save: jest.fn(),
-            remove: jest.fn(),
-            count: jest.fn(),
-          },
-        },
-        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: DRIZZLE, useValue: db },
+        { provide: EventEmitter2, useValue: { emit } },
       ],
     }).compile();
-
     service = module.get<MembershipService>(MembershipService);
-    userRepo = module.get(getRepositoryToken(User));
-    membershipRepo = module.get(getRepositoryToken(UserOrganisationMembership));
   });
 
+  async function seedOrg(name = `Org ${Math.random()}`): Promise<Organisation> {
+    const [org] = await db.insert(organisations).values({ name, timeZone: 'UTC' }).returning();
+    return org;
+  }
+
+  async function seedUser(email: string): Promise<string> {
+    const [user] = await db.insert(users).values({ email }).returning();
+    return user.id;
+  }
+
+  async function seedMember(
+    organisationId: string,
+    email: string,
+    role: OrganisationRole,
+  ): Promise<string> {
+    const userId = await seedUser(email);
+    await db.insert(userOrganisationMemberships).values({ userId, organisationId, role });
+    return userId;
+  }
+
   describe('listMembers', () => {
-    it('should return all memberships for an organisation', async () => {
-      const memberships = [
-        {
-          id: 'm-1',
-          userId: 'u-1',
-          organisationId: orgId,
-          role: OrganisationRole.OrgAdmin,
-        },
-        {
-          id: 'm-2',
-          userId: 'u-2',
-          organisationId: orgId,
-          role: OrganisationRole.Editor,
-        },
-      ] as UserOrganisationMembership[];
-      membershipRepo.find.mockResolvedValue(memberships);
+    it('should return all memberships for an organisation with the user relation', async () => {
+      const org = await seedOrg();
+      await seedMember(org.id, 'admin@example.com', OrganisationRole.OrgAdmin);
+      await seedMember(org.id, 'editor@example.com', OrganisationRole.Editor);
 
-      const result = await service.listMembers(orgId);
+      const result = await service.listMembers(org.id);
 
-      expect(membershipRepo.find).toHaveBeenCalledWith({
-        where: { organisationId: orgId },
-        relations: ['user'],
-      });
       expect(result).toHaveLength(2);
+      const emails = result.map((m) => m.user.email).sort();
+      expect(emails).toEqual(['admin@example.com', 'editor@example.com']);
     });
   });
 
   describe('addMember', () => {
     it('should add an existing user as a member', async () => {
-      const user = {
-        id: 'u-1',
-        email: 'test@example.com',
-        name: 'Test',
-      } as User;
-      userRepo.findOne.mockResolvedValue(user);
-      membershipRepo.findOne.mockResolvedValue(null);
-      const membership = {
-        id: 'm-1',
-        userId: 'u-1',
-        organisationId: orgId,
-        role: OrganisationRole.Editor,
-      } as UserOrganisationMembership;
-      membershipRepo.create.mockReturnValue(membership);
-      membershipRepo.save.mockResolvedValue(membership);
+      const org = await seedOrg();
+      const userId = await seedUser('test@example.com');
 
-      const result = await service.addMember(orgId, 'test@example.com', OrganisationRole.Editor);
+      const result = await service.addMember(org.id, 'test@example.com', OrganisationRole.Editor);
 
-      expect(userRepo.findOne).toHaveBeenCalledWith({
-        where: { email: 'test@example.com' },
-      });
-      expect(userRepo.create).not.toHaveBeenCalled();
       expect(result.role).toBe(OrganisationRole.Editor);
-      expect(result.user).toBe(user);
+      expect(result.user.id).toBe(userId);
+      const memberships = await db
+        .select()
+        .from(userOrganisationMemberships)
+        .where(eq(userOrganisationMemberships.organisationId, org.id));
+      expect(memberships).toHaveLength(1);
+      // Existing users are not freshly invited.
+      expect(emit).not.toHaveBeenCalledWith(AUTH_USER_INVITED, expect.anything());
     });
 
-    it('should create a placeholder user if user does not exist', async () => {
-      userRepo.findOne.mockResolvedValue(null);
-      const newUser = {
-        id: 'generated-uuid',
-        email: 'new@example.com',
-        name: null,
-      } as User;
-      userRepo.create.mockReturnValue(newUser);
-      userRepo.save.mockResolvedValue(newUser);
-      membershipRepo.findOne.mockResolvedValue(null);
-      const membership = {
-        id: 'm-1',
-        userId: 'generated-uuid',
-        organisationId: orgId,
-        role: OrganisationRole.Viewer,
-      } as UserOrganisationMembership;
-      membershipRepo.create.mockReturnValue(membership);
-      membershipRepo.save.mockResolvedValue(membership);
+    it('should create a placeholder invitee if the user does not exist', async () => {
+      const org = await seedOrg();
 
-      const result = await service.addMember(orgId, 'new@example.com', OrganisationRole.Viewer);
+      const result = await service.addMember(org.id, 'new@example.com', OrganisationRole.Viewer);
 
-      expect(userRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ email: 'new@example.com', name: null }),
-      );
-      expect(userRepo.save).toHaveBeenCalled();
-      expect(result.user).toBe(newUser);
+      expect(result.user.email).toBe('new@example.com');
+      expect(result.user.passwordHash).toBeNull();
+      const [createdUser] = await db.select().from(users).where(eq(users.email, 'new@example.com'));
+      expect(createdUser).toBeDefined();
+      // A fresh invitee gets a set-password token and the invite event.
+      expect(createdUser.passwordResetToken).not.toBeNull();
+      expect(emit).toHaveBeenCalledWith(AUTH_USER_INVITED, expect.anything());
     });
 
     it('should throw ConflictException if user is already a member', async () => {
-      const user = { id: 'u-1', email: 'test@example.com' } as User;
-      userRepo.findOne.mockResolvedValue(user);
-      membershipRepo.findOne.mockResolvedValue({
-        id: 'm-1',
-        userId: 'u-1',
-        organisationId: orgId,
-        role: OrganisationRole.Viewer,
-      } as UserOrganisationMembership);
+      const org = await seedOrg();
+      await seedMember(org.id, 'test@example.com', OrganisationRole.Viewer);
 
       await expect(
-        service.addMember(orgId, 'test@example.com', OrganisationRole.Editor),
+        service.addMember(org.id, 'test@example.com', OrganisationRole.Editor),
       ).rejects.toThrow(ConflictException);
     });
   });
 
   describe('updateRole', () => {
     it('should update the role of a member', async () => {
-      const membership = {
-        id: 'm-1',
-        userId: 'u-1',
-        organisationId: orgId,
-        role: OrganisationRole.Viewer,
-        user: { id: 'u-1', email: 'test@example.com' } as User,
-      } as UserOrganisationMembership;
-      membershipRepo.findOne.mockResolvedValue(membership);
-      membershipRepo.save.mockResolvedValue({
-        ...membership,
-        role: OrganisationRole.Editor,
-      } as UserOrganisationMembership);
+      const org = await seedOrg();
+      // Need a second admin so demotion is not blocked by the last-admin guard.
+      await seedMember(org.id, 'admin@example.com', OrganisationRole.OrgAdmin);
+      const userId = await seedMember(org.id, 'member@example.com', OrganisationRole.Viewer);
 
-      const result = await service.updateRole(orgId, 'u-1', OrganisationRole.Editor);
+      const result = await service.updateRole(org.id, userId, OrganisationRole.Editor);
 
       expect(result.role).toBe(OrganisationRole.Editor);
+      const [persisted] = await db
+        .select()
+        .from(userOrganisationMemberships)
+        .where(
+          and(
+            eq(userOrganisationMemberships.userId, userId),
+            eq(userOrganisationMemberships.organisationId, org.id),
+          ),
+        );
+      expect(persisted.role).toBe(OrganisationRole.Editor);
     });
 
     it('should throw NotFoundException if membership does not exist', async () => {
-      membershipRepo.findOne.mockResolvedValue(null);
+      const org = await seedOrg();
 
-      await expect(service.updateRole(orgId, 'u-999', OrganisationRole.Editor)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.updateRole(org.id, '00000000-0000-0000-0000-000000000000', OrganisationRole.Editor),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException when demoting the last Org Admin', async () => {
-      const membership = {
-        id: 'm-1',
-        userId: 'u-1',
-        organisationId: orgId,
-        role: OrganisationRole.OrgAdmin,
-        user: { id: 'u-1', email: 'test@example.com' } as User,
-      } as UserOrganisationMembership;
-      membershipRepo.findOne.mockResolvedValue(membership);
-      membershipRepo.count.mockResolvedValue(1);
+      const org = await seedOrg();
+      const userId = await seedMember(org.id, 'soleadmin@example.com', OrganisationRole.OrgAdmin);
 
-      await expect(service.updateRole(orgId, 'u-1', OrganisationRole.Editor)).rejects.toThrow(
+      await expect(service.updateRole(org.id, userId, OrganisationRole.Editor)).rejects.toThrow(
         BadRequestException,
       );
     });
 
     it('should allow demoting an Org Admin when there are other admins', async () => {
-      const membership = {
-        id: 'm-1',
-        userId: 'u-1',
-        organisationId: orgId,
-        role: OrganisationRole.OrgAdmin,
-        user: { id: 'u-1', email: 'test@example.com' } as User,
-      } as UserOrganisationMembership;
-      membershipRepo.findOne.mockResolvedValue(membership);
-      membershipRepo.count.mockResolvedValue(2);
-      membershipRepo.save.mockResolvedValue({
-        ...membership,
-        role: OrganisationRole.Editor,
-      } as UserOrganisationMembership);
+      const org = await seedOrg();
+      const userId = await seedMember(org.id, 'admin1@example.com', OrganisationRole.OrgAdmin);
+      await seedMember(org.id, 'admin2@example.com', OrganisationRole.OrgAdmin);
 
-      const result = await service.updateRole(orgId, 'u-1', OrganisationRole.Editor);
+      const result = await service.updateRole(org.id, userId, OrganisationRole.Editor);
 
       expect(result.role).toBe(OrganisationRole.Editor);
     });
 
     it('should allow updating an Org Admin to the same role', async () => {
-      const membership = {
-        id: 'm-1',
-        userId: 'u-1',
-        organisationId: orgId,
-        role: OrganisationRole.OrgAdmin,
-        user: { id: 'u-1', email: 'test@example.com' } as User,
-      } as UserOrganisationMembership;
-      membershipRepo.findOne.mockResolvedValue(membership);
-      membershipRepo.save.mockResolvedValue(membership);
+      const org = await seedOrg();
+      const userId = await seedMember(org.id, 'soleadmin@example.com', OrganisationRole.OrgAdmin);
 
-      const result = await service.updateRole(orgId, 'u-1', OrganisationRole.OrgAdmin);
+      const result = await service.updateRole(org.id, userId, OrganisationRole.OrgAdmin);
 
-      expect(membershipRepo.count).not.toHaveBeenCalled();
       expect(result.role).toBe(OrganisationRole.OrgAdmin);
     });
   });
 
   describe('removeMember', () => {
     it('should remove a non-admin member', async () => {
-      const membership = {
-        id: 'm-1',
-        userId: 'u-1',
-        organisationId: orgId,
-        role: OrganisationRole.Editor,
-      } as UserOrganisationMembership;
-      membershipRepo.findOne.mockResolvedValue(membership);
-      membershipRepo.remove.mockResolvedValue(membership);
+      const org = await seedOrg();
+      const userId = await seedMember(org.id, 'editor@example.com', OrganisationRole.Editor);
 
-      await service.removeMember(orgId, 'u-1');
+      await service.removeMember(org.id, userId);
 
-      expect(membershipRepo.remove).toHaveBeenCalledWith(membership);
+      const memberships = await db
+        .select()
+        .from(userOrganisationMemberships)
+        .where(eq(userOrganisationMemberships.organisationId, org.id));
+      expect(memberships).toHaveLength(0);
     });
 
     it('should throw NotFoundException if membership does not exist', async () => {
-      membershipRepo.findOne.mockResolvedValue(null);
+      const org = await seedOrg();
 
-      await expect(service.removeMember(orgId, 'u-999')).rejects.toThrow(NotFoundException);
+      await expect(
+        service.removeMember(org.id, '00000000-0000-0000-0000-000000000000'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException when removing the last Org Admin', async () => {
-      const membership = {
-        id: 'm-1',
-        userId: 'u-1',
-        organisationId: orgId,
-        role: OrganisationRole.OrgAdmin,
-      } as UserOrganisationMembership;
-      membershipRepo.findOne.mockResolvedValue(membership);
-      membershipRepo.count.mockResolvedValue(1);
+      const org = await seedOrg();
+      const userId = await seedMember(org.id, 'soleadmin@example.com', OrganisationRole.OrgAdmin);
 
-      await expect(service.removeMember(orgId, 'u-1')).rejects.toThrow(BadRequestException);
+      await expect(service.removeMember(org.id, userId)).rejects.toThrow(BadRequestException);
     });
 
     it('should allow removing an Org Admin when there are other admins', async () => {
-      const membership = {
-        id: 'm-1',
-        userId: 'u-1',
-        organisationId: orgId,
-        role: OrganisationRole.OrgAdmin,
-      } as UserOrganisationMembership;
-      membershipRepo.findOne.mockResolvedValue(membership);
-      membershipRepo.count.mockResolvedValue(2);
-      membershipRepo.remove.mockResolvedValue(membership);
+      const org = await seedOrg();
+      const userId = await seedMember(org.id, 'admin1@example.com', OrganisationRole.OrgAdmin);
+      await seedMember(org.id, 'admin2@example.com', OrganisationRole.OrgAdmin);
 
-      await service.removeMember(orgId, 'u-1');
+      await service.removeMember(org.id, userId);
 
-      expect(membershipRepo.remove).toHaveBeenCalledWith(membership);
+      const remaining = await db
+        .select()
+        .from(userOrganisationMemberships)
+        .where(eq(userOrganisationMemberships.organisationId, org.id));
+      expect(remaining).toHaveLength(1);
     });
   });
 });

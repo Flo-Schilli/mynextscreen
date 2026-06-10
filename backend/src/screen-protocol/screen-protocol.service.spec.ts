@@ -1,96 +1,66 @@
-import { Repository } from 'typeorm';
+import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ScreenProtocolService } from './screen-protocol.service';
 import { ScheduleService } from '../schedule';
 import { ScreenEventType } from './screen-event-type.enum';
 import { ScreenEvent } from './screen-event.model';
-import { ScreenGroup } from '../screen-group/screen-group.entity';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
-import { Screen } from '../screen/screen.entity';
-import { SlicedRendition } from '../slice-content/sliced-rendition.entity';
 import { ScreenStateService } from '../screen/screen-state.service';
 import { GroupScheduleChangedEvent } from '../schedule/schedule.event';
 import { ScreenStateChangeEvent } from '../screen/screen-state.event';
-import { Organisation } from '../organisation/organisation.entity';
+import { DRIZZLE } from '../db/database.constants';
+import {
+  organisations,
+  screens,
+  screenGroups,
+  contents,
+  slicedRenditions,
+  type Screen,
+} from '../db/schema';
+import { ContentType } from '../content/content-type.enum';
+import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('ScreenProtocolService', () => {
   let service: ScreenProtocolService;
-  let screenGroupRepository: {
-    findOne: jest.Mock;
-  };
-  let screenRepository: {
-    findOne: jest.Mock;
-  };
-  let slicedRenditionRepository: {
-    findOne: jest.Mock;
-  };
-  let screenStateService: {
-    pushEvent: jest.Mock;
-  };
-  let scheduleService: {
-    getCurrentPlaylist: jest.Mock;
-  };
+  let db: DrizzleDB;
+  let screenStateService: { pushEvent: jest.Mock };
+  let scheduleService: { getCurrentPlaylist: jest.Mock };
 
-  const orgId = '550e8400-e29b-41d4-a716-446655440000';
-  const groupId = '660e8400-e29b-41d4-a716-446655440000';
-  const screenId1 = '770e8400-e29b-41d4-a716-446655440001';
-  const screenId2 = '770e8400-e29b-41d4-a716-446655440002';
-  const screenId3 = '770e8400-e29b-41d4-a716-446655440003';
-  const screenId4 = '770e8400-e29b-41d4-a716-446655440004';
+  let orgId: string;
+  let contentItemId: string;
   const playlistId = '880e8400-e29b-41d4-a716-446655440000';
-  const contentItemId = '990e8400-e29b-41d4-a716-446655440000';
 
-  const makeScreen = (
-    id: string,
-    row: number | null = null,
-    col: number | null = null,
-  ): Screen => ({
-    id,
-    organisationId: orgId,
-    name: `Screen ${id.slice(-1)}`,
-    resolution: '1920x1080',
-    location: 'Test',
-    apiKeyHash: '$2b$10$hash',
-    lastHeartbeat: null,
-    isOnline: true,
-    groupId,
-    group: null,
-    gridRow: row,
-    gridColumn: col,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    organisation: {} as Organisation,
+  beforeAll(async () => {
+    db = await initTestDb();
   });
 
-  const makeMirrorGroup = (screens: Screen[]): ScreenGroup => ({
-    id: groupId,
-    organisationId: orgId,
-    name: 'Mirror Group',
-    mode: ScreenGroupMode.Mirror,
-    gridColumns: null,
-    gridRows: null,
-    screens,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    organisation: {} as Organisation,
+  afterAll(async () => {
+    await closeTestDb();
   });
 
-  const makeSplitGroup = (screens: Screen[]): ScreenGroup => ({
-    id: groupId,
-    organisationId: orgId,
-    name: 'Split Group',
-    mode: ScreenGroupMode.Split,
-    gridColumns: 2,
-    gridRows: 2,
-    screens,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    organisation: {} as Organisation,
-  });
+  beforeEach(async () => {
+    await truncateAll();
 
-  beforeEach(() => {
-    screenGroupRepository = { findOne: jest.fn() };
-    screenRepository = { findOne: jest.fn() };
-    slicedRenditionRepository = { findOne: jest.fn() };
+    const [org] = await db
+      .insert(organisations)
+      .values({ name: `Org ${Math.random()}`, timeZone: 'UTC' })
+      .returning();
+    orgId = org.id;
+
+    const [content] = await db
+      .insert(contents)
+      .values({
+        organisationId: orgId,
+        title: 'Clip',
+        type: ContentType.Video,
+        originalFilename: 'clip.mp4',
+        originalMimeType: 'video/mp4',
+        originalSizeBytes: 1000,
+      })
+      .returning();
+    contentItemId = content.id;
+
     screenStateService = { pushEvent: jest.fn() };
     scheduleService = {
       getCurrentPlaylist: jest.fn().mockResolvedValue({
@@ -99,49 +69,82 @@ describe('ScreenProtocolService', () => {
       }),
     };
 
-    service = new ScreenProtocolService(
-      screenGroupRepository as unknown as Repository<ScreenGroup>,
-      screenRepository as unknown as Repository<Screen>,
-      slicedRenditionRepository as unknown as Repository<SlicedRendition>,
-      screenStateService as unknown as ScreenStateService,
-      scheduleService as unknown as ScheduleService,
-    );
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ScreenProtocolService,
+        { provide: DRIZZLE, useValue: db },
+        { provide: ScreenStateService, useValue: screenStateService },
+        { provide: ScheduleService, useValue: scheduleService },
+        // EventEmitter2 is not a direct dep but harmless to provide.
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get<ScreenProtocolService>(ScreenProtocolService);
   });
+
+  async function seedGroup(mode: ScreenGroupMode): Promise<string> {
+    const [group] = await db
+      .insert(screenGroups)
+      .values({
+        organisationId: orgId,
+        name: mode === ScreenGroupMode.Split ? 'Split Group' : 'Mirror Group',
+        mode,
+        gridColumns: mode === ScreenGroupMode.Split ? 2 : null,
+        gridRows: mode === ScreenGroupMode.Split ? 2 : null,
+      })
+      .returning();
+    return group.id;
+  }
+
+  async function seedScreen(
+    gid: string | null,
+    row: number | null = null,
+    col: number | null = null,
+  ): Promise<Screen> {
+    const [screen] = await db
+      .insert(screens)
+      .values({
+        organisationId: orgId,
+        name: 'Screen',
+        resolution: '1920x1080',
+        location: 'Test',
+        apiKeyHash: '$2b$10$hash',
+        groupId: gid,
+        gridRow: row,
+        gridColumn: col,
+      })
+      .returning();
+    return screen;
+  }
 
   describe('handleGroupScheduleChanged', () => {
     it('should do nothing if group not found', async () => {
-      screenGroupRepository.findOne.mockResolvedValue(null);
-
       await service.handleGroupScheduleChanged(
-        new GroupScheduleChangedEvent(groupId, orgId, playlistId),
+        new GroupScheduleChangedEvent('00000000-0000-0000-0000-000000000000', orgId, playlistId),
       );
-
       expect(screenStateService.pushEvent).not.toHaveBeenCalled();
     });
 
     it('should do nothing if group has no screens', async () => {
-      screenGroupRepository.findOne.mockResolvedValue(makeMirrorGroup([]));
-
+      const gid = await seedGroup(ScreenGroupMode.Mirror);
       await service.handleGroupScheduleChanged(
-        new GroupScheduleChangedEvent(groupId, orgId, playlistId),
+        new GroupScheduleChangedEvent(gid, orgId, playlistId),
       );
-
       expect(screenStateService.pushEvent).not.toHaveBeenCalled();
     });
 
     describe('mirror mode', () => {
       it('should fan out schedule update to all screens with same payload', async () => {
-        const screens = [makeScreen(screenId1), makeScreen(screenId2)];
-        screenGroupRepository.findOne.mockResolvedValue(makeMirrorGroup(screens));
+        const gid = await seedGroup(ScreenGroupMode.Mirror);
+        const s1 = await seedScreen(gid);
+        const s2 = await seedScreen(gid);
 
         await service.handleGroupScheduleChanged(
-          new GroupScheduleChangedEvent(groupId, orgId, playlistId),
+          new GroupScheduleChangedEvent(gid, orgId, playlistId),
         );
 
         expect(screenStateService.pushEvent).toHaveBeenCalledTimes(2);
-
-        // Both screens get the same schedule update
-        for (const screen of screens) {
+        for (const screen of [s1, s2]) {
           expect(screenStateService.pushEvent).toHaveBeenCalledWith(
             screen.id,
             expect.objectContaining({
@@ -149,7 +152,7 @@ describe('ScreenProtocolService', () => {
               payload: expect.objectContaining({
                 screenId: screen.id,
                 organisationId: orgId,
-                groupId,
+                groupId: gid,
                 syncToken: expect.any(String),
                 currentPlaylist: { id: playlistId, name: 'Test Playlist' },
                 isDefault: false,
@@ -160,11 +163,12 @@ describe('ScreenProtocolService', () => {
       });
 
       it('should include syncToken in all events for synchronisation', async () => {
-        const screens = [makeScreen(screenId1), makeScreen(screenId2)];
-        screenGroupRepository.findOne.mockResolvedValue(makeMirrorGroup(screens));
+        const gid = await seedGroup(ScreenGroupMode.Mirror);
+        await seedScreen(gid);
+        await seedScreen(gid);
 
         await service.handleGroupScheduleChanged(
-          new GroupScheduleChangedEvent(groupId, orgId, playlistId),
+          new GroupScheduleChangedEvent(gid, orgId, playlistId),
         );
 
         const call1 = screenStateService.pushEvent.mock.calls[0][1] as ScreenEvent;
@@ -174,41 +178,38 @@ describe('ScreenProtocolService', () => {
       });
 
       it('should include groupId in all events', async () => {
-        const screens = [makeScreen(screenId1)];
-        screenGroupRepository.findOne.mockResolvedValue(makeMirrorGroup(screens));
+        const gid = await seedGroup(ScreenGroupMode.Mirror);
+        await seedScreen(gid);
 
         await service.handleGroupScheduleChanged(
-          new GroupScheduleChangedEvent(groupId, orgId, playlistId),
+          new GroupScheduleChangedEvent(gid, orgId, playlistId),
         );
 
         const event = screenStateService.pushEvent.mock.calls[0][1] as ScreenEvent;
-        expect(event.payload['groupId']).toBe(groupId);
+        expect(event.payload['groupId']).toBe(gid);
       });
     });
 
     describe('split mode', () => {
       it('should fan out schedule update to all screens in split group', async () => {
-        const screens = [
-          makeScreen(screenId1, 0, 0),
-          makeScreen(screenId2, 0, 1),
-          makeScreen(screenId3, 1, 0),
-          makeScreen(screenId4, 1, 1),
-        ];
-        screenGroupRepository.findOne.mockResolvedValue(makeSplitGroup(screens));
+        const gid = await seedGroup(ScreenGroupMode.Split);
+        const s1 = await seedScreen(gid, 0, 0);
+        const s2 = await seedScreen(gid, 0, 1);
+        const s3 = await seedScreen(gid, 1, 0);
+        const s4 = await seedScreen(gid, 1, 1);
 
         await service.handleGroupScheduleChanged(
-          new GroupScheduleChangedEvent(groupId, orgId, playlistId),
+          new GroupScheduleChangedEvent(gid, orgId, playlistId),
         );
 
         expect(screenStateService.pushEvent).toHaveBeenCalledTimes(4);
-
-        for (const screen of screens) {
+        for (const screen of [s1, s2, s3, s4]) {
           expect(screenStateService.pushEvent).toHaveBeenCalledWith(
             screen.id,
             expect.objectContaining({
               type: ScreenEventType.ScheduleUpdate,
               payload: expect.objectContaining({
-                groupId,
+                groupId: gid,
                 syncToken: expect.any(String),
               }),
             }),
@@ -218,12 +219,12 @@ describe('ScreenProtocolService', () => {
     });
 
     it('should handle getCurrentPlaylist failure gracefully', async () => {
-      const screens = [makeScreen(screenId1)];
-      screenGroupRepository.findOne.mockResolvedValue(makeMirrorGroup(screens));
+      const gid = await seedGroup(ScreenGroupMode.Mirror);
+      await seedScreen(gid);
       scheduleService.getCurrentPlaylist.mockRejectedValue(new Error('DB error'));
 
       await service.handleGroupScheduleChanged(
-        new GroupScheduleChangedEvent(groupId, orgId, playlistId),
+        new GroupScheduleChangedEvent(gid, orgId, playlistId),
       );
 
       expect(screenStateService.pushEvent).toHaveBeenCalledTimes(1);
@@ -235,11 +236,12 @@ describe('ScreenProtocolService', () => {
   describe('triggerGroupPlay', () => {
     describe('mirror mode', () => {
       it('should send same contentUrl to all screens', async () => {
-        const screens = [makeScreen(screenId1), makeScreen(screenId2)];
-        screenGroupRepository.findOne.mockResolvedValue(makeMirrorGroup(screens));
+        const gid = await seedGroup(ScreenGroupMode.Mirror);
+        const s1 = await seedScreen(gid);
+        const s2 = await seedScreen(gid);
 
         await service.triggerGroupPlay(
-          groupId,
+          gid,
           orgId,
           '/api/media/org/content1',
           contentItemId,
@@ -248,8 +250,7 @@ describe('ScreenProtocolService', () => {
         );
 
         expect(screenStateService.pushEvent).toHaveBeenCalledTimes(2);
-
-        for (const screen of screens) {
+        for (const screen of [s1, s2]) {
           expect(screenStateService.pushEvent).toHaveBeenCalledWith(
             screen.id,
             expect.objectContaining({
@@ -257,7 +258,7 @@ describe('ScreenProtocolService', () => {
               payload: expect.objectContaining({
                 contentUrl: '/api/media/org/content1',
                 contentType: 'video',
-                groupId,
+                groupId: gid,
                 syncToken: expect.any(String),
               }),
             }),
@@ -265,12 +266,13 @@ describe('ScreenProtocolService', () => {
         }
       });
 
-      it('should use Promise.all for simultaneous delivery (same syncToken)', async () => {
-        const screens = [makeScreen(screenId1), makeScreen(screenId2)];
-        screenGroupRepository.findOne.mockResolvedValue(makeMirrorGroup(screens));
+      it('should use the same syncToken for simultaneous delivery', async () => {
+        const gid = await seedGroup(ScreenGroupMode.Mirror);
+        await seedScreen(gid);
+        await seedScreen(gid);
 
         await service.triggerGroupPlay(
-          groupId,
+          gid,
           orgId,
           '/api/media/org/content1',
           contentItemId,
@@ -286,16 +288,23 @@ describe('ScreenProtocolService', () => {
 
     describe('split mode', () => {
       it('should send sliced rendition URL when available', async () => {
-        const screens = [makeScreen(screenId1, 0, 0), makeScreen(screenId2, 0, 1)];
-        screenGroupRepository.findOne.mockResolvedValue(makeSplitGroup(screens));
+        const gid = await seedGroup(ScreenGroupMode.Split);
+        const s1 = await seedScreen(gid, 0, 0);
+        const s2 = await seedScreen(gid, 0, 1);
 
-        slicedRenditionRepository.findOne.mockResolvedValue({
-          id: 'rendition-1',
-          filePath: `media/slices/${groupId}/${screenId1}/${contentItemId}.mp4`,
-        } as SlicedRendition);
+        for (const s of [s1, s2]) {
+          await db.insert(slicedRenditions).values({
+            organisationId: orgId,
+            groupId: gid,
+            screenId: s.id,
+            contentItemId,
+            filePath: `media/slices/${gid}/${s.id}/${contentItemId}.mp4`,
+            sourceHash: 'hash',
+          });
+        }
 
         await service.triggerGroupPlay(
-          groupId,
+          gid,
           orgId,
           '/api/media/org/content1',
           contentItemId,
@@ -304,17 +313,15 @@ describe('ScreenProtocolService', () => {
         );
 
         expect(screenStateService.pushEvent).toHaveBeenCalledTimes(2);
-
-        // Each screen should get its own slice URL with contentType
-        for (const screen of screens) {
+        for (const screen of [s1, s2]) {
           expect(screenStateService.pushEvent).toHaveBeenCalledWith(
             screen.id,
             expect.objectContaining({
               type: ScreenEventType.GroupPlay,
               payload: expect.objectContaining({
-                contentUrl: `/api/media/slices/${groupId}/${screen.id}/${contentItemId}`,
+                contentUrl: `/api/media/slices/${gid}/${screen.id}/${contentItemId}`,
                 contentType: 'video',
-                groupId,
+                groupId: gid,
                 syncToken: expect.any(String),
               }),
             }),
@@ -323,13 +330,11 @@ describe('ScreenProtocolService', () => {
       });
 
       it('should send pending event when rendition not yet available', async () => {
-        const screens = [makeScreen(screenId1, 0, 0)];
-        screenGroupRepository.findOne.mockResolvedValue(makeSplitGroup(screens));
-
-        slicedRenditionRepository.findOne.mockResolvedValue(null);
+        const gid = await seedGroup(ScreenGroupMode.Split);
+        const s1 = await seedScreen(gid, 0, 0);
 
         await service.triggerGroupPlay(
-          groupId,
+          gid,
           orgId,
           '/api/media/org/content1',
           contentItemId,
@@ -338,13 +343,13 @@ describe('ScreenProtocolService', () => {
         );
 
         expect(screenStateService.pushEvent).toHaveBeenCalledWith(
-          screenId1,
+          s1.id,
           expect.objectContaining({
             type: ScreenEventType.Pending,
             payload: expect.objectContaining({
               contentItemId,
-              groupId,
-              screenId: screenId1,
+              groupId: gid,
+              screenId: s1.id,
               reason: 'Sliced rendition not yet available',
             }),
           }),
@@ -354,75 +359,64 @@ describe('ScreenProtocolService', () => {
 
     describe('live stream', () => {
       it('should always use mirror-mode fan-out regardless of group mode', async () => {
-        const screens = [makeScreen(screenId1, 0, 0), makeScreen(screenId2, 0, 1)];
-        // Even though group is split mode, live stream uses mirror
-        screenGroupRepository.findOne.mockResolvedValue(makeSplitGroup(screens));
+        const gid = await seedGroup(ScreenGroupMode.Split);
+        const s1 = await seedScreen(gid, 0, 0);
+        const s2 = await seedScreen(gid, 0, 1);
 
         await service.triggerGroupPlay(
-          groupId,
+          gid,
           orgId,
           'rtmp://stream.example.com/live',
           contentItemId,
           'video',
-          true, // isLiveStream
+          true,
         );
 
         expect(screenStateService.pushEvent).toHaveBeenCalledTimes(2);
-
-        // All screens should get the same stream URL (mirror mode)
-        for (const screen of screens) {
+        for (const screen of [s1, s2]) {
           expect(screenStateService.pushEvent).toHaveBeenCalledWith(
             screen.id,
             expect.objectContaining({
               type: ScreenEventType.GroupPlay,
               payload: expect.objectContaining({
                 contentUrl: 'rtmp://stream.example.com/live',
-                groupId,
+                groupId: gid,
               }),
             }),
           );
         }
-
-        // Should NOT have checked sliced renditions
-        expect(slicedRenditionRepository.findOne).not.toHaveBeenCalled();
       });
     });
 
     it('should do nothing if group not found', async () => {
-      screenGroupRepository.findOne.mockResolvedValue(null);
-
       await service.triggerGroupPlay(
-        groupId,
+        '00000000-0000-0000-0000-000000000000',
         orgId,
         '/api/media/org/content1',
         contentItemId,
         'video',
         false,
       );
-
       expect(screenStateService.pushEvent).not.toHaveBeenCalled();
     });
   });
 
   describe('handleGroupLiveStreamStarted', () => {
     it('should fan out live stream start to all screens in group using mirror mode', async () => {
-      const screen1 = makeScreen(screenId1, 0, 0);
-      const screen2 = makeScreen(screenId2, 0, 1);
-      screenRepository.findOne.mockResolvedValue(screen1);
-      // Even for split groups, live streams use mirror fan-out
-      screenGroupRepository.findOne.mockResolvedValue(makeSplitGroup([screen1, screen2]));
+      const gid = await seedGroup(ScreenGroupMode.Split);
+      const s1 = await seedScreen(gid, 0, 0);
+      const s2 = await seedScreen(gid, 0, 1);
 
-      await service.handleGroupLiveStreamStarted(new ScreenStateChangeEvent(screenId1, orgId));
+      await service.handleGroupLiveStreamStarted(new ScreenStateChangeEvent(s1.id, orgId));
 
       expect(screenStateService.pushEvent).toHaveBeenCalledTimes(2);
-
-      for (const screen of [screen1, screen2]) {
+      for (const screen of [s1, s2]) {
         expect(screenStateService.pushEvent).toHaveBeenCalledWith(
           screen.id,
           expect.objectContaining({
             type: ScreenEventType.LiveStreamStart,
             payload: expect.objectContaining({
-              groupId,
+              groupId: gid,
               syncToken: expect.any(String),
             }),
           }),
@@ -431,30 +425,23 @@ describe('ScreenProtocolService', () => {
     });
 
     it('should do nothing if screen has no group', async () => {
-      const screen = { ...makeScreen(screenId1), groupId: null };
-      screenRepository.findOne.mockResolvedValue(screen);
+      const s1 = await seedScreen(null);
 
-      await service.handleGroupLiveStreamStarted(new ScreenStateChangeEvent(screenId1, orgId));
+      await service.handleGroupLiveStreamStarted(new ScreenStateChangeEvent(s1.id, orgId));
 
-      expect(screenGroupRepository.findOne).not.toHaveBeenCalled();
       expect(screenStateService.pushEvent).not.toHaveBeenCalled();
     });
 
     it('should do nothing if screen not found', async () => {
-      screenRepository.findOne.mockResolvedValue(null);
-
-      await service.handleGroupLiveStreamStarted(new ScreenStateChangeEvent(screenId1, orgId));
-
+      await service.handleGroupLiveStreamStarted(
+        new ScreenStateChangeEvent('00000000-0000-0000-0000-000000000000', orgId),
+      );
       expect(screenStateService.pushEvent).not.toHaveBeenCalled();
     });
   });
 
   describe('existing single-screen SSE behaviour', () => {
-    it('should not interfere with direct screen events (pushEvent still works independently)', () => {
-      // ScreenProtocolService does not modify pushEvent behaviour
-      // Single-screen SSE is handled by ScreenStateService directly
-      // This test verifies the service doesn't subscribe to SCHEDULE_ENTRY_CHANGED
-      // (which is the single-screen event handled by ScreenStateService)
+    it('should not interfere with direct screen events', () => {
       expect(service).toBeDefined();
     });
   });

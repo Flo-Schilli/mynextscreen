@@ -2,9 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { MembershipController } from './membership.controller';
 import { MembershipService } from './membership.service';
 import { OrganisationRole } from './organisation-role.enum';
-import { UserOrganisationMembership } from './user-organisation-membership.entity';
-import { User } from './user.entity';
-import { Organisation } from '../organisation/organisation.entity';
+import type { UserOrganisationMembership, User } from '../db/schema';
+
+type MembershipWithUser = UserOrganisationMembership & { user: User };
 
 describe('MembershipController', () => {
   let controller: MembershipController;
@@ -16,19 +16,21 @@ describe('MembershipController', () => {
     id: 'u-1',
     email: 'test@example.com',
     name: 'Test User',
-    memberships: [],
+    passwordHash: null,
+    passwordResetToken: null,
+    passwordResetTokenExpiresAt: null,
+    isSuperAdmin: false,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
 
-  const mockMembership: UserOrganisationMembership = {
+  const mockMembership: MembershipWithUser = {
     id: 'm-1',
     userId: 'u-1',
     organisationId: orgId,
     role: OrganisationRole.Editor,
-    user: mockUser,
-    organisation: {} as unknown as Organisation,
     createdAt: new Date(),
+    user: mockUser,
   };
 
   beforeEach(async () => {

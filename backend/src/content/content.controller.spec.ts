@@ -3,7 +3,7 @@ import { NotFoundException } from '@nestjs/common';
 import { ContentController } from './content.controller';
 import { ContentService } from './content.service';
 import { ConfigService } from '@nestjs/config';
-import { Content } from './content.entity';
+import type { Content } from '../db/schema';
 import { ContentType } from './content-type.enum';
 
 describe('ContentController — CRUD endpoints', () => {

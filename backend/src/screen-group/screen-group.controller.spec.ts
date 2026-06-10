@@ -1,10 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ScreenGroupController } from './screen-group.controller';
 import { ScreenGroupService } from './screen-group.service';
-import { ScreenGroup } from './screen-group.entity';
+import type { ScreenGroup, Screen } from '../db/schema';
 import { ScreenGroupMode } from './screen-group-mode.enum';
-import { Organisation } from '../organisation/organisation.entity';
-import { Screen } from '../screen/screen.entity';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 
 describe('ScreenGroupController', () => {
@@ -25,10 +23,8 @@ describe('ScreenGroupController', () => {
     mode: ScreenGroupMode.Split,
     gridColumns: 2,
     gridRows: 2,
-    screens: [],
     createdAt: new Date(),
     updatedAt: new Date(),
-    organisation: {} as Organisation,
   };
 
   beforeEach(async () => {

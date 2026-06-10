@@ -4,9 +4,9 @@ import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { OrganisationRole } from './organisation-role.enum';
-import { UserOrganisationMembership } from './user-organisation-membership.entity';
-import { User } from './user.entity';
-import { Organisation } from '../organisation/organisation.entity';
+import type { UserOrganisationMembership, Organisation } from '../db/schema';
+
+type MembershipWithOrganisation = UserOrganisationMembership & { organisation: Organisation };
 
 describe('UserController', () => {
   let controller: UserController;
@@ -14,39 +14,39 @@ describe('UserController', () => {
 
   const userId = 'u-1';
 
-  const mockMemberships: UserOrganisationMembership[] = [
+  const orgAlpha = {
+    id: 'org-1',
+    name: 'Org Alpha',
+    timeZone: 'Europe/Vienna',
+  } as Organisation;
+  const orgBeta = {
+    id: 'org-2',
+    name: 'Org Beta',
+    timeZone: 'UTC',
+  } as Organisation;
+
+  const mockMemberships: MembershipWithOrganisation[] = [
     {
       id: 'm-1',
       userId,
       organisationId: 'org-1',
       role: OrganisationRole.OrgAdmin,
-      user: {} as unknown as User,
-      organisation: {
-        id: 'org-1',
-        name: 'Org Alpha',
-        timeZone: 'Europe/Vienna',
-      } as unknown as Organisation,
       createdAt: new Date(),
+      organisation: orgAlpha,
     },
     {
       id: 'm-2',
       userId,
       organisationId: 'org-2',
       role: OrganisationRole.Viewer,
-      user: {} as unknown as User,
-      organisation: {
-        id: 'org-2',
-        name: 'Org Beta',
-        timeZone: 'UTC',
-      } as unknown as Organisation,
       createdAt: new Date(),
+      organisation: orgBeta,
     },
   ];
 
   beforeEach(async () => {
     userService = {
       getMemberships: jest.fn(),
-      findOrCreate: jest.fn(),
       getMembership: jest.fn(),
     };
 
@@ -93,7 +93,7 @@ describe('UserController', () => {
       const req = {
         user: { userId, email: 'test@example.com' },
       } as AuthenticatedRequest;
-      const result = await controller.getMemberships(req);
+      const result = (await controller.getMemberships(req)) as MembershipWithOrganisation[];
 
       expect(result[0].organisation.name).toBe('Org Alpha');
       expect(result[0].role).toBe(OrganisationRole.OrgAdmin);

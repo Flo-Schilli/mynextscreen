@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { OrganisationController } from './organisation.controller';
 import { OrganisationService } from './organisation.service';
 import { MembershipService } from '../user/membership.service';
-import { Organisation } from './organisation.entity';
+import type { Organisation } from '../db/schema';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 
 describe('OrganisationController', () => {
@@ -19,7 +19,6 @@ describe('OrganisationController', () => {
     storageOriginalUsedBytes: 0,
     storageTranscodedUsedBytes: 0,
     defaultPlaylistId: null,
-    defaultPlaylist: null as unknown,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
