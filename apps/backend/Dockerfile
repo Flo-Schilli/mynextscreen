@@ -1,14 +1,15 @@
+# Dev image — build context = repo root. Hot-reload via `nx serve` (nest --watch).
 FROM node:22-alpine
 
 RUN apk add --no-cache ffmpeg
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json nx.json tsconfig.base.json ./
 RUN npm install
 
 COPY . .
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start:dev"]
+CMD ["npx", "nx", "serve", "backend"]

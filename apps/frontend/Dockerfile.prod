@@ -1,13 +1,18 @@
+# Build context = repo root (Nx monorepo: one root package.json + lockfile).
+# Build:  docker build -f apps/frontend/Dockerfile.prod -t signage-frontend .
+
 # Stage 1: Build
 FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm install
+COPY package.json package-lock.json nx.json tsconfig.base.json ./
+RUN npm ci
 
-COPY . .
-RUN npx ng build --configuration production
+COPY apps/frontend apps/frontend
+COPY libs libs
+
+RUN npx nx build frontend --configuration=production
 
 # Stage 2: Production runtime
 FROM nginx:alpine
@@ -24,11 +29,12 @@ LABEL org.opencontainers.image.title="signage-frontend" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.source="https://github.com/Flo-Schilli/digital-signage"
 
-COPY nginx.prod.conf.template /etc/nginx/templates/default.conf.template
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+# nginx template (envsubst BACKEND_UPSTREAM at runtime) + entrypoint
+COPY apps/frontend/nginx.prod.conf.template /etc/nginx/templates/default.conf.template
+COPY apps/frontend/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-COPY --from=builder /app/dist/frontend/browser /usr/share/nginx/html
+COPY --from=builder /app/dist/apps/frontend/browser /usr/share/nginx/html
 
 # Runtime-discoverable build metadata
 RUN printf '{"version":"%s","commit":"%s","builtAt":"%s"}\n' \

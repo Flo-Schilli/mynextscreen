@@ -18,10 +18,10 @@ for svc in backend frontend player; do
     --build-arg "APP_VERSION=${APP_VERSION}" \
     --build-arg "GIT_COMMIT=${GIT_COMMIT}" \
     --build-arg "BUILD_DATE=${BUILD_DATE}" \
-    -f "${svc}/Dockerfile.prod" \
+    -f "apps/${svc}/Dockerfile.prod" \
     -t "${REGISTRY}/${svc}:${APP_VERSION}" \
     -t "${REGISTRY}/${svc}:latest" \
-    "${svc}"
+    .
 done
 
 echo "Done. Tagged ${REGISTRY}/{backend,frontend,player}:${APP_VERSION}"
