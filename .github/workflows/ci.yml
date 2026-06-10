@@ -16,9 +16,7 @@ jobs:
     name: lint · typecheck · test · build (nx affected)
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: write
-      checks: write # ArtiomTr/jest-coverage-report-action publishes failed-test annotations
+      contents: read # coverage gate is enforced in apps/backend/jest.config.ts; no PR-comment action
     steps:
       - uses: actions/checkout@v6
         with:
@@ -81,23 +79,6 @@ jobs:
           path: apps/backend/coverage/
           retention-days: 14
           if-no-files-found: ignore
-
-      - name: Coverage report PR comment
-        if: github.event_name == 'pull_request'
-        uses: ArtiomTr/jest-coverage-report-action@v2
-        with:
-          working-directory: apps/backend
-          package-manager: npm
-          # Deps are already installed by the root `npm ci` above; the monorepo has
-          # no per-app package.json, so the action's own install step must be skipped.
-          skip-step: install
-          # jest lives only in the root node_modules (no apps/backend/node_modules),
-          # so invoke it via `npx` to resolve it up the tree. The action appends
-          # `--ci --json --coverage --testLocationInResults --outputFile=report.json`,
-          # so the base command must NOT include those flags itself.
-          test-script: npx jest
-          annotations: failed-tests
-          threshold: 92
 
   docker:
     name: docker (${{ matrix.app }})
