@@ -4,6 +4,15 @@
 
 A multi-tenant digital signage platform built with **NestJS** (backend), **Angular 21** (frontend), **SQLite3** (database), and **Redis** (job queue). The server manages screens, content, playlists, schedules, and live streams for concert venues. Screens communicate via a protocol abstraction layer (JSON over HTTP + SSE as the first implementation).
 
+## Monorepo & Build
+
+The repository is an **Nx integrated monorepo** with a single root `package.json` and `package-lock.json` (one install, one dependency set, the canonical version). Configuration lives in `nx.json` (targets, caching, `production` named-inputs) and `tsconfig.base.json` (TS path mappings).
+
+- **Projects** — `apps/backend` (NestJS), `apps/frontend` and `apps/player` (Angular 21), and `libs/shared-types` (shared TypeScript types consumed via the `@signage/shared-types` path alias). Apps carry **no** own `package.json`; each declares its targets in `project.json` (build/serve/test/typecheck/lint/format, plus `db-*` drizzle-kit targets on backend).
+- **Test runners** — mixed: backend uses **Jest** (enforces the coverage gate), frontend uses **Vitest** via `ng test`, player uses **Vitest** via `vitest run`.
+- **Build outputs** — backend → `dist/apps/backend` (`main.js`); frontend/player → `dist/apps/{frontend,player}/browser`.
+- **CI** (`.github/workflows/ci.yml`) — one `lint-test-build` job installs at the root, then runs `nx affected -t lint typecheck test build` on PRs (only projects touched by the diff, base resolved via `nrwl/nx-set-shas`) and `nx run-many` on `main`/tags (full graph). A separate `docker` job builds the three prod images from the **repo-root context** (`apps/<app>/Dockerfile.prod`) and pushes to GHCR on `main`/tags only.
+
 ## API Layer
 
 - **REST API** over HTTP, JSON request/response bodies
