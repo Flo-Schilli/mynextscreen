@@ -1,0 +1,15 @@
+# Keep the root build context small. Shared by all three app image builds
+# (backend / frontend / player), which now use the repo root as context.
+node_modules
+**/node_modules
+dist
+**/dist
+.nx
+.angular
+.git
+coverage
+**/coverage
+test-data
+*.log
+.env
+.env.*

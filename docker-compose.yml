@@ -1,12 +1,12 @@
 services:
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backend/Dockerfile
     ports:
       - "3000:3000"
     volumes:
-      - ./backend/src:/app/src
+      - ./apps/backend/src:/app/apps/backend/src
       - ./test-data/media:/app/media
     environment:
       - DATABASE_URL=postgres://signage:signage@postgres:5432/signage
@@ -31,23 +31,23 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/frontend/Dockerfile
     ports:
       - "4200:4200"
     volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/proxy.conf.docker.json:/app/proxy.conf.docker.json
+      - ./apps/frontend/src:/app/apps/frontend/src
+      - ./apps/frontend/proxy.conf.docker.json:/app/apps/frontend/proxy.conf.docker.json
 
   player:
     build:
-      context: ./player
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/player/Dockerfile
     ports:
       - "4300:4300"
     volumes:
-      - ./player/src:/app/src
-      - ./player/proxy.conf.docker.json:/app/proxy.conf.docker.json
+      - ./apps/player/src:/app/apps/player/src
+      - ./apps/player/proxy.conf.docker.json:/app/apps/player/proxy.conf.docker.json
 
   redis:
     image: redis:7-alpine
