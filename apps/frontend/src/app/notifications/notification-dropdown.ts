@@ -9,7 +9,7 @@ import { Notification, NotificationEventType } from './notification.model';
     <div class="dropdown">
       <div class="dropdown-header">
         <span class="dropdown-title">Notifications</span>
-        @if (notificationService.notifications().some(n => !n.read)) {
+        @if (notificationService.notifications().some((n) => !n.read)) {
           <button class="mark-all-btn" (click)="onMarkAllRead()">Mark all as read</button>
         }
       </div>
