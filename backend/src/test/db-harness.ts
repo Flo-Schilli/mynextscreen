@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as schema from '../db/schema';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { DRIZZLE } from '../db/database.constants';
-import { TEST_PG_URI_FILE } from './global-setup';
+import { TEST_PG_URI_FILE } from './test-db-uri';
 
 /**
  * Per-worker test database harness backed by the shared Postgres container that

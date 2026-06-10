@@ -1,6 +1,6 @@
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import * as fs from 'fs';
-import { TEST_PG_URI_FILE } from './global-setup';
+import { TEST_PG_URI_FILE } from './test-db-uri';
 
 /** Jest globalTeardown: stop the shared Postgres container and clean the URI file. */
 export default async function globalTeardown(): Promise<void> {
