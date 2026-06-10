@@ -1,9 +1,6 @@
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
-
-export const TEST_PG_URI_FILE = path.join(os.tmpdir(), 'signage-test-pg-uri');
+import { TEST_PG_URI_FILE } from './test-db-uri';
 
 /**
  * Jest globalSetup: start ONE Postgres container for the whole run and write its
