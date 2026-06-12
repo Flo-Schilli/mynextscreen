@@ -1,6 +1,7 @@
 import { Component, input, output } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { VersionBadge } from '../shared/version-badge';
+import { SafeHtmlPipe } from '../shared/safe-html.pipe';
 
 export interface NavItem {
   label: string;
@@ -17,7 +18,7 @@ export interface NavItem {
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive, VersionBadge],
+  imports: [RouterLink, RouterLinkActive, VersionBadge, SafeHtmlPipe],
   template: `
     <aside class="sidebar" [class.collapsed]="collapsed()" [class.mobile-open]="mobileOpen()">
       <div class="sidebar-header">
@@ -61,7 +62,7 @@ export interface NavItem {
             (click)="closeMobile.emit()"
             [attr.title]="collapsed() ? item.label : null"
           >
-            <span class="nav-icon" [innerHTML]="item.icon"></span>
+            <span class="nav-icon" [innerHTML]="item.icon | safeHtml"></span>
             @if (!collapsed()) {
               <span class="nav-label">{{ item.label }}</span>
             }
@@ -94,6 +95,10 @@ export interface NavItem {
         }
       </nav>
 
+      <div class="version-row">
+        <app-version-badge [compact]="collapsed()" />
+      </div>
+
       <div class="sidebar-footer">
         <button
           class="nav-item"
@@ -115,10 +120,6 @@ export interface NavItem {
             <span class="nav-label">Logout</span>
           }
         </button>
-
-        <div class="version-row">
-          <app-version-badge [compact]="collapsed()" />
-        </div>
       </div>
     </aside>
   `,

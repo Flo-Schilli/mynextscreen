@@ -19,11 +19,20 @@ try {
 // against the already-destroyed injector on teardown (NG0205).
 const createdFixtures: ComponentFixture<AppSidebar>[] = [];
 
-// Angular sanitizes [innerHTML]; <svg> is stripped, so use a plain allowed
-// element to assert the icon markup is actually bound into the .nav-icon span.
+// Angular's HTML sanitizer strips <svg> from [innerHTML]; the SafeHtmlPipe
+// bypasses that so the inline icon markup actually renders. Use real <svg>
+// icons here to guard against that regression.
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', route: '/dashboard', icon: '<span class="icon-dash">D</span>' },
-  { label: 'Screens', route: '/screens', icon: '<span class="icon-screens">S</span>' },
+  {
+    label: 'Dashboard',
+    route: '/dashboard',
+    icon: '<svg class="icon-dash"><rect x="0" y="0" width="4" height="4" /></svg>',
+  },
+  {
+    label: 'Screens',
+    route: '/screens',
+    icon: '<svg class="icon-screens"><rect x="0" y="0" width="4" height="4" /></svg>',
+  },
 ];
 
 async function createFixture(
@@ -93,7 +102,7 @@ describe('AppSidebar', () => {
       const firstLink = fixture.debugElement.query(By.css('.sidebar-nav a.nav-item'));
       const icon = firstLink.query(By.css('.nav-icon')).nativeElement as HTMLElement;
       const label = firstLink.query(By.css('.nav-label')).nativeElement as HTMLElement;
-      expect(icon.querySelector('.icon-dash')).not.toBeNull();
+      expect(icon.querySelector('svg.icon-dash')).not.toBeNull();
       expect(label.textContent?.trim()).toBe('Dashboard');
     });
   });
