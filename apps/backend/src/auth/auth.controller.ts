@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -15,7 +16,9 @@ import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { UserService } from '../user/user.service';
 import {
+  AUTH_EMAIL_VERIFICATION_REQUESTED,
   AUTH_PASSWORD_RESET_REQUESTED,
+  AuthEmailVerificationRequestedEvent,
   AuthPasswordResetRequestedEvent,
 } from '../audit-log/audit.events';
 import { AuthService } from './auth.service';
@@ -25,9 +28,14 @@ import { Public } from './public.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
 import { SetupDto } from './dto/setup.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
 import type { AuthenticatedUserView } from './auth.types';
+
+const DEFAULT_SIGNUP_STORAGE_BYTES = 5 * 1024 * 1024 * 1024;
 
 interface AuthSuccessResponse {
   user: AuthenticatedUserView;
@@ -44,9 +52,70 @@ export class AuthController {
 
   @Public()
   @Get('setup-status')
-  async setupStatus(): Promise<{ setupNeeded: boolean }> {
+  async setupStatus(): Promise<{ setupNeeded: boolean; signupEnabled: boolean }> {
     const hasUser = await this.users.hasAnyUser();
-    return { setupNeeded: !hasUser };
+    return { setupNeeded: !hasUser, signupEnabled: this.isSignupEnabled() };
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  async register(@Body() dto: RegisterDto): Promise<void> {
+    if (!this.isSignupEnabled()) {
+      throw new ForbiddenException('Self-signup is disabled');
+    }
+    const { verificationToken } = await this.auth.register({
+      email: dto.email,
+      password: dto.password,
+      name: dto.name,
+      organisationName: dto.organisationName,
+      storageOriginalLimitBytes: this.config.get<number>(
+        'SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES',
+        DEFAULT_SIGNUP_STORAGE_BYTES,
+      ),
+      storageTranscodedLimitBytes: this.config.get<number>(
+        'SIGNUP_DEFAULT_STORAGE_TRANSCODED_BYTES',
+        DEFAULT_SIGNUP_STORAGE_BYTES,
+      ),
+    });
+    this.events.emit(
+      AUTH_EMAIL_VERIFICATION_REQUESTED,
+      new AuthEmailVerificationRequestedEvent(dto.email.toLowerCase(), verificationToken),
+    );
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(
+    @Body() dto: VerifyEmailDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthSuccessResponse> {
+    const { user, accessToken, refreshToken } = await this.auth.verifyEmail(dto.token);
+    setAccessCookie(res, this.config, accessToken.token, accessToken.expiresAt);
+    setRefreshCookie(res, this.config, refreshToken.token, refreshToken.expiresAt);
+    return {
+      user: { userId: user.id, email: user.email, isSuperAdmin: user.isSuperAdmin },
+    };
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async resendVerification(@Body() dto: ResendVerificationDto): Promise<void> {
+    // Enumeration-safe: always 204. Only unverified accounts get a fresh link.
+    const user = await this.users.findByEmail(dto.email);
+    if (!user || user.emailVerified) {
+      return;
+    }
+    const token = await this.auth.createEmailVerificationToken(user);
+    this.events.emit(
+      AUTH_EMAIL_VERIFICATION_REQUESTED,
+      new AuthEmailVerificationRequestedEvent(user.email, token),
+    );
   }
 
   @Public()
@@ -162,6 +231,12 @@ export class AuthController {
       email: req.user.email,
       isSuperAdmin: req.user.isSuperAdmin,
     };
+  }
+
+  /** Reads SIGNUP_ENABLED, tolerating both the validated boolean and a raw string. */
+  private isSignupEnabled(): boolean {
+    const value = this.config.get<boolean | string>('SIGNUP_ENABLED', true);
+    return value === true || value === 'true' || value === '1';
   }
 
   private readRefreshCookie(req: Request): string | null {
