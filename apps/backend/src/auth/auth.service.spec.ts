@@ -45,6 +45,9 @@ describe('AuthService', () => {
       | 'findByEmailVerificationToken'
       | 'markEmailVerified'
       | 'setEmailVerificationToken'
+      | 'setPendingEmail'
+      | 'findByEmailChangeToken'
+      | 'applyEmailChange'
     >
   >;
   let passwords: jest.Mocked<Pick<PasswordService, 'hash' | 'verify'>>;
@@ -75,6 +78,9 @@ describe('AuthService', () => {
       findByEmailVerificationToken: jest.fn(),
       markEmailVerified: jest.fn(),
       setEmailVerificationToken: jest.fn(),
+      setPendingEmail: jest.fn(),
+      findByEmailChangeToken: jest.fn(),
+      applyEmailChange: jest.fn(),
     } as never;
     passwords = { hash: jest.fn(), verify: jest.fn() } as never;
     tokens = {
@@ -216,6 +222,64 @@ describe('AuthService', () => {
         token,
         expect.any(Date),
       );
+    });
+  });
+
+  describe('changeEmail', () => {
+    it('verifies the password, parks the new email, returns old+new+token', async () => {
+      users.findById.mockResolvedValue(makeUser({ id: 'u1', email: 'old@example.com' }));
+      passwords.verify.mockResolvedValue(true);
+
+      const result = await service.changeEmail('u1', 'New@Example.com', 'pw');
+
+      expect(result.oldEmail).toBe('old@example.com');
+      expect(result.newEmail).toBe('new@example.com');
+      expect(typeof result.changeToken).toBe('string');
+      expect(users.setPendingEmail).toHaveBeenCalledWith(
+        'u1',
+        'new@example.com',
+        result.changeToken,
+        expect.any(Date),
+      );
+    });
+
+    it('throws Unauthorized on a wrong current password', async () => {
+      users.findById.mockResolvedValue(makeUser({ id: 'u1' }));
+      passwords.verify.mockResolvedValue(false);
+      await expect(service.changeEmail('u1', 'new@example.com', 'bad')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(users.setPendingEmail).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFound for an unknown user', async () => {
+      users.findById.mockResolvedValue(null);
+      await expect(service.changeEmail('ghost', 'new@example.com', 'pw')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('confirmEmailChange', () => {
+    it('applies the change on a valid unexpired token', async () => {
+      users.findByEmailChangeToken.mockResolvedValue(
+        makeUser({ id: 'u1', emailChangeTokenExpiresAt: new Date(Date.now() + 60_000) }),
+      );
+      await service.confirmEmailChange('tok');
+      expect(users.applyEmailChange).toHaveBeenCalledWith('u1');
+    });
+
+    it('throws NotFound for an expired token', async () => {
+      users.findByEmailChangeToken.mockResolvedValue(
+        makeUser({ emailChangeTokenExpiresAt: new Date(Date.now() - 1) }),
+      );
+      await expect(service.confirmEmailChange('tok')).rejects.toThrow(NotFoundException);
+      expect(users.applyEmailChange).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFound for an unknown token', async () => {
+      users.findByEmailChangeToken.mockResolvedValue(null);
+      await expect(service.confirmEmailChange('nope')).rejects.toThrow(NotFoundException);
     });
   });
 

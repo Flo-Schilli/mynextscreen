@@ -16,16 +16,22 @@ import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { UserService } from '../user/user.service';
 import {
+  AUTH_EMAIL_CHANGE_REQUESTED,
   AUTH_EMAIL_VERIFICATION_REQUESTED,
+  AUTH_PASSWORD_CHANGED,
   AUTH_PASSWORD_RESET_REQUESTED,
+  AuthEmailChangeRequestedEvent,
   AuthEmailVerificationRequestedEvent,
+  AuthPasswordChangedEvent,
   AuthPasswordResetRequestedEvent,
 } from '../audit-log/audit.events';
 import { AuthService } from './auth.service';
 import { REFRESH_COOKIE, clearAuthCookies, setAccessCookie, setRefreshCookie } from './cookies';
 import { AuthenticatedRequest } from './jwt-auth.guard';
 import { Public } from './public.decorator';
+import { ChangeEmailDto } from './dto/change-email.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ConfirmEmailChangeDto } from './dto/confirm-email-change.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -222,6 +228,25 @@ export class AuthController {
     @Body() dto: ChangePasswordDto,
   ): Promise<void> {
     await this.auth.changePassword(req.user.userId, dto.currentPassword, dto.newPassword);
+    this.events.emit(AUTH_PASSWORD_CHANGED, new AuthPasswordChangedEvent(req.user.email));
+  }
+
+  @Post('change-email')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async changeEmail(@Req() req: AuthenticatedRequest, @Body() dto: ChangeEmailDto): Promise<void> {
+    const change = await this.auth.changeEmail(req.user.userId, dto.newEmail, dto.currentPassword);
+    this.events.emit(
+      AUTH_EMAIL_CHANGE_REQUESTED,
+      new AuthEmailChangeRequestedEvent(change.oldEmail, change.newEmail, change.changeToken),
+    );
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('confirm-email-change')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async confirmEmailChange(@Body() dto: ConfirmEmailChangeDto): Promise<void> {
+    await this.auth.confirmEmailChange(dto.token);
   }
 
   @Get('me')

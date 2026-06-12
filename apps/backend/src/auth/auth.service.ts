@@ -32,6 +32,12 @@ export interface RegisterResult {
   verificationToken: string;
 }
 
+export interface EmailChangeRequest {
+  oldEmail: string;
+  newEmail: string;
+  changeToken: string;
+}
+
 /**
  * Internal email+password authentication: validate credentials, issue an access
  * JWT + opaque refresh token, rotate/revoke refresh tokens, and drive the
@@ -143,6 +149,48 @@ export class AuthService {
     const expiresAt = new Date(Date.now() + EMAIL_VERIFICATION_TOKEN_TTL_MS);
     await this.users.setEmailVerificationToken(user.id, token, expiresAt);
     return token;
+  }
+
+  /**
+   * Start an email change: verify the current password, park the new address as
+   * `pendingEmail` behind a token, and return the addresses + token so the caller
+   * emails a confirm link to the NEW address and a heads-up to the OLD one. The
+   * change does not take effect until confirmEmailChange().
+   */
+  async changeEmail(
+    userId: string,
+    newEmail: string,
+    currentPassword: string,
+  ): Promise<EmailChangeRequest> {
+    const user = await this.users.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    const valid = await this.passwords.verify(user.passwordHash, currentPassword);
+    if (!valid) {
+      this.logger.warn(`Change email failed: bad password userId=${userId}`);
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+    const changeToken = generateUrlSafeToken();
+    const expiresAt = new Date(Date.now() + EMAIL_VERIFICATION_TOKEN_TTL_MS);
+    const normalisedNew = newEmail.toLowerCase();
+    await this.users.setPendingEmail(userId, normalisedNew, changeToken, expiresAt);
+    this.logger.log(`Email change requested userId=${userId}`);
+    return { oldEmail: user.email, newEmail: normalisedNew, changeToken };
+  }
+
+  /** Confirm an email-change token: validate + unexpired → promote pendingEmail. */
+  async confirmEmailChange(token: string): Promise<void> {
+    const user = await this.users.findByEmailChangeToken(token);
+    if (
+      !user ||
+      !user.emailChangeTokenExpiresAt ||
+      user.emailChangeTokenExpiresAt.getTime() < Date.now()
+    ) {
+      throw new NotFoundException('Invalid or expired token');
+    }
+    await this.users.applyEmailChange(user.id);
+    this.logger.log(`Email change confirmed userId=${user.id}`);
   }
 
   async refresh(rawRefreshToken: string): Promise<RefreshResult> {

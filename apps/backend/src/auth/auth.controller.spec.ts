@@ -6,7 +6,9 @@ import { AuthController } from './auth.controller';
 import type { AuthService } from './auth.service';
 import type { UserService } from '../user/user.service';
 import {
+  AUTH_EMAIL_CHANGE_REQUESTED,
   AUTH_EMAIL_VERIFICATION_REQUESTED,
+  AUTH_PASSWORD_CHANGED,
   AUTH_PASSWORD_RESET_REQUESTED,
 } from '../audit-log/audit.events';
 import type { User } from '../db/schema';
@@ -50,6 +52,9 @@ describe('AuthController', () => {
       createEmailVerificationToken: jest.fn(),
       createPasswordResetToken: jest.fn(),
       login: jest.fn(),
+      changePassword: jest.fn(),
+      changeEmail: jest.fn(),
+      confirmEmailChange: jest.fn(),
     };
     users = { hasAnyUser: jest.fn(), findByEmail: jest.fn() };
     events = { emit: jest.fn() };
@@ -173,6 +178,56 @@ describe('AuthController', () => {
       users.findByEmail.mockResolvedValue(null);
       await controller.forgotPassword({ email: 'nobody@example.com' });
       expect(events.emit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('changePassword', () => {
+    it('changes the password then emits a password-changed notice', async () => {
+      const req = { user: { userId: 'u1', email: 'user@example.com', isSuperAdmin: false } };
+
+      await controller.changePassword(req as never, {
+        currentPassword: 'old',
+        newPassword: 'newsecret',
+      });
+
+      expect(auth.changePassword).toHaveBeenCalledWith('u1', 'old', 'newsecret');
+      expect(events.emit).toHaveBeenCalledWith(
+        AUTH_PASSWORD_CHANGED,
+        expect.objectContaining({ email: 'user@example.com' }),
+      );
+    });
+  });
+
+  describe('changeEmail', () => {
+    it('requests the change then emits an email-change event (old+new+token)', async () => {
+      const req = { user: { userId: 'u1', email: 'old@example.com', isSuperAdmin: false } };
+      auth.changeEmail.mockResolvedValue({
+        oldEmail: 'old@example.com',
+        newEmail: 'new@example.com',
+        changeToken: 'ctok',
+      });
+
+      await controller.changeEmail(req as never, {
+        newEmail: 'new@example.com',
+        currentPassword: 'pw',
+      });
+
+      expect(auth.changeEmail).toHaveBeenCalledWith('u1', 'new@example.com', 'pw');
+      expect(events.emit).toHaveBeenCalledWith(
+        AUTH_EMAIL_CHANGE_REQUESTED,
+        expect.objectContaining({
+          oldEmail: 'old@example.com',
+          newEmail: 'new@example.com',
+          changeToken: 'ctok',
+        }),
+      );
+    });
+  });
+
+  describe('confirmEmailChange', () => {
+    it('delegates to the auth service', async () => {
+      await controller.confirmEmailChange({ token: 'ctok' });
+      expect(auth.confirmEmailChange).toHaveBeenCalledWith('ctok');
     });
   });
 });
