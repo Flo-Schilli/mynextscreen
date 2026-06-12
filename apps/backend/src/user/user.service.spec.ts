@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { and, eq } from 'drizzle-orm';
 import { UserService } from './user.service';
@@ -129,11 +129,12 @@ describe('UserService', () => {
       expect(found?.id).toBe(user.id);
     });
 
-    it('should set a password and clear any outstanding reset token', async () => {
+    it('should set a password, clear the reset token, and mark the email verified', async () => {
       const [user] = await db
         .insert(users)
         .values({
           email: 'pw@example.com',
+          emailVerified: false,
           passwordResetToken: 'token-xyz',
           passwordResetTokenExpiresAt: new Date(),
         })
@@ -145,6 +146,9 @@ describe('UserService', () => {
       expect(persisted.passwordHash).toBe('hashed-secret');
       expect(persisted.passwordResetToken).toBeNull();
       expect(persisted.passwordResetTokenExpiresAt).toBeNull();
+      // Invitees activating via the set-password link become verified so the
+      // unverified-login gate (403 "Email not verified") no longer blocks them.
+      expect(persisted.emailVerified).toBe(true);
     });
   });
 
@@ -405,6 +409,156 @@ describe('UserService', () => {
     it('returns 0 when there is nothing stale', async () => {
       const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
       expect(await service.deleteStaleUnverifiedSignups(cutoff)).toBe(0);
+    });
+  });
+
+  describe('deleteUser', () => {
+    it('deletes the user and drops the org left with no members, returning its id', async () => {
+      const [user] = await db.insert(users).values({ email: 'solo@example.com' }).returning();
+      const org = await seedOrg('Solo Org');
+      await db.insert(userOrganisationMemberships).values({
+        userId: user.id,
+        organisationId: org.id,
+        role: OrganisationRole.OrgAdmin,
+      });
+
+      const orphaned = await service.deleteUser(user.id);
+
+      expect(orphaned).toEqual([org.id]);
+      expect(await db.select().from(users).where(eq(users.id, user.id))).toHaveLength(0);
+      expect(
+        await db.select().from(organisations).where(eq(organisations.id, org.id)),
+      ).toHaveLength(0);
+    });
+
+    it('keeps an org that still has another member and returns no orphan ids', async () => {
+      const [user] = await db.insert(users).values({ email: 'leaver@example.com' }).returning();
+      const [other] = await db.insert(users).values({ email: 'stayer@example.com' }).returning();
+      const org = await seedOrg('Shared Org');
+      await db.insert(userOrganisationMemberships).values([
+        { userId: user.id, organisationId: org.id, role: OrganisationRole.OrgAdmin },
+        { userId: other.id, organisationId: org.id, role: OrganisationRole.Editor },
+      ]);
+
+      const orphaned = await service.deleteUser(user.id);
+
+      expect(orphaned).toEqual([]);
+      expect(
+        await db.select().from(organisations).where(eq(organisations.id, org.id)),
+      ).toHaveLength(1);
+    });
+
+    describe('guardLastSuperAdmin', () => {
+      it('refuses to delete the last super-admin (atomic lockout guard)', async () => {
+        const [sa] = await db
+          .insert(users)
+          .values({ email: 'lone-sa@example.com', isSuperAdmin: true })
+          .returning();
+
+        await expect(service.deleteUser(sa.id, { guardLastSuperAdmin: true })).rejects.toThrow(
+          ForbiddenException,
+        );
+        // Transaction rolled back — the super-admin is still present.
+        expect(await db.select().from(users).where(eq(users.id, sa.id))).toHaveLength(1);
+      });
+
+      it('allows deleting a super-admin while another remains', async () => {
+        const [sa1] = await db
+          .insert(users)
+          .values({ email: 'sa-one@example.com', isSuperAdmin: true })
+          .returning();
+        await db.insert(users).values({ email: 'sa-two@example.com', isSuperAdmin: true });
+
+        await expect(service.deleteUser(sa1.id, { guardLastSuperAdmin: true })).resolves.toEqual(
+          [],
+        );
+        expect(await db.select().from(users).where(eq(users.id, sa1.id))).toHaveLength(0);
+        expect(await service.countSuperAdmins()).toBe(1);
+      });
+
+      it('does not guard a non-super-admin even when only one super-admin exists', async () => {
+        await db.insert(users).values({ email: 'sole-sa@example.com', isSuperAdmin: true });
+        const [plain] = await db
+          .insert(users)
+          .values({ email: 'plain-user@example.com' })
+          .returning();
+
+        await expect(service.deleteUser(plain.id, { guardLastSuperAdmin: true })).resolves.toEqual(
+          [],
+        );
+        expect(await db.select().from(users).where(eq(users.id, plain.id))).toHaveLength(0);
+      });
+
+      it('serialises concurrent deletes so the last super-admin survives (TOCTOU)', async () => {
+        // Two super-admins, deleted in parallel. The FOR UPDATE row lock + in-tx
+        // re-count must let at most one through, leaving >= 1 super-admin. A
+        // non-atomic check would let both pass and leave zero.
+        const [sa1] = await db
+          .insert(users)
+          .values({ email: 'race-1@example.com', isSuperAdmin: true })
+          .returning();
+        const [sa2] = await db
+          .insert(users)
+          .values({ email: 'race-2@example.com', isSuperAdmin: true })
+          .returning();
+
+        const results = await Promise.allSettled([
+          service.deleteUser(sa1.id, { guardLastSuperAdmin: true }),
+          service.deleteUser(sa2.id, { guardLastSuperAdmin: true }),
+        ]);
+
+        const rejected = results.filter((r) => r.status === 'rejected');
+        expect(rejected.length).toBeGreaterThanOrEqual(1);
+        // Whatever the interleaving, the system never drops to zero super-admins.
+        expect(await service.countSuperAdmins()).toBeGreaterThanOrEqual(1);
+      });
+    });
+  });
+
+  describe('countSuperAdmins', () => {
+    it('counts only super-admins', async () => {
+      await db.insert(users).values([
+        { email: 'sa1@example.com', isSuperAdmin: true },
+        { email: 'sa2@example.com', isSuperAdmin: true },
+        { email: 'plain@example.com', isSuperAdmin: false },
+      ]);
+
+      expect(await service.countSuperAdmins()).toBe(2);
+    });
+
+    it('returns 0 when there are none', async () => {
+      await db.insert(users).values({ email: 'plain@example.com' });
+      expect(await service.countSuperAdmins()).toBe(0);
+    });
+  });
+
+  describe('listAllWithMemberships', () => {
+    it('returns every user with org memberships (id + name + role) and flags', async () => {
+      const [admin] = await db
+        .insert(users)
+        .values({ email: 'admin@example.com', name: 'Admin', isSuperAdmin: true })
+        .returning();
+      const [member] = await db
+        .insert(users)
+        .values({ email: 'member@example.com', emailVerified: false })
+        .returning();
+      const org = await seedOrg('Org X');
+      await db.insert(userOrganisationMemberships).values({
+        userId: member.id,
+        organisationId: org.id,
+        role: OrganisationRole.Editor,
+      });
+
+      const result = await service.listAllWithMemberships();
+
+      const adminView = result.find((u) => u.id === admin.id);
+      const memberView = result.find((u) => u.id === member.id);
+      expect(adminView?.isSuperAdmin).toBe(true);
+      expect(adminView?.memberships).toEqual([]);
+      expect(memberView?.emailVerified).toBe(false);
+      expect(memberView?.memberships).toEqual([
+        { organisationId: org.id, organisationName: 'Org X', role: OrganisationRole.Editor },
+      ]);
     });
   });
 });

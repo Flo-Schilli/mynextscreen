@@ -1,3 +1,4 @@
+import * as fs from 'fs/promises';
 import * as path from 'path';
 
 /**
@@ -24,4 +25,25 @@ export function getTranscodedPath(
   targetExt: string,
 ): string {
   return path.join(basePath, organisationId, 'transcoded', `${contentId}.${targetExt}`);
+}
+
+/**
+ * Returns the per-organisation media directory (holds the `originals/` and
+ * `transcoded/` subtrees for every content item of that org).
+ * Structure: {basePath}/{organisationId}
+ */
+export function getOrganisationMediaDir(basePath: string, organisationId: string): string {
+  return path.join(basePath, organisationId);
+}
+
+/**
+ * Recursively remove an organisation's entire media directory (originals +
+ * transcoded). Best-effort: `force` swallows a missing directory so this is safe
+ * to call after the org rows are already deleted.
+ */
+export async function removeOrganisationMedia(
+  basePath: string,
+  organisationId: string,
+): Promise<void> {
+  await fs.rm(getOrganisationMediaDir(basePath, organisationId), { recursive: true, force: true });
 }

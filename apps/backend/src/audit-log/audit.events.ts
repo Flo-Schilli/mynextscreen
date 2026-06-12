@@ -143,6 +143,7 @@ export class AuthPasswordChangedEvent {
 // ── Organisation ─────────────────────────────────────────────────────────────
 export const AUDIT_ORGANISATION_CREATED = 'audit.organisation.created';
 export const AUDIT_ORGANISATION_UPDATED = 'audit.organisation.updated';
+export const AUDIT_ORGANISATION_DELETED = 'audit.organisation.deleted';
 
 export class AuditOrganisationEvent {
   constructor(

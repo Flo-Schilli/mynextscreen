@@ -93,7 +93,7 @@ export class EnvironmentVariables {
   @IsInt()
   @Min(1)
   @IsOptional()
-  SIGNUP_UNVERIFIED_TTL_HOURS = 48;
+  SIGNUP_UNVERIFIED_TTL_HOURS = 24;
 }
 
 /**

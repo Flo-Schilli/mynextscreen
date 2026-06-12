@@ -32,6 +32,7 @@ import { Public } from './public.decorator';
 import { ChangeEmailDto } from './dto/change-email.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ConfirmEmailChangeDto } from './dto/confirm-email-change.dto';
+import { DeleteAccountDto } from './dto/delete-account.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -209,8 +210,13 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<void> {
     // Enumeration-safe: always 204, regardless of whether the account exists.
+    // Unverified accounts are treated identically to unknown ones (silent no-op):
+    // otherwise a self-signup could reset their password to flip emailVerified=true
+    // (see UserService.setPassword) and bypass the verification-link gate. Invitee
+    // activation is unaffected — it issues its own set-password token via
+    // MembershipService.addMember, not through this forgot-password path.
     const user = await this.users.findByEmail(dto.email);
-    if (!user) {
+    if (!user || !user.emailVerified) {
       return;
     }
     const token = await this.auth.createPasswordResetToken(user);
@@ -247,6 +253,17 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async confirmEmailChange(@Body() dto: ConfirmEmailChangeDto): Promise<void> {
     await this.auth.confirmEmailChange(dto.token);
+  }
+
+  @Post('delete-account')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteAccount(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: DeleteAccountDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    await this.auth.deleteAccount(req.user.userId, dto.currentPassword);
+    clearAuthCookies(res, this.config);
   }
 
   @Get('me')

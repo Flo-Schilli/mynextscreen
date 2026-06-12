@@ -55,6 +55,12 @@ export class OrganisationController {
     return this.organisationService.update(id, dto);
   }
 
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    return this.organisationService.remove(id);
+  }
+
   // ── Super-admin member management (bypasses OrgAdmin role check) ──
 
   @Get(':id/members')

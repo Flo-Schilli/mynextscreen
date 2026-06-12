@@ -7,6 +7,7 @@ import { OrgTable } from './org-table';
 import { OrgMemberList } from './org-member-list';
 import { OrgAddMemberModal, AddMemberPayload } from './org-add-member-modal';
 import { OrgRemoveMemberModal } from './org-remove-member-modal';
+import { OrgDeleteModal } from './org-delete-modal';
 
 /**
  * Smart container for the (super-admin) organisations feature. Owns data
@@ -18,7 +19,14 @@ import { OrgRemoveMemberModal } from './org-remove-member-modal';
 @Component({
   selector: 'app-organisations',
   standalone: true,
-  imports: [OrgForm, OrgTable, OrgMemberList, OrgAddMemberModal, OrgRemoveMemberModal],
+  imports: [
+    OrgForm,
+    OrgTable,
+    OrgMemberList,
+    OrgAddMemberModal,
+    OrgRemoveMemberModal,
+    OrgDeleteModal,
+  ],
   template: `
     <div class="page">
       <header class="page-header">
@@ -48,6 +56,7 @@ import { OrgRemoveMemberModal } from './org-remove-member-modal';
           <button class="back-btn" (click)="deselectOrg()">&#8592; All Organisations</button>
           <h2>{{ selectedOrg.name }}</h2>
           <button class="btn btn-small" (click)="openEditForm(selectedOrg)">Edit</button>
+          <button class="btn btn-small btn-danger" (click)="openDeleteModal()">Delete Org</button>
         </div>
 
         <div class="org-info">
@@ -139,6 +148,17 @@ import { OrgRemoveMemberModal } from './org-remove-member-modal';
           (dismiss)="cancelRemoveMember()"
         />
       }
+
+      <!-- ── Delete Org Confirm Modal ── -->
+      @if (showDeleteModal && selectedOrg) {
+        <app-org-delete-modal
+          [org]="selectedOrg"
+          [deleting]="deletingOrg"
+          [error]="deleteError"
+          (confirm)="executeDeleteOrg()"
+          (dismiss)="cancelDeleteOrg()"
+        />
+      }
     </div>
   `,
   styles: `
@@ -218,6 +238,11 @@ export class Organisations implements OnInit {
   showRemoveConfirm = false;
   removingMember: OrgMember | null = null;
   removingMemberId: string | null = null;
+
+  // Delete org state
+  showDeleteModal = false;
+  deletingOrg = false;
+  deleteError = '';
 
   ngOnInit(): void {
     this.loadOrganisations();
@@ -399,6 +424,38 @@ export class Organisations implements OnInit {
         this.removingMemberId = null;
         this.showRemoveConfirm = false;
         this.removingMember = null;
+      },
+    });
+  }
+
+  // ── Delete org ──
+
+  openDeleteModal(): void {
+    this.deleteError = '';
+    this.showDeleteModal = true;
+  }
+
+  cancelDeleteOrg(): void {
+    if (this.deletingOrg) return;
+    this.showDeleteModal = false;
+    this.deleteError = '';
+  }
+
+  executeDeleteOrg(): void {
+    if (!this.selectedOrg || this.deletingOrg) return;
+
+    this.deletingOrg = true;
+    this.deleteError = '';
+    this.orgService.delete(this.selectedOrg.id).subscribe({
+      next: () => {
+        this.deletingOrg = false;
+        this.showDeleteModal = false;
+        this.deselectOrg();
+        this.loadOrganisations();
+      },
+      error: (err) => {
+        this.deleteError = err.error?.message || 'Failed to delete organisation.';
+        this.deletingOrg = false;
       },
     });
   }

@@ -185,7 +185,73 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
           </div>
         </form>
       </section>
+
+      <section class="section danger-zone">
+        <h2 class="section-title">Danger Zone</h2>
+        <p class="section-desc">
+          Permanently delete your account. This removes your organisation memberships and cannot be
+          undone.
+        </p>
+        <button type="button" class="btn btn-danger" (click)="openDeleteAccount()">
+          Account löschen
+        </button>
+      </section>
     </div>
+
+    @if (showDeleteAccount) {
+      <div
+        class="modal-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Confirm account deletion"
+        tabindex="0"
+        (click)="cancelDeleteAccount()"
+        (keydown.escape)="cancelDeleteAccount()"
+      >
+        <div
+          class="modal"
+          role="document"
+          (click)="$event.stopPropagation()"
+          (keydown)="$event.stopPropagation()"
+        >
+          <h2>Account löschen</h2>
+          <p>
+            This permanently deletes your account and cannot be undone. Enter your current password
+            to confirm.
+          </p>
+          <form
+            [formGroup]="deleteAccountForm"
+            (ngSubmit)="confirmDeleteAccount()"
+            class="form-grid"
+          >
+            <label class="field">
+              <span class="field-label">Current password</span>
+              <input
+                type="password"
+                formControlName="currentPassword"
+                autocomplete="current-password"
+              />
+            </label>
+            @if (deleteAccountError) {
+              <p class="error">{{ deleteAccountError }}</p>
+            }
+            <div class="form-actions">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                (click)="cancelDeleteAccount()"
+                [disabled]="deletingAccount"
+              >
+                Cancel
+              </button>
+              <button type="submit" class="btn btn-danger" [disabled]="deletingAccount">
+                {{ deletingAccount ? 'Deleting…' : 'Delete account' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    }
   `,
   styles: `
     .section {
@@ -340,6 +406,9 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
       opacity: 0.6;
       cursor: not-allowed;
     }
+    .danger-zone {
+      border-color: #991b1b;
+    }
   `,
 })
 export class UserSettings implements OnInit, OnDestroy {
@@ -369,6 +438,14 @@ export class UserSettings implements OnInit, OnDestroy {
     newEmail: ['', [Validators.required, Validators.email]],
     currentPassword: ['', [Validators.required]],
   });
+
+  readonly deleteAccountForm = this.fb.nonNullable.group({
+    currentPassword: ['', [Validators.required]],
+  });
+
+  showDeleteAccount = false;
+  deletingAccount = false;
+  deleteAccountError = '';
 
   orgSmtpConfigured = false;
   orgNtfyConfigured = false;
@@ -488,6 +565,35 @@ export class UserSettings implements OnInit, OnDestroy {
       this.showToast('Could not change email. Check your password.', 'error');
     } finally {
       this.savingEmail = false;
+    }
+  }
+
+  openDeleteAccount(): void {
+    this.deleteAccountError = '';
+    this.deleteAccountForm.reset();
+    this.showDeleteAccount = true;
+  }
+
+  cancelDeleteAccount(): void {
+    if (this.deletingAccount) return;
+    this.showDeleteAccount = false;
+    this.deleteAccountError = '';
+  }
+
+  async confirmDeleteAccount(): Promise<void> {
+    if (this.deleteAccountForm.invalid || this.deletingAccount) {
+      this.deleteAccountForm.markAllAsTouched();
+      return;
+    }
+    this.deletingAccount = true;
+    this.deleteAccountError = '';
+    const { currentPassword } = this.deleteAccountForm.getRawValue();
+    try {
+      await this.auth.deleteAccount(currentPassword);
+      this.router.navigate(['/login'], { queryParams: { notice: 'account-deleted' } });
+    } catch {
+      this.deleteAccountError = 'Could not delete account. Check your current password.';
+      this.deletingAccount = false;
     }
   }
 

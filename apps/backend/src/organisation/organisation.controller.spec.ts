@@ -36,6 +36,7 @@ describe('OrganisationController', () => {
       findAll: jest.fn(),
       findOne: jest.fn(),
       update: jest.fn(),
+      remove: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -105,6 +106,16 @@ describe('OrganisationController', () => {
 
       expect(service.update).toHaveBeenCalledWith(mockOrganisation.id, dto);
       expect(result).toEqual(updated);
+    });
+  });
+
+  describe('remove', () => {
+    it('delegates deletion to the service', async () => {
+      service.remove.mockResolvedValue(undefined);
+
+      await controller.remove(mockOrganisation.id);
+
+      expect(service.remove).toHaveBeenCalledWith(mockOrganisation.id);
     });
   });
 });

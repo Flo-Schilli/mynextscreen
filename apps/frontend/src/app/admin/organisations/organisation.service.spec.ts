@@ -187,6 +187,32 @@ describe('OrganisationService', () => {
     });
   });
 
+  describe('delete', () => {
+    it('issues a DELETE to the organisation detail URL and completes with no body', () => {
+      // Arrange
+      let completed = false;
+
+      // Act
+      service.delete('org-7').subscribe({ complete: () => (completed = true) });
+      const req = httpMock.expectOne(`${BASE_URL}/org-7`);
+
+      // Assert
+      expect(req.request.method).toBe('DELETE');
+      req.flush(null);
+      expect(completed).toBe(true);
+    });
+
+    it('does not attach an X-Organisation-Id header (super-admin scoped)', () => {
+      // Arrange & Act
+      service.delete('org-7').subscribe();
+      const req = httpMock.expectOne(`${BASE_URL}/org-7`);
+
+      // Assert
+      expect(req.request.headers.has('X-Organisation-Id')).toBe(false);
+      req.flush(null);
+    });
+  });
+
   describe('listMembers', () => {
     it('issues a GET to the members sub-resource and returns the members', () => {
       // Arrange

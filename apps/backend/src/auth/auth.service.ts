@@ -6,8 +6,10 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { User } from '../db/schema';
 import { UserService } from '../user/user.service';
+import { removeOrganisationMedia } from '../content/content-storage.util';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import type { LoginResult, RefreshResult } from './auth.types';
@@ -47,12 +49,16 @@ export interface EmailChangeRequest {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly mediaBasePath: string;
 
   constructor(
     private readonly users: UserService,
     private readonly passwords: PasswordService,
     private readonly tokens: TokenService,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    this.mediaBasePath = this.config.get<string>('MEDIA_BASE_PATH', './media');
+  }
 
   async login(email: string, password: string): Promise<LoginResult> {
     const user = await this.users.findByEmail(email);
@@ -240,6 +246,48 @@ export class AuthService {
     const hash = await this.passwords.hash(newPassword);
     await this.users.setPassword(userId, hash);
     this.logger.log(`Password changed userId=${userId}`);
+  }
+
+  /**
+   * Self-service account deletion. Verifies the current password, refuses to
+   * delete the last system super-admin (lockout protection), deletes the user
+   * (cascading memberships + dropping any org left with no members), revokes all
+   * of the user's refresh tokens, then wipes the media of every orphaned org.
+   */
+  async deleteAccount(userId: string, currentPassword: string): Promise<void> {
+    const user = await this.users.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    // Invitees (null hash) cannot self-delete via password; treat as unauthorised.
+    const valid = await this.passwords.verify(user.passwordHash, currentPassword);
+    if (!valid) {
+      this.logger.warn(`Delete account failed: bad password userId=${userId}`);
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+    // Last-super-admin lockout protection runs atomically inside deleteUser (row
+    // lock + re-count) so two concurrent self-deletes of different super-admins
+    // can't both pass the check and leave zero super-admins. Throws
+    // ForbiddenException('Cannot delete the last super-admin').
+    const orphanedOrgIds = await this.users.deleteUser(userId, { guardLastSuperAdmin: true });
+    await this.tokens.revokeAllForUser(userId);
+    await this.cleanupOrgMedia(orphanedOrgIds);
+    this.logger.log(`Account deleted userId=${userId} orphanOrgs=${orphanedOrgIds.length}`);
+  }
+
+  /** Best-effort media-dir removal for orphaned orgs; never throws. */
+  private async cleanupOrgMedia(orgIds: readonly string[]): Promise<void> {
+    for (const orgId of orgIds) {
+      try {
+        await removeOrganisationMedia(this.mediaBasePath, orgId);
+      } catch (error: unknown) {
+        this.logger.warn(
+          `Failed to remove media dir for organisation ${orgId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
   }
 
   /**

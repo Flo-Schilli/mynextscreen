@@ -152,4 +152,17 @@ describe('AuthService', () => {
     req.flush(null);
     await promise;
   });
+
+  it('deleteAccount posts the current password and clears the user signal', async () => {
+    const { service, httpMock } = setup();
+    service.user.set(USER);
+    const promise = service.deleteAccount('pw');
+    const req = httpMock.expectOne('/api/auth/delete-account');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.withCredentials).toBe(true);
+    expect(req.request.body).toEqual({ currentPassword: 'pw' });
+    req.flush(null);
+    await promise;
+    expect(service.user()).toBeNull();
+  });
 });

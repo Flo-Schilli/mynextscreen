@@ -55,6 +55,7 @@ describe('AuthController', () => {
       changePassword: jest.fn(),
       changeEmail: jest.fn(),
       confirmEmailChange: jest.fn(),
+      deleteAccount: jest.fn(),
     };
     users = { hasAnyUser: jest.fn(), findByEmail: jest.fn() };
     events = { emit: jest.fn() };
@@ -179,6 +180,18 @@ describe('AuthController', () => {
       await controller.forgotPassword({ email: 'nobody@example.com' });
       expect(events.emit).not.toHaveBeenCalled();
     });
+
+    it('issues no reset token (and no mail) for an unverified account', async () => {
+      // An unverified self-signup must NOT be able to reset its way to
+      // emailVerified=true and bypass the verification-link gate. Treated as a
+      // silent no-op identical to an unknown email (no token write, no event).
+      users.findByEmail.mockResolvedValue(makeUser({ emailVerified: false }));
+
+      await controller.forgotPassword({ email: 'user@example.com' });
+
+      expect(auth.createPasswordResetToken).not.toHaveBeenCalled();
+      expect(events.emit).not.toHaveBeenCalled();
+    });
   });
 
   describe('changePassword', () => {
@@ -228,6 +241,21 @@ describe('AuthController', () => {
     it('delegates to the auth service', async () => {
       await controller.confirmEmailChange({ token: 'ctok' });
       expect(auth.confirmEmailChange).toHaveBeenCalledWith('ctok');
+    });
+  });
+
+  describe('deleteAccount', () => {
+    it('deletes the account and clears the auth cookies', async () => {
+      const req = { user: { userId: 'u1', email: 'user@example.com', isSuperAdmin: false } };
+
+      await controller.deleteAccount(
+        req as never,
+        { currentPassword: 'pw' },
+        res as unknown as Response,
+      );
+
+      expect(auth.deleteAccount).toHaveBeenCalledWith('u1', 'pw');
+      expect(res.clearCookie).toHaveBeenCalled();
     });
   });
 });

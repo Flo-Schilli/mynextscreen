@@ -29,6 +29,20 @@ describe('UnverifiedSignupCleanupService', () => {
     expect(cutoff.getTime()).toBeLessThanOrEqual(before + 5_000);
   });
 
+  it('defaults to a 24h cutoff when SIGNUP_UNVERIFIED_TTL_HOURS is unset', async () => {
+    // Make ConfigService.get return its fallback (the service default).
+    (service as unknown as { config: ConfigService }).config = {
+      get: jest.fn((_key: string, fallback?: unknown) => fallback),
+    } as unknown as ConfigService;
+    const expected = Date.now() - 24 * 60 * 60 * 1000;
+
+    await service.cleanup();
+
+    const cutoff: Date = users.deleteStaleUnverifiedSignups.mock.calls[0][0];
+    expect(cutoff.getTime()).toBeGreaterThanOrEqual(expected - 5_000);
+    expect(cutoff.getTime()).toBeLessThanOrEqual(expected + 5_000);
+  });
+
   it('swallows errors from the user service (cron must not crash)', async () => {
     users.deleteStaleUnverifiedSignups.mockRejectedValue(new Error('db down'));
     await expect(service.cleanup()).resolves.toBeUndefined();

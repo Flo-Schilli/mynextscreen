@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { SetupService } from '../setup/setup.service';
 import { VersionBadge } from '../shared/version-badge';
@@ -16,6 +16,14 @@ export class Login {
   private readonly auth = inject(AuthService);
   private readonly setup = inject(SetupService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+
+  /** Notice shown after redirect (e.g. account deletion). */
+  readonly notice = signal<string | null>(
+    this.route.snapshot.queryParamMap.get('notice') === 'account-deleted'
+      ? 'Account gelöscht.'
+      : null,
+  );
 
   readonly submitting = signal(false);
   readonly error = signal<string | null>(null);

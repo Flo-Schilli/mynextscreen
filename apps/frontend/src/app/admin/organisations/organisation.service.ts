@@ -31,6 +31,10 @@ export class OrganisationService {
     return this.http.patch<Organisation>(`${this.baseUrl}/${id}`, dto);
   }
 
+  delete(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`);
+  }
+
   listMembers(orgId: string): Observable<OrgMember[]> {
     return this.http.get<OrgMember[]>(`${this.baseUrl}/${orgId}/members`);
   }

@@ -1,7 +1,10 @@
-import { ConflictException, Injectable, Inject } from '@nestjs/common';
-import { and, eq, inArray, lt } from 'drizzle-orm';
+import { ConflictException, ForbiddenException, Injectable, Inject } from '@nestjs/common';
+import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
+
+/** The transaction-scoped Drizzle client passed to `db.transaction(tx => …)`. */
+type DrizzleTx = Parameters<Parameters<DrizzleDB['transaction']>[0]>[0];
 import {
   organisations,
   users,
@@ -35,6 +38,22 @@ function findUniqueViolation(error: unknown): { constraint?: string } | null {
     current = e.cause;
   }
   return null;
+}
+
+export interface UserMembershipView {
+  organisationId: string;
+  organisationName: string;
+  role: string;
+}
+
+export interface UserWithMembershipsView {
+  id: string;
+  email: string;
+  name: string | null;
+  emailVerified: boolean;
+  isSuperAdmin: boolean;
+  createdAt: Date;
+  memberships: UserMembershipView[];
 }
 
 export interface SignupInput {
@@ -180,12 +199,18 @@ export class UserService {
       .where(eq(users.id, userId));
   }
 
-  /** Apply a new password hash and clear any outstanding reset token. */
+  /**
+   * Apply a new password hash and clear any outstanding reset token. Also marks
+   * the account email-verified: an invitee activating via the set-password link
+   * has, by definition, proven control of their inbox (the link was emailed to
+   * them), so they must not be blocked by the unverified-login gate afterwards.
+   */
   async setPassword(userId: string, passwordHash: string): Promise<void> {
     await this.db
       .update(users)
       .set({
         passwordHash,
+        emailVerified: true,
         passwordResetToken: null,
         passwordResetTokenExpiresAt: null,
       })
@@ -232,6 +257,42 @@ export class UserService {
   }
 
   /**
+   * Within a transaction: delete the given users (cascading their memberships)
+   * and then drop any of the supplied organisations that no longer has a single
+   * remaining member — i.e. the orphan org each deleted user left behind. The org
+   * has no FK to the user, so it is removed explicitly here. Returns the ids of
+   * the orgs that were actually dropped (callers use them for media cleanup).
+   *
+   * Shared by `deleteStaleUnverifiedSignups` (cron) and `deleteUser` (self-delete
+   * / super-admin delete) so the orphan-org logic lives in exactly one place.
+   */
+  async deleteOrphanUsers(
+    tx: DrizzleTx,
+    userIds: readonly string[],
+    candidateOrgIds: readonly string[],
+  ): Promise<string[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+    await tx.delete(users).where(inArray(users.id, [...userIds]));
+
+    const droppedOrgIds: string[] = [];
+    const uniqueOrgIds = [...new Set(candidateOrgIds)];
+    for (const orgId of uniqueOrgIds) {
+      const [remaining] = await tx
+        .select({ id: userOrganisationMemberships.id })
+        .from(userOrganisationMemberships)
+        .where(eq(userOrganisationMemberships.organisationId, orgId))
+        .limit(1);
+      if (!remaining) {
+        await tx.delete(organisations).where(eq(organisations.id, orgId));
+        droppedOrgIds.push(orgId);
+      }
+    }
+    return droppedOrgIds;
+  }
+
+  /**
    * Delete never-verified signups older than the cutoff and the organisation
    * each one created (cascades remove the membership; the org has no FK to the
    * user, so it is removed explicitly only when it has no remaining members).
@@ -251,23 +312,95 @@ export class UserService {
         .select({ organisationId: userOrganisationMemberships.organisationId })
         .from(userOrganisationMemberships)
         .where(inArray(userOrganisationMemberships.userId, userIds));
-      const orgIds = [...new Set(memberships.map((m) => m.organisationId))];
+      const orgIds = memberships.map((m) => m.organisationId);
 
-      await tx.delete(users).where(inArray(users.id, userIds));
-
-      // Drop each org that no longer has any member (the orphan signup org).
-      for (const orgId of orgIds) {
-        const [remaining] = await tx
-          .select({ id: userOrganisationMemberships.id })
-          .from(userOrganisationMemberships)
-          .where(eq(userOrganisationMemberships.organisationId, orgId))
-          .limit(1);
-        if (!remaining) {
-          await tx.delete(organisations).where(eq(organisations.id, orgId));
-        }
-      }
+      await this.deleteOrphanUsers(tx, userIds, orgIds);
       return userIds.length;
     });
+  }
+
+  /**
+   * Delete a single user and clean up after them: in one transaction collect the
+   * user's org-ids, remove the user (cascading their memberships), then drop any
+   * org left with no members (orphan org). Returns the ids of the dropped orgs so
+   * the caller can remove their media directories outside the transaction.
+   *
+   * When `guardLastSuperAdmin` is set, the last-super-admin lockout check runs
+   * INSIDE the transaction: the target row is locked with `SELECT … FOR UPDATE`
+   * and, if it is a super-admin, the super-admin count is re-read under that lock
+   * before the delete. This closes the TOCTOU window where two concurrent deletes
+   * of two different super-admins could each pass a separate pre-check and leave
+   * the system with zero super-admins — the row lock serialises them so the
+   * second transaction observes the first's effect and throws.
+   */
+  async deleteUser(
+    userId: string,
+    options: { guardLastSuperAdmin?: boolean } = {},
+  ): Promise<string[]> {
+    return this.db.transaction(async (tx) => {
+      if (options.guardLastSuperAdmin) {
+        // Lock the target row so a concurrent delete of another super-admin
+        // serialises behind us and re-reads an up-to-date count.
+        const [target] = await tx
+          .select({ isSuperAdmin: users.isSuperAdmin })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1)
+          .for('update');
+        if (target?.isSuperAdmin) {
+          const [{ count }] = await tx
+            .select({ count: sql<number>`count(*)::int` })
+            .from(users)
+            .where(eq(users.isSuperAdmin, true));
+          if (count <= 1) {
+            throw new ForbiddenException('Cannot delete the last super-admin');
+          }
+        }
+      }
+      const memberships = await tx
+        .select({ organisationId: userOrganisationMemberships.organisationId })
+        .from(userOrganisationMemberships)
+        .where(eq(userOrganisationMemberships.userId, userId));
+      const orgIds = memberships.map((m) => m.organisationId);
+      return this.deleteOrphanUsers(tx, [userId], orgIds);
+    });
+  }
+
+  /** Count system-level super-admins (drives last-super-admin lockout guards). */
+  async countSuperAdmins(): Promise<number> {
+    const rows = await this.db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.isSuperAdmin, true));
+    return rows.length;
+  }
+
+  /**
+   * Super-admin overview: every user with their org memberships (org id + name)
+   * and per-org role. Returns a flat shape suitable for the admin UI.
+   */
+  async listAllWithMemberships(): Promise<UserWithMembershipsView[]> {
+    const rows = await this.db.query.users.findMany({
+      with: {
+        memberships: {
+          columns: { role: true },
+          with: { organisation: { columns: { id: true, name: true } } },
+        },
+      },
+    });
+    return rows.map((user) => ({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      emailVerified: user.emailVerified,
+      isSuperAdmin: user.isSuperAdmin,
+      createdAt: user.createdAt,
+      memberships: user.memberships.map((m) => ({
+        organisationId: m.organisation.id,
+        organisationName: m.organisation.name,
+        role: m.role,
+      })),
+    }));
   }
 
   // ── Email change ────────────────────────────────────────────────────────────

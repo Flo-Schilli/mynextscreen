@@ -7,6 +7,7 @@
 > wichtig ist.
 
 ## Project
+
 Organisationen verwalten **Screens (TVs)** über ein Venue verteilt, laden Bilder/
 Videos in eine geteilte **Content-Library** (mit Transcoding), bauen **Playlists**,
 planen sie kalenderbasiert über Screens hinweg (**Schedules**) und streamen **Live-Video**
@@ -15,6 +16,7 @@ bekommen Updates per **SSE** gepusht. Ein separater **Player** (Angular) läuft 
 den Screens.
 
 Kernideen:
+
 - **Multi-Tenancy:** Jede **Organisation** ist voll isoliert (eigene Screens,
   Content, Playlists, Schedules, User). Provisioniert nur durch **Super-Admin**,
   keine Self-Registration. Jede Query ist serverseitig per `organisationId` gescoped.
@@ -37,6 +39,7 @@ Kernideen:
   (SMTP) / **ntfy**, pro User togglebar.
 
 > **Hinweise zur Doku-Aktualität (Code gewinnt):**
+>
 > - **Echtzeit = SSE**, nicht WebSocket/Socket.IO (README-Tabelle ist veraltet).
 >   Siehe `backend/src/dashboard/dashboard-sse.service.ts` + `@Sse`-Endpoints.
 > - **Screen-Protokoll = JSON-Adapter** (`screen-protocol/json-protocol-adapter.ts`).
@@ -45,6 +48,7 @@ Kernideen:
 >   real ist JSON über HTTP + SSE.
 
 ## Domain Model (Backend-Module = Domains)
+
 ```
 Organisation         (Tenant; storage-limits, default/fallback playlist, time zone)
   ├── User-Membership { user, role(OrgAdmin|Editor|Viewer), notificationPrefs }
@@ -59,6 +63,7 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
 ```
 
 > Schema-Hinweise:
+>
 > - **Entity-IDs sind UUIDs.** Multi-Tenancy serverseitig per Guard/Query-Scope
 >   durchsetzen (Viewer darf nichts anlegen) — nie nur im Frontend ausblenden.
 > - **Transcoded Files liegen im Filesystem, nicht in der DB.** Pfadschema:
@@ -68,6 +73,7 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
 >   `slice-content/`) — nicht pro Screen/Adapter duplizieren.
 
 ## Stack
+
 - **Frontend (Admin):** Angular ~21.2 (Standalone, Signals, **zoneless-orientiert**),
   Tailwind CSS v4 (`@tailwindcss/postcss`), eigene Auth-UI (email+password). Tests: **Vitest**.
 - **Player:** eigene Angular-21-App (`player/`), **hls.js** für Live-Streams. Tests: **Vitest**.
@@ -96,12 +102,14 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
   (prod, `ansible/`). Repo-Remote: GitHub (`github.com/Flo-Schilli/digital-signage`).
 
 ## Project Structure
+
 > **Nx integrated monorepo.** EIN Root-`package.json` + EIN `package-lock.json`
 > (Single Source of Truth, Version + alle Deps), `nx.json` (Targets/Caching),
 > `tsconfig.base.json` (Path-Mappings, u. a. `@signage/shared-types`). Apps haben
 > **kein** eigenes `package.json` — nur ein `project.json` mit Nx-Targets
 > (`nx:run-commands`). Gemischte Test-Runner: **Jest** (backend, Coverage-Gate),
 > **Vitest** (frontend via `ng test`, player via `vitest run`).
+
 ```
 apps/
   backend/                # NestJS API (REST + SSE + BullMQ-Worker)
@@ -147,24 +155,29 @@ ARCHITECTURE.md           # Technische Architektur (kanonisch)
 VISION.md                 # Produkt-Vision & Feature-Details (kanonisch)
 .maggus/                  # Maggus-Task-Runner (features/, bugs/, config.yml)
 ```
+
 > Build-Outputs: backend → `dist/apps/backend/main.js`; frontend/player →
 > `dist/apps/{frontend,player}/browser`.
 
 ## Active ECC Rules
+
 - common
 - typescript
 - angular
 
 ## Default Skills to load
-- nestjs-patterns       # Backend-Arbeit in backend/
-- angular-developer     # Frontend-/Player-Arbeit in frontend/ bzw. player/
+
+- nestjs-patterns # Backend-Arbeit in backend/
+- angular-developer # Frontend-/Player-Arbeit in frontend/ bzw. player/
 
 ## Agents
-- @typescript-reviewer  # vor jedem PR
+
+- @typescript-reviewer # vor jedem PR
 - @build-error-resolver # bei Build-/Type-Fehlern
-- @tdd-guide            # beim Schreiben von Tests
+- @tdd-guide # beim Schreiben von Tests
 
 ## Conventions
+
 - **Strict TypeScript, kein `any`.**
 - **Angular: Standalone Components, Signals, keine NgModules.** Business-Logik
   in Services, nicht in Components.
@@ -185,6 +198,7 @@ VISION.md                 # Produkt-Vision & Feature-Details (kanonisch)
 - Geheimnisse/API-Keys nie plaintext loggen; Config über ENV (`@nestjs/config`).
 
 ## Do NOT
+
 - Keine NgModules — immer Standalone Components.
 - Keine Business-Logik in Angular-Components — immer Services.
 - Multi-Tenancy nicht nur im Frontend „verstecken" — serverseitig per Scope/Guard.
@@ -195,6 +209,7 @@ VISION.md                 # Produkt-Vision & Feature-Details (kanonisch)
 - README-Stack-Tabelle nicht blind übernehmen (Echtzeit = **SSE**, Protokoll = **JSON**).
 
 ## Commands
+
 ```bash
 # Alles per Docker (dev): backend:3000 · frontend:4200 · player:4300 · redis:6379
 npm run dev                       # docker compose up --build
@@ -228,10 +243,11 @@ npx nx run backend:db-studio      # drizzle-kit studio
 > (`openssl rand -base64 48`). Schema via `nx run backend:db-migrate` anlegen.
 
 ## Tests & Quality Gates
+
 - **CI:** `.github/workflows/ci.yml` — Trigger push `main`, Tags `v*.*.*`, PRs.
   Job 1 `lint-test-build` (EIN Job, kein Matrix mehr): `npm ci` am Root,
   `sync-versions.mjs --check`, dann `nrwl/nx-set-shas` + `nx affected -t
-  format:check / lint typecheck build / test` auf **PRs** bzw. `nx run-many`
+format:check / lint typecheck build / test` auf **PRs** bzw. `nx run-many`
   auf **main** (nichts wird übersprungen). Backend-Coverage-Gate läuft im
   `test`-Target (Jest); zusätzlich `ArtiomTr/jest-coverage-report-action`
   (`working-directory: apps/backend`) für PR-Kommentar + Artifact aus
@@ -252,24 +268,26 @@ npx nx run backend:db-studio      # drizzle-kit studio
 - Kein e2e-Setup; eine Backend-Integration-Spec (`playlist-transition.integration.spec.ts`).
 
 ## Environment (wichtigste Variablen)
-| Variable | Zweck |
-| --- | --- |
-| `DATABASE_URL` | PostgreSQL-DSN (z. B. `postgres://signage:signage@localhost:5432/signage`) |
-| `REDIS_URL` | BullMQ-Queue + Refresh-Tokens (`redis://localhost:6379`) |
-| `MEDIA_BASE_PATH` | Root für Original/Transcoded Media |
-| `JWT_ACCESS_SECRET` | **Pflicht** — Secret für JWT-Access-Token (`openssl rand -base64 48`) |
-| `JWT_ACCESS_TTL` / `JWT_REFRESH_TTL` | Token-Lebensdauer (z. B. `15m` / `30d`) |
-| `COOKIE_SECURE` / `COOKIE_SAMESITE` | Cookie-Härtung (Secure default nur bei `NODE_ENV=production`) |
-| `PUBLIC_BASE_URL` | Basis-URL der Admin-SPA (Verify/Set-Password/Reset/Confirm-Email-Links + CORS) |
-| `SMTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `_FROM` / `_SECURE` | Platform-Mailer (Account-Mails); Dev → Mailpit (`localhost:1025`) |
-| `SIGNUP_ENABLED` | Feature-Flag Self-Signup (default `true`) |
-| `SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES` / `_TRANSCODED_BYTES` | Default-Storage-Limits einer self-created Org (default 5 GiB) |
-| `SIGNUP_UNVERIFIED_TTL_HOURS` | Frist bis Cleanup-Cron nie-verifizierte Signups löscht (default 48) |
-| `MAX_FILE_SIZE_BYTES` | Upload-Limit |
-| `FFMPEG_PATH` | FFmpeg-Binary (default: System-PATH) |
-| `FFMPEG_VIDEO_CRF` / `_PRESET` / `_MAXRATE` / `_BUFSIZE` | Transcoding-Qualität |
+
+| Variable                                                            | Zweck                                                                          |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `DATABASE_URL`                                                      | PostgreSQL-DSN (z. B. `postgres://signage:signage@localhost:5432/signage`)     |
+| `REDIS_URL`                                                         | BullMQ-Queue + Refresh-Tokens (`redis://localhost:6379`)                       |
+| `MEDIA_BASE_PATH`                                                   | Root für Original/Transcoded Media                                             |
+| `JWT_ACCESS_SECRET`                                                 | **Pflicht** — Secret für JWT-Access-Token (`openssl rand -base64 48`)          |
+| `JWT_ACCESS_TTL` / `JWT_REFRESH_TTL`                                | Token-Lebensdauer (z. B. `15m` / `30d`)                                        |
+| `COOKIE_SECURE` / `COOKIE_SAMESITE`                                 | Cookie-Härtung (Secure default nur bei `NODE_ENV=production`)                  |
+| `PUBLIC_BASE_URL`                                                   | Basis-URL der Admin-SPA (Verify/Set-Password/Reset/Confirm-Email-Links + CORS) |
+| `SMTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `_FROM` / `_SECURE` | Platform-Mailer (Account-Mails); Dev → Mailpit (`localhost:1025`)              |
+| `SIGNUP_ENABLED`                                                    | Feature-Flag Self-Signup (default `true`)                                      |
+| `SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES` / `_TRANSCODED_BYTES`       | Default-Storage-Limits einer self-created Org (default 5 GiB)                  |
+| `SIGNUP_UNVERIFIED_TTL_HOURS`                                       | Frist bis Cleanup-Cron nie-verifizierte Signups löscht (default 24)            |
+| `MAX_FILE_SIZE_BYTES`                                               | Upload-Limit                                                                   |
+| `FFMPEG_PATH`                                                       | FFmpeg-Binary (default: System-PATH)                                           |
+| `FFMPEG_VIDEO_CRF` / `_PRESET` / `_MAXRATE` / `_BUFSIZE`            | Transcoding-Qualität                                                           |
 
 ## Deployment (Prod) — GHCR-Pull-Modell
+
 - **CI baut + published** die Images nach **GHCR** (`ghcr.io/flo-schilli/digital-signage/{backend,frontend,player}`).
 - **Ansible** (`ansible/deploy.yml`) baut nichts lokal mehr — es `podman login`t
   (falls `ghcr_token` gesetzt) und **zieht** die Images. App-Quadlets sind Templates

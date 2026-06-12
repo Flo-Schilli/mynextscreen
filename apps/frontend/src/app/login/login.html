@@ -2,6 +2,10 @@
   <div class="w-full max-w-sm rounded-lg border border-border bg-bg-secondary p-8 shadow-lg">
     <h1 class="mb-6 text-center text-2xl font-semibold text-text-primary">Signage Server</h1>
 
+    @if (notice()) {
+      <p class="mb-4 text-center text-sm text-text-secondary" role="status">{{ notice() }}</p>
+    }
+
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4">
       <div>
         <label for="email" class="mb-1 block text-sm font-medium text-text-secondary">Email</label>

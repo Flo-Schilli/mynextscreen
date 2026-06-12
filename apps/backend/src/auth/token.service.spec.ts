@@ -23,7 +23,13 @@ function makeConfig(): ConfigService {
 
 describe('TokenService', () => {
   let jwt: JwtService;
-  let redis: { eval: jest.Mock; get: jest.Mock; multi: jest.Mock };
+  let redis: {
+    eval: jest.Mock;
+    get: jest.Mock;
+    smembers: jest.Mock;
+    del: jest.Mock;
+    multi: jest.Mock;
+  };
   let multiChain: { set: jest.Mock; sadd: jest.Mock; expire: jest.Mock; exec: jest.Mock };
   let service: TokenService;
 
@@ -38,6 +44,8 @@ describe('TokenService', () => {
     redis = {
       eval: jest.fn(),
       get: jest.fn(),
+      smembers: jest.fn(),
+      del: jest.fn(),
       multi: jest.fn().mockReturnValue(multiChain),
     };
     service = new TokenService(jwt, makeConfig(), redis as unknown as Redis);
@@ -116,6 +124,33 @@ describe('TokenService', () => {
       redis.get.mockResolvedValueOnce(null);
       const familyId = await service.revokeToken('raw');
       expect(familyId).toBeNull();
+    });
+
+    it('records the family in the per-user index on issue', async () => {
+      await service.issueInitialRefreshToken('user-7');
+      expect(multiChain.sadd).toHaveBeenCalledWith('auth:userfamilies:user-7', expect.any(String));
+    });
+  });
+
+  describe('revokeAllForUser', () => {
+    it('revokes every family in the user index and drops the index', async () => {
+      redis.smembers.mockResolvedValueOnce(['fam-a', 'fam-b']);
+      redis.eval.mockResolvedValue(1);
+
+      const count = await service.revokeAllForUser('user-1');
+
+      expect(count).toBe(2);
+      expect(redis.smembers).toHaveBeenCalledWith('auth:userfamilies:user-1');
+      expect(redis.eval).toHaveBeenCalledWith(expect.any(String), 1, 'auth:family:fam-a');
+      expect(redis.eval).toHaveBeenCalledWith(expect.any(String), 1, 'auth:family:fam-b');
+      expect(redis.del).toHaveBeenCalledWith('auth:userfamilies:user-1');
+    });
+
+    it('returns 0 when the user has no families', async () => {
+      redis.smembers.mockResolvedValueOnce([]);
+      const count = await service.revokeAllForUser('user-1');
+      expect(count).toBe(0);
+      expect(redis.eval).not.toHaveBeenCalled();
     });
   });
 });

@@ -126,6 +126,20 @@ export class TokenService {
     return (await this.redis.eval(REVOKE_FAMILY_SCRIPT, 1, `auth:family:${familyId}`)) as number;
   }
 
+  /**
+   * Revoke every refresh-token family ever issued to a user (used on account
+   * deletion). Reads the per-user family index, revokes each family, then drops
+   * the index. Returns the number of families revoked.
+   */
+  async revokeAllForUser(userId: string): Promise<number> {
+    const familyIds = await this.redis.smembers(`auth:userfamilies:${userId}`);
+    for (const familyId of familyIds) {
+      await this.revokeFamily(familyId);
+    }
+    await this.redis.del(`auth:userfamilies:${userId}`);
+    return familyIds.length;
+  }
+
   async revokeToken(rawToken: string): Promise<string | null> {
     const hash = hashToken(rawToken);
     const data = await this.redis.get(`auth:refresh:${hash}`);
@@ -144,6 +158,10 @@ export class TokenService {
     multi.set(`auth:refresh:${hash}`, JSON.stringify(record), 'EX', this.refreshTtlSeconds);
     multi.sadd(`auth:family:${familyId}`, hash);
     multi.expire(`auth:family:${familyId}`, this.refreshTtlSeconds);
+    // Per-user family index so all of a user's tokens can be revoked at once
+    // (account deletion). TTL refreshed on each new login.
+    multi.sadd(`auth:userfamilies:${userId}`, familyId);
+    multi.expire(`auth:userfamilies:${userId}`, this.refreshTtlSeconds);
     await multi.exec();
 
     return {

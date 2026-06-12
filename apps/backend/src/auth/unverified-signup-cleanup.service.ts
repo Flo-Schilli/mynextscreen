@@ -4,7 +4,7 @@ import { Interval } from '@nestjs/schedule';
 import { UserService } from '../user/user.service';
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
-const DEFAULT_UNVERIFIED_TTL_HOURS = 48;
+const DEFAULT_UNVERIFIED_TTL_HOURS = 24;
 
 /**
  * Periodically removes never-verified self-signups (and the orphan organisation

@@ -4,11 +4,21 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { User } from '../db/schema';
 import type { UserService } from '../user/user.service';
+import { removeOrganisationMedia } from '../content/content-storage.util';
 import type { PasswordService } from './password.service';
 import type { TokenService } from './token.service';
 import { AuthService } from './auth.service';
+
+jest.mock('../content/content-storage.util', () => ({
+  removeOrganisationMedia: jest.fn().mockResolvedValue(undefined),
+}));
+
+const removeOrganisationMediaMock = removeOrganisationMedia as jest.MockedFunction<
+  typeof removeOrganisationMedia
+>;
 
 function makeUser(overrides: Partial<User> = {}): User {
   return {
@@ -48,13 +58,19 @@ describe('AuthService', () => {
       | 'setPendingEmail'
       | 'findByEmailChangeToken'
       | 'applyEmailChange'
+      | 'deleteUser'
+      | 'countSuperAdmins'
     >
   >;
   let passwords: jest.Mocked<Pick<PasswordService, 'hash' | 'verify'>>;
   let tokens: jest.Mocked<
     Pick<
       TokenService,
-      'issueAccessToken' | 'issueInitialRefreshToken' | 'rotateRefreshToken' | 'revokeToken'
+      | 'issueAccessToken'
+      | 'issueInitialRefreshToken'
+      | 'rotateRefreshToken'
+      | 'revokeToken'
+      | 'revokeAllForUser'
     >
   >;
   let service: AuthService;
@@ -81,6 +97,8 @@ describe('AuthService', () => {
       setPendingEmail: jest.fn(),
       findByEmailChangeToken: jest.fn(),
       applyEmailChange: jest.fn(),
+      deleteUser: jest.fn(),
+      countSuperAdmins: jest.fn(),
     } as never;
     passwords = { hash: jest.fn(), verify: jest.fn() } as never;
     tokens = {
@@ -88,12 +106,17 @@ describe('AuthService', () => {
       issueInitialRefreshToken: jest.fn().mockResolvedValue(issuedRefresh),
       rotateRefreshToken: jest.fn(),
       revokeToken: jest.fn(),
+      revokeAllForUser: jest.fn().mockResolvedValue(0),
     } as never;
+    const config = { get: jest.fn(() => '/tmp/media') } as unknown as ConfigService;
     service = new AuthService(
       users as unknown as UserService,
       passwords as unknown as PasswordService,
       tokens as unknown as TokenService,
+      config,
     );
+    removeOrganisationMediaMock.mockClear();
+    removeOrganisationMediaMock.mockResolvedValue(undefined);
   });
 
   describe('login', () => {
@@ -399,6 +422,69 @@ describe('AuthService', () => {
       await expect(service.changePassword('user-1', 'bad', 'new')).rejects.toThrow(
         UnauthorizedException,
       );
+    });
+  });
+
+  describe('deleteAccount', () => {
+    it('throws Unauthorized when the current password is wrong', async () => {
+      users.findById.mockResolvedValue(makeUser({ id: 'u1' }));
+      passwords.verify.mockResolvedValue(false);
+
+      await expect(service.deleteAccount('u1', 'bad')).rejects.toThrow(UnauthorizedException);
+      expect(users.deleteUser).not.toHaveBeenCalled();
+      expect(tokens.revokeAllForUser).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFound when the user is missing', async () => {
+      users.findById.mockResolvedValue(null);
+      await expect(service.deleteAccount('ghost', 'pw')).rejects.toThrow(NotFoundException);
+    });
+
+    it('refuses to delete the last super-admin (lockout protection)', async () => {
+      // The guard is now atomic inside deleteUser (row lock + re-count); the
+      // service delegates with guardLastSuperAdmin and surfaces its 403.
+      users.findById.mockResolvedValue(makeUser({ id: 'sa', isSuperAdmin: true }));
+      passwords.verify.mockResolvedValue(true);
+      users.deleteUser.mockRejectedValue(
+        new ForbiddenException('Cannot delete the last super-admin'),
+      );
+
+      await expect(service.deleteAccount('sa', 'pw')).rejects.toThrow(ForbiddenException);
+      expect(users.deleteUser).toHaveBeenCalledWith('sa', { guardLastSuperAdmin: true });
+      expect(tokens.revokeAllForUser).not.toHaveBeenCalled();
+    });
+
+    it('allows deleting a super-admin when others remain', async () => {
+      users.findById.mockResolvedValue(makeUser({ id: 'sa', isSuperAdmin: true }));
+      passwords.verify.mockResolvedValue(true);
+      users.deleteUser.mockResolvedValue([]);
+
+      await service.deleteAccount('sa', 'pw');
+      expect(users.deleteUser).toHaveBeenCalledWith('sa', { guardLastSuperAdmin: true });
+    });
+
+    it('deletes the user, revokes tokens, and wipes orphaned-org media (happy path)', async () => {
+      users.findById.mockResolvedValue(makeUser({ id: 'u1' }));
+      passwords.verify.mockResolvedValue(true);
+      users.deleteUser.mockResolvedValue(['org-1', 'org-2']);
+
+      await service.deleteAccount('u1', 'pw');
+
+      expect(users.deleteUser).toHaveBeenCalledWith('u1', { guardLastSuperAdmin: true });
+      expect(tokens.revokeAllForUser).toHaveBeenCalledWith('u1');
+      expect(removeOrganisationMediaMock).toHaveBeenCalledTimes(2);
+      expect(removeOrganisationMediaMock).toHaveBeenCalledWith('/tmp/media', 'org-1');
+      expect(removeOrganisationMediaMock).toHaveBeenCalledWith('/tmp/media', 'org-2');
+    });
+
+    it('swallows a media-cleanup error (deletion already committed)', async () => {
+      users.findById.mockResolvedValue(makeUser({ id: 'u1' }));
+      passwords.verify.mockResolvedValue(true);
+      users.deleteUser.mockResolvedValue(['org-1']);
+      removeOrganisationMediaMock.mockRejectedValue(new Error('fs boom'));
+
+      await expect(service.deleteAccount('u1', 'pw')).resolves.toBeUndefined();
+      expect(tokens.revokeAllForUser).toHaveBeenCalledWith('u1');
     });
   });
 

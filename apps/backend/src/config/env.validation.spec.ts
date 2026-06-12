@@ -9,7 +9,7 @@ describe('validateEnv', () => {
     expect(result.SMTP_SECURE).toBe(false);
     expect(result.SIGNUP_ENABLED).toBe(true);
     expect(result.SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES).toBe(5 * 1024 * 1024 * 1024);
-    expect(result.SIGNUP_UNVERIFIED_TTL_HOURS).toBe(48);
+    expect(result.SIGNUP_UNVERIFIED_TTL_HOURS).toBe(24);
   });
 
   it('coerces SMTP_PORT from string to int', () => {

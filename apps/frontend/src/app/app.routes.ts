@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { Login } from './login/login';
 import { authGuard } from './auth/auth.guard';
+import { superAdminGuard } from './auth/super-admin.guard';
 import { loginGuard } from './login/login.guard';
 import { setupGuard } from './setup/setup.guard';
 import { Layout } from './shell/layout';
@@ -40,8 +41,14 @@ export const routes: Routes = [
       },
       {
         path: 'admin/organisations',
+        canActivate: [superAdminGuard],
         loadComponent: () =>
           import('./admin/organisations/organisations').then((m) => m.Organisations),
+      },
+      {
+        path: 'admin/users',
+        canActivate: [superAdminGuard],
+        loadComponent: () => import('./admin/users/all-users').then((m) => m.AllUsers),
       },
       {
         path: 'settings/user',

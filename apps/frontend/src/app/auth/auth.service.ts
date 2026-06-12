@@ -138,4 +138,16 @@ export class AuthService {
       this.http.post<void>('/api/auth/confirm-email-change', { token }, { withCredentials: true }),
     );
   }
+
+  /** Permanently deletes the current account, then clears local auth state. */
+  async deleteAccount(currentPassword: string): Promise<void> {
+    await firstValueFrom(
+      this.http.post<void>(
+        '/api/auth/delete-account',
+        { currentPassword },
+        { withCredentials: true },
+      ),
+    );
+    this.user.set(null);
+  }
 }

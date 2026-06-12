@@ -3,7 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideZonelessChangeDetection } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { ReactiveFormsModule } from '@angular/forms';
 import { vi } from 'vitest';
@@ -47,6 +47,10 @@ function setup(loginImpl: () => Promise<void> = () => Promise.resolve()): {
       provideHttpClientTesting(),
       { provide: AuthService, useValue: auth },
       { provide: Router, useValue: routerStub },
+      {
+        provide: ActivatedRoute,
+        useValue: { snapshot: { queryParamMap: new Map<string, string>() } },
+      },
     ],
   });
 
