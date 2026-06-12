@@ -226,4 +226,99 @@ describe('UserService', () => {
       expect(existing).toBeDefined();
     });
   });
+
+  describe('createUserWithOrganisation', () => {
+    const baseInput = {
+      email: 'owner@example.com',
+      passwordHash: 'hash',
+      name: 'Owner',
+      organisationName: 'Acme Venue',
+      verificationToken: 'verify-tok',
+      verificationTokenExpiresAt: new Date(Date.now() + 60_000),
+      storageOriginalLimitBytes: 1000,
+      storageTranscodedLimitBytes: 2000,
+    };
+
+    it('atomically creates an unverified user, their org, and an OrgAdmin membership', async () => {
+      const user = await service.createUserWithOrganisation(baseInput);
+
+      expect(user.emailVerified).toBe(false);
+      expect(user.emailVerificationToken).toBe('verify-tok');
+      expect(user.passwordHash).toBe('hash');
+
+      const [org] = await db
+        .select()
+        .from(organisations)
+        .where(eq(organisations.name, 'Acme Venue'));
+      expect(org.storageOriginalLimitBytes).toBe(1000);
+      expect(org.storageTranscodedLimitBytes).toBe(2000);
+      expect(org.timeZone).toBe('UTC');
+
+      const [membership] = await db
+        .select()
+        .from(userOrganisationMemberships)
+        .where(eq(userOrganisationMemberships.userId, user.id));
+      expect(membership.organisationId).toBe(org.id);
+      expect(membership.role).toBe(OrganisationRole.OrgAdmin);
+    });
+
+    it('normalises the email to lower case', async () => {
+      const user = await service.createUserWithOrganisation({
+        ...baseInput,
+        email: 'Owner@Example.COM',
+      });
+      expect(user.email).toBe('owner@example.com');
+    });
+
+    it('throws ConflictException (Email) on a duplicate email', async () => {
+      await db.insert(users).values({ email: 'owner@example.com' });
+
+      await expect(service.createUserWithOrganisation(baseInput)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+
+    it('throws ConflictException (Organisation name) on a duplicate org name', async () => {
+      await seedOrg('Acme Venue');
+
+      await expect(
+        service.createUserWithOrganisation({ ...baseInput, email: 'fresh@example.com' }),
+      ).rejects.toThrow(/Organisation name/);
+    });
+
+    it('rolls back the user insert when the org name collides (atomicity)', async () => {
+      await seedOrg('Acme Venue');
+
+      await expect(
+        service.createUserWithOrganisation({ ...baseInput, email: 'rollback@example.com' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      const orphan = await db.select().from(users).where(eq(users.email, 'rollback@example.com'));
+      expect(orphan).toHaveLength(0);
+    });
+  });
+
+  describe('email verification helpers', () => {
+    it('sets, finds-by, and marks verified, clearing the token', async () => {
+      const [user] = await db
+        .insert(users)
+        .values({ email: 'verify@example.com', emailVerified: false })
+        .returning();
+      const expiresAt = new Date(Date.now() + 60_000);
+
+      await service.setEmailVerificationToken(user.id, 'tok-abc', expiresAt);
+      const found = await service.findByEmailVerificationToken('tok-abc');
+      expect(found?.id).toBe(user.id);
+
+      await service.markEmailVerified(user.id);
+      const [after] = await db.select().from(users).where(eq(users.id, user.id));
+      expect(after.emailVerified).toBe(true);
+      expect(after.emailVerificationToken).toBeNull();
+      expect(after.emailVerificationTokenExpiresAt).toBeNull();
+    });
+
+    it('returns null for an unknown verification token', async () => {
+      expect(await service.findByEmailVerificationToken('nope')).toBeNull();
+    });
+  });
 });

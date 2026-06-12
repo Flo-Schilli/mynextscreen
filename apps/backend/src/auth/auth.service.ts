@@ -1,5 +1,11 @@
 import { randomBytes } from 'node:crypto';
-import { Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { User } from '../db/schema';
 import { UserService } from '../user/user.service';
 import { PasswordService } from './password.service';
@@ -7,6 +13,24 @@ import { TokenService } from './token.service';
 import type { LoginResult, RefreshResult } from './auth.types';
 
 const PASSWORD_RESET_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+const EMAIL_VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Distinct message so the SPA can offer a "resend verification" affordance. */
+export const EMAIL_NOT_VERIFIED_MESSAGE = 'Email not verified';
+
+export interface RegisterInput {
+  email: string;
+  password: string;
+  name?: string;
+  organisationName: string;
+  storageOriginalLimitBytes: number;
+  storageTranscodedLimitBytes: number;
+}
+
+export interface RegisterResult {
+  user: User;
+  verificationToken: string;
+}
 
 /**
  * Internal email+password authentication: validate credentials, issue an access
@@ -32,6 +56,12 @@ export class AuthService {
       this.logger.warn('Login failed: invalid credentials');
       throw new UnauthorizedException('Invalid credentials');
     }
+    // Self-signup gate: credentials are correct but the email isn't confirmed.
+    // Distinct from invalid-credentials so the SPA can offer "resend".
+    if (!user.emailVerified) {
+      this.logger.warn(`Login blocked, email not verified userId=${user.id}`);
+      throw new ForbiddenException(EMAIL_NOT_VERIFIED_MESSAGE);
+    }
     const accessToken = await this.tokens.issueAccessToken(user.id, {
       email: user.email,
       isSuperAdmin: user.isSuperAdmin,
@@ -56,6 +86,63 @@ export class AuthService {
     const refreshToken = await this.tokens.issueInitialRefreshToken(user.id);
     this.logger.log(`First super-admin created userId=${user.id} family=${refreshToken.familyId}`);
     return { user, accessToken, refreshToken };
+  }
+
+  /**
+   * Self-signup: hash the password, mint a verification token, and atomically
+   * create the user + their own org + OrgAdmin membership (all unverified). The
+   * caller (controller) emails the verification link. No tokens are issued here
+   * — login stays blocked until the email is verified.
+   */
+  async register(input: RegisterInput): Promise<RegisterResult> {
+    const passwordHash = await this.passwords.hash(input.password);
+    const verificationToken = generateUrlSafeToken();
+    const user = await this.users.createUserWithOrganisation({
+      email: input.email,
+      passwordHash,
+      name: input.name ?? null,
+      organisationName: input.organisationName,
+      verificationToken,
+      verificationTokenExpiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TOKEN_TTL_MS),
+      storageOriginalLimitBytes: input.storageOriginalLimitBytes,
+      storageTranscodedLimitBytes: input.storageTranscodedLimitBytes,
+    });
+    this.logger.log(`Self-signup registered userId=${user.id}`);
+    return { user, verificationToken };
+  }
+
+  /**
+   * Confirm an email-verification token and auto-login: on success mark verified,
+   * clear the token, and issue access + refresh tokens (same as login()).
+   */
+  async verifyEmail(token: string): Promise<LoginResult> {
+    const user = await this.users.findByEmailVerificationToken(token);
+    if (
+      !user ||
+      !user.emailVerificationTokenExpiresAt ||
+      user.emailVerificationTokenExpiresAt.getTime() < Date.now()
+    ) {
+      throw new NotFoundException('Invalid or expired token');
+    }
+    await this.users.markEmailVerified(user.id);
+    const accessToken = await this.tokens.issueAccessToken(user.id, {
+      email: user.email,
+      isSuperAdmin: user.isSuperAdmin,
+    });
+    const refreshToken = await this.tokens.issueInitialRefreshToken(user.id);
+    this.logger.log(`Email verified + auto-login userId=${user.id}`);
+    return { user: { ...user, emailVerified: true }, accessToken, refreshToken };
+  }
+
+  /**
+   * Issue a fresh verification token for an unverified user (resend flow).
+   * Enumeration-safety is the caller's concern (always returns void / 204).
+   */
+  async createEmailVerificationToken(user: User): Promise<string> {
+    const token = generateUrlSafeToken();
+    const expiresAt = new Date(Date.now() + EMAIL_VERIFICATION_TOKEN_TTL_MS);
+    await this.users.setEmailVerificationToken(user.id, token, expiresAt);
+    return token;
   }
 
   async refresh(rawRefreshToken: string): Promise<RefreshResult> {

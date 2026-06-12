@@ -3,16 +3,104 @@ import { and, eq } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import {
+  organisations,
   users,
   userOrganisationMemberships,
   type User,
   type UserOrganisationMembership,
   type Organisation,
 } from '../db/schema';
+import { OrganisationRole } from './organisation-role.enum';
+
+/** Postgres unique-violation SQLSTATE. */
+const PG_UNIQUE_VIOLATION = '23505';
+
+interface PgErrorLike {
+  code?: unknown;
+  constraint?: unknown;
+  cause?: unknown;
+}
+
+/**
+ * Detect a Postgres unique-violation. Drizzle wraps the driver error in a
+ * `DrizzleQueryError`, so the SQLSTATE `code` (and `constraint`) live on
+ * `error.cause`; unwrap one level before checking.
+ */
+function findUniqueViolation(error: unknown): { constraint?: string } | null {
+  for (let current: unknown = error, depth = 0; current && depth < 3; depth++) {
+    const e = current as PgErrorLike;
+    if (e.code === PG_UNIQUE_VIOLATION) {
+      return { constraint: typeof e.constraint === 'string' ? e.constraint : undefined };
+    }
+    current = e.cause;
+  }
+  return null;
+}
+
+export interface SignupInput {
+  email: string;
+  passwordHash: string;
+  name: string | null;
+  organisationName: string;
+  verificationToken: string;
+  verificationTokenExpiresAt: Date;
+  storageOriginalLimitBytes: number;
+  storageTranscodedLimitBytes: number;
+  timeZone?: string;
+}
 
 @Injectable()
 export class UserService {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
+
+  /**
+   * Self-signup: atomically create an unverified user, their own new
+   * organisation, and an OrgAdmin membership linking the two. Email + org-name
+   * uniqueness are enforced at the DB level; a unique violation maps to a 409 so
+   * the SPA can surface "email already in use" / "organisation name taken".
+   * The user starts `emailVerified:false` — login stays blocked until they
+   * click the emailed verification link.
+   */
+  async createUserWithOrganisation(input: SignupInput): Promise<User> {
+    const normalised = input.email.toLowerCase();
+    try {
+      return await this.db.transaction(async (tx) => {
+        const [user] = await tx
+          .insert(users)
+          .values({
+            email: normalised,
+            name: input.name,
+            passwordHash: input.passwordHash,
+            emailVerified: false,
+            emailVerificationToken: input.verificationToken,
+            emailVerificationTokenExpiresAt: input.verificationTokenExpiresAt,
+          })
+          .returning();
+        const [organisation] = await tx
+          .insert(organisations)
+          .values({
+            name: input.organisationName,
+            timeZone: input.timeZone ?? 'UTC',
+            storageOriginalLimitBytes: input.storageOriginalLimitBytes,
+            storageTranscodedLimitBytes: input.storageTranscodedLimitBytes,
+          })
+          .returning();
+        await tx.insert(userOrganisationMemberships).values({
+          userId: user.id,
+          organisationId: organisation.id,
+          role: OrganisationRole.OrgAdmin,
+        });
+        return user;
+      });
+    } catch (error: unknown) {
+      const violation = findUniqueViolation(error);
+      if (violation) {
+        const target = violation.constraint?.includes('name') ? 'Organisation name' : 'Email';
+        throw new ConflictException(`${target} is already in use`);
+      }
+      throw error;
+    }
+  }
 
   async findById(userId: string): Promise<User | null> {
     const [user] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -111,6 +199,36 @@ export class UserService {
       where: eq(userOrganisationMemberships.userId, userId),
       with: { organisation: true },
     });
+  }
+
+  // ── Email verification ──────────────────────────────────────────────────────
+
+  async setEmailVerificationToken(userId: string, token: string, expiresAt: Date): Promise<void> {
+    await this.db
+      .update(users)
+      .set({ emailVerificationToken: token, emailVerificationTokenExpiresAt: expiresAt })
+      .where(eq(users.id, userId));
+  }
+
+  async findByEmailVerificationToken(token: string): Promise<User | null> {
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.emailVerificationToken, token))
+      .limit(1);
+    return user ?? null;
+  }
+
+  /** Mark the user verified and clear the one-time verification token. */
+  async markEmailVerified(userId: string): Promise<void> {
+    await this.db
+      .update(users)
+      .set({
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationTokenExpiresAt: null,
+      })
+      .where(eq(users.id, userId));
   }
 
   async getMembership(

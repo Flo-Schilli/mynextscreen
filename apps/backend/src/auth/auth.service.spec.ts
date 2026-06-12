@@ -1,4 +1,9 @@
-import { ConflictException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { User } from '../db/schema';
 import type { UserService } from '../user/user.service';
 import type { PasswordService } from './password.service';
@@ -36,6 +41,10 @@ describe('AuthService', () => {
       | 'setPasswordResetToken'
       | 'setPassword'
       | 'createFirstSuperAdmin'
+      | 'createUserWithOrganisation'
+      | 'findByEmailVerificationToken'
+      | 'markEmailVerified'
+      | 'setEmailVerificationToken'
     >
   >;
   let passwords: jest.Mocked<Pick<PasswordService, 'hash' | 'verify'>>;
@@ -62,6 +71,10 @@ describe('AuthService', () => {
       setPasswordResetToken: jest.fn(),
       setPassword: jest.fn(),
       createFirstSuperAdmin: jest.fn(),
+      createUserWithOrganisation: jest.fn(),
+      findByEmailVerificationToken: jest.fn(),
+      markEmailVerified: jest.fn(),
+      setEmailVerificationToken: jest.fn(),
     } as never;
     passwords = { hash: jest.fn(), verify: jest.fn() } as never;
     tokens = {
@@ -107,6 +120,102 @@ describe('AuthService', () => {
       users.findByEmail.mockResolvedValue(makeUser());
       passwords.verify.mockResolvedValue(false);
       await expect(service.login('user@example.com', 'bad')).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('blocks an unverified account with ForbiddenException even with valid credentials', async () => {
+      users.findByEmail.mockResolvedValue(makeUser({ emailVerified: false }));
+      passwords.verify.mockResolvedValue(true);
+      await expect(service.login('user@example.com', 'pw')).rejects.toThrow(ForbiddenException);
+      expect(tokens.issueAccessToken).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('register', () => {
+    const input = {
+      email: 'owner@example.com',
+      password: 'supersecret',
+      name: 'Owner',
+      organisationName: 'Acme',
+      storageOriginalLimitBytes: 100,
+      storageTranscodedLimitBytes: 200,
+    };
+
+    it('hashes the password, mints a token, creates user+org, issues no login tokens', async () => {
+      passwords.hash.mockResolvedValue('new-hash');
+      users.createUserWithOrganisation.mockResolvedValue(
+        makeUser({ id: 'owner-1', email: 'owner@example.com', emailVerified: false }),
+      );
+
+      const result = await service.register(input);
+
+      expect(passwords.hash).toHaveBeenCalledWith('supersecret');
+      const callArg = users.createUserWithOrganisation.mock.calls[0][0];
+      expect(callArg).toMatchObject({
+        email: 'owner@example.com',
+        passwordHash: 'new-hash',
+        name: 'Owner',
+        organisationName: 'Acme',
+        storageOriginalLimitBytes: 100,
+        storageTranscodedLimitBytes: 200,
+      });
+      expect(typeof callArg.verificationToken).toBe('string');
+      expect(callArg.verificationToken.length).toBeGreaterThan(0);
+      expect(result.verificationToken).toBe(callArg.verificationToken);
+      expect(tokens.issueAccessToken).not.toHaveBeenCalled();
+    });
+
+    it('propagates a ConflictException from the user service', async () => {
+      passwords.hash.mockResolvedValue('new-hash');
+      users.createUserWithOrganisation.mockRejectedValue(new ConflictException('Email in use'));
+      await expect(service.register(input)).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('verifyEmail', () => {
+    it('marks verified and auto-logs-in on a valid unexpired token', async () => {
+      users.findByEmailVerificationToken.mockResolvedValue(
+        makeUser({
+          id: 'owner-1',
+          emailVerified: false,
+          emailVerificationToken: 'tok',
+          emailVerificationTokenExpiresAt: new Date(Date.now() + 60_000),
+        }),
+      );
+
+      const result = await service.verifyEmail('tok');
+
+      expect(users.markEmailVerified).toHaveBeenCalledWith('owner-1');
+      expect(result.user.emailVerified).toBe(true);
+      expect(result.accessToken).toBe(issuedAccess);
+      expect(result.refreshToken).toBe(issuedRefresh);
+    });
+
+    it('throws NotFound for an unknown token', async () => {
+      users.findByEmailVerificationToken.mockResolvedValue(null);
+      await expect(service.verifyEmail('nope')).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFound for an expired token', async () => {
+      users.findByEmailVerificationToken.mockResolvedValue(
+        makeUser({
+          emailVerificationToken: 'tok',
+          emailVerificationTokenExpiresAt: new Date(Date.now() - 1),
+        }),
+      );
+      await expect(service.verifyEmail('tok')).rejects.toThrow(NotFoundException);
+      expect(users.markEmailVerified).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createEmailVerificationToken', () => {
+    it('persists a fresh token and returns it', async () => {
+      const token = await service.createEmailVerificationToken(makeUser({ id: 'owner-1' }));
+      expect(typeof token).toBe('string');
+      expect(users.setEmailVerificationToken).toHaveBeenCalledWith(
+        'owner-1',
+        token,
+        expect.any(Date),
+      );
     });
   });
 
