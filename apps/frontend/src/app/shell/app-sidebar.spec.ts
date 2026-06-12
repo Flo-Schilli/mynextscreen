@@ -1,6 +1,8 @@
 import { TestBed, getTestBed, ComponentFixture } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { vi } from 'vitest';
@@ -36,6 +38,8 @@ async function createFixture(
     imports: [AppSidebar],
     providers: [
       provideZonelessChangeDetection(),
+      provideHttpClient(),
+      provideHttpClientTesting(),
       // Wildcard route so clicking a RouterLink anchor resolves instead of
       // rejecting with NG04002 (unhandled) — the test only cares that the link
       // exists and emits, not where it lands.

@@ -1,7 +1,9 @@
 <div class="flex min-h-screen items-center justify-center bg-bg-primary px-4">
   <div class="w-full max-w-sm rounded-lg border border-border bg-bg-secondary p-8 shadow-lg">
     <h1 class="mb-1 text-center text-2xl font-semibold text-text-primary">Welcome</h1>
-    <p class="mb-6 text-center text-sm text-text-secondary">Create the first administrator account.</p>
+    <p class="mb-6 text-center text-sm text-text-secondary">
+      Create the first administrator account.
+    </p>
 
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4">
       <div>
@@ -32,7 +34,9 @@
       </div>
 
       <div>
-        <label for="password" class="mb-1 block text-sm font-medium text-text-secondary">Password</label>
+        <label for="password" class="mb-1 block text-sm font-medium text-text-secondary"
+          >Password</label
+        >
         <input
           id="password"
           type="password"

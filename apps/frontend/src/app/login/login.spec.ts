@@ -1,6 +1,8 @@
 import { TestBed, getTestBed, ComponentFixture } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { ReactiveFormsModule } from '@angular/forms';
@@ -31,6 +33,8 @@ function setup(loginImpl: () => Promise<void> = () => Promise.resolve()): {
     imports: [ReactiveFormsModule],
     providers: [
       provideZonelessChangeDetection(),
+      provideHttpClient(),
+      provideHttpClientTesting(),
       { provide: AuthService, useValue: auth },
       { provide: Router, useValue: routerStub },
     ],

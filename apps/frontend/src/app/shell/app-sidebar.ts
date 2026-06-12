@@ -1,5 +1,6 @@
 import { Component, input, output } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { VersionBadge } from '../shared/version-badge';
 
 export interface NavItem {
   label: string;
@@ -16,7 +17,7 @@ export interface NavItem {
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive],
+  imports: [RouterLink, RouterLinkActive, VersionBadge],
   template: `
     <aside class="sidebar" [class.collapsed]="collapsed()" [class.mobile-open]="mobileOpen()">
       <div class="sidebar-header">
@@ -114,6 +115,10 @@ export interface NavItem {
             <span class="nav-label">Logout</span>
           }
         </button>
+
+        <div class="version-row">
+          <app-version-badge [compact]="collapsed()" />
+        </div>
       </div>
     </aside>
   `,
@@ -241,6 +246,11 @@ export interface NavItem {
     .sidebar-footer {
       padding: 0.5rem;
       border-top: 1px solid var(--color-border);
+    }
+    .version-row {
+      display: flex;
+      justify-content: center;
+      padding: 0.5rem 0.25rem 0.25rem;
     }
 
     /* ── Responsive: Tablet (<=1024px) — collapse sidebar ── */

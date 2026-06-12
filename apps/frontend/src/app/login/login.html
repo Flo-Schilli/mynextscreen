@@ -18,7 +18,9 @@
       </div>
 
       <div>
-        <label for="password" class="mb-1 block text-sm font-medium text-text-secondary">Password</label>
+        <label for="password" class="mb-1 block text-sm font-medium text-text-secondary"
+          >Password</label
+        >
         <input
           id="password"
           type="password"
@@ -43,5 +45,9 @@
         {{ submitting() ? 'Signing in…' : 'Sign in' }}
       </button>
     </form>
+
+    <div class="mt-6 flex justify-center">
+      <app-version-badge />
+    </div>
   </div>
 </div>
