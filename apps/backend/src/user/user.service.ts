@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, Inject } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, lt } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import {
@@ -229,6 +229,99 @@ export class UserService {
         emailVerificationTokenExpiresAt: null,
       })
       .where(eq(users.id, userId));
+  }
+
+  /**
+   * Delete never-verified signups older than the cutoff and the organisation
+   * each one created (cascades remove the membership; the org has no FK to the
+   * user, so it is removed explicitly only when it has no remaining members).
+   * Returns the number of users removed.
+   */
+  async deleteStaleUnverifiedSignups(cutoff: Date): Promise<number> {
+    return this.db.transaction(async (tx) => {
+      const stale = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.emailVerified, false), lt(users.createdAt, cutoff)));
+      if (stale.length === 0) {
+        return 0;
+      }
+      const userIds = stale.map((u) => u.id);
+      const memberships = await tx
+        .select({ organisationId: userOrganisationMemberships.organisationId })
+        .from(userOrganisationMemberships)
+        .where(inArray(userOrganisationMemberships.userId, userIds));
+      const orgIds = [...new Set(memberships.map((m) => m.organisationId))];
+
+      await tx.delete(users).where(inArray(users.id, userIds));
+
+      // Drop each org that no longer has any member (the orphan signup org).
+      for (const orgId of orgIds) {
+        const [remaining] = await tx
+          .select({ id: userOrganisationMemberships.id })
+          .from(userOrganisationMemberships)
+          .where(eq(userOrganisationMemberships.organisationId, orgId))
+          .limit(1);
+        if (!remaining) {
+          await tx.delete(organisations).where(eq(organisations.id, orgId));
+        }
+      }
+      return userIds.length;
+    });
+  }
+
+  // ── Email change ────────────────────────────────────────────────────────────
+
+  async setPendingEmail(
+    userId: string,
+    pendingEmail: string,
+    token: string,
+    expiresAt: Date,
+  ): Promise<void> {
+    await this.db
+      .update(users)
+      .set({
+        pendingEmail: pendingEmail.toLowerCase(),
+        emailChangeToken: token,
+        emailChangeTokenExpiresAt: expiresAt,
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async findByEmailChangeToken(token: string): Promise<User | null> {
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.emailChangeToken, token))
+      .limit(1);
+    return user ?? null;
+  }
+
+  /**
+   * Promote the parked `pendingEmail` to the live email and clear the change
+   * token. Maps a unique violation (the address was taken meanwhile) to a 409.
+   */
+  async applyEmailChange(userId: string): Promise<void> {
+    const [user] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user?.pendingEmail) {
+      return;
+    }
+    try {
+      await this.db
+        .update(users)
+        .set({
+          email: user.pendingEmail,
+          pendingEmail: null,
+          emailChangeToken: null,
+          emailChangeTokenExpiresAt: null,
+        })
+        .where(eq(users.id, userId));
+    } catch (error: unknown) {
+      if (findUniqueViolation(error)) {
+        throw new ConflictException('Email is already in use');
+      }
+      throw error;
+    }
   }
 
   async getMembership(

@@ -10,6 +10,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
+import { UnverifiedSignupCleanupService } from './unverified-signup-cleanup.service';
 import { UserModule } from '../user/user.module';
 
 @Module({
@@ -29,6 +30,7 @@ import { UserModule } from '../user/user.module';
     AuthService,
     PasswordService,
     TokenService,
+    UnverifiedSignupCleanupService,
     // Order matters: ThrottlerGuard first (rate limit before any work), then
     // JWT (sets req.user), then API-key (screen routes), then roles.
     {

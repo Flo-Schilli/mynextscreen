@@ -321,4 +321,90 @@ describe('UserService', () => {
       expect(await service.findByEmailVerificationToken('nope')).toBeNull();
     });
   });
+
+  describe('email change helpers', () => {
+    it('parks a pending email, finds by token, and applies the change', async () => {
+      const [user] = await db
+        .insert(users)
+        .values({ email: 'old@example.com', emailVerified: true })
+        .returning();
+      const expiresAt = new Date(Date.now() + 60_000);
+
+      await service.setPendingEmail(user.id, 'New@Example.com', 'ctok', expiresAt);
+      const found = await service.findByEmailChangeToken('ctok');
+      expect(found?.id).toBe(user.id);
+      expect(found?.pendingEmail).toBe('new@example.com');
+
+      await service.applyEmailChange(user.id);
+      const [after] = await db.select().from(users).where(eq(users.id, user.id));
+      expect(after.email).toBe('new@example.com');
+      expect(after.pendingEmail).toBeNull();
+      expect(after.emailChangeToken).toBeNull();
+    });
+
+    it('throws ConflictException when the pending email is already taken', async () => {
+      await db.insert(users).values({ email: 'taken@example.com' });
+      const [user] = await db.insert(users).values({ email: 'mover@example.com' }).returning();
+      await service.setPendingEmail(
+        user.id,
+        'taken@example.com',
+        'ctok2',
+        new Date(Date.now() + 60_000),
+      );
+
+      await expect(service.applyEmailChange(user.id)).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('is a no-op when there is no pending email', async () => {
+      const [user] = await db.insert(users).values({ email: 'noop@example.com' }).returning();
+      await expect(service.applyEmailChange(user.id)).resolves.toBeUndefined();
+    });
+  });
+
+  describe('deleteStaleUnverifiedSignups', () => {
+    it('deletes stale unverified users and their orphan org, keeps verified + recent', async () => {
+      const old = new Date(Date.now() - 72 * 60 * 60 * 1000);
+      const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+
+      // stale unverified signup with its own org
+      const [stale] = await db
+        .insert(users)
+        .values({ email: 'stale@example.com', emailVerified: false, createdAt: old })
+        .returning();
+      const [staleOrg] = await db
+        .insert(organisations)
+        .values({ name: 'Stale Org', timeZone: 'UTC' })
+        .returning();
+      await db.insert(userOrganisationMemberships).values({
+        userId: stale.id,
+        organisationId: staleOrg.id,
+        role: OrganisationRole.OrgAdmin,
+      });
+
+      // verified (must survive) + recent-unverified (must survive)
+      const [verified] = await db
+        .insert(users)
+        .values({ email: 'verified@example.com', emailVerified: true, createdAt: old })
+        .returning();
+      const [recent] = await db
+        .insert(users)
+        .values({ email: 'recent@example.com', emailVerified: false })
+        .returning();
+
+      const removed = await service.deleteStaleUnverifiedSignups(cutoff);
+
+      expect(removed).toBe(1);
+      expect(await db.select().from(users).where(eq(users.id, stale.id))).toHaveLength(0);
+      expect(
+        await db.select().from(organisations).where(eq(organisations.id, staleOrg.id)),
+      ).toHaveLength(0);
+      expect(await db.select().from(users).where(eq(users.id, verified.id))).toHaveLength(1);
+      expect(await db.select().from(users).where(eq(users.id, recent.id))).toHaveLength(1);
+    });
+
+    it('returns 0 when there is nothing stale', async () => {
+      const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      expect(await service.deleteStaleUnverifiedSignups(cutoff)).toBe(0);
+    });
+  });
 });
