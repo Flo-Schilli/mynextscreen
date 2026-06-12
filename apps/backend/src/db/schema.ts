@@ -87,6 +87,17 @@ export const users = pgTable('users', {
   passwordHash: text(),
   passwordResetToken: text(),
   passwordResetTokenExpiresAt: timestamp({ withTimezone: true }),
+  // Self-signup gating: a freshly registered user starts unverified and CANNOT log
+  // in until they click the emailed verification link. Existing rows are backfilled
+  // to `true` in the migration so invited/active users are never locked out.
+  emailVerified: boolean().notNull().default(false),
+  emailVerificationToken: text(),
+  emailVerificationTokenExpiresAt: timestamp({ withTimezone: true }),
+  // Email-change flow: the requested address is parked in `pendingEmail` until the
+  // user confirms via the token mailed to that new address (mirrors the reset shape).
+  pendingEmail: text(),
+  emailChangeToken: text(),
+  emailChangeTokenExpiresAt: timestamp({ withTimezone: true }),
   // System-level super-admin (carried in the access JWT). Replaces the former
   // env-based SUPER_ADMIN_USER_IDS list, which is impossible with generated UUIDs.
   isSuperAdmin: boolean().notNull().default(false),
