@@ -22,12 +22,14 @@ import { LiveStreamModule } from './live-stream';
 import { SearchModule } from './search/search.module';
 import { HealthController } from './health.controller';
 import { VersionController } from './version.controller';
+import { validateEnv } from './config/env.validation';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      validate: validateEnv,
     }),
     DatabaseModule,
     RedisModule,

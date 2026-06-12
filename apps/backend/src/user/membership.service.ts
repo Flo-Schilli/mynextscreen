@@ -96,10 +96,7 @@ export class MembershipService {
           passwordResetTokenExpiresAt: new Date(Date.now() + SET_PASSWORD_TOKEN_TTL_MS),
         })
         .where(eq(users.id, user.id));
-      this.eventEmitter.emit(
-        AUTH_USER_INVITED,
-        new AuthUserInvitedEvent(organisationId, user.email, token),
-      );
+      this.eventEmitter.emit(AUTH_USER_INVITED, new AuthUserInvitedEvent(user.email, token));
     }
 
     this.eventEmitter.emit(

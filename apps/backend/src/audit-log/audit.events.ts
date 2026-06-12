@@ -83,28 +83,61 @@ export class AuditUserEvent {
 
 /**
  * Emitted when a freshly-provisioned invitee (no password yet) is added to an
- * org. Carries the org context + set-password token so the auth layer can email
- * an activation link. Not an audit event — consumed by the auth invite mailer.
+ * org. Carries the set-password token so the platform mailer can email an
+ * activation link. Not an audit event — consumed by the platform mailer.
  */
 export const AUTH_USER_INVITED = 'auth.user.invited';
 
 export class AuthUserInvitedEvent {
   constructor(
-    public readonly organisationId: string,
     public readonly email: string,
     public readonly setPasswordToken: string,
   ) {}
 }
 
-/** Emitted on forgot-password so the email layer can send a reset link. */
+/** Emitted on forgot-password so the platform mailer can send a reset link. */
 export const AUTH_PASSWORD_RESET_REQUESTED = 'auth.password_reset.requested';
 
 export class AuthPasswordResetRequestedEvent {
   constructor(
-    public readonly organisationId: string,
     public readonly email: string,
     public readonly resetToken: string,
   ) {}
+}
+
+/**
+ * Emitted on self-signup register / resend-verification so the platform mailer
+ * can send the email-verification link. No org context: a self-signup user's
+ * org has no SMTP, so this is always sent via the env-driven platform mailer.
+ */
+export const AUTH_EMAIL_VERIFICATION_REQUESTED = 'auth.email_verification.requested';
+
+export class AuthEmailVerificationRequestedEvent {
+  constructor(
+    public readonly email: string,
+    public readonly verificationToken: string,
+  ) {}
+}
+
+/**
+ * Emitted when a user requests an email change. The platform mailer sends a
+ * confirm link to the NEW address and a heads-up notice to the OLD address.
+ */
+export const AUTH_EMAIL_CHANGE_REQUESTED = 'auth.email_change.requested';
+
+export class AuthEmailChangeRequestedEvent {
+  constructor(
+    public readonly oldEmail: string,
+    public readonly newEmail: string,
+    public readonly changeToken: string,
+  ) {}
+}
+
+/** Emitted after a successful password change so the user gets a security notice. */
+export const AUTH_PASSWORD_CHANGED = 'auth.password.changed';
+
+export class AuthPasswordChangedEvent {
+  constructor(public readonly email: string) {}
 }
 
 // ── Organisation ─────────────────────────────────────────────────────────────

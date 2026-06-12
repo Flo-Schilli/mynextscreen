@@ -22,10 +22,17 @@ services:
       - JWT_REFRESH_TTL=${JWT_REFRESH_TTL:-30d}
       - COOKIE_SECURE=${COOKIE_SECURE:-false}
       - COOKIE_SAMESITE=${COOKIE_SAMESITE:-strict}
-      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://localhost:4200}
+      # Platform mailer → Mailpit in dev (catch-all, no auth). View at http://localhost:8025
+      - SMTP_HOST=${SMTP_HOST:-mailpit}
+      - SMTP_PORT=${SMTP_PORT:-1025}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_FROM=${SMTP_FROM:-Signage Server <noreply@signage.local>}
+      - SIGNUP_ENABLED=${SIGNUP_ENABLED:-true}
     depends_on:
       - redis
       - postgres
+      - mailpit
 
   frontend:
     build:
@@ -52,6 +59,14 @@ services:
     ports:
       - "6379:6379"
 
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "1025:1025" # SMTP ingest
+      - "8025:8025" # web UI
+    environment:
+      - MP_MAX_MESSAGES=500
+
   postgres:
     image: postgres:16-alpine
     ports:
@@ -65,5 +80,3 @@ services:
 
 volumes:
   signage-postgres-data:
-
-

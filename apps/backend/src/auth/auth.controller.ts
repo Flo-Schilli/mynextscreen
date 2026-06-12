@@ -139,14 +139,11 @@ export class AuthController {
       return;
     }
     const token = await this.auth.createPasswordResetToken(user);
-    const memberships = await this.users.getMemberships(user.id);
-    const organisationId = memberships[0]?.organisationId;
-    if (organisationId) {
-      this.events.emit(
-        AUTH_PASSWORD_RESET_REQUESTED,
-        new AuthPasswordResetRequestedEvent(organisationId, user.email, token),
-      );
-    }
+    // Sent via the env-driven platform mailer (no org SMTP needed).
+    this.events.emit(
+      AUTH_PASSWORD_RESET_REQUESTED,
+      new AuthPasswordResetRequestedEvent(user.email, token),
+    );
   }
 
   @Post('change-password')
