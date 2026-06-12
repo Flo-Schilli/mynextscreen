@@ -5,6 +5,7 @@ import { AuthService, type AuthenticatedUser } from '../auth/auth.service';
 
 interface SetupStatusResponse {
   setupNeeded: boolean;
+  signupEnabled: boolean;
 }
 
 interface AuthSuccessResponse {
@@ -24,12 +25,15 @@ export class SetupService {
 
   /** null = not yet checked. */
   readonly setupNeeded = signal<boolean | null>(null);
+  /** Whether public self-signup is enabled (drives the "Create account" link). */
+  readonly signupEnabled = signal<boolean>(false);
 
   async checkStatus(): Promise<boolean> {
     const res = await firstValueFrom(
       this.http.get<SetupStatusResponse>('/api/auth/setup-status', { withCredentials: true }),
     );
     this.setupNeeded.set(res.setupNeeded);
+    this.signupEnabled.set(res.signupEnabled);
     return res.setupNeeded;
   }
 

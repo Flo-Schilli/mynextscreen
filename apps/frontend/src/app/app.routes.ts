@@ -17,6 +17,18 @@ export const routes: Routes = [
     loadComponent: () => import('./auth/set-password').then((m) => m.SetPassword),
   },
   {
+    path: 'register',
+    loadComponent: () => import('./register/register').then((m) => m.Register),
+  },
+  {
+    path: 'verify-email',
+    loadComponent: () => import('./auth/verify-email').then((m) => m.VerifyEmail),
+  },
+  {
+    path: 'confirm-email-change',
+    loadComponent: () => import('./auth/confirm-email-change').then((m) => m.ConfirmEmailChange),
+  },
+  {
     path: '',
     canActivate: [authGuard],
     component: Layout,

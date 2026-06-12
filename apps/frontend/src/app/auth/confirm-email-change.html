@@ -1,0 +1,31 @@
+<div class="flex min-h-screen items-center justify-center bg-bg-primary px-4">
+  <div class="w-full max-w-sm rounded-lg border border-border bg-bg-secondary p-8 shadow-lg">
+    <h1 class="mb-6 text-center text-2xl font-semibold text-text-primary">Email change</h1>
+
+    @switch (state()) {
+      @case ('confirming') {
+        <p class="text-center text-sm text-text-secondary">Confirming your new email address…</p>
+      }
+      @case ('done') {
+        <div class="space-y-4 text-center">
+          <p class="text-sm text-text-secondary">
+            Your email address has been updated. Use it the next time you sign in.
+          </p>
+          <a href="/" class="inline-block text-sm font-medium text-accent hover:text-accent-hover"
+            >Go to dashboard</a
+          >
+        </div>
+      }
+      @case ('error') {
+        <div class="space-y-4 text-center">
+          <p class="text-sm text-red-400" role="alert">
+            This confirmation link is invalid or has expired.
+          </p>
+          <a href="/" class="inline-block text-sm font-medium text-accent hover:text-accent-hover"
+            >Go to dashboard</a
+          >
+        </div>
+      }
+    }
+  </div>
+</div>

@@ -100,4 +100,56 @@ describe('AuthService', () => {
     req.flush(null);
     await promise;
   });
+
+  it('register posts email, password and organisation name', async () => {
+    const { service, httpMock } = setup();
+    const promise = service.register('new@example.com', 'newpassword', 'Acme');
+    const req = httpMock.expectOne('/api/auth/register');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.withCredentials).toBe(true);
+    expect(req.request.body).toEqual({
+      email: 'new@example.com',
+      password: 'newpassword',
+      organisationName: 'Acme',
+    });
+    req.flush(null);
+    await promise;
+  });
+
+  it('verifyEmail posts the token and stores the auto-login user', async () => {
+    const { service, httpMock } = setup();
+    const promise = service.verifyEmail('vtok');
+    const req = httpMock.expectOne('/api/auth/verify-email');
+    expect(req.request.body).toEqual({ token: 'vtok' });
+    req.flush({ user: USER });
+    await promise;
+    expect(service.user()).toEqual(USER);
+  });
+
+  it('resendVerification posts the email', async () => {
+    const { service, httpMock } = setup();
+    const promise = service.resendVerification('user@example.com');
+    const req = httpMock.expectOne('/api/auth/resend-verification');
+    expect(req.request.body).toEqual({ email: 'user@example.com' });
+    req.flush(null);
+    await promise;
+  });
+
+  it('changeEmail posts new email and current password', async () => {
+    const { service, httpMock } = setup();
+    const promise = service.changeEmail('new@example.com', 'pw');
+    const req = httpMock.expectOne('/api/auth/change-email');
+    expect(req.request.body).toEqual({ newEmail: 'new@example.com', currentPassword: 'pw' });
+    req.flush(null);
+    await promise;
+  });
+
+  it('confirmEmailChange posts the token', async () => {
+    const { service, httpMock } = setup();
+    const promise = service.confirmEmailChange('ctok');
+    const req = httpMock.expectOne('/api/auth/confirm-email-change');
+    expect(req.request.body).toEqual({ token: 'ctok' });
+    req.flush(null);
+    await promise;
+  });
 });

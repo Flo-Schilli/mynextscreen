@@ -201,4 +201,49 @@ describe('UserSettings', () => {
     // No PATCH request should be made
     httpMock.expectNone('/api/me/notification-preferences');
   });
+
+  it('changes the password and shows a success toast', async () => {
+    flushInit();
+    component.passwordForm.setValue({
+      currentPassword: 'old',
+      newPassword: 'supersecret',
+      confirmNewPassword: 'supersecret',
+    });
+
+    const promise = component.submitPassword();
+    const req = httpMock.expectOne('/api/auth/change-password');
+    expect(req.request.body).toEqual({ currentPassword: 'old', newPassword: 'supersecret' });
+    req.flush(null);
+    await promise;
+
+    expect(component.toastMessage).toBe('Password updated.');
+    expect(component.toastType).toBe('success');
+  });
+
+  it('does not submit an invalid password form', async () => {
+    flushInit();
+    component.passwordForm.setValue({
+      currentPassword: 'old',
+      newPassword: 'short',
+      confirmNewPassword: 'mismatch',
+    });
+
+    await component.submitPassword();
+
+    httpMock.expectNone('/api/auth/change-password');
+  });
+
+  it('requests an email change and shows a success toast', async () => {
+    flushInit();
+    component.emailForm.setValue({ newEmail: 'new@example.com', currentPassword: 'pw' });
+
+    const promise = component.submitEmail();
+    const req = httpMock.expectOne('/api/auth/change-email');
+    expect(req.request.body).toEqual({ newEmail: 'new@example.com', currentPassword: 'pw' });
+    req.flush(null);
+    await promise;
+
+    expect(component.toastMessage).toContain('Confirmation link');
+    expect(component.toastType).toBe('success');
+  });
 });

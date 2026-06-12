@@ -1,0 +1,102 @@
+<div class="flex min-h-screen items-center justify-center bg-bg-primary px-4">
+  <div class="w-full max-w-sm rounded-lg border border-border bg-bg-secondary p-8 shadow-lg">
+    <h1 class="mb-6 text-center text-2xl font-semibold text-text-primary">Create your account</h1>
+
+    @if (done()) {
+      <div class="space-y-4 text-center">
+        <p class="text-sm text-text-secondary">
+          Almost there — we sent a verification link to your email. Click it to activate your
+          account and organisation.
+        </p>
+        <a
+          routerLink="/login"
+          class="inline-block text-sm font-medium text-accent hover:text-accent-hover"
+          >Back to sign in</a
+        >
+      </div>
+    } @else {
+      <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4">
+        <div>
+          <label for="email" class="mb-1 block text-sm font-medium text-text-secondary"
+            >Email</label
+          >
+          <input
+            id="email"
+            type="email"
+            formControlName="email"
+            autocomplete="username"
+            class="w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+          @if (form.controls.email.touched && form.controls.email.invalid) {
+            <p class="mt-1 text-sm text-red-400">Enter a valid email address.</p>
+          }
+        </div>
+
+        <div>
+          <label for="organisationName" class="mb-1 block text-sm font-medium text-text-secondary"
+            >Organisation name</label
+          >
+          <input
+            id="organisationName"
+            type="text"
+            formControlName="organisationName"
+            autocomplete="organization"
+            class="w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+          @if (form.controls.organisationName.touched && form.controls.organisationName.invalid) {
+            <p class="mt-1 text-sm text-red-400">An organisation name is required.</p>
+          }
+        </div>
+
+        <div>
+          <label for="password" class="mb-1 block text-sm font-medium text-text-secondary"
+            >Password</label
+          >
+          <input
+            id="password"
+            type="password"
+            formControlName="password"
+            autocomplete="new-password"
+            class="w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+          @if (form.controls.password.touched && form.controls.password.invalid) {
+            <p class="mt-1 text-sm text-red-400">Use at least 8 characters.</p>
+          }
+        </div>
+
+        <div>
+          <label for="confirmPassword" class="mb-1 block text-sm font-medium text-text-secondary"
+            >Confirm password</label
+          >
+          <input
+            id="confirmPassword"
+            type="password"
+            formControlName="confirmPassword"
+            autocomplete="new-password"
+            class="w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+          @if (form.touched && form.hasError('mismatch')) {
+            <p class="mt-1 text-sm text-red-400">Passwords do not match.</p>
+          }
+        </div>
+
+        @if (error()) {
+          <p class="text-sm text-red-400" role="alert">{{ error() }}</p>
+        }
+
+        <button
+          type="submit"
+          [disabled]="submitting()"
+          class="w-full rounded-md bg-accent px-4 py-2 font-medium text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {{ submitting() ? 'Creating…' : 'Create account' }}
+        </button>
+      </form>
+
+      <p class="mt-6 text-center text-sm text-text-secondary">
+        Already have an account?
+        <a routerLink="/login" class="font-medium text-accent hover:text-accent-hover">Sign in</a>
+      </p>
+    }
+  </div>
+</div>
