@@ -9,6 +9,7 @@ import { ReactiveFormsModule } from '@angular/forms';
 import { vi } from 'vitest';
 import { Login } from './login';
 import { AuthService } from '../auth/auth.service';
+import { SetupService } from '../setup/setup.service';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -18,16 +19,25 @@ try {
 
 interface AuthStub {
   login: ReturnType<typeof vi.fn>;
+  resendVerification: ReturnType<typeof vi.fn>;
 }
 
 function setup(loginImpl: () => Promise<void> = () => Promise.resolve()): {
   fixture: ComponentFixture<Login>;
   auth: AuthStub;
   navigate: ReturnType<typeof vi.fn>;
+  setupService: SetupService;
 } {
-  const auth: AuthStub = { login: vi.fn(loginImpl) };
+  const auth: AuthStub = {
+    login: vi.fn(loginImpl),
+    resendVerification: vi.fn(() => Promise.resolve()),
+  };
   const navigate = vi.fn(() => Promise.resolve(true));
-  const routerStub = { navigateByUrl: navigate } as unknown as Router;
+  const routerStub = {
+    navigateByUrl: navigate,
+    createUrlTree: vi.fn(),
+    serializeUrl: vi.fn(),
+  } as unknown as Router;
 
   TestBed.configureTestingModule({
     imports: [ReactiveFormsModule],
@@ -41,7 +51,7 @@ function setup(loginImpl: () => Promise<void> = () => Promise.resolve()): {
   });
 
   const fixture = TestBed.createComponent(Login);
-  return { fixture, auth, navigate };
+  return { fixture, auth, navigate, setupService: TestBed.inject(SetupService) };
 }
 
 describe('Login', () => {
@@ -81,5 +91,32 @@ describe('Login', () => {
 
     expect(fixture.componentInstance.error()).toContain('Invalid');
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('flags needsVerification on a 403 and offers a resend', async () => {
+    const { fixture } = setup(() => Promise.reject({ status: 403 }));
+    fixture.detectChanges();
+    fixture.componentInstance.form.setValue({ email: 'user@example.com', password: 'pw' });
+
+    await fixture.componentInstance.submit();
+
+    expect(fixture.componentInstance.needsVerification()).toBe(true);
+    expect(fixture.componentInstance.error()).toContain('verify');
+  });
+
+  it('resendVerification calls the auth service and marks resent', async () => {
+    const { fixture, auth } = setup();
+    fixture.componentInstance.form.controls.email.setValue('user@example.com');
+
+    await fixture.componentInstance.resendVerification();
+
+    expect(auth.resendVerification).toHaveBeenCalledWith('user@example.com');
+    expect(fixture.componentInstance.resent()).toBe(true);
+  });
+
+  it('reflects signupEnabled from the setup service', () => {
+    const { fixture, setupService } = setup();
+    setupService.signupEnabled.set(true);
+    expect(fixture.componentInstance.signupEnabled()).toBe(true);
   });
 });

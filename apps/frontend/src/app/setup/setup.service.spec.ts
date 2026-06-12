@@ -39,25 +39,29 @@ describe('SetupService', () => {
     httpMock?.verify();
   });
 
-  it('reports setupNeeded=true and stores it in the signal', async () => {
+  it('reports setupNeeded=true and stores it + signupEnabled in the signals', async () => {
     const { service, httpMock } = setup();
     const promise = service.checkStatus();
 
     const req = httpMock.expectOne('/api/auth/setup-status');
     expect(req.request.method).toBe('GET');
-    req.flush({ setupNeeded: true });
+    req.flush({ setupNeeded: true, signupEnabled: true });
 
     await expect(promise).resolves.toBe(true);
     expect(service.setupNeeded()).toBe(true);
+    expect(service.signupEnabled()).toBe(true);
   });
 
-  it('reports setupNeeded=false', async () => {
+  it('reports setupNeeded=false and reflects signupEnabled=false', async () => {
     const { service, httpMock } = setup();
     const promise = service.checkStatus();
-    httpMock.expectOne('/api/auth/setup-status').flush({ setupNeeded: false });
+    httpMock
+      .expectOne('/api/auth/setup-status')
+      .flush({ setupNeeded: false, signupEnabled: false });
 
     await expect(promise).resolves.toBe(false);
     expect(service.setupNeeded()).toBe(false);
+    expect(service.signupEnabled()).toBe(false);
   });
 
   it('creates the first admin, logs in (seeds auth user), and clears setupNeeded', async () => {

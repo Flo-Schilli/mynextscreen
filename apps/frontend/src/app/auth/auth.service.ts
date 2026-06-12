@@ -93,4 +93,49 @@ export class AuthService {
       this.http.post<void>('/api/auth/forgot-password', { email }, { withCredentials: true }),
     );
   }
+
+  /** Self-signup: create an account + organisation. Backend emails a verify link. */
+  async register(email: string, password: string, organisationName: string): Promise<void> {
+    await firstValueFrom(
+      this.http.post<void>(
+        '/api/auth/register',
+        { email, password, organisationName },
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  /** Confirm the verification token; the backend auto-logs-in (sets cookies). */
+  async verifyEmail(token: string): Promise<void> {
+    const res = await firstValueFrom(
+      this.http.post<AuthSuccessResponse>(
+        '/api/auth/verify-email',
+        { token },
+        { withCredentials: true },
+      ),
+    );
+    this.user.set(res.user);
+  }
+
+  async resendVerification(email: string): Promise<void> {
+    await firstValueFrom(
+      this.http.post<void>('/api/auth/resend-verification', { email }, { withCredentials: true }),
+    );
+  }
+
+  async changeEmail(newEmail: string, currentPassword: string): Promise<void> {
+    await firstValueFrom(
+      this.http.post<void>(
+        '/api/auth/change-email',
+        { newEmail, currentPassword },
+        { withCredentials: true },
+      ),
+    );
+  }
+
+  async confirmEmailChange(token: string): Promise<void> {
+    await firstValueFrom(
+      this.http.post<void>('/api/auth/confirm-email-change', { token }, { withCredentials: true }),
+    );
+  }
 }

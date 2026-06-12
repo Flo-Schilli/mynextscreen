@@ -1,14 +1,29 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import {
+  AbstractControl,
+  FormBuilder,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from '@angular/forms';
 import { Router } from '@angular/router';
 import {
   NotificationPreferencesService,
   NotificationPreferences,
 } from './notification-preferences.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
+import { AuthService } from '../../auth/auth.service';
+
+function passwordsMatch(control: AbstractControl): ValidationErrors | null {
+  const next = control.get('newPassword')?.value;
+  const confirm = control.get('confirmNewPassword')?.value;
+  return next === confirm ? null : { mismatch: true };
+}
 
 @Component({
   selector: 'app-user-settings',
   standalone: true,
+  imports: [ReactiveFormsModule],
   template: `
     <div class="page">
       <header class="page-header">
@@ -100,6 +115,75 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
             {{ toastMessage }}
           </div>
         }
+      </section>
+
+      <section class="section">
+        <h2 class="section-title">Change password</h2>
+        <p class="section-desc">Update the password you use to sign in.</p>
+        <form [formGroup]="passwordForm" (ngSubmit)="submitPassword()" class="form-grid">
+          <label class="field">
+            <span class="field-label">Current password</span>
+            <input
+              type="password"
+              formControlName="currentPassword"
+              autocomplete="current-password"
+            />
+          </label>
+          <label class="field">
+            <span class="field-label">New password</span>
+            <input type="password" formControlName="newPassword" autocomplete="new-password" />
+            @if (
+              passwordForm.controls.newPassword.touched && passwordForm.controls.newPassword.invalid
+            ) {
+              <span class="field-error">Use at least 8 characters.</span>
+            }
+          </label>
+          <label class="field">
+            <span class="field-label">Confirm new password</span>
+            <input
+              type="password"
+              formControlName="confirmNewPassword"
+              autocomplete="new-password"
+            />
+            @if (passwordForm.touched && passwordForm.hasError('mismatch')) {
+              <span class="field-error">Passwords do not match.</span>
+            }
+          </label>
+          <div>
+            <button type="submit" class="primary-btn" [disabled]="savingPassword">
+              {{ savingPassword ? 'Saving…' : 'Update password' }}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section class="section">
+        <h2 class="section-title">Change email</h2>
+        <p class="section-desc">
+          We'll send a confirmation link to the new address; the change applies once you confirm it.
+        </p>
+        <form [formGroup]="emailForm" (ngSubmit)="submitEmail()" class="form-grid">
+          <label class="field">
+            <span class="field-label">New email</span>
+            <input type="email" formControlName="newEmail" autocomplete="email" />
+            @if (emailForm.controls.newEmail.touched && emailForm.controls.newEmail.invalid) {
+              <span class="field-error">Enter a valid email address.</span>
+            }
+          </label>
+          <label class="field">
+            <span class="field-label">Current password</span>
+            <input
+              type="password"
+              formControlName="currentPassword"
+              autocomplete="current-password"
+            />
+          </label>
+          <div>
+            <button type="submit" class="primary-btn" [disabled]="savingEmail">
+              {{ savingEmail ? 'Sending…' : 'Send confirmation link' }}
+            </button>
+          </div>
+        </form>
       </section>
     </div>
   `,
@@ -208,16 +292,83 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
       background: #991b1b;
       color: #fecaca;
     }
+
+    .form-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      max-width: 24rem;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.375rem;
+    }
+    .field-label {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+    }
+    .field input {
+      width: 100%;
+      border-radius: 0.375rem;
+      border: 1px solid var(--color-border);
+      background: var(--color-bg-primary);
+      color: var(--color-text-primary);
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+    }
+    .field input:focus {
+      outline: none;
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 1px var(--color-accent);
+    }
+    .field-error {
+      font-size: 0.75rem;
+      color: #f87171;
+    }
+    .primary-btn {
+      border-radius: 0.375rem;
+      background: var(--color-accent);
+      color: #fff;
+      font-weight: 500;
+      padding: 0.5rem 1rem;
+      border: none;
+      cursor: pointer;
+    }
+    .primary-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   `,
 })
 export class UserSettings implements OnInit, OnDestroy {
   private prefsService = inject(NotificationPreferencesService);
   private orgState = inject(OrganisationStateService);
   private router = inject(Router);
+  private fb = inject(FormBuilder);
+  private auth = inject(AuthService);
 
   preferences: NotificationPreferences | null = null;
   loading = true;
   loadError = '';
+
+  savingPassword = false;
+  savingEmail = false;
+
+  readonly passwordForm = this.fb.nonNullable.group(
+    {
+      currentPassword: ['', [Validators.required]],
+      newPassword: ['', [Validators.required, Validators.minLength(8)]],
+      confirmNewPassword: ['', [Validators.required]],
+    },
+    { validators: passwordsMatch },
+  );
+
+  readonly emailForm = this.fb.nonNullable.group({
+    newEmail: ['', [Validators.required, Validators.email]],
+    currentPassword: ['', [Validators.required]],
+  });
 
   orgSmtpConfigured = false;
   orgNtfyConfigured = false;
@@ -302,6 +453,42 @@ export class UserSettings implements OnInit, OnDestroy {
     this.toastTimer = setTimeout(() => {
       this.toastMessage = '';
     }, 4000);
+  }
+
+  async submitPassword(): Promise<void> {
+    if (this.passwordForm.invalid || this.savingPassword) {
+      this.passwordForm.markAllAsTouched();
+      return;
+    }
+    this.savingPassword = true;
+    const { currentPassword, newPassword } = this.passwordForm.getRawValue();
+    try {
+      await this.auth.changePassword(currentPassword, newPassword);
+      this.passwordForm.reset();
+      this.showToast('Password updated.', 'success');
+    } catch {
+      this.showToast('Could not update password. Check your current password.', 'error');
+    } finally {
+      this.savingPassword = false;
+    }
+  }
+
+  async submitEmail(): Promise<void> {
+    if (this.emailForm.invalid || this.savingEmail) {
+      this.emailForm.markAllAsTouched();
+      return;
+    }
+    this.savingEmail = true;
+    const { newEmail, currentPassword } = this.emailForm.getRawValue();
+    try {
+      await this.auth.changeEmail(newEmail, currentPassword);
+      this.emailForm.reset();
+      this.showToast('Confirmation link sent to the new address.', 'success');
+    } catch {
+      this.showToast('Could not change email. Check your password.', 'error');
+    } finally {
+      this.savingEmail = false;
+    }
   }
 
   goBack(): void {

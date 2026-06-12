@@ -37,6 +37,21 @@
         <p class="text-sm text-red-400" role="alert">{{ error() }}</p>
       }
 
+      @if (needsVerification()) {
+        @if (resent()) {
+          <p class="text-sm text-text-secondary">A new verification link is on its way.</p>
+        } @else {
+          <button
+            type="button"
+            [disabled]="resending()"
+            (click)="resendVerification()"
+            class="text-sm font-medium text-accent hover:text-accent-hover disabled:opacity-60"
+          >
+            {{ resending() ? 'Sending…' : 'Resend verification email' }}
+          </button>
+        }
+      }
+
       <button
         type="submit"
         [disabled]="submitting()"
@@ -45,6 +60,15 @@
         {{ submitting() ? 'Signing in…' : 'Sign in' }}
       </button>
     </form>
+
+    @if (signupEnabled()) {
+      <p class="mt-6 text-center text-sm text-text-secondary">
+        Don't have an account?
+        <a routerLink="/register" class="font-medium text-accent hover:text-accent-hover"
+          >Create account</a
+        >
+      </p>
+    }
 
     <div class="mt-6 flex justify-center">
       <app-version-badge />
