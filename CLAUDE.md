@@ -77,7 +77,18 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
 - **Auth:** **Interne Auth** (email+password, JWT-Access-Cookie + Redis-Refresh-Tokens,
   bcrypt-Hashing), **API-Keys** (Screens). Erster Super-Admin wird **nicht** per Env
   geseedet, sondern über ein **UI-First-Run-Setup** angelegt (`GET /api/auth/setup-status`,
-  `POST /api/auth/setup`; nur möglich, solange kein User existiert — atomar).
+  `POST /api/auth/setup`; nur möglich, solange kein User existiert — atomar). Der
+  First-Run-Super-Admin **bleibt** (sieht alle Orgs, hebt Storage-Limits an).
+- **Self-Signup:** `POST /api/auth/register` legt **atomar** User + eigene Org +
+  OrgAdmin-Membership an (`emailVerified=false`), mailt einen Verify-Link; **Login bleibt
+  blockiert (403 „Email not verified") bis verifiziert** (`POST /api/auth/verify-email`
+  → Auto-Login). Plus `resend-verification`, `change-email`/`confirm-email-change`,
+  Passwort-Geändert-Notiz. Feature-Flag `SIGNUP_ENABLED` (in `setup-status` gespiegelt).
+  Ein stündlicher Cron löscht nie-verifizierte Signups + deren Orphan-Org.
+- **Mailer-Trennung:** **Account/System-Mails** (verify, invite, reset, email-change,
+  password-changed) laufen über den **ENV-getriebenen `PlatformMailerService`**
+  (`notification/channels/`, SMTP via `SMTP_*`, event-getrieben, best-effort). **Per-Org-SMTP**
+  bleibt nur für **Org-Notifications** (`EmailNotificationChannel`). Dev: **Mailpit** (`:8025`).
 - **Media:** **FFmpeg** als Child-Process (Transcoding + HLS-Live).
 - **Echtzeit:** **SSE** (Dashboard-Updates + Screen-Pushes).
 - **Runtime:** Node.js 22. **Package-Manager: npm** (npm@11.6.2, kein pnpm/yarn).
@@ -249,7 +260,11 @@ npx nx run backend:db-studio      # drizzle-kit studio
 | `JWT_ACCESS_SECRET` | **Pflicht** — Secret für JWT-Access-Token (`openssl rand -base64 48`) |
 | `JWT_ACCESS_TTL` / `JWT_REFRESH_TTL` | Token-Lebensdauer (z. B. `15m` / `30d`) |
 | `COOKIE_SECURE` / `COOKIE_SAMESITE` | Cookie-Härtung (Secure default nur bei `NODE_ENV=production`) |
-| `PUBLIC_BASE_URL` | Basis-URL der Admin-SPA (Set-Password/Reset-Links + CORS) |
+| `PUBLIC_BASE_URL` | Basis-URL der Admin-SPA (Verify/Set-Password/Reset/Confirm-Email-Links + CORS) |
+| `SMTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `_FROM` / `_SECURE` | Platform-Mailer (Account-Mails); Dev → Mailpit (`localhost:1025`) |
+| `SIGNUP_ENABLED` | Feature-Flag Self-Signup (default `true`) |
+| `SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES` / `_TRANSCODED_BYTES` | Default-Storage-Limits einer self-created Org (default 5 GiB) |
+| `SIGNUP_UNVERIFIED_TTL_HOURS` | Frist bis Cleanup-Cron nie-verifizierte Signups löscht (default 48) |
 | `MAX_FILE_SIZE_BYTES` | Upload-Limit |
 | `FFMPEG_PATH` | FFmpeg-Binary (default: System-PATH) |
 | `FFMPEG_VIDEO_CRF` / `_PRESET` / `_MAXRATE` / `_BUFSIZE` | Transcoding-Qualität |
