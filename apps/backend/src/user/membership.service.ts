@@ -48,6 +48,7 @@ export class MembershipService {
     organisationId: string,
     email: string,
     role: OrganisationRole,
+    actorUserId: string | null = null,
   ): Promise<MembershipWithUser> {
     const normalisedEmail = email.toLowerCase();
     // Find or provision the user (invitee) by email. New invitees have a null
@@ -101,7 +102,7 @@ export class MembershipService {
 
     this.eventEmitter.emit(
       AUDIT_USER_INVITED,
-      new AuditUserEvent(user.id, organisationId, null, { email: normalisedEmail, role }),
+      new AuditUserEvent(user.id, organisationId, actorUserId, { email: normalisedEmail, role }),
     );
     return { ...saved, user };
   }
@@ -110,6 +111,7 @@ export class MembershipService {
     organisationId: string,
     userId: string,
     role: OrganisationRole,
+    actorUserId: string | null = null,
   ): Promise<MembershipWithUser> {
     const membership = await this.db.query.userOrganisationMemberships.findFirst({
       where: and(
@@ -135,7 +137,7 @@ export class MembershipService {
       .returning();
     this.eventEmitter.emit(
       AUDIT_USER_ROLE_CHANGED,
-      new AuditUserEvent(userId, organisationId, null, {
+      new AuditUserEvent(userId, organisationId, actorUserId, {
         oldRole,
         newRole: role,
       }),
@@ -143,7 +145,11 @@ export class MembershipService {
     return { ...saved, user: membership.user };
   }
 
-  async removeMember(organisationId: string, userId: string): Promise<void> {
+  async removeMember(
+    organisationId: string,
+    userId: string,
+    actorUserId: string | null = null,
+  ): Promise<void> {
     const [membership] = await this.db
       .select()
       .from(userOrganisationMemberships)
@@ -168,7 +174,7 @@ export class MembershipService {
       .where(eq(userOrganisationMemberships.id, membership.id));
     this.eventEmitter.emit(
       AUDIT_USER_REMOVED,
-      new AuditUserEvent(userId, organisationId, null, null),
+      new AuditUserEvent(userId, organisationId, actorUserId, null),
     );
   }
 
