@@ -73,7 +73,7 @@ export interface NavItem {
           <div class="nav-divider"></div>
           <a
             class="nav-item admin-nav-item"
-            routerLink="/admin/organisations"
+            routerLink="/admin/dashboard"
             routerLinkActive="active"
             (click)="closeMobile.emit()"
             [attr.title]="collapsed() ? 'Instance Admin' : null"
