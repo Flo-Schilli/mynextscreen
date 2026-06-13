@@ -56,7 +56,7 @@ export class NotificationHub {
     let ntfySent = false;
 
     for (const membership of memberships) {
-      const prefs = await this.userPrefService.getForUser(membership.userId, event.orgId);
+      const prefs = await this.userPrefService.getForUser(membership.userId);
 
       // In-app channel
       if (prefs.inAppEnabled && this.inAppChannel) {

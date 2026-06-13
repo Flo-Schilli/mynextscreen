@@ -316,6 +316,9 @@ export const organisationNotificationConfigs = pgTable(
   (t) => [uniqueIndex('UQ_org_notification_config_org').on(t.organisationId)],
 );
 
+// User-global notification channel preferences: one row per user, applied
+// across every organisation they belong to. Whether email/ntfy actually deliver
+// still depends on each org having SMTP/ntfy configured (see notification hub).
 export const userNotificationPreferences = pgTable(
   'user_notification_preferences',
   {
@@ -325,14 +328,11 @@ export const userNotificationPreferences = pgTable(
     userId: uuid()
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    organisationId: uuid()
-      .notNull()
-      .references(() => organisations.id, { onDelete: 'cascade' }),
     inAppEnabled: boolean().notNull().default(true),
     emailEnabled: boolean().notNull().default(false),
     ntfyEnabled: boolean().notNull().default(false),
   },
-  (t) => [uniqueIndex('UQ_user_notification_pref_user_org').on(t.userId, t.organisationId)],
+  (t) => [uniqueIndex('UQ_user_notification_pref_user').on(t.userId)],
 );
 
 // ── audit log ────────────────────────────────────────────────────────────────

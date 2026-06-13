@@ -19,6 +19,7 @@ import { ScreenGroupWallPreview } from './screen-group-wall-preview';
 import { ScreenGroupMirrorList } from './screen-group-mirror-list';
 import { ScreenGroupAddScreenModal } from './screen-group-add-screen-modal';
 import { ScreenGroupSwitchModeModal } from './screen-group-switch-mode-modal';
+import { ToastService } from '../shared/toast/toast.service';
 
 /**
  * Smart container for the screen-group detail page. Owns data loading, the org
@@ -175,6 +176,7 @@ export class ScreenGroupDetail implements OnInit {
   private screenService = inject(ScreenService);
   private memberService = inject(MemberService);
   private contentService = inject(ContentService);
+  private toast = inject(ToastService);
 
   orgId = '';
   group: ScreenGroup | null = null;
@@ -373,6 +375,7 @@ export class ScreenGroupDetail implements OnInit {
       .subscribe({
         next: () => {
           this.operationInProgress = false;
+          this.toast.success(`Screen "${screen.name}" assigned.`);
           this.refreshGroup();
         },
         error: (err) => {
@@ -402,6 +405,7 @@ export class ScreenGroupDetail implements OnInit {
           .subscribe({
             next: () => {
               this.operationInProgress = false;
+              this.toast.success(`Screen "${screen.name}" moved.`);
               this.refreshGroup();
             },
             error: (err) => {
@@ -427,6 +431,7 @@ export class ScreenGroupDetail implements OnInit {
     this.screenGroupService.removeScreen(this.orgId, this.group.id, screenId).subscribe({
       next: () => {
         this.operationInProgress = false;
+        this.toast.success('Screen removed.');
         this.refreshGroup();
       },
       error: (err) => {
@@ -463,6 +468,7 @@ export class ScreenGroupDetail implements OnInit {
     this.screenGroupService.assignScreen(this.orgId, this.group.id, screen.id, {}).subscribe({
       next: () => {
         this.operationInProgress = false;
+        this.toast.success(`Screen "${screen.name}" added.`);
         this.refreshGroup();
       },
       error: (err) => {
@@ -507,6 +513,7 @@ export class ScreenGroupDetail implements OnInit {
       next: () => {
         this.switching = false;
         this.showSwitchMode = false;
+        this.toast.success(`Switched to ${newMode} mode.`);
         this.refreshGroup();
       },
       error: (err) => {

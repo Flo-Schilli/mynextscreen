@@ -1,4 +1,4 @@
-import { Component, input, output } from '@angular/core';
+import { Component, ElementRef, HostListener, inject, input, output, signal } from '@angular/core';
 import { NotificationBell } from '../notifications/notification-bell';
 import { GlobalSearch } from '../search/global-search';
 import { OrgWithRole } from './organisation-state.service';
@@ -78,30 +78,56 @@ import { OrgWithRole } from './organisation-state.service';
         <!-- Notification bell -->
         <app-notification-bell />
 
-        <!-- User avatar -->
-        <div
-          class="user-avatar"
-          [class.super-admin]="isSuperAdmin()"
-          [attr.aria-label]="isSuperAdmin() ? 'Instance Admin' : 'Current user'"
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <circle cx="10" cy="8" r="3" stroke="currentColor" stroke-width="1.5" />
-            <path
-              d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-            />
-          </svg>
-          @if (isSuperAdmin()) {
-            <span class="admin-badge" title="Instance Admin">
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                <path
-                  d="M5 0.5L6.1 3.5H9.3L6.6 5.3L7.7 8.5L5 6.5L2.3 8.5L3.4 5.3L0.7 3.5H3.9L5 0.5Z"
-                  fill="currentColor"
-                />
-              </svg>
-            </span>
+        <!-- User menu -->
+        <div class="user-menu">
+          <button
+            type="button"
+            class="user-avatar"
+            [class.super-admin]="isSuperAdmin()"
+            [attr.aria-label]="isSuperAdmin() ? 'Instance Admin' : 'Current user'"
+            [attr.aria-expanded]="menuOpen()"
+            aria-haspopup="menu"
+            (click)="toggleMenu($event)"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="8" r="3" stroke="currentColor" stroke-width="1.5" />
+              <path
+                d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+            </svg>
+            @if (isSuperAdmin()) {
+              <span class="admin-badge" title="Instance Admin">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path
+                    d="M5 0.5L6.1 3.5H9.3L6.6 5.3L7.7 8.5L5 6.5L2.3 8.5L3.4 5.3L0.7 3.5H3.9L5 0.5Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </span>
+            }
+          </button>
+
+          @if (menuOpen()) {
+            <div class="user-dropdown" role="menu">
+              <div class="user-identity">
+                <span class="user-email">{{ userEmail() ?? 'Signed in' }}</span>
+                <span class="user-role">{{ isSuperAdmin() ? 'Instance Admin' : 'Member' }}</span>
+              </div>
+              <button type="button" class="dropdown-item" role="menuitem" (click)="onProfile()">
+                Profile &amp; settings
+              </button>
+              <button
+                type="button"
+                class="dropdown-item dropdown-item-danger"
+                role="menuitem"
+                (click)="onLogout()"
+              >
+                Log out
+              </button>
+            </div>
           }
         </div>
       </div>
@@ -186,6 +212,9 @@ import { OrgWithRole } from './organisation-state.service';
       color: var(--color-text-primary);
     }
 
+    .user-menu {
+      position: relative;
+    }
     .user-avatar {
       position: relative;
       display: flex;
@@ -193,14 +222,72 @@ import { OrgWithRole } from './organisation-state.service';
       justify-content: center;
       width: 32px;
       height: 32px;
+      padding: 0;
       border-radius: 999px;
       background: var(--color-bg-tertiary);
       color: var(--color-text-secondary);
       border: 1px solid var(--color-border);
+      cursor: pointer;
+    }
+    .user-avatar:hover {
+      color: var(--color-text-primary);
     }
     .user-avatar.super-admin {
       border-color: #f59e0b;
       box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3);
+    }
+
+    .user-dropdown {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      z-index: 50;
+      min-width: 200px;
+      display: flex;
+      flex-direction: column;
+      padding: 0.375rem;
+      background: var(--color-bg-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: 0.5rem;
+      box-shadow: 0 4px 12px var(--color-shadow);
+    }
+    .user-identity {
+      display: flex;
+      flex-direction: column;
+      gap: 0.125rem;
+      padding: 0.5rem 0.625rem 0.625rem;
+      border-bottom: 1px solid var(--color-border);
+      margin-bottom: 0.375rem;
+    }
+    .user-email {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--color-text-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .user-role {
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+    }
+    .dropdown-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 0.5rem 0.625rem;
+      border: none;
+      border-radius: 0.375rem;
+      background: transparent;
+      color: var(--color-text-primary);
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    .dropdown-item:hover {
+      background: var(--color-bg-tertiary);
+    }
+    .dropdown-item-danger {
+      color: #f87171;
     }
     .admin-badge {
       position: absolute;
@@ -234,20 +321,58 @@ import { OrgWithRole } from './organisation-state.service';
   `,
 })
 export class AppTopbar {
+  private readonly host = inject(ElementRef<HTMLElement>);
+
   readonly organisations = input.required<OrgWithRole[]>();
   readonly selectedOrgId = input.required<string | null>();
   readonly isSuperAdmin = input.required<boolean>();
   readonly isDark = input.required<boolean>();
+  readonly userEmail = input.required<string | null>();
 
   readonly openMobile = output<void>();
   readonly selectOrg = output<string>();
   readonly toggleTheme = output<void>();
+  readonly openProfile = output<void>();
+  readonly logout = output<void>();
+
+  readonly menuOpen = signal(false);
 
   onOrgChange(event: Event): void {
     const value = (event.target as HTMLSelectElement).value;
     if (value) {
       this.selectOrg.emit(value);
     }
+  }
+
+  toggleMenu(event: Event): void {
+    event.stopPropagation();
+    this.menuOpen.update((open) => !open);
+  }
+
+  onProfile(): void {
+    this.menuOpen.set(false);
+    this.openProfile.emit();
+  }
+
+  onLogout(): void {
+    this.menuOpen.set(false);
+    this.logout.emit();
+  }
+
+  /** Close the dropdown on any click outside the menu. */
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.menuOpen()) {
+      return;
+    }
+    if (!this.host.nativeElement.contains(event.target as Node)) {
+      this.menuOpen.set(false);
+    }
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    this.menuOpen.set(false);
   }
 
   formatRole(role: string): string {

@@ -7,12 +7,14 @@ import {
   Validators,
 } from '@angular/forms';
 import { Router } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import {
   NotificationPreferencesService,
   NotificationPreferences,
 } from './notification-preferences.service';
-import { OrganisationStateService } from '../../shell/organisation-state.service';
 import { AuthService } from '../../auth/auth.service';
+import { ProfileService } from './profile.service';
+import { ToastService } from '../../shared/toast/toast.service';
 
 function passwordsMatch(control: AbstractControl): ValidationErrors | null {
   const next = control.get('newPassword')?.value;
@@ -34,8 +36,42 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
       </header>
 
       <section class="section">
+        <h2 class="section-title">Profile</h2>
+        <p class="section-desc">Your account details and display name.</p>
+        <form [formGroup]="profileForm" (ngSubmit)="submitProfile()" class="form-grid">
+          <div class="field">
+            <span class="field-label">Email</span>
+            <input type="email" [value]="profileEmail" disabled />
+            <span class="field-note">
+              Change your email below; we'll send a confirmation link first.
+            </span>
+          </div>
+          <label class="field">
+            <span class="field-label">Display name</span>
+            <input
+              type="text"
+              formControlName="name"
+              autocomplete="name"
+              placeholder="Your name"
+              maxlength="255"
+            />
+            @if (profileForm.controls.name.touched && profileForm.controls.name.invalid) {
+              <span class="field-error">Name must be 255 characters or fewer.</span>
+            }
+          </label>
+          <div>
+            <button type="submit" class="primary-btn" [disabled]="savingProfile || loadingProfile">
+              {{ savingProfile ? 'Saving…' : 'Save profile' }}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section class="section">
         <h2 class="section-title">Notification Channels</h2>
-        <p class="section-desc">Choose how you receive notifications for this organisation.</p>
+        <p class="section-desc">
+          Choose how you receive notifications. These apply across all organisations you belong to.
+        </p>
 
         @if (loading) {
           <p class="loading-text">Loading preferences...</p>
@@ -68,9 +104,7 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
               <div class="toggle-info">
                 <span class="toggle-label">Email</span>
                 <span class="toggle-desc">Receive notifications by email</span>
-                @if (!orgSmtpConfigured) {
-                  <span class="toggle-note">Configure email in Organisation Settings</span>
-                }
+                <span class="toggle-note">Sent for organisations that have email configured</span>
               </div>
               <button
                 class="toggle-switch"
@@ -88,9 +122,7 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
               <div class="toggle-info">
                 <span class="toggle-label">ntfy</span>
                 <span class="toggle-desc">Receive notifications via ntfy</span>
-                @if (!orgNtfyConfigured) {
-                  <span class="toggle-note">Configure ntfy in Organisation Settings</span>
-                }
+                <span class="toggle-note">Sent for organisations that have ntfy configured</span>
               </div>
               <button
                 class="toggle-switch"
@@ -103,16 +135,6 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
                 <span class="toggle-knob"></span>
               </button>
             </div>
-          </div>
-        }
-
-        @if (toastMessage) {
-          <div
-            class="toast"
-            [class.toast-error]="toastType === 'error'"
-            [class.toast-success]="toastType === 'success'"
-          >
-            {{ toastMessage }}
           </div>
         }
       </section>
@@ -260,6 +282,7 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
       border-radius: 0.5rem;
       padding: 1.5rem;
       max-width: 40rem;
+      margin-bottom: 1.5rem;
       box-shadow:
         0 1px 3px var(--color-shadow),
         0 1px 2px var(--color-shadow);
@@ -344,21 +367,6 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
       transform: translateX(20px);
     }
 
-    .toast {
-      margin-top: 1rem;
-      padding: 0.625rem 1rem;
-      border-radius: 0.375rem;
-      font-size: 0.8125rem;
-    }
-    .toast-success {
-      background: #065f46;
-      color: #d1fae5;
-    }
-    .toast-error {
-      background: #991b1b;
-      color: #fecaca;
-    }
-
     .form-grid {
       display: flex;
       flex-direction: column;
@@ -393,6 +401,14 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
       font-size: 0.75rem;
       color: #f87171;
     }
+    .field-note {
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+    }
+    .field input:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
     .primary-btn {
       border-radius: 0.375rem;
       background: var(--color-accent);
@@ -413,17 +429,26 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
 })
 export class UserSettings implements OnInit, OnDestroy {
   private prefsService = inject(NotificationPreferencesService);
-  private orgState = inject(OrganisationStateService);
   private router = inject(Router);
   private fb = inject(FormBuilder);
   private auth = inject(AuthService);
+  private profile = inject(ProfileService);
+  private toast = inject(ToastService);
 
   preferences: NotificationPreferences | null = null;
   loading = true;
   loadError = '';
 
+  profileEmail = '';
+  loadingProfile = true;
+  savingProfile = false;
+
   savingPassword = false;
   savingEmail = false;
+
+  readonly profileForm = this.fb.nonNullable.group({
+    name: ['', [Validators.maxLength(255)]],
+  });
 
   readonly passwordForm = this.fb.nonNullable.group(
     {
@@ -447,21 +472,49 @@ export class UserSettings implements OnInit, OnDestroy {
   deletingAccount = false;
   deleteAccountError = '';
 
-  orgSmtpConfigured = false;
-  orgNtfyConfigured = false;
-
-  toastMessage = '';
-  toastType: 'error' | 'success' = 'success';
-  private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit(): void {
+    this.loadProfile();
     this.loadPreferences();
-    this.loadOrgConfig();
+  }
+
+  private loadProfile(): void {
+    this.loadingProfile = true;
+    this.profile.getProfile().subscribe({
+      next: (profile) => {
+        this.profileEmail = profile.email;
+        this.profileForm.setValue({ name: profile.name ?? '' });
+        this.loadingProfile = false;
+      },
+      error: () => {
+        this.loadingProfile = false;
+      },
+    });
+  }
+
+  async submitProfile(): Promise<void> {
+    if (this.profileForm.invalid || this.savingProfile) {
+      this.profileForm.markAllAsTouched();
+      return;
+    }
+    this.savingProfile = true;
+    const { name } = this.profileForm.getRawValue();
+    const trimmed = name.trim();
+    try {
+      const updated = await firstValueFrom(
+        this.profile.updateProfile({ name: trimmed.length > 0 ? trimmed : null }),
+      );
+      this.profileForm.setValue({ name: updated.name ?? '' });
+      this.showToast('Profile saved.', 'success');
+    } catch {
+      this.showToast('Could not save profile.', 'error');
+    } finally {
+      this.savingProfile = false;
+    }
   }
 
   ngOnDestroy(): void {
-    if (this.toastTimer) clearTimeout(this.toastTimer);
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
   }
 
@@ -476,22 +529,6 @@ export class UserSettings implements OnInit, OnDestroy {
       error: () => {
         this.loadError = 'Failed to load notification preferences.';
         this.loading = false;
-      },
-    });
-  }
-
-  private loadOrgConfig(): void {
-    const orgId = this.orgState.selectedOrgId();
-    if (!orgId) return;
-    this.prefsService.getOrgNotificationConfig(orgId).subscribe({
-      next: (config) => {
-        this.orgSmtpConfigured = !!config.smtpHost;
-        this.orgNtfyConfigured = !!config.ntfyUrl;
-      },
-      error: () => {
-        // Non-admins may get 403 — silently assume not configured
-        this.orgSmtpConfigured = false;
-        this.orgNtfyConfigured = false;
       },
     });
   }
@@ -524,12 +561,7 @@ export class UserSettings implements OnInit, OnDestroy {
   }
 
   private showToast(message: string, type: 'error' | 'success'): void {
-    this.toastMessage = message;
-    this.toastType = type;
-    if (this.toastTimer) clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => {
-      this.toastMessage = '';
-    }, 4000);
+    this.toast.show(type, message);
   }
 
   async submitPassword(): Promise<void> {

@@ -1,4 +1,10 @@
-import { ConflictException, ForbiddenException, Injectable, Inject } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Inject,
+  NotFoundException,
+} from '@nestjs/common';
 import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
@@ -124,6 +130,31 @@ export class UserService {
   async findById(userId: string): Promise<User | null> {
     const [user] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
     return user ?? null;
+  }
+
+  /**
+   * Self-service profile update for the authenticated user. Only the display
+   * name is editable here; a blank name clears it (stored as null). Returns the
+   * updated user; throws NotFoundException if the user no longer exists.
+   */
+  async updateProfile(userId: string, input: { name?: string }): Promise<User> {
+    if (input.name === undefined) {
+      const existing = await this.findById(userId);
+      if (!existing) {
+        throw new NotFoundException('User not found');
+      }
+      return existing;
+    }
+    const trimmed = input.name.trim();
+    const [user] = await this.db
+      .update(users)
+      .set({ name: trimmed.length > 0 ? trimmed : null })
+      .where(eq(users.id, userId))
+      .returning();
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return user;
   }
 
   /** True if at least one user exists. Drives the first-run setup gate. */

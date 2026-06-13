@@ -19,6 +19,7 @@ import { OrganisationService } from '../admin/organisations/organisation.service
 import { SelectionService } from '../shared/selection/selection.service';
 import { BulkAction } from '../shared/selection/bulk-action-toolbar';
 import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dialog';
+import { ToastService } from '../shared/toast/toast.service';
 
 /**
  * Smart container for the playlists feature. Owns data loading, all HTTP
@@ -190,18 +191,6 @@ import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dia
           (dismiss)="cancelAssignScreen()"
         />
       }
-
-      <!-- Toast -->
-      @if (toastMessage) {
-        <div
-          class="toast"
-          [class.toast-error]="toastType === 'error'"
-          [class.toast-success]="toastType === 'success'"
-          [class.toast-warning]="toastType === 'warning'"
-        >
-          {{ toastMessage }}
-        </div>
-      }
     </div>
   `,
   styles: `
@@ -218,44 +207,6 @@ import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dia
       padding: 0.75rem 1rem;
       font-size: 0.8125rem !important;
     }
-
-    /* Toast */
-    .toast {
-      position: fixed;
-      bottom: 2rem;
-      right: 2rem;
-      padding: 0.75rem 1.25rem;
-      border-radius: 0.375rem;
-      font-size: 0.875rem;
-      z-index: 2000;
-      animation: toast-in 0.3s ease;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-    }
-    .toast-error {
-      background: #991b1b;
-      color: #fecaca;
-      border: 1px solid #b91c1c;
-    }
-    .toast-success {
-      background: #166534;
-      color: #bbf7d0;
-      border: 1px solid #22c55e;
-    }
-    .toast-warning {
-      background: #92400e;
-      color: #fef3c7;
-      border: 1px solid #d97706;
-    }
-    @keyframes toast-in {
-      from {
-        opacity: 0;
-        transform: translateY(1rem);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
   `,
 })
 export class Playlists implements OnInit {
@@ -266,6 +217,7 @@ export class Playlists implements OnInit {
   private organisationService = inject(OrganisationService);
   private router = inject(Router);
   readonly selectionService = inject(SelectionService);
+  private toast = inject(ToastService);
 
   orgId = '';
   userRole = '';
@@ -314,11 +266,6 @@ export class Playlists implements OnInit {
   screensLoading = false;
   screensLoadError = '';
   private assignScreenResolve: ((value: boolean) => void) | null = null;
-
-  // Toast
-  toastMessage = '';
-  toastType: 'error' | 'success' | 'warning' = 'success';
-  private toastTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Bulk actions
   bulkActions: BulkAction[] = [
@@ -423,6 +370,7 @@ export class Playlists implements OnInit {
         this.showCreateForm = false;
         this.loadPlaylists();
         this.selectPlaylist(playlist);
+        this.toast.success('Playlist created.');
       },
       error: (err) => {
         this.createError = err.error?.message || 'Failed to create playlist.';
@@ -460,6 +408,7 @@ export class Playlists implements OnInit {
         if (this.selectedPlaylist) {
           this.selectedPlaylist.name = updated.name;
         }
+        this.toast.success('Playlist renamed.');
       },
       error: (err) => {
         this.editorError = err.error?.message || 'Failed to rename playlist.';
@@ -490,6 +439,7 @@ export class Playlists implements OnInit {
           this.defaultPlaylistId = null;
         }
         this.loadPlaylists();
+        this.toast.success('Playlist deleted.');
       },
       error: (err) => {
         this.editorError = err.error?.message || 'Failed to delete playlist.';
@@ -508,6 +458,7 @@ export class Playlists implements OnInit {
       next: () => {
         this.defaultPlaylistId = newDefault;
         this.settingDefault = false;
+        this.toast.success(newDefault ? 'Set as default playlist.' : 'Default playlist cleared.');
       },
       error: (err) => {
         this.editorError = err.error?.message || 'Failed to set default playlist.';
@@ -549,6 +500,7 @@ export class Playlists implements OnInit {
       .subscribe({
         next: () => {
           this.reloadPlaylist();
+          this.toast.success('Item added to playlist.');
         },
         error: (err) => {
           this.editorError = err.error?.message || 'Failed to add item.';
@@ -565,6 +517,7 @@ export class Playlists implements OnInit {
           this.previewingItem = null;
         }
         this.reloadPlaylist();
+        this.toast.success('Item removed from playlist.');
       },
       error: (err) => {
         this.editorError = err.error?.message || 'Failed to remove item.';
@@ -578,6 +531,9 @@ export class Playlists implements OnInit {
     moveItemInArray(this.selectedPlaylist.items, event.previousIndex, event.currentIndex);
     const itemIds = this.selectedPlaylist.items.map((i) => i.id);
     this.playlistService.reorderItems(this.orgId, this.selectedPlaylist.id, { itemIds }).subscribe({
+      next: () => {
+        this.toast.success('Playlist order saved.');
+      },
       error: (err) => {
         this.editorError = err.error?.message || 'Failed to reorder items.';
         this.reloadPlaylist();
@@ -747,13 +703,9 @@ export class Playlists implements OnInit {
   }
 
   // --- Toast ---
-  showToast(message: string, type: 'error' | 'success' | 'warning'): void {
-    this.toastMessage = message;
-    this.toastType = type;
-    if (this.toastTimer) clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => {
-      this.toastMessage = '';
-    }, 4000);
+  private showToast(message: string, type: 'error' | 'success' | 'warning'): void {
+    // The global ToastService has no 'warning' variant; surface those as info.
+    this.toast.show(type === 'warning' ? 'info' : type, message);
   }
 
   goBack(): void {

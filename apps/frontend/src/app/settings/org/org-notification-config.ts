@@ -6,6 +6,7 @@ import {
   OrgNotificationConfigFull,
 } from './org-notification-config.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
+import { ToastService } from '../../shared/toast/toast.service';
 
 @Component({
   selector: 'app-org-notification-config',
@@ -144,16 +145,6 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
             </button>
           </div>
         </section>
-
-        @if (toastMessage) {
-          <div
-            class="toast"
-            [class.toast-error]="toastType === 'error'"
-            [class.toast-success]="toastType === 'success'"
-          >
-            {{ toastMessage }}
-          </div>
-        }
       }
     </div>
   `,
@@ -266,30 +257,13 @@ import { OrganisationStateService } from '../../shell/organisation-state.service
       gap: 0.75rem;
       margin-top: 1.25rem;
     }
-
-    .toast {
-      position: fixed;
-      bottom: 1.5rem;
-      right: 1.5rem;
-      padding: 0.75rem 1.25rem;
-      border-radius: 0.375rem;
-      font-size: 0.8125rem;
-      z-index: 1000;
-    }
-    .toast-success {
-      background: #065f46;
-      color: #d1fae5;
-    }
-    .toast-error {
-      background: #991b1b;
-      color: #fecaca;
-    }
   `,
 })
 export class OrgNotificationConfig implements OnInit {
   private configService = inject(OrgNotificationConfigService);
   private orgState = inject(OrganisationStateService);
   private router = inject(Router);
+  private toast = inject(ToastService);
 
   loading = true;
   loadError = '';
@@ -311,10 +285,6 @@ export class OrgNotificationConfig implements OnInit {
   savingNtfy = false;
   testingEmail = false;
   testingNtfy = false;
-
-  toastMessage = '';
-  toastType: 'error' | 'success' = 'success';
-  private toastTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit(): void {
     this.loadConfig();
@@ -453,12 +423,7 @@ export class OrgNotificationConfig implements OnInit {
   }
 
   private showToast(message: string, type: 'error' | 'success'): void {
-    this.toastMessage = message;
-    this.toastType = type;
-    if (this.toastTimer) clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => {
-      this.toastMessage = '';
-    }, 4000);
+    this.toast.show(type, message);
   }
 
   goBack(): void {

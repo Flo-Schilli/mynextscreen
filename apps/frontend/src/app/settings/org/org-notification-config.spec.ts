@@ -10,6 +10,7 @@ import {
   OrgNotificationConfigFull,
 } from './org-notification-config.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
+import { ToastService, Toast } from '../../shared/toast/toast.service';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -48,6 +49,11 @@ describe('OrgNotificationConfig', () => {
   let component: OrgNotificationConfig;
   let configService: ConfigServiceStub;
   let selectedOrgId: string | null;
+  let toastService: ToastService;
+
+  function lastToast(): Toast | undefined {
+    return toastService.toasts().at(-1);
+  }
 
   function setup(): void {
     configService = {
@@ -72,6 +78,7 @@ describe('OrgNotificationConfig', () => {
 
     fixture = TestBed.createComponent(OrgNotificationConfig);
     component = fixture.componentInstance;
+    toastService = TestBed.inject(ToastService);
   }
 
   beforeEach(() => {
@@ -205,8 +212,8 @@ describe('OrgNotificationConfig', () => {
         smtpSecure: true,
       });
       expect(component.savingSmtp).toBe(false);
-      expect(component.toastMessage).toBe('SMTP settings saved.');
-      expect(component.toastType).toBe('success');
+      expect(lastToast()?.message).toBe('SMTP settings saved.');
+      expect(lastToast()?.type).toBe('success');
     });
 
     it('should include password only when typed', () => {
@@ -239,8 +246,8 @@ describe('OrgNotificationConfig', () => {
       component.saveSmtp();
 
       expect(component.savingSmtp).toBe(false);
-      expect(component.toastMessage).toBe('Failed to save SMTP settings.');
-      expect(component.toastType).toBe('error');
+      expect(lastToast()?.message).toBe('Failed to save SMTP settings.');
+      expect(lastToast()?.type).toBe('error');
     });
 
     it('should re-apply config returned from save', () => {
@@ -273,7 +280,7 @@ describe('OrgNotificationConfig', () => {
         ntfyTopic: null,
       });
       expect(component.savingNtfy).toBe(false);
-      expect(component.toastMessage).toBe('ntfy settings saved.');
+      expect(lastToast()?.message).toBe('ntfy settings saved.');
     });
 
     it('should include token only when typed', () => {
@@ -306,8 +313,8 @@ describe('OrgNotificationConfig', () => {
       component.saveNtfy();
 
       expect(component.savingNtfy).toBe(false);
-      expect(component.toastMessage).toBe('Failed to save ntfy settings.');
-      expect(component.toastType).toBe('error');
+      expect(lastToast()?.message).toBe('Failed to save ntfy settings.');
+      expect(lastToast()?.type).toBe('error');
     });
   });
 
@@ -321,8 +328,8 @@ describe('OrgNotificationConfig', () => {
 
       expect(configService.testEmail).toHaveBeenCalledWith(ORG_ID);
       expect(component.testingEmail).toBe(false);
-      expect(component.toastMessage).toBe('Test email sent');
-      expect(component.toastType).toBe('success');
+      expect(lastToast()?.message).toBe('Test email sent');
+      expect(lastToast()?.type).toBe('success');
     });
 
     it('should surface server error message on failure', () => {
@@ -335,8 +342,8 @@ describe('OrgNotificationConfig', () => {
       component.testEmail();
 
       expect(component.testingEmail).toBe(false);
-      expect(component.toastMessage).toBe('SMTP not configured');
-      expect(component.toastType).toBe('error');
+      expect(lastToast()?.message).toBe('SMTP not configured');
+      expect(lastToast()?.type).toBe('error');
     });
 
     it('should use fallback message when error has no message', () => {
@@ -346,7 +353,7 @@ describe('OrgNotificationConfig', () => {
 
       component.testEmail();
 
-      expect(component.toastMessage).toBe('Failed to send test email.');
+      expect(lastToast()?.message).toBe('Failed to send test email.');
     });
 
     it('should not call service when org missing', () => {
@@ -371,8 +378,8 @@ describe('OrgNotificationConfig', () => {
 
       expect(configService.testNtfy).toHaveBeenCalledWith(ORG_ID);
       expect(component.testingNtfy).toBe(false);
-      expect(component.toastMessage).toBe('Test push sent');
-      expect(component.toastType).toBe('success');
+      expect(lastToast()?.message).toBe('Test push sent');
+      expect(lastToast()?.type).toBe('success');
     });
 
     it('should surface server error message on failure', () => {
@@ -384,8 +391,8 @@ describe('OrgNotificationConfig', () => {
 
       component.testNtfy();
 
-      expect(component.toastMessage).toBe('ntfy unreachable');
-      expect(component.toastType).toBe('error');
+      expect(lastToast()?.message).toBe('ntfy unreachable');
+      expect(lastToast()?.type).toBe('error');
     });
 
     it('should use fallback message when error has no message', () => {
@@ -395,7 +402,7 @@ describe('OrgNotificationConfig', () => {
 
       component.testNtfy();
 
-      expect(component.toastMessage).toBe('Failed to send test notification.');
+      expect(lastToast()?.message).toBe('Failed to send test notification.');
     });
 
     it('should not call service when org missing', () => {
@@ -411,35 +418,26 @@ describe('OrgNotificationConfig', () => {
   });
 
   describe('toast lifecycle', () => {
-    it('should render toast in DOM after a test send', () => {
+    it('should enqueue a success toast on the global service after a test send', () => {
       setup();
       fixture.detectChanges();
       configService.testEmail.mockReturnValue(of({ message: 'Visible toast' }));
 
       component.testEmail();
-      fixture.componentRef.changeDetectorRef.detectChanges();
 
-      const toast = fixture.debugElement.query(By.css('.toast'));
-      expect(toast).toBeTruthy();
-      expect(toast.nativeElement.textContent).toContain('Visible toast');
-      expect(toast.nativeElement.classList).toContain('toast-success');
+      expect(lastToast()?.message).toBe('Visible toast');
+      expect(lastToast()?.type).toBe('success');
     });
 
-    it('should auto-clear toast after timeout', () => {
-      vi.useFakeTimers();
-      try {
-        setup();
-        fixture.detectChanges();
-        configService.testEmail.mockReturnValue(of({ message: 'x' }));
+    it('emits exactly one toast per action', () => {
+      setup();
+      fixture.detectChanges();
+      const before = toastService.toasts().length;
+      configService.testEmail.mockReturnValue(of({ message: 'once' }));
 
-        component.testEmail();
-        expect(component.toastMessage).toBe('x');
+      component.testEmail();
 
-        vi.advanceTimersByTime(4000);
-        expect(component.toastMessage).toBe('');
-      } finally {
-        vi.useRealTimers();
-      }
+      expect(toastService.toasts().length).toBe(before + 1);
     });
   });
 

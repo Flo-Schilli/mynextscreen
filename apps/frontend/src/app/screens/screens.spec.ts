@@ -13,6 +13,7 @@ import { MyMembership } from '../settings/users/member.model';
 import { ScreenGroupService } from '../screen-groups/screen-group.service';
 import { ScreenGroup } from '../screen-groups/screen-group.model';
 import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
+import { ToastService, Toast } from '../shared/toast/toast.service';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -97,6 +98,11 @@ describe('Screens', () => {
   let fixture: ComponentFixture<Screens>;
   let component: Screens;
   let httpMock: HttpTestingController;
+  let toastService: ToastService;
+
+  function lastToast(): Toast | undefined {
+    return toastService.toasts().at(-1);
+  }
 
   let memberStub: { getMyMemberships: ReturnType<typeof vi.fn> };
   let groupStub: { getAll: ReturnType<typeof vi.fn> };
@@ -130,6 +136,7 @@ describe('Screens', () => {
     });
 
     httpMock = TestBed.inject(HttpTestingController);
+    toastService = TestBed.inject(ToastService);
   }
 
   // Creates the component and resolves the initial GET /api/screens load.
@@ -460,7 +467,8 @@ describe('Screens', () => {
       await promise;
       await flush(fixture);
 
-      expect(component.toastMessage).toBe('2 screen(s) deleted');
+      expect(lastToast()?.message).toBe('2 screen(s) deleted.');
+      expect(lastToast()?.type).toBe('success');
       httpMock.expectOne('/api/screens').flush([]); // reload
       await flush(fixture);
     });
@@ -478,8 +486,8 @@ describe('Screens', () => {
       await promise;
       await flush(fixture);
 
-      expect(component.toastType).toBe('warning');
-      expect(component.toastMessage).toContain('1 item(s) could not be found');
+      expect(lastToast()?.type).toBe('info');
+      expect(lastToast()?.message).toContain('1 item(s) could not be found');
       httpMock.expectOne('/api/screens').flush([]); // reload
       await flush(fixture);
     });
@@ -519,7 +527,8 @@ describe('Screens', () => {
       await promise;
       await flush(fixture);
 
-      expect(component.toastMessage).toBe('1 screen(s) assigned to Wall A');
+      expect(lastToast()?.message).toBe('1 screen(s) assigned to Wall A.');
+      expect(lastToast()?.type).toBe('success');
       httpMock.expectOne('/api/screens').flush([]); // reload
       await flush(fixture);
     });
@@ -540,7 +549,8 @@ describe('Screens', () => {
       await promise;
       await flush(fixture);
 
-      expect(component.toastMessage).toBe('1 screen(s) assigned to no group');
+      expect(lastToast()?.message).toBe('1 screen(s) assigned to no group.');
+      expect(lastToast()?.type).toBe('success');
       httpMock.expectOne('/api/screens').flush([]); // reload
       await flush(fixture);
     });

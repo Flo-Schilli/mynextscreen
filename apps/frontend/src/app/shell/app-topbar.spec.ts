@@ -33,6 +33,7 @@ async function createFixture(
     selectedOrgId?: string | null;
     isSuperAdmin?: boolean;
     isDark?: boolean;
+    userEmail?: string | null;
   } = {},
 ): Promise<ComponentFixture<AppTopbar>> {
   await TestBed.configureTestingModule({
@@ -53,6 +54,10 @@ async function createFixture(
   );
   fixture.componentRef.setInput('isSuperAdmin', overrides.isSuperAdmin ?? false);
   fixture.componentRef.setInput('isDark', overrides.isDark ?? true);
+  fixture.componentRef.setInput(
+    'userEmail',
+    overrides.userEmail === undefined ? 'user@example.com' : overrides.userEmail,
+  );
   fixture.detectChanges();
   // A second pass lets the native <select> [value] binding settle after the
   // @for options have been created in the first pass.
@@ -269,6 +274,95 @@ describe('AppTopbar', () => {
       expect(avatar.classList.contains('super-admin')).toBe(true);
       expect(avatar.getAttribute('aria-label')).toBe('Instance Admin');
       expect(fixture.debugElement.query(By.css('.admin-badge'))).not.toBeNull();
+    });
+  });
+
+  describe('user menu', () => {
+    function clickAvatar(fixture: ComponentFixture<AppTopbar>): void {
+      (
+        fixture.debugElement.query(By.css('.user-avatar')).nativeElement as HTMLButtonElement
+      ).click();
+      fixture.detectChanges();
+    }
+
+    it('is closed by default', async () => {
+      const fixture = await createFixture();
+      expect(fixture.componentInstance.menuOpen()).toBe(false);
+      expect(fixture.debugElement.query(By.css('.user-dropdown'))).toBeNull();
+    });
+
+    it('opens the dropdown and shows the email when the avatar is clicked', async () => {
+      const fixture = await createFixture({ userEmail: 'jane@example.com' });
+
+      clickAvatar(fixture);
+
+      expect(fixture.componentInstance.menuOpen()).toBe(true);
+      const email = fixture.debugElement.query(By.css('.user-email')).nativeElement as HTMLElement;
+      expect(email.textContent?.trim()).toBe('jane@example.com');
+    });
+
+    it('shows the Instance Admin role for super admins', async () => {
+      const fixture = await createFixture({ isSuperAdmin: true });
+      clickAvatar(fixture);
+      const role = fixture.debugElement.query(By.css('.user-role')).nativeElement as HTMLElement;
+      expect(role.textContent?.trim()).toBe('Instance Admin');
+    });
+
+    it('falls back to "Signed in" when no email is known', async () => {
+      const fixture = await createFixture({ userEmail: null });
+      clickAvatar(fixture);
+      const email = fixture.debugElement.query(By.css('.user-email')).nativeElement as HTMLElement;
+      expect(email.textContent?.trim()).toBe('Signed in');
+    });
+
+    it('emits openProfile and closes the menu when Profile & settings is clicked', async () => {
+      const fixture = await createFixture();
+      const spy = vi.fn();
+      fixture.componentInstance.openProfile.subscribe(spy);
+      clickAvatar(fixture);
+
+      const items = fixture.debugElement.queryAll(By.css('.dropdown-item'));
+      (items[0].nativeElement as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(fixture.componentInstance.menuOpen()).toBe(false);
+    });
+
+    it('emits logout and closes the menu when Log out is clicked', async () => {
+      const fixture = await createFixture();
+      const spy = vi.fn();
+      fixture.componentInstance.logout.subscribe(spy);
+      clickAvatar(fixture);
+
+      const items = fixture.debugElement.queryAll(By.css('.dropdown-item'));
+      (items[1].nativeElement as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(fixture.componentInstance.menuOpen()).toBe(false);
+    });
+
+    it('closes the menu on a click outside', async () => {
+      const fixture = await createFixture();
+      clickAvatar(fixture);
+      expect(fixture.componentInstance.menuOpen()).toBe(true);
+
+      document.body.click();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.menuOpen()).toBe(false);
+    });
+
+    it('closes the menu on Escape', async () => {
+      const fixture = await createFixture();
+      clickAvatar(fixture);
+      expect(fixture.componentInstance.menuOpen()).toBe(true);
+
+      fixture.componentInstance.onEscape();
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.menuOpen()).toBe(false);
     });
   });
 });

@@ -8,6 +8,7 @@ import { OrgMemberList } from './org-member-list';
 import { OrgAddMemberModal, AddMemberPayload } from './org-add-member-modal';
 import { OrgRemoveMemberModal } from './org-remove-member-modal';
 import { OrgDeleteModal } from './org-delete-modal';
+import { ToastService } from '../../shared/toast/toast.service';
 
 /**
  * Smart container for the (super-admin) organisations feature. Owns data
@@ -238,6 +239,7 @@ import { OrgDeleteModal } from './org-delete-modal';
 export class Organisations implements OnInit {
   private orgService = inject(OrganisationService);
   private router = inject(Router);
+  private toast = inject(ToastService);
 
   // Org list state
   organisations: Organisation[] = [];
@@ -356,6 +358,11 @@ export class Organisations implements OnInit {
         }
         this.editingOrg = null;
         this.loadOrganisations();
+        this.toast.success(
+          editingId
+            ? `Organisation “${saved.name}” updated.`
+            : `Organisation “${saved.name}” created.`,
+        );
       },
       error: (err) => {
         this.formError = err.error?.message || 'An error occurred. Please try again.';
@@ -402,6 +409,7 @@ export class Organisations implements OnInit {
         this.addingMember = false;
         this.showAddMemberModal = false;
         this.loadMembers();
+        this.toast.success('Member added.');
       },
       error: (err) => {
         this.addMemberError = err.error?.message || 'Failed to add member.';
@@ -421,6 +429,7 @@ export class Organisations implements OnInit {
         next: (updated) => {
           member.role = updated.role;
           this.updatingMemberId = null;
+          this.toast.success(`Role updated to ${updated.role}.`);
         },
         error: (err) => {
           this.memberActionError = err.error?.message || 'Failed to update role.';
@@ -450,6 +459,7 @@ export class Organisations implements OnInit {
         this.showRemoveConfirm = false;
         this.removingMember = null;
         this.loadMembers();
+        this.toast.success('Member removed.');
       },
       error: (err) => {
         this.memberActionError = err.error?.message || 'Failed to remove member.';
@@ -484,6 +494,7 @@ export class Organisations implements OnInit {
         this.showDeleteModal = false;
         this.deselectOrg();
         this.loadOrganisations();
+        this.toast.success('Organisation deleted.');
       },
       error: (err) => {
         this.deleteError = err.error?.message || 'Failed to delete organisation.';

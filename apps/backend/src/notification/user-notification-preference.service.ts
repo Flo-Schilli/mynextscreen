@@ -1,5 +1,5 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { userNotificationPreferences, type UserNotificationPreference } from '../db/schema';
@@ -14,35 +14,26 @@ export interface UserNotificationPreferenceData {
 export class UserNotificationPreferenceService {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
-  private async find(
-    userId: string,
-    organisationId: string,
-  ): Promise<UserNotificationPreference | null> {
+  private async find(userId: string): Promise<UserNotificationPreference | null> {
     const [pref] = await this.db
       .select()
       .from(userNotificationPreferences)
-      .where(
-        and(
-          eq(userNotificationPreferences.userId, userId),
-          eq(userNotificationPreferences.organisationId, organisationId),
-        ),
-      )
+      .where(eq(userNotificationPreferences.userId, userId))
       .limit(1);
     return pref ?? null;
   }
 
-  async getForUser(userId: string, organisationId: string): Promise<UserNotificationPreference> {
-    const existing = await this.find(userId, organisationId);
+  /** Returns the user's global preferences, creating defaults on first access. */
+  async getForUser(userId: string): Promise<UserNotificationPreference> {
+    const existing = await this.find(userId);
     if (existing) {
       return existing;
     }
 
-    // Create default record if none exists
     const [pref] = await this.db
       .insert(userNotificationPreferences)
       .values({
         userId,
-        organisationId,
         inAppEnabled: true,
         emailEnabled: false,
         ntfyEnabled: false,
@@ -53,10 +44,9 @@ export class UserNotificationPreferenceService {
 
   async upsert(
     userId: string,
-    organisationId: string,
     prefs: UserNotificationPreferenceData,
   ): Promise<UserNotificationPreference> {
-    const existing = await this.find(userId, organisationId);
+    const existing = await this.find(userId);
 
     if (existing) {
       const updates: Partial<UserNotificationPreference> = {};
@@ -75,7 +65,6 @@ export class UserNotificationPreferenceService {
       .insert(userNotificationPreferences)
       .values({
         userId,
-        organisationId,
         inAppEnabled: prefs.inAppEnabled ?? true,
         emailEnabled: prefs.emailEnabled ?? false,
         ntfyEnabled: prefs.ntfyEnabled ?? false,

@@ -22,6 +22,7 @@ import { ScreenGroupService } from '../screen-groups/screen-group.service';
 import { ScreenGroup } from '../screen-groups/screen-group.model';
 import { CalendarBlock } from './schedule-calendar.service';
 import { ScheduleFormResult } from './schedule-form-modal';
+import { ToastService, Toast } from '../shared/toast/toast.service';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -209,10 +210,16 @@ describe('Schedules', () => {
   let schedule: ScheduleServiceStub;
   let member: MemberServiceStub;
   let screenGroupStub: ScreenGroupServiceStub;
+  let toastService: ToastService;
+
+  function lastToast(): Toast | undefined {
+    return toastService.toasts().at(-1);
+  }
 
   async function setUp(): Promise<void> {
     fixture = TestBed.createComponent(Schedules);
     component = fixture.componentInstance;
+    toastService = TestBed.inject(ToastService);
     fixture.detectChanges();
     await fixture.whenStable();
   }
@@ -566,7 +573,7 @@ describe('Schedules', () => {
       expect(schedule.lastCreateDto?.screenId).toBe('s1');
       expect(schedule.lastCreateDto?.groupId).toBeUndefined();
       expect(component.showModal).toBe(false);
-      expect(component.toastType).toBe('success');
+      expect(lastToast()?.type).toBe('success');
     });
 
     it('creates a group-targeted entry and starts slice polling for a split group', async () => {
@@ -623,7 +630,7 @@ describe('Schedules', () => {
       // Assert
       expect(schedule.lastUpdate?.id).toBe('edit-1');
       expect(component.showModal).toBe(false);
-      expect(component.toastType).toBe('success');
+      expect(lastToast()?.type).toBe('success');
     });
 
     it('maps a 409 conflict on update to an overlap error', async () => {
@@ -665,7 +672,7 @@ describe('Schedules', () => {
       // Assert
       expect(schedule.lastDeleteId).toBe('del-1');
       expect(component.showModal).toBe(false);
-      expect(component.toastType).toBe('success');
+      expect(lastToast()?.type).toBe('success');
     });
 
     it('shows an error message when the delete fails', async () => {
@@ -769,17 +776,37 @@ describe('Schedules', () => {
     });
   });
 
-  describe('showToast', () => {
-    it('sets the toast message and type', async () => {
+  describe('toast feedback', () => {
+    it('shows a success toast through the global service on create', async () => {
       // Arrange
       await setUp();
 
       // Act
-      component.showToast('Hello', 'error');
+      component.submitModal(makeForm({ targetId: 'screen:s1' }));
 
       // Assert
-      expect(component.toastMessage).toBe('Hello');
-      expect(component.toastType).toBe('error');
+      expect(lastToast()?.type).toBe('success');
+      expect(lastToast()?.message).toContain('Schedule created');
+    });
+
+    it('shows an error toast through the global service when an overlapping move is rejected', async () => {
+      // Arrange
+      await setUp();
+      schedule.updateResult = throwError(() => ({ status: 409 }));
+      const block = makeBlock({ top: 60, height: 120 });
+      component.dragState = {
+        entryId: block.entry.id,
+        startY: 0,
+        originalTop: 0,
+        block: { ...block, top: 200 },
+      };
+
+      // Act
+      component['onMouseUp']();
+
+      // Assert
+      expect(lastToast()?.type).toBe('error');
+      expect(lastToast()?.message).toContain('Overlap');
     });
   });
 

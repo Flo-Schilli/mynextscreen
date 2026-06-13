@@ -20,6 +20,7 @@ import { ScreenGroupService } from '../screen-groups/screen-group.service';
 import { ScreenGroup } from '../screen-groups/screen-group.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
+import { ToastService } from '../shared/toast/toast.service';
 
 /**
  * Smart container for the live-streams feature. Owns data loading (streams +
@@ -169,6 +170,7 @@ export class LiveStreams implements OnInit {
   private screenGroupService = inject(ScreenGroupService);
   private memberService = inject(MemberService);
   private router = inject(Router);
+  private toast = inject(ToastService);
 
   orgId = '';
   streams: LiveStream[] = [];
@@ -267,6 +269,7 @@ export class LiveStreams implements OnInit {
         this.creating = false;
         this.showCreateForm = false;
         this.loadData();
+        this.toast.success('Live stream created.');
       },
       error: (err) => {
         this.createError = err.error?.message || 'Failed to create live stream.';
@@ -295,6 +298,7 @@ export class LiveStreams implements OnInit {
         this.saving = false;
         this.editingStream = null;
         this.loadData();
+        this.toast.success('Live stream updated.');
       },
       error: (err) => {
         this.editError = err.error?.message || 'Failed to update live stream.';
@@ -324,6 +328,7 @@ export class LiveStreams implements OnInit {
         this.deleting = false;
         this.deletingStream = null;
         this.loadData();
+        this.toast.success('Live stream deleted.');
       },
       error: (err) => {
         this.deleteError = err.error?.message || 'Failed to delete live stream.';
@@ -355,6 +360,7 @@ export class LiveStreams implements OnInit {
           this.passthroughWarnings = response.warnings;
         }
         this.loadData();
+        this.toast.success('Stream started.');
       },
       error: (err) => {
         this.activateError = err.error?.message || 'Failed to activate live stream.';
@@ -367,7 +373,10 @@ export class LiveStreams implements OnInit {
   deactivateStream(stream: LiveStream): void {
     this.actionError = '';
     this.liveStreamService.deactivate(this.orgId, stream.id).subscribe({
-      next: () => this.loadData(),
+      next: () => {
+        this.loadData();
+        this.toast.success('Stream stopped.');
+      },
       error: (err) => {
         this.actionError = err.error?.message || 'Failed to deactivate live stream.';
       },
