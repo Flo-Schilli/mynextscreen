@@ -267,7 +267,7 @@ export class Organisations implements OnInit {
       error: (err) => {
         this.loadError =
           err.status === 403
-            ? 'Access denied. Super-admin privileges required.'
+            ? 'Access denied. Instance Admin privileges required.'
             : 'Failed to load organisations.';
         this.loading = false;
       },

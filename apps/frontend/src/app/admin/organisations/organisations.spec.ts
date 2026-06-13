@@ -122,7 +122,7 @@ describe('Organisations', () => {
       fixture.detectChanges();
 
       // Assert
-      expect(component.loadError).toContain('Super-admin privileges required');
+      expect(component.loadError).toContain('Instance Admin privileges required');
       expect(component.loading).toBe(false);
     });
 

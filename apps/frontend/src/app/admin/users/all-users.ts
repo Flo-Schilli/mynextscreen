@@ -59,7 +59,7 @@ import { UserDeleteModal } from './user-delete-modal';
                   </td>
                   <td>
                     @if (user.isSuperAdmin) {
-                      <span class="badge badge-admin">super-admin</span>
+                      <span class="badge badge-admin">instance-admin</span>
                     } @else {
                       <span class="muted">—</span>
                     }
@@ -176,7 +176,7 @@ export class AllUsers implements OnInit {
       error: (err) => {
         this.loadError =
           err.status === 403
-            ? 'Access denied. Super-admin privileges required.'
+            ? 'Access denied. Instance Admin privileges required.'
             : 'Failed to load users.';
         this.loading = false;
       },
