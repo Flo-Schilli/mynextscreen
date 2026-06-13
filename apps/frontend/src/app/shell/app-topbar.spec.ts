@@ -267,7 +267,7 @@ describe('AppTopbar', () => {
       const avatar = fixture.debugElement.query(By.css('.user-avatar'))
         .nativeElement as HTMLElement;
       expect(avatar.classList.contains('super-admin')).toBe(true);
-      expect(avatar.getAttribute('aria-label')).toBe('Super Admin');
+      expect(avatar.getAttribute('aria-label')).toBe('Instance Admin');
       expect(fixture.debugElement.query(By.css('.admin-badge'))).not.toBeNull();
     });
   });

@@ -82,7 +82,7 @@ import { OrgWithRole } from './organisation-state.service';
         <div
           class="user-avatar"
           [class.super-admin]="isSuperAdmin()"
-          [attr.aria-label]="isSuperAdmin() ? 'Super Admin' : 'Current user'"
+          [attr.aria-label]="isSuperAdmin() ? 'Instance Admin' : 'Current user'"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <circle cx="10" cy="8" r="3" stroke="currentColor" stroke-width="1.5" />
@@ -94,7 +94,7 @@ import { OrgWithRole } from './organisation-state.service';
             />
           </svg>
           @if (isSuperAdmin()) {
-            <span class="admin-badge" title="Super Admin">
+            <span class="admin-badge" title="Instance Admin">
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                 <path
                   d="M5 0.5L6.1 3.5H9.3L6.6 5.3L7.7 8.5L5 6.5L2.3 8.5L3.4 5.3L0.7 3.5H3.9L5 0.5Z"
