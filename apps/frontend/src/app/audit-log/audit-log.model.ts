@@ -64,6 +64,15 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'content.bulk_added_to_playlist': 'Content added to playlist (bulk)',
   'playlist.bulk_deleted': 'Playlist deleted (bulk)',
   'playlist.bulk_screen_assigned': 'Playlist assigned to screen (bulk)',
+  'auth.user_registered': 'User registered',
+  'auth.email_verified': 'Email verified',
+  'auth.email_change_requested': 'Email change requested',
+  'auth.email_changed': 'Email changed',
+  'auth.password_reset_requested': 'Password reset requested',
+  'auth.password_changed': 'Password changed',
+  'auth.super_admin_setup': 'Instance setup (super-admin)',
+  'email.sent': 'Email sent',
+  'email.send_failed': 'Email send failed',
 };
 
 export const AUDIT_ACTIONS = [
@@ -118,3 +127,23 @@ export const RESOURCE_TYPES = [
   'screen-group',
   'live-stream',
 ];
+
+/**
+ * Instance-level account/email audit actions — only ever recorded with no (or
+ * cross-org) organisation scope, so they live in the super-admin instance view
+ * rather than the per-org audit log.
+ */
+export const INSTANCE_AUDIT_ACTIONS = [
+  ...AUDIT_ACTIONS,
+  'auth.user_registered',
+  'auth.email_verified',
+  'auth.email_change_requested',
+  'auth.email_changed',
+  'auth.password_reset_requested',
+  'auth.password_changed',
+  'auth.super_admin_setup',
+  'email.sent',
+  'email.send_failed',
+];
+
+export const INSTANCE_RESOURCE_TYPES = [...RESOURCE_TYPES, 'account', 'email'];

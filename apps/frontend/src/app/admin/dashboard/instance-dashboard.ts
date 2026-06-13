@@ -37,6 +37,7 @@ import { formatBytes } from '../../shared/format-bytes';
         <a class="settings-nav-link active">Dashboard</a>
         <a class="settings-nav-link" routerLink="/admin/organisations">Organisations</a>
         <a class="settings-nav-link" routerLink="/admin/users">Users</a>
+        <a class="settings-nav-link" routerLink="/admin/audit-log">Audit Log</a>
       </nav>
 
       @if (loadError()) {

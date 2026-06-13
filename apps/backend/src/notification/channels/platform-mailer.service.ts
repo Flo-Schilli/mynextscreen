@@ -1,8 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { OnEvent } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { SmtpEmailProvider } from './smtp-email-provider';
 import {
+  AUDIT_EMAIL_SENT,
+  AUDIT_EMAIL_SEND_FAILED,
+  AuditEmailEvent,
   AUTH_EMAIL_CHANGE_REQUESTED,
   AUTH_EMAIL_VERIFICATION_REQUESTED,
   AUTH_PASSWORD_CHANGED,
@@ -32,7 +35,10 @@ import {
 export class PlatformMailerService {
   private readonly logger = new Logger(PlatformMailerService.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly events: EventEmitter2,
+  ) {}
 
   // ── Event handlers ──────────────────────────────────────────────────────────
 
@@ -155,16 +161,32 @@ export class PlatformMailerService {
         this.logger.warn(
           `SMTP_HOST not configured; cannot send "${subject}". Link must be shared manually.`,
         );
+        this.emitEmailAudit(false, to, subject, 'SMTP not configured');
         return;
       }
       await provider.sendMail({ to, subject, text });
       this.logger.debug(`Account email "${subject}" sent to ${to}`);
+      this.emitEmailAudit(true, to, subject);
     } catch (error: unknown) {
-      this.logger.error(
-        `Failed to send account email "${subject}" to ${to}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to send account email "${subject}" to ${to}: ${reason}`);
+      this.emitEmailAudit(false, to, subject, reason);
     }
+  }
+
+  /**
+   * Records an instance-level audit entry for a platform email attempt. Only the
+   * recipient + subject (never the token-bearing link) are stored. Best-effort,
+   * like the send itself — emission never throws.
+   */
+  private emitEmailAudit(success: boolean, to: string, subject: string, reason?: string): void {
+    const details: Record<string, unknown> = { to, subject };
+    if (reason) {
+      details['reason'] = reason;
+    }
+    this.events.emit(
+      success ? AUDIT_EMAIL_SENT : AUDIT_EMAIL_SEND_FAILED,
+      new AuditEmailEvent(details),
+    );
   }
 }

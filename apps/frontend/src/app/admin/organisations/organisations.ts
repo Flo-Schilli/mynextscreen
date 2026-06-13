@@ -48,6 +48,7 @@ import { ToastService } from '../../shared/toast/toast.service';
         <a class="settings-nav-link" routerLink="/admin/dashboard">Dashboard</a>
         <a class="settings-nav-link active">Organisations</a>
         <a class="settings-nav-link" routerLink="/admin/users">Users</a>
+        <a class="settings-nav-link" routerLink="/admin/audit-log">Audit Log</a>
       </nav>
 
       <!-- ── Create / Edit Form ── -->

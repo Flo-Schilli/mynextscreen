@@ -10,6 +10,8 @@ import {
   AuditUserEvent,
   AuditOrganisationEvent,
   AuditLiveStreamEvent,
+  AuditAuthEvent,
+  AuditEmailEvent,
 } from './audit.events';
 
 describe('AuditListener', () => {
@@ -660,6 +662,154 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId,
       details: { bulkOperationSize: 5, screenId },
+    });
+  });
+
+  // ── Auth / Account Events ────────────────────────────────────────────────
+
+  it('should map user_registered to UserRegistered audit entry (account, no org)', () => {
+    const event = new AuditAuthEvent(userId, null, {
+      email: 'new@example.com',
+      organisationName: 'Acme',
+    });
+
+    listener.handleUserRegistered(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.UserRegistered,
+      resourceType: 'account',
+      resourceId: userId,
+      organisationId: null,
+      userId,
+      details: { email: 'new@example.com', organisationName: 'Acme' },
+    });
+  });
+
+  it('should map email_verified to EmailVerified audit entry', () => {
+    const event = new AuditAuthEvent(userId, null, { email: 'a@b.com' });
+
+    listener.handleEmailVerified(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.EmailVerified,
+      resourceType: 'account',
+      resourceId: userId,
+      organisationId: null,
+      userId,
+      details: { email: 'a@b.com' },
+    });
+  });
+
+  it('should map email_change_requested to EmailChangeRequested audit entry', () => {
+    const event = new AuditAuthEvent(userId, null, {
+      oldEmail: 'old@b.com',
+      newEmail: 'new@b.com',
+    });
+
+    listener.handleAuthEmailChangeRequested(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.EmailChangeRequested,
+      resourceType: 'account',
+      resourceId: userId,
+      organisationId: null,
+      userId,
+      details: { oldEmail: 'old@b.com', newEmail: 'new@b.com' },
+    });
+  });
+
+  it('should map email_changed to EmailChanged audit entry', () => {
+    const event = new AuditAuthEvent(userId, null, {
+      oldEmail: 'old@b.com',
+      newEmail: 'new@b.com',
+    });
+
+    listener.handleAuthEmailChanged(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.EmailChanged,
+      resourceType: 'account',
+      resourceId: userId,
+      organisationId: null,
+      userId,
+      details: { oldEmail: 'old@b.com', newEmail: 'new@b.com' },
+    });
+  });
+
+  it('should map password_reset_requested to PasswordResetRequested audit entry', () => {
+    const event = new AuditAuthEvent(userId, null, { email: 'a@b.com' });
+
+    listener.handleAuthPasswordResetRequested(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.PasswordResetRequested,
+      resourceType: 'account',
+      resourceId: userId,
+      organisationId: null,
+      userId,
+      details: { email: 'a@b.com' },
+    });
+  });
+
+  it('should map password_changed to PasswordChanged audit entry', () => {
+    const event = new AuditAuthEvent(userId, null, { email: 'a@b.com' });
+
+    listener.handleAuthPasswordChanged(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.PasswordChanged,
+      resourceType: 'account',
+      resourceId: userId,
+      organisationId: null,
+      userId,
+      details: { email: 'a@b.com' },
+    });
+  });
+
+  it('should map super_admin_setup to SuperAdminSetup audit entry', () => {
+    const event = new AuditAuthEvent(userId, null, { email: 'admin@b.com' });
+
+    listener.handleSuperAdminSetup(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.SuperAdminSetup,
+      resourceType: 'account',
+      resourceId: userId,
+      organisationId: null,
+      userId,
+      details: { email: 'admin@b.com' },
+    });
+  });
+
+  // ── Platform Email Events ────────────────────────────────────────────────
+
+  it('should map email.sent to EmailSent audit entry (no user/org)', () => {
+    const event = new AuditEmailEvent({ to: 'a@b.com', subject: 'Verify your email' });
+
+    listener.handleEmailSent(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.EmailSent,
+      resourceType: 'email',
+      resourceId: null,
+      organisationId: null,
+      userId: null,
+      details: { to: 'a@b.com', subject: 'Verify your email' },
+    });
+  });
+
+  it('should map email.send_failed to EmailSendFailed audit entry', () => {
+    const event = new AuditEmailEvent({ to: 'a@b.com', subject: 'Verify', reason: 'SMTP down' });
+
+    listener.handleEmailSendFailed(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.EmailSendFailed,
+      resourceType: 'email',
+      resourceId: null,
+      organisationId: null,
+      userId: null,
+      details: { to: 'a@b.com', subject: 'Verify', reason: 'SMTP down' },
     });
   });
 

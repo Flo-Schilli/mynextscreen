@@ -57,6 +57,12 @@ export const routes: Routes = [
         loadComponent: () => import('./admin/users/all-users').then((m) => m.AllUsers),
       },
       {
+        path: 'admin/audit-log',
+        canActivate: [superAdminGuard],
+        loadComponent: () =>
+          import('./admin/audit-log/instance-audit-log').then((m) => m.InstanceAuditLog),
+      },
+      {
         path: 'settings/user',
         loadComponent: () => import('./settings/user/user-settings').then((m) => m.UserSettings),
       },

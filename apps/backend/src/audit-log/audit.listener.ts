@@ -50,6 +50,17 @@ import {
   AUDIT_LIVE_STREAM_DEACTIVATED,
   AUDIT_LIVE_STREAM_FAILED,
   AuditLiveStreamEvent,
+  AUDIT_USER_REGISTERED,
+  AUDIT_EMAIL_VERIFIED,
+  AUDIT_AUTH_EMAIL_CHANGE_REQUESTED,
+  AUDIT_AUTH_EMAIL_CHANGED,
+  AUDIT_AUTH_PASSWORD_RESET_REQUESTED,
+  AUDIT_AUTH_PASSWORD_CHANGED,
+  AUDIT_SUPER_ADMIN_SETUP,
+  AuditAuthEvent,
+  AUDIT_EMAIL_SENT,
+  AUDIT_EMAIL_SEND_FAILED,
+  AuditEmailEvent,
 } from './audit.events';
 
 @Injectable()
@@ -540,6 +551,104 @@ export class AuditListener {
       event.userId,
       event.details,
     );
+  }
+
+  // ── Auth / Account (instance-level) ──────────────────────────────────────
+
+  @OnEvent(AUDIT_USER_REGISTERED, { async: true })
+  handleUserRegistered(event: AuditAuthEvent): void {
+    this.record(
+      AuditAction.UserRegistered,
+      'account',
+      event.userId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_EMAIL_VERIFIED, { async: true })
+  handleEmailVerified(event: AuditAuthEvent): void {
+    this.record(
+      AuditAction.EmailVerified,
+      'account',
+      event.userId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_AUTH_EMAIL_CHANGE_REQUESTED, { async: true })
+  handleAuthEmailChangeRequested(event: AuditAuthEvent): void {
+    this.record(
+      AuditAction.EmailChangeRequested,
+      'account',
+      event.userId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_AUTH_EMAIL_CHANGED, { async: true })
+  handleAuthEmailChanged(event: AuditAuthEvent): void {
+    this.record(
+      AuditAction.EmailChanged,
+      'account',
+      event.userId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_AUTH_PASSWORD_RESET_REQUESTED, { async: true })
+  handleAuthPasswordResetRequested(event: AuditAuthEvent): void {
+    this.record(
+      AuditAction.PasswordResetRequested,
+      'account',
+      event.userId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_AUTH_PASSWORD_CHANGED, { async: true })
+  handleAuthPasswordChanged(event: AuditAuthEvent): void {
+    this.record(
+      AuditAction.PasswordChanged,
+      'account',
+      event.userId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_SUPER_ADMIN_SETUP, { async: true })
+  handleSuperAdminSetup(event: AuditAuthEvent): void {
+    this.record(
+      AuditAction.SuperAdminSetup,
+      'account',
+      event.userId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  // ── Platform email dispatch ──────────────────────────────────────────────
+
+  @OnEvent(AUDIT_EMAIL_SENT, { async: true })
+  handleEmailSent(event: AuditEmailEvent): void {
+    this.record(AuditAction.EmailSent, 'email', null, null, null, event.details);
+  }
+
+  @OnEvent(AUDIT_EMAIL_SEND_FAILED, { async: true })
+  handleEmailSendFailed(event: AuditEmailEvent): void {
+    this.record(AuditAction.EmailSendFailed, 'email', null, null, null, event.details);
   }
 
   // ── Helper ───────────────────────────────────────────────────────────────

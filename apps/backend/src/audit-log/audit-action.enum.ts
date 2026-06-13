@@ -38,4 +38,15 @@ export enum AuditAction {
   ContentBulkAddedToPlaylist = 'content.bulk_added_to_playlist',
   PlaylistBulkDeleted = 'playlist.bulk_deleted',
   PlaylistBulkScreenAssigned = 'playlist.bulk_screen_assigned',
+  // Auth / account (instance-level — organisationId is null for self-signup/setup)
+  UserRegistered = 'auth.user_registered',
+  EmailVerified = 'auth.email_verified',
+  EmailChangeRequested = 'auth.email_change_requested',
+  EmailChanged = 'auth.email_changed',
+  PasswordResetRequested = 'auth.password_reset_requested',
+  PasswordChanged = 'auth.password_changed',
+  SuperAdminSetup = 'auth.super_admin_setup',
+  // Platform email dispatch (account/system mails sent via PlatformMailerService)
+  EmailSent = 'email.sent',
+  EmailSendFailed = 'email.send_failed',
 }

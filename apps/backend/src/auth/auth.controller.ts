@@ -25,6 +25,14 @@ import {
   AuthEmailVerificationRequestedEvent,
   AuthPasswordChangedEvent,
   AuthPasswordResetRequestedEvent,
+  AUDIT_USER_REGISTERED,
+  AUDIT_EMAIL_VERIFIED,
+  AUDIT_AUTH_EMAIL_CHANGE_REQUESTED,
+  AUDIT_AUTH_EMAIL_CHANGED,
+  AUDIT_AUTH_PASSWORD_RESET_REQUESTED,
+  AUDIT_AUTH_PASSWORD_CHANGED,
+  AUDIT_SUPER_ADMIN_SETUP,
+  AuditAuthEvent,
 } from '../audit-log/audit.events';
 import { AuthService } from './auth.service';
 import { REFRESH_COOKIE, clearAuthCookies, setAccessCookie, setRefreshCookie } from './cookies';
@@ -73,7 +81,7 @@ export class AuthController {
     if (!this.isSignupEnabled()) {
       throw new ForbiddenException('Self-signup is disabled');
     }
-    const { verificationToken } = await this.auth.register({
+    const { user, verificationToken } = await this.auth.register({
       email: dto.email,
       password: dto.password,
       name: dto.name,
@@ -91,6 +99,13 @@ export class AuthController {
       AUTH_EMAIL_VERIFICATION_REQUESTED,
       new AuthEmailVerificationRequestedEvent(dto.email.toLowerCase(), verificationToken),
     );
+    this.events.emit(
+      AUDIT_USER_REGISTERED,
+      new AuditAuthEvent(user.id, null, {
+        email: user.email,
+        organisationName: dto.organisationName,
+      }),
+    );
   }
 
   @Public()
@@ -104,6 +119,10 @@ export class AuthController {
     const { user, accessToken, refreshToken } = await this.auth.verifyEmail(dto.token);
     setAccessCookie(res, this.config, accessToken.token, accessToken.expiresAt);
     setRefreshCookie(res, this.config, refreshToken.token, refreshToken.expiresAt);
+    this.events.emit(
+      AUDIT_EMAIL_VERIFIED,
+      new AuditAuthEvent(user.id, null, { email: user.email }),
+    );
     return {
       user: { userId: user.id, email: user.email, isSuperAdmin: user.isSuperAdmin },
     };
@@ -141,6 +160,10 @@ export class AuthController {
     );
     setAccessCookie(res, this.config, accessToken.token, accessToken.expiresAt);
     setRefreshCookie(res, this.config, refreshToken.token, refreshToken.expiresAt);
+    this.events.emit(
+      AUDIT_SUPER_ADMIN_SETUP,
+      new AuditAuthEvent(user.id, null, { email: user.email }),
+    );
     return {
       user: { userId: user.id, email: user.email, isSuperAdmin: user.isSuperAdmin },
     };
@@ -226,6 +249,10 @@ export class AuthController {
       AUTH_PASSWORD_RESET_REQUESTED,
       new AuthPasswordResetRequestedEvent(user.email, token),
     );
+    this.events.emit(
+      AUDIT_AUTH_PASSWORD_RESET_REQUESTED,
+      new AuditAuthEvent(user.id, null, { email: user.email }),
+    );
   }
 
   @Post('change-password')
@@ -236,6 +263,10 @@ export class AuthController {
   ): Promise<void> {
     await this.auth.changePassword(req.user.userId, dto.currentPassword, dto.newPassword);
     this.events.emit(AUTH_PASSWORD_CHANGED, new AuthPasswordChangedEvent(req.user.email));
+    this.events.emit(
+      AUDIT_AUTH_PASSWORD_CHANGED,
+      new AuditAuthEvent(req.user.userId, null, { email: req.user.email }),
+    );
   }
 
   @Post('change-email')
@@ -246,6 +277,13 @@ export class AuthController {
       AUTH_EMAIL_CHANGE_REQUESTED,
       new AuthEmailChangeRequestedEvent(change.oldEmail, change.newEmail, change.changeToken),
     );
+    this.events.emit(
+      AUDIT_AUTH_EMAIL_CHANGE_REQUESTED,
+      new AuditAuthEvent(req.user.userId, null, {
+        oldEmail: change.oldEmail,
+        newEmail: change.newEmail,
+      }),
+    );
   }
 
   @Public()
@@ -253,7 +291,14 @@ export class AuthController {
   @Post('confirm-email-change')
   @HttpCode(HttpStatus.NO_CONTENT)
   async confirmEmailChange(@Body() dto: ConfirmEmailChangeDto): Promise<void> {
-    await this.auth.confirmEmailChange(dto.token);
+    const change = await this.auth.confirmEmailChange(dto.token);
+    this.events.emit(
+      AUDIT_AUTH_EMAIL_CHANGED,
+      new AuditAuthEvent(change.userId, null, {
+        oldEmail: change.oldEmail,
+        newEmail: change.newEmail,
+      }),
+    );
   }
 
   @Post('delete-account')
