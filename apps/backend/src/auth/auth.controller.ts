@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Post,
   Req,
   Res,
@@ -267,11 +268,20 @@ export class AuthController {
   }
 
   @Get('me')
-  getMe(@Req() req: AuthenticatedRequest): AuthenticatedUserView {
+  async getMe(@Req() req: AuthenticatedRequest): Promise<AuthenticatedUserView> {
+    // Read from the DB rather than echoing the JWT payload: the access token is
+    // long-lived and carries the email/role from issue time, so after an
+    // email change it stays stale until the token rotates. Sourcing from the DB
+    // makes a page refresh reflect the current address (and super-admin status)
+    // immediately, regardless of where the change was confirmed.
+    const user = await this.users.findById(req.user.userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
     return {
-      userId: req.user.userId,
-      email: req.user.email,
-      isSuperAdmin: req.user.isSuperAdmin,
+      userId: user.id,
+      email: user.email,
+      isSuperAdmin: user.isSuperAdmin,
     };
   }
 
