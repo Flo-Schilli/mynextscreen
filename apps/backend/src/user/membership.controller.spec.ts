@@ -62,13 +62,55 @@ describe('MembershipController', () => {
       const result = await controller.listMembers(orgId);
 
       expect(service.listMembers).toHaveBeenCalledWith(orgId);
-      expect(result).toEqual([mockMembership]);
+      expect(result).toEqual([
+        {
+          id: 'm-1',
+          userId: 'u-1',
+          organisationId: orgId,
+          role: OrganisationRole.Editor,
+          createdAt: mockMembership.createdAt,
+          // mockUser has a null passwordHash → invite still pending.
+          status: 'pending',
+          user: {
+            id: 'u-1',
+            email: 'test@example.com',
+            name: 'Test User',
+            emailVerified: true,
+            createdAt: mockUser.createdAt,
+            updatedAt: mockUser.updatedAt,
+          },
+        },
+      ]);
+    });
+
+    it('should derive a pending status and never leak the password hash or tokens', async () => {
+      service.listMembers.mockResolvedValue([
+        { ...mockMembership, user: { ...mockUser, passwordHash: null } },
+        {
+          ...mockMembership,
+          id: 'm-2',
+          userId: 'u-2',
+          user: { ...mockUser, id: 'u-2', passwordHash: '$2b$hash' },
+        },
+      ]);
+
+      const [pending, active] = await controller.listMembers(orgId);
+
+      expect(pending.status).toBe('pending');
+      expect(active.status).toBe('active');
+      // Sensitive fields must not be present on the API response.
+      expect(pending.user).not.toHaveProperty('passwordHash');
+      expect(pending.user).not.toHaveProperty('passwordResetToken');
+      expect(active.user).not.toHaveProperty('passwordHash');
     });
   });
 
   describe('addMember', () => {
     it('should add a member to the organisation', async () => {
-      service.addMember.mockResolvedValue(mockMembership);
+      service.addMember.mockResolvedValue({
+        ...mockMembership,
+        user: { ...mockUser, passwordHash: null },
+      });
 
       const result = await controller.addMember(orgId, {
         email: 'test@example.com',
@@ -80,7 +122,10 @@ describe('MembershipController', () => {
         'test@example.com',
         OrganisationRole.Editor,
       );
-      expect(result).toEqual(mockMembership);
+      // A brand-new invitee has no password yet → pending.
+      expect(result.status).toBe('pending');
+      expect(result.user.email).toBe('test@example.com');
+      expect(result.user).not.toHaveProperty('passwordHash');
     });
   });
 

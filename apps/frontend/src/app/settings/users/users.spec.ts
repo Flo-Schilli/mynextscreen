@@ -33,6 +33,7 @@ function membership(overrides: Partial<Membership> = {}): Membership {
     organisationId: ORG_ID,
     role: 'viewer',
     createdAt: '2024-01-02T00:00:00.000Z',
+    status: 'active',
     user: {
       id: 'u-1',
       email: 'user@example.com',
@@ -177,6 +178,30 @@ describe('Users', () => {
       const empty = fixture.debugElement.query(By.css('.empty-text'));
       expect(empty.nativeElement.textContent).toContain('No members found.');
       expect(fixture.debugElement.query(By.css('table'))).toBeNull();
+    });
+
+    it('should render a "Pending invite" badge for pending members', () => {
+      setup();
+      memberService.listMembers.mockReturnValue(of([membership({ status: 'pending' })]));
+
+      fixture.detectChanges();
+
+      const badge = fixture.debugElement.query(By.css('.status-pending'));
+      expect(badge).toBeTruthy();
+      expect(badge.nativeElement.textContent).toContain('Pending invite');
+      expect(fixture.debugElement.query(By.css('.status-active'))).toBeNull();
+    });
+
+    it('should render an "Active" badge for active members', () => {
+      setup();
+      memberService.listMembers.mockReturnValue(of([membership({ status: 'active' })]));
+
+      fixture.detectChanges();
+
+      const badge = fixture.debugElement.query(By.css('.status-active'));
+      expect(badge).toBeTruthy();
+      expect(badge.nativeElement.textContent).toContain('Active');
+      expect(fixture.debugElement.query(By.css('.status-pending'))).toBeNull();
     });
 
     it('should render fallback name for members without a name', () => {
