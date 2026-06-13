@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, HostListener, effect } from '@angular/core';
+import { Component, inject, signal, OnInit, HostListener, effect, computed } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { OrganisationStateService } from './organisation-state.service';
@@ -47,9 +47,12 @@ const SIDEBAR_KEY = 'signage_sidebar_collapsed';
         [selectedOrgId]="orgState.selectedOrgId()"
         [isSuperAdmin]="orgState.isSuperAdmin()"
         [isDark]="theme.isDark()"
+        [userEmail]="userEmail()"
         (openMobile)="mobileOpen.set(true)"
         (selectOrg)="orgState.select($event)"
         (toggleTheme)="theme.toggle()"
+        (openProfile)="goToProfile()"
+        (logout)="logout()"
       />
 
       <!-- Main content -->
@@ -120,6 +123,7 @@ export class Layout implements OnInit {
 
   readonly collapsed = signal(localStorage.getItem(SIDEBAR_KEY) === 'true');
   readonly mobileOpen = signal(false);
+  readonly userEmail = computed(() => this.authService.user()?.email ?? null);
 
   private socketEffect = effect(() => {
     const orgId = this.orgState.selectedOrgId();
@@ -191,6 +195,10 @@ export class Layout implements OnInit {
     const next = !this.collapsed();
     this.collapsed.set(next);
     localStorage.setItem(SIDEBAR_KEY, String(next));
+  }
+
+  goToProfile(): void {
+    this.router.navigate(['/settings/user']);
   }
 
   async logout(): Promise<void> {

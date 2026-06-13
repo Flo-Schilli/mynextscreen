@@ -17,6 +17,7 @@ import { SelectionService } from '../shared/selection/selection.service';
 import { BulkAction } from '../shared/selection/bulk-action-toolbar';
 import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dialog';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
+import { ToastService } from '../shared/toast/toast.service';
 
 /**
  * Smart container for the screens feature. Owns data loading, the org context,
@@ -181,62 +182,12 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
           (dismiss)="cancelAssignGroup()"
         />
       }
-
-      <!-- Toast -->
-      @if (toastMessage) {
-        <div
-          class="toast"
-          [class.toast-error]="toastType === 'error'"
-          [class.toast-success]="toastType === 'success'"
-          [class.toast-warning]="toastType === 'warning'"
-        >
-          {{ toastMessage }}
-        </div>
-      }
     </div>
   `,
   styles: `
     /* Extra bottom padding for sticky bulk-action bar */
     .page {
       padding-bottom: 5rem;
-    }
-
-    /* Toast */
-    .toast {
-      position: fixed;
-      bottom: 2rem;
-      right: 2rem;
-      padding: 0.75rem 1.25rem;
-      border-radius: 0.375rem;
-      font-size: 0.875rem;
-      z-index: 2000;
-      animation: toast-in 0.3s ease;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-    }
-    .toast-error {
-      background: #991b1b;
-      color: #fecaca;
-      border: 1px solid #b91c1c;
-    }
-    .toast-success {
-      background: #166534;
-      color: #bbf7d0;
-      border: 1px solid #22c55e;
-    }
-    .toast-warning {
-      background: #92400e;
-      color: #fef3c7;
-      border: 1px solid #d97706;
-    }
-    @keyframes toast-in {
-      from {
-        opacity: 0;
-        transform: translateY(1rem);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
     }
   `,
 })
@@ -246,6 +197,7 @@ export class Screens implements OnInit, OnDestroy {
   private screenGroupService = inject(ScreenGroupService);
   private router = inject(Router);
   private sseService = inject(DashboardSseService);
+  private toast = inject(ToastService);
   readonly selectionService = inject(SelectionService);
   private subscriptions: Subscription[] = [];
 
@@ -288,11 +240,6 @@ export class Screens implements OnInit, OnDestroy {
   groupsLoading = false;
   groupsLoadError = '';
   private assignGroupResolve: ((value: boolean) => void) | null = null;
-
-  // Toast
-  toastMessage = '';
-  toastType: 'error' | 'success' | 'warning' = 'success';
-  private toastTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Bulk actions
   bulkActions: BulkAction[] = [
@@ -396,6 +343,7 @@ export class Screens implements OnInit, OnDestroy {
         this.showCreateForm = false;
         this.displayedApiKey = result.apiKey;
         this.showApiKeyModal = true;
+        this.toast.success(`Screen “${result.screen.name}” created.`);
         this.loadScreens();
       },
       error: (err) => {
@@ -435,6 +383,7 @@ export class Screens implements OnInit, OnDestroy {
         this.saving = false;
         this.editingScreen = false;
         this.selectedScreen = updated;
+        this.toast.success(`Screen “${updated.name}” updated.`);
         this.loadScreens();
       },
       error: (err) => {
@@ -465,6 +414,7 @@ export class Screens implements OnInit, OnDestroy {
         this.selectedScreen = result.screen;
         this.displayedApiKey = result.apiKey;
         this.showApiKeyModal = true;
+        this.toast.success('API key regenerated.');
       },
       error: (err) => {
         this.actionError = err.error?.message || 'Failed to regenerate API key.';
@@ -488,12 +438,9 @@ export class Screens implements OnInit, OnDestroy {
     const ids = [...this.selectionService.selectedIds()];
     const result = await firstValueFrom(this.screenService.bulkDelete(this.orgId, ids));
 
-    this.showToast(`${result.deleted} screen(s) deleted`, 'success');
+    this.toast.success(`${result.deleted} screen(s) deleted.`);
     if (result.notFound.length > 0) {
-      this.showToast(
-        `${result.notFound.length} item(s) could not be found and were skipped`,
-        'warning',
-      );
+      this.toast.info(`${result.notFound.length} item(s) could not be found and were skipped`);
     }
     this.loadScreens();
   }
@@ -532,12 +479,9 @@ export class Screens implements OnInit, OnDestroy {
     const groupName = groupId
       ? (this.groups.find((g) => g.id === groupId)?.name ?? 'selected group')
       : 'no group';
-    this.showToast(`${result.updated} screen(s) assigned to ${groupName}`, 'success');
+    this.toast.success(`${result.updated} screen(s) assigned to ${groupName}.`);
     if (result.notFound.length > 0) {
-      this.showToast(
-        `${result.notFound.length} item(s) could not be found and were skipped`,
-        'warning',
-      );
+      this.toast.info(`${result.notFound.length} item(s) could not be found and were skipped`);
     }
     this.loadScreens();
   }
@@ -572,16 +516,6 @@ export class Screens implements OnInit, OnDestroy {
     this.showAssignGroupModal = false;
     this.assignGroupResolve?.(true);
     this.assignGroupResolve = null;
-  }
-
-  // --- Toast ---
-  showToast(message: string, type: 'error' | 'success' | 'warning'): void {
-    this.toastMessage = message;
-    this.toastType = type;
-    if (this.toastTimer) clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => {
-      this.toastMessage = '';
-    }, 4000);
   }
 
   goBack(): void {

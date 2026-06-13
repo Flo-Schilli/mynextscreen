@@ -38,9 +38,12 @@ class StubTopbar {
   readonly selectedOrgId = input.required<string | null>();
   readonly isSuperAdmin = input.required<boolean>();
   readonly isDark = input.required<boolean>();
+  readonly userEmail = input.required<string | null>();
   readonly openMobile = output<void>();
   readonly selectOrg = output<string>();
   readonly toggleTheme = output<void>();
+  readonly openProfile = output<void>();
+  readonly logout = output<void>();
 }
 
 interface OrgStateStub {
@@ -57,6 +60,7 @@ interface ThemeStub {
 }
 
 interface AuthStub {
+  user: ReturnType<typeof signal<{ userId: string; email: string; isSuperAdmin: boolean } | null>>;
   logout: Mock;
 }
 
@@ -87,7 +91,14 @@ function createStubs(): {
       select: vi.fn(),
     },
     theme: { isDark: signal(true), toggle: vi.fn() },
-    auth: { logout: vi.fn().mockResolvedValue(undefined) },
+    auth: {
+      user: signal<{ userId: string; email: string; isSuperAdmin: boolean } | null>({
+        userId: 'u-1',
+        email: 'user@example.com',
+        isSuperAdmin: false,
+      }),
+      logout: vi.fn().mockResolvedValue(undefined),
+    },
     sse: { connect: vi.fn(), disconnect: vi.fn() },
     router: { navigate: vi.fn() },
   };
@@ -395,6 +406,48 @@ describe('Layout', () => {
 
       // Assert
       expect(stubs.theme.toggle).toHaveBeenCalledTimes(1);
+    });
+
+    it('passes the current user email down to the top bar', async () => {
+      // Arrange
+      const stubs = createStubs();
+
+      // Act
+      const fixture = await createFixture(stubs);
+      const topbar = fixture.debugElement.query(By.directive(StubTopbar))
+        .componentInstance as StubTopbar;
+
+      // Assert
+      expect(topbar.userEmail()).toBe('user@example.com');
+    });
+
+    it('forwards topbar openProfile to navigate to user settings', async () => {
+      // Arrange
+      const stubs = createStubs();
+      const fixture = await createFixture(stubs);
+      const topbar = fixture.debugElement.query(By.directive(StubTopbar))
+        .componentInstance as StubTopbar;
+
+      // Act
+      topbar.openProfile.emit();
+
+      // Assert
+      expect(stubs.router.navigate).toHaveBeenCalledWith(['/settings/user']);
+    });
+
+    it('forwards topbar logout to the container handler', async () => {
+      // Arrange
+      const stubs = createStubs();
+      const fixture = await createFixture(stubs);
+      const topbar = fixture.debugElement.query(By.directive(StubTopbar))
+        .componentInstance as StubTopbar;
+
+      // Act
+      topbar.logout.emit();
+      await fixture.whenStable();
+
+      // Assert
+      expect(stubs.auth.logout).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -7,6 +7,7 @@ import { provideRouter } from '@angular/router';
 import { UserSettings } from './user-settings';
 import { NotificationPreferences } from './notification-preferences.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
+import { ToastService, Toast } from '../../shared/toast/toast.service';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -25,10 +26,22 @@ const mockPrefs: NotificationPreferences = {
   ntfyEnabled: false,
 };
 
+const mockProfile = {
+  userId: 'user-1',
+  email: 'me@example.com',
+  name: 'Me',
+  isSuperAdmin: false,
+};
+
 describe('UserSettings', () => {
   let fixture: ComponentFixture<UserSettings>;
   let component: UserSettings;
   let httpMock: HttpTestingController;
+  let toastService: ToastService;
+
+  function lastToast(): Toast | undefined {
+    return toastService.toasts().at(-1);
+  }
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -52,6 +65,7 @@ describe('UserSettings', () => {
     fixture = TestBed.createComponent(UserSettings);
     component = fixture.componentInstance;
     httpMock = TestBed.inject(HttpTestingController);
+    toastService = TestBed.inject(ToastService);
   });
 
   afterEach(() => {
@@ -59,19 +73,14 @@ describe('UserSettings', () => {
     component.ngOnDestroy();
   });
 
-  function flushInit(
-    orgConfig: { smtpHost: string | null; ntfyUrl: string | null } = {
-      smtpHost: 'smtp.example.com',
-      ntfyUrl: null,
-    },
-  ): void {
+  function flushInit(): void {
     fixture.detectChanges();
+
+    const profileReq = httpMock.expectOne('/api/me/profile');
+    profileReq.flush(mockProfile);
 
     const prefsReq = httpMock.expectOne('/api/me/notification-preferences');
     prefsReq.flush(mockPrefs);
-
-    const configReq = httpMock.expectOne(`/api/organisations/${ORG_ID}/notification-config`);
-    configReq.flush(orgConfig);
   }
 
   it('should create', () => {
@@ -86,42 +95,25 @@ describe('UserSettings', () => {
     expect(component.preferences).toEqual(mockPrefs);
   });
 
-  it('should set orgSmtpConfigured based on org config', () => {
-    flushInit();
-    expect(component.orgSmtpConfigured).toBe(true);
-    expect(component.orgNtfyConfigured).toBe(false);
-  });
-
-  it('should detect ntfy configured', () => {
-    flushInit({ smtpHost: null, ntfyUrl: 'https://ntfy.sh' });
-    expect(component.orgSmtpConfigured).toBe(false);
-    expect(component.orgNtfyConfigured).toBe(true);
-  });
-
   it('should handle preferences load error', () => {
     fixture.detectChanges();
 
+    httpMock.expectOne('/api/me/profile').flush(mockProfile);
+
     const prefsReq = httpMock.expectOne('/api/me/notification-preferences');
     prefsReq.error(new ProgressEvent('error'));
-
-    const configReq = httpMock.expectOne(`/api/organisations/${ORG_ID}/notification-config`);
-    configReq.flush({ smtpHost: null, ntfyUrl: null });
 
     expect(component.loading).toBe(false);
     expect(component.loadError).toBe('Failed to load notification preferences.');
   });
 
-  it('should handle org config load error gracefully', () => {
+  it('does not make an org-scoped notification-config request', () => {
     fixture.detectChanges();
 
-    const prefsReq = httpMock.expectOne('/api/me/notification-preferences');
-    prefsReq.flush(mockPrefs);
+    httpMock.expectOne('/api/me/profile').flush(mockProfile);
+    httpMock.expectOne('/api/me/notification-preferences').flush(mockPrefs);
 
-    const configReq = httpMock.expectOne(`/api/organisations/${ORG_ID}/notification-config`);
-    configReq.error(new ProgressEvent('error'));
-
-    expect(component.orgSmtpConfigured).toBe(false);
-    expect(component.orgNtfyConfigured).toBe(false);
+    httpMock.expectNone(`/api/organisations/${ORG_ID}/notification-config`);
   });
 
   it('should toggle a preference optimistically', () => {
@@ -151,8 +143,8 @@ describe('UserSettings', () => {
     });
     patchReq.flush({ ...mockPrefs, emailEnabled: true });
 
-    expect(component.toastMessage).toBe('Preferences saved.');
-    expect(component.toastType).toBe('success');
+    expect(lastToast()?.message).toBe('Preferences saved.');
+    expect(lastToast()?.type).toBe('success');
   });
 
   it('should debounce rapid toggles into one PATCH', async () => {
@@ -187,8 +179,8 @@ describe('UserSettings', () => {
     const patchReq = httpMock.expectOne('/api/me/notification-preferences');
     patchReq.error(new ProgressEvent('error'));
 
-    expect(component.toastMessage).toBe('Failed to save preferences.');
-    expect(component.toastType).toBe('error');
+    expect(lastToast()?.message).toBe('Failed to save preferences.');
+    expect(lastToast()?.type).toBe('error');
   });
 
   it('should not save if preferences not loaded', async () => {
@@ -216,8 +208,8 @@ describe('UserSettings', () => {
     req.flush(null);
     await promise;
 
-    expect(component.toastMessage).toBe('Password updated.');
-    expect(component.toastType).toBe('success');
+    expect(lastToast()?.message).toBe('Password updated.');
+    expect(lastToast()?.type).toBe('success');
   });
 
   it('does not submit an invalid password form', async () => {
@@ -243,7 +235,64 @@ describe('UserSettings', () => {
     req.flush(null);
     await promise;
 
-    expect(component.toastMessage).toContain('Confirmation link');
-    expect(component.toastType).toBe('success');
+    expect(lastToast()?.message).toContain('Confirmation link');
+    expect(lastToast()?.type).toBe('success');
+  });
+
+  it('loads the profile and populates email and name on init', () => {
+    flushInit();
+    expect(component.loadingProfile).toBe(false);
+    expect(component.profileEmail).toBe('me@example.com');
+    expect(component.profileForm.controls.name.value).toBe('Me');
+  });
+
+  it('populates an empty name field when the profile name is null', () => {
+    fixture.detectChanges();
+    httpMock.expectOne('/api/me/profile').flush({ ...mockProfile, name: null });
+    httpMock.expectOne('/api/me/notification-preferences').flush(mockPrefs);
+
+    expect(component.profileForm.controls.name.value).toBe('');
+  });
+
+  it('saves a trimmed display name and shows a success toast', async () => {
+    flushInit();
+    component.profileForm.setValue({ name: '  New Name  ' });
+
+    const promise = component.submitProfile();
+    const req = httpMock.expectOne('/api/me/profile');
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ name: 'New Name' });
+    req.flush({ ...mockProfile, name: 'New Name' });
+    await promise;
+
+    expect(component.profileForm.controls.name.value).toBe('New Name');
+    expect(lastToast()?.message).toBe('Profile saved.');
+    expect(lastToast()?.type).toBe('success');
+  });
+
+  it('sends null when clearing the display name', async () => {
+    flushInit();
+    component.profileForm.setValue({ name: '   ' });
+
+    const promise = component.submitProfile();
+    const req = httpMock.expectOne('/api/me/profile');
+    expect(req.request.body).toEqual({ name: null });
+    req.flush({ ...mockProfile, name: null });
+    await promise;
+
+    expect(lastToast()?.type).toBe('success');
+  });
+
+  it('shows an error toast when the profile save fails', async () => {
+    flushInit();
+    component.profileForm.setValue({ name: 'Whatever' });
+
+    const promise = component.submitProfile();
+    const req = httpMock.expectOne('/api/me/profile');
+    req.error(new ProgressEvent('error'));
+    await promise;
+
+    expect(lastToast()?.message).toBe('Could not save profile.');
+    expect(lastToast()?.type).toBe('error');
   });
 });

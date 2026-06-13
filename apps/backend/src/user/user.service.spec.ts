@@ -122,6 +122,57 @@ describe('UserService', () => {
     });
   });
 
+  describe('updateProfile', () => {
+    it('updates the display name and returns the refreshed user', async () => {
+      const [user] = await db
+        .insert(users)
+        .values({ email: 'name@example.com', name: 'Old Name' })
+        .returning();
+
+      const result = await service.updateProfile(user.id, { name: 'New Name' });
+
+      expect(result.name).toBe('New Name');
+      const [persisted] = await db.select().from(users).where(eq(users.id, user.id));
+      expect(persisted.name).toBe('New Name');
+    });
+
+    it('trims surrounding whitespace from the name', async () => {
+      const [user] = await db.insert(users).values({ email: 'trim@example.com' }).returning();
+
+      const result = await service.updateProfile(user.id, { name: '  Spaced  ' });
+
+      expect(result.name).toBe('Spaced');
+    });
+
+    it('clears the name to null when given a blank string', async () => {
+      const [user] = await db
+        .insert(users)
+        .values({ email: 'clear@example.com', name: 'Has Name' })
+        .returning();
+
+      const result = await service.updateProfile(user.id, { name: '   ' });
+
+      expect(result.name).toBeNull();
+    });
+
+    it('is a no-op that returns the user when name is undefined', async () => {
+      const [user] = await db
+        .insert(users)
+        .values({ email: 'noop-profile@example.com', name: 'Keep Me' })
+        .returning();
+
+      const result = await service.updateProfile(user.id, {});
+
+      expect(result.name).toBe('Keep Me');
+    });
+
+    it('throws NotFoundException when the user does not exist', async () => {
+      await expect(
+        service.updateProfile('00000000-0000-0000-0000-000000000000', { name: 'X' }),
+      ).rejects.toThrow('User not found');
+    });
+  });
+
   describe('password reset tokens', () => {
     it('should set and find a user by reset token', async () => {
       const [user] = await db.insert(users).values({ email: 'reset@example.com' }).returning();

@@ -29,6 +29,7 @@ import { ScheduleToolbar } from './schedule-toolbar';
 import { ScheduleSidePanel } from './schedule-side-panel';
 import { ScheduleCalendarGrid } from './schedule-calendar-grid';
 import { ScheduleFormModal, ScheduleFormResult, PRESET_COLOURS } from './schedule-form-modal';
+import { ToastService } from '../shared/toast/toast.service';
 
 const HOUR_HEIGHT = 60;
 
@@ -102,16 +103,6 @@ const HOUR_HEIGHT = 60;
         </div>
       }
 
-      @if (toastMessage) {
-        <div
-          class="toast"
-          [class.toast-error]="toastType === 'error'"
-          [class.toast-success]="toastType === 'success'"
-        >
-          {{ toastMessage }}
-        </div>
-      }
-
       @if (showModal) {
         <app-schedule-form-modal
           [editingEntry]="editingEntry"
@@ -172,39 +163,6 @@ const HOUR_HEIGHT = 60;
       flex: 1;
       min-width: 0;
     }
-
-    /* Toast */
-    .toast {
-      position: fixed;
-      bottom: 2rem;
-      right: 2rem;
-      padding: 0.75rem 1.25rem;
-      border-radius: 0.375rem;
-      font-size: 0.875rem;
-      z-index: 2000;
-      animation: toast-in 0.3s ease;
-      box-shadow: 0 4px 16px var(--color-shadow);
-    }
-    .toast-error {
-      background: #991b1b;
-      color: #fecaca;
-      border: 1px solid #b91c1c;
-    }
-    .toast-success {
-      background: #166534;
-      color: #bbf7d0;
-      border: 1px solid #22c55e;
-    }
-    @keyframes toast-in {
-      from {
-        opacity: 0;
-        transform: translateY(1rem);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
   `,
 })
 export class Schedules implements OnInit, OnDestroy {
@@ -217,6 +175,7 @@ export class Schedules implements OnInit, OnDestroy {
   private recurrence = inject(ScheduleRecurrenceService);
   private calendar = inject(ScheduleCalendarService);
   private router = inject(Router);
+  private toast = inject(ToastService);
 
   orgId = '';
   orgTimeZone = 'UTC';
@@ -272,11 +231,6 @@ export class Schedules implements OnInit, OnDestroy {
     originalTop: number;
     originalHeight: number;
   } | null = null;
-
-  // Toast
-  toastMessage = '';
-  toastType: 'error' | 'success' = 'error';
-  private toastTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Bound handlers for mouse events
   private boundMouseMove = this.onMouseMove.bind(this);
@@ -634,13 +588,12 @@ export class Schedules implements OnInit, OnDestroy {
           this.submitting = false;
           this.closeModal();
           this.loadEntries();
-          this.showToast('Schedule entry updated.', 'success');
+          this.toast.success('Schedule updated.');
         },
         error: (err) => {
           this.submitting = false;
           if (err.status === 409) {
             this.modalError = 'This time slot overlaps with an existing entry.';
-            this.showToast('Overlap detected. Entry was not saved.', 'error');
           } else {
             this.modalError = err.error?.message || 'Failed to update entry.';
           }
@@ -680,17 +633,16 @@ export class Schedules implements OnInit, OnDestroy {
           this.loadEntries();
 
           if (isSplitGroup) {
-            this.showToast('Schedule entry created. Slicing content for video wall...', 'success');
+            this.toast.success('Schedule created. Slicing content for video wall...');
             this.startSlicePolling();
           } else {
-            this.showToast('Schedule entry created.', 'success');
+            this.toast.success('Schedule created.');
           }
         },
         error: (err) => {
           this.submitting = false;
           if (err.status === 409) {
             this.modalError = 'This time slot overlaps with an existing entry.';
-            this.showToast('Overlap detected. Entry was not saved.', 'error');
           } else {
             this.modalError = err.error?.message || 'Failed to create entry.';
           }
@@ -718,7 +670,7 @@ export class Schedules implements OnInit, OnDestroy {
         this.submitting = false;
         this.closeModal();
         this.loadEntries();
-        this.showToast('Schedule entry deleted.', 'success');
+        this.toast.success('Schedule deleted.');
       },
       error: (err) => {
         this.submitting = false;
@@ -839,27 +791,17 @@ export class Schedules implements OnInit, OnDestroy {
     this.scheduleService.update(this.orgId, block.entry.id, dto).subscribe({
       next: () => {
         this.loadEntries();
-        this.showToast('Entry moved.', 'success');
+        this.toast.success('Schedule updated.');
       },
       error: (err) => {
         if (err.status === 409) {
-          this.showToast('Overlap detected. Move was reverted.', 'error');
+          this.toast.error('Overlap detected. Move was reverted.');
         } else {
-          this.showToast('Failed to move entry.', 'error');
+          this.toast.error('Failed to move entry.');
         }
         this.loadEntries(); // Revert visual
       },
     });
-  }
-
-  // --- Toast ---
-  showToast(message: string, type: 'error' | 'success'): void {
-    this.toastMessage = message;
-    this.toastType = type;
-    if (this.toastTimer) clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => {
-      this.toastMessage = '';
-    }, 4000);
   }
 
   formatSidePanelDate(date: Date): string {

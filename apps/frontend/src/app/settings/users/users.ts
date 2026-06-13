@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MemberService } from './member.service';
 import { Membership, MyMembership, OrganisationRole } from './member.model';
+import { ToastService } from '../../shared/toast/toast.service';
 
 @Component({
   selector: 'app-users',
@@ -270,6 +271,7 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
 export class Users implements OnInit {
   private memberService = inject(MemberService);
   private router = inject(Router);
+  private toast = inject(ToastService);
 
   orgId = '';
   members: Membership[] = [];
@@ -363,6 +365,7 @@ export class Users implements OnInit {
           this.inviting = false;
           this.showInviteModal = false;
           this.loadMembers();
+          this.toast.success('Member invited.');
         },
         error: (err) => {
           this.inviteError = err.error?.message || 'Failed to invite user.';
@@ -380,6 +383,7 @@ export class Users implements OnInit {
       next: (updated) => {
         member.role = updated.role;
         this.updatingUserId = null;
+        this.toast.success('Role updated.');
       },
       error: (err) => {
         this.actionError = err.error?.message || 'Failed to update role.';
@@ -409,6 +413,7 @@ export class Users implements OnInit {
         this.showRemoveConfirm = false;
         this.removingMember = null;
         this.loadMembers();
+        this.toast.success('Member removed.');
       },
       error: (err) => {
         this.actionError = err.error?.message || 'Failed to remove member.';

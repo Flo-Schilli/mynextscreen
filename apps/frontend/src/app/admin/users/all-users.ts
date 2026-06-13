@@ -4,6 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { AdminUserService } from './admin-user.service';
 import { AdminUser } from './admin-user.model';
 import { UserDeleteModal } from './user-delete-modal';
+import { ToastService } from '../../shared/toast/toast.service';
 
 /**
  * Smart container for the (super-admin) user overview. Owns data loading and the
@@ -182,6 +183,7 @@ import { UserDeleteModal } from './user-delete-modal';
 export class AllUsers implements OnInit {
   private userService = inject(AdminUserService);
   private router = inject(Router);
+  private toast = inject(ToastService);
 
   users: AdminUser[] = [];
   loading = true;
@@ -238,6 +240,7 @@ export class AllUsers implements OnInit {
         this.showDeleteModal = false;
         this.deletingUser = null;
         this.loadUsers();
+        this.toast.success('User deleted.');
       },
       error: (err) => {
         this.deleteError = err.error?.message || 'Failed to delete user.';

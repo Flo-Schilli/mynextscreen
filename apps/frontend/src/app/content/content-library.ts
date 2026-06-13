@@ -19,6 +19,7 @@ import { SelectionService } from '../shared/selection/selection.service';
 import { BulkAction } from '../shared/selection/bulk-action-toolbar';
 import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dialog';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
+import { ToastService } from '../shared/toast/toast.service';
 
 /**
  * Smart container for the content library. Owns data loading, upload/HTTP
@@ -216,18 +217,6 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
       @if (actionError) {
         <p class="error">{{ actionError }}</p>
       }
-
-      <!-- Toast -->
-      @if (toastMessage) {
-        <div
-          class="toast"
-          [class.toast-error]="toastType === 'error'"
-          [class.toast-success]="toastType === 'success'"
-          [class.toast-warning]="toastType === 'warning'"
-        >
-          {{ toastMessage }}
-        </div>
-      }
     </div>
   `,
   styles: `
@@ -293,41 +282,6 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
       border-color: var(--color-text-secondary);
       color: var(--color-text-primary);
     }
-
-    /* Toast */
-    .toast {
-      position: fixed;
-      bottom: 1.5rem;
-      right: 1.5rem;
-      padding: 0.75rem 1.25rem;
-      border-radius: 0.5rem;
-      font-size: 0.875rem;
-      font-weight: 500;
-      z-index: 2000;
-      animation: slideUp 0.2s ease-out;
-    }
-    .toast-success {
-      background: #166534;
-      color: #bbf7d0;
-    }
-    .toast-error {
-      background: #991b1b;
-      color: #fecaca;
-    }
-    .toast-warning {
-      background: #92400e;
-      color: #fef3c7;
-    }
-    @keyframes slideUp {
-      from {
-        transform: translateY(1rem);
-        opacity: 0;
-      }
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
-    }
   `,
 })
 export class ContentLibrary implements OnInit, OnDestroy {
@@ -336,6 +290,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
   private memberService = inject(MemberService);
   private playlistService = inject(PlaylistService);
   private router = inject(Router);
+  private toast = inject(ToastService);
   readonly selectionService = inject(SelectionService);
 
   orgId = '';
@@ -382,11 +337,6 @@ export class ContentLibrary implements OnInit, OnDestroy {
   playlistsLoadError = '';
   selectedPlaylistId = '';
   private playlistModalResolve: ((v: boolean) => void) | null = null;
-
-  // Toast
-  toastMessage = '';
-  toastType: 'error' | 'success' | 'warning' = 'success';
-  private toastTimer: ReturnType<typeof setTimeout> | null = null;
 
   bulkActions: BulkAction[] = [
     {
@@ -570,6 +520,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
             }
             this.loadStorage();
             this.clearDoneUploads();
+            this.toast.success('Upload complete.');
           }
         },
         error: (err) => {
@@ -625,6 +576,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
           if (idx >= 0) this.contents[idx] = updated;
           this.extractTags();
           this.applyFilters();
+          this.toast.success('Content updated.');
         },
         error: (err) => {
           this.metadataError = err.error?.message || 'Failed to save changes.';
@@ -660,6 +612,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
           }
           this.loadStorage();
           this.clearDoneUploads();
+          this.toast.success('Re-upload complete.');
         }
       },
       error: (err) => {
@@ -691,6 +644,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
         this.showDeleteConfirm = false;
         this.selectedContent = null;
         this.loadStorage();
+        this.toast.success('Content deleted.');
       },
       error: (err) => {
         this.actionError = err.error?.message || 'Failed to delete content.';
@@ -846,13 +800,9 @@ export class ContentLibrary implements OnInit, OnDestroy {
     this.playlistModalResolve = null;
   }
 
-  showToast(message: string, type: 'error' | 'success' | 'warning'): void {
-    this.toastMessage = message;
-    this.toastType = type;
-    if (this.toastTimer) clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => {
-      this.toastMessage = '';
-    }, 4000);
+  private showToast(message: string, type: 'error' | 'success' | 'warning'): void {
+    // The global ToastService has no 'warning' level; surface those as 'info'.
+    this.toast.show(type === 'warning' ? 'info' : type, message);
   }
 
   goBack(): void {

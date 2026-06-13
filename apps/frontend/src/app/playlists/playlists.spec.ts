@@ -15,6 +15,7 @@ import { ContentService } from '../content/content.service';
 import { Content } from '../content/content.model';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
+import { ToastService, Toast } from '../shared/toast/toast.service';
 
 const ORG_ID = 'org1';
 
@@ -115,6 +116,11 @@ describe('Playlists', () => {
   let contentStub: ContentStub;
   let screenStub: ScreenStub;
   let router: Router;
+  let toastService: ToastService;
+
+  function lastToast(): Toast | undefined {
+    return toastService.toasts().at(-1);
+  }
 
   beforeEach(async () => {
     memberStub = { getMyMemberships: vi.fn(() => of([membership('org_admin')])) };
@@ -142,6 +148,7 @@ describe('Playlists', () => {
     component = fixture.componentInstance;
     httpMock = TestBed.inject(HttpTestingController);
     router = TestBed.inject(Router);
+    toastService = TestBed.inject(ToastService);
     vi.spyOn(router, 'navigate').mockResolvedValue(true);
   });
 
@@ -733,8 +740,8 @@ describe('Playlists', () => {
       httpMock.expectOne('/api/playlists').flush([]);
       await promise;
 
-      expect(component.toastMessage).toContain('2 playlist(s) deleted');
-      expect(component.toastType).toBe('success');
+      expect(lastToast()?.message).toContain('2 playlist(s) deleted');
+      expect(lastToast()?.type).toBe('success');
     });
 
     it('warns about not-found items after a partial bulk delete', async () => {
@@ -748,8 +755,8 @@ describe('Playlists', () => {
       httpMock.expectOne('/api/playlists').flush([]);
       await promise;
 
-      expect(component.toastMessage).toContain('1 item(s) could not be found');
-      expect(component.toastType).toBe('warning');
+      expect(lastToast()?.message).toContain('1 item(s) could not be found');
+      expect(lastToast()?.type).toBe('info');
     });
 
     it('builds the confirmation message from the selection count', () => {
@@ -812,8 +819,8 @@ describe('Playlists', () => {
       httpMock.expectOne('/api/playlists').flush([]);
       await promise;
 
-      expect(component.toastMessage).toContain('assigned to Lobby TV');
-      expect(component.toastType).toBe('success');
+      expect(lastToast()?.message).toContain('assigned to Lobby TV');
+      expect(lastToast()?.type).toBe('success');
     });
 
     it('warns about not-found items after a partial assign', async () => {
@@ -831,36 +838,8 @@ describe('Playlists', () => {
       httpMock.expectOne('/api/playlists').flush([]);
       await promise;
 
-      expect(component.toastMessage).toContain('could not be found');
-      expect(component.toastType).toBe('warning');
-    });
-  });
-
-  describe('toast', () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-      init();
-    });
-
-    it('clears the toast message after the timeout', () => {
-      component.showToast('hello', 'success');
-      expect(component.toastMessage).toBe('hello');
-
-      vi.advanceTimersByTime(4000);
-      expect(component.toastMessage).toBe('');
-    });
-
-    it('replaces an existing toast without leaking the previous timer', () => {
-      component.showToast('first', 'success');
-      vi.advanceTimersByTime(1000);
-      component.showToast('second', 'error');
-      expect(component.toastMessage).toBe('second');
-
-      vi.advanceTimersByTime(3000);
-      // first timer would have fired at 4000 from t0 — ensure the new one is still alive
-      expect(component.toastMessage).toBe('second');
-      vi.advanceTimersByTime(1000);
-      expect(component.toastMessage).toBe('');
+      expect(lastToast()?.message).toContain('could not be found');
+      expect(lastToast()?.type).toBe('info');
     });
   });
 

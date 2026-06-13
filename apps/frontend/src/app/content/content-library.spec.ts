@@ -15,6 +15,7 @@ import { PlaylistService } from '../playlists/playlist.service';
 import { Playlist } from '../playlists/playlist.model';
 import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
 import { MetadataUpdate } from './content-detail';
+import { ToastService, Toast } from '../shared/toast/toast.service';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -75,6 +76,11 @@ describe('ContentLibrary', () => {
   let playlistService: { getAll: ReturnType<typeof vi.fn> };
   let router: { navigate: ReturnType<typeof vi.fn> };
   let sse: DashboardSseService;
+  let toastService: ToastService;
+
+  function lastToast(): Toast | undefined {
+    return toastService.toasts().at(-1);
+  }
 
   function makeSseStub(): DashboardSseService {
     return {
@@ -118,6 +124,7 @@ describe('ContentLibrary', () => {
     });
 
     httpMock = TestBed.inject(HttpTestingController);
+    toastService = TestBed.inject(ToastService);
     fixture = TestBed.createComponent(ContentLibrary);
     component = fixture.componentInstance;
   });
@@ -413,7 +420,8 @@ describe('ContentLibrary', () => {
     await promise;
 
     // Assert
-    expect(component.toastMessage).toContain('2 item(s) deleted');
+    expect(lastToast()?.message).toContain('2 item(s) deleted');
+    expect(lastToast()?.type).toBe('success');
   });
 
   it('rejects the bulk delete when the user cancels the confirmation', async () => {
@@ -448,7 +456,8 @@ describe('ContentLibrary', () => {
     await promise;
 
     // Assert
-    expect(component.toastMessage).toContain('1 item(s) tagged');
+    expect(lastToast()?.message).toContain('1 item(s) tagged');
+    expect(lastToast()?.type).toBe('success');
   });
 
   it('rejects the bulk tag flow when no tags are entered', async () => {
@@ -497,7 +506,8 @@ describe('ContentLibrary', () => {
     await promise;
 
     // Assert
-    expect(component.toastMessage).toContain('1 item(s) added to Lobby');
+    expect(lastToast()?.message).toContain('1 item(s) added to Lobby');
+    expect(lastToast()?.type).toBe('success');
   });
 
   it('surfaces a playlist load error in the modal state', async () => {
@@ -518,7 +528,7 @@ describe('ContentLibrary', () => {
     await expect(promise).rejects.toThrow('cancelled');
   });
 
-  it('shows a warning toast for not-found items in a bulk delete', async () => {
+  it('shows an info toast for not-found items in a bulk delete', async () => {
     // Arrange
     init([makeContent({ id: 'c1' })]);
     component.selectionService.selectAll(['c1']);
@@ -533,8 +543,8 @@ describe('ContentLibrary', () => {
     await promise;
 
     // Assert
-    expect(component.toastMessage).toContain('could not be found');
-    expect(component.toastType).toBe('warning');
+    expect(lastToast()?.message).toContain('could not be found');
+    expect(lastToast()?.type).toBe('info');
   });
 
   it('navigates home on goBack', () => {

@@ -4,7 +4,8 @@ import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { OrganisationRole } from './organisation-role.enum';
-import type { UserOrganisationMembership, Organisation } from '../db/schema';
+import type { UserOrganisationMembership, Organisation, User } from '../db/schema';
+import { NotFoundException } from '@nestjs/common';
 
 type MembershipWithOrganisation = UserOrganisationMembership & { organisation: Organisation };
 
@@ -48,6 +49,8 @@ describe('UserController', () => {
     userService = {
       getMemberships: jest.fn(),
       getMembership: jest.fn(),
+      findById: jest.fn(),
+      updateProfile: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -59,6 +62,66 @@ describe('UserController', () => {
     }).compile();
 
     controller = module.get<UserController>(UserController);
+  });
+
+  const mockUser = {
+    id: userId,
+    email: 'test@example.com',
+    name: 'Test User',
+    isSuperAdmin: false,
+  } as User;
+
+  const authedReq = {
+    user: { userId, email: 'test@example.com', isSuperAdmin: false },
+  } as AuthenticatedRequest;
+
+  describe('GET /me/profile', () => {
+    it('returns the profile view for the authenticated user', async () => {
+      userService.findById.mockResolvedValue(mockUser);
+
+      const result = await controller.getProfile(authedReq);
+
+      expect(userService.findById).toHaveBeenCalledWith(userId);
+      expect(result).toEqual({
+        userId,
+        email: 'test@example.com',
+        name: 'Test User',
+        isSuperAdmin: false,
+      });
+    });
+
+    it('throws NotFoundException when the user no longer exists', async () => {
+      userService.findById.mockResolvedValue(null);
+
+      await expect(controller.getProfile(authedReq)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('PATCH /me/profile', () => {
+    it('updates the display name and returns the refreshed profile view', async () => {
+      const updated = { ...mockUser, name: 'New Name' } as User;
+      userService.updateProfile.mockResolvedValue(updated);
+
+      const result = await controller.updateProfile(authedReq, { name: 'New Name' });
+
+      expect(userService.updateProfile).toHaveBeenCalledWith(userId, { name: 'New Name' });
+      expect(result).toEqual({
+        userId,
+        email: 'test@example.com',
+        name: 'New Name',
+        isSuperAdmin: false,
+      });
+    });
+
+    it('reflects a cleared name as null', async () => {
+      const cleared = { ...mockUser, name: null } as User;
+      userService.updateProfile.mockResolvedValue(cleared);
+
+      const result = await controller.updateProfile(authedReq, { name: '' });
+
+      expect(userService.updateProfile).toHaveBeenCalledWith(userId, { name: '' });
+      expect(result.name).toBeNull();
+    });
   });
 
   describe('GET /me/memberships', () => {

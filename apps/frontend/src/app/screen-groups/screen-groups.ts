@@ -12,6 +12,7 @@ import { ScreenGroupEditModal } from './screen-group-edit-modal';
 import { ScreenGroupDeleteModal } from './screen-group-delete-modal';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
+import { ToastService } from '../shared/toast/toast.service';
 
 /**
  * Smart container for the screen-groups list feature. Owns data loading, the org
@@ -155,6 +156,7 @@ export class ScreenGroups implements OnInit {
   private screenGroupService = inject(ScreenGroupService);
   private memberService = inject(MemberService);
   private router = inject(Router);
+  private toast = inject(ToastService);
 
   orgId = '';
   groups: ScreenGroup[] = [];
@@ -236,6 +238,7 @@ export class ScreenGroups implements OnInit {
       next: () => {
         this.creating = false;
         this.showCreateForm = false;
+        this.toast.success('Screen group created.');
         this.loadGroups();
       },
       error: (err) => {
@@ -264,6 +267,7 @@ export class ScreenGroups implements OnInit {
       next: () => {
         this.saving = false;
         this.editingGroup = null;
+        this.toast.success('Screen group updated.');
         this.loadGroups();
       },
       error: (err) => {
@@ -293,6 +297,7 @@ export class ScreenGroups implements OnInit {
       next: () => {
         this.deleting = false;
         this.deletingGroup = null;
+        this.toast.success('Screen group deleted.');
         this.loadGroups();
       },
       error: (err) => {
