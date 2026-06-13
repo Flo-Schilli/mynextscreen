@@ -76,7 +76,7 @@ export interface NavItem {
             routerLink="/admin/organisations"
             routerLinkActive="active"
             (click)="closeMobile.emit()"
-            [attr.title]="collapsed() ? 'Admin' : null"
+            [attr.title]="collapsed() ? 'Instance Admin' : null"
           >
             <span class="nav-icon">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -89,30 +89,7 @@ export interface NavItem {
               </svg>
             </span>
             @if (!collapsed()) {
-              <span class="nav-label">Admin</span>
-            }
-          </a>
-          <a
-            class="nav-item admin-nav-item"
-            routerLink="/admin/users"
-            routerLinkActive="active"
-            (click)="closeMobile.emit()"
-            [attr.title]="collapsed() ? 'Benutzer' : null"
-          >
-            <span class="nav-icon">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <circle cx="7" cy="6" r="3" stroke="currentColor" stroke-width="1.5" />
-                <path
-                  d="M2 17a5 5 0 0110 0M14 7a2.5 2.5 0 010 5M14 12a4 4 0 014 4"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </span>
-            @if (!collapsed()) {
-              <span class="nav-label">Benutzer</span>
+              <span class="nav-label">Instance Admin</span>
             }
           </a>
         }

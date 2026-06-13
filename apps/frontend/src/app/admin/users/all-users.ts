@@ -1,6 +1,6 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AdminUserService } from './admin-user.service';
 import { AdminUser } from './admin-user.model';
 import { UserDeleteModal } from './user-delete-modal';
@@ -13,7 +13,7 @@ import { UserDeleteModal } from './user-delete-modal';
 @Component({
   selector: 'app-all-users',
   standalone: true,
-  imports: [DatePipe, UserDeleteModal],
+  imports: [DatePipe, RouterLink, UserDeleteModal],
   template: `
     <div class="page">
       <header class="page-header">
@@ -22,6 +22,11 @@ import { UserDeleteModal } from './user-delete-modal';
           <h1>Users</h1>
         </div>
       </header>
+
+      <nav class="settings-nav">
+        <a class="settings-nav-link" routerLink="/admin/organisations">Organisations</a>
+        <a class="settings-nav-link active">Users</a>
+      </nav>
 
       @if (loadError) {
         <p class="error">{{ loadError }}</p>
@@ -108,6 +113,32 @@ import { UserDeleteModal } from './user-delete-modal';
     </div>
   `,
   styles: `
+    .settings-nav {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .settings-nav-link {
+      padding: 0.625rem 1rem;
+      font-size: 0.875rem;
+      color: var(--color-text-secondary);
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition:
+        color 0.15s,
+        border-color 0.15s;
+    }
+    .settings-nav-link:hover {
+      color: var(--color-text-primary);
+    }
+    .settings-nav-link.active {
+      color: var(--color-text-primary);
+      border-bottom-color: var(--color-accent);
+      font-weight: 500;
+    }
+
     tr:hover td {
       background: var(--color-bg-tertiary);
     }

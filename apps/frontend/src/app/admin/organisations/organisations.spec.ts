@@ -1,6 +1,6 @@
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
-import { Router } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { Organisations } from './organisations';
 import { OrganisationService } from './organisation.service';
@@ -74,6 +74,7 @@ describe('Organisations', () => {
       imports: [Organisations],
       providers: [
         provideZonelessChangeDetection(),
+        provideRouter([]),
         { provide: OrganisationService, useValue: orgStub },
       ],
     }).compileComponents();
