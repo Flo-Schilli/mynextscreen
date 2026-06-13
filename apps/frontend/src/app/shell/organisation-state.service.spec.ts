@@ -19,6 +19,7 @@ interface UserProfileResponse {
   userId: string;
   email: string;
   isSuperAdmin: boolean;
+  avatarUrl: string | null;
 }
 
 function membership(
@@ -102,11 +103,28 @@ describe('OrganisationStateService', () => {
         userId: 'u1',
         email: 'a@b.c',
         isSuperAdmin: true,
+        avatarUrl: 'https://www.gravatar.com/avatar/abc?d=identicon&s=160',
       } satisfies UserProfileResponse);
 
       httpMock.expectOne(MEMBERSHIPS_URL).flush([]);
 
       expect(service.isSuperAdmin()).toBe(true);
+      expect(service.avatarUrl()).toBe('https://www.gravatar.com/avatar/abc?d=identicon&s=160');
+    });
+
+    it('clears the avatar URL when the profile request errors', () => {
+      // Arrange
+      init();
+      service.avatarUrl.set('https://www.gravatar.com/avatar/abc?d=identicon&s=160');
+
+      // Act
+      service.loadOrganisations();
+
+      // Assert
+      httpMock.expectOne(PROFILE_URL).error(new ProgressEvent('error'));
+      httpMock.expectOne(MEMBERSHIPS_URL).flush([]);
+
+      expect(service.avatarUrl()).toBeNull();
     });
 
     it('resets isSuperAdmin to false when the profile request errors', () => {

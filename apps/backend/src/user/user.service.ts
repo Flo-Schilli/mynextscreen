@@ -133,24 +133,34 @@ export class UserService {
   }
 
   /**
-   * Self-service profile update for the authenticated user. Only the display
-   * name is editable here; a blank name clears it (stored as null). Returns the
-   * updated user; throws NotFoundException if the user no longer exists.
+   * Self-service profile update for the authenticated user. The display name and
+   * the Gravatar opt-out are editable here; a blank name clears it (stored as
+   * null). Each field is applied only when provided, so callers can patch one
+   * without touching the other. Returns the updated user (a no-op fetch when
+   * nothing was provided); throws NotFoundException if the user no longer exists.
    */
-  async updateProfile(userId: string, input: { name?: string }): Promise<User> {
-    if (input.name === undefined) {
+  async updateProfile(
+    userId: string,
+    input: { name?: string; gravatarEnabled?: boolean },
+  ): Promise<User> {
+    const changes: Partial<typeof users.$inferInsert> = {};
+    if (input.name !== undefined) {
+      const trimmed = input.name.trim();
+      changes.name = trimmed.length > 0 ? trimmed : null;
+    }
+    if (input.gravatarEnabled !== undefined) {
+      changes.gravatarEnabled = input.gravatarEnabled;
+    }
+
+    if (Object.keys(changes).length === 0) {
       const existing = await this.findById(userId);
       if (!existing) {
         throw new NotFoundException('User not found');
       }
       return existing;
     }
-    const trimmed = input.name.trim();
-    const [user] = await this.db
-      .update(users)
-      .set({ name: trimmed.length > 0 ? trimmed : null })
-      .where(eq(users.id, userId))
-      .returning();
+
+    const [user] = await this.db.update(users).set(changes).where(eq(users.id, userId)).returning();
     if (!user) {
       throw new NotFoundException('User not found');
     }

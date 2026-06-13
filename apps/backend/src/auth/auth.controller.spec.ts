@@ -31,6 +31,7 @@ function makeUser(overrides: Partial<User> = {}): User {
     emailChangeToken: null,
     emailChangeTokenExpiresAt: null,
     isSuperAdmin: false,
+    gravatarEnabled: true,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

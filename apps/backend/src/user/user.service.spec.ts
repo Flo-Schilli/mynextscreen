@@ -155,7 +155,7 @@ describe('UserService', () => {
       expect(result.name).toBeNull();
     });
 
-    it('is a no-op that returns the user when name is undefined', async () => {
+    it('is a no-op that returns the user when no fields are provided', async () => {
       const [user] = await db
         .insert(users)
         .values({ email: 'noop-profile@example.com', name: 'Keep Me' })
@@ -164,6 +164,36 @@ describe('UserService', () => {
       const result = await service.updateProfile(user.id, {});
 
       expect(result.name).toBe('Keep Me');
+    });
+
+    it('toggles the Gravatar opt-out without touching the name', async () => {
+      const [user] = await db
+        .insert(users)
+        .values({ email: 'gravatar@example.com', name: 'Keep Me' })
+        .returning();
+      expect(user.gravatarEnabled).toBe(true);
+
+      const result = await service.updateProfile(user.id, { gravatarEnabled: false });
+
+      expect(result.gravatarEnabled).toBe(false);
+      expect(result.name).toBe('Keep Me');
+      const [persisted] = await db.select().from(users).where(eq(users.id, user.id));
+      expect(persisted.gravatarEnabled).toBe(false);
+    });
+
+    it('updates the name and the Gravatar opt-out together', async () => {
+      const [user] = await db
+        .insert(users)
+        .values({ email: 'both@example.com', name: 'Old' })
+        .returning();
+
+      const result = await service.updateProfile(user.id, {
+        name: 'New',
+        gravatarEnabled: false,
+      });
+
+      expect(result.name).toBe('New');
+      expect(result.gravatarEnabled).toBe(false);
     });
 
     it('throws NotFoundException when the user does not exist', async () => {

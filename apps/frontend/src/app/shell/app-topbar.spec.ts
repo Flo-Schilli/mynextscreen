@@ -34,6 +34,7 @@ async function createFixture(
     isSuperAdmin?: boolean;
     isDark?: boolean;
     userEmail?: string | null;
+    avatarUrl?: string | null;
   } = {},
 ): Promise<ComponentFixture<AppTopbar>> {
   await TestBed.configureTestingModule({
@@ -58,6 +59,7 @@ async function createFixture(
     'userEmail',
     overrides.userEmail === undefined ? 'user@example.com' : overrides.userEmail,
   );
+  fixture.componentRef.setInput('avatarUrl', overrides.avatarUrl ?? null);
   fixture.detectChanges();
   // A second pass lets the native <select> [value] binding settle after the
   // @for options have been created in the first pass.
@@ -274,6 +276,40 @@ describe('AppTopbar', () => {
       expect(avatar.classList.contains('super-admin')).toBe(true);
       expect(avatar.getAttribute('aria-label')).toBe('Instance Admin');
       expect(fixture.debugElement.query(By.css('.admin-badge'))).not.toBeNull();
+    });
+  });
+
+  describe('gravatar avatar', () => {
+    it('shows the placeholder SVG when no avatar URL is provided', async () => {
+      const fixture = await createFixture({ avatarUrl: null });
+
+      expect(fixture.debugElement.query(By.css('.user-avatar img'))).toBeNull();
+      expect(fixture.debugElement.query(By.css('.user-avatar svg'))).not.toBeNull();
+    });
+
+    it('renders the Gravatar image when an avatar URL is provided', async () => {
+      const url = 'https://www.gravatar.com/avatar/abc?d=identicon&s=160';
+      const fixture = await createFixture({ avatarUrl: url });
+
+      const img = fixture.debugElement.query(By.css('.user-avatar img.avatar-img'))
+        ?.nativeElement as HTMLImageElement | undefined;
+      expect(img).toBeTruthy();
+      expect(img?.getAttribute('src')).toBe(url);
+    });
+
+    it('falls back to the placeholder SVG when the image fails to load', async () => {
+      const fixture = await createFixture({
+        avatarUrl: 'https://www.gravatar.com/avatar/abc?d=identicon&s=160',
+      });
+
+      const img = fixture.debugElement.query(By.css('.user-avatar img.avatar-img'))
+        .nativeElement as HTMLImageElement;
+      img.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.avatarFailed()).toBe(true);
+      expect(fixture.debugElement.query(By.css('.user-avatar img'))).toBeNull();
+      expect(fixture.debugElement.query(By.css('.user-avatar svg'))).not.toBeNull();
     });
   });
 

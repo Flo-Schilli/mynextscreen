@@ -25,6 +25,7 @@ interface UserProfile {
   userId: string;
   email: string;
   isSuperAdmin: boolean;
+  avatarUrl: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -39,13 +40,20 @@ export class OrganisationStateService {
   });
   readonly loading = signal(false);
   readonly isSuperAdmin = signal(false);
+  readonly avatarUrl = signal<string | null>(null);
 
   loadOrganisations(): void {
     this.loading.set(true);
 
     this.http.get<UserProfile>('/api/me/profile').subscribe({
-      next: (profile) => this.isSuperAdmin.set(profile.isSuperAdmin),
-      error: () => this.isSuperAdmin.set(false),
+      next: (profile) => {
+        this.isSuperAdmin.set(profile.isSuperAdmin);
+        this.avatarUrl.set(profile.avatarUrl);
+      },
+      error: () => {
+        this.isSuperAdmin.set(false);
+        this.avatarUrl.set(null);
+      },
     });
 
     this.http.get<OrgMembership[]>('/api/me/memberships').subscribe({

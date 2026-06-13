@@ -39,6 +39,7 @@ class StubTopbar {
   readonly isSuperAdmin = input.required<boolean>();
   readonly isDark = input.required<boolean>();
   readonly userEmail = input.required<string | null>();
+  readonly avatarUrl = input<string | null>(null);
   readonly openMobile = output<void>();
   readonly selectOrg = output<string>();
   readonly toggleTheme = output<void>();
@@ -50,6 +51,7 @@ interface OrgStateStub {
   organisations: ReturnType<typeof signal<unknown[]>>;
   selectedOrgId: ReturnType<typeof signal<string | null>>;
   isSuperAdmin: ReturnType<typeof signal<boolean>>;
+  avatarUrl: ReturnType<typeof signal<string | null>>;
   loadOrganisations: Mock;
   select: Mock;
 }
@@ -87,6 +89,7 @@ function createStubs(): {
       ]),
       selectedOrgId: signal<string | null>(null),
       isSuperAdmin: signal(false),
+      avatarUrl: signal<string | null>(null),
       loadOrganisations: vi.fn(),
       select: vi.fn(),
     },

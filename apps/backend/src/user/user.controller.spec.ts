@@ -69,7 +69,14 @@ describe('UserController', () => {
     email: 'test@example.com',
     name: 'Test User',
     isSuperAdmin: false,
+    gravatarEnabled: true,
   } as User;
+
+  // SHA-256 of 'test@example.com' — see buildGravatarUrl.
+  const expectedAvatarUrl =
+    'https://www.gravatar.com/avatar/' +
+    '973dfe463ec85785f5f95af5ba3906eedb2d931c24e69824a89ea65dba4e813b' +
+    '?d=identicon&s=160';
 
   const authedReq = {
     user: { userId, email: 'test@example.com', isSuperAdmin: false },
@@ -87,7 +94,18 @@ describe('UserController', () => {
         email: 'test@example.com',
         name: 'Test User',
         isSuperAdmin: false,
+        gravatarEnabled: true,
+        avatarUrl: expectedAvatarUrl,
       });
+    });
+
+    it('omits the avatar URL when the user opted out of Gravatar', async () => {
+      userService.findById.mockResolvedValue({ ...mockUser, gravatarEnabled: false });
+
+      const result = await controller.getProfile(authedReq);
+
+      expect(result.gravatarEnabled).toBe(false);
+      expect(result.avatarUrl).toBeNull();
     });
 
     it('throws NotFoundException when the user no longer exists', async () => {
@@ -104,12 +122,17 @@ describe('UserController', () => {
 
       const result = await controller.updateProfile(authedReq, { name: 'New Name' });
 
-      expect(userService.updateProfile).toHaveBeenCalledWith(userId, { name: 'New Name' });
+      expect(userService.updateProfile).toHaveBeenCalledWith(userId, {
+        name: 'New Name',
+        gravatarEnabled: undefined,
+      });
       expect(result).toEqual({
         userId,
         email: 'test@example.com',
         name: 'New Name',
         isSuperAdmin: false,
+        gravatarEnabled: true,
+        avatarUrl: expectedAvatarUrl,
       });
     });
 
@@ -119,8 +142,25 @@ describe('UserController', () => {
 
       const result = await controller.updateProfile(authedReq, { name: '' });
 
-      expect(userService.updateProfile).toHaveBeenCalledWith(userId, { name: '' });
+      expect(userService.updateProfile).toHaveBeenCalledWith(userId, {
+        name: '',
+        gravatarEnabled: undefined,
+      });
       expect(result.name).toBeNull();
+    });
+
+    it('passes the Gravatar opt-out through and clears the avatar URL', async () => {
+      const optedOut = { ...mockUser, gravatarEnabled: false } as User;
+      userService.updateProfile.mockResolvedValue(optedOut);
+
+      const result = await controller.updateProfile(authedReq, { gravatarEnabled: false });
+
+      expect(userService.updateProfile).toHaveBeenCalledWith(userId, {
+        name: undefined,
+        gravatarEnabled: false,
+      });
+      expect(result.gravatarEnabled).toBe(false);
+      expect(result.avatarUrl).toBeNull();
     });
   });
 

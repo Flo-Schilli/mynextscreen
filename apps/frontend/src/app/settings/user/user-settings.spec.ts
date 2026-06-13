@@ -31,6 +31,8 @@ const mockProfile = {
   email: 'me@example.com',
   name: 'Me',
   isSuperAdmin: false,
+  gravatarEnabled: true,
+  avatarUrl: 'https://www.gravatar.com/avatar/abc?d=identicon&s=160',
 };
 
 describe('UserSettings', () => {
@@ -57,6 +59,7 @@ describe('UserSettings', () => {
             organisations: signal([]),
             selectedOrg: signal(null),
             loading: signal(false),
+            avatarUrl: signal<string | null>(null),
           },
         },
       ],
@@ -294,5 +297,29 @@ describe('UserSettings', () => {
 
     expect(lastToast()?.message).toBe('Could not save profile.');
     expect(lastToast()?.type).toBe('error');
+  });
+
+  it('loads the Gravatar opt-out and avatar URL on init', () => {
+    flushInit();
+    expect(component.gravatarEnabled).toBe(true);
+    expect(component.avatarUrl).toBe(mockProfile.avatarUrl);
+  });
+
+  it('opts out of Gravatar and syncs the top-bar avatar', async () => {
+    flushInit();
+    const orgState = TestBed.inject(OrganisationStateService);
+
+    const promise = component.toggleGravatar();
+    const req = httpMock.expectOne('/api/me/profile');
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ gravatarEnabled: false });
+    req.flush({ ...mockProfile, gravatarEnabled: false, avatarUrl: null });
+    await promise;
+
+    expect(component.gravatarEnabled).toBe(false);
+    expect(component.avatarUrl).toBeNull();
+    expect(orgState.avatarUrl()).toBeNull();
+    expect(lastToast()?.message).toBe('Profile saved.');
+    expect(lastToast()?.type).toBe('success');
   });
 });
