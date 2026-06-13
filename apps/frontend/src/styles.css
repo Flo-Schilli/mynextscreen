@@ -358,6 +358,15 @@ html.light {
     font-size: 0.8125rem;
   }
 
+  /* myNextScreen wordmark: "NextScreen" blue→orange gradient (matches the icon). */
+  .brand-gradient {
+    background: linear-gradient(90deg, #3b82f6 0%, #22d3ee 35%, #f97316 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
   @media (max-width: 768px) {
     .page {
       padding: 1rem;

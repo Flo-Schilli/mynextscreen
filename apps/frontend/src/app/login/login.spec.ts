@@ -65,7 +65,7 @@ describe('Login', () => {
 
     expect(fixture.debugElement.query(By.css('input[formControlName="email"]'))).not.toBeNull();
     expect(fixture.debugElement.query(By.css('input[formControlName="password"]'))).not.toBeNull();
-    expect(fixture.nativeElement.textContent).toContain('Signage Server');
+    expect(fixture.nativeElement.textContent).toContain('myNextScreen');
   });
 
   it('does not call login when the form is invalid', async () => {
