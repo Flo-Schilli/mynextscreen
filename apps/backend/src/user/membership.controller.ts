@@ -13,7 +13,7 @@ import { Roles } from '../auth/roles.decorator';
 import { OrganisationRole } from './organisation-role.enum';
 import { MembershipService } from './membership.service';
 import { AddMemberDto, UpdateMemberRoleDto } from './dto';
-import type { UserOrganisationMembership } from '../db/schema';
+import { toMemberResponse, type MemberResponse } from './member-response';
 
 @Controller('organisations/:orgId/members')
 @Roles(OrganisationRole.OrgAdmin)
@@ -21,25 +21,26 @@ export class MembershipController {
   constructor(private readonly membershipService: MembershipService) {}
 
   @Get()
-  listMembers(@Param('orgId') orgId: string): Promise<UserOrganisationMembership[]> {
-    return this.membershipService.listMembers(orgId);
+  async listMembers(@Param('orgId') orgId: string): Promise<MemberResponse[]> {
+    const members = await this.membershipService.listMembers(orgId);
+    return members.map(toMemberResponse);
   }
 
   @Post()
-  addMember(
+  async addMember(
     @Param('orgId') orgId: string,
     @Body() dto: AddMemberDto,
-  ): Promise<UserOrganisationMembership> {
-    return this.membershipService.addMember(orgId, dto.email, dto.role);
+  ): Promise<MemberResponse> {
+    return toMemberResponse(await this.membershipService.addMember(orgId, dto.email, dto.role));
   }
 
   @Patch(':userId')
-  updateRole(
+  async updateRole(
     @Param('orgId') orgId: string,
     @Param('userId') userId: string,
     @Body() dto: UpdateMemberRoleDto,
-  ): Promise<UserOrganisationMembership> {
-    return this.membershipService.updateRole(orgId, userId, dto.role);
+  ): Promise<MemberResponse> {
+    return toMemberResponse(await this.membershipService.updateRole(orgId, userId, dto.role));
   }
 
   @Delete(':userId')

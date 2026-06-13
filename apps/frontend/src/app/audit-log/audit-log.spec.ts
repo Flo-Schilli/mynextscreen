@@ -55,6 +55,7 @@ function makeMember(overrides: Partial<Membership> = {}): Membership {
     organisationId: ORG_ID,
     role: 'org_admin',
     createdAt: '2026-01-01T00:00:00.000Z',
+    status: 'active',
     user: {
       id: 'u1',
       email: 'alice@example.com',

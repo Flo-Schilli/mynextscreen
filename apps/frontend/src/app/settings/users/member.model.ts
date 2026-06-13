@@ -6,12 +6,20 @@ export interface MemberUser {
   updatedAt: string;
 }
 
+/**
+ * Invite lifecycle status derived server-side:
+ * - `pending`: invited but not yet activated (no password set).
+ * - `active`:  has signed up / set a password and can log in.
+ */
+export type MemberStatus = 'pending' | 'active';
+
 export interface Membership {
   id: string;
   userId: string;
   organisationId: string;
   role: OrganisationRole;
   createdAt: string;
+  status: MemberStatus;
   user: MemberUser;
 }
 

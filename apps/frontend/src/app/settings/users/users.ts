@@ -44,6 +44,7 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
+                <th>Status</th>
                 <th>Joined</th>
                 <th>Actions</th>
               </tr>
@@ -64,6 +65,19 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
                       <option value="editor">Editor</option>
                       <option value="viewer">Viewer</option>
                     </select>
+                  </td>
+                  <td>
+                    @if (member.status === 'pending') {
+                      <span
+                        class="status-badge status-pending"
+                        title="Invite sent, not yet accepted"
+                        >Pending invite</span
+                      >
+                    } @else {
+                      <span class="status-badge status-active" title="User has signed up"
+                        >Active</span
+                      >
+                    }
                   </td>
                   <td>{{ member.createdAt | date: 'mediumDate' }}</td>
                   <td>
@@ -228,6 +242,28 @@ import { Membership, MyMembership, OrganisationRole } from './member.model';
     .role-select:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+    }
+
+    /* Invite status badge */
+    .status-badge {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      line-height: 1.25rem;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .status-pending {
+      background: rgba(217, 119, 6, 0.15);
+      color: #fbbf24;
+      border-color: rgba(217, 119, 6, 0.4);
+    }
+    .status-active {
+      background: rgba(22, 163, 74, 0.15);
+      color: #4ade80;
+      border-color: rgba(22, 163, 74, 0.4);
     }
   `,
 })
