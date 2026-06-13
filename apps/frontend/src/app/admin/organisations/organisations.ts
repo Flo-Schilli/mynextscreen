@@ -1,5 +1,5 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { OrganisationService } from './organisation.service';
 import { Organisation, OrgMember, OrgMemberRole } from './organisation.model';
 import { OrgForm, OrganisationFormPayload } from './org-form';
@@ -20,6 +20,7 @@ import { OrgDeleteModal } from './org-delete-modal';
   selector: 'app-organisations',
   standalone: true,
   imports: [
+    RouterLink,
     OrgForm,
     OrgTable,
     OrgMemberList,
@@ -38,6 +39,11 @@ import { OrgDeleteModal } from './org-delete-modal';
           <button class="btn btn-primary" (click)="openCreateForm()">+ New Organisation</button>
         }
       </header>
+
+      <nav class="settings-nav">
+        <a class="settings-nav-link active">Organisations</a>
+        <a class="settings-nav-link" routerLink="/admin/users">Users</a>
+      </nav>
 
       <!-- ── Create / Edit Form ── -->
       @if (showForm) {
@@ -162,6 +168,32 @@ import { OrgDeleteModal } from './org-delete-modal';
     </div>
   `,
   styles: `
+    .settings-nav {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .settings-nav-link {
+      padding: 0.625rem 1rem;
+      font-size: 0.875rem;
+      color: var(--color-text-secondary);
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition:
+        color 0.15s,
+        border-color 0.15s;
+    }
+    .settings-nav-link:hover {
+      color: var(--color-text-primary);
+    }
+    .settings-nav-link.active {
+      color: var(--color-text-primary);
+      border-bottom-color: var(--color-accent);
+      font-weight: 500;
+    }
+
     /* Detail header */
     .detail-header {
       display: flex;
