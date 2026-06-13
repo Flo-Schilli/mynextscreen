@@ -79,6 +79,9 @@ describe('UserService', () => {
       expect(user.name).toBe('Boss');
       expect(user.isSuperAdmin).toBe(true);
       expect(user.passwordHash).toBe('hash');
+      // Provisioned directly, no verification email — must be verified so the
+      // email-not-verified login gate doesn't lock them out on next login.
+      expect(user.emailVerified).toBe(true);
       const all = await db.select().from(users);
       expect(all).toHaveLength(1);
     });
