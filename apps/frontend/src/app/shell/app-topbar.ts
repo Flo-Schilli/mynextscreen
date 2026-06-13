@@ -1,4 +1,13 @@
-import { Component, ElementRef, HostListener, inject, input, output, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  inject,
+  input,
+  linkedSignal,
+  output,
+  signal,
+} from '@angular/core';
 import { NotificationBell } from '../notifications/notification-bell';
 import { GlobalSearch } from '../search/global-search';
 import { OrgWithRole } from './organisation-state.service';
@@ -89,15 +98,25 @@ import { OrgWithRole } from './organisation-state.service';
             aria-haspopup="menu"
             (click)="toggleMenu($event)"
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <circle cx="10" cy="8" r="3" stroke="currentColor" stroke-width="1.5" />
-              <path
-                d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
+            @if (avatarUrl() && !avatarFailed()) {
+              <img
+                class="avatar-img"
+                [src]="avatarUrl()"
+                alt=""
+                referrerpolicy="no-referrer"
+                (error)="avatarFailed.set(true)"
               />
-            </svg>
+            } @else {
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <circle cx="10" cy="8" r="3" stroke="currentColor" stroke-width="1.5" />
+                <path
+                  d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                />
+              </svg>
+            }
             @if (isSuperAdmin()) {
               <span class="admin-badge" title="Instance Admin">
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -232,6 +251,12 @@ import { OrgWithRole } from './organisation-state.service';
     .user-avatar:hover {
       color: var(--color-text-primary);
     }
+    .avatar-img {
+      width: 100%;
+      height: 100%;
+      border-radius: inherit;
+      object-fit: cover;
+    }
     .user-avatar.super-admin {
       border-color: #f59e0b;
       box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3);
@@ -328,6 +353,14 @@ export class AppTopbar {
   readonly isSuperAdmin = input.required<boolean>();
   readonly isDark = input.required<boolean>();
   readonly userEmail = input.required<string | null>();
+  /** Gravatar URL, or null when the user opted out — then the placeholder SVG shows. */
+  readonly avatarUrl = input<string | null>(null);
+
+  /** Falls back to the placeholder SVG if the Gravatar image fails to load. Resets when the URL changes. */
+  readonly avatarFailed = linkedSignal<string | null, boolean>({
+    source: () => this.avatarUrl(),
+    computation: () => false,
+  });
 
   readonly openMobile = output<void>();
   readonly selectOrg = output<string>();

@@ -16,6 +16,8 @@ const mockProfile: UserProfile = {
   email: 'me@example.com',
   name: 'Me',
   isSuperAdmin: false,
+  gravatarEnabled: true,
+  avatarUrl: 'https://www.gravatar.com/avatar/abc?d=identicon&s=160',
 };
 
 describe('ProfileService', () => {
@@ -63,5 +65,17 @@ describe('ProfileService', () => {
     const req = httpMock.expectOne('/api/me/profile');
     expect(req.request.body).toEqual({ name: null });
     req.flush({ ...mockProfile, name: null });
+  });
+
+  it('PATCHes the Gravatar opt-out flag', () => {
+    service.updateProfile({ gravatarEnabled: false }).subscribe((profile) => {
+      expect(profile.gravatarEnabled).toBe(false);
+      expect(profile.avatarUrl).toBeNull();
+    });
+
+    const req = httpMock.expectOne('/api/me/profile');
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ gravatarEnabled: false });
+    req.flush({ ...mockProfile, gravatarEnabled: false, avatarUrl: null });
   });
 });

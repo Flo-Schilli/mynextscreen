@@ -48,6 +48,7 @@ const SIDEBAR_KEY = 'signage_sidebar_collapsed';
         [isSuperAdmin]="orgState.isSuperAdmin()"
         [isDark]="theme.isDark()"
         [userEmail]="userEmail()"
+        [avatarUrl]="orgState.avatarUrl()"
         (openMobile)="mobileOpen.set(true)"
         (selectOrg)="orgState.select($event)"
         (toggleTheme)="theme.toggle()"

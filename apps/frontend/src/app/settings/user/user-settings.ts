@@ -15,6 +15,7 @@ import {
 import { AuthService } from '../../auth/auth.service';
 import { ProfileService } from './profile.service';
 import { ToastService } from '../../shared/toast/toast.service';
+import { OrganisationStateService } from '../../shell/organisation-state.service';
 
 function passwordsMatch(control: AbstractControl): ValidationErrors | null {
   const next = control.get('newPassword')?.value;
@@ -38,6 +39,48 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
       <section class="section">
         <h2 class="section-title">Profile</h2>
         <p class="section-desc">Your account details and display name.</p>
+
+        <div class="avatar-row">
+          <span class="avatar-preview" [class.super-admin]="false">
+            @if (gravatarEnabled && avatarUrl) {
+              <img
+                class="avatar-preview-img"
+                [src]="avatarUrl"
+                alt="Your avatar"
+                referrerpolicy="no-referrer"
+              />
+            } @else {
+              <svg width="28" height="28" viewBox="0 0 20 20" fill="none">
+                <circle cx="10" cy="8" r="3" stroke="currentColor" stroke-width="1.5" />
+                <path
+                  d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                />
+              </svg>
+            }
+          </span>
+          <div class="toggle-info avatar-info">
+            <span class="toggle-label">Use Gravatar</span>
+            <span class="toggle-desc">Show the avatar linked to your email via Gravatar</span>
+            <span class="toggle-note">
+              When off, no email hash is sent to gravatar.com and a placeholder is shown.
+            </span>
+          </div>
+          <button
+            class="toggle-switch"
+            [class.active]="gravatarEnabled"
+            (click)="toggleGravatar()"
+            [disabled]="savingGravatar || loadingProfile"
+            role="switch"
+            [attr.aria-checked]="gravatarEnabled"
+            aria-label="Toggle Gravatar avatar"
+          >
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+
         <form [formGroup]="profileForm" (ngSubmit)="submitProfile()" class="form-grid">
           <div class="field">
             <span class="field-label">Email</span>
@@ -298,6 +341,36 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
       margin: 0 0 1.25rem;
     }
 
+    .avatar-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding-bottom: 1.25rem;
+      margin-bottom: 1.25rem;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .avatar-preview {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      flex-shrink: 0;
+      border-radius: 999px;
+      background: var(--color-bg-tertiary);
+      color: var(--color-text-secondary);
+      border: 1px solid var(--color-border);
+      overflow: hidden;
+    }
+    .avatar-preview-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .avatar-info {
+      flex: 1;
+    }
+
     .toggle-list {
       display: flex;
       flex-direction: column;
@@ -434,6 +507,7 @@ export class UserSettings implements OnInit, OnDestroy {
   private auth = inject(AuthService);
   private profile = inject(ProfileService);
   private toast = inject(ToastService);
+  private orgState = inject(OrganisationStateService);
 
   preferences: NotificationPreferences | null = null;
   loading = true;
@@ -442,6 +516,10 @@ export class UserSettings implements OnInit, OnDestroy {
   profileEmail = '';
   loadingProfile = true;
   savingProfile = false;
+
+  gravatarEnabled = true;
+  avatarUrl: string | null = null;
+  savingGravatar = false;
 
   savingPassword = false;
   savingEmail = false;
@@ -485,6 +563,8 @@ export class UserSettings implements OnInit, OnDestroy {
       next: (profile) => {
         this.profileEmail = profile.email;
         this.profileForm.setValue({ name: profile.name ?? '' });
+        this.gravatarEnabled = profile.gravatarEnabled;
+        this.avatarUrl = profile.avatarUrl;
         this.loadingProfile = false;
       },
       error: () => {
@@ -511,6 +591,24 @@ export class UserSettings implements OnInit, OnDestroy {
       this.showToast('Could not save profile.', 'error');
     } finally {
       this.savingProfile = false;
+    }
+  }
+
+  async toggleGravatar(): Promise<void> {
+    if (this.savingGravatar || this.loadingProfile) return;
+    const next = !this.gravatarEnabled;
+    this.savingGravatar = true;
+    try {
+      const updated = await firstValueFrom(this.profile.updateProfile({ gravatarEnabled: next }));
+      this.gravatarEnabled = updated.gravatarEnabled;
+      this.avatarUrl = updated.avatarUrl;
+      // Keep the top-bar avatar in sync without a full reload.
+      this.orgState.avatarUrl.set(updated.avatarUrl);
+      this.showToast('Profile saved.', 'success');
+    } catch {
+      this.showToast('Could not save profile.', 'error');
+    } finally {
+      this.savingGravatar = false;
     }
   }
 

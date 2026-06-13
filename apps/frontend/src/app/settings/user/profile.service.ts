@@ -7,6 +7,9 @@ export interface UserProfile {
   email: string;
   name: string | null;
   isSuperAdmin: boolean;
+  gravatarEnabled: boolean;
+  /** Gravatar URL when enabled; null when the user opted out. */
+  avatarUrl: string | null;
 }
 
 /**
@@ -21,7 +24,10 @@ export class ProfileService {
     return this.http.get<UserProfile>('/api/me/profile');
   }
 
-  updateProfile(input: { name: string | null }): Observable<UserProfile> {
+  updateProfile(input: {
+    name?: string | null;
+    gravatarEnabled?: boolean;
+  }): Observable<UserProfile> {
     return this.http.patch<UserProfile>('/api/me/profile', input);
   }
 }

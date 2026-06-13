@@ -2,6 +2,7 @@ import { Body, Controller, Get, NotFoundException, Patch, Req } from '@nestjs/co
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { UserService } from './user.service';
 import { UpdateProfileDto } from './dto';
+import { buildGravatarUrl } from './gravatar.util';
 import type { User, UserOrganisationMembership } from '../db/schema';
 
 /** Self-service view of the signed-in user's own profile. */
@@ -10,6 +11,9 @@ interface ProfileView {
   email: string;
   name: string | null;
   isSuperAdmin: boolean;
+  gravatarEnabled: boolean;
+  /** Gravatar URL when enabled; null when the user opted out (no hash leaves the server). */
+  avatarUrl: string | null;
 }
 
 @Controller('me')
@@ -30,7 +34,10 @@ export class UserController {
     @Req() req: AuthenticatedRequest,
     @Body() dto: UpdateProfileDto,
   ): Promise<ProfileView> {
-    const user = await this.userService.updateProfile(req.user.userId, { name: dto.name });
+    const user = await this.userService.updateProfile(req.user.userId, {
+      name: dto.name,
+      gravatarEnabled: dto.gravatarEnabled,
+    });
     return this.toProfileView(user);
   }
 
@@ -45,6 +52,8 @@ export class UserController {
       email: user.email,
       name: user.name,
       isSuperAdmin: user.isSuperAdmin,
+      gravatarEnabled: user.gravatarEnabled,
+      avatarUrl: user.gravatarEnabled ? buildGravatarUrl(user.email) : null,
     };
   }
 }

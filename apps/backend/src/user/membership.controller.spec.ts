@@ -27,6 +27,7 @@ describe('MembershipController', () => {
     emailChangeToken: null,
     emailChangeTokenExpiresAt: null,
     isSuperAdmin: false,
+    gravatarEnabled: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

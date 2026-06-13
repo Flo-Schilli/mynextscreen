@@ -101,6 +101,10 @@ export const users = pgTable('users', {
   // System-level super-admin (carried in the access JWT). Replaces the former
   // env-based SUPER_ADMIN_USER_IDS list, which is impossible with generated UUIDs.
   isSuperAdmin: boolean().notNull().default(false),
+  // Gravatar opt-out. When true (default), the profile exposes a Gravatar avatar
+  // URL derived from the email hash. When false, no hash is ever sent to a third
+  // party and the UI falls back to the local placeholder avatar.
+  gravatarEnabled: boolean().notNull().default(true),
   ...timestamps,
 });
 
