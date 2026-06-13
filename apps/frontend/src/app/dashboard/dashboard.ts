@@ -11,7 +11,7 @@ import { StorageInfo } from '../content/content.model';
 import { ScheduleEntry } from '../schedules/schedule.model';
 import { ActivityEntry, TimelineEntry, TimelineRow } from './dashboard.model';
 import { DashboardScreenGrid } from './dashboard-screen-grid';
-import { DashboardStorageUsage } from './dashboard-storage-usage';
+import { StorageUsageBars } from '../shared/storage-usage-bars';
 import { DashboardScheduleTimeline } from './dashboard-schedule-timeline';
 import { DashboardActivityFeed } from './dashboard-activity-feed';
 
@@ -25,7 +25,7 @@ import { DashboardActivityFeed } from './dashboard-activity-feed';
   selector: 'app-dashboard',
   imports: [
     DashboardScreenGrid,
-    DashboardStorageUsage,
+    StorageUsageBars,
     DashboardScheduleTimeline,
     DashboardActivityFeed,
   ],
@@ -65,7 +65,7 @@ import { DashboardActivityFeed } from './dashboard-activity-feed';
             } @else if (!storage()) {
               <div class="empty-state">No storage data available.</div>
             } @else {
-              <app-dashboard-storage-usage [storage]="storage()!" />
+              <app-storage-usage-bars [storage]="storage()!" />
             }
           </div>
         </section>

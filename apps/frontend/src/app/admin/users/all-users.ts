@@ -25,6 +25,7 @@ import { ToastService } from '../../shared/toast/toast.service';
       </header>
 
       <nav class="settings-nav">
+        <a class="settings-nav-link" routerLink="/admin/dashboard">Dashboard</a>
         <a class="settings-nav-link" routerLink="/admin/organisations">Organisations</a>
         <a class="settings-nav-link active">Users</a>
       </nav>

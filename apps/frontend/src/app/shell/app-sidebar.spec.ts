@@ -189,7 +189,7 @@ describe('AppSidebar', () => {
       expect(fixture.debugElement.query(By.css('.nav-divider'))).toBeNull();
     });
 
-    it('renders the admin nav item pointing at /admin/organisations for super admins', async () => {
+    it('renders the admin nav item pointing at /admin/dashboard for super admins', async () => {
       // Arrange + Act
       const fixture = await createFixture({ isSuperAdmin: true });
 
@@ -197,7 +197,7 @@ describe('AppSidebar', () => {
       const adminLink = fixture.debugElement.query(By.css('.admin-nav-item'));
       expect(adminLink).not.toBeNull();
       expect((adminLink.nativeElement as HTMLAnchorElement).getAttribute('href')).toBe(
-        '/admin/organisations',
+        '/admin/dashboard',
       );
       expect(fixture.debugElement.query(By.css('.nav-divider'))).not.toBeNull();
     });

@@ -40,6 +40,12 @@ export const routes: Routes = [
         loadComponent: () => import('./dashboard/dashboard').then((m) => m.Dashboard),
       },
       {
+        path: 'admin/dashboard',
+        canActivate: [superAdminGuard],
+        loadComponent: () =>
+          import('./admin/dashboard/instance-dashboard').then((m) => m.InstanceDashboard),
+      },
+      {
         path: 'admin/organisations',
         canActivate: [superAdminGuard],
         loadComponent: () =>
@@ -62,6 +68,10 @@ export const routes: Routes = [
         path: 'settings/org/notifications',
         loadComponent: () =>
           import('./settings/org/org-notification-config').then((m) => m.OrgNotificationConfig),
+      },
+      {
+        path: 'settings/org/storage',
+        loadComponent: () => import('./settings/org/org-storage').then((m) => m.OrgStorage),
       },
       {
         path: 'screens',

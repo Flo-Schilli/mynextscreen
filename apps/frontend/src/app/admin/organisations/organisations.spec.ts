@@ -491,10 +491,19 @@ describe('Organisations', () => {
   });
 
   describe('helpers', () => {
-    it('formatBytes formats sizes with unit scaling', () => {
-      expect(component.formatBytes(0)).toBe('0 B');
-      expect(component.formatBytes(1024)).toBe('1.0 KB');
-      expect(component.formatBytes(1024 * 1024)).toBe('1.0 MB');
+    it('storageOf maps organisation storage columns to the StorageInfo shape', () => {
+      const info = component.storageOf({
+        storageOriginalUsedBytes: 100,
+        storageOriginalLimitBytes: 1024,
+        storageTranscodedUsedBytes: 200,
+        storageTranscodedLimitBytes: 2048,
+      } as never);
+      expect(info).toEqual({
+        originalUsedBytes: 100,
+        originalLimitBytes: 1024,
+        transcodedUsedBytes: 200,
+        transcodedLimitBytes: 2048,
+      });
     });
 
     it('goBack navigates to the root route', () => {

@@ -8,6 +8,8 @@ import { OrgMemberList } from './org-member-list';
 import { OrgAddMemberModal, AddMemberPayload } from './org-add-member-modal';
 import { OrgRemoveMemberModal } from './org-remove-member-modal';
 import { OrgDeleteModal } from './org-delete-modal';
+import { StorageUsageBars } from '../../shared/storage-usage-bars';
+import { StorageInfo } from '../../content/content.model';
 import { ToastService } from '../../shared/toast/toast.service';
 
 /**
@@ -28,6 +30,7 @@ import { ToastService } from '../../shared/toast/toast.service';
     OrgAddMemberModal,
     OrgRemoveMemberModal,
     OrgDeleteModal,
+    StorageUsageBars,
   ],
   template: `
     <div class="page">
@@ -42,6 +45,7 @@ import { ToastService } from '../../shared/toast/toast.service';
       </header>
 
       <nav class="settings-nav">
+        <a class="settings-nav-link" routerLink="/admin/dashboard">Dashboard</a>
         <a class="settings-nav-link active">Organisations</a>
         <a class="settings-nav-link" routerLink="/admin/users">Users</a>
       </nav>
@@ -68,14 +72,11 @@ import { ToastService } from '../../shared/toast/toast.service';
 
         <div class="org-info">
           <span class="info-tag">{{ selectedOrg.timeZone }}</span>
-          <span class="info-tag"
-            >Original: {{ formatBytes(selectedOrg.storageOriginalUsedBytes) }} /
-            {{ formatBytes(selectedOrg.storageOriginalLimitBytes) }}</span
-          >
-          <span class="info-tag"
-            >Transcoded: {{ formatBytes(selectedOrg.storageTranscodedUsedBytes) }} /
-            {{ formatBytes(selectedOrg.storageTranscodedLimitBytes) }}</span
-          >
+        </div>
+
+        <div class="storage-panel">
+          <h3 class="storage-title">Storage Usage</h3>
+          <app-storage-usage-bars [storage]="storageOf(selectedOrg)" />
         </div>
 
         <!-- Members section -->
@@ -212,7 +213,21 @@ import { ToastService } from '../../shared/toast/toast.service';
       display: flex;
       flex-wrap: wrap;
       gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .storage-panel {
+      background: var(--color-bg-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: 0.5rem;
+      padding: 1.25rem;
       margin-bottom: 1.5rem;
+      max-width: 40rem;
+    }
+    .storage-title {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      margin: 0 0 1rem;
     }
     .info-tag {
       background: var(--color-bg-secondary);
@@ -505,11 +520,14 @@ export class Organisations implements OnInit {
 
   // ── Helpers ──
 
-  formatBytes(bytes: number): string {
-    if (bytes === 0) return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+  /** Map an organisation's storage columns to the shared {@link StorageInfo} shape. */
+  storageOf(org: Organisation): StorageInfo {
+    return {
+      originalUsedBytes: org.storageOriginalUsedBytes,
+      originalLimitBytes: org.storageOriginalLimitBytes,
+      transcodedUsedBytes: org.storageTranscodedUsedBytes,
+      transcodedLimitBytes: org.storageTranscodedLimitBytes,
+    };
   }
 
   goBack(): void {

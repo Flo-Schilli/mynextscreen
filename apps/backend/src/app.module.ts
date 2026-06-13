@@ -20,6 +20,7 @@ import { SliceContentModule } from './slice-content';
 import { NotificationModule } from './notification';
 import { LiveStreamModule } from './live-stream';
 import { SearchModule } from './search/search.module';
+import { InstanceAdminModule } from './instance-admin';
 import { HealthController } from './health.controller';
 import { VersionController } from './version.controller';
 import { validateEnv } from './config/env.validation';
@@ -58,6 +59,7 @@ import { validateEnv } from './config/env.validation';
     NotificationModule,
     LiveStreamModule,
     SearchModule,
+    InstanceAdminModule,
   ],
   controllers: [HealthController, VersionController],
 })

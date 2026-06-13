@@ -24,6 +24,7 @@ import { ToastService } from '../../shared/toast/toast.service';
       <nav class="settings-nav">
         <a class="settings-nav-link" routerLink="/settings/users">User Management</a>
         <a class="settings-nav-link active">Notification Config</a>
+        <a class="settings-nav-link" routerLink="/settings/org/storage">Storage</a>
       </nav>
 
       @if (loading) {

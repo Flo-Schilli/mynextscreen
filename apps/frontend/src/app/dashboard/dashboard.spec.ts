@@ -14,7 +14,7 @@ import { Screen } from '../screens/screen.model';
 import { StorageInfo } from '../content/content.model';
 import { ScheduleEntry } from '../schedules/schedule.model';
 import { DashboardScreenGrid } from './dashboard-screen-grid';
-import { DashboardStorageUsage } from './dashboard-storage-usage';
+import { StorageUsageBars } from '../shared/storage-usage-bars';
 import { DashboardScheduleTimeline } from './dashboard-schedule-timeline';
 import { DashboardActivityFeed } from './dashboard-activity-feed';
 
@@ -232,7 +232,7 @@ describe('Dashboard', () => {
       // Assert
       const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
       expect(text).toContain('No storage data available.');
-      expect(fixture.debugElement.query(By.directive(DashboardStorageUsage))).toBeNull();
+      expect(fixture.debugElement.query(By.directive(StorageUsageBars))).toBeNull();
     });
 
     it('renders the storage child when storage is available', async () => {
@@ -240,7 +240,7 @@ describe('Dashboard', () => {
       await setup({ storage: vi.fn(() => of(makeStorage())) });
 
       // Assert
-      expect(fixture.debugElement.query(By.directive(DashboardStorageUsage))).not.toBeNull();
+      expect(fixture.debugElement.query(By.directive(StorageUsageBars))).not.toBeNull();
     });
 
     it('shows the schedule empty state when there are no timeline rows', async () => {
