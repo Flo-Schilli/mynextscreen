@@ -11,6 +11,7 @@ describe('MembershipController', () => {
   let service: Record<string, jest.Mock>;
 
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
+  const req = { user: { userId: 'actor-1' } } as never;
 
   const mockUser: User = {
     id: 'u-1',
@@ -112,15 +113,20 @@ describe('MembershipController', () => {
         user: { ...mockUser, passwordHash: null },
       });
 
-      const result = await controller.addMember(orgId, {
-        email: 'test@example.com',
-        role: OrganisationRole.Editor,
-      });
+      const result = await controller.addMember(
+        orgId,
+        {
+          email: 'test@example.com',
+          role: OrganisationRole.Editor,
+        },
+        req,
+      );
 
       expect(service.addMember).toHaveBeenCalledWith(
         orgId,
         'test@example.com',
         OrganisationRole.Editor,
+        'actor-1',
       );
       // A brand-new invitee has no password yet → pending.
       expect(result.status).toBe('pending');
@@ -134,11 +140,21 @@ describe('MembershipController', () => {
       const updated = { ...mockMembership, role: OrganisationRole.Viewer };
       service.updateRole.mockResolvedValue(updated);
 
-      const result = await controller.updateRole(orgId, 'u-1', {
-        role: OrganisationRole.Viewer,
-      });
+      const result = await controller.updateRole(
+        orgId,
+        'u-1',
+        {
+          role: OrganisationRole.Viewer,
+        },
+        req,
+      );
 
-      expect(service.updateRole).toHaveBeenCalledWith(orgId, 'u-1', OrganisationRole.Viewer);
+      expect(service.updateRole).toHaveBeenCalledWith(
+        orgId,
+        'u-1',
+        OrganisationRole.Viewer,
+        'actor-1',
+      );
       expect(result.role).toBe(OrganisationRole.Viewer);
     });
   });
@@ -147,9 +163,9 @@ describe('MembershipController', () => {
     it('should remove a member from the organisation', async () => {
       service.removeMember.mockResolvedValue(undefined);
 
-      await controller.removeMember(orgId, 'u-1');
+      await controller.removeMember(orgId, 'u-1', req);
 
-      expect(service.removeMember).toHaveBeenCalledWith(orgId, 'u-1');
+      expect(service.removeMember).toHaveBeenCalledWith(orgId, 'u-1', 'actor-1');
     });
   });
 });
