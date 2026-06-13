@@ -140,6 +140,38 @@ export class AuthPasswordChangedEvent {
   constructor(public readonly email: string) {}
 }
 
+// ── Auth / Account audit (instance-level) ─────────────────────────────────────
+// These are the *audit* counterparts of the auth flow (distinct from the mailer
+// events above): emitted by the auth controller and consumed by AuditListener so
+// the instance-wide audit log captures account lifecycle events. organisationId
+// is null for self-signup / first-run setup (instance-level, not org-scoped).
+export const AUDIT_USER_REGISTERED = 'audit.auth.user_registered';
+export const AUDIT_EMAIL_VERIFIED = 'audit.auth.email_verified';
+export const AUDIT_AUTH_EMAIL_CHANGE_REQUESTED = 'audit.auth.email_change_requested';
+export const AUDIT_AUTH_EMAIL_CHANGED = 'audit.auth.email_changed';
+export const AUDIT_AUTH_PASSWORD_RESET_REQUESTED = 'audit.auth.password_reset_requested';
+export const AUDIT_AUTH_PASSWORD_CHANGED = 'audit.auth.password_changed';
+export const AUDIT_SUPER_ADMIN_SETUP = 'audit.auth.super_admin_setup';
+
+export class AuditAuthEvent {
+  constructor(
+    public readonly userId: string | null,
+    public readonly organisationId: string | null,
+    public readonly details: Record<string, unknown> | null,
+  ) {}
+}
+
+// ── Platform email dispatch audit ─────────────────────────────────────────────
+// Emitted by PlatformMailerService after each account/system mail send attempt
+// so the instance admin can see what mail the server sent (and whether it
+// succeeded). Carries no token — only recipient + subject.
+export const AUDIT_EMAIL_SENT = 'audit.email.sent';
+export const AUDIT_EMAIL_SEND_FAILED = 'audit.email.send_failed';
+
+export class AuditEmailEvent {
+  constructor(public readonly details: Record<string, unknown> | null) {}
+}
+
 // ── Organisation ─────────────────────────────────────────────────────────────
 export const AUDIT_ORGANISATION_CREATED = 'audit.organisation.created';
 export const AUDIT_ORGANISATION_UPDATED = 'audit.organisation.updated';

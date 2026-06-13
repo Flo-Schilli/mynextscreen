@@ -1,7 +1,10 @@
 import * as nodemailer from 'nodemailer';
 import type { ConfigService } from '@nestjs/config';
+import type { EventEmitter2 } from '@nestjs/event-emitter';
 import { PlatformMailerService } from './platform-mailer.service';
 import {
+  AUDIT_EMAIL_SENT,
+  AUDIT_EMAIL_SEND_FAILED,
   AuthEmailChangeRequestedEvent,
   AuthEmailVerificationRequestedEvent,
   AuthPasswordChangedEvent,
@@ -14,6 +17,7 @@ jest.mock('nodemailer');
 describe('PlatformMailerService', () => {
   const mockSendMail = jest.fn();
   const mockCreateTransport = nodemailer.createTransport as jest.Mock;
+  const mockEmit = jest.fn();
 
   const env: Record<string, unknown> = {
     SMTP_HOST: 'smtp.example.com',
@@ -30,7 +34,8 @@ describe('PlatformMailerService', () => {
     const config = {
       get: jest.fn((key: string, fallback?: unknown) => merged[key] ?? fallback),
     } as unknown as ConfigService;
-    return new PlatformMailerService(config);
+    const events = { emit: mockEmit } as unknown as EventEmitter2;
+    return new PlatformMailerService(config, events);
   }
 
   beforeEach(() => {
@@ -133,5 +138,36 @@ describe('PlatformMailerService', () => {
     const service = makeService();
 
     await expect(service.sendVerifyEmail('a@b.com', 'tok')).resolves.toBeUndefined();
+  });
+
+  it('emits an email-sent audit event (recipient + subject only, no token) on success', async () => {
+    const service = makeService();
+
+    await service.sendVerifyEmail('a@b.com', 'secret-token');
+
+    expect(mockEmit).toHaveBeenCalledWith(AUDIT_EMAIL_SENT, expect.anything());
+    const [, event] = mockEmit.mock.calls[0];
+    expect(event.details.to).toBe('a@b.com');
+    expect(event.details.subject).toMatch(/verify/i);
+    expect(JSON.stringify(event.details)).not.toContain('secret-token');
+  });
+
+  it('emits an email-send-failed audit event with the reason on send error', async () => {
+    mockSendMail.mockRejectedValue(new Error('SMTP down'));
+    const service = makeService();
+
+    await service.sendVerifyEmail('a@b.com', 'tok');
+
+    expect(mockEmit).toHaveBeenCalledWith(AUDIT_EMAIL_SEND_FAILED, expect.anything());
+    const [, event] = mockEmit.mock.calls[0];
+    expect(event.details.reason).toBe('SMTP down');
+  });
+
+  it('emits an email-send-failed audit event when SMTP is not configured', async () => {
+    const service = makeService({ SMTP_HOST: '' });
+
+    await service.sendVerifyEmail('a@b.com', 'tok');
+
+    expect(mockEmit).toHaveBeenCalledWith(AUDIT_EMAIL_SEND_FAILED, expect.anything());
   });
 });

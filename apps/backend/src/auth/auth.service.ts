@@ -185,8 +185,12 @@ export class AuthService {
     return { oldEmail: user.email, newEmail: normalisedNew, changeToken };
   }
 
-  /** Confirm an email-change token: validate + unexpired → promote pendingEmail. */
-  async confirmEmailChange(token: string): Promise<void> {
+  /**
+   * Confirm an email-change token: validate + unexpired → promote pendingEmail.
+   * Returns the user id and the old/new addresses so the caller can audit the
+   * change (captured before the row is mutated).
+   */
+  async confirmEmailChange(token: string): Promise<EmailChangeRequest & { userId: string }> {
     const user = await this.users.findByEmailChangeToken(token);
     if (
       !user ||
@@ -197,6 +201,12 @@ export class AuthService {
     }
     await this.users.applyEmailChange(user.id);
     this.logger.log(`Email change confirmed userId=${user.id}`);
+    return {
+      userId: user.id,
+      oldEmail: user.email,
+      newEmail: user.pendingEmail ?? user.email,
+      changeToken: token,
+    };
   }
 
   async refresh(rawRefreshToken: string): Promise<RefreshResult> {

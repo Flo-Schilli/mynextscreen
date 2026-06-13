@@ -10,6 +10,12 @@ import {
   AUTH_EMAIL_VERIFICATION_REQUESTED,
   AUTH_PASSWORD_CHANGED,
   AUTH_PASSWORD_RESET_REQUESTED,
+  AUDIT_USER_REGISTERED,
+  AUDIT_EMAIL_VERIFIED,
+  AUDIT_AUTH_EMAIL_CHANGE_REQUESTED,
+  AUDIT_AUTH_EMAIL_CHANGED,
+  AUDIT_AUTH_PASSWORD_RESET_REQUESTED,
+  AUDIT_AUTH_PASSWORD_CHANGED,
 } from '../audit-log/audit.events';
 import type { User } from '../db/schema';
 
@@ -111,6 +117,10 @@ describe('AuthController', () => {
         AUTH_EMAIL_VERIFICATION_REQUESTED,
         expect.objectContaining({ email: 'new@example.com', verificationToken: 'vtok' }),
       );
+      expect(events.emit).toHaveBeenCalledWith(
+        AUDIT_USER_REGISTERED,
+        expect.objectContaining({ userId: 'user-1', organisationId: null }),
+      );
     });
 
     it('rejects with 403 when signup is disabled', async () => {
@@ -133,6 +143,10 @@ describe('AuthController', () => {
       expect(auth.verifyEmail).toHaveBeenCalledWith('t');
       expect(res.cookie).toHaveBeenCalledTimes(2);
       expect(result.user).toEqual({ userId: 'u9', email: 'v@example.com', isSuperAdmin: false });
+      expect(events.emit).toHaveBeenCalledWith(
+        AUDIT_EMAIL_VERIFIED,
+        expect.objectContaining({ userId: 'u9', details: { email: 'v@example.com' } }),
+      );
     });
   });
 
@@ -174,6 +188,10 @@ describe('AuthController', () => {
         AUTH_PASSWORD_RESET_REQUESTED,
         expect.objectContaining({ email: 'user@example.com', resetToken: 'rtok' }),
       );
+      expect(events.emit).toHaveBeenCalledWith(
+        AUDIT_AUTH_PASSWORD_RESET_REQUESTED,
+        expect.objectContaining({ userId: 'user-1' }),
+      );
     });
 
     it('is enumeration-safe: no event for unknown email', async () => {
@@ -209,6 +227,10 @@ describe('AuthController', () => {
         AUTH_PASSWORD_CHANGED,
         expect.objectContaining({ email: 'user@example.com' }),
       );
+      expect(events.emit).toHaveBeenCalledWith(
+        AUDIT_AUTH_PASSWORD_CHANGED,
+        expect.objectContaining({ userId: 'u1', details: { email: 'user@example.com' } }),
+      );
     });
   });
 
@@ -235,13 +257,35 @@ describe('AuthController', () => {
           changeToken: 'ctok',
         }),
       );
+      expect(events.emit).toHaveBeenCalledWith(
+        AUDIT_AUTH_EMAIL_CHANGE_REQUESTED,
+        expect.objectContaining({
+          userId: 'u1',
+          details: { oldEmail: 'old@example.com', newEmail: 'new@example.com' },
+        }),
+      );
     });
   });
 
   describe('confirmEmailChange', () => {
-    it('delegates to the auth service', async () => {
+    it('delegates to the auth service then emits an email-changed audit event', async () => {
+      auth.confirmEmailChange.mockResolvedValue({
+        userId: 'u1',
+        oldEmail: 'old@example.com',
+        newEmail: 'new@example.com',
+        changeToken: 'ctok',
+      });
+
       await controller.confirmEmailChange({ token: 'ctok' });
+
       expect(auth.confirmEmailChange).toHaveBeenCalledWith('ctok');
+      expect(events.emit).toHaveBeenCalledWith(
+        AUDIT_AUTH_EMAIL_CHANGED,
+        expect.objectContaining({
+          userId: 'u1',
+          details: { oldEmail: 'old@example.com', newEmail: 'new@example.com' },
+        }),
+      );
     });
   });
 

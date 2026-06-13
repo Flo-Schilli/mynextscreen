@@ -18,6 +18,9 @@ import { AuditEntry, AUDIT_ACTION_LABELS } from './audit-log.model';
         <thead>
           <tr>
             <th>Timestamp</th>
+            @if (showOrganisation()) {
+              <th>Organisation</th>
+            }
             <th>User</th>
             <th>Action</th>
             <th>Resource Type</th>
@@ -29,6 +32,9 @@ import { AuditEntry, AUDIT_ACTION_LABELS } from './audit-log.model';
           @for (entry of entries(); track entry.id) {
             <tr>
               <td class="timestamp-cell">{{ entry.timestamp | date: 'medium' }}</td>
+              @if (showOrganisation()) {
+                <td class="org-cell">{{ getOrgDisplay(entry.organisationId) }}</td>
+              }
               <td>{{ getUserDisplay(entry.userId) }}</td>
               <td>
                 <span class="action-badge" [attr.data-category]="actionCategory(entry.action)">
@@ -136,6 +142,19 @@ import { AuditEntry, AUDIT_ACTION_LABELS } from './audit-log.model';
       background: rgba(20, 184, 166, 0.15);
       color: #5eead4;
     }
+    .action-badge[data-category='auth'] {
+      background: rgba(99, 102, 241, 0.15);
+      color: #c7d2fe;
+    }
+    .action-badge[data-category='email'] {
+      background: rgba(236, 72, 153, 0.15);
+      color: #fbcfe8;
+    }
+    .org-cell {
+      white-space: nowrap;
+      color: var(--color-text-secondary);
+      font-size: 0.8125rem;
+    }
 
     /* Resource link */
     .resource-link {
@@ -184,6 +203,10 @@ export class AuditLogTable {
   readonly loading = input.required<boolean>();
   readonly hasMore = input.required<boolean>();
   readonly userMap = input.required<Map<string, string>>();
+  /** When true, an Organisation column is rendered (instance-admin view). */
+  readonly showOrganisation = input(false);
+  /** Maps organisationId → display name; used only when showOrganisation is true. */
+  readonly orgMap = input<Map<string, string>>(new Map());
 
   readonly loadMore = output<void>();
   readonly selectResource = output<{ resourceType: string; resourceId: string | null }>();
@@ -199,6 +222,11 @@ export class AuditLogTable {
   protected getUserDisplay(userId: string | null): string {
     if (!userId) return 'System';
     return this.userMap().get(userId) ?? userId.substring(0, 8) + '...';
+  }
+
+  protected getOrgDisplay(organisationId: string | null): string {
+    if (!organisationId) return 'Instance';
+    return this.orgMap().get(organisationId) ?? organisationId.substring(0, 8) + '...';
   }
 
   protected getResourceDisplay(entry: AuditEntry): string {
