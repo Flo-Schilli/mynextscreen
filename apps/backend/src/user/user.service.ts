@@ -151,7 +151,10 @@ export class UserService {
       }
       const [user] = await tx
         .insert(users)
-        .values({ email: normalised, name, passwordHash, isSuperAdmin: true })
+        // First-run super-admin is provisioned directly by the operator — there
+        // is no verification email for them, so mark verified up front or login
+        // would be blocked by the email-not-verified gate on every subsequent visit.
+        .values({ email: normalised, name, passwordHash, isSuperAdmin: true, emailVerified: true })
         .returning();
       return user;
     });
