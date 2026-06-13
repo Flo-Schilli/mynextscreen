@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import type { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Response } from 'express';
@@ -58,7 +58,7 @@ describe('AuthController', () => {
       confirmEmailChange: jest.fn(),
       deleteAccount: jest.fn(),
     };
-    users = { hasAnyUser: jest.fn(), findByEmail: jest.fn() };
+    users = { hasAnyUser: jest.fn(), findByEmail: jest.fn(), findById: jest.fn() };
     events = { emit: jest.fn() };
     configValues = {
       SIGNUP_ENABLED: true,
@@ -242,6 +242,26 @@ describe('AuthController', () => {
     it('delegates to the auth service', async () => {
       await controller.confirmEmailChange({ token: 'ctok' });
       expect(auth.confirmEmailChange).toHaveBeenCalledWith('ctok');
+    });
+  });
+
+  describe('getMe', () => {
+    it('returns the current user sourced from the DB, not the stale JWT payload', async () => {
+      // JWT carries the pre-change email; the DB has the confirmed new address.
+      const req = { user: { userId: 'u1', email: 'old@example.com', isSuperAdmin: false } };
+      users.findById.mockResolvedValue({ id: 'u1', email: 'new@example.com', isSuperAdmin: true });
+
+      const result = await controller.getMe(req as never);
+
+      expect(users.findById).toHaveBeenCalledWith('u1');
+      expect(result).toEqual({ userId: 'u1', email: 'new@example.com', isSuperAdmin: true });
+    });
+
+    it('throws when the user no longer exists', async () => {
+      const req = { user: { userId: 'gone', email: 'x@example.com', isSuperAdmin: false } };
+      users.findById.mockResolvedValue(null);
+
+      await expect(controller.getMe(req as never)).rejects.toThrow(NotFoundException);
     });
   });
 
