@@ -7,6 +7,7 @@ import { vi, type Mock } from 'vitest';
 import { Layout } from './layout';
 import { AppSidebar } from './app-sidebar';
 import { AppTopbar } from './app-topbar';
+import { OrgSwitchModal } from './org-switch-modal';
 import { AuthService } from '../auth/auth.service';
 import { OrganisationStateService } from './organisation-state.service';
 import { ThemeService } from './theme.service';
@@ -36,20 +37,30 @@ class StubSidebar {
 class StubTopbar {
   readonly organisations = input.required<unknown[]>();
   readonly selectedOrgId = input.required<string | null>();
+  readonly selectedOrg = input.required<unknown | null>();
   readonly isSuperAdmin = input.required<boolean>();
   readonly isDark = input.required<boolean>();
   readonly userEmail = input.required<string | null>();
   readonly avatarUrl = input<string | null>(null);
   readonly openMobile = output<void>();
-  readonly selectOrg = output<string>();
+  readonly openOrgSwitch = output<void>();
   readonly toggleTheme = output<void>();
   readonly openProfile = output<void>();
   readonly logout = output<void>();
 }
 
+@Component({ selector: 'app-org-switch-modal', template: '' })
+class StubOrgSwitchModal {
+  readonly organisations = input.required<unknown[]>();
+  readonly selectedOrgId = input.required<string | null>();
+  readonly selectOrg = output<string>();
+  readonly dismiss = output<void>();
+}
+
 interface OrgStateStub {
   organisations: ReturnType<typeof signal<unknown[]>>;
   selectedOrgId: ReturnType<typeof signal<string | null>>;
+  selectedOrg: ReturnType<typeof signal<unknown | null>>;
   isSuperAdmin: ReturnType<typeof signal<boolean>>;
   avatarUrl: ReturnType<typeof signal<string | null>>;
   loadOrganisations: Mock;
@@ -88,6 +99,12 @@ function createStubs(): {
         { id: 'org-1', name: 'Org', timeZone: 'UTC', role: 'org_admin' },
       ]),
       selectedOrgId: signal<string | null>(null),
+      selectedOrg: signal<unknown | null>({
+        id: 'org-1',
+        name: 'Org',
+        timeZone: 'UTC',
+        role: 'org_admin',
+      }),
       isSuperAdmin: signal(false),
       avatarUrl: signal<string | null>(null),
       loadOrganisations: vi.fn(),
@@ -122,8 +139,8 @@ async function createFixture(
     ],
   })
     .overrideComponent(Layout, {
-      remove: { imports: [AppSidebar, AppTopbar] },
-      add: { imports: [StubSidebar, StubTopbar] },
+      remove: { imports: [AppSidebar, AppTopbar, OrgSwitchModal] },
+      add: { imports: [StubSidebar, StubTopbar, StubOrgSwitchModal] },
     })
     .compileComponents();
 
@@ -383,18 +400,71 @@ describe('Layout', () => {
       expect(fixture.componentInstance.mobileOpen()).toBe(true);
     });
 
-    it('forwards topbar selectOrg to the org state service', async () => {
+    it('opens the org-switch modal when the top bar requests it', async () => {
       // Arrange
       const stubs = createStubs();
       const fixture = await createFixture(stubs);
       const topbar = fixture.debugElement.query(By.directive(StubTopbar))
         .componentInstance as StubTopbar;
+      expect(fixture.debugElement.query(By.directive(StubOrgSwitchModal))).toBeNull();
 
       // Act
-      topbar.selectOrg.emit('org-2');
+      topbar.openOrgSwitch.emit();
+      fixture.detectChanges();
+
+      // Assert
+      expect(fixture.componentInstance.showOrgSwitch()).toBe(true);
+      expect(fixture.debugElement.query(By.directive(StubOrgSwitchModal))).not.toBeNull();
+    });
+
+    it('selects the chosen org and closes the modal on modal select', async () => {
+      // Arrange
+      const stubs = createStubs();
+      const fixture = await createFixture(stubs);
+      fixture.componentInstance.showOrgSwitch.set(true);
+      fixture.detectChanges();
+      const modal = fixture.debugElement.query(By.directive(StubOrgSwitchModal))
+        .componentInstance as StubOrgSwitchModal;
+
+      // Act
+      modal.selectOrg.emit('org-2');
+      fixture.detectChanges();
 
       // Assert
       expect(stubs.orgState.select).toHaveBeenCalledExactlyOnceWith('org-2');
+      expect(fixture.componentInstance.showOrgSwitch()).toBe(false);
+    });
+
+    it('closes the modal on dismiss without selecting', async () => {
+      // Arrange
+      const stubs = createStubs();
+      const fixture = await createFixture(stubs);
+      fixture.componentInstance.showOrgSwitch.set(true);
+      fixture.detectChanges();
+      const modal = fixture.debugElement.query(By.directive(StubOrgSwitchModal))
+        .componentInstance as StubOrgSwitchModal;
+
+      // Act
+      modal.dismiss.emit();
+      fixture.detectChanges();
+
+      // Assert
+      expect(fixture.componentInstance.showOrgSwitch()).toBe(false);
+      expect(stubs.orgState.select).not.toHaveBeenCalled();
+    });
+
+    it('hides all primary nav items when the user belongs to no organisation', async () => {
+      // Arrange
+      const stubs = createStubs();
+      stubs.orgState.organisations.set([]);
+
+      // Act
+      const fixture = await createFixture(stubs);
+      const sidebar = fixture.debugElement.query(By.directive(StubSidebar))
+        .componentInstance as StubSidebar;
+
+      // Assert
+      expect(sidebar.navItems().length).toBe(0);
     });
 
     it('forwards topbar toggleTheme to the theme service', async () => {

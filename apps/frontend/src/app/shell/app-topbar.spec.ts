@@ -31,6 +31,7 @@ async function createFixture(
   overrides: {
     organisations?: OrgWithRole[];
     selectedOrgId?: string | null;
+    selectedOrg?: OrgWithRole | null;
     isSuperAdmin?: boolean;
     isDark?: boolean;
     userEmail?: string | null;
@@ -48,10 +49,15 @@ async function createFixture(
     .compileComponents();
 
   const fixture = TestBed.createComponent(AppTopbar);
-  fixture.componentRef.setInput('organisations', overrides.organisations ?? ORGS);
+  const orgs = overrides.organisations ?? ORGS;
+  fixture.componentRef.setInput('organisations', orgs);
   fixture.componentRef.setInput(
     'selectedOrgId',
     overrides.selectedOrgId === undefined ? 'org-1' : overrides.selectedOrgId,
+  );
+  fixture.componentRef.setInput(
+    'selectedOrg',
+    overrides.selectedOrg === undefined ? (orgs[0] ?? null) : overrides.selectedOrg,
   );
   fixture.componentRef.setInput('isSuperAdmin', overrides.isSuperAdmin ?? false);
   fixture.componentRef.setInput('isDark', overrides.isDark ?? true);
@@ -61,119 +67,38 @@ async function createFixture(
   );
   fixture.componentRef.setInput('avatarUrl', overrides.avatarUrl ?? null);
   fixture.detectChanges();
-  // A second pass lets the native <select> [value] binding settle after the
-  // @for options have been created in the first pass.
-  fixture.detectChanges();
   return fixture;
 }
 
-function getSelect(fixture: ComponentFixture<AppTopbar>): HTMLSelectElement {
-  return fixture.debugElement.query(By.css('select.org-select')).nativeElement as HTMLSelectElement;
-}
-
 describe('AppTopbar', () => {
-  describe('organisation switcher', () => {
-    it('renders one option per organisation with role suffix', async () => {
+  describe('organisation indicator', () => {
+    it('shows the selected organisation name and role next to the avatar', async () => {
+      // Arrange + Act
+      const fixture = await createFixture({ selectedOrg: ORGS[1] });
+
+      // Assert
+      const name = fixture.debugElement.query(By.css('.org-info .org-name'))
+        .nativeElement as HTMLElement;
+      const role = fixture.debugElement.query(By.css('.org-info .org-role'))
+        .nativeElement as HTMLElement;
+      expect(name.textContent?.trim()).toBe('Venue Two');
+      expect(role.textContent?.trim()).toBe('Editor');
+    });
+
+    it('hides the organisation indicator when the user belongs to no organisation', async () => {
+      // Arrange + Act
+      const fixture = await createFixture({ organisations: [], selectedOrg: null });
+
+      // Assert
+      expect(fixture.debugElement.query(By.css('.org-info'))).toBeNull();
+    });
+
+    it('does not render the legacy org select switcher', async () => {
       // Arrange + Act
       const fixture = await createFixture();
 
       // Assert
-      const options = fixture.debugElement
-        .queryAll(By.css('.org-select option'))
-        .map((el) => (el.nativeElement as HTMLOptionElement).textContent?.trim());
-      expect(options).toEqual(['Venue One (Admin)', 'Venue Two (Editor)']);
-    });
-
-    it('binds the selected org id to the native select value property', async () => {
-      // Arrange
-      const fixture = await createFixture({ selectedOrgId: 'org-2' });
-      const select = getSelect(fixture);
-
-      // Act: native <select> snaps to the first option until the value binding is
-      // re-applied after the options exist; emulate that settle step explicitly.
-      select.value = 'org-2';
-      fixture.detectChanges();
-
-      // Assert: the option for the selected id is selectable and selected
-      expect(select.value).toBe('org-2');
-      const selectedOption = Array.from(select.options).find((o) => o.value === 'org-2');
-      expect(selectedOption?.selected).toBe(true);
-    });
-
-    it('renders an option for every organisation regardless of selection', async () => {
-      // Arrange + Act
-      const fixture = await createFixture({ selectedOrgId: null });
-
-      // Assert: no org pre-selected, but all options are present and bindable
-      const values = Array.from(getSelect(fixture).options).map((o) => o.value);
-      expect(values).toEqual(['org-1', 'org-2']);
-    });
-
-    it('disables the switcher when only one organisation exists', async () => {
-      // Arrange + Act
-      const fixture = await createFixture({ organisations: [ORGS[0]], selectedOrgId: 'org-1' });
-
-      // Assert
-      expect(getSelect(fixture).disabled).toBe(true);
-    });
-
-    it('enables the switcher when multiple organisations exist', async () => {
-      // Arrange + Act
-      const fixture = await createFixture();
-
-      // Assert
-      expect(getSelect(fixture).disabled).toBe(false);
-    });
-
-    it('emits selectOrg with the chosen id on change', async () => {
-      // Arrange
-      const fixture = await createFixture();
-      const spy = vi.fn();
-      fixture.componentInstance.selectOrg.subscribe(spy);
-      const select = getSelect(fixture);
-
-      // Act
-      select.value = 'org-2';
-      select.dispatchEvent(new Event('change'));
-
-      // Assert
-      expect(spy).toHaveBeenCalledExactlyOnceWith('org-2');
-    });
-
-    it('does not emit selectOrg when the change value is empty', async () => {
-      // Arrange
-      const fixture = await createFixture();
-      const spy = vi.fn();
-      fixture.componentInstance.selectOrg.subscribe(spy);
-
-      // Act: simulate a change event carrying an empty value
-      fixture.componentInstance.onOrgChange({
-        target: { value: '' } as HTMLSelectElement,
-      } as unknown as Event);
-
-      // Assert
-      expect(spy).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('formatRole', () => {
-    it('maps known role keys to display labels', async () => {
-      // Arrange
-      const fixture = await createFixture();
-      const topbar = fixture.componentInstance;
-
-      // Act + Assert
-      expect(topbar.formatRole('org_admin')).toBe('Admin');
-      expect(topbar.formatRole('editor')).toBe('Editor');
-      expect(topbar.formatRole('viewer')).toBe('Viewer');
-    });
-
-    it('returns the raw role for unknown role keys', async () => {
-      // Arrange
-      const fixture = await createFixture();
-
-      // Act + Assert
-      expect(fixture.componentInstance.formatRole('super_admin')).toBe('super_admin');
+      expect(fixture.debugElement.query(By.css('select.org-select'))).toBeNull();
     });
   });
 
@@ -261,8 +186,10 @@ describe('AppTopbar', () => {
       // Assert
       const avatar = fixture.debugElement.query(By.css('.user-avatar'))
         .nativeElement as HTMLElement;
+      const trigger = fixture.debugElement.query(By.css('.user-trigger'))
+        .nativeElement as HTMLElement;
       expect(avatar.classList.contains('super-admin')).toBe(false);
-      expect(avatar.getAttribute('aria-label')).toBe('Current user');
+      expect(trigger.getAttribute('aria-label')).toBe('Current user');
       expect(fixture.debugElement.query(By.css('.admin-badge'))).toBeNull();
     });
 
@@ -273,8 +200,10 @@ describe('AppTopbar', () => {
       // Assert
       const avatar = fixture.debugElement.query(By.css('.user-avatar'))
         .nativeElement as HTMLElement;
+      const trigger = fixture.debugElement.query(By.css('.user-trigger'))
+        .nativeElement as HTMLElement;
       expect(avatar.classList.contains('super-admin')).toBe(true);
-      expect(avatar.getAttribute('aria-label')).toBe('Instance Admin');
+      expect(trigger.getAttribute('aria-label')).toBe('Instance Admin');
       expect(fixture.debugElement.query(By.css('.admin-badge'))).not.toBeNull();
     });
   });
@@ -314,9 +243,9 @@ describe('AppTopbar', () => {
   });
 
   describe('user menu', () => {
-    function clickAvatar(fixture: ComponentFixture<AppTopbar>): void {
+    function clickTrigger(fixture: ComponentFixture<AppTopbar>): void {
       (
-        fixture.debugElement.query(By.css('.user-avatar')).nativeElement as HTMLButtonElement
+        fixture.debugElement.query(By.css('.user-trigger')).nativeElement as HTMLButtonElement
       ).click();
       fixture.detectChanges();
     }
@@ -327,10 +256,10 @@ describe('AppTopbar', () => {
       expect(fixture.debugElement.query(By.css('.user-dropdown'))).toBeNull();
     });
 
-    it('opens the dropdown and shows the email when the avatar is clicked', async () => {
+    it('opens the dropdown and shows the email when the trigger is clicked', async () => {
       const fixture = await createFixture({ userEmail: 'jane@example.com' });
 
-      clickAvatar(fixture);
+      clickTrigger(fixture);
 
       expect(fixture.componentInstance.menuOpen()).toBe(true);
       const email = fixture.debugElement.query(By.css('.user-email')).nativeElement as HTMLElement;
@@ -339,14 +268,14 @@ describe('AppTopbar', () => {
 
     it('shows the Instance Admin role for super admins', async () => {
       const fixture = await createFixture({ isSuperAdmin: true });
-      clickAvatar(fixture);
+      clickTrigger(fixture);
       const role = fixture.debugElement.query(By.css('.user-role')).nativeElement as HTMLElement;
       expect(role.textContent?.trim()).toBe('Instance Admin');
     });
 
     it('falls back to "Signed in" when no email is known', async () => {
       const fixture = await createFixture({ userEmail: null });
-      clickAvatar(fixture);
+      clickTrigger(fixture);
       const email = fixture.debugElement.query(By.css('.user-email')).nativeElement as HTMLElement;
       expect(email.textContent?.trim()).toBe('Signed in');
     });
@@ -355,10 +284,12 @@ describe('AppTopbar', () => {
       const fixture = await createFixture();
       const spy = vi.fn();
       fixture.componentInstance.openProfile.subscribe(spy);
-      clickAvatar(fixture);
+      clickTrigger(fixture);
 
-      const items = fixture.debugElement.queryAll(By.css('.dropdown-item'));
-      (items[0].nativeElement as HTMLButtonElement).click();
+      const profile = fixture.debugElement
+        .queryAll(By.css('.dropdown-item'))
+        .find((el) => (el.nativeElement as HTMLElement).textContent?.includes('Profile'));
+      (profile?.nativeElement as HTMLButtonElement).click();
       fixture.detectChanges();
 
       expect(spy).toHaveBeenCalledTimes(1);
@@ -369,10 +300,10 @@ describe('AppTopbar', () => {
       const fixture = await createFixture();
       const spy = vi.fn();
       fixture.componentInstance.logout.subscribe(spy);
-      clickAvatar(fixture);
+      clickTrigger(fixture);
 
-      const items = fixture.debugElement.queryAll(By.css('.dropdown-item'));
-      (items[1].nativeElement as HTMLButtonElement).click();
+      const logout = fixture.debugElement.query(By.css('.dropdown-item-danger'));
+      (logout.nativeElement as HTMLButtonElement).click();
       fixture.detectChanges();
 
       expect(spy).toHaveBeenCalledTimes(1);
@@ -381,7 +312,7 @@ describe('AppTopbar', () => {
 
     it('closes the menu on a click outside', async () => {
       const fixture = await createFixture();
-      clickAvatar(fixture);
+      clickTrigger(fixture);
       expect(fixture.componentInstance.menuOpen()).toBe(true);
 
       document.body.click();
@@ -392,12 +323,56 @@ describe('AppTopbar', () => {
 
     it('closes the menu on Escape', async () => {
       const fixture = await createFixture();
-      clickAvatar(fixture);
+      clickTrigger(fixture);
       expect(fixture.componentInstance.menuOpen()).toBe(true);
 
       fixture.componentInstance.onEscape();
       fixture.detectChanges();
 
+      expect(fixture.componentInstance.menuOpen()).toBe(false);
+    });
+  });
+
+  describe('organisation switch entry', () => {
+    function clickTrigger(fixture: ComponentFixture<AppTopbar>): void {
+      (
+        fixture.debugElement.query(By.css('.user-trigger')).nativeElement as HTMLButtonElement
+      ).click();
+      fixture.detectChanges();
+    }
+
+    function switchItem(fixture: ComponentFixture<AppTopbar>) {
+      return fixture.debugElement.query(By.css('.dropdown-item-switch'));
+    }
+
+    it('shows the switch item when the user belongs to more than one organisation', async () => {
+      const fixture = await createFixture({ organisations: ORGS });
+      clickTrigger(fixture);
+      expect(switchItem(fixture)).not.toBeNull();
+    });
+
+    it('hides the switch item when the user belongs to a single organisation', async () => {
+      const fixture = await createFixture({ organisations: [ORGS[0]], selectedOrg: ORGS[0] });
+      clickTrigger(fixture);
+      expect(switchItem(fixture)).toBeNull();
+    });
+
+    it('hides the switch item when the user belongs to no organisation', async () => {
+      const fixture = await createFixture({ organisations: [], selectedOrg: null });
+      clickTrigger(fixture);
+      expect(switchItem(fixture)).toBeNull();
+    });
+
+    it('emits openOrgSwitch and closes the menu when the switch item is clicked', async () => {
+      const fixture = await createFixture({ organisations: ORGS });
+      const spy = vi.fn();
+      fixture.componentInstance.openOrgSwitch.subscribe(spy);
+      clickTrigger(fixture);
+
+      (switchItem(fixture).nativeElement as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      expect(spy).toHaveBeenCalledTimes(1);
       expect(fixture.componentInstance.menuOpen()).toBe(false);
     });
   });
