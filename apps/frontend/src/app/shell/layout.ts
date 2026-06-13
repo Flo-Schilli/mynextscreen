@@ -6,6 +6,7 @@ import { ThemeService } from './theme.service';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { AppSidebar, NavItem } from './app-sidebar';
 import { AppTopbar } from './app-topbar';
+import { OrgSwitchModal } from './org-switch-modal';
 
 const SIDEBAR_KEY = 'signage_sidebar_collapsed';
 
@@ -16,7 +17,7 @@ const SIDEBAR_KEY = 'signage_sidebar_collapsed';
  */
 @Component({
   selector: 'app-layout',
-  imports: [RouterOutlet, AppSidebar, AppTopbar],
+  imports: [RouterOutlet, AppSidebar, AppTopbar, OrgSwitchModal],
   template: `
     <!-- Mobile overlay -->
     @if (mobileOpen()) {
@@ -33,7 +34,7 @@ const SIDEBAR_KEY = 'signage_sidebar_collapsed';
     <app-sidebar
       [collapsed]="collapsed()"
       [mobileOpen]="mobileOpen()"
-      [navItems]="navItems"
+      [navItems]="visibleNavItems()"
       [isSuperAdmin]="orgState.isSuperAdmin()"
       (toggleCollapse)="toggleCollapse()"
       (closeMobile)="mobileOpen.set(false)"
@@ -45,12 +46,13 @@ const SIDEBAR_KEY = 'signage_sidebar_collapsed';
       <app-topbar
         [organisations]="orgState.organisations()"
         [selectedOrgId]="orgState.selectedOrgId()"
+        [selectedOrg]="orgState.selectedOrg()"
         [isSuperAdmin]="orgState.isSuperAdmin()"
         [isDark]="theme.isDark()"
         [userEmail]="userEmail()"
         [avatarUrl]="orgState.avatarUrl()"
         (openMobile)="mobileOpen.set(true)"
-        (selectOrg)="orgState.select($event)"
+        (openOrgSwitch)="showOrgSwitch.set(true)"
         (toggleTheme)="theme.toggle()"
         (openProfile)="goToProfile()"
         (logout)="logout()"
@@ -61,6 +63,16 @@ const SIDEBAR_KEY = 'signage_sidebar_collapsed';
         <router-outlet />
       </main>
     </div>
+
+    <!-- Organisation switch modal -->
+    @if (showOrgSwitch()) {
+      <app-org-switch-modal
+        [organisations]="orgState.organisations()"
+        [selectedOrgId]="orgState.selectedOrgId()"
+        (selectOrg)="onSelectOrg($event)"
+        (dismiss)="showOrgSwitch.set(false)"
+      />
+    }
   `,
   styles: `
     :host {
@@ -124,7 +136,17 @@ export class Layout implements OnInit {
 
   readonly collapsed = signal(localStorage.getItem(SIDEBAR_KEY) === 'true');
   readonly mobileOpen = signal(false);
+  readonly showOrgSwitch = signal(false);
   readonly userEmail = computed(() => this.authService.user()?.email ?? null);
+
+  /**
+   * Every primary nav item is organisation-scoped, so a user who belongs to no
+   * organisation (e.g. a pure instance admin) sees none of them — only the
+   * super-admin link the sidebar renders on its own remains.
+   */
+  readonly visibleNavItems = computed(() =>
+    this.orgState.organisations().length > 0 ? this.navItems : [],
+  );
 
   private socketEffect = effect(() => {
     const orgId = this.orgState.selectedOrgId();
@@ -200,6 +222,11 @@ export class Layout implements OnInit {
 
   goToProfile(): void {
     this.router.navigate(['/settings/user']);
+  }
+
+  onSelectOrg(orgId: string): void {
+    this.orgState.select(orgId);
+    this.showOrgSwitch.set(false);
   }
 
   async logout(): Promise<void> {

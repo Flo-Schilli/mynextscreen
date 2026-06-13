@@ -1,6 +1,11 @@
 <div class="flex min-h-screen items-center justify-center bg-bg-primary px-4">
   <div class="w-full max-w-sm rounded-lg border border-border bg-bg-secondary p-8 shadow-lg">
-    <h1 class="mb-6 text-center text-2xl font-semibold text-text-primary">Signage Server</h1>
+    <div class="mb-6 flex flex-col items-center gap-3">
+      <img src="mynextscreen-icon.png" alt="" class="h-14 w-auto" />
+      <h1 class="text-2xl font-bold tracking-tight">
+        <span class="text-text-primary">my</span><span class="brand-gradient">NextScreen</span>
+      </h1>
+    </div>
 
     @if (notice()) {
       <p class="mb-4 text-center text-sm text-text-secondary" role="status">{{ notice() }}</p>

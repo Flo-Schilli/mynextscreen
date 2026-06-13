@@ -23,7 +23,12 @@ export interface NavItem {
     <aside class="sidebar" [class.collapsed]="collapsed()" [class.mobile-open]="mobileOpen()">
       <div class="sidebar-header">
         @if (!collapsed()) {
-          <span class="logo-text">Signage</span>
+          <span class="logo">
+            <img class="logo-icon" src="mynextscreen-icon.png" alt="myNextScreen" />
+            <span class="logo-text"
+              ><span class="logo-my">my</span><span class="brand-gradient">NextScreen</span></span
+            >
+          </span>
         }
         <button
           class="collapse-btn desktop-only"
@@ -152,11 +157,27 @@ export interface NavItem {
       height: 56px;
       border-bottom: 1px solid var(--color-border);
     }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .logo-icon {
+      width: auto;
+      height: 28px;
+      flex-shrink: 0;
+      display: block;
+    }
     .logo-text {
       font-size: 1.125rem;
       font-weight: 700;
-      color: var(--color-text-primary);
       white-space: nowrap;
+      letter-spacing: -0.01em;
+    }
+    .logo-my {
+      color: var(--color-text-primary);
     }
     .collapse-btn {
       display: flex;
