@@ -1,62 +1,69 @@
-import { Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
-import { VersionBadge } from '../shared/version-badge';
-import { SafeHtmlPipe } from '../shared/safe-html.pipe';
+import { IconComponent, IconName } from '../ui/icon.component';
 
 export interface NavItem {
   label: string;
   route: string;
-  icon: string;
+  icon: IconName;
 }
 
 /**
- * Presentational app sidebar: logo + collapse toggle, the primary nav items,
- * the super-admin link and the logout button. The parent owns the collapsed/
- * mobile-open state and the nav config; this component emits collapse/close/
- * logout intents.
+ * Presentational app sidebar — Phase 2 reskin.
+ * 252 px expanded / 78 px collapsed, bg-rail, gradient logo tile, mns-icon nav.
+ * Active state: bg-accent-soft + text-accent + 700 + 4×22 gradient pill on left.
+ * Nav order per README: Dashboard, Screens, Screen Groups, Content Library,
+ * Playlists, Schedules, Live Streams, Audit Log, Settings. Logout in footer.
  */
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive, VersionBadge, SafeHtmlPipe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterLink, RouterLinkActive, IconComponent],
   template: `
     <aside class="sidebar" [class.collapsed]="collapsed()" [class.mobile-open]="mobileOpen()">
+      <!-- ── Header ── -->
       <div class="sidebar-header">
+        <!-- Logo tile + wordmark -->
+        <div class="logo-wrap">
+          <!-- gradient tile -->
+          <div class="logo-tile">
+            <mns-icon name="Layers" [size]="19" style="color:#fff" />
+          </div>
+          <!-- wordmark — hidden when collapsed -->
+          @if (!collapsed()) {
+            <span class="logo-text">
+              <span class="logo-my">my</span><span class="logo-next">NextScreen</span>
+            </span>
+          }
+        </div>
+
+        <!-- Collapse/expand chevron (only when expanded) -->
         @if (!collapsed()) {
-          <span class="logo">
-            <img class="logo-icon" src="mynextscreen-icon.png" alt="myNextScreen" />
-            <span class="logo-text"
-              ><span class="logo-my">my</span><span class="brand-gradient">NextScreen</span></span
-            >
-          </span>
+          <button
+            class="collapse-btn desktop-only"
+            (click)="toggleCollapse.emit()"
+            [attr.aria-label]="'Collapse sidebar'"
+          >
+            <mns-icon name="ChevronLeft" [size]="17" />
+          </button>
         }
-        <button
-          class="collapse-btn desktop-only"
-          (click)="toggleCollapse.emit()"
-          [attr.aria-label]="collapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            @if (collapsed()) {
-              <path
-                d="M7 4l6 6-6 6"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            } @else {
-              <path
-                d="M13 4l-6 6 6 6"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            }
-          </svg>
-        </button>
       </div>
 
+      <!-- Expand chevron when collapsed -->
+      @if (collapsed()) {
+        <div class="expand-wrap">
+          <button
+            class="collapse-btn"
+            (click)="toggleCollapse.emit()"
+            [attr.aria-label]="'Expand sidebar'"
+          >
+            <mns-icon name="Chevron" [size]="17" />
+          </button>
+        </div>
+      }
+
+      <!-- ── Nav ── -->
       <nav class="sidebar-nav">
         @for (item of navItems(); track item.route) {
           <a
@@ -67,13 +74,16 @@ export interface NavItem {
             (click)="closeMobile.emit()"
             [attr.title]="collapsed() ? item.label : null"
           >
-            <span class="nav-icon" [innerHTML]="item.icon | safeHtml"></span>
+            <!-- Active gradient pill -->
+            <span class="active-pill" aria-hidden="true"></span>
+            <mns-icon [name]="item.icon" [size]="20" class="nav-icon-el" />
             @if (!collapsed()) {
               <span class="nav-label">{{ item.label }}</span>
             }
           </a>
         }
 
+        <!-- Instance Admin link (super admins only) -->
         @if (isSuperAdmin()) {
           <div class="nav-divider"></div>
           <a
@@ -83,16 +93,8 @@ export interface NavItem {
             (click)="closeMobile.emit()"
             [attr.title]="collapsed() ? 'Instance Admin' : null"
           >
-            <span class="nav-icon">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path
-                  d="M10 1l2.5 3.5H17l-1.5 4L18 13h-4l-2 4h-4l-2-4H2l2.5-4.5L3 5h4.5L10 1z"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </span>
+            <span class="active-pill" aria-hidden="true"></span>
+            <mns-icon name="Settings" [size]="20" class="nav-icon-el" />
             @if (!collapsed()) {
               <span class="nav-label">Instance Admin</span>
             }
@@ -100,27 +102,15 @@ export interface NavItem {
         }
       </nav>
 
-      <div class="version-row">
-        <app-version-badge [compact]="collapsed()" />
-      </div>
-
+      <!-- ── Footer: Logout ── -->
       <div class="sidebar-footer">
         <button
           class="nav-item"
           (click)="logout.emit()"
           [attr.title]="collapsed() ? 'Logout' : null"
         >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path
-                d="M7 17H4a1 1 0 01-1-1V4a1 1 0 011-1h3M13 14l4-4-4-4M17 10H7"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </span>
+          <span class="active-pill" aria-hidden="true"></span>
+          <mns-icon name="Logout" [size]="20" class="nav-icon-el" />
           @if (!collapsed()) {
             <span class="nav-label">Logout</span>
           }
@@ -130,155 +120,196 @@ export interface NavItem {
   `,
   styles: `
     .sidebar {
+      width: 252px;
+      flex-shrink: 0;
+      background: var(--rail);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
       position: fixed;
       top: 0;
       left: 0;
       bottom: 0;
-      width: 240px;
-      background: var(--color-bg-sidebar);
-      border-right: 1px solid var(--color-border);
-      display: flex;
-      flex-direction: column;
       z-index: 50;
-      transition:
-        width 0.2s ease,
-        transform 0.2s ease;
+      transition: width 0.22s cubic-bezier(0.22, 0.61, 0.36, 1);
       overflow: hidden;
     }
     .sidebar.collapsed {
-      width: 60px;
+      width: 78px;
     }
 
+    /* ── Header ── */
     .sidebar-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 1rem;
-      height: 56px;
-      border-bottom: 1px solid var(--color-border);
+      gap: 8px;
+      padding: 20px 18px;
+      border-bottom: 1px solid var(--border);
+      min-height: 73px;
+      flex-shrink: 0;
     }
-    .logo {
+    .sidebar.collapsed .sidebar-header {
+      padding: 20px 0;
+      justify-content: center;
+    }
+    .logo-wrap {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 11px;
       min-width: 0;
-      overflow: hidden;
     }
-    .logo-icon {
-      width: auto;
-      height: 28px;
+    .logo-tile {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
       flex-shrink: 0;
-      display: block;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: grid;
+      place-items: center;
+      box-shadow: 0 8px 18px -8px var(--accent-ring);
     }
     .logo-text {
-      font-size: 1.125rem;
-      font-weight: 700;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
       white-space: nowrap;
-      letter-spacing: -0.01em;
     }
     .logo-my {
-      color: var(--color-text-primary);
+      color: var(--text);
+    }
+    .logo-next {
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
     }
     .collapse-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      border: none;
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
       background: transparent;
-      color: var(--color-text-secondary);
+      color: var(--text-muted);
       cursor: pointer;
-      border-radius: 4px;
       flex-shrink: 0;
     }
     .collapse-btn:hover {
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-primary);
+      background: var(--hover);
+      color: var(--text);
+    }
+    .expand-wrap {
+      display: flex;
+      justify-content: center;
+      padding: 12px 14px 0;
     }
 
+    /* ── Nav ── */
     .sidebar-nav {
       flex: 1;
-      padding: 0.5rem;
+      overflow-y: auto;
+      padding: 14px 14px;
       display: flex;
       flex-direction: column;
-      gap: 2px;
-      overflow-y: auto;
+      gap: 4px;
+    }
+    .sidebar.collapsed .sidebar-nav {
+      padding: 12px 14px;
     }
 
     .nav-item {
+      position: relative;
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      padding: 0.5rem 0.75rem;
-      border-radius: 6px;
-      color: var(--color-text-secondary);
-      text-decoration: none;
-      font-size: 0.875rem;
-      white-space: nowrap;
-      border: none;
-      background: transparent;
-      cursor: pointer;
+      gap: 12px;
       width: 100%;
+      padding: 11px 13px;
+      border-radius: 11px;
+      border: none;
       text-align: left;
+      background: transparent;
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 14.5px;
+      text-decoration: none;
+      cursor: pointer;
+      white-space: nowrap;
       transition:
-        background 0.15s,
-        color 0.15s;
+        background 0.12s,
+        color 0.12s;
+    }
+    .sidebar.collapsed .nav-item {
+      padding: 11px;
+      justify-content: center;
     }
     .nav-item:hover {
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-primary);
+      background: var(--hover);
+      color: var(--text);
     }
     .nav-item.active {
-      background: var(--color-accent);
-      color: #fff;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 700;
     }
 
-    .nav-icon {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 20px;
-      height: 20px;
-      flex-shrink: 0;
+    /* Active gradient pill on the left edge */
+    .active-pill {
+      display: none;
+      position: absolute;
+      left: -8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 22px;
+      border-radius: 99px;
+      background: linear-gradient(var(--accent), var(--accent-2));
+    }
+    .nav-item.active .active-pill {
+      display: block;
     }
 
     .nav-label {
+      flex: 1;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
     .nav-divider {
       height: 1px;
-      background: var(--color-border);
-      margin: 0.5rem 0.75rem;
+      background: var(--border);
+      margin: 6px 2px;
     }
+
+    /* Instance Admin amber overrides */
     .admin-nav-item {
-      color: #f59e0b;
+      color: var(--text-muted);
     }
     .admin-nav-item:hover {
-      background: rgba(245, 158, 11, 0.1);
+      background: rgba(245, 166, 35, 0.1);
       color: #fbbf24;
     }
     .admin-nav-item.active {
-      background: #f59e0b;
-      color: #fff;
+      background: rgba(245, 166, 35, 0.14);
+      color: #f5a623;
+    }
+    .admin-nav-item.active .active-pill {
+      background: linear-gradient(#f5a623, #f97316);
     }
 
+    /* ── Footer ── */
     .sidebar-footer {
-      padding: 0.5rem;
-      border-top: 1px solid var(--color-border);
-    }
-    .version-row {
-      display: flex;
-      justify-content: center;
-      padding: 0.5rem 0.25rem 0.25rem;
+      padding: 14px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
     }
 
-    /* ── Responsive: Tablet (<=1024px) — collapse sidebar ── */
-    @media (max-width: 1024px) {
+    /* ── Responsive: Tablet (<=1100px) — collapse sidebar ── */
+    @media (max-width: 1100px) {
       .sidebar {
-        width: 60px;
+        width: 78px;
       }
       .sidebar .nav-label,
       .sidebar .logo-text {
@@ -286,6 +317,7 @@ export interface NavItem {
       }
       .sidebar .sidebar-header {
         justify-content: center;
+        padding: 20px 0;
       }
       .desktop-only {
         display: none;
@@ -296,7 +328,7 @@ export interface NavItem {
     @media (max-width: 768px) {
       .sidebar {
         transform: translateX(-100%);
-        width: 240px;
+        width: 252px;
       }
       .sidebar .nav-label,
       .sidebar .logo-text {
@@ -304,6 +336,10 @@ export interface NavItem {
       }
       .sidebar.mobile-open {
         transform: translateX(0);
+      }
+      .sidebar .sidebar-header {
+        justify-content: space-between;
+        padding: 20px 18px;
       }
     }
   `,

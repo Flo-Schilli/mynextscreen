@@ -15,7 +15,7 @@ try {
 }
 
 // Lightweight stubs so the topbar spec does not pull in the real notification /
-// search dependency trees (NotificationService, SearchService, Router, etc.).
+// search dependency trees.
 @Component({ selector: 'app-notification-bell', template: '' })
 class StubNotificationBell {}
 
@@ -152,21 +152,6 @@ describe('AppTopbar', () => {
     });
   });
 
-  describe('mobile hamburger', () => {
-    it('emits openMobile when the hamburger is clicked', async () => {
-      // Arrange
-      const fixture = await createFixture();
-      const spy = vi.fn();
-      fixture.componentInstance.openMobile.subscribe(spy);
-
-      // Act
-      (fixture.debugElement.query(By.css('.hamburger')).nativeElement as HTMLButtonElement).click();
-
-      // Assert
-      expect(spy).toHaveBeenCalledTimes(1);
-    });
-  });
-
   describe('embedded child widgets', () => {
     it('renders the global search and notification bell', async () => {
       // Arrange + Act
@@ -209,11 +194,12 @@ describe('AppTopbar', () => {
   });
 
   describe('gravatar avatar', () => {
-    it('shows the placeholder SVG when no avatar URL is provided', async () => {
+    it('shows the placeholder icon when no avatar URL is provided', async () => {
       const fixture = await createFixture({ avatarUrl: null });
 
+      // No img; the mns-icon placeholder renders
       expect(fixture.debugElement.query(By.css('.user-avatar img'))).toBeNull();
-      expect(fixture.debugElement.query(By.css('.user-avatar svg'))).not.toBeNull();
+      expect(fixture.debugElement.query(By.css('.user-avatar mns-icon'))).not.toBeNull();
     });
 
     it('renders the Gravatar image when an avatar URL is provided', async () => {
@@ -226,7 +212,7 @@ describe('AppTopbar', () => {
       expect(img?.getAttribute('src')).toBe(url);
     });
 
-    it('falls back to the placeholder SVG when the image fails to load', async () => {
+    it('falls back to the placeholder icon when the image fails to load', async () => {
       const fixture = await createFixture({
         avatarUrl: 'https://www.gravatar.com/avatar/abc?d=identicon&s=160',
       });
@@ -238,7 +224,7 @@ describe('AppTopbar', () => {
 
       expect(fixture.componentInstance.avatarFailed()).toBe(true);
       expect(fixture.debugElement.query(By.css('.user-avatar img'))).toBeNull();
-      expect(fixture.debugElement.query(By.css('.user-avatar svg'))).not.toBeNull();
+      expect(fixture.debugElement.query(By.css('.user-avatar mns-icon'))).not.toBeNull();
     });
   });
 
@@ -330,6 +316,27 @@ describe('AppTopbar', () => {
       fixture.detectChanges();
 
       expect(fixture.componentInstance.menuOpen()).toBe(false);
+    });
+
+    it('shows the amber Instance Admin item for super admins and emits openInstanceAdmin', async () => {
+      const fixture = await createFixture({ isSuperAdmin: true });
+      const spy = vi.fn();
+      fixture.componentInstance.openInstanceAdmin.subscribe(spy);
+      clickTrigger(fixture);
+
+      const adminItem = fixture.debugElement.query(By.css('.dropdown-item-admin'));
+      expect(adminItem).not.toBeNull();
+      (adminItem.nativeElement as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(fixture.componentInstance.menuOpen()).toBe(false);
+    });
+
+    it('does not show the Instance Admin item for regular users', async () => {
+      const fixture = await createFixture({ isSuperAdmin: false });
+      clickTrigger(fixture);
+      expect(fixture.debugElement.query(By.css('.dropdown-item-admin'))).toBeNull();
     });
   });
 

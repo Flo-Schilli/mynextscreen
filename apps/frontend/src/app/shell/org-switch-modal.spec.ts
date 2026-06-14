@@ -102,27 +102,29 @@ describe('OrgSwitchModal', () => {
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
-  it('emits dismiss when the overlay backdrop is clicked', async () => {
+  it('emits dismiss when the mns-overlay backdrop is clicked', async () => {
     // Arrange
     const fixture = await createFixture();
     const spy = vi.fn();
     fixture.componentInstance.dismiss.subscribe(spy);
 
-    // Act
-    (fixture.debugElement.query(By.css('.modal-overlay')).nativeElement as HTMLElement).click();
+    // Act — click the inner overlay div (fixed inset-0); mns-overlay emits closed on backdrop click
+    const overlayDiv = fixture.debugElement.query(By.css('mns-overlay > div'));
+    (overlayDiv.nativeElement as HTMLElement).click();
 
     // Assert
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
-  it('does not emit dismiss when the modal body is clicked', async () => {
+  it('does not emit dismiss when the modal panel is clicked', async () => {
     // Arrange
     const fixture = await createFixture();
     const spy = vi.fn();
     fixture.componentInstance.dismiss.subscribe(spy);
 
-    // Act
-    (fixture.debugElement.query(By.css('.modal')).nativeElement as HTMLElement).click();
+    // Act — click inside the mns-modal panel (stopPropagation prevents bubble to overlay)
+    const modalPanel = fixture.debugElement.query(By.css('mns-modal > div'));
+    (modalPanel.nativeElement as HTMLElement).click();
 
     // Assert
     expect(spy).not.toHaveBeenCalled();
