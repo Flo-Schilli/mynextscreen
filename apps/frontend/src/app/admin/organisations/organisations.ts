@@ -1,5 +1,5 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { OrganisationService } from './organisation.service';
 import { Organisation, OrgMember, OrgMemberRole } from './organisation.model';
 import { OrgForm, OrganisationFormPayload } from './org-form';
@@ -11,6 +11,8 @@ import { OrgDeleteModal } from './org-delete-modal';
 import { StorageUsageBars } from '../../shared/storage-usage-bars';
 import { StorageInfo } from '../../content/content.model';
 import { ToastService } from '../../shared/toast/toast.service';
+import { CardComponent, CardHeadComponent, BtnComponent, IconComponent } from '../../ui';
+import { formatBytes } from '../../shared/format-bytes';
 
 /**
  * Smart container for the (super-admin) organisations feature. Owns data
@@ -24,6 +26,7 @@ import { ToastService } from '../../shared/toast/toast.service';
   standalone: true,
   imports: [
     RouterLink,
+    RouterLinkActive,
     OrgForm,
     OrgTable,
     OrgMemberList,
@@ -31,25 +34,56 @@ import { ToastService } from '../../shared/toast/toast.service';
     OrgRemoveMemberModal,
     OrgDeleteModal,
     StorageUsageBars,
+    CardComponent,
+    CardHeadComponent,
+    BtnComponent,
+    IconComponent,
   ],
   template: `
     <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Organisations</h1>
+      <!-- amber page header -->
+      <div class="flex items-end justify-between gap-4 flex-wrap mb-[22px]">
+        <div class="flex items-center gap-4 min-w-0">
+          <button
+            class="inline-flex items-center gap-[7px] px-[13px] py-2 rounded-[10px] text-[13.5px] font-semibold border border-border-strong bg-surface text-muted hover:text-default transition-colors"
+            (click)="goBack()"
+          >
+            <mns-icon name="ChevronLeft" [size]="16" /> Back
+          </button>
+          <div class="flex items-center gap-[13px] min-w-0">
+            <span
+              class="grid place-items-center w-11 h-11 rounded-[12px] flex-shrink-0 text-white"
+              style="background:linear-gradient(135deg,var(--color-elevated),var(--color-elevated-2));box-shadow:0 8px 20px -10px var(--color-elevated)"
+            >
+              <mns-icon name="Building" [size]="23" />
+            </span>
+            <div class="min-w-0">
+              <h1 class="m-0 text-[27px] font-extrabold tracking-[-0.025em]">Instance Admin</h1>
+              <div class="text-muted text-[14px] mt-[3px]">Organisations</div>
+            </div>
+          </div>
         </div>
         @if (!showForm && !selectedOrg) {
-          <button class="btn btn-primary" (click)="openCreateForm()">+ New Organisation</button>
+          <mns-btn variant="primary" size="md" icon="Plus" (click)="openCreateForm()">
+            New Organisation
+          </mns-btn>
         }
-      </header>
+      </div>
 
-      <nav class="settings-nav">
-        <a class="settings-nav-link" routerLink="/admin/dashboard">Dashboard</a>
-        <a class="settings-nav-link active">Organisations</a>
-        <a class="settings-nav-link" routerLink="/admin/users">Users</a>
-        <a class="settings-nav-link" routerLink="/admin/audit-log">Audit Log</a>
-      </nav>
+      <!-- tab bar -->
+      <div class="flex gap-1 border-b border-border mb-[var(--gap)] overflow-x-auto">
+        @for (tab of tabs; track tab.route) {
+          <a
+            [routerLink]="tab.route"
+            class="flex items-center gap-2 px-[14px] py-3 -mb-px text-[14px] font-semibold whitespace-nowrap border-b-2 border-transparent text-muted hover:text-default transition-colors no-underline"
+            routerLinkActive="border-accent text-default"
+            [routerLinkActiveOptions]="{ exact: true }"
+          >
+            <mns-icon [name]="tab.icon" [size]="16" />
+            {{ tab.label }}
+          </a>
+        }
+      </div>
 
       <!-- ── Create / Edit Form ── -->
       @if (showForm) {
@@ -64,38 +98,49 @@ import { ToastService } from '../../shared/toast/toast.service';
 
       <!-- ── Organisation Detail + Members ── -->
       @if (selectedOrg && !showForm) {
-        <div class="detail-header">
-          <button class="back-btn" (click)="deselectOrg()">&#8592; All Organisations</button>
-          <h2>{{ selectedOrg.name }}</h2>
-          <button class="btn btn-small" (click)="openEditForm(selectedOrg)">Edit</button>
-          <button class="btn btn-small btn-danger" (click)="openDeleteModal()">Delete Org</button>
+        <div class="flex items-center gap-3 mb-4 flex-wrap">
+          <button
+            class="inline-flex items-center gap-[7px] px-[13px] py-2 rounded-[10px] text-[13.5px] font-semibold border border-border-strong bg-surface text-muted hover:text-default transition-colors"
+            (click)="deselectOrg()"
+          >
+            <mns-icon name="ChevronLeft" [size]="16" /> All Organisations
+          </button>
+          <h2 class="m-0 text-[20px] font-bold flex-1">{{ selectedOrg.name }}</h2>
+          <mns-btn variant="outline" size="sm" icon="Pencil" (click)="openEditForm(selectedOrg)"
+            >Edit</mns-btn
+          >
+          <mns-btn variant="danger" size="sm" icon="Trash" (click)="openDeleteModal()"
+            >Delete</mns-btn
+          >
         </div>
 
-        <div class="org-info">
-          <span class="info-tag">{{ selectedOrg.timeZone }}</span>
+        <div class="flex flex-wrap gap-2 mb-4">
+          <span
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[99px] text-xs font-semibold bg-surface-3 text-muted"
+          >
+            {{ selectedOrg.timeZone }}
+          </span>
         </div>
 
-        <div class="storage-panel">
-          <h3 class="storage-title">Storage Usage</h3>
+        <mns-card class="mb-6 block max-w-[40rem]">
+          <mns-card-head title="Storage Usage" icon="Storage" />
           <app-storage-usage-bars [storage]="storageOf(selectedOrg)" />
-        </div>
+        </mns-card>
 
         <!-- Members section -->
-        <div class="section-header">
-          <h3>Members</h3>
-          <button class="btn btn-primary btn-small" (click)="openAddMemberModal()">
-            + Add Member
-          </button>
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="m-0 text-[18px] font-bold">Members</h3>
+          <mns-btn variant="primary" size="sm" icon="Plus" (click)="openAddMemberModal()"
+            >Add Member</mns-btn
+          >
         </div>
 
         @if (membersLoading) {
-          <p class="loading-text">Loading members...</p>
+          <p class="text-muted text-sm">Loading members…</p>
         }
-
         @if (membersError) {
-          <p class="error">{{ membersError }}</p>
+          <p class="text-offline text-sm">{{ membersError }}</p>
         }
-
         @if (!membersLoading && members.length > 0) {
           <app-org-member-list
             [members]="members"
@@ -105,26 +150,22 @@ import { ToastService } from '../../shared/toast/toast.service';
             (removeMember)="confirmRemoveMember($event)"
           />
         }
-
         @if (!membersLoading && members.length === 0 && !membersError) {
-          <p class="empty-text">No members yet. Add one above.</p>
+          <p class="text-muted text-sm">No members yet. Add one above.</p>
         }
-
         @if (memberActionError) {
-          <p class="error">{{ memberActionError }}</p>
+          <p class="text-offline text-sm">{{ memberActionError }}</p>
         }
       }
 
       <!-- ── Organisations List ── -->
       @if (!selectedOrg && !showForm) {
         @if (loadError) {
-          <p class="error">{{ loadError }}</p>
+          <p class="text-offline text-sm">{{ loadError }}</p>
         }
-
         @if (loading) {
-          <p class="loading-text">Loading organisations...</p>
+          <p class="text-muted text-sm">Loading organisations…</p>
         }
-
         @if (!loading && organisations.length > 0) {
           <app-org-table
             [organisations]="organisations"
@@ -132,9 +173,8 @@ import { ToastService } from '../../shared/toast/toast.service';
             (selectOrg)="selectOrg($event)"
           />
         }
-
         @if (!loading && organisations.length === 0 && !loadError) {
-          <p class="empty-text">No organisations yet. Create your first one.</p>
+          <p class="text-muted text-sm">No organisations yet. Create your first one.</p>
         }
       }
 
@@ -170,92 +210,21 @@ import { ToastService } from '../../shared/toast/toast.service';
       }
     </div>
   `,
-  styles: `
-    .settings-nav {
-      display: flex;
-      gap: 0;
-      margin-bottom: 1.5rem;
-      border-bottom: 1px solid var(--color-border);
-    }
-    .settings-nav-link {
-      padding: 0.625rem 1rem;
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-      text-decoration: none;
-      border-bottom: 2px solid transparent;
-      cursor: pointer;
-      transition:
-        color 0.15s,
-        border-color 0.15s;
-    }
-    .settings-nav-link:hover {
-      color: var(--color-text-primary);
-    }
-    .settings-nav-link.active {
-      color: var(--color-text-primary);
-      border-bottom-color: var(--color-accent);
-      font-weight: 500;
-    }
-
-    /* Detail header */
-    .detail-header {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      margin-bottom: 1rem;
-    }
-    .detail-header h2 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin: 0;
-    }
-
-    .org-info {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-    }
-
-    .storage-panel {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.25rem;
-      margin-bottom: 1.5rem;
-      max-width: 40rem;
-    }
-    .storage-title {
-      font-size: 0.9375rem;
-      font-weight: 600;
-      margin: 0 0 1rem;
-    }
-    .info-tag {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      padding: 0.25rem 0.75rem;
-      border-radius: 0.375rem;
-      font-size: 0.8125rem;
-      color: var(--color-text-secondary);
-    }
-
-    .section-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
-    .section-header h3 {
-      font-size: 1.125rem;
-      font-weight: 600;
-      margin: 0;
-    }
-  `,
+  styles: ``,
 })
 export class Organisations implements OnInit {
   private orgService = inject(OrganisationService);
   private router = inject(Router);
   private toast = inject(ToastService);
+
+  protected readonly formatBytes = formatBytes;
+
+  readonly tabs = [
+    { label: 'Dashboard', route: '/admin/dashboard', icon: 'Dashboard' as const },
+    { label: 'Organisations', route: '/admin/organisations', icon: 'Building' as const },
+    { label: 'Users', route: '/admin/users', icon: 'User' as const },
+    { label: 'Audit Log', route: '/admin/audit-log', icon: 'Audit' as const },
+  ];
 
   // Org list state
   organisations: Organisation[] = [];

@@ -1,10 +1,18 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { Router, RouterLink } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { AdminUserService } from './admin-user.service';
 import { AdminUser } from './admin-user.model';
 import { UserDeleteModal } from './user-delete-modal';
 import { ToastService } from '../../shared/toast/toast.service';
+import {
+  CardComponent,
+  BadgeComponent,
+  BtnComponent,
+  AvatarComponent,
+  IconComponent,
+} from '../../ui';
+import type { IconName } from '../../ui';
 
 /**
  * Smart container for the (super-admin) user overview. Owns data loading and the
@@ -14,94 +22,198 @@ import { ToastService } from '../../shared/toast/toast.service';
 @Component({
   selector: 'app-all-users',
   standalone: true,
-  imports: [DatePipe, RouterLink, UserDeleteModal],
+  imports: [
+    DatePipe,
+    RouterLink,
+    RouterLinkActive,
+    UserDeleteModal,
+    CardComponent,
+    BadgeComponent,
+    BtnComponent,
+    AvatarComponent,
+    IconComponent,
+  ],
   template: `
     <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Users</h1>
+      <!-- amber page header -->
+      <div class="flex items-end justify-between gap-4 flex-wrap mb-[22px]">
+        <div class="flex items-center gap-4 min-w-0">
+          <button
+            class="inline-flex items-center gap-[7px] px-[13px] py-2 rounded-[10px] text-[13.5px] font-semibold border border-border-strong bg-surface text-muted hover:text-default transition-colors"
+            (click)="goBack()"
+          >
+            <mns-icon name="ChevronLeft" [size]="16" /> Back
+          </button>
+          <div class="flex items-center gap-[13px] min-w-0">
+            <span
+              class="grid place-items-center w-11 h-11 rounded-[12px] flex-shrink-0 text-white"
+              style="background:linear-gradient(135deg,var(--color-elevated),var(--color-elevated-2));box-shadow:0 8px 20px -10px var(--color-elevated)"
+            >
+              <mns-icon name="User" [size]="23" />
+            </span>
+            <div class="min-w-0">
+              <h1 class="m-0 text-[27px] font-extrabold tracking-[-0.025em]">Instance Admin</h1>
+              <div class="text-muted text-[14px] mt-[3px]">Users</div>
+            </div>
+          </div>
         </div>
-      </header>
+      </div>
 
-      <nav class="settings-nav">
-        <a class="settings-nav-link" routerLink="/admin/dashboard">Dashboard</a>
-        <a class="settings-nav-link" routerLink="/admin/organisations">Organisations</a>
-        <a class="settings-nav-link active">Users</a>
-        <a class="settings-nav-link" routerLink="/admin/audit-log">Audit Log</a>
-      </nav>
+      <!-- tab bar -->
+      <div class="flex gap-1 border-b border-border mb-[var(--gap)] overflow-x-auto">
+        @for (tab of tabs; track tab.route) {
+          <a
+            [routerLink]="tab.route"
+            class="flex items-center gap-2 px-[14px] py-3 -mb-px text-[14px] font-semibold whitespace-nowrap border-b-2 border-transparent text-muted hover:text-default transition-colors no-underline"
+            routerLinkActive="border-accent text-default"
+            [routerLinkActiveOptions]="{ exact: true }"
+          >
+            <mns-icon [name]="tab.icon" [size]="16" />
+            {{ tab.label }}
+          </a>
+        }
+      </div>
 
       @if (loadError) {
-        <p class="error">{{ loadError }}</p>
+        <p class="text-offline text-sm">{{ loadError }}</p>
       }
-
       @if (loading) {
-        <p class="loading-text">Loading users...</p>
+        <p class="text-muted text-sm">Loading users…</p>
       }
 
       @if (!loading && users.length > 0) {
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Role</th>
-                <th>Organisations</th>
-                <th>Created</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+        <!-- summary strip -->
+        <div class="flex items-center gap-[26px] flex-wrap mb-[var(--gap)]">
+          @for (stat of summaryStats(); track stat.label) {
+            <div class="flex items-center gap-[11px]">
+              <span
+                class="grid place-items-center w-[38px] h-[38px] rounded-[11px]"
+                [style.background]="stat.dimColor"
+                [style.color]="stat.color"
+              >
+                <mns-icon [name]="stat.icon" [size]="18" />
+              </span>
+              <div>
+                <div class="mono text-[18px] font-bold leading-[1.1]">{{ stat.value }}</div>
+                <div class="text-[12px] text-muted">{{ stat.label }}</div>
+              </div>
+            </div>
+          }
+        </div>
+
+        <mns-card [pad]="false" style="overflow:hidden">
+          <div style="overflow-x:auto">
+            <div style="min-width:900px">
+              <!-- header row -->
+              <div
+                class="grid gap-4 px-[22px] py-[13px] bg-surface-2 border-b border-border"
+                style="grid-template-columns:2.4fr 1.3fr 132px 138px 118px 92px"
+              >
+                @for (
+                  h of ['User', 'Organisation', 'Role', 'Status', 'Created', 'Actions'];
+                  track $index
+                ) {
+                  <div
+                    class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint"
+                    [class.text-right]="$index === 5"
+                  >
+                    {{ h }}
+                  </div>
+                }
+              </div>
+              <!-- rows -->
               @for (user of users; track user.id) {
-                <tr>
-                  <td>{{ user.email }}</td>
-                  <td>{{ user.name || '(no name)' }}</td>
-                  <td>
-                    @if (user.emailVerified) {
-                      <span class="badge badge-verified">verified</span>
-                    } @else {
-                      <span class="badge badge-pending">pending</span>
-                    }
-                  </td>
-                  <td>
-                    @if (user.isSuperAdmin) {
-                      <span class="badge badge-admin">instance-admin</span>
-                    } @else {
-                      <span class="muted">—</span>
-                    }
-                  </td>
-                  <td>
+                <div
+                  class="grid gap-4 items-center px-[22px] py-[14px] border-t border-border hover:bg-hover transition-colors"
+                  style="grid-template-columns:2.4fr 1.3fr 132px 138px 118px 92px"
+                >
+                  <!-- user -->
+                  <div class="flex items-center gap-3 min-w-0">
+                    <mns-avatar [name]="initials(user)" [size]="36" />
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-[7px] text-[14px] font-bold min-w-0">
+                        <span
+                          class="whitespace-nowrap flex-shrink-0"
+                          [class.text-faint]="!user.name"
+                          [class.italic]="!user.name"
+                        >
+                          {{ user.name || 'Invite pending' }}
+                        </span>
+                        @if (user.isSuperAdmin) {
+                          <!-- amber superuser badge -->
+                          <span
+                            class="inline-flex items-center gap-1 flex-shrink-0 text-[10.5px] font-bold px-[7px] py-[2px] rounded-[99px]"
+                            style="background:var(--elevated-soft);color:var(--color-elevated)"
+                          >
+                            <mns-icon name="Settings" [size]="11" />Superuser
+                          </span>
+                        }
+                      </div>
+                      <div
+                        class="mono text-[11.5px] text-muted overflow-hidden text-ellipsis whitespace-nowrap"
+                      >
+                        {{ user.email }}
+                      </div>
+                    </div>
+                  </div>
+                  <!-- organisations -->
+                  <div>
                     @if (user.memberships.length > 0) {
-                      <div class="org-list">
+                      <div class="flex flex-wrap gap-[6px]">
                         @for (m of user.memberships; track m.organisationId) {
-                          <span class="org-tag">{{ m.organisationName }} ({{ m.role }})</span>
+                          <span
+                            class="inline-flex items-center gap-2 px-[10px] py-[4px] rounded-[99px] bg-surface-3 text-[12.5px] font-semibold"
+                          >
+                            {{ m.organisationName }}
+                          </span>
                         }
                       </div>
                     } @else {
-                      <span class="muted">—</span>
+                      <span class="text-faint text-[13px]">—</span>
                     }
-                  </td>
-                  <td>{{ user.createdAt | date: 'mediumDate' }}</td>
-                  <td>
-                    <button
-                      class="btn btn-small btn-danger"
+                  </div>
+                  <!-- role -->
+                  <div>
+                    @if (user.isSuperAdmin) {
+                      <mns-badge tone="accent" icon="Lock">Instance Admin</mns-badge>
+                    } @else if (user.memberships.length > 0) {
+                      <mns-badge tone="neutral">{{ user.memberships[0].role }}</mns-badge>
+                    } @else {
+                      <span class="text-faint text-[13px]">—</span>
+                    }
+                  </div>
+                  <!-- status -->
+                  <div>
+                    @if (user.emailVerified) {
+                      <mns-badge tone="online" icon="Check">Verified</mns-badge>
+                    } @else {
+                      <mns-badge tone="warning" icon="Mail">Pending</mns-badge>
+                    }
+                  </div>
+                  <!-- created -->
+                  <div class="text-[13px] text-muted">
+                    {{ user.createdAt | date: 'mediumDate' }}
+                  </div>
+                  <!-- actions -->
+                  <div class="flex justify-end">
+                    <mns-btn
+                      variant="danger"
+                      size="sm"
+                      icon="Trash"
                       (click)="confirmDelete(user)"
                       [disabled]="deletingUserId === user.id"
+                      >Delete</mns-btn
                     >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               }
-            </tbody>
-          </table>
-        </div>
+            </div>
+          </div>
+        </mns-card>
       }
 
       @if (!loading && users.length === 0 && !loadError) {
-        <p class="empty-text">No users yet.</p>
+        <p class="text-muted text-sm">No users yet.</p>
       }
 
       @if (showDeleteModal && deletingUser) {
@@ -115,81 +227,74 @@ import { ToastService } from '../../shared/toast/toast.service';
       }
     </div>
   `,
-  styles: `
-    .settings-nav {
-      display: flex;
-      gap: 0;
-      margin-bottom: 1.5rem;
-      border-bottom: 1px solid var(--color-border);
-    }
-    .settings-nav-link {
-      padding: 0.625rem 1rem;
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-      text-decoration: none;
-      border-bottom: 2px solid transparent;
-      cursor: pointer;
-      transition:
-        color 0.15s,
-        border-color 0.15s;
-    }
-    .settings-nav-link:hover {
-      color: var(--color-text-primary);
-    }
-    .settings-nav-link.active {
-      color: var(--color-text-primary);
-      border-bottom-color: var(--color-accent);
-      font-weight: 500;
-    }
-
-    tr:hover td {
-      background: var(--color-bg-tertiary);
-    }
-    .org-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.375rem;
-    }
-    .org-tag {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      padding: 0.125rem 0.5rem;
-      border-radius: 0.375rem;
-      font-size: 0.75rem;
-      color: var(--color-text-secondary);
-    }
-    .badge {
-      display: inline-block;
-      padding: 0.125rem 0.5rem;
-      border-radius: 0.375rem;
-      font-size: 0.75rem;
-      font-weight: 500;
-    }
-    .badge-verified {
-      background: #065f46;
-      color: #d1fae5;
-    }
-    .badge-pending {
-      background: #92400e;
-      color: #fde68a;
-    }
-    .badge-admin {
-      background: #f59e0b;
-      color: #fff;
-    }
-    .muted {
-      color: var(--color-text-muted);
-    }
-  `,
+  styles: ``,
 })
 export class AllUsers implements OnInit {
   private userService = inject(AdminUserService);
   private router = inject(Router);
   private toast = inject(ToastService);
 
+  readonly tabs = [
+    { label: 'Dashboard', route: '/admin/dashboard', icon: 'Dashboard' as const },
+    { label: 'Organisations', route: '/admin/organisations', icon: 'Building' as const },
+    { label: 'Users', route: '/admin/users', icon: 'User' as const },
+    { label: 'Audit Log', route: '/admin/audit-log', icon: 'Audit' as const },
+  ];
+
   users: AdminUser[] = [];
   loading = true;
   loadError = '';
+
+  summaryStats(): {
+    label: string;
+    value: number;
+    icon: IconName;
+    color: string;
+    dimColor: string;
+  }[] {
+    const verified = this.users.filter((u) => u.emailVerified).length;
+    const pending = this.users.filter((u) => !u.emailVerified).length;
+    const admins = this.users.filter((u) => u.isSuperAdmin).length;
+    return [
+      {
+        label: 'Total users',
+        value: this.users.length,
+        icon: 'User',
+        color: 'var(--accent)',
+        dimColor: 'var(--accent-soft)',
+      },
+      {
+        label: 'Verified',
+        value: verified,
+        icon: 'Check',
+        color: 'var(--online)',
+        dimColor: 'var(--online-dim)',
+      },
+      {
+        label: 'Pending',
+        value: pending,
+        icon: 'Mail',
+        color: 'var(--warn)',
+        dimColor: 'var(--warn-dim)',
+      },
+      {
+        label: 'Instance admins',
+        value: admins,
+        icon: 'Settings',
+        color: 'var(--info)',
+        dimColor: 'var(--info-dim)',
+      },
+    ];
+  }
+
+  initials(user: AdminUser): string {
+    if (!user.name) return '··';
+    return user.name
+      .split(' ')
+      .map((w) => w[0])
+      .slice(0, 2)
+      .join('');
+  }
 
   showDeleteModal = false;
   deletingUser: AdminUser | null = null;

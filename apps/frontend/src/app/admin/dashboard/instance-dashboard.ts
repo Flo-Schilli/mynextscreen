@@ -6,216 +6,361 @@ import {
   signal,
   OnInit,
 } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { DecimalPipe } from '@angular/common';
 import { InstanceAdminService } from './instance-admin.service';
 import { InstanceAdminSummary } from './instance-admin.model';
-import { StorageUsageBars } from '../../shared/storage-usage-bars';
-import { UsageBar } from '../../shared/usage-bar';
+import { LoadGraphComponent, LoadData } from './load-graph.component';
 import { formatBytes } from '../../shared/format-bytes';
+import {
+  CardComponent,
+  CardHeadComponent,
+  BadgeComponent,
+  BarComponent,
+  RingComponent,
+  CountComponent,
+  IconComponent,
+} from '../../ui';
+
+/** Typed mock for LoadGraph — replaced by a real metrics endpoint later. */
+const LOAD_MOCK: LoadData = (() => {
+  const cpu = [
+    21, 18, 20, 24, 27, 33, 29, 25, 24, 57, 84, 73, 41, 30, 27, 26, 31, 45, 71, 89, 60, 37, 33, 28,
+    34,
+  ];
+  const ram = [
+    44, 43, 45, 47, 49, 52, 53, 52, 50, 58, 65, 67, 61, 57, 55, 54, 56, 62, 67, 72, 68, 61, 59, 57,
+    60,
+  ];
+  return {
+    cpu,
+    ram,
+    transcodeWindows: [
+      [9, 12],
+      [17, 20],
+    ] as [number, number][],
+    cores: 8,
+    ramTotalGB: 16,
+    cpuNow: cpu[cpu.length - 1],
+    ramNow: ram[ram.length - 1],
+    cpuPeak: Math.max(...cpu),
+    ramPeak: Math.max(...ram),
+  };
+})();
 
 /**
- * Smart container for the instance-admin overview dashboard. Loads the
- * aggregate instance summary (user counts, organisation count, storage limits
- * vs. usage across all tenants and host disk free space) and renders it as a
- * grid of cards, reusing the shared storage/usage bars.
+ * Smart container for the instance-admin overview dashboard.
+ * Loads the aggregate instance summary (user counts, organisation count,
+ * storage limits vs. usage across all tenants and host disk free space)
+ * and renders it using mns-* UI primitives per the myNextScreen design spec.
  */
 @Component({
   selector: 'app-instance-dashboard',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, StorageUsageBars, UsageBar],
+  imports: [
+    RouterLink,
+    RouterLinkActive,
+    DecimalPipe,
+    IconComponent,
+    CardComponent,
+    CardHeadComponent,
+    BadgeComponent,
+    BarComponent,
+    RingComponent,
+    CountComponent,
+    LoadGraphComponent,
+  ],
   template: `
-    <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Instance Admin</h1>
+    <!-- ── Page header (amber chrome) ── -->
+    <div class="flex items-end justify-between gap-4 flex-wrap mb-[22px]">
+      <div class="flex items-center gap-4 min-w-0">
+        <button
+          class="inline-flex items-center gap-[7px] px-[13px] py-2 rounded-[10px] text-[13.5px] font-semibold border border-border-strong bg-surface text-muted hover:text-default transition-colors"
+          (click)="goBack()"
+        >
+          <mns-icon name="ChevronLeft" [size]="16" /> Back
+        </button>
+        <div class="flex items-center gap-[13px] min-w-0">
+          <!-- amber header tile -->
+          <span
+            class="grid place-items-center w-11 h-11 rounded-[12px] flex-shrink-0 text-white"
+            style="background:linear-gradient(135deg,var(--color-elevated),var(--color-elevated-2));box-shadow:0 8px 20px -10px var(--color-elevated)"
+          >
+            <mns-icon name="Settings" [size]="23" />
+          </span>
+          <div class="min-w-0">
+            <h1 class="m-0 text-[27px] font-extrabold tracking-[-0.025em]">Instance Admin</h1>
+            <div class="text-muted text-[14px] mt-[3px]">
+              Manage every organisation, user and resource on this instance
+            </div>
+          </div>
         </div>
-      </header>
+      </div>
+    </div>
 
-      <nav class="settings-nav">
-        <a class="settings-nav-link active">Dashboard</a>
-        <a class="settings-nav-link" routerLink="/admin/organisations">Organisations</a>
-        <a class="settings-nav-link" routerLink="/admin/users">Users</a>
-        <a class="settings-nav-link" routerLink="/admin/audit-log">Audit Log</a>
-      </nav>
-
-      @if (loadError()) {
-        <p class="error">{{ loadError() }}</p>
-      }
-
-      @if (loading()) {
-        <p class="loading-text">Loading instance overview...</p>
-      }
-
-      @if (summary(); as s) {
-        <div class="card-grid">
-          <!-- Users -->
-          <section class="card">
-            <div class="card-header">
-              <h2 class="card-title">Users</h2>
-              <span class="card-badge">{{ s.users.total }} total</span>
-            </div>
-            <div class="card-body stat-row">
-              <div class="stat">
-                <span class="stat-value verified">{{ s.users.verified }}</span>
-                <span class="stat-label">Verified</span>
-              </div>
-              <div class="stat">
-                <span class="stat-value pending">{{ s.users.pending }}</span>
-                <span class="stat-label">Pending</span>
-              </div>
-            </div>
-          </section>
-
-          <!-- Organisations -->
-          <section class="card">
-            <div class="card-header">
-              <h2 class="card-title">Organisations</h2>
-            </div>
-            <div class="card-body stat-row">
-              <div class="stat">
-                <span class="stat-value">{{ s.organisationCount }}</span>
-                <span class="stat-label">Organisations</span>
-              </div>
-            </div>
-          </section>
-
-          <!-- Aggregate storage (allocated vs used across all orgs) -->
-          <section class="card card-wide">
-            <div class="card-header">
-              <h2 class="card-title">Storage — Allocated vs Used</h2>
-              <span class="card-badge">All organisations</span>
-            </div>
-            <div class="card-body">
-              <app-storage-usage-bars [storage]="s.storage" />
-            </div>
-          </section>
-
-          <!-- Host disk free space -->
-          <section class="card card-wide">
-            <div class="card-header">
-              <h2 class="card-title">Host Disk</h2>
-              <span class="card-badge">{{ s.hostDisk.path }}</span>
-            </div>
-            <div class="card-body">
-              @if (s.hostDisk.available) {
-                <app-usage-bar
-                  label="Used"
-                  [usedBytes]="hostUsedBytes()"
-                  [totalBytes]="s.hostDisk.totalBytes"
-                  variant="teal"
-                />
-                <p class="disk-caption">
-                  {{ formatBytes(s.hostDisk.freeBytes) }} free of
-                  {{ formatBytes(s.hostDisk.totalBytes) }}
-                </p>
-              } @else {
-                <div class="empty-state">Disk usage unavailable on this host.</div>
-              }
-            </div>
-          </section>
-        </div>
+    <!-- ── Tab bar ── -->
+    <div class="flex gap-1 border-b border-border mb-[var(--gap)] overflow-x-auto">
+      @for (tab of tabs; track tab.route) {
+        <a
+          [routerLink]="tab.route"
+          class="flex items-center gap-2 px-[14px] py-3 -mb-px text-[14px] font-semibold whitespace-nowrap border-b-2 border-transparent text-muted hover:text-default transition-colors no-underline"
+          routerLinkActive="border-accent text-default"
+          [routerLinkActiveOptions]="{ exact: true }"
+        >
+          <mns-icon [name]="tab.icon" [size]="16" />
+          {{ tab.label }}
+        </a>
       }
     </div>
+
+    <!-- ── Error / loading ── -->
+    @if (loadError()) {
+      <p class="text-offline text-sm">{{ loadError() }}</p>
+    }
+    @if (loading()) {
+      <p class="text-muted text-sm">Loading instance overview…</p>
+    }
+
+    @if (summary(); as s) {
+      <div class="flex flex-col gap-[var(--gap)]">
+        <!-- KPI row -->
+        <div class="grid grid-cols-4 gap-[var(--gap)] adm-kpi">
+          <!-- Organisations -->
+          <mns-card [hover]="true">
+            <div class="flex items-center justify-between mb-[13px]">
+              <span class="text-[13px] font-semibold text-muted">Organisations</span>
+              <span
+                class="grid place-items-center w-[34px] h-[34px] rounded-[9px] bg-accent-soft text-accent"
+              >
+                <mns-icon name="Building" [size]="18" />
+              </span>
+            </div>
+            <div class="mono text-[34px] font-bold leading-none tracking-[-0.02em]">
+              <mns-count [to]="s.organisationCount" />
+            </div>
+            <div class="text-[12.5px] text-muted mt-[13px]">Active tenants</div>
+          </mns-card>
+
+          <!-- Users (dual verified/pending readout) -->
+          <mns-card [hover]="true">
+            <div class="flex items-center justify-between mb-[13px]">
+              <span class="text-[13px] font-semibold text-muted">Users</span>
+              <span
+                class="grid place-items-center w-[34px] h-[34px] rounded-[9px] bg-info-dim text-info"
+              >
+                <mns-icon name="User" [size]="18" />
+              </span>
+            </div>
+            <div class="flex items-flex-end gap-[22px]">
+              <div>
+                <div class="mono text-[34px] font-bold leading-none text-online">
+                  <mns-count [to]="s.users.verified" />
+                </div>
+                <div class="text-[12px] text-muted mt-[3px]">Verified</div>
+              </div>
+              <div>
+                <div class="mono text-[34px] font-bold leading-none text-warn">
+                  <mns-count [to]="s.users.pending" />
+                </div>
+                <div class="text-[12px] text-muted mt-[3px]">Pending</div>
+              </div>
+              <span
+                class="ml-auto text-[12px] font-bold px-[9px] py-[3px] rounded-[99px] bg-surface-3 text-muted self-start"
+              >
+                {{ s.users.total }} total
+              </span>
+            </div>
+          </mns-card>
+
+          <!-- Storage used (originals + transcoded combined) -->
+          <mns-card [hover]="true">
+            <div class="flex items-center justify-between mb-[13px]">
+              <span class="text-[13px] font-semibold text-muted">Storage Used</span>
+              <span
+                class="grid place-items-center w-[34px] h-[34px] rounded-[9px] bg-info-dim text-info"
+              >
+                <mns-icon name="Storage" [size]="18" />
+              </span>
+            </div>
+            <div class="mono text-[34px] font-bold leading-none tracking-[-0.02em]">
+              {{ formatBytes(s.storage.originalUsedBytes + s.storage.transcodedUsedBytes) }}
+            </div>
+            <div class="text-[12.5px] text-muted mt-[13px]">
+              of
+              {{ formatBytes(s.storage.originalLimitBytes + s.storage.transcodedLimitBytes) }}
+              allocated
+            </div>
+          </mns-card>
+
+          <!-- Host disk free -->
+          <mns-card [hover]="true">
+            <div class="flex items-center justify-between mb-[13px]">
+              <span class="text-[13px] font-semibold text-muted">Host Disk Free</span>
+              <span
+                class="grid place-items-center w-[34px] h-[34px] rounded-[9px] bg-warn-dim text-warn"
+              >
+                <mns-icon name="Storage" [size]="18" />
+              </span>
+            </div>
+            @if (s.hostDisk.available) {
+              <div class="mono text-[34px] font-bold leading-none tracking-[-0.02em]">
+                {{ formatBytes(s.hostDisk.freeBytes) }}
+              </div>
+              <div class="text-[12.5px] text-muted mt-[13px]">
+                of {{ formatBytes(s.hostDisk.totalBytes) }} · {{ hostPct() | number: '1.1-1' }}%
+                used
+              </div>
+            } @else {
+              <div class="text-muted text-sm">Disk usage unavailable on this host.</div>
+            }
+          </mns-card>
+        </div>
+
+        <!-- Storage Allocated vs Used + Host Disk -->
+        <div
+          class="grid gap-[var(--gap)] items-start adm-two"
+          style="grid-template-columns:minmax(0,1.55fr) minmax(0,1fr)"
+        >
+          <!-- Storage bars + per-org legend placeholder -->
+          <mns-card>
+            <mns-card-head title="Storage — Allocated vs Used" icon="Storage">
+              <mns-badge slot="right" tone="neutral" icon="Building">All organisations</mns-badge>
+            </mns-card-head>
+            <div class="flex flex-col gap-[22px]">
+              <!-- Originals -->
+              <div>
+                <div class="flex items-center justify-between gap-3 mb-2">
+                  <span class="text-[14px] font-bold">Originals</span>
+                  <span class="mono text-[13px] text-muted">
+                    {{ formatBytes(s.storage.originalUsedBytes) }} /
+                    {{ formatBytes(s.storage.originalLimitBytes) }}
+                  </span>
+                </div>
+                <mns-bar [value]="origPct()" color="var(--info)" [glow]="true" [h]="9" />
+                <div class="mono text-[11.5px] text-faint mt-[6px]">
+                  {{ origPct() | number: '1.1-1' }}%
+                </div>
+              </div>
+              <!-- Transcoded -->
+              <div>
+                <div class="flex items-center justify-between gap-3 mb-2">
+                  <span class="text-[14px] font-bold">Transcoded</span>
+                  <span class="mono text-[13px] text-muted">
+                    {{ formatBytes(s.storage.transcodedUsedBytes) }} /
+                    {{ formatBytes(s.storage.transcodedLimitBytes) }}
+                  </span>
+                </div>
+                <mns-bar [value]="transPct()" color="var(--accent-2)" [glow]="true" [h]="9" />
+                <div class="mono text-[11.5px] text-faint mt-[6px]">
+                  {{ transPct() | number: '1.1-1' }}%
+                </div>
+              </div>
+            </div>
+          </mns-card>
+
+          <!-- Host disk ring + bar -->
+          <mns-card>
+            <mns-card-head title="Host Disk" icon="Storage">
+              <mns-badge slot="right" tone="neutral">{{ s.hostDisk.path }}</mns-badge>
+            </mns-card-head>
+            @if (s.hostDisk.available) {
+              <div class="flex items-center gap-[22px]">
+                <mns-ring [value]="hostPct()" [size]="104" [sw]="11" color="var(--online)">
+                  <div class="text-center">
+                    <div class="mono text-[22px] font-bold leading-none">
+                      {{ hostPct() | number: '1.0-0' }}<span class="text-[13px]">%</span>
+                    </div>
+                    <div class="text-[11px] text-muted mt-[2px]">used</div>
+                  </div>
+                </mns-ring>
+                <div class="flex-1 min-w-0">
+                  <div class="flex justify-between text-[13px] mb-1">
+                    <span class="font-semibold text-muted">Used</span>
+                    <span class="mono">{{ formatBytes(hostUsedBytes()) }}</span>
+                  </div>
+                  <div class="flex justify-between text-[13px] mb-[10px]">
+                    <span class="font-semibold text-muted">Free</span>
+                    <span class="mono text-online">{{ formatBytes(s.hostDisk.freeBytes) }}</span>
+                  </div>
+                  <mns-bar [value]="hostPct()" color="var(--online)" [glow]="true" [h]="9" />
+                  <div class="mono text-[11.5px] text-faint mt-2">
+                    {{ formatBytes(s.hostDisk.freeBytes) }} free of
+                    {{ formatBytes(s.hostDisk.totalBytes) }}
+                  </div>
+                </div>
+              </div>
+            } @else {
+              <div class="text-muted text-sm">Disk usage unavailable on this host.</div>
+            }
+          </mns-card>
+        </div>
+
+        <!-- System load chart -->
+        <mns-card>
+          <mns-card-head title="System load" sub="CPU &amp; memory · last 24 hours" icon="Power">
+            <mns-badge slot="right" tone="accent" icon="Refresh">Transcode peaks shaded</mns-badge>
+          </mns-card-head>
+
+          <!-- readout strip -->
+          <div class="flex items-start gap-[38px] flex-wrap mb-4">
+            <!-- CPU -->
+            <div class="flex items-center gap-3">
+              <span
+                class="w-4 h-1 rounded-[99px] flex-shrink-0"
+                style="background:var(--accent)"
+              ></span>
+              <div>
+                <div class="text-[12.5px] font-semibold text-muted whitespace-nowrap mb-[2px]">
+                  CPU · {{ load.cores }} cores
+                </div>
+                <div class="flex items-baseline gap-2">
+                  <span class="mono text-[26px] font-bold leading-none text-accent"
+                    >{{ load.cpuNow }}%</span
+                  >
+                  <span class="mono text-[12px] text-faint">peak {{ load.cpuPeak }}%</span>
+                </div>
+              </div>
+            </div>
+            <!-- RAM -->
+            <div class="flex items-center gap-3">
+              <span
+                class="w-4 h-1 rounded-[99px] flex-shrink-0"
+                style="background:repeating-linear-gradient(90deg,var(--info) 0 5px,transparent 5px 8px)"
+              ></span>
+              <div>
+                <div class="text-[12.5px] font-semibold text-muted whitespace-nowrap mb-[2px]">
+                  Memory · {{ load.ramTotalGB }} GB
+                </div>
+                <div class="flex items-baseline gap-2">
+                  <span class="mono text-[26px] font-bold leading-none text-info"
+                    >{{ load.ramNow }}%</span
+                  >
+                  <span class="mono text-[12px] text-faint">
+                    {{ ramUsedGB() }} GB · peak {{ ramPeakGB() }} GB
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <mns-load-graph [load]="load" />
+        </mns-card>
+      </div>
+    }
   `,
   styles: `
-    .settings-nav {
-      display: flex;
-      gap: 0;
-      margin-bottom: 1.5rem;
-      border-bottom: 1px solid var(--color-border);
+    @media (max-width: 1100px) {
+      .adm-kpi {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+      .adm-two {
+        grid-template-columns: 1fr !important;
+      }
     }
-    .settings-nav-link {
-      padding: 0.625rem 1rem;
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-      text-decoration: none;
-      border-bottom: 2px solid transparent;
-      cursor: pointer;
-      transition:
-        color 0.15s,
-        border-color 0.15s;
-    }
-    .settings-nav-link:hover {
-      color: var(--color-text-primary);
-    }
-    .settings-nav-link.active {
-      color: var(--color-text-primary);
-      border-bottom-color: var(--color-accent);
-      font-weight: 500;
-    }
-
-    .card-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 1rem;
-    }
-    .card {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.25rem;
-    }
-    .card-wide {
-      grid-column: 1 / -1;
-    }
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
-    .card-title {
-      font-size: 1rem;
-      font-weight: 600;
-      margin: 0;
-    }
-    .card-badge {
-      font-size: 0.75rem;
-      color: var(--color-text-muted);
-      background: var(--color-bg-tertiary);
-      padding: 0.125rem 0.5rem;
-      border-radius: 0.375rem;
-    }
-    .stat-row {
-      display: flex;
-      gap: 2rem;
-    }
-    .stat {
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-    }
-    .stat-value {
-      font-size: 2rem;
-      font-weight: 700;
-      line-height: 1;
-      color: var(--color-text-primary);
-    }
-    .stat-value.verified {
-      color: #4ade80;
-    }
-    .stat-value.pending {
-      color: #fbbf24;
-    }
-    .stat-label {
-      font-size: 0.8125rem;
-      color: var(--color-text-secondary);
-    }
-    .disk-caption {
-      margin: 0.5rem 0 0;
-      font-size: 0.75rem;
-      color: var(--color-text-muted);
-    }
-    .empty-state {
-      color: var(--color-text-muted);
-      font-size: 0.875rem;
-    }
-
-    @media (max-width: 768px) {
-      .card-grid {
-        grid-template-columns: 1fr;
+    @media (max-width: 560px) {
+      .adm-kpi {
+        grid-template-columns: 1fr !important;
       }
     }
   `,
@@ -228,13 +373,46 @@ export class InstanceDashboard implements OnInit {
   readonly loading = signal(true);
   readonly loadError = signal('');
 
+  /** Static typed mock — matches LoadData shape; later bind to a metrics endpoint. */
+  readonly load: LoadData = LOAD_MOCK;
+
+  protected readonly formatBytes = formatBytes;
+
+  readonly tabs = [
+    { label: 'Dashboard', route: '/admin/dashboard', icon: 'Dashboard' as const },
+    { label: 'Organisations', route: '/admin/organisations', icon: 'Building' as const },
+    { label: 'Users', route: '/admin/users', icon: 'User' as const },
+    { label: 'Audit Log', route: '/admin/audit-log', icon: 'Audit' as const },
+  ];
+
   readonly hostUsedBytes = computed(() => {
     const disk = this.summary()?.hostDisk;
     if (!disk) return 0;
     return Math.max(0, disk.totalBytes - disk.freeBytes);
   });
 
-  protected readonly formatBytes = formatBytes;
+  readonly hostPct = computed(() => {
+    const disk = this.summary()?.hostDisk;
+    if (!disk || !disk.totalBytes) return 0;
+    return (this.hostUsedBytes() / disk.totalBytes) * 100;
+  });
+
+  readonly origPct = computed(() => {
+    const s = this.summary()?.storage;
+    if (!s || !s.originalLimitBytes) return 0;
+    return (s.originalUsedBytes / s.originalLimitBytes) * 100;
+  });
+
+  readonly transPct = computed(() => {
+    const s = this.summary()?.storage;
+    if (!s || !s.transcodedLimitBytes) return 0;
+    return (s.transcodedUsedBytes / s.transcodedLimitBytes) * 100;
+  });
+
+  readonly ramUsedGB = computed(() => ((this.load.ramNow / 100) * this.load.ramTotalGB).toFixed(1));
+  readonly ramPeakGB = computed(() =>
+    ((this.load.ramPeak / 100) * this.load.ramTotalGB).toFixed(1),
+  );
 
   ngOnInit(): void {
     this.service.getSummary().subscribe({
@@ -242,7 +420,7 @@ export class InstanceDashboard implements OnInit {
         this.summary.set(summary);
         this.loading.set(false);
       },
-      error: (err) => {
+      error: (err: { status: number }) => {
         this.loadError.set(
           err.status === 403
             ? 'Access denied. Instance Admin privileges required.'

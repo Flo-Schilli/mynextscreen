@@ -2,12 +2,10 @@ import { TestBed, getTestBed, ComponentFixture } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { By } from '@angular/platform-browser';
 import { of, throwError } from 'rxjs';
 import { InstanceDashboard } from './instance-dashboard';
 import { InstanceAdminService } from './instance-admin.service';
 import { InstanceAdminSummary } from './instance-admin.model';
-import { UsageBar } from '../../shared/usage-bar';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -68,7 +66,7 @@ describe('InstanceDashboard', () => {
     expect(fixture.componentInstance.hostUsedBytes()).toBe(600);
   });
 
-  it('hides the disk bar and shows a fallback when disk stats are unavailable', async () => {
+  it('shows a fallback message when disk stats are unavailable', async () => {
     getSummary.mockReturnValue(
       of(
         makeSummary({
@@ -78,9 +76,6 @@ describe('InstanceDashboard', () => {
     );
     await setup();
 
-    const bars = fixture.debugElement.queryAll(By.directive(UsageBar));
-    // storage bars (2) only — no host disk bar
-    expect(bars).toHaveLength(2);
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Disk usage unavailable');
   });
 

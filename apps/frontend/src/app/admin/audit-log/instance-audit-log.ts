@@ -1,7 +1,7 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { TitleCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { InstanceAuditLogService, InstanceAuditLogFilters } from './instance-audit-log.service';
 import { AdminUserService } from '../users/admin-user.service';
 import { OrganisationService } from '../organisations/organisation.service';
@@ -12,6 +12,7 @@ import {
   INSTANCE_RESOURCE_TYPES,
 } from '../../audit-log/audit-log.model';
 import { AuditLogTable } from '../../audit-log/audit-log-table';
+import { BtnComponent, IconComponent } from '../../ui';
 
 interface UserOption {
   userId: string;
@@ -28,22 +29,58 @@ interface UserOption {
 @Component({
   selector: 'app-instance-audit-log',
   standalone: true,
-  imports: [TitleCasePipe, FormsModule, RouterLink, AuditLogTable],
+  imports: [
+    TitleCasePipe,
+    FormsModule,
+    RouterLink,
+    RouterLinkActive,
+    AuditLogTable,
+    BtnComponent,
+    IconComponent,
+  ],
   template: `
     <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Instance Admin</h1>
+      <!-- amber page header -->
+      <div class="flex items-end justify-between gap-4 flex-wrap mb-[22px]">
+        <div class="flex items-center gap-4 min-w-0">
+          <button
+            class="inline-flex items-center gap-[7px] px-[13px] py-2 rounded-[10px] text-[13.5px] font-semibold border border-border-strong bg-surface text-muted hover:text-default transition-colors"
+            (click)="goBack()"
+          >
+            <mns-icon name="ChevronLeft" [size]="16" /> Back
+          </button>
+          <div class="flex items-center gap-[13px] min-w-0">
+            <span
+              class="grid place-items-center w-11 h-11 rounded-[12px] flex-shrink-0 text-white"
+              style="background:linear-gradient(135deg,var(--color-elevated),var(--color-elevated-2));box-shadow:0 8px 20px -10px var(--color-elevated)"
+            >
+              <mns-icon name="Audit" [size]="23" />
+            </span>
+            <div class="min-w-0">
+              <h1 class="m-0 text-[27px] font-extrabold tracking-[-0.025em]">Instance Admin</h1>
+              <div class="text-muted text-[14px] mt-[3px]">Audit Log</div>
+            </div>
+          </div>
         </div>
-      </header>
+        <mns-btn variant="outline" size="md" icon="Download" (click)="exportCsv()"
+          >Export CSV</mns-btn
+        >
+      </div>
 
-      <nav class="settings-nav">
-        <a class="settings-nav-link" routerLink="/admin/dashboard">Dashboard</a>
-        <a class="settings-nav-link" routerLink="/admin/organisations">Organisations</a>
-        <a class="settings-nav-link" routerLink="/admin/users">Users</a>
-        <a class="settings-nav-link active">Audit Log</a>
-      </nav>
+      <!-- tab bar -->
+      <div class="flex gap-1 border-b border-border mb-[var(--gap)] overflow-x-auto">
+        @for (tab of tabs; track tab.route) {
+          <a
+            [routerLink]="tab.route"
+            class="flex items-center gap-2 px-[14px] py-3 -mb-px text-[14px] font-semibold whitespace-nowrap border-b-2 border-transparent text-muted hover:text-default transition-colors no-underline"
+            routerLinkActive="border-accent text-default"
+            [routerLinkActiveOptions]="{ exact: true }"
+          >
+            <mns-icon [name]="tab.icon" [size]="16" />
+            {{ tab.label }}
+          </a>
+        }
+      </div>
 
       <div class="filter-bar">
         <div class="filter-group">
@@ -118,15 +155,15 @@ interface UserOption {
       </div>
 
       @if (loadError) {
-        <p class="error">{{ loadError }}</p>
+        <p class="text-offline text-sm">{{ loadError }}</p>
       }
 
       @if (loading && entries.length === 0) {
-        <p class="loading-text">Loading audit log...</p>
+        <p class="text-muted text-sm">Loading audit log…</p>
       }
 
       @if (!loading && entries.length === 0 && !loadError) {
-        <p class="empty-text">No audit log entries found.</p>
+        <p class="text-muted text-sm">No audit log entries found.</p>
       }
 
       @if (entries.length > 0) {
@@ -145,32 +182,6 @@ interface UserOption {
     </div>
   `,
   styles: `
-    .settings-nav {
-      display: flex;
-      gap: 0;
-      margin-bottom: 1.5rem;
-      border-bottom: 1px solid var(--color-border);
-    }
-    .settings-nav-link {
-      padding: 0.625rem 1rem;
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-      text-decoration: none;
-      border-bottom: 2px solid transparent;
-      cursor: pointer;
-      transition:
-        color 0.15s,
-        border-color 0.15s;
-    }
-    .settings-nav-link:hover {
-      color: var(--color-text-primary);
-    }
-    .settings-nav-link.active {
-      color: var(--color-text-primary);
-      border-bottom-color: var(--color-accent);
-      font-weight: 500;
-    }
-
     .filter-bar {
       display: flex;
       flex-wrap: wrap;
@@ -178,8 +189,8 @@ interface UserOption {
       align-items: flex-end;
       margin-bottom: 1.5rem;
       padding: 1rem;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: 0.5rem;
     }
     .filter-group {
@@ -192,17 +203,18 @@ interface UserOption {
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: var(--color-text-secondary);
+      color: var(--text-muted);
     }
     .filter-group select,
     .filter-group input {
       padding: 0.5rem 0.75rem;
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-border);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       border-radius: 0.375rem;
-      color: var(--color-text-primary);
+      color: var(--text);
       font-size: 0.875rem;
       min-width: 10rem;
+      font-family: inherit;
     }
     .filter-group input[type='date'] {
       min-width: 9rem;
@@ -210,12 +222,12 @@ interface UserOption {
     .filter-group select:focus,
     .filter-group input:focus {
       outline: none;
-      border-color: var(--color-accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
     }
     .clear-btn {
       align-self: flex-end;
     }
-
     @media (max-width: 768px) {
       .filter-bar {
         flex-direction: column;
@@ -232,6 +244,17 @@ export class InstanceAuditLog implements OnInit {
   private userService = inject(AdminUserService);
   private orgService = inject(OrganisationService);
   private router = inject(Router);
+
+  readonly tabs = [
+    { label: 'Dashboard', route: '/admin/dashboard', icon: 'Dashboard' as const },
+    { label: 'Organisations', route: '/admin/organisations', icon: 'Building' as const },
+    { label: 'Users', route: '/admin/users', icon: 'User' as const },
+    { label: 'Audit Log', route: '/admin/audit-log', icon: 'Audit' as const },
+  ];
+
+  exportCsv(): void {
+    // Placeholder — backend CSV export endpoint wired when available
+  }
 
   readonly auditActions = INSTANCE_AUDIT_ACTIONS;
   readonly resourceTypes = INSTANCE_RESOURCE_TYPES;
