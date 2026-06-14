@@ -185,11 +185,18 @@
 html,
 body {
   margin: 0;
-  height: 100%;
+  min-height: 100%;
+}
+html {
+  /* solid fallback so any area beyond the body box never bands on scroll */
+  background-color: var(--bg);
 }
 body {
   font-family: var(--font-sans);
   background: var(--bg-grad);
+  /* pin the glow to the viewport so it doesn't tile/shift when the page scrolls */
+  background-attachment: fixed;
+  background-repeat: no-repeat;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -281,12 +288,12 @@ body {
    component is migrated to the new UI primitives and Tailwind utilities.
    ============================================================================ */
 @layer components {
-  /* Page chrome */
+  /* Page chrome — transparent wrapper inside the shell's <main class="content">,
+     which already supplies padding and lets the <body> gradient show through.
+     No opaque background / min-height / padding here, or feature pages would
+     paint a flat black band and double-pad versus the dashboard. */
   .page {
-    min-height: 100vh;
-    background: var(--bg);
     color: var(--text);
-    padding: 2rem;
   }
   .page-header {
     display: flex;
@@ -577,9 +584,6 @@ body {
   }
 
   @media (max-width: 768px) {
-    .page {
-      padding: 1rem;
-    }
     .page-header {
       flex-direction: column;
       align-items: flex-start;
