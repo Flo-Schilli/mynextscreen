@@ -124,6 +124,8 @@
       }
 
       <form [formGroup]="form" (ngSubmit)="submit()" class="flex flex-col gap-4">
+        <!-- Hidden native submit so Enter in any field triggers sign-in (mns-btn is type=button) -->
+        <button type="submit" class="sr-only" tabindex="-1" aria-hidden="true"></button>
         <!-- Email field -->
         <div>
           <label for="email" class="mb-2 block text-[13px] font-semibold text-muted">
