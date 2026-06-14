@@ -1,5 +1,6 @@
 /* eslint-disable @angular-eslint/component-selector */
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
 export type IconName =
   | 'Dashboard'
@@ -142,9 +143,16 @@ const ICON_PATHS: Record<IconName, string> = {
   },
 })
 export class IconComponent {
+  private readonly sanitizer = inject(DomSanitizer);
+
   readonly name = input.required<IconName>();
   readonly size = input<number>(20);
   readonly strokeWidth = input<number>(1.7);
 
-  readonly paths = computed(() => ICON_PATHS[this.name()] ?? '');
+  // ICON_PATHS is a trusted, static internal constant (no user input), so the
+  // SVG fragment is bypassed past the sanitizer — otherwise Angular strips the
+  // <path>/<rect>/<circle> children of the [innerHTML]-bound <svg> and nothing renders.
+  readonly paths = computed<SafeHtml>(() =>
+    this.sanitizer.bypassSecurityTrustHtml(ICON_PATHS[this.name()] ?? ''),
+  );
 }
