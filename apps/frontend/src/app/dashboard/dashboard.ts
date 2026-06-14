@@ -12,21 +12,22 @@ import { DecimalPipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { ScreenService } from '../screens/screen.service';
-import { ContentService } from '../content/content.service';
 import { ScheduleService } from '../schedules/schedule.service';
 import { OrganisationStateService } from '../shell/organisation-state.service';
 import { DashboardSseService } from './dashboard-sse.service';
+import { DashboardService } from './dashboard.service';
 import { Screen } from '../screens/screen.model';
 import { StorageInfo } from '../content/content.model';
 import { ScheduleEntry } from '../schedules/schedule.model';
+import { DashboardSummary } from './dashboard-summary.model';
 import { ActivityEntry, TimelineEntry, TimelineRow } from './dashboard.model';
 import { DashboardScreenGrid } from './dashboard-screen-grid';
 import { StorageUsageBars } from '../shared/storage-usage-bars';
 import { DashboardScheduleTimeline } from './dashboard-schedule-timeline';
 import { DashboardActivityFeed } from './dashboard-activity-feed';
+import { DashboardAlerts } from './dashboard-alerts';
 import {
   BadgeComponent,
-  BarComponent,
   BtnComponent,
   CardComponent,
   CardHeadComponent,
@@ -81,10 +82,18 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
 ];
 
 /**
- * Smart container for the dashboard. Owns data loading (screens, storage,
- * schedule), live SSE updates, the rolling activity feed and the timeline/hours
- * derivation. Renders onboarding state when data is empty, populated dashboard
- * once the org has screens. Delegates each card body to a presentational child.
+ * A screen flagged online but whose heartbeat is older than this is shown as
+ * "warning" — stale but not yet flipped offline. Mirrors the backend rule
+ * (half the SCREEN_OFFLINE_THRESHOLD_MS default of 120s).
+ */
+const WARNING_HEARTBEAT_MS = 60_000;
+
+/**
+ * Smart container for the dashboard. Owns data loading (screens, schedule, and
+ * the aggregate summary), live SSE updates, the rolling activity feed and the
+ * timeline/hours derivation. Renders onboarding state when no screens exist,
+ * populated dashboard once the org has screens. Delegates each card body to a
+ * presentational child.
  */
 @Component({
   selector: 'app-dashboard',
@@ -95,6 +104,7 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     StorageUsageBars,
     DashboardScheduleTimeline,
     DashboardActivityFeed,
+    DashboardAlerts,
     CardComponent,
     CardHeadComponent,
     BadgeComponent,
@@ -102,7 +112,6 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     IconComponent,
     PageHeaderComponent,
     RingComponent,
-    BarComponent,
     StatusDotComponent,
   ],
   template: `
@@ -213,7 +222,12 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
       </div>
     } @else {
       <!-- ======== POPULATED STATE ======== -->
-      <mns-page-header title="Dashboard" [sub]="dashboardSub()" />
+      <mns-page-header title="Dashboard" [sub]="dashboardSub()">
+        <mns-btn variant="outline" size="md" icon="Refresh" (mnsClick)="refresh()">Refresh</mns-btn>
+        <mns-btn variant="primary" size="md" icon="Plus" (mnsClick)="navigateTo('/screens')">
+          Add screen
+        </mns-btn>
+      </mns-page-header>
 
       <!-- KPI row -->
       <div class="kpi-row">
@@ -228,19 +242,21 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
             </div>
             <div class="kpi-value mono">{{ screensOnline() }}</div>
             <div class="flex items-center justify-between gap-2">
-              <span class="text-[12.5px] text-muted"> {{ screensOffline() }} offline </span>
+              <span class="text-[12.5px] text-muted">
+                {{ screensOffline() }} offline · {{ screensWarning() }} warning
+              </span>
               <svg class="sparkline" [attr.viewBox]="'0 0 76 26'" fill="none">
                 <defs>
                   <linearGradient id="sg-online" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="var(--online)" stop-opacity="0.28" />
-                    <stop offset="1" stop-color="var(--online)" stop-opacity="0" />
+                    <stop offset="0" stop-color="var(--color-online)" stop-opacity="0.28" />
+                    <stop offset="1" stop-color="var(--color-online)" stop-opacity="0" />
                   </linearGradient>
                 </defs>
                 <path [attr.d]="onlineSparkArea()" fill="url(#sg-online)" />
                 <path
                   [attr.d]="onlineSparkLine()"
                   fill="none"
-                  stroke="var(--online)"
+                  stroke="var(--color-online)"
                   stroke-width="2"
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -250,55 +266,109 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
           </div>
         </mns-card>
 
-        <!-- Storage used -->
+        <!-- Content items -->
         <mns-card [animate]="true" [delay]="0.05" [hover]="true">
           <div class="kpi-card">
             <div class="flex items-center justify-between">
-              <span class="text-[13px] font-semibold text-muted">Storage used</span>
+              <span class="text-[13px] font-semibold text-muted">Content items</span>
               <span class="kpi-icon kpi-icon--accent">
-                <mns-icon name="Storage" [size]="18" />
+                <mns-icon name="Content" [size]="18" />
               </span>
             </div>
-            <div class="kpi-value mono">
-              {{ storageUsedGb() }}<span class="text-[16px] text-muted font-normal"> GB</span>
-            </div>
+            <div class="kpi-value mono">{{ contentCount() }}</div>
             <div class="flex items-center justify-between gap-2">
-              <span class="text-[12.5px] text-muted">of {{ storageTotalGb() }} GB limit</span>
-              <mns-bar [value]="storagePercent()" [h]="6" class="w-[76px]" />
+              <span class="text-[12.5px] text-muted">{{ libraryGb() }} GB in library</span>
+              <svg class="sparkline" [attr.viewBox]="'0 0 76 26'" fill="none">
+                <defs>
+                  <linearGradient id="sg-accent" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="var(--accent)" stop-opacity="0.28" />
+                    <stop offset="1" stop-color="var(--accent)" stop-opacity="0" />
+                  </linearGradient>
+                </defs>
+                <path [attr.d]="contentSparkArea()" fill="url(#sg-accent)" />
+                <path
+                  [attr.d]="contentSparkLine()"
+                  fill="none"
+                  stroke="var(--accent)"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
             </div>
           </div>
         </mns-card>
 
-        <!-- Active schedules -->
+        <!-- Active playlists -->
         <mns-card [animate]="true" [delay]="0.1" [hover]="true">
           <div class="kpi-card">
             <div class="flex items-center justify-between">
-              <span class="text-[13px] font-semibold text-muted">Upcoming events</span>
+              <span class="text-[13px] font-semibold text-muted">Active playlists</span>
               <span class="kpi-icon kpi-icon--info">
-                <mns-icon name="Schedules" [size]="18" />
+                <mns-icon name="Playlists" [size]="18" />
               </span>
             </div>
-            <div class="kpi-value mono">{{ scheduleEntries().length }}</div>
-            <span class="text-[12.5px] text-muted">next 24 hours</span>
+            <div class="kpi-value mono">{{ playlistCount() }}</div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[12.5px] text-muted">{{ upcomingEvents() }} scheduled events</span>
+              <svg class="sparkline" [attr.viewBox]="'0 0 76 26'" fill="none">
+                <defs>
+                  <linearGradient id="sg-info" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="var(--color-info)" stop-opacity="0.28" />
+                    <stop offset="1" stop-color="var(--color-info)" stop-opacity="0" />
+                  </linearGradient>
+                </defs>
+                <path [attr.d]="playlistSparkArea()" fill="url(#sg-info)" />
+                <path
+                  [attr.d]="playlistSparkLine()"
+                  fill="none"
+                  stroke="var(--color-info)"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </div>
           </div>
         </mns-card>
 
-        <!-- Activity -->
+        <!-- Open alerts -->
         <mns-card [animate]="true" [delay]="0.15" [hover]="true">
           <div class="kpi-card">
             <div class="flex items-center justify-between">
-              <span class="text-[13px] font-semibold text-muted">Recent events</span>
-              <span class="kpi-icon kpi-icon--neutral">
-                <mns-icon name="Audit" [size]="18" />
+              <span class="text-[13px] font-semibold text-muted">Open alerts</span>
+              <span class="kpi-icon kpi-icon--offline">
+                <mns-icon name="Alert" [size]="18" />
               </span>
             </div>
-            <div class="kpi-value mono">{{ activityFeed().length }}</div>
-            <span class="text-[12.5px] text-muted">live feed</span>
+            <div class="kpi-value mono">{{ alertCount() }}</div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[12.5px] text-muted">
+                {{ criticalAlertCount() }} critical · {{ warningAlertCount() }} warning
+              </span>
+              <svg class="sparkline" [attr.viewBox]="'0 0 76 26'" fill="none">
+                <defs>
+                  <linearGradient id="sg-offline" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="var(--color-offline)" stop-opacity="0.28" />
+                    <stop offset="1" stop-color="var(--color-offline)" stop-opacity="0" />
+                  </linearGradient>
+                </defs>
+                <path [attr.d]="alertSparkArea()" fill="url(#sg-offline)" />
+                <path
+                  [attr.d]="alertSparkLine()"
+                  fill="none"
+                  stroke="var(--color-offline)"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </div>
           </div>
         </mns-card>
       </div>
 
-      <!-- main grid: screens + (storage + schedule) -->
+      <!-- main grid: screens + (storage + alerts) -->
       <div class="main-grid mb-5">
         <!-- Screens live -->
         <mns-card [animate]="true" [delay]="0.05">
@@ -330,7 +400,7 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
           <!-- Storage donut -->
           <mns-card [animate]="true" [delay]="0.08">
             <mns-card-head title="Storage" sub="Media library usage" icon="Storage" />
-            @if (loadingStorage()) {
+            @if (loadingSummary()) {
               <div class="empty-msg">Loading storage…</div>
             } @else if (!storage()) {
               <div class="empty-state">No storage data available.</div>
@@ -346,6 +416,20 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
                 </mns-ring>
                 <app-storage-usage-bars [storage]="storage()!" />
               </div>
+            }
+          </mns-card>
+
+          <!-- Alerts -->
+          <mns-card [animate]="true" [delay]="0.1">
+            <mns-card-head title="Alerts" [sub]="alertsSubline()" icon="Alert">
+              <mns-badge slot="right" tone="offline">{{ alertCount() }}</mns-badge>
+            </mns-card-head>
+            @if (loadingSummary()) {
+              <div class="empty-msg">Loading alerts…</div>
+            } @else if (alerts().length === 0) {
+              <div class="empty-state">No open alerts — everything looks healthy.</div>
+            } @else {
+              <app-dashboard-alerts [alerts]="alerts()" />
             }
           </mns-card>
         </div>
@@ -408,7 +492,7 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     }
     .kpi-icon--online {
       background: var(--online-dim);
-      color: var(--online);
+      color: var(--color-online);
     }
     .kpi-icon--accent {
       background: var(--accent-soft);
@@ -416,11 +500,11 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     }
     .kpi-icon--info {
       background: var(--info-dim);
-      color: var(--info);
+      color: var(--color-info);
     }
-    .kpi-icon--neutral {
-      background: var(--surface-3);
-      color: var(--text-muted);
+    .kpi-icon--offline {
+      background: var(--offline-dim);
+      color: var(--color-offline);
     }
 
     .sparkline {
@@ -484,7 +568,7 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     }
     .step-icon--done {
       background: var(--online-dim);
-      color: var(--online);
+      color: var(--color-online);
     }
     .step-icon--active {
       background: linear-gradient(135deg, var(--accent), var(--accent-2));
@@ -534,20 +618,20 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
 export class Dashboard implements OnInit, OnDestroy {
   private router = inject(Router);
   private screenService = inject(ScreenService);
-  private contentService = inject(ContentService);
   private scheduleService = inject(ScheduleService);
+  private dashboardService = inject(DashboardService);
   private orgState = inject(OrganisationStateService);
   private socketService = inject(DashboardSseService);
 
   private subscriptions: Subscription[] = [];
 
   readonly screens = signal<Screen[]>([]);
-  readonly storage = signal<StorageInfo | null>(null);
+  readonly summary = signal<DashboardSummary | null>(null);
   readonly scheduleEntries = signal<ScheduleEntry[]>([]);
   readonly activityFeed = signal<ActivityEntry[]>([]);
 
   readonly loadingScreens = signal(false);
-  readonly loadingStorage = signal(false);
+  readonly loadingSummary = signal(false);
   readonly loadingSchedule = signal(false);
 
   // ── Onboarding steps config ──
@@ -559,9 +643,9 @@ export class Dashboard implements OnInit, OnDestroy {
       case 'screen':
         return this.screens().length > 0;
       case 'content':
-        return this.storage() !== null && (this.storage()?.originalUsedBytes ?? 0) > 0;
+        return (this.summary()?.content.count ?? 0) > 0;
       case 'playlist':
-        return false; // no playlist signal yet — always shows as incomplete
+        return (this.summary()?.playlists.count ?? 0) > 0;
       case 'schedule':
         return this.scheduleEntries().length > 0;
     }
@@ -586,13 +670,44 @@ export class Dashboard implements OnInit, OnDestroy {
     return this.screens().length > 0 ? 'populated' : 'onboarding';
   });
 
-  // ── Populated dashboard helpers ──
-  readonly screensOnline = computed(() => this.screens().filter((s) => s.isOnline).length);
+  // ── Screen KPIs (derived live from the screen list so SSE keeps them fresh) ──
+  /** Online and heartbeat is fresh. */
+  readonly screensOnline = computed(
+    () => this.screens().filter((s) => s.isOnline && !this.isHeartbeatStale(s)).length,
+  );
+  /** Online but heartbeat is stale (degrading). */
+  readonly screensWarning = computed(
+    () => this.screens().filter((s) => s.isOnline && this.isHeartbeatStale(s)).length,
+  );
   readonly screensOffline = computed(() => this.screens().filter((s) => !s.isOnline).length);
 
   readonly screensSubline = computed(
     () => `${this.screensOnline()} of ${this.screens().length} active`,
   );
+
+  // ── Summary-backed KPIs ──
+  readonly contentCount = computed(() => this.summary()?.content.count ?? 0);
+  readonly playlistCount = computed(() => this.summary()?.playlists.count ?? 0);
+  readonly upcomingEvents = computed(
+    () => this.summary()?.schedules.upcoming24h ?? this.scheduleEntries().length,
+  );
+  readonly libraryGb = computed(() =>
+    ((this.summary()?.content.libraryBytes ?? 0) / 1e9).toFixed(1),
+  );
+
+  // ── Alerts ──
+  readonly alerts = computed(() => this.summary()?.alerts ?? []);
+  readonly alertCount = computed(() => this.alerts().length);
+  readonly criticalAlertCount = computed(
+    () => this.alerts().filter((a) => a.tone === 'offline').length,
+  );
+  readonly warningAlertCount = computed(
+    () => this.alerts().filter((a) => a.tone !== 'offline').length,
+  );
+  readonly alertsSubline = computed(() => {
+    const n = this.alertCount();
+    return n === 0 ? 'All clear' : `${n} need${n === 1 ? 's' : ''} attention`;
+  });
 
   readonly dashboardSub = computed(() => {
     const h = new Date().getHours();
@@ -605,18 +720,8 @@ export class Dashboard implements OnInit, OnDestroy {
     return `${greeting} · ${today}`;
   });
 
-  // Storage KPIs
-  readonly storageUsedGb = computed(() => {
-    const s = this.storage();
-    if (!s) return '0.0';
-    return ((s.originalUsedBytes + s.transcodedUsedBytes) / 1e9).toFixed(1);
-  });
-
-  readonly storageTotalGb = computed(() => {
-    const s = this.storage();
-    if (!s) return '0.0';
-    return ((s.originalLimitBytes + s.transcodedLimitBytes) / 1e9).toFixed(1);
-  });
+  // ── Storage (sourced from the summary read-model) ──
+  readonly storage = computed<StorageInfo | null>(() => this.summary()?.storage ?? null);
 
   readonly storagePercent = computed(() => {
     const s = this.storage();
@@ -626,23 +731,27 @@ export class Dashboard implements OnInit, OnDestroy {
     return Math.round(((s.originalUsedBytes + s.transcodedUsedBytes) / total) * 100);
   });
 
-  // Simple sparklines for the KPI cards (online screen count trend — last 7 ticks)
-  private readonly sparkBase = computed(() => {
-    const n = this.screensOnline();
-    // Build a synthetic 7-point trend ending at current value
-    return [
-      Math.max(0, n - 2),
-      Math.max(0, n - 2),
-      Math.max(0, n - 1),
-      Math.max(0, n - 1),
-      n,
-      Math.max(0, n - 1),
-      n,
-    ];
-  });
-
-  readonly onlineSparkLine = computed(() => this.buildSparkPath(this.sparkBase()));
-  readonly onlineSparkArea = computed(() => this.buildSparkArea(this.sparkBase()));
+  // Simple synthetic 7-point trend per KPI, ending at the current value.
+  readonly onlineSparkLine = computed(() =>
+    this.buildSparkPath(this.synthSpark(this.screensOnline())),
+  );
+  readonly onlineSparkArea = computed(() =>
+    this.buildSparkArea(this.synthSpark(this.screensOnline())),
+  );
+  readonly contentSparkLine = computed(() =>
+    this.buildSparkPath(this.synthSpark(this.contentCount())),
+  );
+  readonly contentSparkArea = computed(() =>
+    this.buildSparkArea(this.synthSpark(this.contentCount())),
+  );
+  readonly playlistSparkLine = computed(() =>
+    this.buildSparkPath(this.synthSpark(this.playlistCount())),
+  );
+  readonly playlistSparkArea = computed(() =>
+    this.buildSparkArea(this.synthSpark(this.playlistCount())),
+  );
+  readonly alertSparkLine = computed(() => this.buildSparkPath(this.synthSpark(this.alertCount())));
+  readonly alertSparkArea = computed(() => this.buildSparkArea(this.synthSpark(this.alertCount())));
 
   // ── Timeline ──
   private timelineStart = new Date();
@@ -729,9 +838,11 @@ export class Dashboard implements OnInit, OnDestroy {
       }),
       this.socketService.transcodingComplete$.subscribe(() => {
         this.addActivity('transcoding', `Transcoding completed`);
+        this.reloadSummary();
       }),
       this.socketService.transcodingFailed$.subscribe(() => {
         this.addActivity('transcoding', `Transcoding failed`);
+        this.reloadSummary();
       }),
       this.socketService.transcodingProgress$.subscribe((event) => {
         const progress = event.data['progress'] as number;
@@ -748,8 +859,14 @@ export class Dashboard implements OnInit, OnDestroy {
 
   private loadData(orgId: string): void {
     this.loadScreens(orgId);
-    this.loadStorage(orgId);
+    this.loadSummary(orgId);
     this.loadSchedule(orgId);
+  }
+
+  /** Reload all populated-dashboard data for the current org. */
+  refresh(): void {
+    const orgId = this.orgState.selectedOrgId();
+    if (orgId) this.loadData(orgId);
   }
 
   private loadScreens(orgId: string): void {
@@ -763,14 +880,26 @@ export class Dashboard implements OnInit, OnDestroy {
     });
   }
 
-  private loadStorage(orgId: string): void {
-    this.loadingStorage.set(true);
-    this.contentService.getStorage(orgId).subscribe({
-      next: (info) => {
-        this.storage.set(info);
-        this.loadingStorage.set(false);
+  private loadSummary(orgId: string): void {
+    this.loadingSummary.set(true);
+    this.dashboardService.getSummary(orgId).subscribe({
+      next: (summary) => {
+        this.summary.set(summary);
+        this.loadingSummary.set(false);
       },
-      error: () => this.loadingStorage.set(false),
+      error: () => this.loadingSummary.set(false),
+    });
+  }
+
+  /** Quietly refresh the summary (no loading spinner) after a relevant SSE event. */
+  private reloadSummary(): void {
+    const orgId = this.orgState.selectedOrgId();
+    if (!orgId) return;
+    this.dashboardService.getSummary(orgId).subscribe({
+      next: (summary) => this.summary.set(summary),
+      error: () => {
+        /* best-effort background refresh */
+      },
     });
   }
 
@@ -790,7 +919,10 @@ export class Dashboard implements OnInit, OnDestroy {
   }
 
   private updateScreenStatus(screenId: string, isOnline: boolean): void {
-    const updated = this.screens().map((s) => (s.id === screenId ? { ...s, isOnline } : s));
+    const now = new Date().toISOString();
+    const updated = this.screens().map((s) =>
+      s.id === screenId ? { ...s, isOnline, lastHeartbeat: isOnline ? now : s.lastHeartbeat } : s,
+    );
     this.screens.set(updated);
   }
 
@@ -815,7 +947,26 @@ export class Dashboard implements OnInit, OnDestroy {
     this.router.navigate([route]);
   }
 
+  /** Online screen whose heartbeat is older than the warning threshold. */
+  private isHeartbeatStale(screen: Screen): boolean {
+    if (!screen.lastHeartbeat) return true;
+    return Date.now() - new Date(screen.lastHeartbeat).getTime() > WARNING_HEARTBEAT_MS;
+  }
+
   // ── Sparkline helpers ──
+  /** Synthetic 7-point upward trend ending at the current value `n`. */
+  private synthSpark(n: number): number[] {
+    return [
+      Math.max(0, n - 2),
+      Math.max(0, n - 2),
+      Math.max(0, n - 1),
+      Math.max(0, n - 1),
+      n,
+      Math.max(0, n - 1),
+      n,
+    ];
+  }
+
   private buildSparkPath(data: number[]): string {
     const w = 76;
     const h = 26;
