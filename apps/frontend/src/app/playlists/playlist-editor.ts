@@ -204,13 +204,11 @@ export interface ItemFieldChange<T> {
     }
 
     .editor-card {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
       padding: 1.5rem;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
+      box-shadow: var(--shadow);
     }
     .editor-header {
       display: flex;
@@ -232,10 +230,10 @@ export interface ItemFieldChange<T> {
     }
     .name-input {
       padding: 0.375rem 0.75rem;
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-accent);
+      background: var(--surface);
+      border: 1px solid var(--accent);
       border-radius: 0.375rem;
-      color: var(--color-text-primary);
+      color: var(--text);
       font-size: 1.125rem;
       font-weight: 600;
     }
@@ -278,17 +276,17 @@ export interface ItemFieldChange<T> {
       align-items: center;
       gap: 0.75rem;
       padding: 0.625rem 0.75rem;
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-border);
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: 0.375rem;
       transition: border-color 0.15s;
     }
     .item-row:hover {
-      border-color: var(--color-text-muted);
+      border-color: var(--border-strong);
     }
     .drag-handle {
       cursor: grab;
-      color: var(--color-text-muted);
+      color: var(--text-muted);
       font-size: 1rem;
       padding: 0.25rem;
       user-select: none;
@@ -308,7 +306,7 @@ export interface ItemFieldChange<T> {
       overflow: hidden;
       flex-shrink: 0;
       cursor: pointer;
-      background: var(--color-bg-tertiary);
+      background: var(--surface-3);
     }
     .thumb-img {
       width: 100%;
@@ -321,8 +319,8 @@ export interface ItemFieldChange<T> {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-muted);
+      background: var(--surface-3);
+      color: var(--text-muted);
       font-size: 1rem;
     }
     .item-info {
@@ -362,7 +360,7 @@ export interface ItemFieldChange<T> {
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: var(--color-text-secondary);
+      color: var(--text-muted);
     }
     .duration-input-group {
       display: flex;
@@ -372,16 +370,16 @@ export interface ItemFieldChange<T> {
     .duration-input {
       width: 4rem;
       padding: 0.25rem 0.5rem;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       border-radius: 0.25rem;
-      color: var(--color-text-primary);
+      color: var(--text);
       font-size: 0.8125rem;
       text-align: right;
     }
     .duration-input:focus {
       outline: none;
-      border-color: var(--color-accent);
+      border-color: var(--accent);
     }
     .duration-input:disabled {
       opacity: 0.6;
@@ -389,12 +387,12 @@ export interface ItemFieldChange<T> {
     }
     .duration-approx {
       font-size: 0.8125rem;
-      color: var(--color-text-muted);
+      color: var(--text-muted);
       margin-right: -0.125rem;
     }
     .duration-unit {
       font-size: 0.75rem;
-      color: var(--color-text-muted);
+      color: var(--text-muted);
     }
     .item-transition,
     .item-transition-duration {
@@ -405,15 +403,15 @@ export interface ItemFieldChange<T> {
     }
     .transition-select {
       padding: 0.25rem 0.5rem;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       border-radius: 0.25rem;
-      color: var(--color-text-primary);
+      color: var(--text);
       font-size: 0.8125rem;
     }
     .transition-select:focus {
       outline: none;
-      border-color: var(--color-accent);
+      border-color: var(--accent);
     }
     .btn-remove {
       background: none;
@@ -456,15 +454,15 @@ export interface ItemFieldChange<T> {
     .total-duration {
       margin-top: 1rem;
       padding: 0.75rem 1rem;
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-border);
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: 0.375rem;
       font-size: 0.875rem;
-      color: var(--color-text-secondary);
+      color: var(--text-muted);
       text-align: right;
     }
     .total-duration strong {
-      color: var(--color-text-primary);
+      color: var(--text);
     }
 
     .preview-section {
@@ -490,7 +488,7 @@ export interface ItemFieldChange<T> {
       max-width: 100%;
       max-height: 24rem;
       border-radius: 0.375rem;
-      border: 1px solid var(--color-border);
+      border: 1px solid var(--border);
     }
   `,
 })

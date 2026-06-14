@@ -18,6 +18,13 @@ import { BulkAction } from '../shared/selection/bulk-action-toolbar';
 import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dialog';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { ToastService } from '../shared/toast/toast.service';
+import {
+  PageHeaderComponent,
+  BtnComponent,
+  EmptyComponent,
+  OverlayComponent,
+  ModalComponent,
+} from '../ui';
 
 /**
  * Smart container for the screens feature. Owns data loading, the org context,
@@ -36,26 +43,30 @@ import { ToastService } from '../shared/toast/toast.service';
     ScreenApiKeyModal,
     ScreenAssignGroupModal,
     BulkConfirmDialogComponent,
+    PageHeaderComponent,
+    BtnComponent,
+    EmptyComponent,
+    OverlayComponent,
+    ModalComponent,
   ],
   providers: [SelectionService],
   template: `
-    <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Screen Management</h1>
+    <!-- Extra bottom padding for sticky bulk-action bar -->
+    <div class="pb-20">
+      <!-- Loading -->
+      @if (loading) {
+        <div class="flex items-center justify-center py-20 text-muted text-sm">
+          Loading screens…
         </div>
-        @if (!loading && !selectedScreen && !showCreateForm) {
-          <button class="btn btn-primary" (click)="openCreateForm()">+ Register Screen</button>
-        }
-      </header>
-
-      @if (loadError) {
-        <p class="error">{{ loadError }}</p>
       }
 
-      @if (loading) {
-        <p class="loading-text">Loading screens...</p>
+      <!-- Load error -->
+      @if (loadError) {
+        <div
+          class="rounded-xl border border-offline-dim bg-offline-dim/30 px-5 py-4 text-sm text-offline mb-5"
+        >
+          {{ loadError }}
+        </div>
       }
 
       <!-- Create Screen Form -->
@@ -90,27 +101,42 @@ import { ToastService } from '../shared/toast/toast.service';
         />
       }
 
-      <!-- Screen Grid -->
-      @if (!loading && !selectedScreen && !showCreateForm && !editingScreen && screens.length > 0) {
-        <app-screen-grid
-          [screens]="screens"
-          [screenIds]="screenIds"
-          [bulkActions]="bulkActions"
-          (selectItem)="selectScreen($event)"
-        />
-      }
+      <!-- Default view: page header + grid or empty state -->
+      @if (!loading && !selectedScreen && !showCreateForm && !editingScreen) {
+        <mns-page-header title="Screens" icon="Screens" [sub]="screenSubtitle">
+          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">
+            Add screen
+          </mns-btn>
+        </mns-page-header>
 
-      @if (!loading && !selectedScreen && !showCreateForm && screens.length === 0 && !loadError) {
-        <div class="empty-state">
-          <p class="empty-text">No screens registered yet.</p>
-          <button class="btn btn-primary" (click)="openCreateForm()">
-            Register Your First Screen
-          </button>
-        </div>
+        @if (screens.length > 0) {
+          <app-screen-grid
+            [screens]="screens"
+            [screenIds]="screenIds"
+            [bulkActions]="bulkActions"
+            (selectItem)="selectScreen($event)"
+          />
+        } @else if (!loadError) {
+          <div class="empty-state">
+            <mns-empty
+              icon="Screens"
+              title="No screens yet"
+              desc="Pair your first display with a one-time code to start broadcasting content."
+            >
+              <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">
+                Add your first screen
+              </mns-btn>
+            </mns-empty>
+          </div>
+        }
       }
 
       @if (actionError) {
-        <p class="error">{{ actionError }}</p>
+        <div
+          class="rounded-xl border border-offline-dim bg-offline-dim/30 px-5 py-4 text-sm text-offline mt-4"
+        >
+          {{ actionError }}
+        </div>
       }
 
       <!-- API Key Modal -->
@@ -120,43 +146,33 @@ import { ToastService } from '../shared/toast/toast.service';
 
       <!-- Regenerate Confirmation Modal -->
       @if (showRegenerateConfirm) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Confirm regeneration"
-          tabindex="0"
-          (click)="cancelRegenerate()"
-          (keydown.escape)="cancelRegenerate()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Regenerate API Key</h2>
-            <p>
-              Are you sure you want to regenerate the API key for
-              <strong>{{ selectedScreen?.name }}</strong
-              >?
-            </p>
-            <p>
-              The current API key will be invalidated immediately. The screen will need to be
-              reconfigured with the new key.
-            </p>
-            <div class="form-actions">
-              <button class="btn btn-secondary" (click)="cancelRegenerate()">Cancel</button>
-              <button
-                class="btn btn-danger"
-                (click)="executeRegenerate()"
-                [disabled]="regenerating"
-              >
-                {{ regenerating ? 'Regenerating...' : 'Regenerate' }}
-              </button>
+        <mns-overlay (closed)="cancelRegenerate()">
+          <mns-modal title="Regenerate API Key" icon="Cast" (closed)="cancelRegenerate()">
+            <div class="flex flex-col gap-4">
+              <p class="text-sm text-muted leading-relaxed">
+                Are you sure you want to regenerate the API key for
+                <strong class="text-text">{{ selectedScreen?.name }}</strong
+                >? The current key will be invalidated immediately and the screen will need to be
+                reconfigured.
+              </p>
+              <div class="flex gap-2 pt-1" slot="footer">
+                <div class="flex gap-2 px-6 pb-5 w-full">
+                  <mns-btn variant="outline" [full]="true" (mnsClick)="cancelRegenerate()">
+                    Cancel
+                  </mns-btn>
+                  <mns-btn
+                    variant="danger"
+                    [full]="true"
+                    [disabled]="regenerating"
+                    (mnsClick)="executeRegenerate()"
+                  >
+                    {{ regenerating ? 'Regenerating…' : 'Regenerate' }}
+                  </mns-btn>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </mns-modal>
+        </mns-overlay>
       }
 
       <!-- Bulk Delete Confirmation Modal -->
@@ -183,12 +199,6 @@ import { ToastService } from '../shared/toast/toast.service';
         />
       }
     </div>
-  `,
-  styles: `
-    /* Extra bottom padding for sticky bulk-action bar */
-    .page {
-      padding-bottom: 5rem;
-    }
   `,
 })
 export class Screens implements OnInit, OnDestroy {
@@ -516,6 +526,13 @@ export class Screens implements OnInit, OnDestroy {
     this.showAssignGroupModal = false;
     this.assignGroupResolve?.(true);
     this.assignGroupResolve = null;
+  }
+
+  get screenSubtitle(): string {
+    const online = this.screens.filter((s) => s.isOnline).length;
+    const offline = this.screens.length - online;
+    if (!this.screens.length) return 'Pair and manage every display in your network';
+    return `${online} online · ${offline} offline`;
   }
 
   goBack(): void {

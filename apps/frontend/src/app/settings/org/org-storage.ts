@@ -1,9 +1,10 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { ContentService } from '../../content/content.service';
 import { StorageInfo } from '../../content/content.model';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
 import { StorageUsageBars } from '../../shared/storage-usage-bars';
+import { CardComponent, CardHeadComponent } from '../../ui';
 
 /**
  * Org-admin storage overview: the active organisation's original/transcoded
@@ -13,80 +14,70 @@ import { StorageUsageBars } from '../../shared/storage-usage-bars';
 @Component({
   selector: 'app-org-storage',
   standalone: true,
-  imports: [RouterLink, StorageUsageBars],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterLink, StorageUsageBars, CardComponent, CardHeadComponent],
   template: `
-    <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Storage</h1>
-        </div>
-      </header>
-
-      <nav class="settings-nav">
-        <a class="settings-nav-link" routerLink="/settings/users">User Management</a>
-        <a class="settings-nav-link" routerLink="/settings/org/notifications"
-          >Notification Config</a
-        >
-        <a class="settings-nav-link active">Storage</a>
-      </nav>
-
-      @if (loading()) {
-        <p class="loading-text">Loading storage usage...</p>
-      }
-
-      @if (loadError()) {
-        <p class="error">{{ loadError() }}</p>
-      }
-
-      @if (storage(); as s) {
-        <section class="storage-panel">
-          <p class="section-desc">
-            Your organisation's storage usage against its allocated limits. Contact an instance
-            administrator to change these limits.
-          </p>
-          <app-storage-usage-bars [storage]="s" />
-        </section>
-      }
+    <!-- Tab bar -->
+    <div class="flex gap-1 border-b border-border mb-[var(--gap,1.5rem)]">
+      <a class="settings-tab" routerLink="/settings/users">User Management</a>
+      <a class="settings-tab" routerLink="/settings/org/notifications">Notification Config</a>
+      <a class="settings-tab settings-tab--active" aria-current="page">Storage</a>
     </div>
+
+    @if (loading()) {
+      <p class="loading-text text-sm text-muted mt-6">Loading storage usage...</p>
+    }
+
+    @if (loadError()) {
+      <p class="error text-sm text-offline mt-3">{{ loadError() }}</p>
+    }
+
+    @if (storage(); as s) {
+      <mns-card [animate]="true" class="block max-w-[720px]">
+        <mns-card-head
+          title="Storage usage"
+          sub="Your organisation's usage against its allocated limits. Contact an instance administrator to change these limits."
+          icon="Storage"
+        />
+        <app-storage-usage-bars [storage]="s" />
+      </mns-card>
+    }
   `,
   styles: `
-    .settings-nav {
+    :host {
+      display: block;
+    }
+
+    .settings-tab {
       display: flex;
-      gap: 0;
-      margin-bottom: 1.5rem;
-      border-bottom: 1px solid var(--color-border);
-    }
-    .settings-nav-link {
-      padding: 0.625rem 1rem;
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-      text-decoration: none;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 14px;
+      margin-bottom: -1px;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      background: transparent;
+      border: none;
       border-bottom: 2px solid transparent;
+      color: var(--text-muted);
       cursor: pointer;
-      transition:
-        color 0.15s,
-        border-color 0.15s;
+      text-decoration: none;
+      transition: color 0.15s;
     }
-    .settings-nav-link:hover {
-      color: var(--color-text-primary);
+    .settings-tab:hover {
+      color: var(--text);
     }
-    .settings-nav-link.active {
-      color: var(--color-text-primary);
-      border-bottom-color: var(--color-accent);
-      font-weight: 500;
+    .settings-tab--active {
+      color: var(--text);
+      border-bottom-color: var(--accent);
     }
-    .storage-panel {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.5rem;
-      max-width: 40rem;
-    }
-    .section-desc {
-      margin: 0 0 1.25rem;
-      font-size: 0.8125rem;
-      color: var(--color-text-secondary);
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        transition: none !important;
+        animation: none !important;
+      }
     }
   `,
 })

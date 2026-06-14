@@ -90,28 +90,26 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       gap: 1rem;
     }
     .content-card {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
       overflow: hidden;
       cursor: pointer;
       transition:
         border-color 0.15s,
         background-color 0.15s;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
+      box-shadow: var(--shadow);
     }
     .content-card:hover,
     .content-card:focus {
-      border-color: var(--color-accent);
-      background: var(--color-bg-tertiary);
+      border-color: var(--accent);
+      background: var(--surface-3);
       outline: none;
     }
     .card-thumbnail {
       position: relative;
       aspect-ratio: 16/9;
-      background: var(--color-bg-tertiary);
+      background: var(--surface-3);
       overflow: hidden;
     }
     .thumb-img {
@@ -126,7 +124,7 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       align-items: center;
       justify-content: center;
       font-size: 2rem;
-      color: var(--color-text-muted);
+      color: var(--text-faint);
     }
     .thumb-placeholder.video {
       background: #1a1a2e;
@@ -181,7 +179,7 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
     }
     .card-meta {
       font-size: 0.75rem;
-      color: var(--color-text-muted);
+      color: var(--text-muted);
       text-transform: capitalize;
     }
 
@@ -206,8 +204,8 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       opacity: 1;
     }
     .content-card.selected {
-      border-color: var(--color-accent);
-      box-shadow: 0 0 0 1px var(--color-accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
     }
   `,
 })

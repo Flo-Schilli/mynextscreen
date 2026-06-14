@@ -19,6 +19,163 @@ import {
   selector: 'app-live-stream-edit-modal',
   standalone: true,
   imports: [FormsModule],
+  styles: [
+    `
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: grid;
+        place-items: center;
+        padding: 1.5rem;
+        background: rgba(4, 6, 11, 0.55);
+        backdrop-filter: blur(6px);
+        animation: mns-fade-in 0.18s ease both;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .modal-overlay {
+          animation: none;
+        }
+      }
+      .modal {
+        width: 100%;
+        max-width: 480px;
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--r-xl, 16px);
+        box-shadow: var(--shadow-lg);
+        overflow: hidden;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        animation: mns-fade-up 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .modal {
+          animation: none;
+        }
+      }
+      h2 {
+        margin: 0;
+        padding: 1.25rem 1.5rem;
+        font-size: 1.0625rem;
+        font-weight: 700;
+        color: var(--text);
+        border-bottom: 1px solid var(--border);
+      }
+      form {
+        padding: 1.25rem 1.5rem;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+      .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+      }
+      label {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--text-muted);
+      }
+      input[type='text'],
+      select {
+        padding: 0.625rem 0.875rem;
+        background: var(--surface-2);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--r-md, 8px);
+        color: var(--text);
+        font-size: 0.875rem;
+        font-family: inherit;
+        outline: none;
+      }
+      input[type='text']:focus,
+      select:focus {
+        border-color: var(--accent);
+      }
+      .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text);
+        cursor: pointer;
+      }
+      .checkbox-label input[type='checkbox'] {
+        accent-color: var(--accent);
+        width: 1rem;
+        height: 1rem;
+      }
+      .error {
+        font-size: 0.8125rem;
+        color: var(--offline);
+        padding: 0.625rem 0.875rem;
+        border-radius: var(--r-md, 8px);
+        border: 1px solid color-mix(in srgb, var(--offline) 30%, var(--border));
+        background: var(--offline-dim);
+      }
+      .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.625rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--border);
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.5625rem 1.125rem;
+        border-radius: var(--r-lg, 10px);
+        border: none;
+        font-size: 0.875rem;
+        font-weight: 700;
+        cursor: pointer;
+        font-family: inherit;
+        transition: opacity 0.15s;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      .btn-primary:hover:not(:disabled) {
+        opacity: 0.88;
+      }
+      .btn-secondary {
+        background: var(--surface-2);
+        color: var(--text);
+        border: 1px solid var(--border-strong);
+      }
+      .btn-secondary:hover:not(:disabled) {
+        background: var(--surface-3);
+      }
+      @keyframes mns-fade-in {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      @keyframes mns-fade-up {
+        from {
+          opacity: 0;
+          transform: translateY(14px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    `,
+  ],
   template: `
     <div
       class="modal-overlay"

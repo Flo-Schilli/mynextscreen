@@ -77,7 +77,7 @@ describe('ScreenGrid', () => {
   it('marks the status dot online for an online screen', async () => {
     await setUp([makeScreen({ isOnline: true })]);
 
-    const dot = fixture.debugElement.query(By.css('.status-dot')).nativeElement;
+    const dot = fixture.debugElement.query(By.css('.card-header .status-dot')).nativeElement;
     expect(dot.classList).toContain('online');
     expect(dot.getAttribute('title')).toBe('Online');
   });
@@ -85,7 +85,7 @@ describe('ScreenGrid', () => {
   it('marks the status dot offline for an offline screen', async () => {
     await setUp([makeScreen({ isOnline: false })]);
 
-    const dot = fixture.debugElement.query(By.css('.status-dot')).nativeElement;
+    const dot = fixture.debugElement.query(By.css('.card-header .status-dot')).nativeElement;
     expect(dot.classList).toContain('offline');
     expect(dot.getAttribute('title')).toBe('Offline');
     expect(

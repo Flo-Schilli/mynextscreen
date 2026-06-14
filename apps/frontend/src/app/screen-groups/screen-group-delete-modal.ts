@@ -57,9 +57,9 @@ import { ScreenGroup } from './screen-group.model';
   styles: `
     /* Delete blocked notice */
     .delete-blocked {
-      background: #92400e20;
-      border: 1px solid #92400e;
-      border-radius: 0.375rem;
+      background: color-mix(in srgb, #92400e 15%, transparent);
+      border: 1px solid color-mix(in srgb, #92400e 50%, transparent);
+      border-radius: 0.5rem;
       padding: 0.75rem 1rem;
       margin-bottom: 1rem;
       font-size: 0.8125rem;

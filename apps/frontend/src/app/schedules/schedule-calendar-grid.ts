@@ -171,35 +171,36 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
     }
   `,
   styles: `
+    /* ── Time grid ─────────────────────────────────────────────── */
     .time-grid {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-xl, 14px);
       overflow: hidden;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
+      box-shadow: var(--shadow);
     }
     .time-grid-header {
       display: flex;
-      border-bottom: 1px solid var(--color-border);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
     }
     .time-gutter-header {
       width: 3.5rem;
       flex-shrink: 0;
+      border-right: 1px solid var(--border);
     }
     .day-column-header {
       flex: 1;
       text-align: center;
-      padding: 0.5rem;
+      padding: 0.625rem 0.5rem;
       font-size: 0.8125rem;
-      font-weight: 500;
-      color: var(--color-text-secondary);
-      border-left: 1px solid var(--color-border);
+      font-weight: 700;
+      color: var(--text-muted);
+      border-left: 1px solid var(--border);
     }
     .day-column-header.today {
-      color: var(--color-accent);
-      font-weight: 600;
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 8%, transparent);
     }
     .time-grid-body {
       display: flex;
@@ -210,10 +211,13 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
     .time-gutter {
       width: 3.5rem;
       flex-shrink: 0;
+      border-right: 1px solid var(--border);
     }
     .time-label {
       font-size: 0.6875rem;
-      color: var(--color-text-muted);
+      font-weight: 600;
+      font-family: var(--mono, ui-monospace, monospace);
+      color: var(--text-faint);
       text-align: right;
       padding-right: 0.5rem;
       box-sizing: border-box;
@@ -227,29 +231,33 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
     .day-column {
       flex: 1;
       position: relative;
-      border-left: 1px solid var(--color-border);
+      border-left: 1px solid var(--border);
     }
     .hour-slot {
-      border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
       box-sizing: border-box;
     }
 
-    /* Schedule Blocks */
+    /* ── Schedule Blocks ───────────────────────────────────────── */
     .schedule-block {
       position: absolute;
       left: 2px;
       right: 2px;
-      border-radius: 0.25rem;
+      border-radius: 8px;
       cursor: grab;
       z-index: 2;
       overflow: hidden;
       min-height: 1.25rem;
-      box-shadow: 0 1px 3px var(--color-shadow);
-      transition: box-shadow 0.15s;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+      transition:
+        box-shadow 0.15s,
+        opacity 0.15s;
       user-select: none;
+      border-left-width: 3px;
+      border-left-style: solid;
     }
     .schedule-block:hover {
-      box-shadow: 0 2px 8px var(--color-shadow);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
       z-index: 3;
     }
     .schedule-block.dragging {
@@ -258,7 +266,7 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
       z-index: 10;
     }
     .block-content {
-      padding: 0.25rem 0.375rem;
+      padding: 0.3rem 0.5rem;
       display: flex;
       flex-direction: column;
       gap: 0.125rem;
@@ -267,16 +275,18 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
     }
     .block-title {
       font-size: 0.75rem;
-      font-weight: 600;
+      font-weight: 700;
       color: #fff;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+      line-height: 1.2;
     }
     .block-time {
       font-size: 0.625rem;
-      color: rgba(255, 255, 255, 0.85);
+      font-family: var(--mono, ui-monospace, monospace);
+      color: rgba(255, 255, 255, 0.82);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
     .repeat-icon {
@@ -285,34 +295,32 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
       margin-right: 0.125rem;
     }
 
-    /* Group Badge */
+    /* ── Group Badge ───────────────────────────────────────────── */
     .group-badge {
       display: inline-block;
       font-size: 0.5625rem;
-      font-weight: 700;
+      font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: 0.03em;
-      background: rgba(255, 255, 255, 0.25);
+      letter-spacing: 0.04em;
+      background: rgba(255, 255, 255, 0.22);
       color: #fff;
-      padding: 0.0625rem 0.25rem;
-      border-radius: 0.1875rem;
+      padding: 0.0625rem 0.3rem;
+      border-radius: 4px;
       width: fit-content;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
     .group-badge-sm {
       display: inline-block;
       font-size: 0.5rem;
-      font-weight: 700;
-      background: rgba(255, 255, 255, 0.3);
+      font-weight: 800;
+      background: rgba(255, 255, 255, 0.28);
       color: #fff;
-      padding: 0 0.1875rem;
-      border-radius: 0.125rem;
+      padding: 0 0.2rem;
+      border-radius: 3px;
       margin-right: 0.125rem;
-      line-height: 1.2;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      line-height: 1.25;
     }
 
-    /* Resize Handles */
+    /* ── Resize Handles ────────────────────────────────────────── */
     .resize-handle {
       position: absolute;
       left: 0;
@@ -328,14 +336,14 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
       bottom: 0;
     }
 
-    /* Gap Indicators */
+    /* ── Gap Indicators ────────────────────────────────────────── */
     .gap-indicator {
       position: absolute;
       left: 2px;
       right: 2px;
-      background: rgba(251, 191, 36, 0.08);
-      border: 1px dashed rgba(251, 191, 36, 0.25);
-      border-radius: 0.25rem;
+      background: color-mix(in srgb, var(--warn) 8%, transparent);
+      border: 1px dashed color-mix(in srgb, var(--warn) 28%, transparent);
+      border-radius: 6px;
       z-index: 1;
       display: flex;
       align-items: center;
@@ -344,31 +352,29 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
     }
     .gap-label {
       font-size: 0.625rem;
-      color: rgba(251, 191, 36, 0.6);
+      color: color-mix(in srgb, var(--warn) 60%, transparent);
       font-style: italic;
     }
 
-    /* Month View */
+    /* ── Month View ────────────────────────────────────────────── */
     .month-grid {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-xl, 14px);
       overflow: hidden;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
+      box-shadow: var(--shadow);
     }
     .month-header-row {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      border-bottom: 1px solid var(--color-border);
+      border-bottom: 1px solid var(--border);
     }
     .month-header-cell {
-      padding: 0.5rem;
+      padding: 0.625rem 0.5rem;
       text-align: center;
       font-size: 0.8125rem;
-      font-weight: 500;
-      color: var(--color-text-secondary);
+      font-weight: 700;
+      color: var(--text-muted);
     }
     .month-week-row {
       display: grid;
@@ -376,23 +382,23 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
     }
     .month-day-cell {
       min-height: 5rem;
-      padding: 0.25rem;
-      border-bottom: 1px solid var(--color-border);
-      border-right: 1px solid var(--color-border);
+      padding: 0.375rem;
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
       cursor: pointer;
-      transition: background 0.15s;
+      transition: background 0.12s;
     }
     .month-day-cell:nth-child(7n) {
       border-right: none;
     }
     .month-day-cell:hover {
-      background: var(--color-bg-tertiary);
+      background: var(--surface-2);
     }
     .month-day-cell.other-month {
-      opacity: 0.4;
+      opacity: 0.38;
     }
     .month-day-cell.today .month-day-number {
-      background: var(--color-accent);
+      background: var(--accent);
       color: #fff;
       border-radius: 9999px;
       width: 1.5rem;
@@ -403,21 +409,22 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
     }
     .month-day-number {
       font-size: 0.75rem;
-      font-weight: 500;
-      color: var(--color-text-secondary);
+      font-weight: 600;
+      color: var(--text-muted);
       display: inline-block;
-      margin-bottom: 0.125rem;
+      margin-bottom: 0.1875rem;
     }
     .month-day-entries {
       display: flex;
       flex-direction: column;
-      gap: 1px;
+      gap: 2px;
     }
     .month-entry-chip {
       font-size: 0.625rem;
+      font-weight: 600;
       color: #fff;
-      padding: 0.0625rem 0.25rem;
-      border-radius: 0.125rem;
+      padding: 0.125rem 0.3125rem;
+      border-radius: 4px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;

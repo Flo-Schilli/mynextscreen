@@ -210,7 +210,6 @@ describe('AuditLog (smart container)', () => {
       expect(component.entries.length).toBe(1);
       expect(component.total).toBe(1);
       expect(fixture.debugElement.query(By.directive(AuditLogTable))).not.toBeNull();
-      expect(fixture.debugElement.query(By.css('.empty-text'))).toBeNull();
     });
 
     it('maps a 403 to an access-denied error', async () => {

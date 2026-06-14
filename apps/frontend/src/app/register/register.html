@@ -1,102 +1,190 @@
-<div class="flex min-h-screen items-center justify-center bg-bg-primary px-4">
-  <div class="w-full max-w-sm rounded-lg border border-border bg-bg-secondary p-8 shadow-lg">
-    <h1 class="mb-6 text-center text-2xl font-semibold text-text-primary">Create your account</h1>
-
-    @if (done()) {
-      <div class="space-y-4 text-center">
-        <p class="text-sm text-text-secondary">
-          Almost there — we sent a verification link to your email. Click it to activate your
-          account and organisation.
-        </p>
-        <a
-          routerLink="/login"
-          class="inline-block text-sm font-medium text-accent hover:text-accent-hover"
-          >Back to sign in</a
+<div class="flex min-h-screen items-center justify-center bg-bg px-4 py-10">
+  <div
+    class="w-full max-w-[400px]"
+    style="animation: fadeUp 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both"
+  >
+    <!-- Logo -->
+    <div class="mb-7 flex justify-center">
+      <div class="flex items-center gap-3">
+        <div
+          class="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px]"
+          style="background: linear-gradient(135deg, var(--accent), var(--accent-2))"
         >
+          <mns-icon name="Layers" [size]="19" class="text-white" />
+        </div>
+        <span class="text-xl font-extrabold tracking-tight">
+          <span class="text-text">my</span
+          ><span
+            style="
+              background: linear-gradient(135deg, var(--accent), var(--accent-2));
+              -webkit-background-clip: text;
+              background-clip: text;
+              color: transparent;
+            "
+            >NextScreen</span
+          >
+        </span>
       </div>
-    } @else {
-      <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4">
-        <div>
-          <label for="email" class="mb-1 block text-sm font-medium text-text-secondary"
-            >Email</label
+    </div>
+
+    <div
+      class="w-full rounded-xl border border-border bg-surface p-8"
+      style="box-shadow: var(--shadow)"
+    >
+      @if (done()) {
+        <!-- Success state -->
+        <div class="space-y-4 text-center">
+          <div
+            class="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full"
+            style="background: var(--accent-soft)"
           >
-          <input
-            id="email"
-            type="email"
-            formControlName="email"
-            autocomplete="username"
-            class="w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-          />
-          @if (form.controls.email.touched && form.controls.email.invalid) {
-            <p class="mt-1 text-sm text-red-400">Enter a valid email address.</p>
-          }
-        </div>
-
-        <div>
-          <label for="organisationName" class="mb-1 block text-sm font-medium text-text-secondary"
-            >Organisation name</label
+            <mns-icon name="CheckCircle" [size]="28" class="text-accent" />
+          </div>
+          <h1 class="text-xl font-bold tracking-tight">Check your inbox</h1>
+          <p class="text-[13.5px] leading-relaxed text-muted">
+            Almost there — we sent a verification link to your email. Click it to activate your
+            account and organisation.
+          </p>
+          <a
+            routerLink="/login"
+            class="inline-flex items-center gap-1.5 text-sm font-bold text-accent hover:opacity-80"
           >
-          <input
-            id="organisationName"
-            type="text"
-            formControlName="organisationName"
-            autocomplete="organization"
-            class="w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-          />
-          @if (form.controls.organisationName.touched && form.controls.organisationName.invalid) {
-            <p class="mt-1 text-sm text-red-400">An organisation name is required.</p>
-          }
+            <mns-icon name="ChevronLeft" [size]="15" />Back to sign in
+          </a>
         </div>
+      } @else {
+        <h1 class="mb-1.5 text-[22px] font-extrabold tracking-tight">Create your account</h1>
+        <p class="mb-6 text-[13.5px] text-muted">Start managing your screens in minutes.</p>
 
-        <div>
-          <label for="password" class="mb-1 block text-sm font-medium text-text-secondary"
-            >Password</label
+        <form [formGroup]="form" (ngSubmit)="submit()" class="flex flex-col gap-4">
+          <!-- Email -->
+          <div>
+            <label for="email" class="mb-2 block text-[13px] font-semibold text-muted">
+              Email <span class="text-accent">*</span>
+            </label>
+            <div
+              class="flex items-center rounded-[12px] border bg-surface-2 transition-all duration-150"
+              [class.border-accent]="form.controls.email.touched"
+              [class.border-border]="!form.controls.email.touched"
+            >
+              <span class="grid place-items-center pl-3.5 text-faint">
+                <mns-icon name="Mail" [size]="17" />
+              </span>
+              <input
+                id="email"
+                type="email"
+                formControlName="email"
+                autocomplete="username"
+                placeholder="you@company.com"
+                class="min-w-0 flex-1 bg-transparent py-3 pl-2.5 pr-3.5 text-sm text-text outline-none placeholder:text-faint"
+              />
+            </div>
+            @if (form.controls.email.touched && form.controls.email.invalid) {
+              <p class="mt-1 text-sm text-offline">Enter a valid email address.</p>
+            }
+          </div>
+
+          <!-- Organisation name -->
+          <div>
+            <label for="organisationName" class="mb-2 block text-[13px] font-semibold text-muted">
+              Organisation name <span class="text-accent">*</span>
+            </label>
+            <div
+              class="flex items-center rounded-[12px] border bg-surface-2 transition-all duration-150"
+              [class.border-accent]="form.controls.organisationName.touched"
+              [class.border-border]="!form.controls.organisationName.touched"
+            >
+              <span class="grid place-items-center pl-3.5 text-faint">
+                <mns-icon name="Building" [size]="17" />
+              </span>
+              <input
+                id="organisationName"
+                type="text"
+                formControlName="organisationName"
+                autocomplete="organization"
+                placeholder="Your company or workspace"
+                class="min-w-0 flex-1 bg-transparent py-3 pl-2.5 pr-3.5 text-sm text-text outline-none placeholder:text-faint"
+              />
+            </div>
+            @if (form.controls.organisationName.touched && form.controls.organisationName.invalid) {
+              <p class="mt-1 text-sm text-offline">An organisation name is required.</p>
+            }
+          </div>
+
+          <!-- Password -->
+          <div>
+            <label for="password" class="mb-2 block text-[13px] font-semibold text-muted">
+              Password <span class="text-accent">*</span>
+            </label>
+            <div
+              class="flex items-center rounded-[12px] border bg-surface-2 transition-all duration-150"
+              [class.border-accent]="form.controls.password.touched"
+              [class.border-border]="!form.controls.password.touched"
+            >
+              <span class="grid place-items-center pl-3.5 text-faint">
+                <mns-icon name="Lock" [size]="17" />
+              </span>
+              <input
+                id="password"
+                type="password"
+                formControlName="password"
+                autocomplete="new-password"
+                placeholder="••••••••"
+                class="min-w-0 flex-1 bg-transparent py-3 pl-2.5 pr-3.5 text-sm text-text outline-none placeholder:text-faint"
+              />
+            </div>
+            @if (form.controls.password.touched && form.controls.password.invalid) {
+              <p class="mt-1 text-sm text-offline">Use at least 8 characters.</p>
+            }
+          </div>
+
+          <!-- Confirm password -->
+          <div>
+            <label for="confirmPassword" class="mb-2 block text-[13px] font-semibold text-muted">
+              Confirm password <span class="text-accent">*</span>
+            </label>
+            <div
+              class="flex items-center rounded-[12px] border bg-surface-2 transition-all duration-150"
+              [class.border-accent]="form.controls.confirmPassword.touched"
+              [class.border-border]="!form.controls.confirmPassword.touched"
+            >
+              <span class="grid place-items-center pl-3.5 text-faint">
+                <mns-icon name="Lock" [size]="17" />
+              </span>
+              <input
+                id="confirmPassword"
+                type="password"
+                formControlName="confirmPassword"
+                autocomplete="new-password"
+                placeholder="••••••••"
+                class="min-w-0 flex-1 bg-transparent py-3 pl-2.5 pr-3.5 text-sm text-text outline-none placeholder:text-faint"
+              />
+            </div>
+            @if (form.touched && form.hasError('mismatch')) {
+              <p class="mt-1 text-sm text-offline">Passwords do not match.</p>
+            }
+          </div>
+
+          @if (error()) {
+            <p class="error text-sm text-offline" role="alert">{{ error() }}</p>
+          }
+
+          <mns-btn
+            variant="primary"
+            [full]="true"
+            size="lg"
+            [disabled]="submitting()"
+            (mnsClick)="submit()"
           >
-          <input
-            id="password"
-            type="password"
-            formControlName="password"
-            autocomplete="new-password"
-            class="w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-          />
-          @if (form.controls.password.touched && form.controls.password.invalid) {
-            <p class="mt-1 text-sm text-red-400">Use at least 8 characters.</p>
-          }
-        </div>
+            {{ submitting() ? 'Creating…' : 'Create account' }}
+          </mns-btn>
+        </form>
 
-        <div>
-          <label for="confirmPassword" class="mb-1 block text-sm font-medium text-text-secondary"
-            >Confirm password</label
-          >
-          <input
-            id="confirmPassword"
-            type="password"
-            formControlName="confirmPassword"
-            autocomplete="new-password"
-            class="w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-          />
-          @if (form.touched && form.hasError('mismatch')) {
-            <p class="mt-1 text-sm text-red-400">Passwords do not match.</p>
-          }
-        </div>
-
-        @if (error()) {
-          <p class="text-sm text-red-400" role="alert">{{ error() }}</p>
-        }
-
-        <button
-          type="submit"
-          [disabled]="submitting()"
-          class="w-full rounded-md bg-accent px-4 py-2 font-medium text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {{ submitting() ? 'Creating…' : 'Create account' }}
-        </button>
-      </form>
-
-      <p class="mt-6 text-center text-sm text-text-secondary">
-        Already have an account?
-        <a routerLink="/login" class="font-medium text-accent hover:text-accent-hover">Sign in</a>
-      </p>
-    }
+        <p class="mt-5 text-center text-sm text-muted">
+          Already have an account?
+          <a routerLink="/login" class="font-bold text-accent hover:opacity-80">Sign in</a>
+        </p>
+      }
+    </div>
   </div>
 </div>

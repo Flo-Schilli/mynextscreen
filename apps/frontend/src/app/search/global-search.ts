@@ -102,26 +102,29 @@ interface ResultSection {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      background: var(--color-bg-tertiary);
-      border: 1px solid var(--color-border);
-      border-radius: 6px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
       padding: 0.375rem 0.75rem;
       position: relative;
-      transition: border-color 0.15s;
+      transition:
+        border-color 0.15s,
+        box-shadow 0.15s;
     }
     .search-box.focused {
-      border-color: var(--color-accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
     }
 
     .search-icon {
-      color: var(--color-text-muted);
+      color: var(--text-muted);
       flex-shrink: 0;
     }
 
     .spinner {
       position: absolute;
       left: 0.75rem;
-      color: var(--color-accent);
+      color: var(--accent);
       flex-shrink: 0;
       animation: spin 0.8s linear infinite;
     }
@@ -135,20 +138,20 @@ interface ResultSection {
     .search-input {
       background: transparent;
       border: none;
-      color: var(--color-text-primary);
+      color: var(--text);
       font-size: 0.875rem;
       width: 160px;
       outline: none;
     }
     .search-input::placeholder {
-      color: var(--color-text-muted);
+      color: var(--text-faint);
     }
 
     .shortcut-hint {
       font-size: 0.625rem;
-      color: var(--color-text-muted);
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
+      color: var(--text-muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: 4px;
       padding: 1px 5px;
       white-space: nowrap;
@@ -162,16 +165,16 @@ interface ResultSection {
     /* ── Dropdown ── */
     .dropdown {
       position: absolute;
-      top: calc(100% + 4px);
+      top: calc(100% + 6px);
       left: 0;
       right: 0;
       min-width: 280px;
       max-height: 400px;
       overflow-y: auto;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 8px;
-      box-shadow: 0 8px 24px var(--color-shadow);
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      box-shadow: var(--shadow-lg, 0 16px 40px -8px rgb(0 0 0 / 0.4));
       z-index: 100;
       padding: 0.25rem 0;
     }
@@ -180,7 +183,7 @@ interface ResultSection {
       padding: 0.25rem 0;
     }
     .dropdown-section + .dropdown-section {
-      border-top: 1px solid var(--color-border);
+      border-top: 1px solid var(--border);
     }
 
     .section-heading {
@@ -188,7 +191,7 @@ interface ResultSection {
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: var(--color-text-muted);
+      color: var(--text-muted);
       padding: 0.375rem 0.75rem 0.25rem;
     }
 
@@ -199,14 +202,14 @@ interface ResultSection {
       padding: 0.5rem 0.75rem;
       border: none;
       background: transparent;
-      color: var(--color-text-primary);
+      color: var(--text);
       font-size: 0.8125rem;
       cursor: pointer;
       line-height: 1.4;
     }
     .result-item:hover,
     .result-item.active {
-      background: var(--color-bg-tertiary);
+      background: var(--surface-2);
     }
 
     .result-label {
@@ -219,7 +222,7 @@ interface ResultSection {
     .empty-state {
       padding: 1rem 0.75rem;
       text-align: center;
-      color: var(--color-text-muted);
+      color: var(--text-muted);
       font-size: 0.8125rem;
     }
   `,

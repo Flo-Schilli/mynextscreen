@@ -1,81 +1,157 @@
-<div class="flex min-h-screen items-center justify-center bg-bg-primary px-4">
-  <div class="w-full max-w-sm rounded-lg border border-border bg-bg-secondary p-8 shadow-lg">
-    <h1 class="mb-1 text-center text-2xl font-semibold text-text-primary">Welcome</h1>
-    <p class="mb-6 text-center text-sm text-text-secondary">
-      Create the first administrator account.
-    </p>
-
-    <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4">
-      <div>
-        <label for="name" class="mb-1 block text-sm font-medium text-text-secondary">
-          Name <span class="text-text-muted">(optional)</span>
-        </label>
-        <input
-          id="name"
-          type="text"
-          formControlName="name"
-          autocomplete="name"
-          class="w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-        />
-      </div>
-
-      <div>
-        <label for="email" class="mb-1 block text-sm font-medium text-text-secondary">Email</label>
-        <input
-          id="email"
-          type="email"
-          formControlName="email"
-          autocomplete="username"
-          class="w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-        />
-        @if (form.controls.email.touched && form.controls.email.invalid) {
-          <p class="mt-1 text-sm text-red-400">Enter a valid email address.</p>
-        }
-      </div>
-
-      <div>
-        <label for="password" class="mb-1 block text-sm font-medium text-text-secondary"
-          >Password</label
+<div class="flex min-h-screen items-center justify-center bg-bg px-4 py-10">
+  <div
+    class="w-full max-w-[400px]"
+    style="animation: fadeUp 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both"
+  >
+    <!-- Logo -->
+    <div class="mb-7 flex justify-center">
+      <div class="flex items-center gap-3">
+        <div
+          class="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px]"
+          style="background: linear-gradient(135deg, var(--accent), var(--accent-2))"
         >
-        <input
-          id="password"
-          type="password"
-          formControlName="password"
-          autocomplete="new-password"
-          class="w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-        />
-        @if (form.controls.password.touched && form.controls.password.invalid) {
-          <p class="mt-1 text-sm text-red-400">Password must be at least 8 characters.</p>
-        }
+          <mns-icon name="Layers" [size]="19" class="text-white" />
+        </div>
+        <span class="text-xl font-extrabold tracking-tight">
+          <span class="text-text">my</span
+          ><span
+            style="
+              background: linear-gradient(135deg, var(--accent), var(--accent-2));
+              -webkit-background-clip: text;
+              background-clip: text;
+              color: transparent;
+            "
+            >NextScreen</span
+          >
+        </span>
       </div>
+    </div>
 
-      <div>
-        <label for="confirmPassword" class="mb-1 block text-sm font-medium text-text-secondary">
-          Confirm password
-        </label>
-        <input
-          id="confirmPassword"
-          type="password"
-          formControlName="confirmPassword"
-          autocomplete="new-password"
-          class="w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-        />
-        @if (form.controls.confirmPassword.touched && form.hasError('mismatch')) {
-          <p class="mt-1 text-sm text-red-400">Passwords do not match.</p>
+    <div
+      class="w-full rounded-xl border border-border bg-surface p-8"
+      style="box-shadow: var(--shadow)"
+    >
+      <h1 class="mb-1 text-[22px] font-extrabold tracking-tight">Welcome</h1>
+      <p class="mb-6 text-[13.5px] text-muted">Create the first administrator account.</p>
+
+      <form [formGroup]="form" (ngSubmit)="submit()" class="flex flex-col gap-4">
+        <!-- Name (optional) -->
+        <div>
+          <label for="name" class="mb-2 block text-[13px] font-semibold text-muted">
+            Name <span class="text-faint font-normal">(optional)</span>
+          </label>
+          <div
+            class="flex items-center rounded-[12px] border border-border bg-surface-2 transition-all duration-150"
+          >
+            <span class="grid place-items-center pl-3.5 text-faint">
+              <mns-icon name="User" [size]="17" />
+            </span>
+            <input
+              id="name"
+              type="text"
+              formControlName="name"
+              autocomplete="name"
+              placeholder="Jane Doe"
+              class="min-w-0 flex-1 bg-transparent py-3 pl-2.5 pr-3.5 text-sm text-text outline-none placeholder:text-faint"
+            />
+          </div>
+        </div>
+
+        <!-- Email -->
+        <div>
+          <label for="email" class="mb-2 block text-[13px] font-semibold text-muted">
+            Email <span class="text-accent">*</span>
+          </label>
+          <div
+            class="flex items-center rounded-[12px] border bg-surface-2 transition-all duration-150"
+            [class.border-accent]="form.controls.email.touched"
+            [class.border-border]="!form.controls.email.touched"
+          >
+            <span class="grid place-items-center pl-3.5 text-faint">
+              <mns-icon name="Mail" [size]="17" />
+            </span>
+            <input
+              id="email"
+              type="email"
+              formControlName="email"
+              autocomplete="username"
+              placeholder="admin@company.com"
+              class="min-w-0 flex-1 bg-transparent py-3 pl-2.5 pr-3.5 text-sm text-text outline-none placeholder:text-faint"
+            />
+          </div>
+          @if (form.controls.email.touched && form.controls.email.invalid) {
+            <p class="mt-1 text-sm text-offline">Enter a valid email address.</p>
+          }
+        </div>
+
+        <!-- Password -->
+        <div>
+          <label for="password" class="mb-2 block text-[13px] font-semibold text-muted">
+            Password <span class="text-accent">*</span>
+          </label>
+          <div
+            class="flex items-center rounded-[12px] border bg-surface-2 transition-all duration-150"
+            [class.border-accent]="form.controls.password.touched"
+            [class.border-border]="!form.controls.password.touched"
+          >
+            <span class="grid place-items-center pl-3.5 text-faint">
+              <mns-icon name="Lock" [size]="17" />
+            </span>
+            <input
+              id="password"
+              type="password"
+              formControlName="password"
+              autocomplete="new-password"
+              placeholder="••••••••"
+              class="min-w-0 flex-1 bg-transparent py-3 pl-2.5 pr-3.5 text-sm text-text outline-none placeholder:text-faint"
+            />
+          </div>
+          @if (form.controls.password.touched && form.controls.password.invalid) {
+            <p class="mt-1 text-sm text-offline">Password must be at least 8 characters.</p>
+          }
+        </div>
+
+        <!-- Confirm password -->
+        <div>
+          <label for="confirmPassword" class="mb-2 block text-[13px] font-semibold text-muted">
+            Confirm password <span class="text-accent">*</span>
+          </label>
+          <div
+            class="flex items-center rounded-[12px] border bg-surface-2 transition-all duration-150"
+            [class.border-accent]="form.controls.confirmPassword.touched"
+            [class.border-border]="!form.controls.confirmPassword.touched"
+          >
+            <span class="grid place-items-center pl-3.5 text-faint">
+              <mns-icon name="Lock" [size]="17" />
+            </span>
+            <input
+              id="confirmPassword"
+              type="password"
+              formControlName="confirmPassword"
+              autocomplete="new-password"
+              placeholder="••••••••"
+              class="min-w-0 flex-1 bg-transparent py-3 pl-2.5 pr-3.5 text-sm text-text outline-none placeholder:text-faint"
+            />
+          </div>
+          @if (form.controls.confirmPassword.touched && form.hasError('mismatch')) {
+            <p class="mt-1 text-sm text-offline">Passwords do not match.</p>
+          }
+        </div>
+
+        @if (error()) {
+          <p class="text-sm text-offline" role="alert">{{ error() }}</p>
         }
-      </div>
 
-      @if (error()) {
-        <p class="text-sm text-red-400" role="alert">{{ error() }}</p>
-      }
-
-      <button
-        type="submit"
-        [disabled]="submitting()"
-        class="w-full rounded-md bg-accent px-4 py-2 font-medium text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {{ submitting() ? 'Creating account…' : 'Create admin account' }}
-      </button>
-    </form>
+        <mns-btn
+          variant="primary"
+          [full]="true"
+          size="lg"
+          [disabled]="submitting()"
+          (mnsClick)="submit()"
+        >
+          {{ submitting() ? 'Creating account…' : 'Create admin account' }}
+        </mns-btn>
+      </form>
+    </div>
   </div>
 </div>

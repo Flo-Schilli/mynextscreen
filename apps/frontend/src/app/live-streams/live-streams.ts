@@ -41,22 +41,33 @@ import { ToastService } from '../shared/toast/toast.service';
   ],
   template: `
     <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Live Streams</h1>
+      <!-- Page header -->
+      <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+          <button
+            class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-surface text-muted text-sm font-semibold hover:text-primary transition-colors"
+            (click)="goBack()"
+          >
+            &#8592; Back
+          </button>
+          <h1 class="text-xl font-bold text-primary">Live Streams</h1>
         </div>
         @if (!loading && !showCreateForm) {
           <button class="btn btn-primary" (click)="openCreateForm()">+ New Stream</button>
         }
-      </header>
+      </div>
 
       @if (loadError) {
         <p class="error">{{ loadError }}</p>
       }
 
       @if (loading) {
-        <p class="loading-text">Loading live streams...</p>
+        <div class="flex items-center justify-center py-20 text-muted text-sm">
+          <span
+            class="w-5 h-5 rounded-full border-2 border-border border-t-accent animate-spin mr-3"
+          ></span>
+          Loading live streams…
+        </div>
       }
 
       <!-- Create Stream Modal -->
@@ -80,7 +91,7 @@ import { ToastService } from '../shared/toast/toast.service';
         />
       }
 
-      <!-- Empty State -->
+      <!-- Empty State — class "empty-state" preserved for specs -->
       @if (!loading && streams.length === 0 && !loadError) {
         <div class="empty-state">
           <div class="empty-icon">
@@ -106,7 +117,7 @@ import { ToastService } from '../shared/toast/toast.service';
         <p class="error">{{ actionError }}</p>
       }
 
-      <!-- Passthrough Warnings Banner -->
+      <!-- Passthrough Warnings Banner — class "warning-banner" preserved for specs -->
       @if (passthroughWarnings.length > 0) {
         <div class="warning-banner">
           <div class="warning-banner-header">
@@ -162,6 +173,155 @@ import { ToastService } from '../shared/toast/toast.service';
         />
       }
     </div>
+  `,
+  styles: `
+    /* Empty state */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 5rem 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-xl, 14px);
+      text-align: center;
+      animation: fadeUp 0.3s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .empty-state {
+        animation: none;
+      }
+    }
+    .empty-icon {
+      display: grid;
+      place-items: center;
+      width: 72px;
+      height: 72px;
+      border-radius: 20px;
+      background: var(--surface-2);
+      color: var(--text-faint);
+      margin-bottom: 0.5rem;
+    }
+    .empty-title {
+      font-size: 1.0625rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0;
+    }
+    .empty-text {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      max-width: 26rem;
+      margin: 0;
+    }
+
+    /* Errors */
+    .error {
+      font-size: 0.875rem;
+      color: var(--offline);
+      padding: 0.75rem 1rem;
+      border-radius: var(--r-lg, 10px);
+      border: 1px solid color-mix(in srgb, var(--offline) 30%, var(--border));
+      background: var(--offline-dim);
+      margin-bottom: 1rem;
+    }
+
+    /* Passthrough warnings banner */
+    .warning-banner {
+      margin-top: 1rem;
+      border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--border));
+      border-radius: var(--r-lg, 10px);
+      background: var(--warn-dim);
+      overflow: hidden;
+    }
+    .warning-banner-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+    }
+    .warning-dismiss {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.125rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 0.25rem;
+    }
+    .warning-dismiss:hover {
+      color: var(--text);
+    }
+    .warning-list {
+      margin: 0;
+      padding: 0 1rem 0.75rem 1.75rem;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    /* Shared btn tokens — matched by specs via .btn-primary/.btn-danger etc. */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 1rem;
+      border-radius: var(--r-lg, 10px);
+      border: none;
+      font-size: 0.875rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) {
+      opacity: 0.88;
+    }
+    .btn-secondary {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border-strong);
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--surface-3);
+    }
+    .btn-danger {
+      background: var(--offline);
+      color: #fff;
+    }
+    .btn-danger:hover:not(:disabled) {
+      opacity: 0.88;
+    }
+    .btn-warning {
+      background: var(--warn);
+      color: #fff;
+    }
+    .btn-warning:hover:not(:disabled) {
+      opacity: 0.88;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
   `,
 })
 export class LiveStreams implements OnInit {

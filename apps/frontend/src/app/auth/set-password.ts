@@ -2,10 +2,11 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from './auth.service';
+import { BtnComponent, IconComponent } from '../ui';
 
 @Component({
   selector: 'app-set-password',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, BtnComponent, IconComponent],
   templateUrl: './set-password.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from './auth.service';
+import { BtnComponent, IconComponent } from '../ui';
 
 type State = 'verifying' | 'error';
 
@@ -10,7 +11,7 @@ type State = 'verifying' | 'error';
  */
 @Component({
   selector: 'app-verify-email',
-  imports: [],
+  imports: [BtnComponent, IconComponent],
   templateUrl: './verify-email.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

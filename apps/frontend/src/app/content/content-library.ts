@@ -20,6 +20,13 @@ import { BulkAction } from '../shared/selection/bulk-action-toolbar';
 import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dialog';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { ToastService } from '../shared/toast/toast.service';
+import {
+  PageHeaderComponent,
+  BtnComponent,
+  EmptyComponent,
+  OverlayComponent,
+  ModalComponent,
+} from '../ui';
 
 /**
  * Smart container for the content library. Owns data loading, upload/HTTP
@@ -40,43 +47,43 @@ import { ToastService } from '../shared/toast/toast.service';
     ContentTagModal,
     ContentPlaylistModal,
     BulkConfirmDialogComponent,
+    PageHeaderComponent,
+    BtnComponent,
+    EmptyComponent,
+    OverlayComponent,
+    ModalComponent,
   ],
   providers: [SelectionService],
   template: `
     <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Content Library</h1>
-        </div>
+      <mns-page-header title="Content Library" icon="Image">
+        <mns-btn variant="ghost" size="sm" icon="ChevronLeft" (mnsClick)="goBack()">Back</mns-btn>
         @if (!selectedContent) {
-          <div class="header-right">
-            <div class="type-toggle">
-              <button
-                class="toggle-btn"
-                [class.active]="!filterType"
-                (click)="setTypeFilter(undefined)"
-              >
-                All
-              </button>
-              <button
-                class="toggle-btn"
-                [class.active]="filterType === 'image'"
-                (click)="setTypeFilter('image')"
-              >
-                Images
-              </button>
-              <button
-                class="toggle-btn"
-                [class.active]="filterType === 'video'"
-                (click)="setTypeFilter('video')"
-              >
-                Videos
-              </button>
-            </div>
+          <div class="type-toggle">
+            <button
+              class="toggle-btn"
+              [class.active]="!filterType"
+              (click)="setTypeFilter(undefined)"
+            >
+              All
+            </button>
+            <button
+              class="toggle-btn"
+              [class.active]="filterType === 'image'"
+              (click)="setTypeFilter('image')"
+            >
+              Images
+            </button>
+            <button
+              class="toggle-btn"
+              [class.active]="filterType === 'video'"
+              (click)="setTypeFilter('video')"
+            >
+              Videos
+            </button>
           </div>
         }
-      </header>
+      </mns-page-header>
 
       <!-- Storage Usage -->
       @if (storage && !selectedContent) {
@@ -143,41 +150,30 @@ import { ToastService } from '../shared/toast/toast.service';
       }
 
       @if (!loading && !selectedContent && filteredContent.length === 0 && !loadError) {
-        <div class="empty-state">
-          <p class="empty-text">No content uploaded yet. Drag files above to get started.</p>
-        </div>
+        <mns-empty
+          icon="Image"
+          title="No content yet"
+          desc="No content uploaded yet. Drag files above to get started."
+        />
       }
 
       <!-- Delete Confirmation Modal -->
       @if (showDeleteConfirm) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Confirm deletion"
-          tabindex="0"
-          (click)="cancelDelete()"
-          (keydown.escape)="cancelDelete()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Delete Content</h2>
-            <p>
-              Are you sure you want to delete <strong>{{ selectedContent?.title }}</strong
+        <mns-overlay (closed)="cancelDelete()">
+          <mns-modal title="Delete Content" icon="Trash" (closed)="cancelDelete()">
+            <p class="text-sm text-muted mb-4">
+              Are you sure you want to delete
+              <strong class="text-text">{{ selectedContent?.title }}</strong
               >? This will permanently remove the original and transcoded files.
             </p>
-            <div class="form-actions">
-              <button class="btn btn-secondary" (click)="cancelDelete()">Cancel</button>
-              <button class="btn btn-danger" (click)="executeDelete()" [disabled]="deleting">
-                {{ deleting ? 'Deleting...' : 'Delete' }}
-              </button>
+            <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
+              <mns-btn variant="outline" (mnsClick)="cancelDelete()">Cancel</mns-btn>
+              <mns-btn variant="danger" [disabled]="deleting" (mnsClick)="executeDelete()">
+                {{ deleting ? 'Deleting…' : 'Delete' }}
+              </mns-btn>
             </div>
-          </div>
-        </div>
+          </mns-modal>
+        </mns-overlay>
       }
 
       <!-- Bulk Delete Confirmation Modal -->
@@ -220,17 +216,11 @@ import { ToastService } from '../shared/toast/toast.service';
     </div>
   `,
   styles: `
-    .header-right {
-      display: flex;
-      gap: 0.75rem;
-      align-items: center;
-    }
-
     /* Type Toggle */
     .type-toggle {
       display: flex;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       border-radius: 0.375rem;
       overflow: hidden;
     }
@@ -238,17 +228,17 @@ import { ToastService } from '../shared/toast/toast.service';
       padding: 0.375rem 0.75rem;
       border: none;
       background: none;
-      color: var(--color-text-secondary);
+      color: var(--text-muted);
       font-size: 0.8125rem;
       cursor: pointer;
       transition: all 0.15s;
     }
     .toggle-btn.active {
-      background: var(--color-accent);
+      background: var(--accent);
       color: #fff;
     }
     .toggle-btn:hover:not(.active) {
-      background: var(--color-bg-tertiary);
+      background: var(--surface-3);
     }
 
     /* Tag Filter */
@@ -261,26 +251,26 @@ import { ToastService } from '../shared/toast/toast.service';
     .tag-chip {
       padding: 0.25rem 0.75rem;
       border-radius: 9999px;
-      border: 1px solid var(--color-border);
-      background: var(--color-bg-secondary);
-      color: var(--color-text-secondary);
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text-muted);
       font-size: 0.75rem;
       cursor: pointer;
       transition: all 0.15s;
     }
     .tag-chip.active {
-      background: var(--color-accent);
-      border-color: var(--color-accent);
+      background: var(--accent);
+      border-color: var(--accent);
       color: #fff;
     }
     .tag-chip.clear {
       background: none;
-      border-color: var(--color-text-muted);
-      color: var(--color-text-muted);
+      border-color: var(--text-faint);
+      color: var(--text-faint);
     }
     .tag-chip:hover:not(.active) {
-      border-color: var(--color-text-secondary);
-      color: var(--color-text-primary);
+      border-color: var(--text-muted);
+      color: var(--text);
     }
   `,
 })

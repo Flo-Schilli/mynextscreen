@@ -8,6 +8,7 @@ import {
 } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
+import { BtnComponent, IconComponent } from '../ui';
 
 function passwordsMatch(control: AbstractControl): ValidationErrors | null {
   const password = control.get('password')?.value;
@@ -22,7 +23,7 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
  */
 @Component({
   selector: 'app-register',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, BtnComponent, IconComponent],
   templateUrl: './register.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

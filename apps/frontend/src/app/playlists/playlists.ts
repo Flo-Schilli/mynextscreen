@@ -20,6 +20,13 @@ import { SelectionService } from '../shared/selection/selection.service';
 import { BulkAction } from '../shared/selection/bulk-action-toolbar';
 import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dialog';
 import { ToastService } from '../shared/toast/toast.service';
+import {
+  PageHeaderComponent,
+  BtnComponent,
+  EmptyComponent,
+  OverlayComponent,
+  ModalComponent,
+} from '../ui';
 
 /**
  * Smart container for the playlists feature. Owns data loading, all HTTP
@@ -38,19 +45,23 @@ import { ToastService } from '../shared/toast/toast.service';
     PlaylistAddContentModal,
     PlaylistAssignScreenModal,
     BulkConfirmDialogComponent,
+    PageHeaderComponent,
+    BtnComponent,
+    EmptyComponent,
+    OverlayComponent,
+    ModalComponent,
   ],
   providers: [SelectionService],
   template: `
     <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Playlists</h1>
-        </div>
+      <mns-page-header title="Playlists" icon="List">
+        <mns-btn variant="ghost" size="sm" icon="ChevronLeft" (mnsClick)="goBack()">Back</mns-btn>
         @if (!loading && !selectedPlaylist && !showCreateForm) {
-          <button class="btn btn-primary" (click)="openCreateForm()">+ Create Playlist</button>
+          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()"
+            >Create Playlist</mns-btn
+          >
         }
-      </header>
+      </mns-page-header>
 
       @if (loadError) {
         <p class="error">{{ loadError }}</p>
@@ -111,50 +122,36 @@ import { ToastService } from '../shared/toast/toast.service';
       @if (
         !loading && !selectedPlaylist && !showCreateForm && playlists.length === 0 && !loadError
       ) {
-        <div class="empty-state">
-          <p class="empty-text">No playlists created yet.</p>
-          <button class="btn btn-primary" (click)="openCreateForm()">
-            Create Your First Playlist
-          </button>
-        </div>
+        <mns-empty icon="List" title="No playlists yet" desc="No playlists created yet.">
+          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()"
+            >Create Your First Playlist</mns-btn
+          >
+        </mns-empty>
       }
 
       <!-- Delete Confirmation Modal -->
       @if (showDeleteConfirm) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Confirm deletion"
-          tabindex="0"
-          (click)="cancelDelete()"
-          (keydown.escape)="cancelDelete()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Delete Playlist</h2>
-            <p>
-              Are you sure you want to delete <strong>{{ selectedPlaylist?.name }}</strong
+        <mns-overlay (closed)="cancelDelete()">
+          <mns-modal title="Delete Playlist" icon="Trash" (closed)="cancelDelete()">
+            <p class="text-sm text-muted mb-3">
+              Are you sure you want to delete
+              <strong class="text-text">{{ selectedPlaylist?.name }}</strong
               >? This action cannot be undone.
             </p>
             @if (selectedPlaylist?.id === defaultPlaylistId) {
-              <p class="warning-text">
+              <p class="warning-text mb-3">
                 This playlist is currently set as the organisation's default. Deleting it will clear
                 the default playlist setting.
               </p>
             }
-            <div class="form-actions">
-              <button class="btn btn-secondary" (click)="cancelDelete()">Cancel</button>
-              <button class="btn btn-danger" (click)="executeDelete()" [disabled]="deleting">
-                {{ deleting ? 'Deleting...' : 'Delete' }}
-              </button>
+            <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
+              <mns-btn variant="outline" (mnsClick)="cancelDelete()">Cancel</mns-btn>
+              <mns-btn variant="danger" [disabled]="deleting" (mnsClick)="executeDelete()">
+                {{ deleting ? 'Deleting…' : 'Delete' }}
+              </mns-btn>
             </div>
-          </div>
-        </div>
+          </mns-modal>
+        </mns-overlay>
       }
 
       <!-- Add Content Modal -->
@@ -200,12 +197,12 @@ import { ToastService } from '../shared/toast/toast.service';
     }
 
     .warning-text {
-      color: #fbbf24 !important;
+      color: #fbbf24;
       background: #92400e20;
-      border: 1px solid #92400e;
-      border-radius: 0.375rem;
+      border: 1px solid #92400e60;
+      border-radius: 0.5rem;
       padding: 0.75rem 1rem;
-      font-size: 0.8125rem !important;
+      font-size: 0.8125rem;
     }
   `,
 })

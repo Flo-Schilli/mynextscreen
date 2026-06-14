@@ -54,8 +54,8 @@ import { ScreenGroupScreen } from './screen-group.model';
       max-width: 40rem;
     }
     .mirror-section {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       border-radius: 0.5rem;
       padding: 1.5rem;
     }
@@ -71,7 +71,7 @@ import { ScreenGroupScreen } from './screen-group.model';
     .mirror-empty {
       text-align: center;
       padding: 2rem 1rem;
-      color: var(--color-text-muted);
+      color: var(--text-muted);
     }
     .mirror-empty p {
       margin: 0 0 1rem;
@@ -87,8 +87,8 @@ import { ScreenGroupScreen } from './screen-group.model';
       align-items: center;
       justify-content: space-between;
       padding: 0.75rem 1rem;
-      background: var(--color-bg-tertiary);
-      border: 1px solid var(--color-border);
+      background: var(--surface-3);
+      border: 1px solid var(--border);
       border-radius: 0.375rem;
     }
     .mirror-screen-info {
@@ -102,7 +102,7 @@ import { ScreenGroupScreen } from './screen-group.model';
     }
     .mirror-screen-location {
       font-size: 0.75rem;
-      color: var(--color-text-muted);
+      color: var(--text-muted);
     }
   `,
 })

@@ -14,10 +14,12 @@ import { ScheduleViewMode } from './schedule-calendar.service';
   imports: [FormsModule],
   template: `
     <div class="toolbar">
+      <!-- Target selector — id="targetSelect" preserved for specs -->
       <div class="target-selector">
-        <label for="targetSelect">Target:</label>
+        <label for="targetSelect" class="text-sm font-semibold text-muted">Target</label>
         <select
           id="targetSelect"
+          class="sel"
           [ngModel]="selectedTargetId()"
           (ngModelChange)="targetChange.emit($event)"
           name="targetSelect"
@@ -42,46 +44,36 @@ import { ScheduleViewMode } from './schedule-calendar.service';
         </select>
       </div>
 
-      <div class="view-buttons">
-        <button
-          class="toggle-btn"
-          [class.active]="viewMode() === 'day'"
-          (click)="viewChange.emit('day')"
-        >
-          Day
-        </button>
-        <button
-          class="toggle-btn"
-          [class.active]="viewMode() === 'week'"
-          (click)="viewChange.emit('week')"
-        >
-          Week
-        </button>
-        <button
-          class="toggle-btn"
-          [class.active]="viewMode() === 'month'"
-          (click)="viewChange.emit('month')"
-        >
-          Month
-        </button>
+      <!-- View-mode segmented control -->
+      <div class="view-seg">
+        @for (v of viewOptions; track v.value) {
+          <button
+            class="seg-btn"
+            [class.active]="viewMode() === v.value"
+            (click)="viewChange.emit(v.value)"
+          >
+            {{ v.label }}
+          </button>
+        }
       </div>
 
+      <!-- Navigation -->
       <div class="nav-buttons">
-        <button class="btn btn-secondary btn-sm" (click)="prev.emit()">&#8592;</button>
-        <button class="btn btn-secondary btn-sm" (click)="today.emit()">Today</button>
-        <button class="btn btn-secondary btn-sm" (click)="next.emit()">&#8594;</button>
+        <button class="nav-btn" title="Previous" (click)="prev.emit()">&#8592;</button>
+        <button class="nav-btn today-btn" (click)="today.emit()">Today</button>
+        <button class="nav-btn" title="Next" (click)="next.emit()">&#8594;</button>
         <span class="current-range">{{ currentRangeLabel() }}</span>
       </div>
 
-      <button class="btn btn-primary" (click)="create.emit()">+ Schedule</button>
+      <button class="create-btn" (click)="create.emit()">+ Schedule</button>
     </div>
   `,
   styles: `
     .toolbar {
       display: flex;
       align-items: center;
-      gap: 1rem;
-      margin-bottom: 1rem;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
       flex-wrap: wrap;
     }
     .target-selector {
@@ -89,54 +81,97 @@ import { ScheduleViewMode } from './schedule-calendar.service';
       align-items: center;
       gap: 0.5rem;
     }
-    .target-selector label {
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-    }
-    .target-selector select {
+    .sel {
       padding: 0.5rem 0.75rem;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-      color: var(--color-text-primary);
+      background: var(--surface-2);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--r-md, 8px);
+      color: var(--text);
       font-size: 0.875rem;
-    }
-    .view-buttons {
-      display: flex;
-      gap: 0.25rem;
-    }
-    .toggle-btn {
-      padding: 0.375rem 0.75rem;
-      border-radius: 0.375rem;
-      border: 1px solid var(--color-border);
-      background: transparent;
-      color: var(--color-text-secondary);
+      outline: none;
       cursor: pointer;
+    }
+    .sel:focus {
+      border-color: var(--accent);
+    }
+    .view-seg {
+      display: flex;
+      padding: 3px;
+      border-radius: var(--r-lg, 11px);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      gap: 2px;
+    }
+    .seg-btn {
+      padding: 0.35rem 0.75rem;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
       font-size: 0.8125rem;
-      transition: all 0.15s;
+      font-weight: 600;
+      cursor: pointer;
+      transition:
+        background 0.15s,
+        color 0.15s,
+        box-shadow 0.15s;
     }
-    .toggle-btn:hover {
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-primary);
+    .seg-btn:hover {
+      color: var(--text);
     }
-    .toggle-btn.active {
-      background: var(--color-accent);
-      color: #fff;
-      border-color: var(--color-accent);
+    .seg-btn.active {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: var(--shadow);
     }
     .nav-buttons {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.375rem;
+    }
+    .nav-btn {
+      display: grid;
+      place-items: center;
+      padding: 0.375rem 0.625rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition:
+        background 0.15s,
+        color 0.15s;
+    }
+    .nav-btn:hover {
+      background: var(--surface-3);
+      color: var(--text);
+    }
+    .today-btn {
+      padding: 0.375rem 0.875rem;
     }
     .current-range {
       font-size: 0.875rem;
-      font-weight: 500;
+      font-weight: 600;
+      color: var(--text);
       min-width: 10rem;
+      margin-left: 0.25rem;
     }
-    .btn-sm {
-      padding: 0.325rem 0.75rem;
-      font-size: 0.8125rem;
+    .create-btn {
+      margin-left: auto;
+      padding: 0.5rem 1rem;
+      border-radius: var(--r-lg, 10px);
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.875rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .create-btn:hover {
+      opacity: 0.88;
     }
   `,
 })
@@ -153,4 +188,10 @@ export class ScheduleToolbar {
   readonly today = output<void>();
   readonly next = output<void>();
   readonly create = output<void>();
+
+  readonly viewOptions: { value: ScheduleViewMode; label: string }[] = [
+    { value: 'day', label: 'Day' },
+    { value: 'week', label: 'Week' },
+    { value: 'month', label: 'Month' },
+  ];
 }

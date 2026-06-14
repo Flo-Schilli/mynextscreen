@@ -67,7 +67,7 @@ import { ScreenGroup } from './screen-group.model';
   styles: `
     /* Group name link */
     .group-link {
-      color: var(--color-accent);
+      color: var(--accent);
       cursor: pointer;
       text-decoration: none;
     }
@@ -85,11 +85,11 @@ import { ScreenGroup } from './screen-group.model';
       width: fit-content;
     }
     .mode-badge.mirror {
-      background: #3b82f620;
+      background: color-mix(in srgb, #3b82f6 15%, transparent);
       color: #3b82f6;
     }
     .mode-badge.split {
-      background: #a855f720;
+      background: color-mix(in srgb, #a855f7 15%, transparent);
       color: #a855f7;
     }
   `,

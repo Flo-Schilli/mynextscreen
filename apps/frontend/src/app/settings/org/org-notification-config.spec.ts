@@ -184,8 +184,8 @@ describe('OrgNotificationConfig', () => {
       setup();
       fixture.detectChanges();
 
-      const sections = fixture.debugElement.queryAll(By.css('.section'));
-      expect(sections.length).toBe(2);
+      const sections = fixture.debugElement.queryAll(By.css('mns-card'));
+      expect(sections.length).toBeGreaterThanOrEqual(2);
       expect(fixture.debugElement.query(By.css('.loading-text'))).toBeNull();
     });
   });

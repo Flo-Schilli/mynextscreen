@@ -85,27 +85,25 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       gap: 1rem;
     }
     .playlist-card {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
       padding: 1.25rem;
       cursor: pointer;
       transition:
         border-color 0.15s,
         background-color 0.15s;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
+      box-shadow: var(--shadow);
     }
     .playlist-card:hover,
     .playlist-card:focus {
-      border-color: var(--color-accent);
-      background: var(--color-bg-tertiary);
+      border-color: var(--accent);
+      background: var(--surface-3);
       outline: none;
     }
     .playlist-card.selected {
-      border-color: var(--color-accent);
-      background: color-mix(in srgb, var(--color-accent) 10%, var(--color-bg-secondary));
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
     }
     .card-header {
       display: flex;
@@ -124,7 +122,7 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       border-radius: 9999px;
       font-size: 0.6875rem;
       font-weight: 600;
-      background: var(--color-accent);
+      background: var(--accent);
       color: #fff;
     }
     .card-body {
@@ -138,10 +136,10 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       font-size: 0.8125rem;
     }
     .card-label {
-      color: var(--color-text-secondary);
+      color: var(--text-muted);
     }
     .card-value {
-      color: var(--color-text-primary);
+      color: var(--text);
     }
   `,
 })

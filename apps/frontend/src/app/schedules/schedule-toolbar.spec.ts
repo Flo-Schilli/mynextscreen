@@ -111,7 +111,7 @@ describe('ScheduleToolbar', () => {
       await setUp({ viewMode: 'month' });
 
       // Assert
-      const buttons = fixture.nativeElement.querySelectorAll('.toggle-btn');
+      const buttons = fixture.nativeElement.querySelectorAll('.seg-btn');
       const active = Array.from(buttons).filter((b) =>
         (b as HTMLElement).classList.contains('active'),
       );
@@ -126,7 +126,7 @@ describe('ScheduleToolbar', () => {
       fixture.componentInstance.viewChange.subscribe((v) => emitted.push(v));
 
       // Act
-      const buttons = fixture.nativeElement.querySelectorAll('.toggle-btn');
+      const buttons = fixture.nativeElement.querySelectorAll('.seg-btn');
       (buttons[0] as HTMLButtonElement).click(); // Day
 
       // Assert
@@ -178,7 +178,7 @@ describe('ScheduleToolbar', () => {
       fixture.componentInstance.create.subscribe(() => (created = true));
 
       // Act
-      const createBtn = fixture.nativeElement.querySelector('.btn-primary') as HTMLButtonElement;
+      const createBtn = fixture.nativeElement.querySelector('.create-btn') as HTMLButtonElement;
       createBtn.click();
 
       // Assert

@@ -1,0 +1,21 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+@media (max-width: 880px) {
+  .auth-brand {
+    display: none !important;
+  }
+
+  .auth-mini-logo {
+    display: flex !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

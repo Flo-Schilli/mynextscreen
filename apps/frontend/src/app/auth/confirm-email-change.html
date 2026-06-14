@@ -1,31 +1,86 @@
-<div class="flex min-h-screen items-center justify-center bg-bg-primary px-4">
-  <div class="w-full max-w-sm rounded-lg border border-border bg-bg-secondary p-8 shadow-lg">
-    <h1 class="mb-6 text-center text-2xl font-semibold text-text-primary">Email change</h1>
+<div class="flex min-h-screen items-center justify-center bg-bg px-4 py-10">
+  <div
+    class="w-full max-w-[400px]"
+    style="animation: fadeUp 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both"
+  >
+    <!-- Logo -->
+    <div class="mb-7 flex justify-center">
+      <div class="flex items-center gap-3">
+        <div
+          class="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px]"
+          style="background: linear-gradient(135deg, var(--accent), var(--accent-2))"
+        >
+          <mns-icon name="Layers" [size]="19" class="text-white" />
+        </div>
+        <span class="text-xl font-extrabold tracking-tight">
+          <span class="text-text">my</span
+          ><span
+            style="
+              background: linear-gradient(135deg, var(--accent), var(--accent-2));
+              -webkit-background-clip: text;
+              background-clip: text;
+              color: transparent;
+            "
+            >NextScreen</span
+          >
+        </span>
+      </div>
+    </div>
 
-    @switch (state()) {
-      @case ('confirming') {
-        <p class="text-center text-sm text-text-secondary">Confirming your new email address…</p>
+    <div
+      class="w-full rounded-xl border border-border bg-surface p-8"
+      style="box-shadow: var(--shadow)"
+    >
+      <h1 class="mb-4 text-[22px] font-extrabold tracking-tight">Email change</h1>
+
+      @switch (state()) {
+        @case ('confirming') {
+          <div class="flex flex-col items-center gap-3 py-4 text-center">
+            <div
+              class="h-10 w-10 animate-spin rounded-full border-2 border-border border-t-accent"
+            ></div>
+            <p class="text-[13.5px] text-muted">Confirming your new email address…</p>
+          </div>
+        }
+        @case ('done') {
+          <div class="flex flex-col items-center gap-4 text-center">
+            <div
+              class="grid h-14 w-14 place-items-center rounded-full"
+              style="background: var(--accent-soft)"
+            >
+              <mns-icon name="CheckCircle" [size]="28" class="text-accent" />
+            </div>
+            <p class="text-[13.5px] leading-relaxed text-muted">
+              Your email address has been updated. Use it the next time you sign in.
+            </p>
+            <a
+              href="/"
+              class="inline-flex items-center gap-1.5 text-sm font-bold text-accent hover:opacity-80"
+            >
+              <mns-icon name="Arrow" [size]="15" />Go to dashboard
+            </a>
+          </div>
+        }
+        @case ('error') {
+          <div class="flex flex-col items-center gap-4 text-center">
+            <div
+              class="grid h-14 w-14 place-items-center rounded-full"
+              style="background: color-mix(in srgb, var(--offline) 12%, transparent)"
+            >
+              <mns-icon name="Alert" [size]="26" class="text-offline" />
+            </div>
+            <p class="text-[13.5px] text-offline" role="alert">
+              This confirmation link is invalid or has expired.
+            </p>
+            <a
+              href="/"
+              class="inline-flex items-center gap-1.5 text-sm font-bold text-accent hover:opacity-80"
+            >
+              <mns-icon name="Arrow" [size]="15" />Go to dashboard
+            </a>
+          </div>
+        }
       }
-      @case ('done') {
-        <div class="space-y-4 text-center">
-          <p class="text-sm text-text-secondary">
-            Your email address has been updated. Use it the next time you sign in.
-          </p>
-          <a href="/" class="inline-block text-sm font-medium text-accent hover:text-accent-hover"
-            >Go to dashboard</a
-          >
-        </div>
-      }
-      @case ('error') {
-        <div class="space-y-4 text-center">
-          <p class="text-sm text-red-400" role="alert">
-            This confirmation link is invalid or has expired.
-          </p>
-          <a href="/" class="inline-block text-sm font-medium text-accent hover:text-accent-hover"
-            >Go to dashboard</a
-          >
-        </div>
-      }
-    }
+    </div>
   </div>
 </div>

@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { TimelineRow } from './dashboard.model';
 
 /**
@@ -9,6 +9,7 @@ import { TimelineRow } from './dashboard.model';
 @Component({
   selector: 'app-dashboard-schedule-timeline',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="timeline">
       <div class="timeline-header">
@@ -44,7 +45,7 @@ import { TimelineRow } from './dashboard.model';
     .timeline-header {
       display: flex;
       align-items: center;
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.375rem;
     }
     .timeline-hours {
       flex: 1;
@@ -54,20 +55,22 @@ import { TimelineRow } from './dashboard.model';
     }
     .timeline-hour {
       font-size: 0.625rem;
-      color: var(--color-text-muted);
+      color: var(--text-muted);
       width: 0;
       text-align: center;
+      font-variant-numeric: tabular-nums;
     }
     .timeline-row {
       display: flex;
       align-items: center;
-      margin-bottom: 0.375rem;
+      margin-bottom: 0.5rem;
     }
     .timeline-screen-label {
       width: 90px;
       min-width: 90px;
       font-size: 0.75rem;
-      color: var(--color-text-secondary);
+      font-weight: 600;
+      color: var(--text-muted);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -75,19 +78,23 @@ import { TimelineRow } from './dashboard.model';
     }
     .timeline-track {
       flex: 1;
-      height: 20px;
-      background: var(--color-bg-tertiary);
-      border-radius: 3px;
+      height: 22px;
+      background: var(--surface-3);
+      border-radius: 6px;
       position: relative;
       overflow: hidden;
     }
     .timeline-block {
       position: absolute;
-      top: 2px;
-      bottom: 2px;
-      border-radius: 2px;
+      top: 3px;
+      bottom: 3px;
+      border-radius: 4px;
       min-width: 2px;
-      opacity: 0.85;
+      opacity: 0.88;
+      transition: opacity 0.15s;
+    }
+    .timeline-block:hover {
+      opacity: 1;
     }
   `,
 })

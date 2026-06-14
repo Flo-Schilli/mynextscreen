@@ -38,73 +38,83 @@ import { DayTimeline } from './schedule-calendar.service';
     .side-panel {
       width: 16rem;
       flex-shrink: 0;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-xl, 14px);
       padding: 1rem;
       max-height: calc(100vh - 14rem);
       overflow-y: auto;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
+      box-shadow: var(--shadow);
     }
     .side-panel h3 {
-      margin: 0 0 0.75rem;
-      font-size: 0.875rem;
-      font-weight: 600;
+      margin: 0 0 0.875rem;
+      font-size: 0.8125rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .empty-text {
+      font-size: 0.8125rem;
+      color: var(--text-faint);
+      padding: 0.5rem 0;
     }
     .timeline-item {
       display: flex;
-      gap: 0.5rem;
-      padding: 0.5rem 0;
-      border-bottom: 1px solid var(--color-border);
+      gap: 0.625rem;
+      padding: 0.625rem 0;
+      border-bottom: 1px solid var(--border);
     }
     .timeline-item:last-child {
       border-bottom: none;
     }
     .timeline-colour {
-      width: 0.25rem;
-      border-radius: 0.125rem;
+      width: 3px;
+      border-radius: 2px;
       flex-shrink: 0;
+      align-self: stretch;
     }
     .timeline-info {
       display: flex;
       flex-direction: column;
-      gap: 0.125rem;
+      gap: 0.15rem;
       min-width: 0;
     }
     .timeline-name {
       font-size: 0.8125rem;
-      font-weight: 500;
+      font-weight: 600;
+      color: var(--text);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .timeline-target {
       font-size: 0.6875rem;
-      color: var(--color-text-muted);
+      color: var(--text-muted);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .timeline-time {
       font-size: 0.6875rem;
-      color: var(--color-text-muted);
+      font-family: var(--mono, ui-monospace, monospace);
+      font-weight: 600;
+      color: var(--text-faint);
     }
     .group-badge-inline {
       display: inline-block;
       font-size: 0.5625rem;
-      font-weight: 700;
-      background: var(--color-accent);
+      font-weight: 800;
+      background: var(--accent);
       color: #fff;
-      padding: 0 0.1875rem;
-      border-radius: 0.125rem;
+      padding: 0 0.2rem;
+      border-radius: 3px;
       margin-right: 0.25rem;
       line-height: 1.3;
     }
     .repeat-icon-sm {
       font-size: 0.625rem;
-      color: var(--color-text-muted);
+      color: var(--text-faint);
     }
   `,
 })

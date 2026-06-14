@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import {
@@ -7,256 +7,264 @@ import {
 } from './org-notification-config.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
 import { ToastService } from '../../shared/toast/toast.service';
+import {
+  CardComponent,
+  CardHeadComponent,
+  BtnComponent,
+  SFieldComponent,
+  SInputComponent,
+  SwitchComponent,
+  ToggleRowComponent,
+} from '../../ui';
 
 @Component({
   selector: 'app-org-notification-config',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    FormsModule,
+    RouterLink,
+    CardComponent,
+    CardHeadComponent,
+    BtnComponent,
+    SFieldComponent,
+    SInputComponent,
+    SwitchComponent,
+    ToggleRowComponent,
+  ],
   template: `
-    <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Organisation Notification Settings</h1>
-        </div>
-      </header>
+    <!-- Tab bar -->
+    <div class="flex gap-1 border-b border-border mb-[var(--gap,1.5rem)]">
+      <a class="settings-tab" routerLink="/settings/users">User Management</a>
+      <a class="settings-tab settings-tab--active" aria-current="page">Notification Config</a>
+      <a class="settings-tab" routerLink="/settings/org/storage">Storage</a>
+    </div>
 
-      <nav class="settings-nav">
-        <a class="settings-nav-link" routerLink="/settings/users">User Management</a>
-        <a class="settings-nav-link active">Notification Config</a>
-        <a class="settings-nav-link" routerLink="/settings/org/storage">Storage</a>
-      </nav>
+    @if (loading) {
+      <p class="loading-text text-sm text-muted mt-6">Loading configuration...</p>
+    }
 
-      @if (loading) {
-        <p class="loading-text">Loading configuration...</p>
-      }
+    @if (loadError) {
+      <p class="error text-sm text-offline mt-3">{{ loadError }}</p>
+    }
 
-      @if (loadError) {
-        <p class="error">{{ loadError }}</p>
-      }
+    @if (!loading && !loadError) {
+      <div
+        class="grid gap-[var(--gap,1.5rem)] [grid-template-columns:minmax(0,1fr)_minmax(0,1fr)] max-[700px]:[grid-template-columns:1fr] items-start"
+      >
+        <!-- SMTP card -->
+        <mns-card [animate]="true">
+          <mns-card-head
+            title="SMTP Email Settings"
+            sub="Configure SMTP to enable email notifications for your organisation."
+            icon="Mail"
+          />
 
-      @if (!loading && !loadError) {
-        <section class="section">
-          <h2 class="section-title">SMTP Email Settings</h2>
-          <p class="section-desc">
-            Configure SMTP to enable email notifications for your organisation.
-          </p>
-
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="smtpHost">Host</label>
+          <div class="grid grid-cols-2 gap-4 mb-4 max-[500px]:grid-cols-1">
+            <mns-sfield label="Host">
+              <mns-sinput [(value)]="smtpHost" placeholder="smtp.example.com" [mono]="true" />
+            </mns-sfield>
+            <mns-sfield label="Port">
               <input
-                id="smtpHost"
-                type="text"
-                [(ngModel)]="smtpHost"
-                placeholder="smtp.example.com"
+                class="w-full px-3 py-2 rounded-[10px] bg-surface border border-border-strong text-sm font-mono text-text placeholder:text-faint focus:outline-none focus:border-accent focus:ring-[3px] focus:ring-accent-soft transition-all duration-[180ms]"
+                type="number"
+                [(ngModel)]="smtpPort"
+                placeholder="587"
               />
-            </div>
-            <div class="form-group">
-              <label for="smtpPort">Port</label>
-              <input id="smtpPort" type="number" [(ngModel)]="smtpPort" placeholder="587" />
-            </div>
-            <div class="form-group">
-              <label for="smtpUser">Username</label>
-              <input
-                id="smtpUser"
-                type="text"
-                [(ngModel)]="smtpUser"
-                placeholder="user@example.com"
-              />
-            </div>
-            <div class="form-group">
-              <label for="smtpPassword">Password</label>
-              <input
-                id="smtpPassword"
-                type="password"
-                [(ngModel)]="smtpPassword"
+            </mns-sfield>
+          </div>
+          <div class="grid grid-cols-2 gap-4 mb-4 max-[500px]:grid-cols-1">
+            <mns-sfield label="Username">
+              <mns-sinput [(value)]="smtpUser" placeholder="user@example.com" />
+            </mns-sfield>
+            <mns-sfield label="Password">
+              <mns-sinput
+                [(value)]="smtpPassword"
                 [placeholder]="
                   hasSmtpPassword ? 'Saved — leave blank to keep current' : 'Enter password'
                 "
-              />
-            </div>
-            <div class="form-group">
-              <label for="smtpFrom">From address</label>
-              <input
-                id="smtpFrom"
-                type="text"
-                [(ngModel)]="smtpFrom"
-                placeholder="noreply@example.com"
-              />
-            </div>
-            <div class="form-group form-group-checkbox">
-              <label for="smtpSecure">
-                <input id="smtpSecure" type="checkbox" [(ngModel)]="smtpSecure" />
-                Secure (TLS)
-              </label>
-              <span class="form-hint">Uncheck for STARTTLS</span>
-            </div>
-          </div>
-
-          <div class="btn-row">
-            <button class="btn btn-primary" (click)="saveSmtp()" [disabled]="savingSmtp">
-              {{ savingSmtp ? 'Saving...' : 'Save SMTP Settings' }}
-            </button>
-            <button class="btn btn-secondary" (click)="testEmail()" [disabled]="testingEmail">
-              {{ testingEmail ? 'Sending...' : 'Send test email' }}
-            </button>
-          </div>
-        </section>
-
-        <section class="section">
-          <h2 class="section-title">ntfy Push Notifications</h2>
-          <p class="section-desc">
-            Configure ntfy to enable push notifications for your organisation.
-          </p>
-
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="ntfyUrl">ntfy URL</label>
-              <input id="ntfyUrl" type="text" [(ngModel)]="ntfyUrl" placeholder="https://ntfy.sh" />
-            </div>
-            <div class="form-group">
-              <label for="ntfyTopic">Topic</label>
-              <input
-                id="ntfyTopic"
-                type="text"
-                [(ngModel)]="ntfyTopic"
-                placeholder="my-org-notifications"
-              />
-            </div>
-            <div class="form-group">
-              <label for="ntfyToken">Auth token (optional)</label>
-              <input
-                id="ntfyToken"
                 type="password"
-                [(ngModel)]="ntfyToken"
-                [placeholder]="
-                  hasNtfyToken ? 'Saved — leave blank to keep current' : 'Enter token (optional)'
-                "
+                icon="Lock"
               />
+            </mns-sfield>
+          </div>
+          <mns-sfield label="From address" class="mb-4 block">
+            <mns-sinput [(value)]="smtpFrom" placeholder="noreply@example.com" />
+          </mns-sfield>
+
+          <!-- TLS toggle row -->
+          <div
+            class="flex items-center gap-3 mt-4 px-3.5 py-3 rounded-[12px] bg-surface-2 border border-border"
+          >
+            <mns-switch [(checked)]="smtpSecure" />
+            <div class="flex-1">
+              <div class="text-[13.5px] font-bold">Secure (TLS)</div>
+              <div class="text-xs text-muted">Turn off to use STARTTLS instead</div>
             </div>
           </div>
 
-          <div class="btn-row">
-            <button class="btn btn-primary" (click)="saveNtfy()" [disabled]="savingNtfy">
-              {{ savingNtfy ? 'Saving...' : 'Save ntfy Settings' }}
-            </button>
-            <button class="btn btn-secondary" (click)="testNtfy()" [disabled]="testingNtfy">
-              {{ testingNtfy ? 'Sending...' : 'Send test notification' }}
-            </button>
+          <div class="flex gap-2.5 mt-5">
+            <mns-btn variant="primary" [disabled]="savingSmtp" (mnsClick)="saveSmtp()">
+              {{ savingSmtp ? 'Saving...' : 'Save SMTP settings' }}
+            </mns-btn>
+            <mns-btn
+              variant="outline"
+              icon="Mail"
+              [disabled]="testingEmail"
+              (mnsClick)="testEmail()"
+            >
+              {{ testingEmail ? 'Sending...' : 'Send test email' }}
+            </mns-btn>
           </div>
-        </section>
-      }
-    </div>
+        </mns-card>
+
+        <!-- ntfy card -->
+        <mns-card [animate]="true" [delay]="0.05">
+          <mns-card-head
+            title="ntfy Push Notifications"
+            sub="Configure ntfy to enable push notifications for your organisation."
+            icon="Bell"
+          />
+
+          <div class="grid grid-cols-2 gap-4 mb-4 max-[500px]:grid-cols-1">
+            <mns-sfield label="ntfy URL">
+              <mns-sinput
+                [(value)]="ntfyUrl"
+                placeholder="https://ntfy.sh"
+                [mono]="true"
+                icon="Globe"
+              />
+            </mns-sfield>
+            <mns-sfield label="Topic">
+              <mns-sinput [(value)]="ntfyTopic" placeholder="my-org-notifications" [mono]="true" />
+            </mns-sfield>
+          </div>
+          <mns-sfield
+            label="Auth token"
+            hint="Optional — only required for protected topics."
+            class="block mb-4"
+          >
+            <mns-sinput
+              [(value)]="ntfyToken"
+              [placeholder]="
+                hasNtfyToken ? 'Saved — leave blank to keep current' : 'Enter token (optional)'
+              "
+              type="password"
+              [mono]="true"
+              icon="Lock"
+            />
+          </mns-sfield>
+
+          <!-- Info hint -->
+          <div
+            class="flex items-center gap-3 mt-4 px-3.5 py-3 rounded-[12px] bg-accent-soft border border-border text-[12.5px] text-muted leading-relaxed"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 20 20"
+              fill="none"
+              class="text-accent flex-shrink-0"
+            >
+              <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5" />
+              <path
+                d="M10 9v5M10 7h.01"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+            </svg>
+            Install the <strong class="text-text mx-0.5">ntfy</strong> app and subscribe to your
+            topic to receive alerts on mobile.
+          </div>
+
+          <div class="flex gap-2.5 mt-5">
+            <mns-btn variant="primary" [disabled]="savingNtfy" (mnsClick)="saveNtfy()">
+              {{ savingNtfy ? 'Saving...' : 'Save push settings' }}
+            </mns-btn>
+            <mns-btn variant="outline" icon="Bell" [disabled]="testingNtfy" (mnsClick)="testNtfy()">
+              {{ testingNtfy ? 'Sending...' : 'Send test push' }}
+            </mns-btn>
+          </div>
+        </mns-card>
+
+        <!-- Alert rules — full width -->
+        <div class="col-span-2 max-[700px]:col-span-1">
+          <mns-card [animate]="true" [delay]="0.1">
+            <mns-card-head
+              title="Alert rules"
+              sub="Choose which events trigger a notification across email and push."
+              icon="Alert"
+            />
+            <div
+              class="grid gap-x-8 gap-y-1 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]"
+            >
+              <mns-toggle-row
+                icon="WifiOff"
+                label="Screen goes offline"
+                desc="Alert after a display is unreachable for 5 minutes"
+              />
+              <mns-toggle-row
+                icon="Wifi"
+                label="Screen recovers"
+                desc="Notify when an offline display comes back online"
+              />
+              <mns-toggle-row
+                icon="Video"
+                label="Transcode failure"
+                desc="Alert when uploaded media fails to process"
+              />
+              <mns-toggle-row
+                icon="Storage"
+                label="Storage near limit"
+                desc="Warn when usage passes 90% of the allocation"
+              />
+              <mns-toggle-row
+                icon="Calendar"
+                label="Weekly summary"
+                desc="A digest of uptime and activity every Monday"
+              />
+            </div>
+          </mns-card>
+        </div>
+      </div>
+    }
   `,
   styles: `
-    .settings-nav {
-      display: flex;
-      gap: 0;
-      margin-bottom: 1.5rem;
-      border-bottom: 1px solid var(--color-border);
-    }
-    .settings-nav-link {
-      padding: 0.625rem 1rem;
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-      text-decoration: none;
-      border-bottom: 2px solid transparent;
-      cursor: pointer;
-      transition:
-        color 0.15s,
-        border-color 0.15s;
-    }
-    .settings-nav-link:hover {
-      color: var(--color-text-primary);
-    }
-    .settings-nav-link.active {
-      color: var(--color-text-primary);
-      border-bottom-color: var(--color-accent);
-      font-weight: 500;
+    :host {
+      display: block;
     }
 
-    .section {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.5rem;
-      max-width: 40rem;
-      margin-bottom: 1.5rem;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
-    }
-    .section-title {
-      font-size: 1.125rem;
-      font-weight: 600;
-      margin: 0 0 0.25rem;
-    }
-    .section-desc {
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-      margin: 0 0 1.25rem;
-    }
-
-    .form-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-    }
-    @media (max-width: 600px) {
-      .form-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-    }
-    .form-group label {
-      font-size: 0.8125rem;
-      font-weight: 500;
-      color: var(--color-text-secondary);
-    }
-    .form-group input[type='text'],
-    .form-group input[type='number'],
-    .form-group input[type='password'] {
-      padding: 0.5rem 0.75rem;
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-      background: var(--color-bg-primary);
-      color: var(--color-text-primary);
-      font-size: 0.875rem;
-      outline: none;
-    }
-    .form-group input:focus {
-      border-color: var(--color-accent);
-    }
-    .form-group-checkbox {
-      justify-content: center;
-    }
-    .form-group-checkbox label {
+    .settings-tab {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 8px;
+      padding: 12px 14px;
+      margin-bottom: -1px;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
       cursor: pointer;
-      font-size: 0.875rem;
-      color: var(--color-text-primary);
+      text-decoration: none;
+      transition: color 0.15s;
     }
-    .form-group-checkbox input[type='checkbox'] {
-      width: 1rem;
-      height: 1rem;
-      accent-color: var(--color-accent);
+    .settings-tab:hover {
+      color: var(--text);
     }
-    .form-hint {
-      font-size: 0.75rem;
-      color: var(--color-text-muted);
+    .settings-tab--active {
+      color: var(--text);
+      border-bottom-color: var(--accent);
     }
 
-    .btn-row {
-      display: flex;
-      gap: 0.75rem;
-      margin-top: 1.25rem;
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        transition: none !important;
+        animation: none !important;
+      }
     }
   `,
 })

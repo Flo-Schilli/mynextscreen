@@ -20,6 +20,7 @@ import { ScreenGroupMirrorList } from './screen-group-mirror-list';
 import { ScreenGroupAddScreenModal } from './screen-group-add-screen-modal';
 import { ScreenGroupSwitchModeModal } from './screen-group-switch-mode-modal';
 import { ToastService } from '../shared/toast/toast.service';
+import { PageHeaderComponent, BtnComponent, BadgeComponent } from '../ui';
 
 /**
  * Smart container for the screen-group detail page. Owns data loading, the org
@@ -36,29 +37,25 @@ import { ToastService } from '../shared/toast/toast.service';
     ScreenGroupMirrorList,
     ScreenGroupAddScreenModal,
     ScreenGroupSwitchModeModal,
+    PageHeaderComponent,
+    BtnComponent,
+    BadgeComponent,
   ],
   template: `
     <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back to Groups</button>
-          @if (group) {
-            <h1>{{ group.name }}</h1>
-            <span
-              class="mode-badge"
-              [class.mirror]="group.mode === 'mirror'"
-              [class.split]="group.mode === 'split'"
-            >
-              {{ group.mode === 'mirror' ? 'Mirror' : 'Split' }}
-            </span>
-          }
-        </div>
+      <mns-page-header [title]="group?.name ?? 'Screen Group'" icon="Groups">
+        <mns-btn variant="ghost" size="sm" icon="ChevronLeft" (mnsClick)="goBack()"
+          >Back to Groups</mns-btn
+        >
         @if (group) {
-          <button class="btn btn-secondary" (click)="openSwitchMode()">
+          <mns-badge [tone]="group.mode === 'mirror' ? 'info' : 'warning'">
+            {{ group.mode === 'mirror' ? 'Mirror' : 'Split' }}
+          </mns-badge>
+          <mns-btn variant="outline" size="sm" (mnsClick)="openSwitchMode()">
             Switch to {{ group.mode === 'mirror' ? 'Split' : 'Mirror' }}
-          </button>
+          </mns-btn>
         }
-      </header>
+      </mns-page-header>
 
       @if (loadError) {
         <p class="error">{{ loadError }}</p>
@@ -142,28 +139,11 @@ import { ToastService } from '../shared/toast/toast.service';
     </div>
   `,
   styles: `
-    /* Mode Badge */
-    .mode-badge {
-      display: inline-block;
-      padding: 0.125rem 0.5rem;
-      border-radius: 9999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
-    .mode-badge.mirror {
-      background: #3b82f620;
-      color: #3b82f6;
-    }
-    .mode-badge.split {
-      background: #a855f720;
-      color: #a855f7;
-    }
-
     /* Errors */
     .action-error {
-      background: #991b1b20;
-      border: 1px solid #991b1b;
-      border-radius: 0.375rem;
+      background: color-mix(in srgb, #991b1b 12%, transparent);
+      border: 1px solid color-mix(in srgb, #991b1b 50%, transparent);
+      border-radius: 0.5rem;
       padding: 0.75rem 1rem;
       margin-bottom: 1rem;
     }

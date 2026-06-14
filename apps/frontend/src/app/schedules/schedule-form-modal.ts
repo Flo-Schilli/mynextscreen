@@ -258,36 +258,39 @@ export interface ScheduleFormResult {
     .form-label-text {
       display: block;
       margin-bottom: 0.375rem;
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-muted);
     }
     .form-actions {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-top: 1.25rem;
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
     }
     .form-actions-right {
       display: flex;
-      gap: 0.75rem;
+      gap: 0.625rem;
       margin-left: auto;
     }
     .info-box {
-      padding: 0.5rem 0.75rem;
-      background: color-mix(in srgb, var(--color-accent) 8%, var(--color-bg-primary));
-      border: 1px solid color-mix(in srgb, var(--color-accent) 25%, var(--color-border));
-      border-radius: 0.375rem;
+      padding: 0.625rem 0.875rem;
+      background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+      border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+      border-radius: var(--r-lg, 10px);
       font-size: 0.8125rem;
-      color: var(--color-text-secondary);
+      color: var(--text-muted);
       margin-bottom: 1rem;
     }
     .info-box .info-label {
-      font-weight: 600;
-      color: var(--color-text-primary);
+      font-weight: 700;
+      color: var(--text);
     }
     .info-box-warn {
-      background: color-mix(in srgb, #f59e0b 8%, var(--color-bg-primary));
-      border-color: color-mix(in srgb, #f59e0b 25%, var(--color-border));
+      background: color-mix(in srgb, var(--warn) 8%, var(--surface));
+      border-color: color-mix(in srgb, var(--warn) 28%, var(--border));
     }
     .colour-picker {
       display: flex;
@@ -296,45 +299,49 @@ export interface ScheduleFormResult {
       align-items: center;
     }
     .colour-swatch {
-      width: 1.5rem;
-      height: 1.5rem;
-      border-radius: 0.25rem;
+      width: 1.625rem;
+      height: 1.625rem;
+      border-radius: 6px;
       border: 2px solid transparent;
       cursor: pointer;
-      transition: border-color 0.15s;
+      transition:
+        border-color 0.12s,
+        transform 0.12s;
     }
     .colour-swatch:hover {
-      border-color: var(--color-text-muted);
+      transform: scale(1.12);
+      border-color: rgba(255, 255, 255, 0.5);
     }
     .colour-swatch.selected {
       border-color: #fff;
-      box-shadow: 0 0 0 1px var(--color-accent);
+      box-shadow: 0 0 0 2px var(--accent);
     }
     .colour-input {
       width: 2rem !important;
-      height: 1.5rem;
+      height: 1.625rem;
       padding: 0 !important;
-      border: 1px solid var(--color-border) !important;
-      border-radius: 0.25rem;
+      border: 1px solid var(--border-strong) !important;
+      border-radius: 6px;
       cursor: pointer;
       background: transparent !important;
     }
     .weekday-checkboxes {
       display: flex;
-      gap: 0.75rem;
+      gap: 0.625rem;
       flex-wrap: wrap;
     }
     .weekday-checkbox {
       display: flex;
       align-items: center;
-      gap: 0.25rem;
+      gap: 0.3rem;
       font-size: 0.8125rem;
-      color: var(--color-text-primary);
+      font-weight: 500;
+      color: var(--text);
       cursor: pointer;
     }
     .weekday-checkbox input[type='checkbox'] {
       width: auto;
-      accent-color: var(--color-accent);
+      accent-color: var(--accent);
     }
   `,
 })

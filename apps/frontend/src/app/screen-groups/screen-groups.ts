@@ -13,6 +13,7 @@ import { ScreenGroupDeleteModal } from './screen-group-delete-modal';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { ToastService } from '../shared/toast/toast.service';
+import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
 
 /**
  * Smart container for the screen-groups list feature. Owns data loading, the org
@@ -23,18 +24,23 @@ import { ToastService } from '../shared/toast/toast.service';
 @Component({
   selector: 'app-screen-groups',
   standalone: true,
-  imports: [ScreenGroupTable, ScreenGroupCreateModal, ScreenGroupEditModal, ScreenGroupDeleteModal],
+  imports: [
+    ScreenGroupTable,
+    ScreenGroupCreateModal,
+    ScreenGroupEditModal,
+    ScreenGroupDeleteModal,
+    PageHeaderComponent,
+    BtnComponent,
+    EmptyComponent,
+  ],
   template: `
     <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Screen Groups</h1>
-        </div>
+      <mns-page-header title="Screen Groups" icon="Layers">
         @if (!loading && !showCreateForm) {
-          <button class="btn btn-primary" (click)="openCreateForm()">+ New Group</button>
+          <mns-btn variant="ghost" size="sm" icon="ChevronLeft" (mnsClick)="goBack()">Back</mns-btn>
+          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">New Group</mns-btn>
         }
-      </header>
+      </mns-page-header>
 
       @if (loadError) {
         <p class="error">{{ loadError }}</p>
@@ -66,62 +72,15 @@ import { ToastService } from '../shared/toast/toast.service';
 
       <!-- Empty State -->
       @if (!loading && groups.length === 0 && !loadError) {
-        <div class="empty-state">
-          <div class="empty-icon">
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <rect
-                x="4"
-                y="6"
-                width="16"
-                height="12"
-                rx="2"
-                stroke="currentColor"
-                stroke-width="2"
-              />
-              <rect
-                x="28"
-                y="6"
-                width="16"
-                height="12"
-                rx="2"
-                stroke="currentColor"
-                stroke-width="2"
-              />
-              <rect
-                x="4"
-                y="30"
-                width="16"
-                height="12"
-                rx="2"
-                stroke="currentColor"
-                stroke-width="2"
-              />
-              <rect
-                x="28"
-                y="30"
-                width="16"
-                height="12"
-                rx="2"
-                stroke="currentColor"
-                stroke-width="2"
-              />
-              <path
-                d="M20 12h8M12 18v12M36 18v12"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-dasharray="2 3"
-              />
-            </svg>
-          </div>
-          <p class="empty-title">No screen groups yet</p>
-          <p class="empty-text">
-            Create your first screen group to start building mirror displays or video walls.
-          </p>
-          <button class="btn btn-primary" (click)="openCreateForm()">
-            Create Your First Group
-          </button>
-        </div>
+        <mns-empty
+          icon="Layers"
+          title="No screen groups yet"
+          desc="Create your first screen group to start building mirror displays or video walls."
+        >
+          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()"
+            >Create Your First Group</mns-btn
+          >
+        </mns-empty>
       }
 
       @if (actionError) {

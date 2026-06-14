@@ -246,12 +246,15 @@ describe('Users', () => {
       expect(component.inviteError).toBe('');
     });
 
-    it('should render modal when open', () => {
+    it('should render modal when open', async () => {
       setup();
       fixture.detectChanges();
 
       component.openInviteModal();
-      fixture.componentRef.changeDetectorRef.detectChanges();
+      fixture.componentRef.changeDetectorRef.markForCheck();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
 
       expect(fixture.debugElement.query(By.css('.modal-overlay'))).toBeTruthy();
     });
@@ -390,12 +393,15 @@ describe('Users', () => {
       expect(component.removingMember).toBe(member);
     });
 
-    it('should render confirmation modal with member email', () => {
+    it('should render confirmation modal with member email', async () => {
       setup();
       fixture.detectChanges();
 
       component.confirmRemove(membership());
-      fixture.componentRef.changeDetectorRef.detectChanges();
+      fixture.componentRef.changeDetectorRef.markForCheck();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
 
       const modal = fixture.debugElement.query(By.css('.modal'));
       expect(modal.nativeElement.textContent).toContain('user@example.com');

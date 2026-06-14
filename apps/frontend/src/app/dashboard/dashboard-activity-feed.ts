@@ -1,23 +1,62 @@
-import { Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { ActivityEntry } from './dashboard.model';
+import { IconComponent, IconName } from '../ui';
+
+const CATEGORY_ICON: Record<ActivityEntry['category'], IconName> = {
+  screen: 'Screens',
+  schedule: 'Schedules',
+  transcoding: 'Video',
+  info: 'Bell',
+};
+
+const CATEGORY_BG: Record<ActivityEntry['category'], string> = {
+  screen: 'var(--online-dim)',
+  schedule: 'var(--accent-soft)',
+  transcoding: 'var(--info-dim)',
+  info: 'var(--surface-3)',
+};
+
+const CATEGORY_COLOR: Record<ActivityEntry['category'], string> = {
+  screen: 'var(--online)',
+  schedule: 'var(--accent)',
+  transcoding: 'var(--info)',
+  info: 'var(--text-muted)',
+};
 
 /**
  * Presentational recent-activity feed for the dashboard. Renders the parent's
- * rolling list of SSE-derived activity entries with a category-coloured dot and
- * timestamp.
+ * rolling list of SSE-derived activity entries with a category-coloured icon
+ * tile and timestamp.
  */
 @Component({
   selector: 'app-dashboard-activity-feed',
   standalone: true,
-  imports: [DatePipe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [DatePipe, IconComponent],
   template: `
     <div class="activity-feed">
-      @for (entry of entries(); track entry.timestamp) {
+      @for (entry of entries(); track entry.timestamp; let last = $last) {
         <div class="activity-item">
-          <span class="activity-dot" [class]="'activity-dot--' + entry.category"></span>
-          <span class="activity-time">{{ entry.timestamp | date: 'HH:mm:ss' }}</span>
-          <span class="activity-text">{{ entry.description }}</span>
+          <!-- icon column -->
+          <div class="activity-icon-col">
+            <span
+              class="activity-dot"
+              [class]="'activity-dot--' + entry.category"
+              [style.background]="bg(entry.category)"
+              [style.color]="color(entry.category)"
+            >
+              <mns-icon [name]="icon(entry.category)" [size]="14" />
+            </span>
+            @if (!last) {
+              <span class="activity-connector"></span>
+            }
+          </div>
+          <!-- text column -->
+          <div class="activity-body">
+            <span class="activity-text">{{ entry.description }}</span>
+            <span class="activity-time">{{ entry.timestamp | date: 'HH:mm:ss' }}</span>
+          </div>
         </div>
       }
     </div>
@@ -26,48 +65,76 @@ import { ActivityEntry } from './dashboard.model';
     .activity-feed {
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
-      max-height: 320px;
+      max-height: 360px;
       overflow-y: auto;
     }
     .activity-item {
       display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.8125rem;
+      gap: 14px;
     }
-    .activity-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
+    .activity-icon-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       flex-shrink: 0;
     }
-    .activity-dot--screen {
-      background: #22c55e;
+    .activity-dot {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      flex-shrink: 0;
     }
-    .activity-dot--schedule {
-      background: #3b82f6;
+    .activity-connector {
+      flex: 1;
+      width: 2px;
+      background: var(--border);
+      margin: 6px 0;
+      border-radius: 99px;
+      min-height: 12px;
     }
-    .activity-dot--transcoding {
-      background: #8b5cf6;
-    }
-    .activity-dot--info {
-      background: #6b7280;
-    }
-    .activity-time {
-      font-size: 0.75rem;
-      color: var(--color-text-muted);
-      min-width: 56px;
-      font-variant-numeric: tabular-nums;
+    .activity-body {
+      padding-top: 6px;
+      padding-bottom: 18px;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
     .activity-text {
-      color: var(--color-text-secondary);
+      font-size: 0.84375rem;
+      font-weight: 500;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      color: var(--text);
+    }
+    .activity-time {
+      font-size: 0.75rem;
+      color: var(--text-faint);
+      font-variant-numeric: tabular-nums;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .activity-dot {
+        animation: none !important;
+      }
     }
   `,
 })
 export class DashboardActivityFeed {
   readonly entries = input.required<ActivityEntry[]>();
+
+  icon(category: ActivityEntry['category']): IconName {
+    return CATEGORY_ICON[category];
+  }
+
+  bg(category: ActivityEntry['category']): string {
+    return CATEGORY_BG[category];
+  }
+
+  color(category: ActivityEntry['category']): string {
+    return CATEGORY_COLOR[category];
+  }
 }
