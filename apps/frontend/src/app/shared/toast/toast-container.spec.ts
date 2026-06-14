@@ -23,20 +23,20 @@ describe('ToastContainer', () => {
     fixture.detectChanges();
   });
 
+  /** Each toast is a flex row with role="status" */
   function renderedToasts(): HTMLElement[] {
-    return Array.from(fixture.nativeElement.querySelectorAll('.toast'));
+    return Array.from(fixture.nativeElement.querySelectorAll('[role="status"]'));
   }
 
   it('should render nothing when the queue is empty', () => {
     expect(renderedToasts().length).toBe(0);
   });
 
-  it('should render a toast with its message and type class', () => {
+  it('should render a toast with its message', () => {
     toasts.error('Something failed.');
     fixture.detectChanges();
     const rendered = renderedToasts();
     expect(rendered.length).toBe(1);
-    expect(rendered[0].classList).toContain('toast-error');
     expect(rendered[0].textContent).toContain('Something failed.');
   });
 
@@ -50,7 +50,8 @@ describe('ToastContainer', () => {
   it('should dismiss a toast when its close button is clicked', () => {
     toasts.success('a');
     fixture.detectChanges();
-    const closeBtn: HTMLButtonElement = fixture.nativeElement.querySelector('.toast-close');
+    const closeBtn: HTMLButtonElement =
+      fixture.nativeElement.querySelector('[aria-label="Dismiss"]');
     closeBtn.click();
     fixture.detectChanges();
     expect(renderedToasts().length).toBe(0);

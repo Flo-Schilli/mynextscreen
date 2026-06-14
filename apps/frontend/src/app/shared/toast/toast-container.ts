@@ -1,132 +1,67 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { IconComponent } from '../../ui/icon.component';
 import { ToastService } from './toast.service';
 
 /**
- * Renders the global toast queue as a fixed stack in the top-right corner,
- * above all app chrome. Presentational only — the queue lives in
- * {@link ToastService}. Mounted once at the app root.
+ * Renders the global toast queue as a fixed bottom-right stack.
+ * Design: bg-surface border-strong rounded-[13px] shadow-lg, tone-coloured icon.
+ * Mounted once at the app root — do not add elsewhere.
  */
 @Component({
   selector: 'app-toast-container',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [IconComponent],
   template: `
-    <div class="toast-stack" aria-live="polite" aria-atomic="false">
+    <div
+      class="fixed bottom-6 right-6 z-[2000] flex flex-col gap-2.5 pointer-events-none"
+      style="max-width: min(24rem, calc(100vw - 3rem))"
+      aria-live="polite"
+      aria-atomic="false"
+    >
       @for (toast of toasts.toasts(); track toast.id) {
-        <div class="toast" [class]="'toast-' + toast.type" role="status">
-          <span class="toast-icon" aria-hidden="true">
+        <div
+          class="pointer-events-auto flex items-start gap-3 px-4 py-3 bg-surface border border-border-strong rounded-[13px]"
+          style="box-shadow: var(--shadow-lg); animation: fadeUp .22s cubic-bezier(.22,.61,.36,1) both"
+          role="status"
+        >
+          <!-- tone icon -->
+          <div
+            class="w-7 h-7 rounded-lg grid place-items-center flex-shrink-0 mt-px"
+            [class.bg-online-dim]="toast.type === 'success'"
+            [class.text-online]="toast.type === 'success'"
+            [class.bg-offline-dim]="toast.type === 'error'"
+            [class.text-offline]="toast.type === 'error'"
+            [class.bg-info-dim]="toast.type === 'info'"
+            [class.text-info]="toast.type === 'info'"
+            aria-hidden="true"
+          >
             @switch (toast.type) {
               @case ('success') {
-                ✓
+                <mns-icon name="CheckCircle" [size]="15" />
               }
               @case ('error') {
-                ✕
+                <mns-icon name="Alert" [size]="15" />
               }
               @default {
-                ℹ
+                <mns-icon name="Bell" [size]="15" />
               }
             }
-          </span>
-          <span class="toast-message">{{ toast.message }}</span>
+          </div>
+
+          <span class="flex-1 text-[13px] leading-snug pt-0.5">{{ toast.message }}</span>
+
           <button
             type="button"
-            class="toast-close"
-            aria-label="Dismiss notification"
+            class="flex-shrink-0 w-6 h-6 rounded-md grid place-items-center text-muted transition-colors duration-[120ms] hover:bg-hover hover:text-text"
+            aria-label="Dismiss"
             (click)="toasts.dismiss(toast.id)"
           >
-            ✕
+            <mns-icon name="Plus" [size]="12" style="transform:rotate(45deg)" />
           </button>
         </div>
       }
     </div>
-  `,
-  styles: `
-    .toast-stack {
-      position: fixed;
-      top: 1rem;
-      right: 1rem;
-      z-index: 2000;
-      display: flex;
-      flex-direction: column;
-      gap: 0.625rem;
-      max-width: min(24rem, calc(100vw - 2rem));
-      pointer-events: none;
-    }
-
-    .toast {
-      pointer-events: auto;
-      display: flex;
-      align-items: flex-start;
-      gap: 0.625rem;
-      padding: 0.75rem 0.875rem;
-      border-radius: 0.5rem;
-      border: 1px solid;
-      font-size: 0.8125rem;
-      line-height: 1.4;
-      box-shadow:
-        0 4px 12px var(--color-shadow),
-        0 2px 4px var(--color-shadow);
-      animation: toast-in 0.18s ease-out;
-    }
-
-    @keyframes toast-in {
-      from {
-        opacity: 0;
-        transform: translateX(0.75rem);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .toast {
-        animation: none;
-      }
-    }
-
-    .toast-success {
-      background: #065f46;
-      border-color: #047857;
-      color: #d1fae5;
-    }
-    .toast-error {
-      background: #991b1b;
-      border-color: #b91c1c;
-      color: #fecaca;
-    }
-    .toast-info {
-      background: var(--color-bg-tertiary);
-      border-color: var(--color-border);
-      color: var(--color-text-primary);
-    }
-
-    .toast-icon {
-      flex-shrink: 0;
-      font-weight: 700;
-      line-height: 1.4;
-    }
-
-    .toast-message {
-      flex: 1;
-      word-break: break-word;
-    }
-
-    .toast-close {
-      flex-shrink: 0;
-      background: none;
-      border: none;
-      color: inherit;
-      opacity: 0.7;
-      cursor: pointer;
-      padding: 0;
-      font-size: 0.75rem;
-      line-height: 1.4;
-    }
-    .toast-close:hover {
-      opacity: 1;
-    }
   `,
 })
 export class ToastContainer {
