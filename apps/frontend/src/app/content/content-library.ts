@@ -214,29 +214,37 @@ import {
     </div>
   `,
   styles: `
-    /* Type Toggle */
+    /* Type Toggle — pill chips matching the reference filter row */
     .type-toggle {
       display: flex;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: 0.375rem;
-      overflow: hidden;
+      gap: 0.5rem;
+      flex-wrap: wrap;
     }
     .toggle-btn {
-      padding: 0.375rem 0.75rem;
-      border: none;
-      background: none;
+      display: flex;
+      align-items: center;
+      gap: 0.4375rem;
+      padding: 0.5rem 0.875rem;
+      border-radius: 99px;
+      border: 1px solid var(--border);
+      background: var(--surface);
       color: var(--text-muted);
       font-size: 0.8125rem;
+      font-weight: 600;
       cursor: pointer;
-      transition: all 0.15s;
+      transition:
+        border-color 0.15s,
+        background-color 0.15s,
+        color 0.15s;
     }
     .toggle-btn.active {
-      background: var(--accent);
-      color: #fff;
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
     }
     .toggle-btn:hover:not(.active) {
-      background: var(--surface-3);
+      border-color: var(--text-muted);
+      color: var(--text);
     }
 
     /* Tag Filter */
@@ -247,19 +255,23 @@ import {
       margin-bottom: 1rem;
     }
     .tag-chip {
-      padding: 0.25rem 0.75rem;
-      border-radius: 9999px;
+      padding: 0.375rem 0.875rem;
+      border-radius: 99px;
       border: 1px solid var(--border);
-      background: var(--surface-2);
+      background: var(--surface);
       color: var(--text-muted);
       font-size: 0.75rem;
+      font-weight: 600;
       cursor: pointer;
-      transition: all 0.15s;
+      transition:
+        border-color 0.15s,
+        background-color 0.15s,
+        color 0.15s;
     }
     .tag-chip.active {
-      background: var(--accent);
+      background: var(--accent-soft);
       border-color: var(--accent);
-      color: #fff;
+      color: var(--accent);
     }
     .tag-chip.clear {
       background: none;
@@ -269,6 +281,13 @@ import {
     .tag-chip:hover:not(.active) {
       border-color: var(--text-muted);
       color: var(--text);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .toggle-btn,
+      .tag-chip {
+        transition: none;
+      }
     }
   `,
 })

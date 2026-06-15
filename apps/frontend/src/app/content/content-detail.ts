@@ -1,7 +1,8 @@
-import { Component, inject, input, output, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, output, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Content } from './content.model';
 import { ContentFormatService } from './content-format.service';
+import { BtnComponent } from '../ui';
 
 /** Payload emitted when the user saves edited metadata. */
 export interface MetadataUpdate {
@@ -15,17 +16,21 @@ export interface MetadataUpdate {
  * (owning its own form state), and the file-info grid. The parent feeds
  * `submitting`/`error`/`saved` flags back in and performs the HTTP work in
  * response to the emitted intents.
+ *
+ * Stable IDs (#editTitle, #editDescription, #editTags) and the "Close" button
+ * label are load-bearing for specs — keep them when re-skinning.
  */
 @Component({
   selector: 'app-content-detail',
   standalone: true,
-  imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [FormsModule, BtnComponent],
   template: `
-    <div class="detail-card wide">
+    <div class="detail-card">
       <div class="detail-header">
         <h2>{{ content().title }}</h2>
         <div class="detail-actions">
-          <label class="btn btn-secondary">
+          <label class="reupload-btn">
             Re-upload
             <input
               type="file"
@@ -34,8 +39,10 @@ export interface MetadataUpdate {
               style="display:none"
             />
           </label>
-          <button class="btn btn-danger" (click)="remove.emit()">Delete</button>
-          <button class="btn btn-secondary" (click)="dismiss.emit()">Close</button>
+          <mns-btn variant="danger" size="sm" icon="Trash" (mnsClick)="remove.emit()"
+            >Delete</mns-btn
+          >
+          <mns-btn variant="outline" size="sm" (mnsClick)="dismiss.emit()">Close</mns-btn>
         </div>
       </div>
 
@@ -51,7 +58,7 @@ export interface MetadataUpdate {
       <!-- Transcoding Status -->
       <div class="transcoding-status">
         <span class="detail-label">Transcoding</span>
-        <span class="status-badge" [attr.data-status]="content().transcodingStatus">
+        <span class="status-pill" [attr.data-status]="content().transcodingStatus">
           @if (content().transcodingStatus === 'processing') {
             Processing {{ transcodingProgress()[content().id] ?? 0 }}%
           } @else {
@@ -73,11 +80,11 @@ export interface MetadataUpdate {
 
       <!-- Metadata Editing -->
       <div class="metadata-section">
-        <div class="form-group">
+        <div class="field">
           <label for="editTitle">Title</label>
           <input id="editTitle" type="text" [(ngModel)]="editTitle" name="editTitle" />
         </div>
-        <div class="form-group">
+        <div class="field">
           <label for="editDescription">Description</label>
           <textarea
             id="editDescription"
@@ -86,14 +93,14 @@ export interface MetadataUpdate {
             rows="3"
           ></textarea>
         </div>
-        <div class="form-group">
+        <div class="field">
           <label for="editTags">Tags (comma-separated)</label>
           <input id="editTags" type="text" [(ngModel)]="editTagsStr" name="editTags" />
         </div>
-        <div class="form-actions">
-          <button class="btn btn-primary" (click)="onSave()" [disabled]="savingMetadata()">
+        <div class="metadata-actions">
+          <mns-btn variant="primary" [disabled]="savingMetadata()" (mnsClick)="onSave()">
             {{ savingMetadata() ? 'Saving...' : 'Save Changes' }}
-          </button>
+          </mns-btn>
         </div>
         @if (metadataError()) {
           <p class="error">{{ metadataError() }}</p>
@@ -139,39 +146,58 @@ export interface MetadataUpdate {
   styles: `
     /* Detail Card */
     .detail-card {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--r-xl, 16px);
       padding: 1.5rem;
       max-width: 52rem;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
-    }
-    .detail-card.wide {
-      max-width: 52rem;
+      box-shadow: var(--shadow-lg);
     }
     .detail-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 1rem;
       margin-bottom: 1.5rem;
     }
     .detail-header h2 {
       margin: 0;
       font-size: 1.25rem;
-      font-weight: 600;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .detail-actions {
       display: flex;
+      align-items: center;
       gap: 0.5rem;
+      flex-shrink: 0;
+    }
+    .reupload-btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      background: transparent;
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      transition: filter 0.15s;
+    }
+    .reupload-btn:hover {
+      filter: brightness(1.06);
     }
 
     /* Preview */
     .preview-area {
       margin-bottom: 1.5rem;
       background: #000;
-      border-radius: 0.375rem;
+      border-radius: 0.625rem;
       overflow: hidden;
       max-height: 28rem;
       display: flex;
@@ -195,27 +221,34 @@ export interface MetadataUpdate {
       flex-direction: column;
       gap: 0.375rem;
     }
-    .status-badge[data-status='completed'] {
-      background: #22c55e20;
-      color: #22c55e;
+    .status-pill {
+      width: fit-content;
+      padding: 2px 10px;
+      border-radius: 99px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: capitalize;
+      background: var(--surface-3);
+      color: var(--text-muted);
     }
-    .status-badge[data-status='pending'] {
-      background: #f59e0b20;
-      color: #f59e0b;
+    .status-pill[data-status='completed'] {
+      background: var(--online-dim);
+      color: var(--color-online);
     }
-    .status-badge[data-status='processing'] {
-      background: #f59e0b20;
-      color: #f59e0b;
+    .status-pill[data-status='pending'],
+    .status-pill[data-status='processing'] {
+      background: var(--warn-dim);
+      color: var(--color-warn);
     }
-    .status-badge[data-status='failed'] {
-      background: #ef444420;
-      color: #ef4444;
+    .status-pill[data-status='failed'] {
+      background: var(--offline-dim);
+      color: var(--color-offline);
     }
 
     /* Progress Bar (transcoding) */
     .progress-bar {
       height: 0.375rem;
-      background: var(--color-bg-tertiary);
+      background: var(--surface-3);
       border-radius: 9999px;
       overflow: hidden;
     }
@@ -225,7 +258,7 @@ export interface MetadataUpdate {
       transition: width 0.2s;
     }
     .progress-fill.processing {
-      background: #f59e0b;
+      background: var(--color-warn);
     }
     .transcoding-bar {
       margin-top: 0.5rem;
@@ -233,14 +266,52 @@ export interface MetadataUpdate {
 
     /* Metadata Section */
     .metadata-section {
-      border-top: 1px solid var(--color-border);
+      border-top: 1px solid var(--border);
       padding-top: 1.25rem;
       margin-bottom: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.375rem;
+    }
+    .field label {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .field input[type='text'],
+    .field textarea {
+      width: 100%;
+      padding: 11px 13px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 14px;
+      box-sizing: border-box;
+      font-family: inherit;
+      outline: none;
+      transition:
+        border-color 150ms,
+        box-shadow 150ms;
+    }
+    .field input[type='text']:focus,
+    .field textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .metadata-actions {
+      display: flex;
+      gap: 0.5rem;
     }
 
     /* File Info Grid */
     .file-info-grid {
-      border-top: 1px solid var(--color-border);
+      border-top: 1px solid var(--border);
       padding-top: 1.25rem;
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -250,36 +321,35 @@ export interface MetadataUpdate {
       display: flex;
       flex-direction: column;
       gap: 0.25rem;
+      font-size: 13.5px;
+      color: var(--text);
     }
     .detail-label {
-      font-size: 0.75rem;
+      font-size: 11.5px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: var(--color-text-secondary);
+      color: var(--text-muted);
     }
 
-    /* Form: textarea styling (not covered by shared input-only rules) */
-    .form-group textarea {
-      width: 100%;
-      padding: 0.5rem 0.75rem;
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-      color: var(--color-text-primary);
+    .error {
+      color: var(--color-offline);
       font-size: 0.875rem;
-      box-sizing: border-box;
-      font-family: inherit;
+      margin: 0;
     }
-    .form-group textarea:focus {
-      outline: none;
-      border-color: var(--color-accent);
-    }
-
     .success {
-      color: #22c55e;
+      color: var(--color-online);
       font-size: 0.875rem;
-      margin-top: 0.5rem;
+      margin: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .reupload-btn,
+      .field input[type='text'],
+      .field textarea,
+      .progress-fill {
+        transition: none;
+      }
     }
   `,
 })

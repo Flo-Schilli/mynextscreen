@@ -70,7 +70,9 @@ describe('ContentDetail', () => {
     input.dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    const saveBtn: HTMLButtonElement = fixture.nativeElement.querySelector('.btn-primary');
+    const saveBtn = Array.from(fixture.nativeElement.querySelectorAll('button')).find(
+      (b) => (b as HTMLElement).textContent?.trim() === 'Save Changes',
+    ) as HTMLButtonElement;
     saveBtn.click();
 
     expect(emitted).toEqual({

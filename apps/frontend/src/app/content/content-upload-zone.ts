@@ -1,27 +1,31 @@
-import { Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { UploadItem } from './content.model';
 
 /**
  * Presentational upload area: drag & drop zone, browse button, and the list of
  * in-progress uploads. Emits the picked files; the parent owns the actual
  * upload requests and the {@link UploadItem} progress state.
+ *
+ * The `.upload-zone`, `.drag-over`, `.upload-list` and `.upload-item-status`
+ * hooks are load-bearing for specs — keep them when re-skinning.
  */
 @Component({
   selector: 'app-content-upload-zone',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
       class="upload-zone"
-      [class.drag-over]="isDragOver"
+      [class.drag-over]="isDragOver()"
       (dragover)="onDragOver($event)"
       (dragleave)="onDragLeave($event)"
       (drop)="onDrop($event)"
     >
       <div class="upload-content">
-        <p class="upload-text">Drag & drop files here</p>
+        <p class="upload-text">Drag &amp; drop files here</p>
         <p class="upload-sub">or</p>
-        <label class="btn btn-primary upload-btn">
-          Browse Files
+        <label class="upload-btn">
+          Browse files
           <input
             type="file"
             multiple
@@ -65,43 +69,60 @@ import { UploadItem } from './content.model';
   styles: `
     /* Upload Zone */
     .upload-zone {
-      border: 2px dashed var(--color-border);
-      border-radius: 0.5rem;
+      border: 2px dashed var(--border-strong);
+      border-radius: 0.75rem;
       padding: 2rem;
       text-align: center;
       margin-bottom: 1.25rem;
-      transition: all 0.15s;
+      background: var(--surface-2);
+      transition:
+        border-color 0.18s,
+        background-color 0.18s;
       cursor: pointer;
     }
     .upload-zone.drag-over {
-      border-color: var(--color-accent);
-      background: rgba(59, 130, 246, 0.05);
+      border-color: var(--accent);
+      background: var(--accent-soft);
     }
     .upload-text {
       font-size: 0.875rem;
-      color: var(--color-text-secondary);
+      font-weight: 600;
+      color: var(--text);
       margin: 0 0 0.25rem;
     }
     .upload-sub {
       font-size: 0.75rem;
-      color: var(--color-text-muted);
+      color: var(--text-faint);
       margin: 0 0 0.75rem;
     }
     .upload-btn {
-      cursor: pointer;
       display: inline-block;
+      cursor: pointer;
+      padding: 0.5rem 1rem;
+      border-radius: 0.625rem;
+      font-size: 0.8125rem;
+      font-weight: 700;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 8px 20px -10px var(--accent-ring);
+      transition: filter 0.15s;
+    }
+    .upload-btn:hover {
+      filter: brightness(1.06);
     }
 
     /* Upload Progress List */
     .upload-list {
       margin-bottom: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
     }
     .upload-item {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 0.625rem;
       padding: 0.75rem 1rem;
-      margin-bottom: 0.5rem;
     }
     .upload-item-info {
       display: flex;
@@ -110,7 +131,7 @@ import { UploadItem } from './content.model';
     }
     .upload-item-name {
       font-size: 0.8125rem;
-      color: var(--color-text-primary);
+      color: var(--text);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -118,30 +139,38 @@ import { UploadItem } from './content.model';
     }
     .upload-item-status {
       font-size: 0.75rem;
-      color: var(--color-text-secondary);
+      color: var(--text-muted);
     }
     .upload-item-status.error {
-      color: #ef4444;
+      color: var(--color-offline);
     }
 
     /* Progress Bar */
     .progress-bar {
       height: 0.375rem;
-      background: var(--color-bg-tertiary);
+      background: var(--surface-3);
       border-radius: 9999px;
       overflow: hidden;
     }
     .progress-fill {
       height: 100%;
-      background: var(--color-accent);
+      background: var(--accent);
       border-radius: 9999px;
       transition: width 0.2s;
     }
     .progress-fill.done {
-      background: #22c55e;
+      background: var(--color-online);
     }
     .progress-fill.error {
-      background: #ef4444;
+      background: var(--color-offline);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .upload-zone,
+      .upload-btn,
+      .progress-fill {
+        transition: none;
+      }
     }
   `,
 })
@@ -149,24 +178,24 @@ export class ContentUploadZone {
   readonly uploads = input.required<UploadItem[]>();
   readonly filesSelected = output<File[]>();
 
-  protected isDragOver = false;
+  protected readonly isDragOver = signal(false);
 
   onDragOver(event: DragEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.isDragOver = true;
+    this.isDragOver.set(true);
   }
 
   onDragLeave(event: DragEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.isDragOver = false;
+    this.isDragOver.set(false);
   }
 
   onDrop(event: DragEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this.isDragOver = false;
+    this.isDragOver.set(false);
     if (event.dataTransfer?.files) {
       this.filesSelected.emit(Array.from(event.dataTransfer.files));
     }
