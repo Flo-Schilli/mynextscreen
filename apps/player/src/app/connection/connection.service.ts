@@ -1,11 +1,18 @@
 import { inject, Injectable, signal, computed, OnDestroy } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
 const STORAGE_KEY_URL = 'signage_server_url';
 const STORAGE_KEY_API_KEY = 'signage_api_key';
 const STORAGE_KEY_SCREEN_ID = 'signage_screen_id';
 const STORAGE_KEY_ORG_ID = 'signage_org_id';
+const STORAGE_KEY_PAIRING_ID = 'signage_pairing_id';
+/**
+ * The 256-bit pairing secret is held in `sessionStorage` (not `localStorage`):
+ * it survives an F5 reload mid-pairing but is cleared when the tab/app closes
+ * and is not shared across tabs, limiting its exposure window.
+ */
+const STORAGE_KEY_PAIRING_SECRET = 'signage_pairing_secret';
 
 export interface ConnectionSettings {
   serverUrl: string;
@@ -13,6 +20,22 @@ export interface ConnectionSettings {
   screenId: string;
   organisationId: string;
 }
+
+/** Response body of `POST /api/screens/pairing`. */
+interface StartPairingResponse {
+  pairingId: string;
+  code: string;
+  expiresAt: string;
+  pairingSecret: string;
+}
+
+/** Response body of `GET /api/screens/pairing/:id/status`. */
+type PairingStatusResponse =
+  | { status: 'pending' }
+  | { status: 'claimed'; apiKey: string; screenId: string; organisationId: string };
+
+/** Result of a single poll, normalised for the dialog. */
+export type PollPairingResult = 'pending' | 'claimed' | 'expired';
 
 @Injectable({ providedIn: 'root' })
 export class ConnectionService implements OnDestroy {
@@ -46,6 +69,8 @@ export class ConnectionService implements OnDestroy {
   private readonly _organisationId = signal('');
   private readonly _error = signal('');
   private readonly _connecting = signal(false);
+  private readonly _pairingCode = signal('');
+  private readonly _pairingExpiresAt = signal('');
 
   readonly connected = this._connected.asReadonly();
   readonly serverUrl = this._serverUrl.asReadonly();
@@ -54,6 +79,8 @@ export class ConnectionService implements OnDestroy {
   readonly organisationId = this._organisationId.asReadonly();
   readonly error = this._error.asReadonly();
   readonly connecting = this._connecting.asReadonly();
+  readonly pairingCode = this._pairingCode.asReadonly();
+  readonly pairingExpiresAt = this._pairingExpiresAt.asReadonly();
 
   readonly hasSavedSettings = computed(() => {
     const url = localStorage.getItem(STORAGE_KEY_URL);
@@ -117,6 +144,100 @@ export class ConnectionService implements OnDestroy {
     }
   }
 
+  /**
+   * Begins a device-flow pairing: asks the backend for a fresh 6-digit code,
+   * persists the returned pairing id + secret (so a reload mid-pairing can
+   * resume polling), and exposes the code/expiry via signals for the dialog.
+   */
+  async startPairing(serverUrl: string): Promise<{ code: string; expiresAt: string }> {
+    this._error.set('');
+
+    const normalizedUrl = serverUrl.replace(/\/+$/, '');
+
+    try {
+      const res = await firstValueFrom(
+        this.http.post<StartPairingResponse>(`${normalizedUrl}/api/screens/pairing`, null),
+      );
+
+      this._serverUrl.set(normalizedUrl);
+      this._pairingCode.set(res.code);
+      this._pairingExpiresAt.set(res.expiresAt);
+
+      localStorage.setItem(STORAGE_KEY_URL, normalizedUrl);
+      localStorage.setItem(STORAGE_KEY_PAIRING_ID, res.pairingId);
+      sessionStorage.setItem(STORAGE_KEY_PAIRING_SECRET, res.pairingSecret);
+
+      return { code: res.code, expiresAt: res.expiresAt };
+    } catch {
+      this._error.set('Could not reach the server. Check the URL and try again.');
+      throw new Error('Failed to start pairing');
+    }
+  }
+
+  /**
+   * Polls the pairing status once.
+   * - `pending`: keep polling.
+   * - `claimed`: stores the delivered apiKey/screenId/org via the connected
+   *   localStorage keys, clears the pairing keys and marks the player connected.
+   * - `expired`: the code is gone (410) or unknown/wrong secret (404) — the
+   *   caller must restart pairing.
+   */
+  async pollPairing(serverUrl: string): Promise<PollPairingResult> {
+    const normalizedUrl = serverUrl.replace(/\/+$/, '');
+    const pairingId = localStorage.getItem(STORAGE_KEY_PAIRING_ID);
+    const pairingSecret = sessionStorage.getItem(STORAGE_KEY_PAIRING_SECRET);
+
+    if (!pairingId || !pairingSecret) {
+      return 'expired';
+    }
+
+    const headers = new HttpHeaders({ 'X-Pairing-Secret': pairingSecret });
+
+    try {
+      const res = await firstValueFrom(
+        this.http.get<PairingStatusResponse>(
+          `${normalizedUrl}/api/screens/pairing/${pairingId}/status`,
+          { headers },
+        ),
+      );
+
+      if (res.status === 'claimed') {
+        this._serverUrl.set(normalizedUrl);
+        this._apiKey.set(res.apiKey);
+        this._screenId.set(res.screenId);
+        this._organisationId.set(res.organisationId);
+        this._connected.set(true);
+        this._error.set('');
+
+        localStorage.setItem(STORAGE_KEY_URL, normalizedUrl);
+        localStorage.setItem(STORAGE_KEY_API_KEY, res.apiKey);
+        localStorage.setItem(STORAGE_KEY_SCREEN_ID, res.screenId);
+        localStorage.setItem(STORAGE_KEY_ORG_ID, res.organisationId);
+
+        this.clearPairing();
+        return 'claimed';
+      }
+
+      return 'pending';
+    } catch (err: unknown) {
+      // 410 Gone (expired/consumed) and 404 (unknown id / wrong secret) both
+      // mean this pairing can never complete → restart with a new code.
+      if (err instanceof HttpErrorResponse && (err.status === 410 || err.status === 404)) {
+        this.clearPairing();
+        return 'expired';
+      }
+      // Transient network error — keep polling.
+      return 'pending';
+    }
+  }
+
+  private clearPairing(): void {
+    this._pairingCode.set('');
+    this._pairingExpiresAt.set('');
+    localStorage.removeItem(STORAGE_KEY_PAIRING_ID);
+    sessionStorage.removeItem(STORAGE_KEY_PAIRING_SECRET);
+  }
+
   disconnect(): void {
     this._connected.set(false);
     this._serverUrl.set('');
@@ -129,6 +250,8 @@ export class ConnectionService implements OnDestroy {
     localStorage.removeItem(STORAGE_KEY_API_KEY);
     localStorage.removeItem(STORAGE_KEY_SCREEN_ID);
     localStorage.removeItem(STORAGE_KEY_ORG_ID);
+
+    this.clearPairing();
   }
 
   private async identify(
