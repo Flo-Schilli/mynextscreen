@@ -18,11 +18,9 @@ import { IconComponent } from '../ui';
   template: `
     <!-- search row -->
     <div class="relative mb-4">
-      <mns-icon
-        name="Search"
-        [size]="17"
-        class="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none"
-      />
+      <span class="absolute left-3.5 top-1/2 -translate-y-1/2 flex text-faint pointer-events-none">
+        <mns-icon name="Search" [size]="17" />
+      </span>
       <input
         type="search"
         placeholder="Search resources, people, details…"
@@ -36,7 +34,9 @@ import { IconComponent } from '../ui';
           (click)="clear.emit()"
           type="button"
         >
-          <mns-icon name="Plus" [size]="13" class="rotate-45" />
+          <span class="flex rotate-45">
+            <mns-icon name="Plus" [size]="13" />
+          </span>
           Reset
         </button>
       }
@@ -61,11 +61,11 @@ import { IconComponent } from '../ui';
               <option [value]="a">{{ actionLabel(a) }}</option>
             }
           </select>
-          <mns-icon
-            name="Chevron"
-            [size]="14"
-            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none rotate-90"
-          />
+          <span
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 flex text-faint pointer-events-none rotate-90"
+          >
+            <mns-icon name="Chevron" [size]="14" />
+          </span>
         </div>
       </div>
 
@@ -86,11 +86,11 @@ import { IconComponent } from '../ui';
               <option [value]="member.userId">{{ member.user.name || member.user.email }}</option>
             }
           </select>
-          <mns-icon
-            name="Chevron"
-            [size]="14"
-            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none rotate-90"
-          />
+          <span
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 flex text-faint pointer-events-none rotate-90"
+          >
+            <mns-icon name="Chevron" [size]="14" />
+          </span>
         </div>
       </div>
 
@@ -111,11 +111,11 @@ import { IconComponent } from '../ui';
               <option [value]="type">{{ type | titlecase }}</option>
             }
           </select>
-          <mns-icon
-            name="Chevron"
-            [size]="14"
-            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none rotate-90"
-          />
+          <span
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 flex text-faint pointer-events-none rotate-90"
+          >
+            <mns-icon name="Chevron" [size]="14" />
+          </span>
         </div>
       </div>
 

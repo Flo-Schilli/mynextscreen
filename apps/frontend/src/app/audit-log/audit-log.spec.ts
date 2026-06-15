@@ -142,8 +142,8 @@ describe('AuditLog (smart container)', () => {
       await setUp();
 
       // Assert
-      expect(component.loadError).toBe('No organisation selected.');
-      expect(component.loading).toBe(false);
+      expect(component.loadError()).toBe('No organisation selected.');
+      expect(component.loading()).toBe(false);
       expect(auditService.calls.length).toBe(0);
     });
 
@@ -155,8 +155,8 @@ describe('AuditLog (smart container)', () => {
       await setUp();
 
       // Assert
-      expect(component.isOrgAdmin).toBe(false);
-      expect(component.loading).toBe(false);
+      expect(component.isOrgAdmin()).toBe(false);
+      expect(component.loading()).toBe(false);
       expect(auditService.calls.length).toBe(0);
       expect(fixture.debugElement.query(By.css('.error')).nativeElement.textContent).toContain(
         'Access denied',
@@ -169,9 +169,9 @@ describe('AuditLog (smart container)', () => {
       await setUp();
 
       // Assert
-      expect(component.isOrgAdmin).toBe(true);
-      expect(component.members.length).toBe(1);
-      expect(component.userMap.get('u1')).toBe('Alice');
+      expect(component.isOrgAdmin()).toBe(true);
+      expect(component.members().length).toBe(1);
+      expect(component.userMap().get('u1')).toBe('Alice');
       expect(fixture.debugElement.query(By.directive(AuditLogFilters))).not.toBeNull();
     });
   });
@@ -207,8 +207,8 @@ describe('AuditLog (smart container)', () => {
       await setUp();
 
       // Assert
-      expect(component.entries.length).toBe(1);
-      expect(component.total).toBe(1);
+      expect(component.entries().length).toBe(1);
+      expect(component.total()).toBe(1);
       expect(fixture.debugElement.query(By.directive(AuditLogTable))).not.toBeNull();
     });
 
@@ -220,8 +220,8 @@ describe('AuditLog (smart container)', () => {
       await setUp();
 
       // Assert
-      expect(component.loadError).toContain('Access denied');
-      expect(component.loading).toBe(false);
+      expect(component.loadError()).toContain('Access denied');
+      expect(component.loading()).toBe(false);
     });
 
     it('maps other errors to a generic load failure', async () => {
@@ -232,8 +232,8 @@ describe('AuditLog (smart container)', () => {
       await setUp();
 
       // Assert
-      expect(component.loadError).toBe('Failed to load audit log.');
-      expect(component.loading).toBe(false);
+      expect(component.loadError()).toBe('Failed to load audit log.');
+      expect(component.loading()).toBe(false);
     });
   });
 
@@ -291,8 +291,8 @@ describe('AuditLog (smart container)', () => {
 
       // Assert
       expect(auditService.calls[0].filters.offset).toBe(1);
-      expect(component.entries.map((e) => e.id)).toEqual(['a1', 'a2']);
-      expect(component.loading).toBe(false);
+      expect(component.entries().map((e) => e.id)).toEqual(['a1', 'a2']);
+      expect(component.loading()).toBe(false);
     });
 
     it('exposes hasMore while loaded entries are fewer than total', async () => {
@@ -303,7 +303,7 @@ describe('AuditLog (smart container)', () => {
       await setUp();
 
       // Assert
-      expect(component.hasMore).toBe(true);
+      expect(component.hasMore()).toBe(true);
     });
 
     it('reports a dedicated error when loading more fails', async () => {
@@ -317,8 +317,8 @@ describe('AuditLog (smart container)', () => {
       await render();
 
       // Assert
-      expect(component.loadError).toBe('Failed to load more entries.');
-      expect(component.loading).toBe(false);
+      expect(component.loadError()).toBe('Failed to load more entries.');
+      expect(component.loading()).toBe(false);
     });
   });
 
@@ -336,7 +336,7 @@ describe('AuditLog (smart container)', () => {
 
       // Assert
       expect(auditService.calls[0].filters.offset).toBe(0);
-      expect(component.entries.map((e) => e.id)).toEqual(['b']);
+      expect(component.entries().map((e) => e.id)).toEqual(['b']);
     });
 
     it('clears every filter field and reloads', async () => {

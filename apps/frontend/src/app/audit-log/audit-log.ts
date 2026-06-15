@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  OnInit,
+  signal,
+} from '@angular/core';
 import { Router } from '@angular/router';
 import { AuditLogService } from './audit-log.service';
 import { MemberService } from '../settings/users/member.service';
@@ -51,7 +58,7 @@ import {
       </mns-btn>
     </mns-page-header>
 
-    @if (!isOrgAdmin) {
+    @if (!isOrgAdmin()) {
       <p class="error text-[13.5px] text-offline bg-offline-dim rounded-[10px] px-4 py-3">
         Access denied. Org Admin privileges required.
       </p>
@@ -60,7 +67,7 @@ import {
       <mns-card [pad]="true" [animate]="true" [delay]="0">
         <app-audit-log-filters
           [auditActions]="auditActions"
-          [members]="members"
+          [members]="members()"
           [resourceTypes]="resourceTypes"
           [(action)]="filterAction"
           [(userId)]="filterUserId"
@@ -73,25 +80,26 @@ import {
       </mns-card>
 
       <!-- result count row -->
-      @if (!loadError) {
+      @if (!loadError()) {
         <div class="flex items-center justify-between px-1 my-3">
           <span class="text-[13px] text-muted">
-            @if (entries.length === total && total > 0) {
-              <span class="font-bold text-text">{{ total }}</span> events
-            } @else if (total > 0) {
-              <span class="font-bold text-text">{{ entries.length }}</span> of {{ total }} events
+            @if (entries().length === total() && total() > 0) {
+              <span class="font-bold text-text">{{ total() }}</span> events
+            } @else if (total() > 0) {
+              <span class="font-bold text-text">{{ entries().length }}</span> of
+              {{ total() }} events
             }
           </span>
         </div>
       }
 
-      @if (loadError) {
+      @if (loadError()) {
         <p class="error text-[13.5px] text-offline bg-offline-dim rounded-[10px] px-4 py-3 mt-3">
-          {{ loadError }}
+          {{ loadError() }}
         </p>
       }
 
-      @if (loading && entries.length === 0) {
+      @if (loading() && entries().length === 0) {
         <mns-card [pad]="true">
           <div class="flex items-center justify-center gap-2.5 py-10 text-muted text-[13.5px]">
             <mns-icon name="Refresh" [size]="18" />
@@ -100,7 +108,7 @@ import {
         </mns-card>
       }
 
-      @if (!loading && entries.length === 0 && !loadError) {
+      @if (!loading() && entries().length === 0 && !loadError()) {
         <mns-card [pad]="false">
           <mns-empty
             icon="Audit"
@@ -112,18 +120,18 @@ import {
 
       <!-- keep the mns-empty selector accessible for spec query -->
       <p class="empty-text sr-only" aria-hidden="true">
-        @if (!loading && entries.length === 0 && !loadError) {
+        @if (!loading() && entries().length === 0 && !loadError()) {
           No audit log entries found.
         }
       </p>
 
-      @if (entries.length > 0) {
+      @if (entries().length > 0) {
         <app-audit-log-table
-          [entries]="entries"
-          [total]="total"
-          [loading]="loading"
-          [hasMore]="hasMore"
-          [userMap]="userMap"
+          [entries]="entries()"
+          [total]="total()"
+          [loading]="loading()"
+          [hasMore]="hasMore()"
+          [userMap]="userMap()"
           (loadMore)="loadMore()"
           (selectResource)="navigateToResource($event.resourceType, $event.resourceId)"
         />
@@ -158,16 +166,18 @@ export class AuditLog implements OnInit {
   readonly auditActions = AUDIT_ACTIONS;
   readonly resourceTypes = RESOURCE_TYPES;
 
-  entries: AuditEntry[] = [];
-  total = 0;
-  loading = true;
-  loadError = '';
-  isOrgAdmin = false;
+  // View state — signals so OnPush re-renders after async loads complete.
+  readonly entries = signal<AuditEntry[]>([]);
+  readonly total = signal(0);
+  readonly loading = signal(true);
+  readonly loadError = signal('');
+  readonly isOrgAdmin = signal(false);
 
-  members: Membership[] = [];
-  readonly userMap = new Map<string, string>();
+  readonly members = signal<Membership[]>([]);
+  readonly userMap = signal<Map<string, string>>(new Map());
 
-  // Filter state
+  // Filter state — mutated only via template two-way bindings, which mark the
+  // component dirty on their own, so plain fields are fine here.
   filterAction = '';
   filterUserId = '';
   filterResourceType = '';
@@ -176,25 +186,23 @@ export class AuditLog implements OnInit {
 
   private readonly pageSize = 50;
 
-  get hasMore(): boolean {
-    return this.entries.length < this.total;
-  }
+  readonly hasMore = computed(() => this.entries().length < this.total());
 
   ngOnInit(): void {
     const org = this.orgState.selectedOrg();
     if (!org) {
-      this.loadError = 'No organisation selected.';
-      this.loading = false;
+      this.loadError.set('No organisation selected.');
+      this.loading.set(false);
       return;
     }
 
     if (org.role !== 'org_admin') {
-      this.isOrgAdmin = false;
-      this.loading = false;
+      this.isOrgAdmin.set(false);
+      this.loading.set(false);
       return;
     }
 
-    this.isOrgAdmin = true;
+    this.isOrgAdmin.set(true);
     this.loadMembers(org.id);
     this.loadEntries();
   }
@@ -202,10 +210,12 @@ export class AuditLog implements OnInit {
   private loadMembers(orgId: string): void {
     this.memberService.listMembers(orgId).subscribe({
       next: (members) => {
-        this.members = members;
+        this.members.set(members);
+        const map = new Map<string, string>();
         for (const m of members) {
-          this.userMap.set(m.userId, m.user.name || m.user.email);
+          map.set(m.userId, m.user.name || m.user.email);
         }
+        this.userMap.set(map);
       },
     });
   }
@@ -231,21 +241,22 @@ export class AuditLog implements OnInit {
     const org = this.orgState.selectedOrg();
     if (!org) return;
 
-    this.loading = true;
-    this.loadError = '';
+    this.loading.set(true);
+    this.loadError.set('');
 
     this.auditLogService.getAuditLog(org.id, this.buildFilters(0)).subscribe({
       next: (response) => {
-        this.entries = response.data;
-        this.total = response.total;
-        this.loading = false;
+        this.entries.set(response.data);
+        this.total.set(response.total);
+        this.loading.set(false);
       },
       error: (err) => {
-        this.loadError =
+        this.loadError.set(
           err.status === 403
             ? 'Access denied. Org Admin privileges required.'
-            : 'Failed to load audit log.';
-        this.loading = false;
+            : 'Failed to load audit log.',
+        );
+        this.loading.set(false);
       },
     });
   }
@@ -254,24 +265,24 @@ export class AuditLog implements OnInit {
     const org = this.orgState.selectedOrg();
     if (!org) return;
 
-    this.loading = true;
+    this.loading.set(true);
 
-    this.auditLogService.getAuditLog(org.id, this.buildFilters(this.entries.length)).subscribe({
+    this.auditLogService.getAuditLog(org.id, this.buildFilters(this.entries().length)).subscribe({
       next: (response) => {
-        this.entries = [...this.entries, ...response.data];
-        this.total = response.total;
-        this.loading = false;
+        this.entries.update((cur) => [...cur, ...response.data]);
+        this.total.set(response.total);
+        this.loading.set(false);
       },
       error: () => {
-        this.loadError = 'Failed to load more entries.';
-        this.loading = false;
+        this.loadError.set('Failed to load more entries.');
+        this.loading.set(false);
       },
     });
   }
 
   applyFilters(): void {
-    this.entries = [];
-    this.total = 0;
+    this.entries.set([]);
+    this.total.set(0);
     this.loadEntries();
   }
 
@@ -280,7 +291,7 @@ export class AuditLog implements OnInit {
   }
 
   exportCsv(): void {
-    if (this.entries.length === 0) return;
+    if (this.entries().length === 0) return;
     const headers = [
       'id',
       'timestamp',
@@ -291,7 +302,7 @@ export class AuditLog implements OnInit {
       'resourceId',
       'details',
     ];
-    const rows = this.entries.map((e) => [
+    const rows = this.entries().map((e) => [
       e.id,
       e.timestamp,
       e.userId ?? '',
