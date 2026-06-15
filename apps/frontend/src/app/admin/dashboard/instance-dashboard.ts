@@ -9,7 +9,7 @@ import {
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { DecimalPipe } from '@angular/common';
 import { InstanceAdminService } from './instance-admin.service';
-import { InstanceAdminSummary } from './instance-admin.model';
+import { InstanceAdminSummary, SystemLoad } from './instance-admin.model';
 import { LoadGraphComponent, LoadData } from './load-graph.component';
 import { formatBytes } from '../../shared/format-bytes';
 import {
@@ -21,32 +21,6 @@ import {
   CountComponent,
   IconComponent,
 } from '../../ui';
-
-/** Typed mock for LoadGraph — replaced by a real metrics endpoint later. */
-const LOAD_MOCK: LoadData = (() => {
-  const cpu = [
-    21, 18, 20, 24, 27, 33, 29, 25, 24, 57, 84, 73, 41, 30, 27, 26, 31, 45, 71, 89, 60, 37, 33, 28,
-    34,
-  ];
-  const ram = [
-    44, 43, 45, 47, 49, 52, 53, 52, 50, 58, 65, 67, 61, 57, 55, 54, 56, 62, 67, 72, 68, 61, 59, 57,
-    60,
-  ];
-  return {
-    cpu,
-    ram,
-    transcodeWindows: [
-      [9, 12],
-      [17, 20],
-    ] as [number, number][],
-    cores: 8,
-    ramTotalGB: 16,
-    cpuNow: cpu[cpu.length - 1],
-    ramNow: ram[ram.length - 1],
-    cpuPeak: Math.max(...cpu),
-    ramPeak: Math.max(...ram),
-  };
-})();
 
 /**
  * Smart container for the instance-admin overview dashboard.
@@ -299,7 +273,7 @@ const LOAD_MOCK: LoadData = (() => {
         <!-- System load chart -->
         <mns-card>
           <mns-card-head title="System load" sub="CPU &amp; memory · last 24 hours" icon="Power">
-            <mns-badge slot="right" tone="accent" icon="Refresh">Transcode peaks shaded</mns-badge>
+            <mns-badge slot="right" tone="accent" icon="Refresh">Hourly average</mns-badge>
           </mns-card-head>
 
           <!-- readout strip -->
@@ -312,13 +286,13 @@ const LOAD_MOCK: LoadData = (() => {
               ></span>
               <div>
                 <div class="text-[12.5px] font-semibold text-muted whitespace-nowrap mb-[2px]">
-                  CPU · {{ load.cores }} cores
+                  CPU · {{ load().cores }} cores
                 </div>
                 <div class="flex items-baseline gap-2">
                   <span class="mono text-[26px] font-bold leading-none text-accent"
-                    >{{ load.cpuNow }}%</span
+                    >{{ load().cpuNow }}%</span
                   >
-                  <span class="mono text-[12px] text-faint">peak {{ load.cpuPeak }}%</span>
+                  <span class="mono text-[12px] text-faint">peak {{ load().cpuPeak }}%</span>
                 </div>
               </div>
             </div>
@@ -330,11 +304,11 @@ const LOAD_MOCK: LoadData = (() => {
               ></span>
               <div>
                 <div class="text-[12.5px] font-semibold text-muted whitespace-nowrap mb-[2px]">
-                  Memory · {{ load.ramTotalGB }} GB
+                  Memory · {{ load().ramTotalGB }} GB
                 </div>
                 <div class="flex items-baseline gap-2">
                   <span class="mono text-[26px] font-bold leading-none text-info"
-                    >{{ load.ramNow }}%</span
+                    >{{ load().ramNow }}%</span
                   >
                   <span class="mono text-[12px] text-faint">
                     {{ ramUsedGB() }} GB · peak {{ ramPeakGB() }} GB
@@ -344,7 +318,13 @@ const LOAD_MOCK: LoadData = (() => {
             </div>
           </div>
 
-          <mns-load-graph [load]="load" />
+          @if (hasLoadHistory()) {
+            <mns-load-graph [load]="load()" />
+          } @else {
+            <div class="text-muted text-sm py-6 text-center">
+              Collecting system-load history — the chart appears once enough data has been recorded.
+            </div>
+          }
         </mns-card>
       </div>
     }
@@ -373,8 +353,32 @@ export class InstanceDashboard implements OnInit {
   readonly loading = signal(true);
   readonly loadError = signal('');
 
-  /** Static typed mock — matches LoadData shape; later bind to a metrics endpoint. */
-  readonly load: LoadData = LOAD_MOCK;
+  /** Raw 24h host-load series fetched from the metrics endpoint. */
+  readonly systemLoad = signal<SystemLoad | null>(null);
+
+  /**
+   * Derives the {@link LoadData} the chart consumes from the fetched series.
+   * `transcodeWindows` is empty — transcode timing isn't tracked historically.
+   */
+  readonly load = computed<LoadData>(() => {
+    const data = this.systemLoad();
+    const cpu = data?.cpu ?? [];
+    const ram = data?.ram ?? [];
+    return {
+      cpu,
+      ram,
+      transcodeWindows: [],
+      cores: data?.cores ?? 0,
+      ramTotalGB: data?.ramTotalGB ?? 0,
+      cpuNow: cpu.at(-1) ?? 0,
+      ramNow: ram.at(-1) ?? 0,
+      cpuPeak: cpu.length ? Math.max(...cpu) : 0,
+      ramPeak: ram.length ? Math.max(...ram) : 0,
+    };
+  });
+
+  /** The chart needs at least two points to draw a line. */
+  readonly hasLoadHistory = computed(() => this.load().cpu.length > 1);
 
   protected readonly formatBytes = formatBytes;
 
@@ -409,9 +413,11 @@ export class InstanceDashboard implements OnInit {
     return (s.transcodedUsedBytes / s.transcodedLimitBytes) * 100;
   });
 
-  readonly ramUsedGB = computed(() => ((this.load.ramNow / 100) * this.load.ramTotalGB).toFixed(1));
+  readonly ramUsedGB = computed(() =>
+    ((this.load().ramNow / 100) * this.load().ramTotalGB).toFixed(1),
+  );
   readonly ramPeakGB = computed(() =>
-    ((this.load.ramPeak / 100) * this.load.ramTotalGB).toFixed(1),
+    ((this.load().ramPeak / 100) * this.load().ramTotalGB).toFixed(1),
   );
 
   ngOnInit(): void {
@@ -427,6 +433,13 @@ export class InstanceDashboard implements OnInit {
             : 'Failed to load instance overview.',
         );
         this.loading.set(false);
+      },
+    });
+
+    this.service.getSystemLoad().subscribe({
+      next: (load) => this.systemLoad.set(load),
+      error: () => {
+        /* best-effort — the system-load chart shows a "collecting data" note */
       },
     });
   }

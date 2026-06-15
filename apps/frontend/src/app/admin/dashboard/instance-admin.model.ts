@@ -22,3 +22,14 @@ export interface InstanceAdminSummary {
   storage: InstanceAdminStorageStats;
   hostDisk: InstanceAdminHostDisk;
 }
+
+/**
+ * Instance-wide host load over the last 24h (`GET /api/admin/dashboard/load`).
+ * `cpu` / `ram` are aligned percentage series (0–100), oldest sample first.
+ */
+export interface SystemLoad {
+  cpu: number[];
+  ram: number[];
+  cores: number;
+  ramTotalGB: number;
+}

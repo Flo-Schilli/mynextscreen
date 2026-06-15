@@ -20,6 +20,7 @@ import { Screen, ScreenListItem } from '../screens/screen.model';
 import { StorageInfo } from '../content/content.model';
 import { ScheduleEntry } from '../schedules/schedule.model';
 import { DashboardSummary } from './dashboard-summary.model';
+import { DashboardHistoryPoint } from './dashboard-history.model';
 import { ActivityEntry, TimelineEntry, TimelineRow } from './dashboard.model';
 import { DashboardScreenGrid } from './dashboard-screen-grid';
 import { StorageUsageBars } from '../shared/storage-usage-bars';
@@ -629,6 +630,8 @@ export class Dashboard implements OnInit, OnDestroy {
   readonly summary = signal<DashboardSummary | null>(null);
   readonly scheduleEntries = signal<ScheduleEntry[]>([]);
   readonly activityFeed = signal<ActivityEntry[]>([]);
+  /** Hourly-bucketed KPI history (last 24h) backing the sparklines. */
+  readonly history = signal<DashboardHistoryPoint[]>([]);
 
   readonly loadingScreens = signal(false);
   readonly loadingSummary = signal(false);
@@ -731,27 +734,28 @@ export class Dashboard implements OnInit, OnDestroy {
     return Math.round(((s.originalUsedBytes + s.transcodedUsedBytes) / total) * 100);
   });
 
-  // Simple synthetic 7-point trend per KPI, ending at the current value.
-  readonly onlineSparkLine = computed(() =>
-    this.buildSparkPath(this.synthSpark(this.screensOnline())),
+  // Real 24h trend per KPI, sourced from the hourly history snapshots. Until at
+  // least two points exist (fresh org / first capture) we fall back to a
+  // synthetic trend ending at the current value so the cards never look empty.
+  readonly onlineSpark = computed(() =>
+    this.sparkSeries((p) => p.screensOnline, this.screensOnline()),
   );
-  readonly onlineSparkArea = computed(() =>
-    this.buildSparkArea(this.synthSpark(this.screensOnline())),
+  readonly contentSpark = computed(() =>
+    this.sparkSeries((p) => p.contentCount, this.contentCount()),
   );
-  readonly contentSparkLine = computed(() =>
-    this.buildSparkPath(this.synthSpark(this.contentCount())),
+  readonly playlistSpark = computed(() =>
+    this.sparkSeries((p) => p.playlistCount, this.playlistCount()),
   );
-  readonly contentSparkArea = computed(() =>
-    this.buildSparkArea(this.synthSpark(this.contentCount())),
-  );
-  readonly playlistSparkLine = computed(() =>
-    this.buildSparkPath(this.synthSpark(this.playlistCount())),
-  );
-  readonly playlistSparkArea = computed(() =>
-    this.buildSparkArea(this.synthSpark(this.playlistCount())),
-  );
-  readonly alertSparkLine = computed(() => this.buildSparkPath(this.synthSpark(this.alertCount())));
-  readonly alertSparkArea = computed(() => this.buildSparkArea(this.synthSpark(this.alertCount())));
+  readonly alertSpark = computed(() => this.sparkSeries((p) => p.openAlerts, this.alertCount()));
+
+  readonly onlineSparkLine = computed(() => this.buildSparkPath(this.onlineSpark()));
+  readonly onlineSparkArea = computed(() => this.buildSparkArea(this.onlineSpark()));
+  readonly contentSparkLine = computed(() => this.buildSparkPath(this.contentSpark()));
+  readonly contentSparkArea = computed(() => this.buildSparkArea(this.contentSpark()));
+  readonly playlistSparkLine = computed(() => this.buildSparkPath(this.playlistSpark()));
+  readonly playlistSparkArea = computed(() => this.buildSparkArea(this.playlistSpark()));
+  readonly alertSparkLine = computed(() => this.buildSparkPath(this.alertSpark()));
+  readonly alertSparkArea = computed(() => this.buildSparkArea(this.alertSpark()));
 
   // ── Timeline ──
   private timelineStart = new Date();
@@ -861,6 +865,7 @@ export class Dashboard implements OnInit, OnDestroy {
     this.loadScreens(orgId);
     this.loadSummary(orgId);
     this.loadSchedule(orgId);
+    this.loadHistory(orgId);
   }
 
   /** Reload all populated-dashboard data for the current org. */
@@ -899,6 +904,16 @@ export class Dashboard implements OnInit, OnDestroy {
       next: (summary) => this.summary.set(summary),
       error: () => {
         /* best-effort background refresh */
+      },
+    });
+  }
+
+  /** Load the 24h KPI history backing the sparklines (best-effort). */
+  private loadHistory(orgId: string): void {
+    this.dashboardService.getHistory(orgId).subscribe({
+      next: (history) => this.history.set(history.points),
+      error: () => {
+        /* best-effort — sparklines fall back to a synthetic trend */
       },
     });
   }
@@ -954,6 +969,15 @@ export class Dashboard implements OnInit, OnDestroy {
   }
 
   // ── Sparkline helpers ──
+  /**
+   * Real KPI series from the 24h history, or a synthetic trend ending at the
+   * current value when fewer than two history points exist yet.
+   */
+  private sparkSeries(select: (point: DashboardHistoryPoint) => number, current: number): number[] {
+    const points = this.history();
+    return points.length >= 2 ? points.map(select) : this.synthSpark(current);
+  }
+
   /** Synthetic 7-point upward trend ending at the current value `n`. */
   private synthSpark(n: number): number[] {
     return [

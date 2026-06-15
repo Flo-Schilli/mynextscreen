@@ -44,6 +44,8 @@ const TABLE_NAMES = [
   'user_notification_preferences',
   'audit_entries',
   'sliced_renditions',
+  'org_metric_snapshots',
+  'system_metric_snapshots',
 ];
 
 function baseUri(): string {

@@ -31,8 +31,13 @@ function makeSummary(overrides: Partial<InstanceAdminSummary> = {}): InstanceAdm
 describe('InstanceDashboard', () => {
   let fixture: ComponentFixture<InstanceDashboard>;
   const getSummary = vi.fn();
+  const getSystemLoad = vi.fn();
 
-  beforeEach(() => getSummary.mockReset());
+  beforeEach(() => {
+    getSummary.mockReset();
+    getSystemLoad.mockReset();
+    getSystemLoad.mockReturnValue(of({ cpu: [], ram: [], cores: 0, ramTotalGB: 0 }));
+  });
 
   async function setup(): Promise<void> {
     await TestBed.configureTestingModule({
@@ -40,7 +45,7 @@ describe('InstanceDashboard', () => {
       providers: [
         provideZonelessChangeDetection(),
         provideRouter([]),
-        { provide: InstanceAdminService, useValue: { getSummary } },
+        { provide: InstanceAdminService, useValue: { getSummary, getSystemLoad } },
       ],
     }).compileComponents();
 

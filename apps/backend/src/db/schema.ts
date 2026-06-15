@@ -410,6 +410,50 @@ export const slicedRenditions = pgTable('sliced_renditions', {
   ...timestamps,
 });
 
+// ── metric snapshots (dashboard mini-graph 24h history) ──────────────────────
+
+/**
+ * Periodic per-organisation KPI snapshots powering the dashboard sparklines.
+ * A scheduler writes one row per org every few minutes; the dashboard reads the
+ * last 24h, hourly-bucketed, to render the "Screens online / Content / Playlists
+ * / Alerts" trend lines. Rows older than the retention window are pruned.
+ */
+export const orgMetricSnapshots = pgTable(
+  'org_metric_snapshots',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    capturedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    screensOnline: integer().notNull().default(0),
+    contentCount: integer().notNull().default(0),
+    playlistCount: integer().notNull().default(0),
+    openAlerts: integer().notNull().default(0),
+  },
+  (t) => [index('IDX_org_metric_snapshots_org_time').on(t.organisationId, t.capturedAt)],
+);
+
+/**
+ * Instance-wide host load snapshots (CPU + RAM percent) powering the super-admin
+ * system-load chart. Not org-scoped. Same capture/retention lifecycle as
+ * {@link orgMetricSnapshots}.
+ */
+export const systemMetricSnapshots = pgTable(
+  'system_metric_snapshots',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    capturedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    cpuPercent: integer().notNull(),
+    ramPercent: integer().notNull(),
+  },
+  (t) => [index('IDX_system_metric_snapshots_time').on(t.capturedAt)],
+);
+
 // ── relations (for db.query.*.findMany({ with: … }) eager loads) ─────────────
 
 export const organisationsRelations = relations(organisations, ({ one }) => ({
@@ -537,3 +581,9 @@ export type NewAuditEntry = typeof auditEntries.$inferInsert;
 
 export type SlicedRendition = typeof slicedRenditions.$inferSelect;
 export type NewSlicedRendition = typeof slicedRenditions.$inferInsert;
+
+export type OrgMetricSnapshot = typeof orgMetricSnapshots.$inferSelect;
+export type NewOrgMetricSnapshot = typeof orgMetricSnapshots.$inferInsert;
+
+export type SystemMetricSnapshot = typeof systemMetricSnapshots.$inferSelect;
+export type NewSystemMetricSnapshot = typeof systemMetricSnapshots.$inferInsert;

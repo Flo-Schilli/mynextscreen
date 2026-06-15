@@ -122,6 +122,7 @@ describe('Dashboard', () => {
   let selectedOrgId: WritableSignal<string | null>;
   let getAllScreens: ReturnType<typeof vi.fn>;
   let getSummary: ReturnType<typeof vi.fn>;
+  let getHistory: ReturnType<typeof vi.fn>;
   let getByDateRange: ReturnType<typeof vi.fn>;
   let navigate: ReturnType<typeof vi.fn>;
 
@@ -130,12 +131,14 @@ describe('Dashboard', () => {
       orgId?: string | null;
       screens?: ReturnType<typeof vi.fn>;
       summary?: ReturnType<typeof vi.fn>;
+      history?: ReturnType<typeof vi.fn>;
       schedule?: ReturnType<typeof vi.fn>;
     } = {},
   ): Promise<void> {
     selectedOrgId = signal<string | null>('orgId' in options ? (options.orgId ?? null) : 'org-1');
     getAllScreens = options.screens ?? vi.fn(() => of<Screen[]>([]));
     getSummary = options.summary ?? vi.fn(() => of(makeSummary()));
+    getHistory = options.history ?? vi.fn(() => of({ points: [] }));
     getByDateRange = options.schedule ?? vi.fn(() => of<ScheduleEntry[]>([]));
     navigate = vi.fn();
     sse = makeSseStub();
@@ -146,7 +149,7 @@ describe('Dashboard', () => {
         provideZonelessChangeDetection(),
         { provide: Router, useValue: { navigate } },
         { provide: ScreenService, useValue: { getAll: getAllScreens } },
-        { provide: DashboardService, useValue: { getSummary } },
+        { provide: DashboardService, useValue: { getSummary, getHistory } },
         { provide: ScheduleService, useValue: { getByDateRange } },
         { provide: OrganisationStateService, useValue: { selectedOrgId } },
         { provide: DashboardSseService, useValue: sse },

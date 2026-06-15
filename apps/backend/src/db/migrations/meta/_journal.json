@@ -43,6 +43,13 @@
       "when": 1781548313643,
       "tag": "0005_strange_piledriver",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781553869438,
+      "tag": "0006_light_talon",
+      "breakpoints": true
     }
   ]
 }
