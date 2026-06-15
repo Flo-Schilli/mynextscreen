@@ -34,12 +34,19 @@ async function bootstrap() {
   await runMigrations(config.getOrThrow<string>('DATABASE_URL'));
 
   app.use(cookieParser());
-  // Same-origin admin SPA (served at app.{domain}/api/*) needs credentialed
-  // cookies. Restrict the allowed origin when PUBLIC_BASE_URL is set; otherwise
-  // (dev) reflect the request origin so the Vite dev server can send cookies.
+  // The admin SPA (PUBLIC_BASE_URL) sends credentialed cookies; the player app
+  // (PLAYER_BASE_URL) is a separate origin that calls the public pairing routes
+  // and the screen-auth routes with Bearer/X-Pairing-Secret headers. Allow both
+  // when configured; otherwise (dev with neither set) reflect the request origin.
+  // An array origin reflects the matching origin, which is compatible with
+  // `credentials: true` (unlike a wildcard).
   const publicBaseUrl = config.get<string>('PUBLIC_BASE_URL');
+  const playerBaseUrl = config.get<string>('PLAYER_BASE_URL');
+  const allowedOrigins = [publicBaseUrl, playerBaseUrl].filter(
+    (origin): origin is string => !!origin,
+  );
   app.enableCors({
-    origin: publicBaseUrl ? publicBaseUrl : true,
+    origin: allowedOrigins.length ? allowedOrigins : true,
     credentials: true,
   });
   app.setGlobalPrefix('api');
