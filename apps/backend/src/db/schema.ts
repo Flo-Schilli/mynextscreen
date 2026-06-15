@@ -44,6 +44,11 @@ import { TransitionType } from '../playlist/transition-type.enum';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { OrganisationRole } from '../user/organisation-role.enum';
 
+// ── Local literal-union types ────────────────────────────────────────────────
+
+/** Lifecycle of a 6-digit screen pairing. */
+export type ScreenPairingStatus = 'pending' | 'claimed' | 'consumed';
+
 // ── Shared column builders ───────────────────────────────────────────────────
 
 const timestamps = {
@@ -167,6 +172,32 @@ export const screens = pgTable(
     ...timestamps,
   },
   (t) => [index('IDX_screens_api_key_hash').on(t.apiKeyHash)],
+);
+
+// ── screen pairings (6-digit device-flow) ─────────────────────────────────────
+
+export const screenPairings = pgTable(
+  'screen_pairings',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    // 6-digit numeric code displayed on the player, typed by the admin.
+    code: text().notNull(),
+    // SHA-256 hex of the high-entropy poll token the player keeps.
+    pairingSecretHash: text().notNull(),
+    // Set on claim; the org the screen was created in.
+    organisationId: uuid().references(() => organisations.id, { onDelete: 'cascade' }),
+    // Set on claim; FK to the created screen.
+    screenId: uuid().references(() => screens.id, { onDelete: 'cascade' }),
+    // Plaintext API key — transient: delivered to the player once, then nulled.
+    apiKey: text(),
+    // pending → claimed → consumed.
+    status: text().$type<ScreenPairingStatus>().notNull().default('pending'),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    ...timestamps,
+  },
+  (t) => [index('IDX_screen_pairings_code').on(t.code)],
 );
 
 // ── content library ──────────────────────────────────────────────────────────
@@ -470,6 +501,9 @@ export type NewScreenGroup = typeof screenGroups.$inferInsert;
 
 export type Screen = typeof screens.$inferSelect;
 export type NewScreen = typeof screens.$inferInsert;
+
+export type ScreenPairing = typeof screenPairings.$inferSelect;
+export type NewScreenPairing = typeof screenPairings.$inferInsert;
 
 export type Content = typeof contents.$inferSelect;
 export type NewContent = typeof contents.$inferInsert;

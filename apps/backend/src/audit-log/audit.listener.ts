@@ -28,6 +28,7 @@ import {
   AUDIT_SCREEN_OFFLINE,
   AUDIT_SCREEN_BULK_DELETED,
   AUDIT_SCREEN_BULK_GROUP_ASSIGNED,
+  AUDIT_SCREEN_PAIRING_FAILED,
   AuditScreenEvent,
   AUDIT_USER_INVITED,
   AUDIT_USER_ROLE_CHANGED,
@@ -333,6 +334,18 @@ export class AuditListener {
   handleScreenBulkGroupAssigned(event: AuditScreenEvent): void {
     this.record(
       AuditAction.ScreenBulkGroupAssigned,
+      'screen',
+      event.screenId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_SCREEN_PAIRING_FAILED, { async: true })
+  handleScreenPairingFailed(event: AuditScreenEvent): void {
+    this.record(
+      AuditAction.ScreenPairingFailed,
       'screen',
       event.screenId,
       event.organisationId,

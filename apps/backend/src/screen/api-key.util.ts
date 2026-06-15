@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 
 const BCRYPT_ROUNDS = 10;
@@ -8,6 +8,22 @@ const BCRYPT_ROUNDS = 10;
  */
 export function generateApiKey(): string {
   return randomBytes(32).toString('base64url');
+}
+
+/**
+ * Generates a crypto-random 32-byte pairing secret, base64url-encoded.
+ * Used as a high-entropy bearer token on the polling status endpoint.
+ */
+export function generatePairingSecret(): string {
+  return randomBytes(32).toString('base64url');
+}
+
+/**
+ * SHA-256 hex digest. Fast, deterministic — used to fingerprint the
+ * high-entropy pairing secret on a frequently-polled endpoint (no bcrypt).
+ */
+export function sha256hex(input: string): string {
+  return createHash('sha256').update(input).digest('hex');
 }
 
 /**

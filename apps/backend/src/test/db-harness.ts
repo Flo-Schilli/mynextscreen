@@ -32,6 +32,7 @@ const TABLE_NAMES = [
   'user_organisation_memberships',
   'screen_groups',
   'screens',
+  'screen_pairings',
   'contents',
   'playlists',
   'playlist_items',

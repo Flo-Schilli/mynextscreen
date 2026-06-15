@@ -627,6 +627,24 @@ describe('AuditListener', () => {
     });
   });
 
+  it('should map screen.pairing_failed to ScreenPairingFailed audit entry (null screenId)', () => {
+    const event = new AuditScreenEvent(null, orgId, userId, {
+      code: '12****',
+      context: 'create',
+    });
+
+    listener.handleScreenPairingFailed(event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.ScreenPairingFailed,
+      resourceType: 'screen',
+      resourceId: null,
+      organisationId: orgId,
+      userId,
+      details: { code: '12****', context: 'create' },
+    });
+  });
+
   // ── Bulk Playlist Events ────────────────────────────────────────────
 
   it('should map playlist.bulk_deleted to PlaylistBulkDeleted audit entry', () => {
