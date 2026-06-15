@@ -5,13 +5,11 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
-import { from, of, throwError, Observable, Subject } from 'rxjs';
+import { from, Observable, Subject } from 'rxjs';
 import { Screens } from './screens';
-import { Screen, ScreenWithApiKey } from './screen.model';
+import { ScreenListItem } from './screen.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
-import { ScreenGroupService } from '../screen-groups/screen-group.service';
-import { ScreenGroup } from '../screen-groups/screen-group.model';
 import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
 import { ToastService, Toast } from '../shared/toast/toast.service';
 
@@ -23,7 +21,7 @@ try {
 
 const ORG_ID = 'org1';
 
-function makeScreen(overrides: Partial<Screen> = {}): Screen {
+function makeScreen(overrides: Partial<ScreenListItem> = {}): ScreenListItem {
   return {
     id: 'screen-1',
     organisationId: ORG_ID,
@@ -37,6 +35,7 @@ function makeScreen(overrides: Partial<Screen> = {}): Screen {
     gridColumn: null,
     createdAt: '2026-06-01T08:00:00.000Z',
     updatedAt: '2026-06-01T08:00:00.000Z',
+    currentPlaylistName: null,
     ...overrides,
   };
 }
@@ -51,33 +50,10 @@ function makeMembership(role: MyMembership['role'], orgId = ORG_ID): MyMembershi
   };
 }
 
-function makeGroup(overrides: Partial<ScreenGroup> = {}): ScreenGroup {
-  return {
-    id: 'g1',
-    organisationId: ORG_ID,
-    name: 'Wall',
-    mode: 'mirror',
-    gridColumns: null,
-    gridRows: null,
-    screens: [],
-    createdAt: '2026-06-01T00:00:00Z',
-    updatedAt: '2026-06-01T00:00:00Z',
-    ...overrides,
-  };
-}
-
-// Zoneless: no auto-tick. Drain the microtask queue (firstValueFrom/promise
-// chains) then let the stabilization barrier run change detection. We avoid a
-// trailing manual detectChanges() because pairing it with whenStable() in the
-// same synchronous turn trips the dev-mode NG0100 verify pass when an async
-// microtask mutated state in between.
-// Drains the microtask queue without rendering — used to let a resolved
-// confirm-promise continuation (firstValueFrom) issue its HTTP request before
-// we assert on it, without consuming the request via change detection.
-async function microtasks(): Promise<void> {
-  for (let i = 0; i < 6; i++) await Promise.resolve();
-}
-
+// Zoneless: no auto-tick. The container holds state in plain fields, so an
+// HTTP/promise resolution does not mark it dirty under zoneless CD. Drain the
+// microtask queue (promise chains) first so all field mutations have landed,
+// then render once.
 async function flush(f: ComponentFixture<Screens>): Promise<void> {
   // The container holds state in plain fields (not signals), so an HTTP/promise
   // resolution does not mark it dirty under zoneless CD. Drain the microtask
@@ -89,7 +65,7 @@ async function flush(f: ComponentFixture<Screens>): Promise<void> {
   // under zoneless CD; mark it explicitly so the render actually runs.
   f.componentRef.changeDetectorRef.markForCheck();
   // detectChanges(false) skips the dev-mode check-no-changes verify pass, which
-  // otherwise flags a template method binding (bulkDeleteMessage()) returning a
+  // otherwise flags a template getter binding (screenSubtitle) returning a
   // fresh string each pass as an NG0100.
   f.detectChanges(false);
 }
@@ -105,7 +81,6 @@ describe('Screens', () => {
   }
 
   let memberStub: { getMyMemberships: ReturnType<typeof vi.fn> };
-  let groupStub: { getAll: ReturnType<typeof vi.fn> };
   let routerStub: { navigate: ReturnType<typeof vi.fn> };
   let screenOnline$: Subject<DashboardEvent>;
   let screenOffline$: Subject<DashboardEvent>;
@@ -117,7 +92,6 @@ describe('Screens', () => {
     memberStub = {
       getMyMemberships: vi.fn().mockReturnValue(from(Promise.resolve(memberships))),
     };
-    groupStub = { getAll: vi.fn().mockReturnValue(of<ScreenGroup[]>([])) };
     routerStub = { navigate: vi.fn() };
     screenOnline$ = new Subject<DashboardEvent>();
     screenOffline$ = new Subject<DashboardEvent>();
@@ -129,7 +103,6 @@ describe('Screens', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: MemberService, useValue: memberStub },
-        { provide: ScreenGroupService, useValue: groupStub },
         { provide: DashboardSseService, useValue: sseStub },
         { provide: Router, useValue: routerStub },
       ],
@@ -140,7 +113,7 @@ describe('Screens', () => {
   }
 
   // Creates the component and resolves the initial GET /api/screens load.
-  async function createAndLoad(screens: Screen[]): Promise<void> {
+  async function createAndLoad(screens: ScreenListItem[]): Promise<void> {
     fixture = TestBed.createComponent(Screens);
     component = fixture.componentInstance;
     fixture.detectChanges(false); // run ngOnInit
@@ -214,13 +187,13 @@ describe('Screens', () => {
   });
 
   describe('screen loading', () => {
-    it('renders the grid and an empty toolbar once screens are loaded', async () => {
+    it('renders the grid once screens are loaded', async () => {
       configure([makeMembership('org_admin')]);
       await createAndLoad([makeScreen(), makeScreen({ id: 'screen-2', name: 'Bar TV' })]);
 
       expect(component.loading).toBe(false);
       expect(component.screens.length).toBe(2);
-      expect(component.screenIds).toEqual(['screen-1', 'screen-2']);
+      expect(component.screens.map((s) => s.id)).toEqual(['screen-1', 'screen-2']);
       expect(fixture.debugElement.query(By.css('app-screen-grid'))).toBeTruthy();
     });
 
@@ -291,24 +264,39 @@ describe('Screens', () => {
   });
 
   describe('create flow', () => {
-    it('opens the api-key modal and reloads after a successful create', async () => {
+    it('sends the pairing code, toasts and reloads after a successful create', async () => {
       configure([makeMembership('org_admin')]);
       await createAndLoad([]);
 
       component.openCreateForm();
       await flush(fixture);
-      expect(fixture.debugElement.query(By.css('app-screen-create-form'))).toBeTruthy();
+      const createModal = fixture.debugElement.query(By.css('app-screen-form'));
+      expect(createModal).toBeTruthy();
+      expect(createModal.componentInstance.mode()).toBe('create');
 
-      component.submitCreate({ name: 'New', resolution: '1920x1080', location: 'Hall' });
-      const created: ScreenWithApiKey = { screen: makeScreen({ name: 'New' }), apiKey: 'KEY-123' };
-      httpMock.expectOne('/api/screens').flush(created);
+      component.submitCreate({
+        name: 'New',
+        resolution: '1920x1080',
+        location: 'Hall',
+        pairingCode: '123456',
+      });
+      const req = httpMock.expectOne('/api/screens');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({
+        name: 'New',
+        resolution: '1920x1080',
+        location: 'Hall',
+        pairingCode: '123456',
+      });
+      req.flush(makeScreen({ name: 'New' }));
       await flush(fixture);
 
       expect(component.showCreateForm).toBe(false);
       expect(component.creating).toBe(false);
-      expect(component.displayedApiKey).toBe('KEY-123');
-      expect(component.showApiKeyModal).toBe(true);
-      expect(fixture.debugElement.query(By.css('app-screen-api-key-modal'))).toBeTruthy();
+      expect(lastToast()?.type).toBe('success');
+      expect(lastToast()?.message).toContain('New');
+      // No API-key modal exists anymore.
+      expect(fixture.debugElement.query(By.css('app-screen-api-key-modal'))).toBeNull();
 
       httpMock.expectOne('/api/screens').flush([makeScreen({ name: 'New' })]); // reload
       await flush(fixture);
@@ -318,7 +306,12 @@ describe('Screens', () => {
       configure([makeMembership('org_admin')]);
       await createAndLoad([]);
 
-      component.submitCreate({ name: 'New', resolution: '1920x1080', location: 'Hall' });
+      component.submitCreate({
+        name: 'New',
+        resolution: '1920x1080',
+        location: 'Hall',
+        pairingCode: '123456',
+      });
       httpMock
         .expectOne('/api/screens')
         .flush({ message: 'Duplicate name' }, { status: 400, statusText: 'Bad Request' });
@@ -326,28 +319,28 @@ describe('Screens', () => {
 
       expect(component.createError).toBe('Duplicate name');
       expect(component.creating).toBe(false);
-      expect(component.showApiKeyModal).toBe(false);
-    });
-
-    it('closing the api-key modal clears the displayed key', async () => {
-      configure([makeMembership('org_admin')]);
-      await createAndLoad([]);
-      component.displayedApiKey = 'KEY';
-      component.showApiKeyModal = true;
-
-      component.closeApiKeyModal();
-
-      expect(component.showApiKeyModal).toBe(false);
-      expect(component.displayedApiKey).toBe('');
     });
   });
 
   describe('edit flow', () => {
+    it('opens the unified modal in edit mode when a card is selected', async () => {
+      configure([makeMembership('org_admin')]);
+      await createAndLoad([makeScreen()]);
+
+      component.selectScreen(component.screens[0]);
+      await flush(fixture);
+
+      expect(component.editingScreen).toBe(true);
+      const editModal = fixture.debugElement.query(By.css('app-screen-form'));
+      expect(editModal).toBeTruthy();
+      expect(editModal.componentInstance.mode()).toBe('edit');
+      expect(editModal.componentInstance.screen()).toEqual(component.screens[0]);
+    });
+
     it('PATCHes the screen and reloads on a successful edit', async () => {
       configure([makeMembership('org_admin')]);
       await createAndLoad([makeScreen()]);
       component.selectScreen(component.screens[0]);
-      component.startEdit();
       await flush(fixture);
 
       component.submitEdit({ name: 'Renamed' });
@@ -357,7 +350,7 @@ describe('Screens', () => {
       await flush(fixture);
 
       expect(component.editingScreen).toBe(false);
-      expect(component.selectedScreen?.name).toBe('Renamed');
+      expect(component.selectedScreen).toBeNull();
       httpMock.expectOne('/api/screens').flush([makeScreen({ name: 'Renamed' })]); // reload
       await flush(fixture);
     });
@@ -389,199 +382,99 @@ describe('Screens', () => {
     });
   });
 
-  describe('regenerate api-key flow', () => {
-    it('replaces the key and shows the api-key modal on success', async () => {
+  describe('re-pair flow', () => {
+    it('POSTs the pairing code to /repair and toasts on success', async () => {
       configure([makeMembership('org_admin')]);
       await createAndLoad([makeScreen()]);
       component.selectScreen(component.screens[0]);
-      component.confirmRegenerate();
-      expect(component.showRegenerateConfirm).toBe(true);
 
-      component.executeRegenerate();
-      const req = httpMock.expectOne('/api/screens/screen-1/regenerate-key');
+      component.submitRepair('654321');
+      const req = httpMock.expectOne('/api/screens/screen-1/repair');
       expect(req.request.method).toBe('POST');
-      const result: ScreenWithApiKey = { screen: makeScreen(), apiKey: 'FRESH-KEY' };
-      req.flush(result);
+      expect(req.request.body).toEqual({ pairingCode: '654321' });
+      req.flush(makeScreen());
       await flush(fixture);
 
-      expect(component.regenerating).toBe(false);
-      expect(component.showRegenerateConfirm).toBe(false);
-      expect(component.displayedApiKey).toBe('FRESH-KEY');
-      expect(component.showApiKeyModal).toBe(true);
+      expect(component.repairing).toBe(false);
+      expect(lastToast()?.type).toBe('success');
     });
 
-    it('surfaces an error and closes the confirm dialog on failure', async () => {
+    it('surfaces an error on a failed re-pair', async () => {
       configure([makeMembership('org_admin')]);
       await createAndLoad([makeScreen()]);
       component.selectScreen(component.screens[0]);
-      component.confirmRegenerate();
 
-      component.executeRegenerate();
+      component.submitRepair('654321');
       httpMock
-        .expectOne('/api/screens/screen-1/regenerate-key')
+        .expectOne('/api/screens/screen-1/repair')
         .flush({ message: 'Nope' }, { status: 500, statusText: 'Error' });
       await flush(fixture);
 
       expect(component.actionError).toBe('Nope');
-      expect(component.regenerating).toBe(false);
-      expect(component.showRegenerateConfirm).toBe(false);
+      expect(component.repairing).toBe(false);
     });
 
-    it('cancelRegenerate closes the confirm dialog without a request', async () => {
-      configure([makeMembership('org_admin')]);
-      await createAndLoad([makeScreen()]);
-      component.confirmRegenerate();
-
-      component.cancelRegenerate();
-
-      expect(component.showRegenerateConfirm).toBe(false);
-      httpMock.expectNone('/api/screens/screen-1/regenerate-key');
-    });
-
-    it('executeRegenerate is a no-op without a selected screen', async () => {
+    it('is a no-op without a selected screen', async () => {
       configure([makeMembership('org_admin')]);
       await createAndLoad([makeScreen()]);
       component.selectedScreen = null;
 
-      component.executeRegenerate();
+      component.submitRepair('654321');
 
-      httpMock.expectNone('/api/screens/screen-1/regenerate-key');
+      httpMock.expectNone('/api/screens/screen-1/repair');
     });
   });
 
-  describe('bulk delete flow', () => {
-    it('confirms, deletes the selected screens and reloads', async () => {
+  describe('single delete flow', () => {
+    it('confirms, deletes the screen and reloads', async () => {
       configure([makeMembership('org_admin')]);
-      await createAndLoad([makeScreen({ id: 'screen-1' }), makeScreen({ id: 'screen-2' })]);
-      component.selectionService.selectAll(['screen-1', 'screen-2']);
+      await createAndLoad([makeScreen({ id: 'screen-1' })]);
 
-      const promise = component.handleBulkDelete();
+      component.onDeleteScreen(component.screens[0]);
+      expect(component.showDeleteConfirm).toBe(true);
       await flush(fixture);
-      expect(component.showBulkDeleteConfirm).toBe(true);
+      // The confirm-delete modal renders with the screen name (not window.confirm).
+      const modal = fixture.debugElement.query(By.css('mns-modal'));
+      expect(modal).toBeTruthy();
+      expect(modal.nativeElement.textContent).toContain('Lobby TV');
 
-      component.onBulkDeleteConfirmed(true);
-      await microtasks();
+      component.executeDelete();
       const req = httpMock.expectOne('/api/screens/bulk-delete');
-      expect(req.request.body).toEqual({ ids: ['screen-1', 'screen-2'] });
-      req.flush({ deleted: 2, notFound: [] });
-      await promise;
+      expect(req.request.body).toEqual({ ids: ['screen-1'] });
+      req.flush({ deleted: 1, notFound: [] });
       await flush(fixture);
 
-      expect(lastToast()?.message).toBe('2 screen(s) deleted.');
+      expect(component.showDeleteConfirm).toBe(false);
       expect(lastToast()?.type).toBe('success');
+      expect(lastToast()?.message).toContain('deleted');
       httpMock.expectOne('/api/screens').flush([]); // reload
       await flush(fixture);
     });
 
-    it('shows a warning toast when some ids were not found', async () => {
+    it('surfaces an error on a failed delete', async () => {
       configure([makeMembership('org_admin')]);
       await createAndLoad([makeScreen({ id: 'screen-1' })]);
-      component.selectionService.selectAll(['screen-1', 'screen-2']);
 
-      const promise = component.handleBulkDelete();
-      await flush(fixture);
-      component.onBulkDeleteConfirmed(true);
-      await microtasks();
-      httpMock.expectOne('/api/screens/bulk-delete').flush({ deleted: 1, notFound: ['screen-2'] });
-      await promise;
+      component.onDeleteScreen(component.screens[0]);
+      component.executeDelete();
+      httpMock
+        .expectOne('/api/screens/bulk-delete')
+        .flush({ message: 'Nope' }, { status: 500, statusText: 'Error' });
       await flush(fixture);
 
-      expect(lastToast()?.type).toBe('info');
-      expect(lastToast()?.message).toContain('1 item(s) could not be found');
-      httpMock.expectOne('/api/screens').flush([]); // reload
-      await flush(fixture);
+      expect(component.actionError).toBe('Nope');
+      expect(component.deleting).toBe(false);
     });
 
-    it('rejects and issues no request when the user cancels', async () => {
+    it('cancels without a request', async () => {
       configure([makeMembership('org_admin')]);
-      await createAndLoad([makeScreen()]);
-      component.selectionService.selectAll(['screen-1']);
+      await createAndLoad([makeScreen({ id: 'screen-1' })]);
 
-      const promise = component.handleBulkDelete();
-      await flush(fixture);
-      component.onBulkDeleteConfirmed(false);
+      component.onDeleteScreen(component.screens[0]);
+      component.cancelDelete();
 
-      await expect(promise).rejects.toThrow('cancelled');
+      expect(component.showDeleteConfirm).toBe(false);
       httpMock.expectNone('/api/screens/bulk-delete');
-    });
-  });
-
-  describe('bulk assign-group flow', () => {
-    it('loads groups, assigns the selection and reloads', async () => {
-      configure([makeMembership('org_admin')]);
-      groupStub.getAll.mockReturnValue(of([makeGroup({ id: 'g1', name: 'Wall A' })]));
-      await createAndLoad([makeScreen({ id: 'screen-1' })]);
-      component.selectionService.selectAll(['screen-1']);
-
-      const promise = component.handleBulkAssignGroup();
-      await flush(fixture);
-      expect(component.showAssignGroupModal).toBe(true);
-      expect(component.groups.length).toBe(1);
-
-      component.selectedGroupId = 'g1';
-      component.executeAssignGroup();
-      await microtasks();
-      const req = httpMock.expectOne('/api/screens/bulk-assign-group');
-      expect(req.request.body).toEqual({ ids: ['screen-1'], groupId: 'g1' });
-      req.flush({ updated: 1, notFound: [] });
-      await promise;
-      await flush(fixture);
-
-      expect(lastToast()?.message).toBe('1 screen(s) assigned to Wall A.');
-      expect(lastToast()?.type).toBe('success');
-      httpMock.expectOne('/api/screens').flush([]); // reload
-      await flush(fixture);
-    });
-
-    it('sends groupId null and reports "no group" when removing from group', async () => {
-      configure([makeMembership('org_admin')]);
-      await createAndLoad([makeScreen({ id: 'screen-1' })]);
-      component.selectionService.selectAll(['screen-1']);
-
-      const promise = component.handleBulkAssignGroup();
-      await flush(fixture);
-      component.selectedGroupId = '';
-      component.executeAssignGroup();
-      await microtasks();
-      const req = httpMock.expectOne('/api/screens/bulk-assign-group');
-      expect(req.request.body).toEqual({ ids: ['screen-1'], groupId: null });
-      req.flush({ updated: 1, notFound: [] });
-      await promise;
-      await flush(fixture);
-
-      expect(lastToast()?.message).toBe('1 screen(s) assigned to no group.');
-      expect(lastToast()?.type).toBe('success');
-      httpMock.expectOne('/api/screens').flush([]); // reload
-      await flush(fixture);
-    });
-
-    it('reports a group load error inside the modal', async () => {
-      configure([makeMembership('org_admin')]);
-      groupStub.getAll.mockReturnValue(throwError(() => new Error('boom')));
-      await createAndLoad([makeScreen({ id: 'screen-1' })]);
-      component.selectionService.selectAll(['screen-1']);
-
-      const promise = component.handleBulkAssignGroup();
-      await flush(fixture);
-
-      expect(component.groupsLoadError).toBe('Failed to load groups.');
-      expect(component.groupsLoading).toBe(false);
-
-      component.cancelAssignGroup();
-      await expect(promise).rejects.toThrow('cancelled');
-    });
-
-    it('rejects without a request when assignment is cancelled', async () => {
-      configure([makeMembership('org_admin')]);
-      await createAndLoad([makeScreen({ id: 'screen-1' })]);
-      component.selectionService.selectAll(['screen-1']);
-
-      const promise = component.handleBulkAssignGroup();
-      await flush(fixture);
-      component.cancelAssignGroup();
-
-      await expect(promise).rejects.toThrow('cancelled');
-      httpMock.expectNone('/api/screens/bulk-assign-group');
     });
   });
 

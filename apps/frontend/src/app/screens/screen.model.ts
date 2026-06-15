@@ -13,21 +13,26 @@ export interface Screen {
   updatedAt: string;
 }
 
+/**
+ * Screen as returned by `GET /api/screens` — enriched with the name of the
+ * currently-playing playlist (null when offline or no active playlist).
+ */
+export interface ScreenListItem extends Screen {
+  currentPlaylistName: string | null;
+}
+
 export interface CreateScreenRequest {
   name: string;
   resolution: string;
   location: string;
+  /** 6-digit numeric pairing code shown by the display being paired. */
+  pairingCode: string;
 }
 
 export interface UpdateScreenRequest {
   name?: string;
   resolution?: string;
   location?: string;
-}
-
-export interface ScreenWithApiKey {
-  screen: Screen;
-  apiKey: string;
 }
 
 export interface BulkDeleteResponse {

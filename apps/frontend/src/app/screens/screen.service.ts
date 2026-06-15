@@ -3,9 +3,9 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
   Screen,
+  ScreenListItem,
   CreateScreenRequest,
   UpdateScreenRequest,
-  ScreenWithApiKey,
   BulkDeleteResponse,
   BulkAssignGroupResponse,
 } from './screen.model';
@@ -14,8 +14,8 @@ import {
 export class ScreenService {
   private http = inject(HttpClient);
 
-  getAll(orgId: string): Observable<Screen[]> {
-    return this.http.get<Screen[]>('/api/screens', {
+  getAll(orgId: string): Observable<ScreenListItem[]> {
+    return this.http.get<ScreenListItem[]>('/api/screens', {
       headers: this.orgHeader(orgId),
     });
   }
@@ -26,8 +26,13 @@ export class ScreenService {
     });
   }
 
-  create(orgId: string, dto: CreateScreenRequest): Observable<ScreenWithApiKey> {
-    return this.http.post<ScreenWithApiKey>('/api/screens', dto, {
+  /**
+   * Register a screen by claiming the display's one-time pairing code. The
+   * server returns the screen only — the API key is delivered to the display
+   * itself via the pairing poll, never to the admin.
+   */
+  create(orgId: string, dto: CreateScreenRequest): Observable<Screen> {
+    return this.http.post<Screen>('/api/screens', dto, {
       headers: this.orgHeader(orgId),
     });
   }
@@ -38,14 +43,23 @@ export class ScreenService {
     });
   }
 
-  regenerateApiKey(orgId: string, id: string): Observable<ScreenWithApiKey> {
-    return this.http.post<ScreenWithApiKey>(
-      `/api/screens/${id}/regenerate-key`,
-      {},
+  /**
+   * Re-pair a screen: regenerate its API key and attach the fresh token to the
+   * pending pairing for the given code, so a re-opened display pulls it.
+   */
+  repair(orgId: string, id: string, pairingCode: string): Observable<Screen> {
+    return this.http.post<Screen>(
+      `/api/screens/${id}/repair`,
+      { pairingCode },
       {
         headers: this.orgHeader(orgId),
       },
     );
+  }
+
+  /** Delete a single screen (reuses the bulk endpoint with a one-element list). */
+  deleteOne(orgId: string, id: string): Observable<BulkDeleteResponse> {
+    return this.bulkDelete(orgId, [id]);
   }
 
   bulkDelete(orgId: string, ids: string[]): Observable<BulkDeleteResponse> {

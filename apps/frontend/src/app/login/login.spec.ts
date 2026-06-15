@@ -95,9 +95,7 @@ describe('Login', () => {
     const submitBtn = fixture.debugElement.query(By.css('button[type="submit"]'));
     expect(submitBtn).not.toBeNull();
 
-    fixture.debugElement
-      .query(By.css('form'))
-      .triggerEventHandler('submit', new Event('submit'));
+    fixture.debugElement.query(By.css('form')).triggerEventHandler('submit', new Event('submit'));
     await fixture.whenStable();
 
     expect(auth.login).toHaveBeenCalledWith('user@example.com', 'pw');

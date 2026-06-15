@@ -16,7 +16,7 @@ import { ScheduleService } from '../schedules/schedule.service';
 import { OrganisationStateService } from '../shell/organisation-state.service';
 import { DashboardSseService } from './dashboard-sse.service';
 import { DashboardService } from './dashboard.service';
-import { Screen } from '../screens/screen.model';
+import { Screen, ScreenListItem } from '../screens/screen.model';
 import { StorageInfo } from '../content/content.model';
 import { ScheduleEntry } from '../schedules/schedule.model';
 import { DashboardSummary } from './dashboard-summary.model';
@@ -625,7 +625,7 @@ export class Dashboard implements OnInit, OnDestroy {
 
   private subscriptions: Subscription[] = [];
 
-  readonly screens = signal<Screen[]>([]);
+  readonly screens = signal<ScreenListItem[]>([]);
   readonly summary = signal<DashboardSummary | null>(null);
   readonly scheduleEntries = signal<ScheduleEntry[]>([]);
   readonly activityFeed = signal<ActivityEntry[]>([]);
