@@ -53,26 +53,27 @@ import {
   providers: [SelectionService],
   template: `
     <div class="page">
-      <mns-page-header title="Playlists" icon="List">
+      <mns-page-header title="Playlists" [sub]="playlistCountLabel()" icon="Playlists">
         @if (!loading && !selectedPlaylist && !showCreateForm) {
           <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()"
-            >Create Playlist</mns-btn
+            >New playlist</mns-btn
           >
         }
       </mns-page-header>
 
       @if (loadError) {
-        <p class="error">{{ loadError }}</p>
+        <p class="text-offline text-sm mt-3">{{ loadError }}</p>
       }
 
       @if (loading) {
-        <p class="loading-text">Loading playlists...</p>
+        <p class="text-muted text-sm mt-3">Loading playlists…</p>
       }
 
-      <!-- Create Playlist Form -->
+      <!-- Create Playlist Modal -->
       @if (showCreateForm) {
         <app-playlist-create-form
           [(name)]="createName"
+          [(color)]="createColor"
           [error]="createError"
           [creating]="creating"
           (create)="submitCreate()"
@@ -92,6 +93,7 @@ import {
           [thumbUrl]="getThumbUrl"
           [previewUrl]="getPreviewUrl"
           (rename)="onRename($event)"
+          (colorChange)="onColorChange($event)"
           (toggleDefault)="toggleDefault()"
           (deletePlaylist)="confirmDelete()"
           (dismiss)="closeDetail()"
@@ -113,14 +115,16 @@ import {
           [playlistIds]="playlistIds"
           [defaultPlaylistId]="defaultPlaylistId"
           [bulkActions]="bulkActions"
+          [thumbUrl]="getThumbUrl"
           (selectItem)="selectPlaylist($event)"
+          (deletePlaylist)="requestDeleteFromGrid($event)"
         />
       }
 
       @if (
         !loading && !selectedPlaylist && !showCreateForm && playlists.length === 0 && !loadError
       ) {
-        <mns-empty icon="List" title="No playlists yet" desc="No playlists created yet.">
+        <mns-empty icon="Playlists" title="No playlists yet" desc="No playlists created yet.">
           <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()"
             >Create Your First Playlist</mns-btn
           >
@@ -195,9 +199,9 @@ import {
     }
 
     .warning-text {
-      color: #fbbf24;
-      background: #92400e20;
-      border: 1px solid #92400e60;
+      color: var(--warn);
+      background: var(--warn-dim);
+      border: 1px solid var(--warn);
       border-radius: 0.5rem;
       padding: 0.75rem 1rem;
       font-size: 0.8125rem;
@@ -224,6 +228,7 @@ export class Playlists implements OnInit {
   // Create form
   showCreateForm = false;
   createName = '';
+  createColor = '#6d6cf6';
   createError = '';
   creating = false;
 
@@ -339,9 +344,15 @@ export class Playlists implements OnInit {
     });
   }
 
+  playlistCountLabel(): string {
+    const n = this.playlists.length;
+    return `${n} playlist${n !== 1 ? 's' : ''}`;
+  }
+
   // --- Create ---
   openCreateForm(): void {
     this.createName = '';
+    this.createColor = '#6d6cf6';
     this.createError = '';
     this.showCreateForm = true;
   }
@@ -358,19 +369,21 @@ export class Playlists implements OnInit {
 
     this.creating = true;
     this.createError = '';
-    this.playlistService.create(this.orgId, { name: this.createName.trim() }).subscribe({
-      next: (playlist) => {
-        this.creating = false;
-        this.showCreateForm = false;
-        this.loadPlaylists();
-        this.selectPlaylist(playlist);
-        this.toast.success('Playlist created.');
-      },
-      error: (err) => {
-        this.createError = err.error?.message || 'Failed to create playlist.';
-        this.creating = false;
-      },
-    });
+    this.playlistService
+      .create(this.orgId, { name: this.createName.trim(), color: this.createColor })
+      .subscribe({
+        next: (playlist) => {
+          this.creating = false;
+          this.showCreateForm = false;
+          this.loadPlaylists();
+          this.selectPlaylist(playlist);
+          this.toast.success('Playlist created.');
+        },
+        error: (err) => {
+          this.createError = err.error?.message || 'Failed to create playlist.';
+          this.creating = false;
+        },
+      });
   }
 
   // --- Detail ---
@@ -397,17 +410,42 @@ export class Playlists implements OnInit {
   // --- Rename ---
   onRename(name: string): void {
     if (!this.selectedPlaylist) return;
-    this.playlistService.update(this.orgId, this.selectedPlaylist.id, { name }).subscribe({
+    this.playlistService
+      .update(this.orgId, this.selectedPlaylist.id, { name, color: this.selectedPlaylist.color })
+      .subscribe({
+        next: (updated) => {
+          if (this.selectedPlaylist) {
+            this.selectedPlaylist = { ...this.selectedPlaylist, name: updated.name };
+          }
+          this.toast.success('Playlist renamed.');
+        },
+        error: (err) => {
+          this.editorError = err.error?.message || 'Failed to rename playlist.';
+        },
+      });
+  }
+
+  // --- Accent colour ---
+  onColorChange(color: string): void {
+    if (!this.selectedPlaylist) return;
+    const name = this.selectedPlaylist.name;
+    this.playlistService.update(this.orgId, this.selectedPlaylist.id, { name, color }).subscribe({
       next: (updated) => {
         if (this.selectedPlaylist) {
-          this.selectedPlaylist.name = updated.name;
+          this.selectedPlaylist = { ...this.selectedPlaylist, color: updated.color };
         }
-        this.toast.success('Playlist renamed.');
+        this.toast.success('Accent colour updated.');
       },
       error: (err) => {
-        this.editorError = err.error?.message || 'Failed to rename playlist.';
+        this.editorError = err.error?.message || 'Failed to update colour.';
       },
     });
+  }
+
+  // --- Delete from grid dots-menu ---
+  requestDeleteFromGrid(playlist: Playlist): void {
+    this.selectedPlaylist = playlist;
+    this.showDeleteConfirm = true;
   }
 
   // --- Delete ---

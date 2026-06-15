@@ -1,8 +1,23 @@
-import { Component, inject, input, output } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
-import { Playlist, PlaylistItem, TransitionType, TRANSITION_OPTIONS } from './playlist.model';
+import {
+  Playlist,
+  PlaylistItem,
+  TransitionType,
+  TRANSITION_OPTIONS,
+  PLAYLIST_COLORS,
+} from './playlist.model';
 import { PlaylistFormatService } from './playlist-format.service';
+import { PlaylistLoopPreview } from './playlist-loop-preview';
+import {
+  CardComponent,
+  CardHeadComponent,
+  BadgeComponent,
+  BtnComponent,
+  IconComponent,
+  SelectComponent,
+  SelectOption,
+} from '../ui';
 
 /** A per-item field change emitted by the editor for the parent to persist. */
 export interface ItemFieldChange<T> {
@@ -11,484 +26,313 @@ export interface ItemFieldChange<T> {
 }
 
 /**
- * Presentational playlist editor: header (inline rename, set-default, delete,
- * close), the drag-and-drop item list with per-item duration/transition
- * controls, total duration, and an inline media preview. Owns only the inline
- * rename UI state; every data mutation is emitted for the parent to persist
- * (which keeps the debounced PATCH and reorder orchestration in one place).
+ * Presentational playlist editor: back button, a header card (gradient accent
+ * tile, inline rename, badges, accent-colour picker, set-default, delete), a
+ * live loop preview, the CDK drag-and-drop sequence with per-item
+ * duration/transition controls, and an inline media preview. Owns only local
+ * rename state; every data mutation is emitted for the parent to persist.
  */
 @Component({
   selector: 'app-playlist-editor',
   standalone: true,
-  imports: [FormsModule, DragDropModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    DragDropModule,
+    PlaylistLoopPreview,
+    CardComponent,
+    CardHeadComponent,
+    BadgeComponent,
+    BtnComponent,
+    IconComponent,
+    SelectComponent,
+  ],
   template: `
-    <div class="editor-card">
-      <div class="editor-header">
-        <div class="editor-title-row">
-          @if (editingName) {
-            <input
-              class="name-input"
-              type="text"
-              [(ngModel)]="editNameValue"
-              (keydown.enter)="saveName()"
-              (keydown.escape)="cancelEditName()"
-            />
-            <button class="btn btn-primary btn-sm" (click)="saveName()">Save</button>
-            <button class="btn btn-secondary btn-sm" (click)="cancelEditName()">Cancel</button>
-          } @else {
-            <h2>{{ playlist().name }}</h2>
-            <button class="btn btn-secondary btn-sm" (click)="startEditName()">Rename</button>
-          }
+    <!-- back -->
+    <button
+      type="button"
+      class="inline-flex items-center gap-[7px] mb-4 pl-[9px] pr-[13px] py-[7px] rounded-[10px] border border-border bg-surface text-muted text-[13.5px] font-semibold cursor-pointer hover:text-text"
+      (click)="dismiss.emit()"
+    >
+      <mns-icon name="ChevronLeft" [size]="17" /> All playlists
+    </button>
+
+    <!-- header -->
+    <mns-card>
+      <div class="flex items-center gap-4">
+        <span
+          class="grid place-items-center w-[52px] h-[52px] rounded-[14px] text-white flex-shrink-0"
+          [style.background]="tileGradient()"
+        >
+          <mns-icon name="Playlists" [size]="25" />
+        </span>
+        <div class="flex-1 min-w-0">
+          <input
+            class="w-full text-[20px] font-extrabold tracking-[-0.01em] text-text bg-transparent border border-transparent rounded-lg px-1.5 py-0.5 -mx-1.5 -my-0.5 outline-none focus:bg-surface-2 focus:border-border-strong"
+            type="text"
+            [value]="playlist().name"
+            #nameInput
+            (blur)="commitName(nameInput.value)"
+            (keydown.enter)="nameInput.blur()"
+            (keydown.escape)="resetName(nameInput)"
+          />
+          <div class="flex items-center gap-[9px] mt-[7px] flex-wrap">
+            <mns-badge tone="accent" icon="Playlists">{{ itemCountLabel() }}</mns-badge>
+            <mns-badge tone="neutral" icon="Clock">{{ durationLabel() }}</mns-badge>
+            @if (isDefault()) {
+              <mns-badge tone="info" icon="Check">Default</mns-badge>
+            }
+          </div>
         </div>
-        <div class="editor-actions">
-          @if (isOrgAdmin()) {
-            <button
-              class="btn btn-sm"
-              [class.btn-primary]="!isDefault()"
-              [class.btn-secondary]="isDefault()"
-              (click)="toggleDefault.emit()"
-              [disabled]="settingDefault()"
-            >
-              {{ isDefault() ? 'Default Playlist' : 'Set as Default' }}
-            </button>
-          }
-          <button class="btn btn-danger btn-sm" (click)="deletePlaylist.emit()">Delete</button>
-          <button class="btn btn-secondary btn-sm" (click)="dismiss.emit()">Close</button>
-        </div>
+        @if (isOrgAdmin()) {
+          <mns-btn
+            [variant]="isDefault() ? 'outline' : 'soft'"
+            size="sm"
+            [disabled]="settingDefault()"
+            (mnsClick)="toggleDefault.emit()"
+          >
+            {{ isDefault() ? 'Default playlist' : 'Set as default' }}
+          </mns-btn>
+        }
+        <mns-btn variant="danger" size="sm" icon="Trash" (mnsClick)="deletePlaylist.emit()"
+          >Delete</mns-btn
+        >
       </div>
 
-      @if (editorError()) {
-        <p class="error">{{ editorError() }}</p>
-      }
-
-      <!-- Playlist Items -->
-      <div class="items-section">
-        <div class="items-header">
-          <h3>Items</h3>
-          <button class="btn btn-primary btn-sm" (click)="addContent.emit()">+ Add Content</button>
+      <!-- accent colour -->
+      <div class="mt-4 pt-4 border-t border-border">
+        <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Accent colour</div>
+        <div class="flex gap-[9px]">
+          @for (c of colors; track c) {
+            <button
+              type="button"
+              class="w-[26px] h-[26px] rounded-[8px] cursor-pointer"
+              [style.background]="c"
+              [style.border]="playlist().color === c ? '2px solid #fff' : '2px solid transparent'"
+              [style.box-shadow]="playlist().color === c ? '0 0 0 2px ' + c : 'none'"
+              [attr.aria-label]="'Set accent colour ' + c"
+              (click)="colorChange.emit(c)"
+            ></button>
+          }
         </div>
+      </div>
+    </mns-card>
+
+    @if (editorError()) {
+      <p class="text-offline text-sm mt-3">{{ editorError() }}</p>
+    }
+
+    <!-- live loop preview -->
+    <div class="mt-[var(--gap)]">
+      <app-playlist-loop-preview [items]="playlist().items" [thumbUrl]="thumbUrl()" />
+    </div>
+
+    <!-- sequence -->
+    <div class="mt-[var(--gap)]">
+      <mns-card>
+        <mns-card-head
+          title="Sequence"
+          sub="Drag to reorder · set duration & transition per item"
+          icon="List"
+        >
+          <mns-btn slot="right" variant="soft" size="md" icon="Plus" (mnsClick)="addContent.emit()"
+            >Add content</mns-btn
+          >
+        </mns-card-head>
 
         @if (playlist().items.length === 0) {
-          <div class="empty-items">
-            <p class="empty-text">No items in this playlist yet.</p>
-            <button class="btn btn-primary" (click)="addContent.emit()">Add Your First Item</button>
+          <div
+            class="grid place-items-center py-9 px-5 rounded-[12px] border-[1.5px] border-dashed border-border-strong bg-surface-2 text-faint gap-2"
+          >
+            <mns-icon name="Plus" [size]="22" />
+            <span class="text-[13px] font-semibold"
+              >No items yet — add content to build the loop</span
+            >
           </div>
         } @else {
-          <div cdkDropList class="item-list" (cdkDropListDropped)="reorder.emit($event)">
-            @for (item of playlist().items; track item.id) {
-              <div class="item-row" cdkDrag>
-                <div class="drag-handle" cdkDragHandle>
-                  <span class="drag-icon">&#9776;</span>
-                </div>
-                <div
-                  class="item-thumbnail"
+          <div cdkDropList class="flex flex-col gap-2" (cdkDropListDropped)="reorder.emit($event)">
+            @for (item of playlist().items; track item.id; let i = $index) {
+              <div
+                class="item-row flex items-center gap-3 px-3 py-2.5 rounded-[12px] bg-surface-2 border border-border"
+                cdkDrag
+              >
+                <span
+                  class="grid place-items-center w-[22px] h-[30px] text-faint cursor-grab flex-shrink-0"
+                  cdkDragHandle
+                  title="Drag to reorder"
+                >
+                  <svg width="13" height="18" viewBox="0 0 13 18" fill="currentColor">
+                    <circle cx="3.5" cy="3" r="1.4" />
+                    <circle cx="9.5" cy="3" r="1.4" />
+                    <circle cx="3.5" cy="9" r="1.4" />
+                    <circle cx="9.5" cy="9" r="1.4" />
+                    <circle cx="3.5" cy="15" r="1.4" />
+                    <circle cx="9.5" cy="15" r="1.4" />
+                  </svg>
+                </span>
+                <span
+                  class="font-mono w-5 text-center text-[12px] font-bold text-faint flex-shrink-0"
+                  >{{ i + 1 }}</span
+                >
+                <button
+                  type="button"
+                  class="relative w-14 h-[34px] rounded-[6px] flex-shrink-0 overflow-hidden bg-surface-3 cursor-pointer"
                   (click)="previewItem.emit(item)"
-                  tabindex="0"
-                  role="button"
-                  (keydown.enter)="previewItem.emit(item)"
-                  (keydown.space)="previewItem.emit(item)"
+                  aria-label="Preview item"
                 >
                   @if (item.content?.type === 'image') {
-                    <img [src]="thumbUrl()(item)" alt="" class="thumb-img" />
+                    <img [src]="thumbUrl()(item)" alt="" class="w-full h-full object-cover" />
                   } @else {
-                    <div class="thumb-video">
-                      <span class="video-icon">&#9654;</span>
-                    </div>
+                    <span class="absolute inset-0 grid place-items-center text-white">
+                      <mns-icon name="Play" [size]="11" />
+                    </span>
                   }
+                </button>
+                <div class="flex-1 min-w-0">
+                  <div class="text-[13.5px] font-semibold truncate">
+                    {{ item.content?.title || 'Untitled' }}
+                  </div>
+                  <div class="flex items-center gap-[7px] mt-0.5">
+                    <span class="inline-flex items-center gap-1 text-[11.5px] text-muted">
+                      <mns-icon
+                        [name]="item.content?.type === 'video' ? 'Video' : 'Image'"
+                        [size]="12"
+                      />
+                      {{ item.content?.type || 'unknown' }}
+                    </span>
+                  </div>
                 </div>
-                <div class="item-info">
-                  <span class="item-title">{{ item.content?.title || 'Untitled' }}</span>
+
+                <!-- duration -->
+                @if (item.content?.type === 'video') {
                   <span
-                    class="item-type"
-                    [class.type-image]="item.content?.type === 'image'"
-                    [class.type-video]="item.content?.type === 'video'"
+                    class="inline-flex items-center gap-1.5 px-[11px] py-1.5 rounded-[9px] bg-surface border border-border text-muted text-[12.5px] font-semibold"
+                    title="Plays the full video length"
                   >
-                    {{ item.content?.type || 'unknown' }}
+                    <mns-icon name="Clock" [size]="13" />
+                    <span class="font-mono">{{ durationDisplay(item) }}</span>
                   </span>
-                </div>
-                <div class="item-duration">
-                  <label class="duration-label" [attr.for]="'dur_' + item.id">
-                    {{ item.content?.type === 'video' ? 'Video length' : 'Duration' }}
-                  </label>
-                  <div class="duration-input-group">
-                    @if (item.content?.type === 'video' && item.content?.durationSeconds === null) {
-                      <span class="duration-approx">~</span>
-                    }
-                    <input
-                      type="number"
-                      class="duration-input"
-                      [id]="'dur_' + item.id"
-                      [ngModel]="
-                        item.content?.type === 'video'
-                          ? (item.content?.durationSeconds ?? item.durationSeconds)
-                          : item.durationSeconds
-                      "
-                      (ngModelChange)="durationChange.emit({ item, value: $event })"
-                      min="1"
-                      [name]="'dur_' + item.id"
-                      [disabled]="item.content?.type === 'video'"
-                    />
-                    <span class="duration-unit">s</span>
-                  </div>
-                </div>
-                <div class="item-transition">
-                  <label class="duration-label" [attr.for]="'trans_' + item.id">Transition</label>
-                  <select
-                    class="transition-select"
-                    [id]="'trans_' + item.id"
-                    [ngModel]="item.transition"
-                    (ngModelChange)="transitionChange.emit({ item, value: $event })"
-                    [name]="'trans_' + item.id"
+                } @else {
+                  <div
+                    class="flex items-center border border-border-strong rounded-[9px] overflow-hidden bg-surface"
                   >
-                    @for (opt of transitionOptions; track opt.value) {
-                      <option [value]="opt.value">{{ opt.label }}</option>
-                    }
-                  </select>
-                </div>
-                <div class="item-transition-duration">
-                  <label class="duration-label" [attr.for]="'tdur_' + item.id">Trans. ms</label>
-                  <div class="duration-input-group">
-                    <input
-                      type="number"
-                      class="duration-input"
-                      [id]="'tdur_' + item.id"
-                      [ngModel]="item.transitionDurationMs"
-                      (ngModelChange)="transitionDurationChange.emit({ item, value: $event })"
-                      min="0"
-                      max="3000"
-                      [name]="'tdur_' + item.id"
-                    />
-                    <span class="duration-unit">ms</span>
+                    <button
+                      type="button"
+                      class="grid place-items-center w-[26px] h-[26px] text-muted text-[16px] font-bold leading-none cursor-pointer"
+                      aria-label="Decrease duration"
+                      (click)="stepDuration(item, -1)"
+                    >
+                      −
+                    </button>
+                    <span class="font-mono min-w-[42px] text-center font-bold text-[12.5px]"
+                      >{{ item.durationSeconds }}s</span
+                    >
+                    <button
+                      type="button"
+                      class="grid place-items-center w-[26px] h-[26px] text-muted text-[16px] font-bold leading-none cursor-pointer"
+                      aria-label="Increase duration"
+                      (click)="stepDuration(item, 1)"
+                    >
+                      +
+                    </button>
                   </div>
+                }
+
+                <!-- transition -->
+                <div class="w-[140px] flex-shrink-0">
+                  <mns-select
+                    [options]="transitionOptions"
+                    [value]="item.transition"
+                    (changed)="transitionChange.emit({ item, value: asTransition($event) })"
+                  />
                 </div>
-                <button class="btn-remove" (click)="removeItem.emit(item)" title="Remove item">
-                  &#10005;
+
+                <!-- transition duration (ms) -->
+                <div
+                  class="flex items-center border border-border-strong rounded-[9px] overflow-hidden bg-surface flex-shrink-0"
+                  title="Transition duration (ms)"
+                >
+                  <button
+                    type="button"
+                    class="grid place-items-center w-[26px] h-[26px] text-muted text-[16px] font-bold leading-none cursor-pointer"
+                    aria-label="Decrease transition ms"
+                    (click)="stepTransitionMs(item, -100)"
+                  >
+                    −
+                  </button>
+                  <span class="font-mono min-w-[52px] text-center font-bold text-[12.5px]"
+                    >{{ item.transitionDurationMs }}ms</span
+                  >
+                  <button
+                    type="button"
+                    class="grid place-items-center w-[26px] h-[26px] text-muted text-[16px] font-bold leading-none cursor-pointer"
+                    aria-label="Increase transition ms"
+                    (click)="stepTransitionMs(item, 100)"
+                  >
+                    +
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  class="grid place-items-center w-[30px] h-[30px] rounded-[8px] flex-shrink-0 border border-border bg-transparent text-faint cursor-pointer hover:text-offline hover:border-offline"
+                  title="Remove from playlist"
+                  (click)="removeItem.emit(item)"
+                >
+                  <mns-icon name="Trash" [size]="14" />
                 </button>
               </div>
             }
           </div>
-
-          <div class="total-duration">
-            Total Duration:
-            <strong>{{
-              format.formatDuration(format.totalDurationSeconds(playlist().items))
-            }}</strong>
-          </div>
         }
-      </div>
+      </mns-card>
+    </div>
 
-      <!-- Inline Preview -->
-      @if (previewingItem()) {
-        <div class="preview-section">
-          <div class="preview-header">
-            <h3>Preview: {{ previewingItem()!.content?.title || 'Untitled' }}</h3>
-            <button class="btn btn-secondary btn-sm" (click)="closePreview.emit()">
-              Close Preview
-            </button>
-          </div>
-          <div class="preview-content">
+    <!-- inline preview -->
+    @if (previewingItem()) {
+      <div class="mt-[var(--gap)]">
+        <mns-card>
+          <mns-card-head
+            [title]="'Preview: ' + (previewingItem()!.content?.title || 'Untitled')"
+            icon="Eye"
+          >
+            <mns-btn slot="right" variant="outline" size="sm" (mnsClick)="closePreview.emit()"
+              >Close</mns-btn
+            >
+          </mns-card-head>
+          <div class="text-center">
             @if (previewingItem()!.content?.type === 'image') {
-              <img [src]="previewUrl()(previewingItem()!)" alt="Preview" class="preview-media" />
+              <img
+                [src]="previewUrl()(previewingItem()!)"
+                alt="Preview"
+                class="max-w-full max-h-96 rounded-[8px] border border-border inline-block"
+              />
             } @else {
-              <video [src]="previewUrl()(previewingItem()!)" controls class="preview-media"></video>
+              <video
+                [src]="previewUrl()(previewingItem()!)"
+                controls
+                class="max-w-full max-h-96 rounded-[8px] border border-border inline-block"
+              ></video>
             }
           </div>
-        </div>
-      }
-    </div>
+        </mns-card>
+      </div>
+    }
   `,
   styles: `
-    .btn-sm {
-      padding: 0.325rem 0.75rem;
-      font-size: 0.8125rem;
+    :host {
+      display: block;
     }
-
-    .editor-card {
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: 0.75rem;
-      padding: 1.5rem;
-      box-shadow: var(--shadow);
-    }
-    .editor-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-    }
-    .editor-title-row {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    .editor-title-row h2 {
-      margin: 0;
-      font-size: 1.25rem;
-      font-weight: 600;
-    }
-    .name-input {
-      padding: 0.375rem 0.75rem;
-      background: var(--surface);
-      border: 1px solid var(--accent);
-      border-radius: 0.375rem;
-      color: var(--text);
-      font-size: 1.125rem;
-      font-weight: 600;
-    }
-    .name-input:focus {
-      outline: none;
-    }
-    .editor-actions {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-    }
-
-    .items-section {
-      border-top: 1px solid var(--color-border);
-      padding-top: 1.25rem;
-    }
-    .items-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
-    .items-header h3 {
-      margin: 0;
-      font-size: 1rem;
-      font-weight: 600;
-    }
-    .empty-items {
-      text-align: center;
-      padding: 2rem;
-    }
-
-    .item-list {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    .item-row {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.625rem 0.75rem;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 0.375rem;
-      transition: border-color 0.15s;
-    }
-    .item-row:hover {
-      border-color: var(--border-strong);
-    }
-    .drag-handle {
-      cursor: grab;
-      color: var(--text-muted);
-      font-size: 1rem;
-      padding: 0.25rem;
-      user-select: none;
-      display: flex;
-      align-items: center;
-    }
-    .drag-handle:active {
-      cursor: grabbing;
-    }
-    .drag-icon {
-      font-size: 0.875rem;
-    }
-    .item-thumbnail {
-      width: 3.5rem;
-      height: 2.5rem;
-      border-radius: 0.25rem;
-      overflow: hidden;
-      flex-shrink: 0;
-      cursor: pointer;
-      background: var(--surface-3);
-    }
-    .thumb-img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    .thumb-video {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--surface-3);
-      color: var(--text-muted);
-      font-size: 1rem;
-    }
-    .item-info {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.125rem;
-    }
-    .item-title {
-      font-size: 0.875rem;
-      font-weight: 500;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .item-type {
-      font-size: 0.6875rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .type-image {
-      color: #22c55e;
-    }
-    .type-video {
-      color: #a78bfa;
-    }
-    .item-duration {
-      display: flex;
-      flex-direction: column;
-      gap: 0.125rem;
-      flex-shrink: 0;
-    }
-    .duration-label {
-      font-size: 0.625rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-    }
-    .duration-input-group {
-      display: flex;
-      align-items: center;
-      gap: 0.25rem;
-    }
-    .duration-input {
-      width: 4rem;
-      padding: 0.25rem 0.5rem;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: 0.25rem;
-      color: var(--text);
-      font-size: 0.8125rem;
-      text-align: right;
-    }
-    .duration-input:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-    .duration-input:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    .duration-approx {
-      font-size: 0.8125rem;
-      color: var(--text-muted);
-      margin-right: -0.125rem;
-    }
-    .duration-unit {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-    }
-    .item-transition,
-    .item-transition-duration {
-      display: flex;
-      flex-direction: column;
-      gap: 0.125rem;
-      flex-shrink: 0;
-    }
-    .transition-select {
-      padding: 0.25rem 0.5rem;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: 0.25rem;
-      color: var(--text);
-      font-size: 0.8125rem;
-    }
-    .transition-select:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-    .btn-remove {
-      background: none;
-      border: none;
-      color: var(--color-text-muted);
-      cursor: pointer;
-      font-size: 0.875rem;
-      padding: 0.25rem 0.5rem;
-      border-radius: 0.25rem;
-      transition:
-        color 0.15s,
-        background-color 0.15s;
-    }
-    .btn-remove:hover {
-      color: #ef4444;
-      background: #ef444420;
-    }
-
-    /* CDK Drag & Drop */
-    .cdk-drag-preview {
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-accent);
-      border-radius: 0.375rem;
-      padding: 0.625rem 0.75rem;
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    .item-row.cdk-drag-preview {
+      box-shadow: var(--shadow-lg);
     }
     .cdk-drag-placeholder {
-      opacity: 0.3;
+      opacity: 0.4;
     }
     .cdk-drag-animating {
       transition: transform 200ms ease;
     }
-    .item-list.cdk-drop-list-dragging .item-row:not(.cdk-drag-placeholder) {
+    .cdk-drop-list-dragging .item-row:not(.cdk-drag-placeholder) {
       transition: transform 200ms ease;
-    }
-
-    .total-duration {
-      margin-top: 1rem;
-      padding: 0.75rem 1rem;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 0.375rem;
-      font-size: 0.875rem;
-      color: var(--text-muted);
-      text-align: right;
-    }
-    .total-duration strong {
-      color: var(--text);
-    }
-
-    .preview-section {
-      margin-top: 1.5rem;
-      border-top: 1px solid var(--color-border);
-      padding-top: 1.25rem;
-    }
-    .preview-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
-    .preview-header h3 {
-      margin: 0;
-      font-size: 1rem;
-      font-weight: 600;
-    }
-    .preview-content {
-      text-align: center;
-    }
-    .preview-media {
-      max-width: 100%;
-      max-height: 24rem;
-      border-radius: 0.375rem;
-      border: 1px solid var(--border);
     }
   `,
 })
@@ -503,6 +347,7 @@ export class PlaylistEditor {
   readonly previewUrl = input.required<(item: PlaylistItem) => string>();
 
   readonly rename = output<string>();
+  readonly colorChange = output<string>();
   readonly toggleDefault = output<void>();
   readonly deletePlaylist = output<void>();
   readonly dismiss = output<void>();
@@ -516,24 +361,54 @@ export class PlaylistEditor {
   readonly closePreview = output<void>();
 
   protected readonly format = inject(PlaylistFormatService);
-  protected readonly transitionOptions = TRANSITION_OPTIONS;
+  protected readonly transitionOptions: SelectOption[] = TRANSITION_OPTIONS.map((o) => ({
+    value: o.value,
+    label: o.label,
+  }));
+  protected readonly colors = PLAYLIST_COLORS;
 
-  protected editingName = false;
-  protected editNameValue = '';
+  protected readonly tileGradient = computed(() => {
+    const color = this.playlist().color;
+    return `linear-gradient(135deg, ${color}, color-mix(in srgb, ${color} 55%, #fff))`;
+  });
 
-  startEditName(): void {
-    this.editNameValue = this.playlist().name;
-    this.editingName = true;
+  protected readonly itemCountLabel = computed(() => {
+    const n = this.playlist().items.length;
+    return `${n} item${n !== 1 ? 's' : ''}`;
+  });
+
+  protected readonly durationLabel = computed(() =>
+    this.format.formatDuration(this.format.totalDurationSeconds(this.playlist().items)),
+  );
+
+  protected commitName(value: string): void {
+    const name = value.trim();
+    if (name && name !== this.playlist().name) {
+      this.rename.emit(name);
+    }
   }
 
-  cancelEditName(): void {
-    this.editingName = false;
+  protected resetName(input: HTMLInputElement): void {
+    input.value = this.playlist().name;
+    input.blur();
   }
 
-  saveName(): void {
-    const name = this.editNameValue.trim();
-    if (!name) return;
-    this.rename.emit(name);
-    this.editingName = false;
+  protected asTransition(value: string): TransitionType {
+    return value as TransitionType;
+  }
+
+  protected durationDisplay(item: PlaylistItem): string {
+    const secs = item.content?.durationSeconds ?? item.durationSeconds;
+    return this.format.formatDuration(secs);
+  }
+
+  protected stepDuration(item: PlaylistItem, delta: number): void {
+    const next = Math.max(1, item.durationSeconds + delta);
+    this.durationChange.emit({ item, value: next });
+  }
+
+  protected stepTransitionMs(item: PlaylistItem, delta: number): void {
+    const next = Math.min(3000, Math.max(0, item.transitionDurationMs + delta));
+    this.transitionDurationChange.emit({ item, value: next });
   }
 }

@@ -233,6 +233,7 @@ export const playlists = pgTable('playlists', {
     .notNull()
     .references(() => organisations.id, { onDelete: 'cascade' }),
   name: text().notNull(),
+  color: text().notNull().default('#6d6cf6'),
   ...timestamps,
 });
 

@@ -95,6 +95,26 @@ describe('PlaylistService', () => {
         expect.objectContaining({ playlistId: result.id, organisationId: org.id }),
       );
     });
+
+    it('should default color to #6d6cf6 when not provided', async () => {
+      const org = await seedOrg();
+
+      const result = await service.create(org.id, { name: 'Default Color' });
+
+      expect(result.color).toBe('#6d6cf6');
+      const [row] = await db.select().from(playlists).where(eq(playlists.id, result.id));
+      expect(row.color).toBe('#6d6cf6');
+    });
+
+    it('should persist a provided color', async () => {
+      const org = await seedOrg();
+
+      const result = await service.create(org.id, { name: 'Pink', color: '#ec4899' });
+
+      expect(result.color).toBe('#ec4899');
+      const [row] = await db.select().from(playlists).where(eq(playlists.id, result.id));
+      expect(row.color).toBe('#ec4899');
+    });
   });
 
   describe('findAll', () => {
@@ -146,6 +166,20 @@ describe('PlaylistService', () => {
         PLAYLIST_UPDATED,
         expect.objectContaining({ playlistId: playlist.id }),
       );
+    });
+
+    it('should update playlist color when provided', async () => {
+      const org = await seedOrg();
+      const playlist = await seedPlaylist(org.id, 'Old Name');
+
+      const result = await service.update(playlist.id, org.id, {
+        name: 'Old Name',
+        color: '#14b8a6',
+      });
+
+      expect(result.color).toBe('#14b8a6');
+      const [row] = await db.select().from(playlists).where(eq(playlists.id, playlist.id));
+      expect(row.color).toBe('#14b8a6');
     });
   });
 

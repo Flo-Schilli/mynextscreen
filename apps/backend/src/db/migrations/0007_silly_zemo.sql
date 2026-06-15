@@ -1,0 +1,1 @@
+ALTER TABLE "playlists" ADD COLUMN "color" text DEFAULT '#6d6cf6' NOT NULL;

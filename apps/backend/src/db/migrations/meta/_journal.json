@@ -50,6 +50,13 @@
       "when": 1781553869438,
       "tag": "0006_light_talon",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781563244425,
+      "tag": "0007_silly_zemo",
+      "breakpoints": true
     }
   ]
 }

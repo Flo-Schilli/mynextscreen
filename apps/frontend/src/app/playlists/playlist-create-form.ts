@@ -1,63 +1,73 @@
-import { Component, input, model, output } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, input, model, output } from '@angular/core';
+import { PLAYLIST_COLORS } from './playlist.model';
+import {
+  OverlayComponent,
+  ModalComponent,
+  BtnComponent,
+  SInputComponent,
+  SFieldComponent,
+} from '../ui';
 
 /**
- * Presentational create-playlist form. Owns the name field via {@link model};
- * the parent performs the create request and feeds back `creating`/`error`.
+ * Presentational create-playlist modal. Owns the name field and accent colour
+ * via {@link model}; the parent performs the create request and feeds back
+ * `creating`/`error`.
  */
 @Component({
   selector: 'app-playlist-create-form',
   standalone: true,
-  imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayComponent, ModalComponent, BtnComponent, SInputComponent, SFieldComponent],
   template: `
-    <div class="form-card">
-      <h2>Create Playlist</h2>
-      <form (ngSubmit)="create.emit()">
-        <div class="form-group">
-          <label for="createName">Name</label>
-          <input
-            id="createName"
-            type="text"
-            [(ngModel)]="name"
-            name="createName"
-            required
-            placeholder="e.g. Main Stage Loop"
-          />
+    <mns-overlay (closed)="dismiss.emit()">
+      <mns-modal title="New playlist" icon="Playlists" (closed)="dismiss.emit()">
+        <div class="px-6 pt-4 pb-2 flex flex-col gap-5">
+          <mns-sfield label="Playlist name">
+            <mns-sinput [(value)]="name" placeholder="e.g. Lobby Welcome Loop" />
+          </mns-sfield>
+          <div>
+            <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Accent colour</div>
+            <div class="flex gap-[9px]">
+              @for (c of colors; track c) {
+                <button
+                  type="button"
+                  class="w-7 h-7 rounded-[8px] cursor-pointer"
+                  [style.background]="c"
+                  [style.border]="color() === c ? '2px solid #fff' : '2px solid transparent'"
+                  [style.box-shadow]="color() === c ? '0 0 0 2px ' + c : 'none'"
+                  [attr.aria-label]="'Set accent colour ' + c"
+                  (click)="color.set(c)"
+                ></button>
+              }
+            </div>
+          </div>
+          @if (error()) {
+            <p class="text-offline text-sm">{{ error() }}</p>
+          }
         </div>
-        @if (error()) {
-          <p class="error">{{ error() }}</p>
-        }
-        <div class="form-actions">
-          <button type="button" class="btn btn-secondary" (click)="dismiss.emit()">Cancel</button>
-          <button type="submit" class="btn btn-primary" [disabled]="creating()">
-            {{ creating() ? 'Creating...' : 'Create Playlist' }}
-          </button>
+        <div slot="footer" class="flex gap-2.5 px-6 pb-5">
+          <mns-btn variant="outline" [full]="true" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn
+            variant="primary"
+            [full]="true"
+            icon="Plus"
+            [disabled]="creating()"
+            (mnsClick)="create.emit()"
+          >
+            {{ creating() ? 'Creating…' : 'Create playlist' }}
+          </mns-btn>
         </div>
-      </form>
-    </div>
-  `,
-  styles: `
-    .form-card {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.5rem;
-      max-width: 40rem;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
-    }
-    .form-card h2 {
-      margin: 0 0 1.25rem;
-      font-size: 1.125rem;
-      font-weight: 600;
-    }
+      </mns-modal>
+    </mns-overlay>
   `,
 })
 export class PlaylistCreateForm {
   readonly name = model.required<string>();
+  readonly color = model.required<string>();
   readonly error = input.required<string>();
   readonly creating = input.required<boolean>();
   readonly create = output<void>();
   readonly dismiss = output<void>();
+
+  protected readonly colors = PLAYLIST_COLORS;
 }

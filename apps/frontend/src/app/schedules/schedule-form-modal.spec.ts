@@ -32,7 +32,15 @@ function makeGroup(overrides: Partial<ScreenGroup> = {}): ScreenGroup {
 }
 
 const PLAYLISTS: Playlist[] = [
-  { id: 'p1', organisationId: 'org1', name: 'Loop A', items: [], createdAt: '', updatedAt: '' },
+  {
+    id: 'p1',
+    organisationId: 'org1',
+    name: 'Loop A',
+    color: '#6d6cf6',
+    items: [],
+    createdAt: '',
+    updatedAt: '',
+  },
 ];
 
 interface SetUpOptions {

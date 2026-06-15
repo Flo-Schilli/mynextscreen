@@ -45,7 +45,11 @@ export class PlaylistService {
   async create(organisationId: string, dto: CreatePlaylistDto): Promise<Playlist> {
     const [saved] = await this.db
       .insert(playlists)
-      .values({ organisationId, name: dto.name })
+      .values({
+        organisationId,
+        name: dto.name,
+        ...(dto.color !== undefined && { color: dto.color }),
+      })
       .returning();
     this.emitPlaylistChanged(saved.id, organisationId);
     this.eventEmitter.emit(
@@ -87,7 +91,7 @@ export class PlaylistService {
     await this.findOne(id, organisationId);
     const [saved] = await this.db
       .update(playlists)
-      .set({ name: dto.name })
+      .set({ name: dto.name, ...(dto.color !== undefined && { color: dto.color }) })
       .where(and(eq(playlists.id, id), eq(playlists.organisationId, organisationId)))
       .returning();
     this.emitPlaylistChanged(id, organisationId);

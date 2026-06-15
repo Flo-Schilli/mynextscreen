@@ -21,6 +21,7 @@ function makePlaylist(id: string, name: string): Playlist {
     id,
     organisationId: 'org1',
     name,
+    color: '#6d6cf6',
     items: [],
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',

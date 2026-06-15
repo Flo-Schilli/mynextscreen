@@ -482,6 +482,7 @@ describe('ContentLibrary', () => {
       id: 'p1',
       organisationId: ORG_ID,
       name: 'Lobby',
+      color: '#6d6cf6',
       items: [],
       createdAt: 't',
       updatedAt: 't',

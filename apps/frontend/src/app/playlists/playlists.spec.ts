@@ -34,6 +34,7 @@ function buildPlaylist(overrides: Partial<Playlist> = {}): Playlist {
     id: 'p1',
     organisationId: ORG_ID,
     name: 'Lobby Loop',
+    color: '#6d6cf6',
     items: [],
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
@@ -279,7 +280,7 @@ describe('Playlists', () => {
       component.submitCreate();
 
       const post = httpMock.expectOne((r) => r.method === 'POST' && r.url === '/api/playlists');
-      expect(post.request.body).toEqual({ name: 'New' });
+      expect(post.request.body).toEqual({ name: 'New', color: '#6d6cf6' });
       const created = buildPlaylist({ id: 'pNew', name: 'New' });
       post.flush(created);
 
@@ -351,7 +352,7 @@ describe('Playlists', () => {
 
       const req = httpMock.expectOne('/api/playlists/p1');
       expect(req.request.method).toBe('PATCH');
-      expect(req.request.body).toEqual({ name: 'New' });
+      expect(req.request.body).toEqual({ name: 'New', color: '#6d6cf6' });
       req.flush(buildPlaylist({ id: 'p1', name: 'New' }));
 
       expect(component.selectedPlaylist?.name).toBe('New');

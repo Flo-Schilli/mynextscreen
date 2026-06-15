@@ -87,6 +87,7 @@ function makePlaylist(overrides: Partial<Playlist> = {}): Playlist {
     id: 'p1',
     organisationId: ORG_ID,
     name: 'Loop A',
+    color: '#6d6cf6',
     items: [],
     createdAt: '',
     updatedAt: '',
