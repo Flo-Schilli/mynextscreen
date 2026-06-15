@@ -51,10 +51,10 @@ export interface BulkAction {
       align-items: center;
       gap: 0.75rem;
       padding: 0.75rem 1rem;
-      background: var(--color-bg-secondary);
-      border-top: 1px solid var(--color-border);
+      background: var(--surface-2);
+      border-top: 1px solid var(--border);
       border-radius: 0.5rem 0.5rem 0 0;
-      box-shadow: 0 -2px 8px var(--color-shadow);
+      box-shadow: 0 -2px 8px var(--border);
       z-index: 10;
       animation: slideUp 0.2s ease-out;
     }
@@ -73,14 +73,14 @@ export interface BulkAction {
     .selection-count {
       font-size: 0.875rem;
       font-weight: 500;
-      color: var(--color-text-primary);
+      color: var(--text);
       white-space: nowrap;
     }
 
     .clear-btn {
       background: none;
       border: none;
-      color: var(--color-accent);
+      color: var(--accent);
       cursor: pointer;
       font-size: 0.8125rem;
       padding: 0.25rem 0.5rem;
@@ -118,12 +118,12 @@ export interface BulkAction {
     }
 
     .btn-default {
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-primary);
+      background: var(--surface-3);
+      color: var(--text);
     }
 
     .btn-default:hover:not(:disabled) {
-      background: var(--color-border);
+      background: var(--border);
     }
 
     .spinner {

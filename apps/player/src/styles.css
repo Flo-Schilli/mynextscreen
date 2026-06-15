@@ -21,6 +21,32 @@
   --color-info: #3b9dff;
 }
 
+/* Accent palettes — activated by data-accent on <html> */
+[data-accent='indigo'] {
+  --accent: #6d6cf6;
+  --accent-2: #a855f7;
+  --accent-soft: rgb(109 108 246 / 0.14);
+  --accent-ring: rgb(109 108 246 / 0.35);
+}
+[data-accent='teal'] {
+  --accent: #14b8a6;
+  --accent-2: #22d3ee;
+  --accent-soft: rgb(20 184 166 / 0.14);
+  --accent-ring: rgb(20 184 166 / 0.35);
+}
+[data-accent='amber'] {
+  --accent: #f59e0b;
+  --accent-2: #f97316;
+  --accent-soft: rgb(245 158 11 / 0.14);
+  --accent-ring: rgb(245 158 11 / 0.35);
+}
+[data-accent='blue'] {
+  --accent: #3b82f6;
+  --accent-2: #60a5fa;
+  --accent-soft: rgb(59 130 246 / 0.14);
+  --accent-ring: rgb(59 130 246 / 0.35);
+}
+
 /* ---------------------------------------------------------------------------
    Dark theme — player is always a fullscreen dark surface.
    Tokens mirror the frontend design system dark palette exactly.
@@ -36,11 +62,15 @@
   --text-muted: #97a1b4;
   --text-faint: #5d6680;
   --track: rgb(255 255 255 / 0.07);
+  --hover: rgb(255 255 255 / 0.04);
 
   --online-dim: rgb(46 204 113 / 0.14);
   --warn-dim: rgb(245 166 35 / 0.14);
   --offline-dim: rgb(239 71 87 / 0.14);
   --info-dim: rgb(59 157 255 / 0.14);
+
+  --gap: 20px;
+  --card-pad: 22px;
 
   color-scheme: dark;
 }
@@ -59,6 +89,10 @@
   --color-muted: var(--text-muted);
   --color-faint: var(--text-faint);
   --color-track: var(--track);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-soft: var(--accent-soft);
+  --color-hover: var(--hover);
 
   --color-online-dim: var(--online-dim);
   --color-warn-dim: var(--warn-dim);
@@ -87,4 +121,40 @@ body {
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* ---------------------------------------------------------------------------
+   Global keyframes (shared by components)
+   --------------------------------------------------------------------------- */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes pulseDot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

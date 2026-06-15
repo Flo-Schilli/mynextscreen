@@ -46,15 +46,15 @@ export type UsageBarVariant = 'accent' | 'purple' | 'teal';
     .usage-label {
       font-size: 0.8125rem;
       font-weight: 500;
-      color: var(--color-text-secondary);
+      color: var(--text-muted);
     }
     .usage-value {
       font-size: 0.75rem;
-      color: var(--color-text-muted);
+      color: var(--text-muted);
     }
     .usage-bar {
       height: 8px;
-      background: var(--color-bg-tertiary);
+      background: var(--surface-3);
       border-radius: 4px;
       overflow: hidden;
       margin-bottom: 0.25rem;
@@ -65,7 +65,7 @@ export type UsageBarVariant = 'accent' | 'purple' | 'teal';
       transition: width 0.3s ease;
     }
     .usage-fill.accent {
-      background: var(--color-accent);
+      background: var(--accent);
     }
     .usage-fill.purple {
       background: #8b5cf6;
@@ -81,7 +81,7 @@ export type UsageBarVariant = 'accent' | 'purple' | 'teal';
     }
     .usage-percent {
       font-size: 0.6875rem;
-      color: var(--color-text-muted);
+      color: var(--text-muted);
     }
   `,
 })

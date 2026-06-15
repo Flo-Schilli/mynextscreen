@@ -417,7 +417,7 @@ type ScreenFormMode = 'create' | 'edit';
     /* Error */
     .error {
       font-size: 13px;
-      color: var(--color-offline, #ef4444);
+      color: var(--offline);
       margin: 0;
     }
 

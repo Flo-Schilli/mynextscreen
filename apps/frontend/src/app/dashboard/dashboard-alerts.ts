@@ -15,9 +15,9 @@ const TONE_BG: Record<DashboardAlertTone, string> = {
 };
 
 const TONE_COLOR: Record<DashboardAlertTone, string> = {
-  offline: 'var(--color-offline)',
-  warn: 'var(--color-warn)',
-  info: 'var(--color-info)',
+  offline: 'var(--offline)',
+  warn: 'var(--warn)',
+  info: 'var(--info)',
 };
 
 /**

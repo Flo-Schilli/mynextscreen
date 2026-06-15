@@ -60,16 +60,12 @@ const AUTO_HIDE_MS = 5_000;
         flex-direction: column;
         gap: 0.25rem;
         padding: 0.75rem 1rem;
-        background: rgba(0, 0, 0, 0.7);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgb(0 0 0 / 0.7);
+        border: 1px solid var(--border);
         border-radius: 0.5rem;
         backdrop-filter: blur(8px);
         font-size: 0.8125rem;
-        color: rgba(255, 255, 255, 0.8);
-        font-family:
-          system-ui,
-          -apple-system,
-          sans-serif;
+        color: var(--text-muted);
         pointer-events: none;
         animation: fadeIn 0.2s ease-in;
       }
@@ -80,41 +76,32 @@ const AUTO_HIDE_MS = 5_000;
       }
 
       .status-label {
-        color: rgba(255, 255, 255, 0.4);
+        color: var(--text-faint);
         min-width: 4rem;
       }
 
       .status-connected {
-        color: #4ade80;
+        color: var(--color-online);
       }
 
       .status-reconnecting {
-        color: #fbbf24;
+        color: var(--color-warn);
       }
 
       .status-disconnected {
-        color: #f87171;
+        color: var(--color-offline);
       }
 
       .stream-healthy {
-        color: #4ade80;
+        color: var(--color-online);
       }
 
       .stream-degraded {
-        color: #fbbf24;
+        color: var(--color-warn);
       }
 
       .stream-stopped {
-        color: #f87171;
-      }
-
-      @keyframes fadeIn {
-        from {
-          opacity: 0;
-        }
-        to {
-          opacity: 1;
-        }
+        color: var(--color-offline);
       }
     `,
   ],

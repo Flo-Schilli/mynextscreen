@@ -100,7 +100,7 @@ const POLL_INTERVAL_MS = 3_000;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(0, 0, 0, 0.92);
+      background: rgb(0 0 0 / 0.92);
     }
 
     .card {
@@ -108,13 +108,9 @@ const POLL_INTERVAL_MS = 3_000;
       max-width: 420px;
       margin: 0 16px;
       padding: 36px 32px 32px;
-      border-radius: 16px;
-      background: linear-gradient(
-        180deg,
-        rgba(255, 255, 255, 0.07) 0%,
-        rgba(255, 255, 255, 0.025) 100%
-      );
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-lg);
+      background: linear-gradient(180deg, var(--border-strong) 0%, rgb(255 255 255 / 0.025) 100%);
+      border: 1px solid var(--border);
       box-shadow:
         0 25px 60px rgba(0, 0, 0, 0.5),
         0 0 0 1px rgba(255, 255, 255, 0.05);
@@ -135,9 +131,9 @@ const POLL_INTERVAL_MS = 3_000;
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 12px;
-      background: rgba(59, 130, 246, 0.15);
-      color: #3b82f6;
+      border-radius: var(--radius-md);
+      background: var(--info-dim);
+      color: var(--color-info);
       margin-bottom: 16px;
     }
 
@@ -145,22 +141,22 @@ const POLL_INTERVAL_MS = 3_000;
       margin: 0;
       font-size: 20px;
       font-weight: 600;
-      color: #f1f5f9;
+      color: var(--text);
     }
 
     .subtitle {
       margin: 6px 0 0;
       font-size: 14px;
-      color: #64748b;
+      color: var(--text-muted);
     }
 
     .code {
-      font-family: 'SFMono-Regular', ui-monospace, 'Menlo', 'Consolas', monospace;
+      font-family: var(--font-mono);
       font-size: 56px;
       font-weight: 700;
       letter-spacing: 0.18em;
       text-align: center;
-      color: #f1f5f9;
+      color: var(--text);
       margin: 8px 0 20px;
       user-select: all;
     }
@@ -171,7 +167,7 @@ const POLL_INTERVAL_MS = 3_000;
       justify-content: center;
       gap: 10px;
       font-size: 14px;
-      color: #94a3b8;
+      color: var(--text-muted);
       margin-bottom: 8px;
     }
 
@@ -179,18 +175,18 @@ const POLL_INTERVAL_MS = 3_000;
       width: 16px;
       height: 16px;
       border-radius: 50%;
-      border: 2px solid rgba(148, 163, 184, 0.3);
-      border-top-color: #3b82f6;
+      border: 2px solid var(--track);
+      border-top-color: var(--color-info);
       animation: spin 0.8s linear infinite;
     }
 
     .error {
       padding: 10px 14px;
       font-size: 14px;
-      color: #f87171;
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid rgba(239, 68, 68, 0.2);
-      border-radius: 10px;
+      color: var(--color-offline);
+      background: var(--offline-dim);
+      border: 1px solid rgb(239 71 87 / 0.2);
+      border-radius: var(--radius-sm);
       margin-bottom: 16px;
       text-align: center;
     }
@@ -203,7 +199,7 @@ const POLL_INTERVAL_MS = 3_000;
       font-weight: 500;
       font-family: inherit;
       color: #fff;
-      background: #3b82f6;
+      background: var(--color-info);
       border: none;
       border-radius: 10px;
       cursor: pointer;
@@ -220,7 +216,7 @@ const POLL_INTERVAL_MS = 3_000;
       padding: 4px 8px;
       font-size: 12px;
       font-family: inherit;
-      color: #64748b;
+      color: var(--text-faint);
       background: none;
       border: none;
       cursor: pointer;
@@ -228,7 +224,7 @@ const POLL_INTERVAL_MS = 3_000;
     }
 
     .advanced-toggle:hover {
-      color: #94a3b8;
+      color: var(--text-muted);
     }
 
     .field {
@@ -243,16 +239,16 @@ const POLL_INTERVAL_MS = 3_000;
       font-weight: 500;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: #64748b;
+      color: var(--text-faint);
     }
 
     .field input {
       width: 100%;
       padding: 10px 14px;
       font-size: 14px;
-      color: #f1f5f9;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text);
+      background: var(--hover);
+      border: 1px solid var(--border);
       border-radius: 10px;
       outline: none;
       transition:
@@ -263,12 +259,12 @@ const POLL_INTERVAL_MS = 3_000;
     }
 
     .field input::placeholder {
-      color: #475569;
+      color: var(--text-faint);
     }
 
     .field input:focus {
-      border-color: #3b82f6;
-      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--color-info);
+      background: rgb(255 255 255 / 0.08);
     }
 
     @keyframes enter {
@@ -279,12 +275,6 @@ const POLL_INTERVAL_MS = 3_000;
       to {
         opacity: 1;
         transform: scale(1) translateY(0);
-      }
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
       }
     }
   `,
