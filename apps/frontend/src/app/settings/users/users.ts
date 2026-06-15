@@ -1,17 +1,21 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  OnInit,
+  signal,
+} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MemberService } from './member.service';
 import { Membership, MyMembership, OrganisationRole } from './member.model';
 import { ToastService } from '../../shared/toast/toast.service';
-import {
-  PageHeaderComponent,
-  BtnComponent,
-  SFieldComponent,
-  SInputComponent,
-  EmptyComponent,
-} from '../../ui';
+import { BtnComponent, SFieldComponent, SInputComponent, EmptyComponent } from '../../ui';
+
+/** Pragmatic email check for client-side gating; the server is the source of truth. */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 @Component({
   selector: 'app-users',
@@ -21,7 +25,6 @@ import {
     DatePipe,
     FormsModule,
     RouterLink,
-    PageHeaderComponent,
     BtnComponent,
     SFieldComponent,
     SInputComponent,
@@ -35,30 +38,17 @@ import {
       <a class="settings-tab" routerLink="/settings/org/storage">Storage</a>
     </div>
 
-    <!-- Page header -->
-    <mns-page-header
-      title="User Management"
-      icon="User"
-      sub="Manage who has access and what they can do."
-    >
-      @if (!loading && members.length > 0) {
-        <mns-btn variant="primary" icon="Plus" (mnsClick)="openInviteModal()">
-          Invite User
-        </mns-btn>
-      }
-    </mns-page-header>
-
-    @if (loadError) {
-      <p class="error text-sm text-offline mt-3">{{ loadError }}</p>
+    @if (loadError()) {
+      <p class="error text-sm text-offline mt-3">{{ loadError() }}</p>
     }
 
-    @if (loading) {
+    @if (loading()) {
       <p class="loading-text text-sm text-muted mt-6">Loading members...</p>
     }
 
-    @if (!loading && members.length > 0) {
-      <!-- Seat summary row -->
-      <div class="flex items-center gap-6 flex-wrap mb-5">
+    @if (!loading() && members().length > 0) {
+      <!-- Members count + invite action (single row) -->
+      <div class="flex items-center justify-between gap-6 flex-wrap mb-5">
         <div class="flex items-center gap-3">
           <span
             class="w-[38px] h-[38px] rounded-[11px] bg-accent-soft text-accent grid place-items-center"
@@ -75,11 +65,15 @@ import {
           </span>
           <div>
             <div class="font-mono text-lg font-bold leading-tight">
-              {{ members.length }}
+              {{ members().length }}
             </div>
             <div class="text-xs text-muted">Members</div>
           </div>
         </div>
+
+        <mns-btn variant="primary" icon="Plus" (mnsClick)="openInviteModal()">
+          Invite User
+        </mns-btn>
       </div>
 
       <!-- Members table -->
@@ -122,7 +116,7 @@ import {
             </tr>
           </thead>
           <tbody>
-            @for (member of members; track member.id) {
+            @for (member of members(); track member.id) {
               <tr
                 class="border-t border-border hover:bg-surface-2 transition-colors duration-[120ms]"
               >
@@ -133,7 +127,7 @@ import {
                     class="role-select bg-surface-2 border border-border rounded-[9px] px-2 py-1 text-[13.5px] text-text cursor-pointer focus:outline-none focus:border-accent focus:ring-[3px] focus:ring-accent-soft disabled:opacity-50 disabled:cursor-not-allowed"
                     [ngModel]="member.role"
                     (ngModelChange)="changeRole(member, $event)"
-                    [disabled]="updatingUserId === member.userId"
+                    [disabled]="updatingUserId() === member.userId"
                   >
                     <option value="org_admin">Org Admin</option>
                     <option value="editor">Editor</option>
@@ -163,7 +157,7 @@ import {
                     variant="danger"
                     size="sm"
                     icon="Trash"
-                    [disabled]="removingUserId === member.userId"
+                    [disabled]="removingUserId() === member.userId"
                     (mnsClick)="confirmRemove(member)"
                   >
                     Remove
@@ -176,7 +170,7 @@ import {
       </div>
     }
 
-    @if (!loading && members.length === 0 && !loadError) {
+    @if (!loading() && members().length === 0 && !loadError()) {
       <div class="empty-text">
         <mns-empty
           icon="User"
@@ -190,12 +184,12 @@ import {
       </div>
     }
 
-    @if (actionError) {
-      <p class="error text-sm text-offline mt-3">{{ actionError }}</p>
+    @if (actionError()) {
+      <p class="error text-sm text-offline mt-3">{{ actionError() }}</p>
     }
 
     <!-- Invite modal -->
-    @if (showInviteModal) {
+    @if (showInviteModal()) {
       <div
         class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-[6px]"
         role="dialog"
@@ -272,22 +266,28 @@ import {
               </select>
             </mns-sfield>
 
-            @if (inviteError) {
-              <p class="error text-sm text-offline">{{ inviteError }}</p>
+            @if (inviteError()) {
+              <p class="error text-sm text-offline">{{ inviteError() }}</p>
             }
 
             <div class="form-actions flex gap-2.5 mt-1">
-              <mns-btn variant="outline" [full]="true" (mnsClick)="closeInviteModal()">
+              <mns-btn
+                class="flex-1"
+                variant="outline"
+                [full]="true"
+                (mnsClick)="closeInviteModal()"
+              >
                 Cancel
               </mns-btn>
               <mns-btn
+                class="flex-1"
                 variant="primary"
                 [full]="true"
                 icon="Mail"
-                [disabled]="inviting"
+                [disabled]="inviting() || !isInviteEmailValid()"
                 (mnsClick)="submitInvite()"
               >
-                {{ inviting ? 'Inviting...' : 'Send invite' }}
+                {{ inviting() ? 'Inviting...' : 'Send invite' }}
               </mns-btn>
             </div>
           </form>
@@ -296,7 +296,7 @@ import {
     }
 
     <!-- Remove confirm modal -->
-    @if (showRemoveConfirm) {
+    @if (showRemoveConfirm()) {
       <div
         class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-[6px]"
         role="dialog"
@@ -315,7 +315,7 @@ import {
           <h2 class="text-[17px] font-bold mb-2">Remove Member</h2>
           <p class="text-[13.5px] text-muted mb-5">
             Are you sure you want to remove
-            <strong class="text-text">{{ removingMember?.user?.email }}</strong>
+            <strong class="text-text">{{ removingMember()?.user?.email }}</strong>
             from this organisation?
           </p>
           <div class="form-actions flex gap-2.5">
@@ -323,10 +323,10 @@ import {
             <mns-btn
               variant="danger"
               [full]="true"
-              [disabled]="removingUserId !== null"
+              [disabled]="removingUserId() !== null"
               (mnsClick)="executeRemove()"
             >
-              {{ removingUserId ? 'Removing...' : 'Remove' }}
+              {{ removingUserId() ? 'Removing...' : 'Remove' }}
             </mns-btn>
           </div>
         </div>
@@ -377,25 +377,30 @@ export class Users implements OnInit {
   private toast = inject(ToastService);
 
   orgId = '';
-  members: Membership[] = [];
-  loading = true;
-  loadError = '';
-  actionError = '';
+  // Async-updated, template-read state — signals so OnPush re-renders after
+  // HTTP callbacks complete (an XHR callback mutating a plain field does not
+  // mark an OnPush component dirty, even under zone.js).
+  readonly members = signal<Membership[]>([]);
+  readonly loading = signal(true);
+  readonly loadError = signal('');
+  readonly actionError = signal('');
 
   // Invite modal state
-  showInviteModal = false;
-  inviteEmail = '';
-  inviteRole: OrganisationRole = 'viewer';
-  inviteError = '';
-  inviting = false;
+  readonly showInviteModal = signal(false);
+  readonly inviteEmail = signal('');
+  inviteRole: OrganisationRole = 'viewer'; // plain — [(ngModel)] has no signal two-way
+  readonly inviteError = signal('');
+  readonly inviting = signal(false);
+  // Send invite stays disabled until a syntactically valid email is entered.
+  readonly isInviteEmailValid = computed(() => EMAIL_PATTERN.test(this.inviteEmail().trim()));
 
   // Role change state
-  updatingUserId: string | null = null;
+  readonly updatingUserId = signal<string | null>(null);
 
   // Remove confirmation state
-  showRemoveConfirm = false;
-  removingMember: Membership | null = null;
-  removingUserId: string | null = null;
+  readonly showRemoveConfirm = signal(false);
+  readonly removingMember = signal<Membership | null>(null);
+  readonly removingUserId = signal<string | null>(null);
 
   ngOnInit(): void {
     this.loadCurrentOrg();
@@ -409,70 +414,71 @@ export class Users implements OnInit {
           this.orgId = adminMembership.organisationId;
           this.loadMembers();
         } else if (memberships.length > 0) {
-          this.loadError = 'You do not have Org Admin access to any organisation.';
-          this.loading = false;
+          this.loadError.set('You do not have Org Admin access to any organisation.');
+          this.loading.set(false);
         } else {
-          this.loadError = 'You are not a member of any organisation.';
-          this.loading = false;
+          this.loadError.set('You are not a member of any organisation.');
+          this.loading.set(false);
         }
       },
       error: () => {
-        this.loadError = 'Failed to load organisation context.';
-        this.loading = false;
+        this.loadError.set('Failed to load organisation context.');
+        this.loading.set(false);
       },
     });
   }
 
   loadMembers(): void {
-    this.loading = true;
-    this.loadError = '';
-    this.actionError = '';
+    this.loading.set(true);
+    this.loadError.set('');
+    this.actionError.set('');
     this.memberService.listMembers(this.orgId).subscribe({
       next: (members) => {
-        this.members = members;
-        this.loading = false;
+        this.members.set(members);
+        this.loading.set(false);
       },
       error: (err) => {
-        this.loadError =
+        this.loadError.set(
           err.status === 403
             ? 'Access denied. Org Admin privileges required.'
-            : 'Failed to load members.';
-        this.loading = false;
+            : 'Failed to load members.',
+        );
+        this.loading.set(false);
       },
     });
   }
 
   openInviteModal(): void {
-    this.inviteEmail = '';
+    this.inviteEmail.set('');
     this.inviteRole = 'viewer';
-    this.inviteError = '';
-    this.showInviteModal = true;
+    this.inviteError.set('');
+    this.showInviteModal.set(true);
   }
 
   closeInviteModal(): void {
-    this.showInviteModal = false;
+    this.showInviteModal.set(false);
   }
 
   submitInvite(): void {
-    if (!this.inviteEmail) {
-      this.inviteError = 'Email is required.';
+    if (!this.isInviteEmailValid()) {
+      this.inviteError.set('A valid email is required.');
       return;
     }
 
-    this.inviting = true;
-    this.inviteError = '';
+    this.inviting.set(true);
+    this.inviteError.set('');
     this.memberService
-      .addMember(this.orgId, { email: this.inviteEmail, role: this.inviteRole })
+      .addMember(this.orgId, { email: this.inviteEmail().trim(), role: this.inviteRole })
       .subscribe({
         next: () => {
-          this.inviting = false;
-          this.showInviteModal = false;
+          this.inviting.set(false);
+          this.showInviteModal.set(false);
           this.loadMembers();
           this.toast.success('Member invited.');
         },
         error: (err) => {
-          this.inviteError = err.error?.message || 'Failed to invite user.';
-          this.inviting = false;
+          this.inviteError.set(err.error?.message || 'Failed to invite user.');
+          this.inviting.set(false);
         },
       });
   }
@@ -480,49 +486,52 @@ export class Users implements OnInit {
   changeRole(member: Membership, newRole: OrganisationRole): void {
     if (newRole === member.role) return;
 
-    this.updatingUserId = member.userId;
-    this.actionError = '';
+    this.updatingUserId.set(member.userId);
+    this.actionError.set('');
     this.memberService.updateRole(this.orgId, member.userId, { role: newRole }).subscribe({
       next: (updated) => {
-        member.role = updated.role;
-        this.updatingUserId = null;
+        this.members.update((list) =>
+          list.map((m) => (m.userId === member.userId ? { ...m, role: updated.role } : m)),
+        );
+        this.updatingUserId.set(null);
         this.toast.success('Role updated.');
       },
       error: (err) => {
-        this.actionError = err.error?.message || 'Failed to update role.';
-        this.updatingUserId = null;
+        this.actionError.set(err.error?.message || 'Failed to update role.');
+        this.updatingUserId.set(null);
       },
     });
   }
 
   confirmRemove(member: Membership): void {
-    this.removingMember = member;
-    this.showRemoveConfirm = true;
+    this.removingMember.set(member);
+    this.showRemoveConfirm.set(true);
   }
 
   cancelRemove(): void {
-    this.showRemoveConfirm = false;
-    this.removingMember = null;
+    this.showRemoveConfirm.set(false);
+    this.removingMember.set(null);
   }
 
   executeRemove(): void {
-    if (!this.removingMember) return;
+    const member = this.removingMember();
+    if (!member) return;
 
-    this.removingUserId = this.removingMember.userId;
-    this.actionError = '';
-    this.memberService.removeMember(this.orgId, this.removingMember.userId).subscribe({
+    this.removingUserId.set(member.userId);
+    this.actionError.set('');
+    this.memberService.removeMember(this.orgId, member.userId).subscribe({
       next: () => {
-        this.removingUserId = null;
-        this.showRemoveConfirm = false;
-        this.removingMember = null;
+        this.removingUserId.set(null);
+        this.showRemoveConfirm.set(false);
+        this.removingMember.set(null);
         this.loadMembers();
         this.toast.success('Member removed.');
       },
       error: (err) => {
-        this.actionError = err.error?.message || 'Failed to remove member.';
-        this.removingUserId = null;
-        this.showRemoveConfirm = false;
-        this.removingMember = null;
+        this.actionError.set(err.error?.message || 'Failed to remove member.');
+        this.removingUserId.set(null);
+        this.showRemoveConfirm.set(false);
+        this.removingMember.set(null);
       },
     });
   }

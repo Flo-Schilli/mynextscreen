@@ -1,4 +1,10 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  inject,
+  OnInit,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import {
@@ -273,6 +279,10 @@ export class OrgNotificationConfig implements OnInit {
   private orgState = inject(OrganisationStateService);
   private router = inject(Router);
   private toast = inject(ToastService);
+  // OnPush + zone.js: HTTP callbacks that mutate plain fields (loading flags,
+  // form models populated from the loaded config, save/test flags) do not mark
+  // this component dirty, so the view must be re-checked explicitly.
+  private cdr = inject(ChangeDetectorRef);
 
   loading = true;
   loadError = '';
@@ -315,10 +325,12 @@ export class OrgNotificationConfig implements OnInit {
       next: (config) => {
         this.applyConfig(config);
         this.loading = false;
+        this.cdr.markForCheck();
       },
       error: () => {
         this.loadError = 'Failed to load notification configuration.';
         this.loading = false;
+        this.cdr.markForCheck();
       },
     });
   }
@@ -360,10 +372,12 @@ export class OrgNotificationConfig implements OnInit {
       next: (config) => {
         this.applyConfig(config);
         this.savingSmtp = false;
+        this.cdr.markForCheck();
         this.showToast('SMTP settings saved.', 'success');
       },
       error: () => {
         this.savingSmtp = false;
+        this.cdr.markForCheck();
         this.showToast('Failed to save SMTP settings.', 'error');
       },
     });
@@ -386,10 +400,12 @@ export class OrgNotificationConfig implements OnInit {
       next: (config) => {
         this.applyConfig(config);
         this.savingNtfy = false;
+        this.cdr.markForCheck();
         this.showToast('ntfy settings saved.', 'success');
       },
       error: () => {
         this.savingNtfy = false;
+        this.cdr.markForCheck();
         this.showToast('Failed to save ntfy settings.', 'error');
       },
     });
@@ -403,10 +419,12 @@ export class OrgNotificationConfig implements OnInit {
     this.configService.testEmail(orgId).subscribe({
       next: (res) => {
         this.testingEmail = false;
+        this.cdr.markForCheck();
         this.showToast(res.message, 'success');
       },
       error: (err) => {
         this.testingEmail = false;
+        this.cdr.markForCheck();
         const msg = err?.error?.message || 'Failed to send test email.';
         this.showToast(msg, 'error');
       },
@@ -421,10 +439,12 @@ export class OrgNotificationConfig implements OnInit {
     this.configService.testNtfy(orgId).subscribe({
       next: (res) => {
         this.testingNtfy = false;
+        this.cdr.markForCheck();
         this.showToast(res.message, 'success');
       },
       error: (err) => {
         this.testingNtfy = false;
+        this.cdr.markForCheck();
         const msg = err?.error?.message || 'Failed to send test notification.';
         this.showToast(msg, 'error');
       },
