@@ -65,7 +65,8 @@ export class OverlayComponent {
   imports: [IconComponent],
   template: `
     <div
-      class="relative w-full max-w-[520px] bg-surface border border-border-strong rounded-xl overflow-hidden"
+      class="relative w-full bg-surface border border-border-strong rounded-xl overflow-hidden"
+      [style.maxWidth.px]="widthPx()"
       style="box-shadow: var(--shadow-lg); animation: fadeUp .3s cubic-bezier(.22,.61,.36,1) both"
       tabindex="0"
       (click)="$event.stopPropagation()"
@@ -105,5 +106,7 @@ export class OverlayComponent {
 export class ModalComponent {
   readonly title = input.required<string>();
   readonly icon = input<IconName | undefined>(undefined);
+  /** Max width of the modal panel in px. Defaults to the standard 520. */
+  readonly widthPx = input<number>(520);
   readonly closed = output<void>();
 }

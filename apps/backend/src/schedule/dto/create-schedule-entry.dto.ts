@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsOptional, IsDateString, IsUUID, Matches } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsNotEmpty, IsUUID, Matches } from 'class-validator';
 
 export class CreateScheduleEntryDto {
   @IsOptional()
@@ -25,10 +25,10 @@ export class CreateScheduleEntryDto {
   @IsString()
   rrule?: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   @Matches(/^#[0-9a-fA-F]{6}$/, {
     message: 'colour must be a hex colour (e.g. #FF5733)',
   })
-  colour!: string;
+  colour?: string;
 }

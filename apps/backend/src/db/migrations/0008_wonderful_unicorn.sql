@@ -1,0 +1,1 @@
+ALTER TABLE "schedule_entries" ALTER COLUMN "colour" SET DEFAULT '#6d6cf6';

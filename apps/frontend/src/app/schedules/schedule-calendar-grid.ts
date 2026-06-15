@@ -1,4 +1,4 @@
-import { Component, input, output } from '@angular/core';
+import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
 import { ScheduleEntry } from './schedule.model';
 import {
   CalendarBlock,
@@ -6,6 +6,7 @@ import {
   MonthDayCell,
   ScheduleViewMode,
 } from './schedule-calendar.service';
+import { CardComponent, CardHeadComponent, IconComponent } from '../ui';
 
 export interface CreateSlot {
   start: Date;
@@ -23,6 +24,7 @@ export interface ResizePointerEvent extends BlockPointerEvent {
 
 const WEEKDAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const NOW_TICK_MS = 60_000;
 
 /**
  * Presentational calendar grid — renders the month grid or the day/week time
@@ -33,231 +35,225 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 @Component({
   selector: 'app-schedule-calendar-grid',
   standalone: true,
+  imports: [CardComponent, CardHeadComponent, IconComponent],
   template: `
-    @if (viewMode() === 'month') {
-      <!-- Month View -->
-      <div class="month-grid">
-        <div class="month-header-row">
-          @for (dayName of weekdayNames; track dayName) {
-            <div class="month-header-cell">{{ dayName }}</div>
-          }
-        </div>
-        @for (week of monthWeeks(); track $index) {
-          <div class="month-week-row">
-            @for (day of week; track $index) {
+    <mns-card [pad]="false">
+      <div class="px-[var(--card-pad)] pt-[var(--card-pad)] pb-3.5">
+        <mns-card-head [title]="cardTitle()" [sub]="cardSub" icon="Calendar"></mns-card-head>
+      </div>
+
+      @if (viewMode() === 'month') {
+        <!-- Month View -->
+        <div class="month-grid border-t border-border">
+          <div class="month-header-row grid grid-cols-7 border-b border-border">
+            @for (dayName of weekdayNames; track dayName) {
               <div
-                class="month-day-cell"
-                [class.other-month]="!day.isCurrentMonth"
-                [class.today]="day.isToday"
-                (click)="monthDayClick.emit(day.date)"
-                role="button"
-                tabindex="0"
-                (keydown.enter)="monthDayClick.emit(day.date)"
+                class="month-header-cell px-2 py-2.5 text-center text-[13px] font-bold text-muted"
               >
-                <span class="month-day-number">{{ day.dayNumber }}</span>
-                <div class="month-day-entries">
-                  @for (block of day.blocks; track block.entry.id) {
-                    <div
-                      class="month-entry-chip"
-                      [style.background]="block.entry.colour"
-                      [title]="getEntryLabel(block.entry)"
-                    >
-                      @if (block.entry.groupId) {
-                        <span class="group-badge-sm">G</span>
-                      }
-                      @if (block.isRecurring) {
-                        <span class="repeat-icon">&#8634;</span>
-                      }
-                      {{ getEntryLabel(block.entry) }}
-                    </div>
-                  }
-                </div>
+                {{ dayName }}
               </div>
             }
           </div>
-        }
-      </div>
-    } @else {
-      <!-- Day / Week View -->
-      <div class="time-grid">
-        <div class="time-grid-header">
-          <div class="time-gutter-header"></div>
-          @for (day of visibleDays(); track $index) {
-            <div class="day-column-header" [class.today]="isDayToday(day)">
-              <span class="day-name">{{ formatDayHeader(day) }}</span>
+          @for (week of monthWeeks(); track $index) {
+            <div class="month-week-row grid grid-cols-7">
+              @for (day of week; track $index) {
+                <div
+                  class="month-day-cell min-h-[5rem] p-1.5 border-b border-r border-border cursor-pointer transition-colors duration-[120ms] hover:bg-surface-2"
+                  [class.other-month]="!day.isCurrentMonth"
+                  [class.opacity-40]="!day.isCurrentMonth"
+                  [class.today]="day.isToday"
+                  (click)="monthDayClick.emit(day.date)"
+                  role="button"
+                  tabindex="0"
+                  (keydown.enter)="monthDayClick.emit(day.date)"
+                >
+                  <span
+                    class="month-day-number text-xs font-semibold text-muted inline-block mb-1"
+                    [class.is-today]="day.isToday"
+                  >
+                    {{ day.dayNumber }}
+                  </span>
+                  <div class="month-day-entries flex flex-col gap-0.5">
+                    @for (block of day.blocks; track block.entry.id) {
+                      <div
+                        class="month-entry-chip flex items-center gap-1 text-[10px] font-semibold text-text px-1.5 py-0.5 rounded truncate"
+                        [style.background]="chipBg(block.entry)"
+                        [style.borderLeft]="'2px solid ' + getColour(block.entry)"
+                        [title]="getEntryLabel(block.entry)"
+                      >
+                        @if (block.entry.groupId) {
+                          <span class="group-badge-sm text-[9px] font-extrabold text-accent"
+                            >G</span
+                          >
+                        }
+                        @if (block.isRecurring) {
+                          <mns-icon name="Refresh" [size]="9" class="text-muted flex-shrink-0" />
+                        }
+                        <span class="truncate">{{ getEntryLabel(block.entry) }}</span>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
             </div>
           }
         </div>
-        <div
-          class="time-grid-body"
-          (click)="onTimeGridClick($event)"
-          (keydown.enter)="$event.preventDefault()"
-          role="grid"
-          tabindex="0"
-        >
-          <div class="time-gutter">
-            @for (hour of hours; track hour) {
-              <div class="time-label" [style.height.px]="hourHeight()">{{ formatHour(hour) }}</div>
-            }
-          </div>
-          <div class="day-columns">
-            @for (day of visibleDays(); track $index; let dayIdx = $index) {
-              <div class="day-column" [attr.data-day-index]="dayIdx">
-                @for (hour of hours; track hour) {
-                  <div class="hour-slot" [style.height.px]="hourHeight()"></div>
-                }
-                <!-- Gap indicators -->
-                @for (gap of getGapsForDay(dayIdx); track $index) {
-                  <div
-                    class="gap-indicator"
-                    [style.top.px]="gap.top"
-                    [style.height.px]="gap.height"
-                  >
-                    <span class="gap-label">Fallback playlist</span>
-                  </div>
-                }
-                <!-- Schedule blocks -->
-                @for (block of getBlocksForDay(dayIdx); track block.entry.id) {
-                  <div
-                    class="schedule-block"
-                    [style.top.px]="block.top"
-                    [style.height.px]="block.height"
-                    [style.background]="block.entry.colour"
-                    [class.dragging]="draggingEntryId() === block.entry.id"
-                    (mousedown)="blockMouseDown.emit({ event: $event, block })"
-                    (click)="blockClick.emit({ event: $event, block })"
-                    (keydown.enter)="blockEnter.emit(block.entry)"
-                    role="button"
-                    tabindex="0"
-                  >
-                    <div
-                      class="resize-handle resize-handle-top"
-                      (mousedown)="resizeMouseDown.emit({ event: $event, block, edge: 'top' })"
-                      (keydown.enter)="$event.preventDefault()"
-                      role="separator"
-                      tabindex="0"
-                      aria-label="Resize top"
-                      aria-valuenow="0"
-                    ></div>
-                    <div class="block-content">
-                      @if (block.entry.groupId) {
-                        <span class="group-badge">Group</span>
-                      }
-                      @if (block.isRecurring) {
-                        <span class="repeat-icon">&#8634;</span>
-                      }
-                      <span class="block-title">{{ getEntryLabel(block.entry) }}</span>
-                      <span class="block-time">
-                        {{ formatBlockTime(block.occurrenceStart) }} -
-                        {{ formatBlockTime(block.occurrenceEnd) }}
-                      </span>
-                    </div>
-                    <div
-                      class="resize-handle resize-handle-bottom"
-                      (mousedown)="resizeMouseDown.emit({ event: $event, block, edge: 'bottom' })"
-                      (keydown.enter)="$event.preventDefault()"
-                      role="separator"
-                      tabindex="0"
-                      aria-label="Resize bottom"
-                      aria-valuenow="0"
-                    ></div>
-                  </div>
-                }
+      } @else {
+        <!-- Day / Week View -->
+        <div class="time-grid border-t border-border">
+          <div class="time-grid-header flex border-b border-border">
+            <div class="time-gutter-header w-14 flex-shrink-0 border-r border-border"></div>
+            @for (day of visibleDays(); track $index) {
+              <div
+                class="day-column-header flex-1 text-center px-2 py-2.5 text-[13px] font-bold border-l border-border"
+                [class.today]="isDayToday(day)"
+                [class.bg-accent-soft]="isDayToday(day)"
+                [class.text-accent]="isDayToday(day)"
+                [class.text-muted]="!isDayToday(day)"
+              >
+                <span class="day-name">{{ formatDayHeader(day) }}</span>
               </div>
             }
           </div>
+          <div
+            class="time-grid-body flex relative overflow-y-auto"
+            style="max-height: calc(100vh - 18rem)"
+            (click)="onTimeGridClick($event)"
+            (keydown.enter)="$event.preventDefault()"
+            role="grid"
+            tabindex="0"
+          >
+            <div class="time-gutter w-14 flex-shrink-0 border-r border-border">
+              @for (hour of hours; track hour) {
+                <div
+                  class="time-label relative text-right pr-2 text-[11px] font-semibold font-mono text-faint"
+                  [style.height.px]="hourHeight()"
+                  style="top: -0.5em"
+                >
+                  {{ formatHour(hour) }}
+                </div>
+              }
+            </div>
+            <div class="day-columns flex flex-1">
+              @for (day of visibleDays(); track $index; let dayIdx = $index) {
+                <div
+                  class="day-column flex-1 relative border-l border-border"
+                  [class.bg-accent-soft]="isDayToday(day)"
+                  [attr.data-day-index]="dayIdx"
+                >
+                  @for (hour of hours; track hour) {
+                    <div
+                      class="hour-slot box-border border-b"
+                      style="border-color: color-mix(in srgb, var(--border) 55%, transparent)"
+                      [style.height.px]="hourHeight()"
+                    ></div>
+                  }
+                  <!-- Now line (today only, when in visible range) -->
+                  @if (isDayToday(day) && nowTopPx() !== null) {
+                    <div
+                      class="now-line absolute left-0 right-0 h-0.5 bg-accent z-[6] pointer-events-none"
+                      style="box-shadow: 0 0 8px -1px var(--accent)"
+                      [style.top.px]="nowTopPx()"
+                    >
+                      <span
+                        class="absolute -left-[3px] -top-[3px] w-2 h-2 rounded-full bg-accent"
+                      ></span>
+                    </div>
+                  }
+                  <!-- Gap indicators -->
+                  @for (gap of getGapsForDay(dayIdx); track $index) {
+                    <div
+                      class="gap-indicator absolute left-0.5 right-0.5 rounded-md z-[1] flex items-center justify-center pointer-events-none"
+                      style="background: color-mix(in srgb, var(--warn) 8%, transparent); border: 1px dashed color-mix(in srgb, var(--warn) 28%, transparent)"
+                      [style.top.px]="gap.top"
+                      [style.height.px]="gap.height"
+                    >
+                      <span
+                        class="gap-label text-[10px] italic"
+                        style="color: color-mix(in srgb, var(--warn) 60%, transparent)"
+                        >Fallback playlist</span
+                      >
+                    </div>
+                  }
+                  <!-- Schedule blocks -->
+                  @for (block of getBlocksForDay(dayIdx); track block.entry.id) {
+                    <div
+                      class="schedule-block absolute left-0.5 right-0.5 rounded-[8px] cursor-grab z-[2] overflow-hidden min-h-[1.25rem] select-none transition-shadow duration-[150ms]"
+                      [class.dragging]="draggingEntryId() === block.entry.id"
+                      [class.conflict]="hasConflict(block)"
+                      [style.top.px]="block.top"
+                      [style.height.px]="block.height"
+                      [style.background]="blockBg(block.entry)"
+                      [style.border]="blockBorder(block)"
+                      [style.borderLeft]="blockLeftBorder(block)"
+                      (mousedown)="blockMouseDown.emit({ event: $event, block })"
+                      (click)="blockClick.emit({ event: $event, block })"
+                      (keydown.enter)="blockEnter.emit(block.entry)"
+                      role="button"
+                      tabindex="0"
+                    >
+                      <div
+                        class="resize-handle resize-handle-top absolute left-0 right-0 top-0 h-1.5 cursor-ns-resize z-[5]"
+                        (mousedown)="resizeMouseDown.emit({ event: $event, block, edge: 'top' })"
+                        (keydown.enter)="$event.preventDefault()"
+                        role="separator"
+                        tabindex="0"
+                        aria-label="Resize top"
+                        aria-valuenow="0"
+                      ></div>
+                      <div class="block-content px-2 py-1 flex flex-col gap-0.5 h-full box-border">
+                        <span
+                          class="block-title text-[11.5px] font-bold text-text truncate leading-[1.2] flex items-center gap-1"
+                        >
+                          @if (hasConflict(block)) {
+                            <mns-icon name="Alert" [size]="11" class="text-offline flex-shrink-0" />
+                          }
+                          @if (block.entry.groupId) {
+                            <span
+                              class="group-badge text-[9px] font-extrabold uppercase tracking-wide text-accent flex-shrink-0"
+                              >Group</span
+                            >
+                          }
+                          @if (isOneOff(block) && !hasConflict(block)) {
+                            <span
+                              class="one-off-badge text-[9px] font-extrabold flex-shrink-0 rounded px-[3px] leading-[13px] border"
+                              [style.color]="getColour(block.entry)"
+                              [style.borderColor]="getColour(block.entry)"
+                              >1×</span
+                            >
+                          }
+                          @if (block.isRecurring) {
+                            <mns-icon name="Refresh" [size]="11" class="text-muted flex-shrink-0" />
+                          }
+                          <span class="truncate">{{ getEntryLabel(block.entry) }}</span>
+                        </span>
+                        <span class="block-time text-[10px] font-mono text-muted whitespace-nowrap">
+                          {{ formatBlockTime(block.occurrenceStart) }} -
+                          {{ formatBlockTime(block.occurrenceEnd) }}
+                        </span>
+                      </div>
+                      <div
+                        class="resize-handle resize-handle-bottom absolute left-0 right-0 bottom-0 h-1.5 cursor-ns-resize z-[5]"
+                        (mousedown)="resizeMouseDown.emit({ event: $event, block, edge: 'bottom' })"
+                        (keydown.enter)="$event.preventDefault()"
+                        role="separator"
+                        tabindex="0"
+                        aria-label="Resize bottom"
+                        aria-valuenow="0"
+                      ></div>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
         </div>
-      </div>
-    }
+      }
+    </mns-card>
   `,
   styles: `
-    /* ── Time grid ─────────────────────────────────────────────── */
-    .time-grid {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--r-xl, 14px);
-      overflow: hidden;
-      box-shadow: var(--shadow);
-    }
-    .time-grid-header {
-      display: flex;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
-    }
-    .time-gutter-header {
-      width: 3.5rem;
-      flex-shrink: 0;
-      border-right: 1px solid var(--border);
-    }
-    .day-column-header {
-      flex: 1;
-      text-align: center;
-      padding: 0.625rem 0.5rem;
-      font-size: 0.8125rem;
-      font-weight: 700;
-      color: var(--text-muted);
-      border-left: 1px solid var(--border);
-    }
-    .day-column-header.today {
-      color: var(--accent);
-      background: color-mix(in srgb, var(--accent) 8%, transparent);
-    }
-    .time-grid-body {
-      display: flex;
-      max-height: calc(100vh - 14rem);
-      overflow-y: auto;
-      position: relative;
-    }
-    .time-gutter {
-      width: 3.5rem;
-      flex-shrink: 0;
-      border-right: 1px solid var(--border);
-    }
-    .time-label {
-      font-size: 0.6875rem;
-      font-weight: 600;
-      font-family: var(--mono, ui-monospace, monospace);
-      color: var(--text-faint);
-      text-align: right;
-      padding-right: 0.5rem;
-      box-sizing: border-box;
-      position: relative;
-      top: -0.5em;
-    }
-    .day-columns {
-      display: flex;
-      flex: 1;
-    }
-    .day-column {
-      flex: 1;
-      position: relative;
-      border-left: 1px solid var(--border);
-    }
-    .hour-slot {
-      border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-      box-sizing: border-box;
-    }
-
-    /* ── Schedule Blocks ───────────────────────────────────────── */
-    .schedule-block {
-      position: absolute;
-      left: 2px;
-      right: 2px;
-      border-radius: 8px;
-      cursor: grab;
-      z-index: 2;
-      overflow: hidden;
-      min-height: 1.25rem;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-      transition:
-        box-shadow 0.15s,
-        opacity 0.15s;
-      user-select: none;
-      border-left-width: 3px;
-      border-left-style: solid;
-    }
     .schedule-block:hover {
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+      box-shadow: var(--shadow);
       z-index: 3;
     }
     .schedule-block.dragging {
@@ -265,139 +261,13 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
       cursor: grabbing;
       z-index: 10;
     }
-    .block-content {
-      padding: 0.3rem 0.5rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.125rem;
-      height: 100%;
-      box-sizing: border-box;
-    }
-    .block-title {
-      font-size: 0.75rem;
-      font-weight: 700;
-      color: #fff;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-      line-height: 1.2;
-    }
-    .block-time {
-      font-size: 0.625rem;
-      font-family: var(--mono, ui-monospace, monospace);
-      color: rgba(255, 255, 255, 0.82);
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    }
-    .repeat-icon {
-      font-size: 0.75rem;
-      color: rgba(255, 255, 255, 0.9);
-      margin-right: 0.125rem;
-    }
-
-    /* ── Group Badge ───────────────────────────────────────────── */
-    .group-badge {
-      display: inline-block;
-      font-size: 0.5625rem;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      background: rgba(255, 255, 255, 0.22);
-      color: #fff;
-      padding: 0.0625rem 0.3rem;
-      border-radius: 4px;
-      width: fit-content;
-    }
-    .group-badge-sm {
-      display: inline-block;
-      font-size: 0.5rem;
-      font-weight: 800;
-      background: rgba(255, 255, 255, 0.28);
-      color: #fff;
-      padding: 0 0.2rem;
-      border-radius: 3px;
-      margin-right: 0.125rem;
-      line-height: 1.25;
-    }
-
-    /* ── Resize Handles ────────────────────────────────────────── */
-    .resize-handle {
-      position: absolute;
-      left: 0;
-      right: 0;
-      height: 6px;
-      cursor: ns-resize;
-      z-index: 5;
-    }
-    .resize-handle-top {
-      top: 0;
-    }
-    .resize-handle-bottom {
-      bottom: 0;
-    }
-
-    /* ── Gap Indicators ────────────────────────────────────────── */
-    .gap-indicator {
-      position: absolute;
-      left: 2px;
-      right: 2px;
-      background: color-mix(in srgb, var(--warn) 8%, transparent);
-      border: 1px dashed color-mix(in srgb, var(--warn) 28%, transparent);
-      border-radius: 6px;
-      z-index: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      pointer-events: none;
-    }
-    .gap-label {
-      font-size: 0.625rem;
-      color: color-mix(in srgb, var(--warn) 60%, transparent);
-      font-style: italic;
-    }
-
-    /* ── Month View ────────────────────────────────────────────── */
-    .month-grid {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--r-xl, 14px);
-      overflow: hidden;
-      box-shadow: var(--shadow);
-    }
-    .month-header-row {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      border-bottom: 1px solid var(--border);
-    }
-    .month-header-cell {
-      padding: 0.625rem 0.5rem;
-      text-align: center;
-      font-size: 0.8125rem;
-      font-weight: 700;
-      color: var(--text-muted);
-    }
-    .month-week-row {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-    }
-    .month-day-cell {
-      min-height: 5rem;
-      padding: 0.375rem;
-      border-bottom: 1px solid var(--border);
-      border-right: 1px solid var(--border);
-      cursor: pointer;
-      transition: background 0.12s;
+    .schedule-block.conflict {
+      box-shadow: 0 0 0 1px var(--offline);
     }
     .month-day-cell:nth-child(7n) {
       border-right: none;
     }
-    .month-day-cell:hover {
-      background: var(--surface-2);
-    }
-    .month-day-cell.other-month {
-      opacity: 0.38;
-    }
-    .month-day-cell.today .month-day-number {
+    .month-day-number.is-today {
       background: var(--accent);
       color: #fff;
       border-radius: 9999px;
@@ -406,29 +276,6 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
       display: inline-flex;
       align-items: center;
       justify-content: center;
-    }
-    .month-day-number {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      display: inline-block;
-      margin-bottom: 0.1875rem;
-    }
-    .month-day-entries {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .month-entry-chip {
-      font-size: 0.625rem;
-      font-weight: 600;
-      color: #fff;
-      padding: 0.125rem 0.3125rem;
-      border-radius: 4px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
   `,
 })
@@ -452,6 +299,32 @@ export class ScheduleCalendarGrid {
   readonly weekdayNames = WEEKDAY_NAMES;
   readonly hours = HOURS;
 
+  /** Re-evaluated each minute so the now-line tracks the current time. */
+  private readonly nowMs = signal(Date.now());
+
+  constructor() {
+    const timer = setInterval(() => this.nowMs.set(Date.now()), NOW_TICK_MS);
+    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+  }
+
+  readonly cardTitle = computed(() => {
+    const mode = this.viewMode();
+    if (mode === 'month') return 'Month schedule';
+    if (mode === 'day') return 'Day schedule';
+    return 'Week schedule';
+  });
+
+  readonly cardSub = 'Click any block to edit';
+
+  readonly nowTopPx = computed<number | null>(() => {
+    const now = new Date(this.nowMs());
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    const top = (minutes / 60) * this.hourHeight();
+    const maxTop = 24 * this.hourHeight();
+    if (top < 0 || top > maxTop) return null;
+    return top;
+  });
+
   getBlocksForDay(dayIndex: number): CalendarBlock[] {
     return this.blocks().filter((b) => b.dayIndex === dayIndex);
   }
@@ -466,6 +339,44 @@ export class ScheduleCalendarGrid {
       return `${playlistName} - ${entry.group.name}`;
     }
     return playlistName;
+  }
+
+  getColour(entry: ScheduleEntry): string {
+    return entry.colour || '#6d6cf6';
+  }
+
+  blockBg(entry: ScheduleEntry): string {
+    return `color-mix(in srgb, ${this.getColour(entry)} 20%, var(--surface))`;
+  }
+
+  chipBg(entry: ScheduleEntry): string {
+    return `color-mix(in srgb, ${this.getColour(entry)} 18%, var(--surface))`;
+  }
+
+  blockBorder(block: CalendarBlock): string {
+    if (this.hasConflict(block)) return '1px solid var(--offline)';
+    return `1px solid color-mix(in srgb, ${this.getColour(block.entry)} 60%, transparent)`;
+  }
+
+  blockLeftBorder(block: CalendarBlock): string {
+    const style = this.isOneOff(block) ? 'dashed' : 'solid';
+    return `3px ${style} ${this.getColour(block.entry)}`;
+  }
+
+  /** A one-off entry has no recurrence rule. */
+  isOneOff(block: CalendarBlock): boolean {
+    return !block.isRecurring && !block.entry.rrule;
+  }
+
+  /** Client-side overlap detection: same day, overlapping minutes, different entry. */
+  hasConflict(block: CalendarBlock): boolean {
+    const sameDay = this.getBlocksForDay(block.dayIndex);
+    return sameDay.some(
+      (other) =>
+        other.entry.id !== block.entry.id &&
+        block.occurrenceStart < other.occurrenceEnd &&
+        block.occurrenceEnd > other.occurrenceStart,
+    );
   }
 
   isDayToday(day: Date): boolean {

@@ -162,6 +162,20 @@ describe('ScheduleFormModal', () => {
     });
   });
 
+  describe('setRecurrence', () => {
+    it('clears the selected weekdays when leaving the weekdays mode', async () => {
+      // Arrange
+      await setUp({ initialRecurrence: 'weekdays', initialWeekdays: ['MO', 'TU'] });
+
+      // Act
+      component.setRecurrence('weekly');
+
+      // Assert
+      expect(component.recurrence).toBe('weekly');
+      expect(component.weekdays).toEqual([]);
+    });
+  });
+
   describe('updateTargetGroup', () => {
     it('resolves the target group for a group: target id', async () => {
       // Arrange / Act
@@ -331,7 +345,7 @@ describe('ScheduleFormModal', () => {
       component.dismiss.subscribe(() => (dismissed = true));
 
       // Act
-      (fixture.nativeElement.querySelector('.btn-secondary') as HTMLButtonElement).click();
+      (fixture.nativeElement.querySelector('.btn-secondary button') as HTMLButtonElement).click();
 
       // Assert
       expect(dismissed).toBe(true);
@@ -357,7 +371,7 @@ describe('ScheduleFormModal', () => {
       component.remove.subscribe(() => (removed = true));
 
       // Act
-      (fixture.nativeElement.querySelector('.btn-danger') as HTMLButtonElement).click();
+      (fixture.nativeElement.querySelector('.btn-danger button') as HTMLButtonElement).click();
 
       // Assert
       expect(removed).toBe(true);

@@ -1,9 +1,17 @@
-import { Component, OnInit, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ScheduleEntry, TargetOption } from './schedule.model';
 import { Playlist } from '../playlists/playlist.model';
 import { ScreenGroup } from '../screen-groups/screen-group.model';
 import { RecurrenceType } from './schedule-recurrence.service';
+import {
+  OverlayComponent,
+  ModalComponent,
+  BtnComponent,
+  IconComponent,
+  SelectComponent,
+  SelectOption,
+} from '../ui';
 
 export const PRESET_COLOURS = [
   '#3b82f6',
@@ -13,9 +21,6 @@ export const PRESET_COLOURS = [
   '#8b5cf6',
   '#ec4899',
   '#06b6d4',
-  '#f97316',
-  '#14b8a6',
-  '#6366f1',
 ];
 
 const WEEKDAY_OPTIONS = [
@@ -26,6 +31,13 @@ const WEEKDAY_OPTIONS = [
   { value: 'FR', label: 'Fri' },
   { value: 'SA', label: 'Sat' },
   { value: 'SU', label: 'Sun' },
+];
+
+const RECURRENCE_OPTIONS: { value: RecurrenceType; label: string }[] = [
+  { value: 'none', label: 'One-off' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'weekdays', label: 'Specific days' },
 ];
 
 /** The raw form values the modal emits; the parent validates and persists them. */
@@ -50,298 +62,225 @@ export interface ScheduleFormResult {
 @Component({
   selector: 'app-schedule-form-modal',
   standalone: true,
-  imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    FormsModule,
+    OverlayComponent,
+    ModalComponent,
+    BtnComponent,
+    IconComponent,
+    SelectComponent,
+  ],
   template: `
-    <div
-      class="modal-overlay"
-      (click)="dismiss.emit()"
-      role="dialog"
-      tabindex="-1"
-      (keydown.escape)="dismiss.emit()"
-    >
-      <div
-        class="modal"
-        (click)="$event.stopPropagation()"
-        (keydown.enter)="$event.stopPropagation()"
-        role="document"
-        tabindex="0"
+    <mns-overlay (closed)="dismiss.emit()">
+      <mns-modal
+        [title]="editingEntry() ? 'Edit Schedule Entry' : 'Create Schedule Entry'"
+        icon="Calendar"
+        [widthPx]="680"
+        (closed)="dismiss.emit()"
       >
-        <h2>{{ editingEntry() ? 'Edit Schedule Entry' : 'Create Schedule Entry' }}</h2>
         <form (ngSubmit)="submit()">
-          <!-- Target Selector (create only) -->
-          @if (!editingEntry()) {
-            <div class="form-group">
-              <label for="modalTarget">Target</label>
-              <select
-                id="modalTarget"
-                [(ngModel)]="targetId"
-                (ngModelChange)="updateTargetGroup()"
-                name="modalTarget"
-                required
-              >
-                <option value="" disabled>Select a screen or group</option>
-                @if (screenTargets().length > 0) {
-                  <optgroup label="Screens">
-                    @for (opt of screenTargets(); track opt.id) {
-                      <option [value]="'screen:' + opt.id">&#9633; {{ opt.name }}</option>
-                    }
-                  </optgroup>
-                }
-                @if (groupTargets().length > 0) {
-                  <optgroup label="Screen Groups">
-                    @for (opt of groupTargets(); track opt.id) {
-                      <option [value]="'group:' + opt.id">
-                        &#9638; {{ opt.name }} ({{ opt.mode }})
-                      </option>
-                    }
-                  </optgroup>
-                }
-              </select>
-            </div>
-
-            @if (targetGroup) {
-              <div class="info-box">
-                <span class="info-label">Mode:</span>
-                {{ targetGroup.mode === 'mirror' ? 'Mirror' : 'Split' }} ({{
-                  targetGroup.mode === 'mirror'
-                    ? 'all screens show the same content'
-                    : targetGroup.gridColumns + 'x' + targetGroup.gridRows + ' grid'
-                }})
+          <div class="flex flex-col gap-5">
+            <!-- Target Selector (create only) -->
+            @if (!editingEntry()) {
+              <div id="modalTarget">
+                <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Target</div>
+                <mns-select
+                  [options]="targetSelectOptions()"
+                  [value]="targetId"
+                  placeholder="Select a screen or group"
+                  (changed)="onTargetChange($event)"
+                />
               </div>
-            }
 
-            @if (targetGroup?.mode === 'split') {
-              <div class="info-box info-box-warn">
-                Content will be pre-sliced for each screen in the video wall. This may take a moment
-                to process after saving.
-              </div>
-            }
-          }
-
-          <div class="form-group">
-            <label for="modalPlaylist">Playlist</label>
-            <select id="modalPlaylist" [(ngModel)]="playlistId" name="modalPlaylist" required>
-              <option value="" disabled>Select a playlist</option>
-              @for (p of playlists(); track p.id) {
-                <option [value]="p.id">{{ p.name }}</option>
-              }
-            </select>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="modalStartDate">Start Date</label>
-              <input
-                id="modalStartDate"
-                type="date"
-                [(ngModel)]="startDate"
-                name="modalStartDate"
-                required
-              />
-            </div>
-            <div class="form-group">
-              <label for="modalStartTime">Start Time</label>
-              <input
-                id="modalStartTime"
-                type="time"
-                [(ngModel)]="startTime"
-                name="modalStartTime"
-                required
-              />
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="modalEndDate">End Date</label>
-              <input
-                id="modalEndDate"
-                type="date"
-                [(ngModel)]="endDate"
-                name="modalEndDate"
-                required
-              />
-            </div>
-            <div class="form-group">
-              <label for="modalEndTime">End Time</label>
-              <input
-                id="modalEndTime"
-                type="time"
-                [(ngModel)]="endTime"
-                name="modalEndTime"
-                required
-              />
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="modalColourCustom">Colour</label>
-            <div class="colour-picker">
-              @for (c of presetColours; track c) {
-                <button
-                  type="button"
-                  class="colour-swatch"
-                  [style.background]="c"
-                  [class.selected]="colour === c"
-                  (click)="colour = c"
-                  [attr.aria-label]="'Select colour ' + c"
+              @if (targetGroup) {
+                <div
+                  class="info-box rounded-[10px] px-3.5 py-2.5 text-[13px] text-muted border"
+                  style="background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border-color: color-mix(in srgb, var(--accent) 25%, var(--border))"
                 >
-                  &nbsp;
-                </button>
+                  <span class="font-bold text-text">Mode:</span>
+                  {{ targetGroup.mode === 'mirror' ? 'Mirror' : 'Split' }} ({{
+                    targetGroup.mode === 'mirror'
+                      ? 'all screens show the same content'
+                      : targetGroup.gridColumns + 'x' + targetGroup.gridRows + ' grid'
+                  }})
+                </div>
               }
-              <input
-                id="modalColourCustom"
-                type="color"
-                [(ngModel)]="colour"
-                name="modalColourCustom"
-                class="colour-input"
+
+              @if (targetGroup?.mode === 'split') {
+                <div
+                  class="info-box info-box-warn rounded-[10px] px-3.5 py-2.5 text-[13px] text-muted border"
+                  style="background: color-mix(in srgb, var(--warn) 8%, var(--surface)); border-color: color-mix(in srgb, var(--warn) 28%, var(--border))"
+                >
+                  Content will be pre-sliced for each screen in the video wall. This may take a
+                  moment to process after saving.
+                </div>
+              }
+            }
+
+            <!-- Playlist -->
+            <div>
+              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Playlist</div>
+              <mns-select
+                [options]="playlistSelectOptions()"
+                [value]="playlistId"
+                placeholder="Select a playlist"
+                (changed)="playlistId = $event"
               />
             </div>
-          </div>
 
-          <div class="form-group">
-            <label for="modalRecurrence">Recurrence</label>
-            <select id="modalRecurrence" [(ngModel)]="recurrence" name="modalRecurrence">
-              <option value="none">None</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="weekdays">Specific weekdays</option>
-            </select>
-          </div>
+            <!-- Date / time window -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Start</div>
+                <div class="flex gap-2">
+                  <input
+                    type="date"
+                    [(ngModel)]="startDate"
+                    name="modalStartDate"
+                    required
+                    class="flex-1 min-w-0 px-3 py-2 rounded-[10px] bg-surface border border-border-strong text-text text-sm"
+                  />
+                  <input
+                    type="time"
+                    [(ngModel)]="startTime"
+                    name="modalStartTime"
+                    required
+                    class="w-[5.5rem] px-2 py-2 rounded-[10px] bg-surface border border-border-strong text-text text-sm font-mono"
+                  />
+                </div>
+              </div>
+              <div>
+                <div class="text-[12.5px] font-semibold text-muted mb-[9px]">End</div>
+                <div class="flex gap-2">
+                  <input
+                    type="date"
+                    [(ngModel)]="endDate"
+                    name="modalEndDate"
+                    required
+                    class="flex-1 min-w-0 px-3 py-2 rounded-[10px] bg-surface border border-border-strong text-text text-sm"
+                  />
+                  <input
+                    type="time"
+                    [(ngModel)]="endTime"
+                    name="modalEndTime"
+                    required
+                    class="w-[5.5rem] px-2 py-2 rounded-[10px] bg-surface border border-border-strong text-text text-sm font-mono"
+                  />
+                </div>
+              </div>
+            </div>
 
-          @if (recurrence === 'weekdays') {
-            <div class="form-group">
-              <span id="weekdayLabel" class="form-label-text">Days</span>
-              <div class="weekday-checkboxes">
-                @for (wd of weekdayOptions; track wd.value) {
-                  <label class="weekday-checkbox">
-                    <input
-                      type="checkbox"
-                      [checked]="weekdays.includes(wd.value)"
-                      (change)="toggleWeekday(wd.value)"
-                    />
-                    {{ wd.label }}
-                  </label>
+            <!-- Colour -->
+            <div>
+              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Colour</div>
+              <div class="flex gap-[9px] items-center flex-wrap">
+                @for (c of presetColours; track c) {
+                  <button
+                    type="button"
+                    class="colour-swatch w-7 h-7 rounded-[8px] cursor-pointer"
+                    [style.background]="c"
+                    [style.border]="colour === c ? '2px solid #fff' : '2px solid transparent'"
+                    [style.box-shadow]="colour === c ? '0 0 0 2px ' + c : 'none'"
+                    [attr.aria-label]="'Select colour ' + c"
+                    (click)="colour = c"
+                  ></button>
+                }
+                <input
+                  type="color"
+                  [(ngModel)]="colour"
+                  name="modalColourCustom"
+                  aria-label="Custom colour"
+                  class="w-8 h-7 p-0 rounded-[8px] cursor-pointer bg-transparent border border-border-strong"
+                />
+              </div>
+            </div>
+
+            <!-- Recurrence -->
+            <div>
+              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Repeat</div>
+              <div
+                class="flex gap-[2px] p-[3px] rounded-[11px] bg-surface-2 border border-border w-fit"
+              >
+                @for (r of recurrenceOptions; track r.value) {
+                  <button
+                    type="button"
+                    class="recurrence-btn px-3 py-[5px] rounded-lg text-[13px] font-semibold cursor-pointer transition-all duration-[150ms]"
+                    [class.active]="recurrence === r.value"
+                    [class.bg-surface]="recurrence === r.value"
+                    [class.text-text]="recurrence === r.value"
+                    [class.text-muted]="recurrence !== r.value"
+                    [style.box-shadow]="recurrence === r.value ? 'var(--shadow)' : 'none'"
+                    (click)="setRecurrence(r.value)"
+                  >
+                    {{ r.label }}
+                  </button>
                 }
               </div>
             </div>
-          }
 
-          @if (error()) {
-            <p class="error">{{ error() }}</p>
-          }
-          <div class="form-actions">
-            @if (editingEntry()) {
-              <button type="button" class="btn btn-danger" (click)="remove.emit()">Delete</button>
+            @if (recurrence === 'weekdays') {
+              <div>
+                <span class="text-[12.5px] font-semibold text-muted mb-[9px] block">Days</span>
+                <div class="flex gap-2 flex-wrap">
+                  @for (wd of weekdayOptions; track wd.value) {
+                    <button
+                      type="button"
+                      class="weekday-checkbox px-3 py-[6px] rounded-lg text-[13px] font-semibold cursor-pointer transition-all duration-[150ms] border"
+                      [class.border-accent]="weekdays.includes(wd.value)"
+                      [class.text-accent]="weekdays.includes(wd.value)"
+                      [class.bg-accent-soft]="weekdays.includes(wd.value)"
+                      [class.border-border-strong]="!weekdays.includes(wd.value)"
+                      [class.text-muted]="!weekdays.includes(wd.value)"
+                      (click)="toggleWeekday(wd.value)"
+                    >
+                      {{ wd.label }}
+                    </button>
+                  }
+                </div>
+              </div>
             }
-            <div class="form-actions-right">
-              <button type="button" class="btn btn-secondary" (click)="dismiss.emit()">
+
+            @if (error()) {
+              <p class="error text-sm text-offline">{{ error() }}</p>
+            }
+          </div>
+
+          <div slot="footer" class="flex items-center gap-2.5 px-6 py-4 border-t border-border">
+            @if (editingEntry()) {
+              <mns-btn variant="danger" class="btn-danger" (mnsClick)="remove.emit()">
+                Delete
+              </mns-btn>
+            }
+            <div class="flex gap-2.5 ml-auto">
+              <mns-btn variant="outline" class="btn-secondary" (mnsClick)="dismiss.emit()">
                 Cancel
-              </button>
-              <button type="submit" class="btn btn-primary" [disabled]="submitting()">
+              </mns-btn>
+              <button
+                type="submit"
+                class="btn-primary inline-flex items-center gap-2 px-4 py-2.5 rounded-[10px] text-sm font-semibold text-white cursor-pointer"
+                [class.opacity-50]="submitting()"
+                [disabled]="submitting()"
+              >
+                @if (!submitting()) {
+                  <mns-icon name="Check" [size]="16" />
+                }
                 {{ submitting() ? 'Saving...' : editingEntry() ? 'Update' : 'Create' }}
               </button>
             </div>
           </div>
         </form>
-      </div>
-    </div>
+      </mns-modal>
+    </mns-overlay>
   `,
   styles: `
-    .form-row {
-      display: flex;
-      gap: 0.75rem;
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 8px 20px -10px var(--accent-ring);
+      transition: filter 0.15s;
     }
-    .form-row .form-group {
-      flex: 1;
-    }
-    .form-label-text {
-      display: block;
-      margin-bottom: 0.375rem;
-      font-size: 0.8125rem;
-      font-weight: 600;
-      color: var(--text-muted);
-    }
-    .form-actions {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 1.5rem;
-      padding-top: 1rem;
-      border-top: 1px solid var(--border);
-    }
-    .form-actions-right {
-      display: flex;
-      gap: 0.625rem;
-      margin-left: auto;
-    }
-    .info-box {
-      padding: 0.625rem 0.875rem;
-      background: color-mix(in srgb, var(--accent) 8%, var(--surface));
-      border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
-      border-radius: var(--r-lg, 10px);
-      font-size: 0.8125rem;
-      color: var(--text-muted);
-      margin-bottom: 1rem;
-    }
-    .info-box .info-label {
-      font-weight: 700;
-      color: var(--text);
-    }
-    .info-box-warn {
-      background: color-mix(in srgb, var(--warn) 8%, var(--surface));
-      border-color: color-mix(in srgb, var(--warn) 28%, var(--border));
-    }
-    .colour-picker {
-      display: flex;
-      gap: 0.375rem;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-    .colour-swatch {
-      width: 1.625rem;
-      height: 1.625rem;
-      border-radius: 6px;
-      border: 2px solid transparent;
-      cursor: pointer;
-      transition:
-        border-color 0.12s,
-        transform 0.12s;
-    }
-    .colour-swatch:hover {
-      transform: scale(1.12);
-      border-color: rgba(255, 255, 255, 0.5);
-    }
-    .colour-swatch.selected {
-      border-color: #fff;
-      box-shadow: 0 0 0 2px var(--accent);
-    }
-    .colour-input {
-      width: 2rem !important;
-      height: 1.625rem;
-      padding: 0 !important;
-      border: 1px solid var(--border-strong) !important;
-      border-radius: 6px;
-      cursor: pointer;
-      background: transparent !important;
-    }
-    .weekday-checkboxes {
-      display: flex;
-      gap: 0.625rem;
-      flex-wrap: wrap;
-    }
-    .weekday-checkbox {
-      display: flex;
-      align-items: center;
-      gap: 0.3rem;
-      font-size: 0.8125rem;
-      font-weight: 500;
-      color: var(--text);
-      cursor: pointer;
-    }
-    .weekday-checkbox input[type='checkbox'] {
-      width: auto;
-      accent-color: var(--accent);
+    .btn-primary:not(:disabled):hover {
+      filter: brightness(1.06);
     }
   `,
 })
@@ -368,6 +307,7 @@ export class ScheduleFormModal implements OnInit {
 
   readonly presetColours = PRESET_COLOURS;
   readonly weekdayOptions = WEEKDAY_OPTIONS;
+  readonly recurrenceOptions = RECURRENCE_OPTIONS;
 
   targetId = '';
   targetGroup: ScreenGroup | null = null;
@@ -393,12 +333,39 @@ export class ScheduleFormModal implements OnInit {
     this.updateTargetGroup();
   }
 
+  targetSelectOptions(): SelectOption[] {
+    const opts: SelectOption[] = [];
+    for (const s of this.screenTargets()) {
+      opts.push({ value: 'screen:' + s.id, label: 'Screen · ' + s.name });
+    }
+    for (const g of this.groupTargets()) {
+      opts.push({ value: 'group:' + g.id, label: 'Group · ' + g.name + ' (' + g.mode + ')' });
+    }
+    return opts;
+  }
+
+  playlistSelectOptions(): SelectOption[] {
+    return this.playlists().map((p) => ({ value: p.id, label: p.name }));
+  }
+
+  onTargetChange(value: string): void {
+    this.targetId = value;
+    this.updateTargetGroup();
+  }
+
   updateTargetGroup(): void {
     if (this.targetId.startsWith('group:')) {
       const groupId = this.targetId.replace('group:', '');
       this.targetGroup = this.screenGroups().find((g) => g.id === groupId) || null;
     } else {
       this.targetGroup = null;
+    }
+  }
+
+  setRecurrence(value: RecurrenceType): void {
+    this.recurrence = value;
+    if (value !== 'weekdays') {
+      this.weekdays = [];
     }
   }
 

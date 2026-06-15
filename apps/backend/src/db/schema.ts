@@ -270,7 +270,7 @@ export const scheduleEntries = pgTable('schedule_entries', {
   startTime: timestamp({ withTimezone: true }).notNull(),
   endTime: timestamp({ withTimezone: true }).notNull(),
   rrule: text(),
-  colour: text().notNull(),
+  colour: text().notNull().default('#6d6cf6'),
   ...timestamps,
 });
 
