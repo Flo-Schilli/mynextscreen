@@ -75,6 +75,8 @@ function makeGroup(overrides: Partial<ScreenGroup> = {}): ScreenGroup {
     mode: 'split',
     gridColumns: 2,
     gridRows: 2,
+    color: '#6d6cf6',
+    icon: 'Groups',
     screens: [],
     createdAt: '',
     updatedAt: '',

@@ -1,15 +1,18 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { ScreenGroupService } from './screen-group.service';
+import { forkJoin } from 'rxjs';
 import {
   ScreenGroup,
-  CreateScreenGroupRequest,
+  CreateScreenGroupSubmit,
   UpdateScreenGroupRequest,
 } from './screen-group.model';
-import { ScreenGroupTable } from './screen-group-table';
+import { ScreenGroupCard } from './screen-group-card';
 import { ScreenGroupCreateModal } from './screen-group-create-modal';
 import { ScreenGroupEditModal } from './screen-group-edit-modal';
 import { ScreenGroupDeleteModal } from './screen-group-delete-modal';
+import { ScreenService } from '../screens/screen.service';
+import { Screen } from '../screens/screen.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { ToastService } from '../shared/toast/toast.service';
@@ -25,7 +28,7 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
   selector: 'app-screen-groups',
   standalone: true,
   imports: [
-    ScreenGroupTable,
+    ScreenGroupCard,
     ScreenGroupCreateModal,
     ScreenGroupEditModal,
     ScreenGroupDeleteModal,
@@ -35,23 +38,24 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
   ],
   template: `
     <div class="page">
-      <mns-page-header title="Screen Groups" icon="Layers">
+      <mns-page-header title="Screen Groups" icon="Groups" [sub]="headerSub()">
         @if (!loading && !showCreateForm) {
           <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">New Group</mns-btn>
         }
       </mns-page-header>
 
       @if (loadError) {
-        <p class="error">{{ loadError }}</p>
+        <p class="text-offline text-sm mb-4">{{ loadError }}</p>
       }
 
       @if (loading) {
-        <p class="loading-text">Loading screen groups...</p>
+        <p class="text-muted text-sm">Loading screen groups…</p>
       }
 
       <!-- Create Group Modal -->
       @if (showCreateForm) {
         <app-screen-group-create-modal
+          [availableScreens]="availableScreens"
           [creating]="creating"
           [error]="createError"
           (create)="submitCreate($event)"
@@ -59,20 +63,22 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
         />
       }
 
-      <!-- Groups Table -->
+      <!-- Groups Card Grid -->
       @if (!loading && groups.length > 0) {
-        <app-screen-group-table
-          [groups]="groups"
-          (view)="viewGroup($event)"
-          (edit)="editGroup($event)"
-          (delete)="confirmDelete($event)"
-        />
+        <div
+          class="grid gap-[var(--gap)]"
+          style="grid-template-columns: repeat(auto-fill, minmax(290px, 1fr))"
+        >
+          @for (group of groups; track group.id) {
+            <app-screen-group-card [group]="group" (open)="viewGroup($event)" />
+          }
+        </div>
       }
 
       <!-- Empty State -->
       @if (!loading && groups.length === 0 && !loadError) {
         <mns-empty
-          icon="Layers"
+          icon="Groups"
           title="No screen groups yet"
           desc="Create your first screen group to start building mirror displays or video walls."
         >
@@ -83,7 +89,7 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
       }
 
       @if (actionError) {
-        <p class="error">{{ actionError }}</p>
+        <p class="text-offline text-sm mt-4">{{ actionError }}</p>
       }
 
       <!-- Edit Group Modal -->
@@ -112,15 +118,27 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
 })
 export class ScreenGroups implements OnInit {
   private screenGroupService = inject(ScreenGroupService);
+  private screenService = inject(ScreenService);
   private memberService = inject(MemberService);
   private router = inject(Router);
   private toast = inject(ToastService);
 
   orgId = '';
   groups: ScreenGroup[] = [];
+  allScreens: Screen[] = [];
   loading = true;
   loadError = '';
   actionError = '';
+
+  headerSub(): string {
+    if (this.loading) return '';
+    return `${this.groups.length} group${this.groups.length === 1 ? '' : 's'}`;
+  }
+
+  /** Screens not currently assigned to any group — selectable on create. */
+  get availableScreens(): Screen[] {
+    return this.allScreens.filter((s) => !s.groupId);
+  }
 
   // Create form state
   showCreateForm = false;
@@ -177,6 +195,18 @@ export class ScreenGroups implements OnInit {
         this.loading = false;
       },
     });
+    this.loadScreens();
+  }
+
+  private loadScreens(): void {
+    this.screenService.getAll(this.orgId).subscribe({
+      next: (screens) => {
+        this.allScreens = screens;
+      },
+      error: () => {
+        this.allScreens = [];
+      },
+    });
   }
 
   // --- Create ---
@@ -189,21 +219,40 @@ export class ScreenGroups implements OnInit {
     this.showCreateForm = false;
   }
 
-  submitCreate(dto: CreateScreenGroupRequest): void {
+  submitCreate(submit: CreateScreenGroupSubmit): void {
     this.creating = true;
     this.createError = '';
-    this.screenGroupService.create(this.orgId, dto).subscribe({
-      next: () => {
-        this.creating = false;
-        this.showCreateForm = false;
-        this.toast.success('Screen group created.');
-        this.loadGroups();
+    this.screenGroupService.create(this.orgId, submit.request).subscribe({
+      next: (group) => {
+        const ids = submit.screenIds;
+        if (ids.length === 0) {
+          this.finishCreate();
+          return;
+        }
+        // Mirror-mode create: assign each selected screen (no grid position).
+        forkJoin(
+          ids.map((id) => this.screenGroupService.assignScreen(this.orgId, group.id, id, {})),
+        ).subscribe({
+          next: () => this.finishCreate(),
+          error: () => {
+            // Group exists; surface a soft warning but still close + reload.
+            this.toast.error('Group created, but some screens could not be assigned.');
+            this.finishCreate();
+          },
+        });
       },
       error: (err) => {
         this.createError = err.error?.message || 'Failed to create screen group.';
         this.creating = false;
       },
     });
+  }
+
+  private finishCreate(): void {
+    this.creating = false;
+    this.showCreateForm = false;
+    this.toast.success('Screen group created.');
+    this.loadGroups();
   }
 
   // --- Edit ---

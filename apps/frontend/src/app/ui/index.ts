@@ -44,5 +44,7 @@ export type { SelectOption } from './select.component';
 export { SwitchComponent, ToggleRowComponent } from './switch.component';
 export { SInputComponent, SFieldComponent } from './form.component';
 
+export { StepperComponent } from './stepper.component';
+
 // Overlays
 export { OverlayComponent, ModalComponent } from './overlay.component';

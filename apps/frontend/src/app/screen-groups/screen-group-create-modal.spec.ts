@@ -1,26 +1,32 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
-import { By } from '@angular/platform-browser';
 import { ScreenGroupCreateModal } from './screen-group-create-modal';
-import { CreateScreenGroupRequest } from './screen-group.model';
+import { CreateScreenGroupSubmit } from './screen-group.model';
+import { Screen } from '../screens/screen.model';
 
-/**
- * Zoneless async flush helper: ngModel write-back and `@if` re-evaluation are
- * not auto-ticked, so drain the microtask queue and stabilise before reading.
- */
-async function flush(fixture: ComponentFixture<unknown>): Promise<void> {
-  for (let i = 0; i < 6; i++) {
-    await Promise.resolve();
-  }
-  await fixture.whenStable();
-  fixture.detectChanges();
+function makeScreen(overrides: Partial<Screen> = {}): Screen {
+  return {
+    id: 's1',
+    organisationId: 'org1',
+    name: 'Lobby',
+    resolution: '1920x1080',
+    location: 'Lobby',
+    isOnline: true,
+    lastHeartbeat: null,
+    groupId: null,
+    gridRow: null,
+    gridColumn: null,
+    createdAt: '2026-06-01T00:00:00Z',
+    updatedAt: '2026-06-01T00:00:00Z',
+    ...overrides,
+  };
 }
 
 describe('ScreenGroupCreateModal', () => {
   let fixture: ComponentFixture<ScreenGroupCreateModal>;
   let component: ScreenGroupCreateModal;
 
-  async function setUp(creating = false, error = ''): Promise<void> {
+  async function setUp(screens: Screen[] = [], creating = false, error = ''): Promise<void> {
     await TestBed.configureTestingModule({
       imports: [ScreenGroupCreateModal],
       providers: [provideZonelessChangeDetection()],
@@ -28,156 +34,126 @@ describe('ScreenGroupCreateModal', () => {
 
     fixture = TestBed.createComponent(ScreenGroupCreateModal);
     component = fixture.componentInstance;
+    fixture.componentRef.setInput('availableScreens', screens);
     fixture.componentRef.setInput('creating', creating);
     fixture.componentRef.setInput('error', error);
     fixture.detectChanges();
     await fixture.whenStable();
   }
 
-  // The form fields are `protected`, so reach them through an index signature
-  // rather than `keyof` (which only sees public members).
-  function setField(key: string, value: string | number): void {
-    (component as unknown as Record<string, unknown>)[key] = value;
+  // Fields are `protected`; reach them via an index signature.
+  function field<T>(key: string): T {
+    return (component as unknown as Record<string, { set?: (v: unknown) => void; (): T }>)[
+      key
+    ]() as T;
+  }
+  function setSignal(key: string, value: unknown): void {
+    (component as unknown as Record<string, { set: (v: unknown) => void }>)[key].set(value);
   }
 
-  function submit(): void {
-    fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit'));
-  }
-
-  it('defaults to mirror mode and hides the grid inputs', async () => {
+  it('defaults to mirror mode and hides the grid steppers', async () => {
     await setUp();
 
-    expect(fixture.nativeElement.querySelector('#createGridColumns')).toBeNull();
-    expect(fixture.nativeElement.querySelector('#createGridRows')).toBeNull();
+    expect(field<string>('mode')).toBe('mirror');
+    expect(fixture.nativeElement.querySelector('mns-stepper')).toBeNull();
   });
 
-  it('does not emit and shows a local error when name is missing', async () => {
+  it('reports invalid until the name has at least two characters', async () => {
     await setUp();
-    let emitted: CreateScreenGroupRequest | undefined;
+    expect(component.valid()).toBe(false);
+
+    setSignal('name', 'A');
+    expect(component.valid()).toBe(false);
+
+    setSignal('name', 'Lobby');
+    expect(component.valid()).toBe(true);
+  });
+
+  it('does not emit and shows a local error when name is too short', async () => {
+    await setUp();
+    let emitted: CreateScreenGroupSubmit | undefined;
     component.create.subscribe((v) => (emitted = v));
 
-    submit();
-    await flush(fixture);
+    component.onSubmit();
 
     expect(emitted).toBeUndefined();
-    expect(fixture.nativeElement.querySelector('.error').textContent).toContain(
-      'Name is required.',
-    );
+    expect(field<string>('localError')).toContain('at least 2');
   });
 
-  it('emits a mirror request without grid dimensions when name is filled', async () => {
-    await setUp();
-    let emitted: CreateScreenGroupRequest | undefined;
+  it('emits a mirror request with colour and selected screens', async () => {
+    await setUp([makeScreen({ id: 's1' }), makeScreen({ id: 's2' })]);
+    let emitted: CreateScreenGroupSubmit | undefined;
     component.create.subscribe((v) => (emitted = v));
 
-    setField('name', 'Lobby Wall');
-    submit();
-    await flush(fixture);
-
-    expect(emitted).toEqual({ name: 'Lobby Wall', mode: 'mirror' });
-  });
-
-  it('renders grid inputs when split mode is selected', async () => {
-    await setUp();
-
-    setField('mode', 'split');
-    fixture.detectChanges();
-    await flush(fixture);
-
-    expect(fixture.nativeElement.querySelector('#createGridColumns')).not.toBeNull();
-    expect(fixture.nativeElement.querySelector('#createGridRows')).not.toBeNull();
-  });
-
-  it('blocks submit and shows an error when split grid dimensions are zero', async () => {
-    await setUp();
-    let emitted: CreateScreenGroupRequest | undefined;
-    component.create.subscribe((v) => (emitted = v));
-
-    setField('name', 'Wall');
-    setField('mode', 'split');
-    setField('gridColumns', 0);
-    setField('gridRows', 0);
-    submit();
-    await flush(fixture);
-
-    expect(emitted).toBeUndefined();
-    expect(fixture.nativeElement.querySelector('.error').textContent).toContain(
-      'Grid columns and rows are required for split mode.',
-    );
-  });
-
-  it('emits a split request including the grid dimensions', async () => {
-    await setUp();
-    let emitted: CreateScreenGroupRequest | undefined;
-    component.create.subscribe((v) => (emitted = v));
-
-    setField('name', 'Video Wall');
-    setField('mode', 'split');
-    setField('gridColumns', 3);
-    setField('gridRows', 2);
-    submit();
-    await flush(fixture);
+    setSignal('name', 'Lobby Wall');
+    setSignal('color', '#0ea5e9');
+    component.toggle('s1');
+    component.onSubmit();
 
     expect(emitted).toEqual({
-      name: 'Video Wall',
-      mode: 'split',
-      gridColumns: 3,
-      gridRows: 2,
+      request: { name: 'Lobby Wall', mode: 'mirror', color: '#0ea5e9', icon: 'Groups' },
+      screenIds: ['s1'],
     });
   });
 
-  it('clears a previous local error once a valid submit succeeds', async () => {
+  it('renders grid steppers when split mode is selected', async () => {
     await setUp();
 
-    submit();
-    await flush(fixture);
-    expect(fixture.nativeElement.querySelector('.error').textContent).toContain(
-      'Name is required.',
-    );
+    setSignal('mode', 'split');
+    fixture.detectChanges();
+    await fixture.whenStable();
 
-    setField('name', 'Now Valid');
-    submit();
-    await flush(fixture);
-
-    expect(fixture.nativeElement.querySelector('.error')).toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('mns-stepper').length).toBe(2);
   });
 
-  it('renders the parent-provided error when no local error is set', async () => {
-    await setUp(false, 'Server rejected the request');
+  it('emits a split request with grid dimensions and no screen ids', async () => {
+    await setUp([makeScreen({ id: 's1' })]);
+    let emitted: CreateScreenGroupSubmit | undefined;
+    component.create.subscribe((v) => (emitted = v));
 
-    expect(fixture.nativeElement.querySelector('.error').textContent).toContain(
-      'Server rejected the request',
-    );
+    setSignal('name', 'Video Wall');
+    setSignal('mode', 'split');
+    setSignal('cols', 3);
+    setSignal('rows', 2);
+    component.toggle('s1');
+    component.onSubmit();
+
+    expect(emitted).toEqual({
+      request: {
+        name: 'Video Wall',
+        mode: 'split',
+        color: '#6d6cf6',
+        icon: 'Groups',
+        gridColumns: 3,
+        gridRows: 2,
+      },
+      screenIds: [],
+    });
   });
 
-  it('disables the submit button and shows a busy label while creating', async () => {
-    await setUp(true);
+  it('toggles a screen selection on and off', async () => {
+    await setUp([makeScreen({ id: 's1' })]);
 
-    const submitBtn: HTMLButtonElement =
-      fixture.nativeElement.querySelector('button[type="submit"]');
-    expect(submitBtn.disabled).toBe(true);
-    expect(submitBtn.textContent?.trim()).toBe('Creating...');
+    component.toggle('s1');
+    expect(component.isSelected('s1')).toBe(true);
+
+    component.toggle('s1');
+    expect(component.isSelected('s1')).toBe(false);
   });
 
-  it('emits dismiss when Cancel is clicked', async () => {
+  it('renders the parent-provided error', async () => {
+    await setUp([], false, 'Server rejected the request');
+
+    expect(fixture.nativeElement.textContent).toContain('Server rejected the request');
+  });
+
+  it('emits dismiss when the overlay backdrop is clicked', async () => {
     await setUp();
     let dismissed = false;
     component.dismiss.subscribe(() => (dismissed = true));
 
-    const cancelBtn = Array.from(fixture.nativeElement.querySelectorAll('button')).find(
-      (b) => (b as HTMLElement).textContent?.trim() === 'Cancel',
-    ) as HTMLButtonElement;
-    cancelBtn.click();
-
-    expect(dismissed).toBe(true);
-  });
-
-  it('emits dismiss when the overlay is clicked', async () => {
-    await setUp();
-    let dismissed = false;
-    component.dismiss.subscribe(() => (dismissed = true));
-
-    fixture.debugElement.query(By.css('.modal-overlay')).nativeElement.click();
+    const backdrop = fixture.nativeElement.querySelector('mns-overlay > div');
+    backdrop.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     expect(dismissed).toBe(true);
   });

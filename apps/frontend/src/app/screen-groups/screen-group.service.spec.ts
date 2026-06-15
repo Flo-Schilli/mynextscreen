@@ -28,6 +28,8 @@ function makeGroup(overrides: Partial<ScreenGroup> = {}): ScreenGroup {
     mode: 'split',
     gridColumns: 2,
     gridRows: 2,
+    color: '#6d6cf6',
+    icon: 'Groups',
     screens: [],
     createdAt: '2026-06-01T08:00:00.000Z',
     updatedAt: '2026-06-01T08:00:00.000Z',

@@ -1,100 +1,94 @@
-import { Component, input, output, signal, OnInit } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  output,
+  signal,
+  OnInit,
+} from '@angular/core';
+import { OverlayComponent, ModalComponent, BtnComponent, StepperComponent } from '../ui';
 import { ScreenGroup, ScreenGroupMode, UpdateScreenGroupRequest } from './screen-group.model';
+import { ScreenGroupModeToggle } from './screen-group-mode-toggle';
+
+const COLORS = ['#6d6cf6', '#0ea5e9', '#ec4899', '#14b8a6', '#10b981', '#f59e0b', '#8b5cf6'];
 
 /**
- * Edit-screen-group modal. Seeds its field state once from the `group` input on
- * open (the parent recreates the component per selection via `@if`), validates
- * required fields locally, and emits an {@link UpdateScreenGroupRequest} when
- * valid. The parent performs the HTTP request and feeds `saving`/`error` back in.
+ * Edit-screen-group modal (mns-overlay/mns-modal). Seeds its field state once
+ * from the `group` input on open and emits an {@link UpdateScreenGroupRequest}
+ * when valid. The parent runs the HTTP work and feeds `saving`/`error` back in.
  */
 @Component({
   selector: 'app-screen-group-edit-modal',
   standalone: true,
-  imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    OverlayComponent,
+    ModalComponent,
+    BtnComponent,
+    StepperComponent,
+    ScreenGroupModeToggle,
+  ],
   template: `
-    <div
-      class="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Edit Screen Group"
-      tabindex="0"
-      (click)="dismiss.emit()"
-      (keydown.escape)="dismiss.emit()"
-    >
-      <div
-        class="modal"
-        role="document"
-        (click)="$event.stopPropagation()"
-        (keydown)="$event.stopPropagation()"
-      >
-        <h2>Edit Screen Group</h2>
-        <form (ngSubmit)="onSubmit()">
-          <div class="form-group">
-            <label for="editName">Name</label>
-            <input id="editName" type="text" [(ngModel)]="name" name="editName" required />
+    <mns-overlay (closed)="dismiss.emit()">
+      <mns-modal title="Edit screen group" icon="Pencil" [widthPx]="560" (closed)="dismiss.emit()">
+        <div class="flex flex-col gap-5">
+          <label class="block">
+            <span class="block text-[12.5px] font-semibold text-muted mb-2">Group name</span>
+            <input
+              class="w-full px-3 py-2.5 rounded-[10px] text-sm bg-surface-2 border border-border-strong text-text outline-none"
+              [value]="name()"
+              (input)="name.set($any($event.target).value)"
+            />
+          </label>
+
+          <div>
+            <span class="block text-[12.5px] font-semibold text-muted mb-2.5">Colour</span>
+            <div class="flex gap-2.5">
+              @for (c of colors; track c) {
+                <button
+                  type="button"
+                  class="w-7 h-7 rounded-lg cursor-pointer"
+                  [style.background]="c"
+                  [style.border]="color() === c ? '2px solid #fff' : '2px solid transparent'"
+                  [style.box-shadow]="color() === c ? '0 0 0 2px ' + c : 'none'"
+                  [attr.aria-label]="'Colour ' + c"
+                  (click)="color.set(c)"
+                ></button>
+              }
+            </div>
           </div>
-          <div class="form-group">
-            <label for="editMode">Mode</label>
-            <select id="editMode" [(ngModel)]="mode" name="editMode" required>
-              <option value="mirror">Mirror</option>
-              <option value="split">Split (Video Wall)</option>
-            </select>
+
+          <div>
+            <span class="block text-[12.5px] font-semibold text-muted mb-2.5">Display mode</span>
+            <app-screen-group-mode-toggle [value]="mode()" (modeChange)="mode.set($event)" />
           </div>
-          @if (mode === 'split') {
-            <div class="form-row">
-              <div class="form-group">
-                <label for="editGridColumns">Grid Columns</label>
-                <input
-                  id="editGridColumns"
-                  type="number"
-                  [(ngModel)]="gridColumns"
-                  name="editGridColumns"
-                  required
-                  min="1"
-                  max="10"
-                />
-              </div>
-              <div class="form-group">
-                <label for="editGridRows">Grid Rows</label>
-                <input
-                  id="editGridRows"
-                  type="number"
-                  [(ngModel)]="gridRows"
-                  name="editGridRows"
-                  required
-                  min="1"
-                  max="10"
-                />
-              </div>
+
+          @if (mode() === 'split') {
+            <div class="p-4 rounded-[13px] bg-surface-2 border border-border flex flex-col gap-3.5">
+              <mns-stepper label="Columns" [(value)]="cols" [min]="1" [max]="4" />
+              <mns-stepper label="Rows" [(value)]="rows" [min]="1" [max]="4" />
             </div>
           }
-          @if (localError() || error()) {
-            <p class="error">{{ localError() || error() }}</p>
-          }
-          <div class="form-actions">
-            <button type="button" class="btn btn-secondary" (click)="dismiss.emit()">Cancel</button>
-            <button type="submit" class="btn btn-primary" [disabled]="saving()">
-              {{ saving() ? 'Saving...' : 'Save Changes' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  `,
-  styles: `
-    /* Two-column form layout */
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-    }
 
-    @media (max-width: 768px) {
-      .form-row {
-        grid-template-columns: 1fr;
-      }
-    }
+          @if (localError() || error()) {
+            <p class="text-offline text-sm">{{ localError() || error() }}</p>
+          }
+        </div>
+
+        <div slot="footer" class="flex gap-2.5 px-6 py-5 border-t border-border">
+          <mns-btn variant="outline" [full]="true" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn
+            variant="primary"
+            [full]="true"
+            icon="Check"
+            [disabled]="saving()"
+            (mnsClick)="onSubmit()"
+            >{{ saving() ? 'Saving…' : 'Save changes' }}</mns-btn
+          >
+        </div>
+      </mns-modal>
+    </mns-overlay>
   `,
 })
 export class ScreenGroupEditModal implements OnInit {
@@ -105,35 +99,38 @@ export class ScreenGroupEditModal implements OnInit {
   readonly save = output<UpdateScreenGroupRequest>();
   readonly dismiss = output<void>();
 
-  protected name = '';
-  protected mode: ScreenGroupMode = 'mirror';
-  protected gridColumns = 2;
-  protected gridRows = 2;
+  protected readonly colors = COLORS;
+
+  protected readonly name = signal('');
+  protected readonly color = signal(COLORS[0]);
+  protected readonly mode = signal<ScreenGroupMode>('mirror');
+  protected readonly cols = signal(2);
+  protected readonly rows = signal(2);
   protected readonly localError = signal('');
+
+  readonly valid = computed(() => this.name().trim().length > 0);
 
   ngOnInit(): void {
     const group = this.group();
-    this.name = group.name;
-    this.mode = group.mode;
-    this.gridColumns = group.gridColumns ?? 2;
-    this.gridRows = group.gridRows ?? 2;
+    this.name.set(group.name);
+    this.color.set(group.color || COLORS[0]);
+    this.mode.set(group.mode);
+    this.cols.set(group.gridColumns ?? 2);
+    this.rows.set(group.gridRows ?? 2);
   }
 
   onSubmit(): void {
-    if (!this.name) {
+    if (!this.valid()) {
       this.localError.set('Name is required.');
       return;
     }
-    if (this.mode === 'split' && (!this.gridColumns || !this.gridRows)) {
-      this.localError.set('Grid columns and rows are required for split mode.');
-      return;
-    }
-
     this.localError.set('');
+    const split = this.mode() === 'split';
     this.save.emit({
-      name: this.name,
-      mode: this.mode,
-      ...(this.mode === 'split' ? { gridColumns: this.gridColumns, gridRows: this.gridRows } : {}),
+      name: this.name().trim(),
+      mode: this.mode(),
+      color: this.color(),
+      ...(split ? { gridColumns: this.cols(), gridRows: this.rows() } : {}),
     });
   }
 }

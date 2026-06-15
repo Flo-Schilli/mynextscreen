@@ -52,6 +52,8 @@ function makeGroup(id: string, name: string, screenCount: number): ScreenGroup {
     mode: 'mirror',
     gridColumns: null,
     gridRows: null,
+    color: '#6d6cf6',
+    icon: 'Groups',
     screens: Array.from({ length: screenCount }, (_, i) => ({
       id: `${id}-s${i}`,
       name: `s${i}`,
