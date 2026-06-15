@@ -20,6 +20,14 @@ function makeStream(overrides: Partial<LiveStream> = {}): LiveStream {
   };
 }
 
+function buttonByText(fixture: ComponentFixture<unknown>, text: string): HTMLButtonElement {
+  const match = fixture.debugElement
+    .queryAll(By.css('button'))
+    .find((b) => (b.nativeElement.textContent as string).trim().includes(text));
+  if (!match) throw new Error(`No button matching "${text}"`);
+  return match.nativeElement as HTMLButtonElement;
+}
+
 describe('LiveStreamDeleteModal', () => {
   let fixture: ComponentFixture<LiveStreamDeleteModal>;
 
@@ -40,86 +48,51 @@ describe('LiveStreamDeleteModal', () => {
   }
 
   it('renders the stream name in the confirmation copy', () => {
-    // Arrange / Act
     configure();
-
-    // Assert
     expect(fixture.debugElement.query(By.css('strong')).nativeElement.textContent).toBe(
       'Lobby Cam',
     );
   });
 
   it('shows the error paragraph only when error is set', () => {
-    // Arrange / Act
     configure(false, '');
-
-    // Assert
     expect(fixture.debugElement.query(By.css('.error'))).toBeNull();
 
-    // Act
     fixture.componentRef.setInput('error', 'Cannot delete an active stream.');
     fixture.detectChanges();
 
-    // Assert
     expect(fixture.debugElement.query(By.css('.error')).nativeElement.textContent).toContain(
       'Cannot delete an active stream.',
     );
   });
 
-  it('labels the confirm button "Delete" when idle and "Deleting..." when deleting', () => {
-    // Arrange / Act
+  it('labels the confirm button "Delete" when idle and "Deleting…" when deleting', () => {
     configure(false);
+    expect(buttonByText(fixture, 'Delete').disabled).toBe(false);
 
-    // Assert
-    const button = fixture.debugElement.query(By.css('.btn-danger'));
-    expect(button.nativeElement.textContent.trim()).toBe('Delete');
-    expect(button.nativeElement.disabled).toBe(false);
-
-    // Act
     fixture.componentRef.setInput('deleting', true);
     fixture.detectChanges();
-
-    // Assert
-    expect(button.nativeElement.textContent.trim()).toBe('Deleting...');
-    expect(button.nativeElement.disabled).toBe(true);
+    const button = buttonByText(fixture, 'Deleting');
+    expect(button.disabled).toBe(true);
   });
 
   it('emits confirm when the delete button is clicked', () => {
-    // Arrange
     configure();
     const spy = vi.fn();
     fixture.componentInstance.confirm.subscribe(spy);
 
-    // Act
-    fixture.debugElement.query(By.css('.btn-danger')).nativeElement.click();
+    buttonByText(fixture, 'Delete').click();
 
-    // Assert
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it('emits dismiss when the cancel button is clicked', () => {
-    // Arrange
     configure();
     const spy = vi.fn();
     fixture.componentInstance.dismiss.subscribe(spy);
 
-    // Act
-    fixture.debugElement.query(By.css('.btn-secondary')).nativeElement.click();
+    buttonByText(fixture, 'Cancel').click();
 
-    // Assert
     expect(spy).toHaveBeenCalledTimes(1);
-  });
-
-  it('emits dismiss when clicking the overlay backdrop', () => {
-    // Arrange
-    configure();
-    const spy = vi.fn();
-    fixture.componentInstance.dismiss.subscribe(spy);
-
-    // Act
-    fixture.debugElement.query(By.css('.modal-overlay')).nativeElement.click();
-
-    // Assert
-    expect(spy).toHaveBeenCalled();
   });
 });

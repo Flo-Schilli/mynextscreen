@@ -1,18 +1,11 @@
 import { Component, inject, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { LiveStreamService } from './live-stream.service';
-import {
-  LiveStream,
-  CreateLiveStreamRequest,
-  UpdateLiveStreamRequest,
-  ActivateLiveStreamRequest,
-  ActivateStreamResponse,
-} from './live-stream.model';
-import { LiveStreamTable } from './live-stream-table';
+import { LiveStream, CreateLiveStreamRequest } from './live-stream.model';
+import { LiveStreamCard } from './live-stream-card';
 import { LiveStreamCreateModal } from './live-stream-create-modal';
-import { LiveStreamEditModal } from './live-stream-edit-modal';
 import { LiveStreamDeleteModal } from './live-stream-delete-modal';
-import { LiveStreamActivateModal } from './live-stream-activate-modal';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
 import { ScreenGroupService } from '../screen-groups/screen-group.service';
@@ -23,21 +16,20 @@ import { ToastService } from '../shared/toast/toast.service';
 import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
 
 /**
- * Smart container for the live-streams feature. Owns data loading (streams +
- * screens + groups), the org context and all HTTP orchestration (create/edit/
- * delete/activate/deactivate). Presentation is delegated to the table and the
- * create/edit/delete/activate modal children; the small deactivate action and
- * the passthrough-warnings banner stay inline.
+ * Smart container for the live-streams list. Owns data loading (streams +
+ * screens + groups), the org context, and the list-level HTTP orchestration
+ * (create, quick go-live/stop toggle from a card, delete). The cinematic
+ * card-grid is delegated to {@link LiveStreamCard}; opening a card navigates to
+ * the routed detail console (`live-streams/:id`), which owns rename / activate /
+ * deactivate / restart / target selection.
  */
 @Component({
   selector: 'app-live-streams',
   standalone: true,
   imports: [
-    LiveStreamTable,
+    LiveStreamCard,
     LiveStreamCreateModal,
-    LiveStreamEditModal,
     LiveStreamDeleteModal,
-    LiveStreamActivateModal,
     PageHeaderComponent,
     BtnComponent,
     EmptyComponent,
@@ -73,15 +65,18 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
         />
       }
 
-      <!-- Streams Table -->
+      <!-- Card grid -->
       @if (!loading && streams.length > 0) {
-        <app-live-stream-table
-          [streams]="streams"
-          (activate)="openActivateModal($event)"
-          (edit)="editStream($event)"
-          (delete)="confirmDelete($event)"
-          (deactivate)="deactivateStream($event)"
-        />
+        <div class="stream-grid">
+          @for (stream of streams; track stream.id) {
+            <app-live-stream-card
+              [stream]="stream"
+              (open)="openDetail($event)"
+              (goToggle)="toggleStream($event)"
+              (delete)="confirmDelete($event)"
+            />
+          }
+        </div>
       }
 
       <!-- Empty State — wrapper class "empty-state" preserved for specs -->
@@ -89,11 +84,11 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
         <div class="empty-state">
           <mns-empty
             icon="Stream"
-            title="No live streams yet"
-            desc="Create your first live stream to start broadcasting to screens."
+            title="No live streams"
+            desc="Connect an RTMP or RTP source to broadcast live to your network in real time."
           >
             <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">
-              Create your first stream
+              Add a stream source
             </mns-btn>
           </mns-empty>
         </div>
@@ -101,38 +96,6 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
 
       @if (actionError) {
         <p class="error">{{ actionError }}</p>
-      }
-
-      <!-- Passthrough Warnings Banner — class "warning-banner" preserved for specs -->
-      @if (passthroughWarnings.length > 0) {
-        <div class="warning-banner">
-          <div class="warning-banner-header">
-            <strong>Passthrough Compatibility Warnings</strong>
-            <button
-              class="warning-dismiss"
-              (click)="dismissWarnings()"
-              aria-label="Dismiss warnings"
-            >
-              &times;
-            </button>
-          </div>
-          <ul class="warning-list">
-            @for (warning of passthroughWarnings; track warning) {
-              <li>{{ warning }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      <!-- Edit Stream Modal -->
-      @if (editingStream) {
-        <app-live-stream-edit-modal
-          [stream]="editingStream"
-          [saving]="saving"
-          [error]="editError"
-          (save)="submitEdit($event)"
-          (dismiss)="cancelEdit()"
-        />
       }
 
       <!-- Delete Confirmation Modal -->
@@ -145,23 +108,14 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
           (dismiss)="cancelDelete()"
         />
       }
-
-      <!-- Activate Modal -->
-      @if (activatingStream) {
-        <app-live-stream-activate-modal
-          [stream]="activatingStream"
-          [screens]="screens"
-          [screenGroups]="screenGroups"
-          [activating]="activating"
-          [error]="activateError"
-          (activate)="submitActivate($event)"
-          (dismiss)="cancelActivate()"
-        />
-      }
     </div>
   `,
   styles: `
-    /* Errors */
+    .stream-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: var(--gap);
+    }
     .error {
       font-size: 0.875rem;
       color: var(--offline);
@@ -171,101 +125,6 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
       background: var(--offline-dim);
       margin-bottom: 1rem;
     }
-
-    /* Passthrough warnings banner */
-    .warning-banner {
-      margin-top: 1rem;
-      border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--border));
-      border-radius: var(--r-lg, 10px);
-      background: var(--warn-dim);
-      overflow: hidden;
-    }
-    .warning-banner-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.75rem 1rem;
-      font-size: 0.875rem;
-    }
-    .warning-dismiss {
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      font-size: 1.125rem;
-      cursor: pointer;
-      line-height: 1;
-      padding: 0 0.25rem;
-    }
-    .warning-dismiss:hover {
-      color: var(--text);
-    }
-    .warning-list {
-      margin: 0;
-      padding: 0 1rem 0.75rem 1.75rem;
-      font-size: 0.8125rem;
-      color: var(--text-muted);
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-    }
-
-    /* Shared btn tokens — matched by specs via .btn-primary/.btn-danger etc. */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      padding: 0.5rem 1rem;
-      border-radius: var(--r-lg, 10px);
-      border: none;
-      font-size: 0.875rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: opacity 0.15s;
-    }
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .btn-primary {
-      background: var(--accent);
-      color: #fff;
-    }
-    .btn-primary:hover:not(:disabled) {
-      opacity: 0.88;
-    }
-    .btn-secondary {
-      background: var(--surface-2);
-      color: var(--text);
-      border: 1px solid var(--border-strong);
-    }
-    .btn-secondary:hover:not(:disabled) {
-      background: var(--surface-3);
-    }
-    .btn-danger {
-      background: var(--offline);
-      color: #fff;
-    }
-    .btn-danger:hover:not(:disabled) {
-      opacity: 0.88;
-    }
-    .btn-warning {
-      background: var(--warn);
-      color: #fff;
-    }
-    .btn-warning:hover:not(:disabled) {
-      opacity: 0.88;
-    }
-
-    @keyframes fadeUp {
-      from {
-        opacity: 0;
-        transform: translateY(12px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
   `,
 })
 export class LiveStreams implements OnInit {
@@ -274,6 +133,7 @@ export class LiveStreams implements OnInit {
   private screenGroupService = inject(ScreenGroupService);
   private memberService = inject(MemberService);
   private toast = inject(ToastService);
+  private router = inject(Router);
 
   orgId = '';
   streams: LiveStream[] = [];
@@ -288,23 +148,10 @@ export class LiveStreams implements OnInit {
   createError = '';
   creating = false;
 
-  // Edit state
-  editingStream: LiveStream | null = null;
-  editError = '';
-  saving = false;
-
   // Delete state
   deletingStream: LiveStream | null = null;
   deleteError = '';
   deleting = false;
-
-  // Activate state
-  activatingStream: LiveStream | null = null;
-  activateError = '';
-  activating = false;
-
-  // Passthrough warnings
-  passthroughWarnings: string[] = [];
 
   ngOnInit(): void {
     this.loadCurrentOrg();
@@ -358,8 +205,13 @@ export class LiveStreams implements OnInit {
     if (this.loading || !this.streams.length) {
       return 'Ingest a source and override schedules with live video';
     }
-    const active = this.streams.filter((s) => s.status === 'active').length;
-    return `${this.streams.length} total · ${active} live`;
+    const live = this.streams.filter((s) => s.status === 'active').length;
+    return `${live} live · ${this.streams.length} stream${this.streams.length !== 1 ? 's' : ''}`;
+  }
+
+  // --- Navigation ---
+  openDetail(stream: LiveStream): void {
+    this.router.navigate(['/live-streams', stream.id]);
   }
 
   // --- Create ---
@@ -389,31 +241,25 @@ export class LiveStreams implements OnInit {
     });
   }
 
-  // --- Edit ---
-  editStream(stream: LiveStream): void {
-    this.editingStream = stream;
-    this.editError = '';
+  // --- Quick toggle from a card ---
+  toggleStream(stream: LiveStream): void {
+    if (stream.status === 'active') {
+      this.deactivateStream(stream);
+    } else {
+      // Targeting is owned by the detail console; route there to pick targets.
+      this.openDetail(stream);
+    }
   }
 
-  cancelEdit(): void {
-    this.editingStream = null;
-  }
-
-  submitEdit(dto: UpdateLiveStreamRequest): void {
-    if (!this.editingStream) return;
-
-    this.saving = true;
-    this.editError = '';
-    this.liveStreamService.update(this.orgId, this.editingStream.id, dto).subscribe({
+  private deactivateStream(stream: LiveStream): void {
+    this.actionError = '';
+    this.liveStreamService.deactivate(this.orgId, stream.id).subscribe({
       next: () => {
-        this.saving = false;
-        this.editingStream = null;
         this.loadData();
-        this.toast.success('Live stream updated.');
+        this.toast.success('Stream stopped.');
       },
       error: (err) => {
-        this.editError = err.error?.message || 'Failed to update live stream.';
-        this.saving = false;
+        this.actionError = err.error?.message || 'Failed to deactivate live stream.';
       },
     });
   }
@@ -446,55 +292,5 @@ export class LiveStreams implements OnInit {
         this.deleting = false;
       },
     });
-  }
-
-  // --- Activate ---
-  openActivateModal(stream: LiveStream): void {
-    this.activatingStream = stream;
-    this.activateError = '';
-  }
-
-  cancelActivate(): void {
-    this.activatingStream = null;
-  }
-
-  submitActivate(dto: ActivateLiveStreamRequest): void {
-    if (!this.activatingStream) return;
-
-    this.activating = true;
-    this.activateError = '';
-    this.liveStreamService.activate(this.orgId, this.activatingStream.id, dto).subscribe({
-      next: (response: ActivateStreamResponse) => {
-        this.activating = false;
-        this.activatingStream = null;
-        if (response.warnings && response.warnings.length > 0) {
-          this.passthroughWarnings = response.warnings;
-        }
-        this.loadData();
-        this.toast.success('Stream started.');
-      },
-      error: (err) => {
-        this.activateError = err.error?.message || 'Failed to activate live stream.';
-        this.activating = false;
-      },
-    });
-  }
-
-  // --- Deactivate ---
-  deactivateStream(stream: LiveStream): void {
-    this.actionError = '';
-    this.liveStreamService.deactivate(this.orgId, stream.id).subscribe({
-      next: () => {
-        this.loadData();
-        this.toast.success('Stream stopped.');
-      },
-      error: (err) => {
-        this.actionError = err.error?.message || 'Failed to deactivate live stream.';
-      },
-    });
-  }
-
-  dismissWarnings(): void {
-    this.passthroughWarnings = [];
   }
 }

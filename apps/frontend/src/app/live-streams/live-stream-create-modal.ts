@@ -1,5 +1,12 @@
-import { Component, input, output, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
+import {
+  BtnComponent,
+  OverlayComponent,
+  ModalComponent,
+  SInputComponent,
+  SFieldComponent,
+  ToggleRowComponent,
+} from '../ui';
 import {
   CreateLiveStreamRequest,
   LiveStreamProtocol,
@@ -8,246 +15,149 @@ import {
   TRANSCODING_PRESETS,
 } from './live-stream.model';
 
+const PROTOCOLS: readonly LiveStreamProtocol[] = ['rtmp', 'rtp'];
+
 /**
- * Create-live-stream modal. Owns its own field state (name, source URL,
- * protocol, quality preset, audio) and validates required fields locally,
- * emitting a resolved {@link CreateLiveStreamRequest} only when valid. The
- * parent performs the HTTP request and feeds `creating`/`error` back in.
+ * Create-live-stream modal, reskinned onto the shared `mns-overlay`/`mns-modal`
+ * primitives. Owns its own field state (name, source URL, protocol, quality
+ * preset, audio) as signals and validates required fields locally, emitting a
+ * resolved {@link CreateLiveStreamRequest} only when valid. The parent performs
+ * the HTTP request and feeds `creating`/`error` back in.
+ *
+ * Protocol is a 2-value segmented control (RTMP/RTP) and the quality preset is
+ * the five real {@link TranscodingPreset}s — no fabricated 4-protocol /
+ * source-1080p-720p-480p sets from the mock.
  */
 @Component({
   selector: 'app-live-stream-create-modal',
   standalone: true,
-  imports: [FormsModule],
-  styles: [
-    `
-      .modal-overlay {
-        position: fixed;
-        inset: 0;
-        z-index: 100;
-        display: grid;
-        place-items: center;
-        padding: 1.5rem;
-        background: rgba(4, 6, 11, 0.55);
-        backdrop-filter: blur(6px);
-        animation: mns-fade-in 0.18s ease both;
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .modal-overlay {
-          animation: none;
-        }
-      }
-      .modal {
-        width: 100%;
-        max-width: 480px;
-        background: var(--surface);
-        border: 1px solid var(--border-strong);
-        border-radius: var(--r-xl, 16px);
-        box-shadow: var(--shadow-lg);
-        overflow: hidden;
-        max-height: 90vh;
-        display: flex;
-        flex-direction: column;
-        animation: mns-fade-up 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .modal {
-          animation: none;
-        }
-      }
-      h2 {
-        margin: 0;
-        padding: 1.25rem 1.5rem;
-        font-size: 1.0625rem;
-        font-weight: 700;
-        color: var(--text);
-        border-bottom: 1px solid var(--border);
-      }
-      form {
-        padding: 1.25rem 1.5rem;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-      }
-      .form-group {
-        display: flex;
-        flex-direction: column;
-        gap: 0.375rem;
-      }
-      label {
-        font-size: 0.8125rem;
-        font-weight: 600;
-        color: var(--text-muted);
-      }
-      input[type='text'],
-      select {
-        padding: 0.625rem 0.875rem;
-        background: var(--surface-2);
-        border: 1px solid var(--border-strong);
-        border-radius: var(--r-md, 8px);
-        color: var(--text);
-        font-size: 0.875rem;
-        font-family: inherit;
-        outline: none;
-      }
-      input[type='text']:focus,
-      select:focus {
-        border-color: var(--accent);
-      }
-      .checkbox-label {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        font-size: 0.875rem;
-        font-weight: 500;
-        color: var(--text);
-        cursor: pointer;
-      }
-      .checkbox-label input[type='checkbox'] {
-        accent-color: var(--accent);
-        width: 1rem;
-        height: 1rem;
-      }
-      .error {
-        font-size: 0.8125rem;
-        color: var(--offline);
-        padding: 0.625rem 0.875rem;
-        border-radius: var(--r-md, 8px);
-        border: 1px solid color-mix(in srgb, var(--offline) 30%, var(--border));
-        background: var(--offline-dim);
-      }
-      .form-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 0.625rem;
-        padding-top: 0.75rem;
-        border-top: 1px solid var(--border);
-      }
-      .btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0.5625rem 1.125rem;
-        border-radius: var(--r-lg, 10px);
-        border: none;
-        font-size: 0.875rem;
-        font-weight: 700;
-        cursor: pointer;
-        font-family: inherit;
-        transition: opacity 0.15s;
-      }
-      .btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-      .btn-primary {
-        background: var(--accent);
-        color: #fff;
-      }
-      .btn-primary:hover:not(:disabled) {
-        opacity: 0.88;
-      }
-      .btn-secondary {
-        background: var(--surface-2);
-        color: var(--text);
-        border: 1px solid var(--border-strong);
-      }
-      .btn-secondary:hover:not(:disabled) {
-        background: var(--surface-3);
-      }
-      @keyframes mns-fade-in {
-        from {
-          opacity: 0;
-        }
-        to {
-          opacity: 1;
-        }
-      }
-      @keyframes mns-fade-up {
-        from {
-          opacity: 0;
-          transform: translateY(14px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-    `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    OverlayComponent,
+    ModalComponent,
+    SInputComponent,
+    SFieldComponent,
+    ToggleRowComponent,
+    BtnComponent,
   ],
   template: `
-    <div
-      class="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Create Live Stream"
-      tabindex="0"
-      (click)="dismiss.emit()"
-      (keydown.escape)="dismiss.emit()"
-    >
-      <div
-        class="modal"
-        role="document"
-        (click)="$event.stopPropagation()"
-        (keydown)="$event.stopPropagation()"
-      >
-        <h2>Create Live Stream</h2>
-        <form (ngSubmit)="onSubmit()">
-          <div class="form-group">
-            <label for="createName">Name</label>
-            <input
-              id="createName"
-              type="text"
-              [(ngModel)]="name"
-              name="createName"
-              required
-              placeholder="e.g. Lobby Camera"
-            />
-          </div>
-          <div class="form-group">
-            <label for="createSourceUrl">Source URL</label>
-            <input
-              id="createSourceUrl"
-              type="text"
-              [(ngModel)]="sourceUrl"
-              name="createSourceUrl"
-              required
-              placeholder="rtmp://example.com/live/stream-key"
-            />
-          </div>
-          <div class="form-group">
-            <label for="createProtocol">Protocol</label>
-            <select id="createProtocol" [(ngModel)]="protocol" name="createProtocol" required>
-              <option value="rtmp">RTMP</option>
-              <option value="rtp">RTP</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="createPreset">Quality Preset</label>
-            <select id="createPreset" [(ngModel)]="preset" name="createPreset">
-              @for (p of presets; track p) {
-                <option [value]="p">{{ presetLabel(p) }}</option>
+    <mns-overlay (closed)="dismiss.emit()">
+      <mns-modal title="New live stream" icon="Stream" [widthPx]="480" (closed)="dismiss.emit()">
+        <div class="flex flex-col gap-5">
+          <mns-sfield label="Name">
+            <mns-sinput [(value)]="name" placeholder="e.g. Lobby Camera" />
+          </mns-sfield>
+
+          <div>
+            <span class="seg-label">Protocol</span>
+            <div class="seg-row">
+              @for (p of protocols; track p) {
+                <button
+                  type="button"
+                  class="seg"
+                  [class.active]="protocol() === p"
+                  (click)="protocol.set(p)"
+                >
+                  {{ p.toUpperCase() }}
+                </button>
               }
-            </select>
+            </div>
           </div>
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input type="checkbox" [(ngModel)]="audioEnabled" name="createAudioEnabled" />
-              Enable audio
-            </label>
+
+          <mns-sfield label="Source URL">
+            <mns-sinput [(value)]="sourceUrl" [mono]="true" [placeholder]="sourceHint()" />
+          </mns-sfield>
+
+          <div>
+            <span class="seg-label">Quality preset</span>
+            <div class="seg-grid">
+              @for (preset of presets; track preset) {
+                <button
+                  type="button"
+                  class="seg"
+                  [class.active]="quality() === preset"
+                  (click)="quality.set(preset)"
+                >
+                  {{ presetLabel(preset) }}
+                </button>
+              }
+            </div>
           </div>
+
+          <mns-toggle-row
+            icon="Wifi"
+            label="Enable audio"
+            desc="Pass the source audio track through to screens"
+            [(checked)]="audioEnabled"
+          />
+
           @if (localError() || error()) {
             <p class="error">{{ localError() || error() }}</p>
           }
-          <div class="form-actions">
-            <button type="button" class="btn btn-secondary" (click)="dismiss.emit()">Cancel</button>
-            <button type="submit" class="btn btn-primary" [disabled]="creating()">
-              {{ creating() ? 'Creating...' : 'Create Stream' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </div>
+
+        <div slot="footer" class="flex gap-2.5 px-6 pb-5">
+          <mns-btn variant="outline" [full]="true" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn
+            variant="primary"
+            icon="Stream"
+            [full]="true"
+            [disabled]="creating()"
+            (mnsClick)="onSubmit()"
+          >
+            {{ creating() ? 'Creating…' : 'Create stream' }}
+          </mns-btn>
+        </div>
+      </mns-modal>
+    </mns-overlay>
+  `,
+  styles: `
+    .seg-label {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .seg-row {
+      display: flex;
+      gap: 8px;
+    }
+    .seg-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .seg {
+      flex: 1;
+      padding: 9px 6px;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      cursor: pointer;
+      border: 1px solid var(--border-strong);
+      background: var(--surface-2);
+      color: var(--text-muted);
+      transition:
+        border-color 150ms,
+        color 150ms,
+        background 150ms;
+    }
+    .seg.active {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+    .error {
+      font-size: 0.8125rem;
+      color: var(--offline);
+      padding: 0.625rem 0.875rem;
+      border-radius: var(--r-md, 8px);
+      border: 1px solid color-mix(in srgb, var(--offline) 30%, var(--border));
+      background: var(--offline-dim);
+      margin: 0;
+    }
   `,
 })
 export class LiveStreamCreateModal {
@@ -257,36 +167,43 @@ export class LiveStreamCreateModal {
   readonly create = output<CreateLiveStreamRequest>();
   readonly dismiss = output<void>();
 
+  protected readonly protocols = PROTOCOLS;
   protected readonly presets = TRANSCODING_PRESETS;
 
-  protected name = '';
-  protected sourceUrl = '';
-  protected protocol: LiveStreamProtocol = 'rtmp';
-  protected preset: TranscodingPreset = 'high_1080p';
-  protected audioEnabled = true;
+  protected readonly name = signal('');
+  protected readonly sourceUrl = signal('');
+  protected readonly protocol = signal<LiveStreamProtocol>('rtmp');
+  protected readonly quality = signal<TranscodingPreset>('high_1080p');
+  protected readonly audioEnabled = signal(true);
   protected readonly localError = signal('');
 
   protected presetLabel(preset: TranscodingPreset): string {
     return TRANSCODING_PRESET_LABELS[preset] ?? preset;
   }
 
+  protected sourceHint(): string {
+    return this.protocol() === 'rtmp'
+      ? 'rtmp://example.com/live/stream-key'
+      : 'rtp://example.com:5004';
+  }
+
   onSubmit(): void {
-    if (!this.name) {
+    if (!this.name().trim()) {
       this.localError.set('Name is required.');
       return;
     }
-    if (!this.sourceUrl) {
+    if (!this.sourceUrl().trim()) {
       this.localError.set('Source URL is required.');
       return;
     }
 
     this.localError.set('');
     this.create.emit({
-      name: this.name,
-      sourceUrl: this.sourceUrl,
-      protocol: this.protocol,
-      transcodingPreset: this.preset,
-      audioEnabled: this.audioEnabled,
+      name: this.name().trim(),
+      sourceUrl: this.sourceUrl().trim(),
+      protocol: this.protocol(),
+      transcodingPreset: this.quality(),
+      audioEnabled: this.audioEnabled(),
     });
   }
 }
