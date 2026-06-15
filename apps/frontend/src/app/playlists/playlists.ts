@@ -1,5 +1,4 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { firstValueFrom } from 'rxjs';
 import { PlaylistService } from './playlist.service';
@@ -55,7 +54,6 @@ import {
   template: `
     <div class="page">
       <mns-page-header title="Playlists" icon="List">
-        <mns-btn variant="ghost" size="sm" icon="ChevronLeft" (mnsClick)="goBack()">Back</mns-btn>
         @if (!loading && !selectedPlaylist && !showCreateForm) {
           <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()"
             >Create Playlist</mns-btn
@@ -212,7 +210,6 @@ export class Playlists implements OnInit {
   private screenService = inject(ScreenService);
   private memberService = inject(MemberService);
   private organisationService = inject(OrganisationService);
-  private router = inject(Router);
   readonly selectionService = inject(SelectionService);
   private toast = inject(ToastService);
 
@@ -703,9 +700,5 @@ export class Playlists implements OnInit {
   private showToast(message: string, type: 'error' | 'success' | 'warning'): void {
     // The global ToastService has no 'warning' variant; surface those as info.
     this.toast.show(type === 'warning' ? 'info' : type, message);
-  }
-
-  goBack(): void {
-    this.router.navigate(['/']);
   }
 }

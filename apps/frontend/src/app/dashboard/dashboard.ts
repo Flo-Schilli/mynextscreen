@@ -120,6 +120,7 @@ const WARNING_HEARTBEAT_MS = 60_000;
       <!-- ======== ONBOARDING STATE ======== -->
       <mns-page-header
         title="Welcome to myNextScreen"
+        icon="Sparkle"
         sub="Let's get your first display live. Four quick steps."
       />
 
@@ -223,7 +224,7 @@ const WARNING_HEARTBEAT_MS = 60_000;
       </div>
     } @else {
       <!-- ======== POPULATED STATE ======== -->
-      <mns-page-header title="Dashboard" [sub]="dashboardSub()">
+      <mns-page-header title="Dashboard" icon="Dashboard" [sub]="dashboardSub()">
         <mns-btn variant="outline" size="md" icon="Refresh" (mnsClick)="refresh()">Refresh</mns-btn>
         <mns-btn variant="primary" size="md" icon="Plus" (mnsClick)="navigateTo('/screens')">
           Add screen

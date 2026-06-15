@@ -6,7 +6,7 @@ import {
   signal,
   OnInit,
 } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 import { DecimalPipe } from '@angular/common';
 import { InstanceAdminService } from './instance-admin.service';
 import { InstanceAdminSummary, SystemLoad } from './instance-admin.model';
@@ -49,12 +49,6 @@ import {
     <!-- ── Page header (amber chrome) ── -->
     <div class="flex items-end justify-between gap-4 flex-wrap mb-[22px]">
       <div class="flex items-center gap-4 min-w-0">
-        <button
-          class="inline-flex items-center gap-[7px] px-[13px] py-2 rounded-[10px] text-[13.5px] font-semibold border border-border-strong bg-surface text-muted hover:text-default transition-colors"
-          (click)="goBack()"
-        >
-          <mns-icon name="ChevronLeft" [size]="16" /> Back
-        </button>
         <div class="flex items-center gap-[13px] min-w-0">
           <!-- amber header tile -->
           <span
@@ -347,7 +341,6 @@ import {
 })
 export class InstanceDashboard implements OnInit {
   private service = inject(InstanceAdminService);
-  private router = inject(Router);
 
   readonly summary = signal<InstanceAdminSummary | null>(null);
   readonly loading = signal(true);
@@ -442,9 +435,5 @@ export class InstanceDashboard implements OnInit {
         /* best-effort — the system-load chart shows a "collecting data" note */
       },
     });
-  }
-
-  goBack(): void {
-    this.router.navigate(['/']);
   }
 }

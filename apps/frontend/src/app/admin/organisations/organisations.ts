@@ -1,5 +1,5 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 import { OrganisationService } from './organisation.service';
 import { Organisation, OrgMember, OrgMemberRole } from './organisation.model';
 import { OrgForm, OrganisationFormPayload } from './org-form';
@@ -11,7 +11,13 @@ import { OrgDeleteModal } from './org-delete-modal';
 import { StorageUsageBars } from '../../shared/storage-usage-bars';
 import { StorageInfo } from '../../content/content.model';
 import { ToastService } from '../../shared/toast/toast.service';
-import { CardComponent, CardHeadComponent, BtnComponent, IconComponent } from '../../ui';
+import {
+  CardComponent,
+  CardHeadComponent,
+  BtnComponent,
+  IconComponent,
+  EmptyComponent,
+} from '../../ui';
 import { formatBytes } from '../../shared/format-bytes';
 
 /**
@@ -38,18 +44,13 @@ import { formatBytes } from '../../shared/format-bytes';
     CardHeadComponent,
     BtnComponent,
     IconComponent,
+    EmptyComponent,
   ],
   template: `
     <div class="page">
       <!-- amber page header -->
       <div class="flex items-end justify-between gap-4 flex-wrap mb-[22px]">
         <div class="flex items-center gap-4 min-w-0">
-          <button
-            class="inline-flex items-center gap-[7px] px-[13px] py-2 rounded-[10px] text-[13.5px] font-semibold border border-border-strong bg-surface text-muted hover:text-default transition-colors"
-            (click)="goBack()"
-          >
-            <mns-icon name="ChevronLeft" [size]="16" /> Back
-          </button>
           <div class="flex items-center gap-[13px] min-w-0">
             <span
               class="grid place-items-center w-11 h-11 rounded-[12px] flex-shrink-0 text-white"
@@ -151,7 +152,11 @@ import { formatBytes } from '../../shared/format-bytes';
           />
         }
         @if (!membersLoading && members.length === 0 && !membersError) {
-          <p class="text-muted text-sm">No members yet. Add one above.</p>
+          <mns-empty
+            icon="User"
+            title="No members yet"
+            desc="Use “Add Member” above to give people access to this organisation."
+          />
         }
         @if (memberActionError) {
           <p class="text-offline text-sm">{{ memberActionError }}</p>
@@ -174,7 +179,15 @@ import { formatBytes } from '../../shared/format-bytes';
           />
         }
         @if (!loading && organisations.length === 0 && !loadError) {
-          <p class="text-muted text-sm">No organisations yet. Create your first one.</p>
+          <mns-empty
+            icon="Building"
+            title="No organisations yet"
+            desc="Create your first organisation to start provisioning screens and content."
+          >
+            <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">
+              New Organisation
+            </mns-btn>
+          </mns-empty>
         }
       }
 
@@ -214,7 +227,6 @@ import { formatBytes } from '../../shared/format-bytes';
 })
 export class Organisations implements OnInit {
   private orgService = inject(OrganisationService);
-  private router = inject(Router);
   private toast = inject(ToastService);
 
   protected readonly formatBytes = formatBytes;
@@ -498,9 +510,5 @@ export class Organisations implements OnInit {
       transcodedUsedBytes: org.storageTranscodedUsedBytes,
       transcodedLimitBytes: org.storageTranscodedLimitBytes,
     };
-  }
-
-  goBack(): void {
-    this.router.navigate(['/']);
   }
 }

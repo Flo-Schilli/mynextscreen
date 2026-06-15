@@ -12,7 +12,7 @@ import {
   INSTANCE_RESOURCE_TYPES,
 } from '../../audit-log/audit-log.model';
 import { AuditLogTable } from '../../audit-log/audit-log-table';
-import { BtnComponent, IconComponent } from '../../ui';
+import { BtnComponent, IconComponent, EmptyComponent } from '../../ui';
 
 interface UserOption {
   userId: string;
@@ -37,18 +37,13 @@ interface UserOption {
     AuditLogTable,
     BtnComponent,
     IconComponent,
+    EmptyComponent,
   ],
   template: `
     <div class="page">
       <!-- amber page header -->
       <div class="flex items-end justify-between gap-4 flex-wrap mb-[22px]">
         <div class="flex items-center gap-4 min-w-0">
-          <button
-            class="inline-flex items-center gap-[7px] px-[13px] py-2 rounded-[10px] text-[13.5px] font-semibold border border-border-strong bg-surface text-muted hover:text-default transition-colors"
-            (click)="goBack()"
-          >
-            <mns-icon name="ChevronLeft" [size]="16" /> Back
-          </button>
           <div class="flex items-center gap-[13px] min-w-0">
             <span
               class="grid place-items-center w-11 h-11 rounded-[12px] flex-shrink-0 text-white"
@@ -163,7 +158,11 @@ interface UserOption {
       }
 
       @if (!loading && entries.length === 0 && !loadError) {
-        <p class="text-muted text-sm">No audit log entries found.</p>
+        <mns-empty
+          icon="Audit"
+          title="No audit log entries found"
+          desc="Instance-wide activity across every organisation will show up here."
+        />
       }
 
       @if (entries.length > 0) {
@@ -403,10 +402,6 @@ export class InstanceAuditLog implements OnInit {
     if (route) {
       this.router.navigate([route]);
     }
-  }
-
-  goBack(): void {
-    this.router.navigate(['/']);
   }
 
   protected actionLabel(action: string): string {

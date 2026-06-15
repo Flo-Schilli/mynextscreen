@@ -1,5 +1,4 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
-import { Router } from '@angular/router';
 import { ScheduleService } from './schedule.service';
 import {
   ScheduleEntry,
@@ -30,7 +29,7 @@ import { ScheduleSidePanel } from './schedule-side-panel';
 import { ScheduleCalendarGrid } from './schedule-calendar-grid';
 import { ScheduleFormModal, ScheduleFormResult, PRESET_COLOURS } from './schedule-form-modal';
 import { ToastService } from '../shared/toast/toast.service';
-import { IconComponent } from '../ui';
+import { PageHeaderComponent } from '../ui';
 
 const HOUR_HEIGHT = 60;
 
@@ -42,21 +41,11 @@ const HOUR_HEIGHT = 60;
     ScheduleSidePanel,
     ScheduleCalendarGrid,
     ScheduleFormModal,
-    IconComponent,
+    PageHeaderComponent,
   ],
   template: `
     <div class="page">
-      <div class="flex items-center justify-between mb-6">
-        <div class="flex items-center gap-3">
-          <button
-            class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-surface text-muted text-sm font-semibold hover:text-primary transition-colors"
-            (click)="goBack()"
-          >
-            <mns-icon name="ChevronLeft" [size]="16" /> Back
-          </button>
-          <h1 class="text-xl font-bold text-primary">Schedules</h1>
-        </div>
-      </div>
+      <mns-page-header title="Schedules" icon="Schedules" [sub]="scheduleSubtitle" />
 
       @if (loadError) {
         <p
@@ -195,7 +184,6 @@ export class Schedules implements OnInit, OnDestroy {
   private screenGroupService = inject(ScreenGroupService);
   private recurrence = inject(ScheduleRecurrenceService);
   private calendar = inject(ScheduleCalendarService);
-  private router = inject(Router);
   private toast = inject(ToastService);
 
   orgId = '';
@@ -256,6 +244,13 @@ export class Schedules implements OnInit, OnDestroy {
   // Bound handlers for mouse events
   private boundMouseMove = this.onMouseMove.bind(this);
   private boundMouseUp = this.onMouseUp.bind(this);
+
+  get scheduleSubtitle(): string {
+    if (this.loading) return 'Plan playlists across screens and groups by the calendar';
+    const count = this.entries.length;
+    if (!count) return 'Plan playlists across screens and groups by the calendar';
+    return `${count} scheduled ${count === 1 ? 'block' : 'blocks'}`;
+  }
 
   get screenTargets(): TargetOption[] {
     return this.targetOptions.filter((t) => t.type === 'screen');
@@ -833,9 +828,5 @@ export class Schedules implements OnInit, OnDestroy {
       day: 'numeric',
       year: 'numeric',
     });
-  }
-
-  goBack(): void {
-    this.router.navigate(['/']);
   }
 }

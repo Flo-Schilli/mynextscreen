@@ -527,17 +527,4 @@ describe('LiveStreams (smart container)', () => {
       expect(component.actionError).toBe('Stop failed');
     });
   });
-
-  describe('navigation', () => {
-    it('navigates home on goBack', async () => {
-      // Arrange
-      await setUp();
-
-      // Act
-      component.goBack();
-
-      // Assert
-      expect(navigateSpy).toHaveBeenCalledWith(['/']);
-    });
-  });
 });

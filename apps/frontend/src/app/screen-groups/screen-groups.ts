@@ -37,7 +37,6 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
     <div class="page">
       <mns-page-header title="Screen Groups" icon="Layers">
         @if (!loading && !showCreateForm) {
-          <mns-btn variant="ghost" size="sm" icon="ChevronLeft" (mnsClick)="goBack()">Back</mns-btn>
           <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">New Group</mns-btn>
         }
       </mns-page-header>
@@ -268,9 +267,5 @@ export class ScreenGroups implements OnInit {
 
   viewGroup(group: ScreenGroup): void {
     this.router.navigate(['/screen-groups', group.id]);
-  }
-
-  goBack(): void {
-    this.router.navigate(['/']);
   }
 }

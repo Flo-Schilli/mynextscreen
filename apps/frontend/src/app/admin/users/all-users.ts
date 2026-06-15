@@ -1,6 +1,6 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AdminUserService } from './admin-user.service';
 import { AdminUser } from './admin-user.model';
 import { UserDeleteModal } from './user-delete-modal';
@@ -11,6 +11,7 @@ import {
   BtnComponent,
   AvatarComponent,
   IconComponent,
+  EmptyComponent,
 } from '../../ui';
 import type { IconName } from '../../ui';
 
@@ -32,18 +33,13 @@ import type { IconName } from '../../ui';
     BtnComponent,
     AvatarComponent,
     IconComponent,
+    EmptyComponent,
   ],
   template: `
     <div class="page">
       <!-- amber page header -->
       <div class="flex items-end justify-between gap-4 flex-wrap mb-[22px]">
         <div class="flex items-center gap-4 min-w-0">
-          <button
-            class="inline-flex items-center gap-[7px] px-[13px] py-2 rounded-[10px] text-[13.5px] font-semibold border border-border-strong bg-surface text-muted hover:text-default transition-colors"
-            (click)="goBack()"
-          >
-            <mns-icon name="ChevronLeft" [size]="16" /> Back
-          </button>
           <div class="flex items-center gap-[13px] min-w-0">
             <span
               class="grid place-items-center w-11 h-11 rounded-[12px] flex-shrink-0 text-white"
@@ -213,7 +209,11 @@ import type { IconName } from '../../ui';
       }
 
       @if (!loading && users.length === 0 && !loadError) {
-        <p class="text-muted text-sm">No users yet.</p>
+        <mns-empty
+          icon="User"
+          title="No users yet"
+          desc="Platform users appear here once they sign up or get invited to an organisation."
+        />
       }
 
       @if (showDeleteModal && deletingUser) {
@@ -231,7 +231,6 @@ import type { IconName } from '../../ui';
 })
 export class AllUsers implements OnInit {
   private userService = inject(AdminUserService);
-  private router = inject(Router);
   private toast = inject(ToastService);
 
   readonly tabs = [
@@ -354,9 +353,5 @@ export class AllUsers implements OnInit {
         this.deletingUserId = null;
       },
     });
-  }
-
-  goBack(): void {
-    this.router.navigate(['/']);
   }
 }

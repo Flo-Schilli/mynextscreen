@@ -1,5 +1,4 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { LiveStreamService } from './live-stream.service';
 import {
@@ -21,6 +20,7 @@ import { ScreenGroup } from '../screen-groups/screen-group.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { ToastService } from '../shared/toast/toast.service';
+import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
 
 /**
  * Smart container for the live-streams feature. Owns data loading (streams +
@@ -38,24 +38,17 @@ import { ToastService } from '../shared/toast/toast.service';
     LiveStreamEditModal,
     LiveStreamDeleteModal,
     LiveStreamActivateModal,
+    PageHeaderComponent,
+    BtnComponent,
+    EmptyComponent,
   ],
   template: `
     <div class="page">
-      <!-- Page header -->
-      <div class="flex items-center justify-between mb-6">
-        <div class="flex items-center gap-3">
-          <button
-            class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-surface text-muted text-sm font-semibold hover:text-primary transition-colors"
-            (click)="goBack()"
-          >
-            &#8592; Back
-          </button>
-          <h1 class="text-xl font-bold text-primary">Live Streams</h1>
-        </div>
+      <mns-page-header title="Live Streams" icon="Stream" [sub]="streamSubtitle">
         @if (!loading && !showCreateForm) {
-          <button class="btn btn-primary" (click)="openCreateForm()">+ New Stream</button>
+          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">New Stream</mns-btn>
         }
-      </div>
+      </mns-page-header>
 
       @if (loadError) {
         <p class="error">{{ loadError }}</p>
@@ -91,25 +84,18 @@ import { ToastService } from '../shared/toast/toast.service';
         />
       }
 
-      <!-- Empty State — class "empty-state" preserved for specs -->
+      <!-- Empty State — wrapper class "empty-state" preserved for specs -->
       @if (!loading && streams.length === 0 && !loadError) {
         <div class="empty-state">
-          <div class="empty-icon">
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="8" stroke="currentColor" stroke-width="2" />
-              <path
-                d="M12 12a17 17 0 000 24M36 12a17 17 0 010 24M8 8a23 23 0 000 32M40 8a23 23 0 010 32"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-              />
-            </svg>
-          </div>
-          <p class="empty-title">No live streams yet</p>
-          <p class="empty-text">Create your first live stream to start broadcasting to screens.</p>
-          <button class="btn btn-primary" (click)="openCreateForm()">
-            Create Your First Stream
-          </button>
+          <mns-empty
+            icon="Stream"
+            title="No live streams yet"
+            desc="Create your first live stream to start broadcasting to screens."
+          >
+            <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">
+              Create your first stream
+            </mns-btn>
+          </mns-empty>
         </div>
       }
 
@@ -175,48 +161,6 @@ import { ToastService } from '../shared/toast/toast.service';
     </div>
   `,
   styles: `
-    /* Empty state */
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 0.75rem;
-      padding: 5rem 1.5rem;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--r-xl, 14px);
-      text-align: center;
-      animation: fadeUp 0.3s cubic-bezier(0.22, 0.61, 0.36, 1) both;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .empty-state {
-        animation: none;
-      }
-    }
-    .empty-icon {
-      display: grid;
-      place-items: center;
-      width: 72px;
-      height: 72px;
-      border-radius: 20px;
-      background: var(--surface-2);
-      color: var(--text-faint);
-      margin-bottom: 0.5rem;
-    }
-    .empty-title {
-      font-size: 1.0625rem;
-      font-weight: 700;
-      color: var(--text);
-      margin: 0;
-    }
-    .empty-text {
-      font-size: 0.875rem;
-      color: var(--text-muted);
-      max-width: 26rem;
-      margin: 0;
-    }
-
     /* Errors */
     .error {
       font-size: 0.875rem;
@@ -329,7 +273,6 @@ export class LiveStreams implements OnInit {
   private screenService = inject(ScreenService);
   private screenGroupService = inject(ScreenGroupService);
   private memberService = inject(MemberService);
-  private router = inject(Router);
   private toast = inject(ToastService);
 
   orgId = '';
@@ -409,6 +352,14 @@ export class LiveStreams implements OnInit {
         this.loading = false;
       },
     });
+  }
+
+  get streamSubtitle(): string {
+    if (this.loading || !this.streams.length) {
+      return 'Ingest a source and override schedules with live video';
+    }
+    const active = this.streams.filter((s) => s.status === 'active').length;
+    return `${this.streams.length} total · ${active} live`;
   }
 
   // --- Create ---
@@ -541,10 +492,6 @@ export class LiveStreams implements OnInit {
         this.actionError = err.error?.message || 'Failed to deactivate live stream.';
       },
     });
-  }
-
-  goBack(): void {
-    this.router.navigate(['/']);
   }
 
   dismissWarnings(): void {

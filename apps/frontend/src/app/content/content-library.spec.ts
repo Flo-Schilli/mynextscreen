@@ -546,15 +546,4 @@ describe('ContentLibrary', () => {
     expect(lastToast()?.message).toContain('could not be found');
     expect(lastToast()?.type).toBe('info');
   });
-
-  it('navigates home on goBack', () => {
-    // Arrange
-    init([]);
-
-    // Act
-    component.goBack();
-
-    // Assert
-    expect(router.navigate).toHaveBeenCalledWith(['/']);
-  });
 });

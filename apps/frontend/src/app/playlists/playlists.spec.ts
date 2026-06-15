@@ -842,13 +842,4 @@ describe('Playlists', () => {
       expect(lastToast()?.type).toBe('info');
     });
   });
-
-  describe('navigation', () => {
-    beforeEach(() => init());
-
-    it('navigates home on goBack', () => {
-      component.goBack();
-      expect(router.navigate).toHaveBeenCalledWith(['/']);
-    });
-  });
 });

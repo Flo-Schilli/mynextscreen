@@ -1,6 +1,5 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { ContentService, UploadProgress } from './content.service';
 import { Content, StorageInfo, UploadItem } from './content.model';
@@ -57,7 +56,6 @@ import {
   template: `
     <div class="page">
       <mns-page-header title="Content Library" icon="Image">
-        <mns-btn variant="ghost" size="sm" icon="ChevronLeft" (mnsClick)="goBack()">Back</mns-btn>
         @if (!selectedContent) {
           <div class="type-toggle">
             <button
@@ -279,7 +277,6 @@ export class ContentLibrary implements OnInit, OnDestroy {
   private contentFilter = inject(ContentFilterService);
   private memberService = inject(MemberService);
   private playlistService = inject(PlaylistService);
-  private router = inject(Router);
   private toast = inject(ToastService);
   readonly selectionService = inject(SelectionService);
 
@@ -793,9 +790,5 @@ export class ContentLibrary implements OnInit, OnDestroy {
   private showToast(message: string, type: 'error' | 'success' | 'warning'): void {
     // The global ToastService has no 'warning' level; surface those as 'info'.
     this.toast.show(type === 'warning' ? 'info' : type, message);
-  }
-
-  goBack(): void {
-    this.router.navigate(['/']);
   }
 }

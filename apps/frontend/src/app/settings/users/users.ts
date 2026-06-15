@@ -5,7 +5,13 @@ import { Router, RouterLink } from '@angular/router';
 import { MemberService } from './member.service';
 import { Membership, MyMembership, OrganisationRole } from './member.model';
 import { ToastService } from '../../shared/toast/toast.service';
-import { PageHeaderComponent, BtnComponent, SFieldComponent, SInputComponent } from '../../ui';
+import {
+  PageHeaderComponent,
+  BtnComponent,
+  SFieldComponent,
+  SInputComponent,
+  EmptyComponent,
+} from '../../ui';
 
 @Component({
   selector: 'app-users',
@@ -19,6 +25,7 @@ import { PageHeaderComponent, BtnComponent, SFieldComponent, SInputComponent } f
     BtnComponent,
     SFieldComponent,
     SInputComponent,
+    EmptyComponent,
   ],
   template: `
     <!-- Tab bar (shared underline style across all three settings tabs) -->
@@ -29,7 +36,11 @@ import { PageHeaderComponent, BtnComponent, SFieldComponent, SInputComponent } f
     </div>
 
     <!-- Page header -->
-    <mns-page-header title="User Management" sub="Manage who has access and what they can do.">
+    <mns-page-header
+      title="User Management"
+      icon="User"
+      sub="Manage who has access and what they can do."
+    >
       @if (!loading && members.length > 0) {
         <mns-btn variant="primary" icon="Plus" (mnsClick)="openInviteModal()">
           Invite User
@@ -166,7 +177,17 @@ import { PageHeaderComponent, BtnComponent, SFieldComponent, SInputComponent } f
     }
 
     @if (!loading && members.length === 0 && !loadError) {
-      <p class="empty-text text-sm text-muted mt-6">No members found.</p>
+      <div class="empty-text">
+        <mns-empty
+          icon="User"
+          title="No members yet"
+          desc="No members found. Invite your first teammate to give them access."
+        >
+          <mns-btn variant="primary" icon="Plus" (mnsClick)="openInviteModal()">
+            Invite User
+          </mns-btn>
+        </mns-empty>
+      </div>
     }
 
     @if (actionError) {

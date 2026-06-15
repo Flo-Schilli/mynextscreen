@@ -305,12 +305,4 @@ describe('ScreenGroups', () => {
 
     expect(navigateSpy).toHaveBeenCalledWith(['/screen-groups', 'g7']);
   });
-
-  it('navigates home on goBack', async () => {
-    await setUp();
-
-    component.goBack();
-
-    expect(navigateSpy).toHaveBeenCalledWith(['/']);
-  });
 });

@@ -809,18 +809,4 @@ describe('Schedules', () => {
       expect(lastToast()?.message).toContain('Overlap');
     });
   });
-
-  describe('goBack', () => {
-    it('navigates to the root route', async () => {
-      // Arrange
-      await setUp();
-      routerStub.navigate.mockClear();
-
-      // Act
-      component.goBack();
-
-      // Assert
-      expect(routerStub.navigate).toHaveBeenCalledWith(['/']);
-    });
-  });
 });
