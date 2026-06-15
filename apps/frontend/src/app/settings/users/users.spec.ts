@@ -156,7 +156,7 @@ describe('Users', () => {
   });
 
   describe('conditional rendering', () => {
-    it('should render member table rows when members present', () => {
+    it('should render a member grid row per member', () => {
       setup();
       memberService.listMembers.mockReturnValue(
         of([membership(), membership({ id: 'm-2', userId: 'u-2' })]),
@@ -164,8 +164,9 @@ describe('Users', () => {
 
       fixture.detectChanges();
 
-      const rows = fixture.debugElement.queryAll(By.css('tbody tr'));
-      expect(rows.length).toBe(2);
+      // Each member renders an mns-avatar in its grid row.
+      const avatars = fixture.debugElement.queryAll(By.css('mns-avatar'));
+      expect(avatars.length).toBe(2);
       expect(fixture.debugElement.query(By.css('.btn-primary'))).toBeTruthy();
     });
 
@@ -177,7 +178,7 @@ describe('Users', () => {
 
       const empty = fixture.debugElement.query(By.css('.empty-text'));
       expect(empty.nativeElement.textContent).toContain('No members found.');
-      expect(fixture.debugElement.query(By.css('table'))).toBeNull();
+      expect(fixture.debugElement.query(By.css('mns-avatar'))).toBeNull();
     });
 
     it('should render a "Pending invite" badge for pending members', () => {
@@ -186,10 +187,9 @@ describe('Users', () => {
 
       fixture.detectChanges();
 
-      const badge = fixture.debugElement.query(By.css('.status-pending'));
+      const badge = fixture.debugElement.query(By.css('mns-badge'));
       expect(badge).toBeTruthy();
       expect(badge.nativeElement.textContent).toContain('Pending invite');
-      expect(fixture.debugElement.query(By.css('.status-active'))).toBeNull();
     });
 
     it('should render an "Active" badge for active members', () => {
@@ -198,10 +198,9 @@ describe('Users', () => {
 
       fixture.detectChanges();
 
-      const badge = fixture.debugElement.query(By.css('.status-active'));
+      const badge = fixture.debugElement.query(By.css('mns-badge'));
       expect(badge).toBeTruthy();
       expect(badge.nativeElement.textContent).toContain('Active');
-      expect(fixture.debugElement.query(By.css('.status-pending'))).toBeNull();
     });
 
     it('should render fallback name for members without a name', () => {
@@ -212,8 +211,7 @@ describe('Users', () => {
 
       fixture.detectChanges();
 
-      const firstCell = fixture.debugElement.query(By.css('tbody tr td'));
-      expect(firstCell.nativeElement.textContent).toContain('(no name)');
+      expect(fixture.nativeElement.textContent).toContain('Invite pending');
     });
 
     it('should render loadError text', () => {
@@ -235,14 +233,14 @@ describe('Users', () => {
       fixture.detectChanges();
 
       component.inviteEmail.set('stale@example.com');
-      component.inviteRole = 'org_admin';
+      component.inviteRole.set('org_admin');
       component.inviteError.set('old error');
 
       component.openInviteModal();
 
       expect(component.showInviteModal()).toBe(true);
       expect(component.inviteEmail()).toBe('');
-      expect(component.inviteRole).toBe('viewer');
+      expect(component.inviteRole()).toBe('viewer');
       expect(component.inviteError()).toBe('');
     });
 
@@ -256,7 +254,7 @@ describe('Users', () => {
       await fixture.whenStable();
       fixture.detectChanges();
 
-      expect(fixture.debugElement.query(By.css('.modal-overlay'))).toBeTruthy();
+      expect(fixture.debugElement.query(By.css('mns-overlay'))).toBeTruthy();
     });
 
     it('should close the modal', () => {
@@ -287,7 +285,7 @@ describe('Users', () => {
       memberService.listMembers.mockClear();
       component.openInviteModal();
       component.inviteEmail.set('new@example.com');
-      component.inviteRole = 'editor';
+      component.inviteRole.set('editor');
 
       component.submitInvite();
 
@@ -404,7 +402,7 @@ describe('Users', () => {
       await fixture.whenStable();
       fixture.detectChanges();
 
-      const modal = fixture.debugElement.query(By.css('.modal'));
+      const modal = fixture.debugElement.query(By.css('mns-overlay'));
       expect(modal.nativeElement.textContent).toContain('user@example.com');
     });
 

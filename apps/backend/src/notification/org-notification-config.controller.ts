@@ -16,7 +16,7 @@ import { OrganisationRole } from '../user/organisation-role.enum';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { OrgNotificationConfigService } from './org-notification-config.service';
 import { UpdateOrgNotificationConfigDto } from './dto';
-import type { OrganisationNotificationConfig } from '../db/schema';
+import { DEFAULT_ALERT_RULES, type OrganisationNotificationConfig } from '../db/schema';
 import { SmtpEmailProvider } from './channels/smtp-email-provider';
 
 @Controller('organisations')
@@ -51,6 +51,7 @@ export class OrgNotificationConfigController {
       ntfyUrl: null,
       ntfyTopic: null,
       ntfyToken: null,
+      alertRules: DEFAULT_ALERT_RULES,
     } as OrganisationNotificationConfig;
   }
 

@@ -2,6 +2,14 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
+export interface AlertRules {
+  offline: boolean;
+  recovered: boolean;
+  transcodeFail: boolean;
+  storage: boolean;
+  weekly: boolean;
+}
+
 export interface OrgNotificationConfigFull {
   id: string;
   organisationId: string;
@@ -14,6 +22,7 @@ export interface OrgNotificationConfigFull {
   ntfyUrl: string | null;
   ntfyTopic: string | null;
   ntfyToken: string | null;
+  alertRules: AlertRules;
 }
 
 export interface UpdateOrgNotificationConfig {
@@ -26,6 +35,7 @@ export interface UpdateOrgNotificationConfig {
   ntfyUrl?: string | null;
   ntfyTopic?: string | null;
   ntfyToken?: string | null;
+  alertRules?: AlertRules;
 }
 
 @Injectable({ providedIn: 'root' })

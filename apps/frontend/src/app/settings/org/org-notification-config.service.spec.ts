@@ -31,6 +31,13 @@ function makeConfig(overrides: Partial<OrgNotificationConfigFull> = {}): OrgNoti
     ntfyUrl: 'https://ntfy.sh',
     ntfyTopic: 'signage',
     ntfyToken: 'tk_123',
+    alertRules: {
+      offline: true,
+      recovered: true,
+      transcodeFail: true,
+      storage: false,
+      weekly: false,
+    },
     ...overrides,
   };
 }

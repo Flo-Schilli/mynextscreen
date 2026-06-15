@@ -7,15 +7,34 @@ import {
   signal,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { MemberService } from './member.service';
 import { Membership, MyMembership, OrganisationRole } from './member.model';
 import { ToastService } from '../../shared/toast/toast.service';
-import { BtnComponent, SFieldComponent, SInputComponent, EmptyComponent } from '../../ui';
+import { SettingsTabsComponent } from '../settings-tabs.component';
+import {
+  AvatarComponent,
+  BadgeComponent,
+  BtnComponent,
+  CardComponent,
+  EmptyComponent,
+  ModalComponent,
+  OverlayComponent,
+  PageHeaderComponent,
+  SelectComponent,
+  SelectOption,
+  SFieldComponent,
+  SInputComponent,
+} from '../../ui';
 
 /** Pragmatic email check for client-side gating; the server is the source of truth. */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const ROLE_OPTIONS: SelectOption[] = [
+  { value: 'org_admin', label: 'Org Admin' },
+  { value: 'editor', label: 'Editor' },
+  { value: 'viewer', label: 'Viewer' },
+];
 
 @Component({
   selector: 'app-users',
@@ -23,20 +42,29 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe,
-    FormsModule,
-    RouterLink,
+    SettingsTabsComponent,
+    AvatarComponent,
+    BadgeComponent,
     BtnComponent,
+    CardComponent,
+    EmptyComponent,
+    ModalComponent,
+    OverlayComponent,
+    PageHeaderComponent,
+    SelectComponent,
     SFieldComponent,
     SInputComponent,
-    EmptyComponent,
   ],
   template: `
-    <!-- Tab bar (shared underline style across all three settings tabs) -->
-    <div class="flex gap-1 border-b border-border mb-[var(--gap,1.5rem)]">
-      <a class="settings-tab settings-tab--active" aria-current="page">User Management</a>
-      <a class="settings-tab" routerLink="/settings/org/notifications">Notification Config</a>
-      <a class="settings-tab" routerLink="/settings/org/storage">Storage</a>
-    </div>
+    <app-settings-tabs />
+
+    <mns-page-header
+      title="User Management"
+      sub="Manage who has access to your organisation and what they can do."
+      icon="User"
+    >
+      <mns-btn variant="primary" icon="Plus" (mnsClick)="openInviteModal()">Invite User</mns-btn>
+    </mns-page-header>
 
     @if (loadError()) {
       <p class="error text-sm text-offline mt-3">{{ loadError() }}</p>
@@ -47,11 +75,11 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     }
 
     @if (!loading() && members().length > 0) {
-      <!-- Members count + invite action (single row) -->
-      <div class="flex items-center justify-between gap-6 flex-wrap mb-5">
+      <!-- Seat summary -->
+      <div class="flex items-center gap-6 flex-wrap mb-[var(--gap,1.5rem)]">
         <div class="flex items-center gap-3">
           <span
-            class="w-[38px] h-[38px] rounded-[11px] bg-accent-soft text-accent grid place-items-center"
+            class="w-[38px] h-[38px] rounded-[11px] bg-accent-soft text-accent grid place-items-center flex-shrink-0"
           >
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
               <circle cx="10" cy="8" r="3" stroke="currentColor" stroke-width="1.5" />
@@ -64,110 +92,110 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             </svg>
           </span>
           <div>
-            <div class="font-mono text-lg font-bold leading-tight">
-              {{ members().length }}
-            </div>
+            <div class="font-mono text-lg font-bold leading-tight">{{ activeCount() }}</div>
             <div class="text-xs text-muted">Members</div>
           </div>
         </div>
-
-        <mns-btn variant="primary" icon="Plus" (mnsClick)="openInviteModal()">
-          Invite User
-        </mns-btn>
+        <div class="flex items-center gap-3">
+          <span
+            class="w-[38px] h-[38px] rounded-[11px] bg-accent-soft text-accent grid place-items-center flex-shrink-0"
+          >
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <path
+                d="M3 4h14a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1z"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M2 5l8 7 8-7"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </span>
+          <div>
+            <div class="font-mono text-lg font-bold leading-tight">{{ pendingCount() }}</div>
+            <div class="text-xs text-muted">Pending</div>
+          </div>
+        </div>
       </div>
 
-      <!-- Members table -->
-      <div
-        class="table-container bg-surface border border-border rounded-lg overflow-hidden shadow-[var(--shadow)]"
-      >
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="bg-surface-2 border-b border-border">
-              <th
-                class="text-left px-5 py-3 text-[10.5px] font-bold uppercase tracking-[.07em] text-faint"
+      <!-- Members grid-card -->
+      <mns-card [pad]="false" [animate]="true" class="block overflow-hidden">
+        <!-- header row -->
+        <div
+          class="hidden min-[880px]:grid min-[880px]:[grid-template-columns:2fr_1.7fr_160px_140px_116px_96px] gap-3 px-[22px] py-[13px] bg-surface-2 border-b border-border"
+        >
+          <div class="text-[10.5px] font-bold uppercase tracking-[.07em] text-faint">Name</div>
+          <div class="text-[10.5px] font-bold uppercase tracking-[.07em] text-faint">Email</div>
+          <div class="text-[10.5px] font-bold uppercase tracking-[.07em] text-faint">Role</div>
+          <div class="text-[10.5px] font-bold uppercase tracking-[.07em] text-faint">Status</div>
+          <div class="text-[10.5px] font-bold uppercase tracking-[.07em] text-faint">Joined</div>
+          <div class="text-[10.5px] font-bold uppercase tracking-[.07em] text-faint text-right">
+            Actions
+          </div>
+        </div>
+
+        @for (member of members(); track member.id; let i = $index) {
+          <div
+            class="grid grid-cols-1 min-[880px]:grid min-[880px]:[grid-template-columns:2fr_1.7fr_160px_140px_116px_96px] gap-3 px-[22px] py-3.5 min-[880px]:items-center hover:bg-surface-2 transition-colors duration-[120ms]"
+            [class.border-t]="i > 0"
+            [class.border-border]="i > 0"
+          >
+            <!-- name + avatar -->
+            <div class="flex items-center gap-3 min-w-0">
+              <mns-avatar [name]="member.user.name || member.user.email" [size]="34" />
+              <div class="flex-1 min-w-0">
+                @if (member.user.name) {
+                  <div class="text-sm font-bold truncate">{{ member.user.name }}</div>
+                } @else {
+                  <div class="text-sm font-bold italic text-faint truncate">Invite pending</div>
+                }
+              </div>
+            </div>
+            <!-- email -->
+            <div class="text-[13.5px] text-muted truncate min-[880px]:self-center">
+              <span class="min-[880px]:hidden text-faint mr-1">Email:</span>{{ member.user.email }}
+            </div>
+            <!-- role -->
+            <div class="min-[880px]:self-center">
+              <mns-select
+                [options]="roleOptions"
+                [value]="member.role"
+                (changed)="changeRole(member, $event)"
+              />
+            </div>
+            <!-- status -->
+            <div class="min-[880px]:self-center">
+              @if (member.status === 'pending') {
+                <mns-badge tone="warning">Pending invite</mns-badge>
+              } @else {
+                <mns-badge tone="online">Active</mns-badge>
+              }
+            </div>
+            <!-- joined -->
+            <div class="font-mono text-[12.5px] text-muted min-[880px]:self-center">
+              <span class="min-[880px]:hidden text-faint mr-1 font-sans">Joined:</span>
+              {{ member.createdAt | date: 'mediumDate' }}
+            </div>
+            <!-- actions -->
+            <div class="flex min-[880px]:justify-end min-[880px]:self-center">
+              <mns-btn
+                variant="danger"
+                size="sm"
+                icon="Trash"
+                [disabled]="removingUserId() === member.userId"
+                (mnsClick)="confirmRemove(member)"
               >
-                Name
-              </th>
-              <th
-                class="text-left px-5 py-3 text-[10.5px] font-bold uppercase tracking-[.07em] text-faint"
-              >
-                Email
-              </th>
-              <th
-                class="text-left px-5 py-3 text-[10.5px] font-bold uppercase tracking-[.07em] text-faint"
-              >
-                Role
-              </th>
-              <th
-                class="text-left px-5 py-3 text-[10.5px] font-bold uppercase tracking-[.07em] text-faint"
-              >
-                Status
-              </th>
-              <th
-                class="text-left px-5 py-3 text-[10.5px] font-bold uppercase tracking-[.07em] text-faint"
-              >
-                Joined
-              </th>
-              <th
-                class="text-right px-5 py-3 text-[10.5px] font-bold uppercase tracking-[.07em] text-faint"
-              >
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (member of members(); track member.id) {
-              <tr
-                class="border-t border-border hover:bg-surface-2 transition-colors duration-[120ms]"
-              >
-                <td class="px-5 py-3.5 font-semibold">{{ member.user.name || '(no name)' }}</td>
-                <td class="px-5 py-3.5 text-muted">{{ member.user.email }}</td>
-                <td class="px-5 py-3.5">
-                  <select
-                    class="role-select bg-surface-2 border border-border rounded-[9px] px-2 py-1 text-[13.5px] text-text cursor-pointer focus:outline-none focus:border-accent focus:ring-[3px] focus:ring-accent-soft disabled:opacity-50 disabled:cursor-not-allowed"
-                    [ngModel]="member.role"
-                    (ngModelChange)="changeRole(member, $event)"
-                    [disabled]="updatingUserId() === member.userId"
-                  >
-                    <option value="org_admin">Org Admin</option>
-                    <option value="editor">Editor</option>
-                    <option value="viewer">Viewer</option>
-                  </select>
-                </td>
-                <td class="px-5 py-3.5">
-                  @if (member.status === 'pending') {
-                    <span
-                      class="status-badge status-pending inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[99px] text-xs font-semibold bg-warning-dim text-warning border border-warning/30"
-                    >
-                      Pending invite
-                    </span>
-                  } @else {
-                    <span
-                      class="status-badge status-active inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[99px] text-xs font-semibold bg-online-dim text-online border border-online/30"
-                    >
-                      Active
-                    </span>
-                  }
-                </td>
-                <td class="px-5 py-3.5 font-mono text-[12.5px] text-muted">
-                  {{ member.createdAt | date: 'mediumDate' }}
-                </td>
-                <td class="px-5 py-3.5 text-right">
-                  <mns-btn
-                    variant="danger"
-                    size="sm"
-                    icon="Trash"
-                    [disabled]="removingUserId() === member.userId"
-                    (mnsClick)="confirmRemove(member)"
-                  >
-                    Remove
-                  </mns-btn>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
+                {{ member.status === 'pending' ? 'Revoke' : 'Remove' }}
+              </mns-btn>
+            </div>
+          </div>
+        }
+      </mns-card>
     }
 
     @if (!loading() && members().length === 0 && !loadError()) {
@@ -190,60 +218,9 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     <!-- Invite modal -->
     @if (showInviteModal()) {
-      <div
-        class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-[6px]"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Invite user"
-        tabindex="0"
-        (click)="closeInviteModal()"
-        (keydown.escape)="closeInviteModal()"
-      >
-        <div
-          class="modal bg-surface border border-border-strong rounded-xl shadow-[var(--shadow-lg)] w-full max-w-[480px] overflow-hidden"
-          role="document"
-          (click)="$event.stopPropagation()"
-          (keydown)="$event.stopPropagation()"
-        >
-          <!-- Modal header -->
-          <div class="flex items-center gap-3 px-6 py-5 border-b border-border">
-            <span
-              class="w-10 h-10 rounded-[11px] bg-accent-soft text-accent grid place-items-center flex-shrink-0"
-            >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path
-                  d="M3 4h14a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1z"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linejoin="round"
-                />
-                <path
-                  d="M2 5l8 7 8-7"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </span>
-            <div class="flex-1">
-              <div class="text-[17px] font-bold">Invite a user</div>
-              <div class="text-[13px] text-muted">
-                They'll get an email to join your organisation
-              </div>
-            </div>
-            <button
-              type="button"
-              class="w-8 h-8 rounded-[8px] border border-border bg-transparent text-muted grid place-items-center hover:bg-surface-2 transition-colors"
-              (click)="closeInviteModal()"
-              aria-label="Close"
-            >
-              ✕
-            </button>
-          </div>
-
-          <!-- Modal body -->
-          <form class="p-6 flex flex-col gap-4" (ngSubmit)="submitInvite()">
+      <mns-overlay (closed)="closeInviteModal()">
+        <mns-modal title="Invite a user" icon="Mail" (closed)="closeInviteModal()">
+          <div class="flex flex-col gap-4">
             <mns-sfield label="Email address">
               <mns-sinput
                 [(value)]="inviteEmail"
@@ -254,72 +231,51 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             </mns-sfield>
 
             <mns-sfield label="Role">
-              <select
-                class="w-full bg-surface-2 border border-border-strong rounded-[9px] px-3 py-2.5 text-[13.5px] font-semibold text-text focus:outline-none focus:border-accent focus:ring-[3px] focus:ring-accent-soft"
-                [(ngModel)]="inviteRole"
-                name="inviteRole"
-                required
-              >
-                <option value="org_admin">Org Admin</option>
-                <option value="editor">Editor</option>
-                <option value="viewer">Viewer</option>
-              </select>
+              <mns-select [options]="roleOptions" [(value)]="inviteRole" />
             </mns-sfield>
 
             @if (inviteError()) {
               <p class="error text-sm text-offline">{{ inviteError() }}</p>
             }
+          </div>
 
-            <div class="form-actions flex gap-2.5 mt-1">
-              <mns-btn
-                class="flex-1"
-                variant="outline"
-                [full]="true"
-                (mnsClick)="closeInviteModal()"
-              >
-                Cancel
-              </mns-btn>
-              <mns-btn
-                class="flex-1"
-                variant="primary"
-                [full]="true"
-                icon="Mail"
-                [disabled]="inviting() || !isInviteEmailValid()"
-                (mnsClick)="submitInvite()"
-              >
-                {{ inviting() ? 'Inviting...' : 'Send invite' }}
-              </mns-btn>
-            </div>
-          </form>
-        </div>
-      </div>
+          <div slot="footer" class="flex gap-2.5 px-6 pb-5">
+            <mns-btn class="flex-1" variant="outline" [full]="true" (mnsClick)="closeInviteModal()">
+              Cancel
+            </mns-btn>
+            <mns-btn
+              class="flex-1"
+              variant="primary"
+              [full]="true"
+              icon="Mail"
+              [disabled]="inviting() || !isInviteEmailValid()"
+              (mnsClick)="submitInvite()"
+            >
+              {{ inviting() ? 'Inviting...' : 'Send invite' }}
+            </mns-btn>
+          </div>
+        </mns-modal>
+      </mns-overlay>
     }
 
     <!-- Remove confirm modal -->
     @if (showRemoveConfirm()) {
-      <div
-        class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-[6px]"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Confirm removal"
-        tabindex="0"
-        (click)="cancelRemove()"
-        (keydown.escape)="cancelRemove()"
-      >
+      <mns-overlay (closed)="cancelRemove()">
         <div
-          class="modal bg-surface border border-border-strong rounded-xl shadow-[var(--shadow-lg)] w-full max-w-[420px] p-6"
-          role="document"
+          class="relative w-full max-w-[420px] bg-surface border border-border-strong rounded-xl p-6"
+          style="box-shadow: var(--shadow-lg); animation: fadeUp .3s cubic-bezier(.22,.61,.36,1) both"
+          tabindex="0"
           (click)="$event.stopPropagation()"
           (keydown)="$event.stopPropagation()"
         >
-          <h2 class="text-[17px] font-bold mb-2">Remove Member</h2>
+          <h2 class="text-[17px] font-bold mb-2">Remove member</h2>
           <p class="text-[13.5px] text-muted mb-5">
             Are you sure you want to remove
             <strong class="text-text">{{ removingMember()?.user?.email }}</strong>
             from this organisation?
           </p>
-          <div class="form-actions flex gap-2.5">
-            <mns-btn variant="outline" [full]="true" (mnsClick)="cancelRemove()"> Cancel </mns-btn>
+          <div class="flex gap-2.5">
+            <mns-btn variant="outline" [full]="true" (mnsClick)="cancelRemove()">Cancel</mns-btn>
             <mns-btn
               variant="danger"
               [full]="true"
@@ -330,37 +286,12 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             </mns-btn>
           </div>
         </div>
-      </div>
+      </mns-overlay>
     }
   `,
   styles: `
     :host {
       display: block;
-    }
-
-    .settings-tab {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 12px 14px;
-      margin-bottom: -1px;
-      font-size: 14px;
-      font-weight: 600;
-      white-space: nowrap;
-      background: transparent;
-      border: none;
-      border-bottom: 2px solid transparent;
-      color: var(--text-muted);
-      cursor: pointer;
-      text-decoration: none;
-      transition: color 0.15s;
-    }
-    .settings-tab:hover {
-      color: var(--text);
-    }
-    .settings-tab--active {
-      color: var(--text);
-      border-bottom-color: var(--accent);
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -376,6 +307,8 @@ export class Users implements OnInit {
   private router = inject(Router);
   private toast = inject(ToastService);
 
+  readonly roleOptions = ROLE_OPTIONS;
+
   orgId = '';
   // Async-updated, template-read state — signals so OnPush re-renders after
   // HTTP callbacks complete (an XHR callback mutating a plain field does not
@@ -385,10 +318,17 @@ export class Users implements OnInit {
   readonly loadError = signal('');
   readonly actionError = signal('');
 
+  // Seat summary derived from the real member list (no fabricated owner/seats).
+  readonly activeCount = computed(() => this.members().filter((m) => m.status === 'active').length);
+  readonly pendingCount = computed(
+    () => this.members().filter((m) => m.status === 'pending').length,
+  );
+
   // Invite modal state
   readonly showInviteModal = signal(false);
   readonly inviteEmail = signal('');
-  inviteRole: OrganisationRole = 'viewer'; // plain — [(ngModel)] has no signal two-way
+  // mns-select binds a Signal model (not ngModel), so the role is a signal.
+  readonly inviteRole = signal<OrganisationRole>('viewer');
   readonly inviteError = signal('');
   readonly inviting = signal(false);
   // Send invite stays disabled until a syntactically valid email is entered.
@@ -450,7 +390,7 @@ export class Users implements OnInit {
 
   openInviteModal(): void {
     this.inviteEmail.set('');
-    this.inviteRole = 'viewer';
+    this.inviteRole.set('viewer');
     this.inviteError.set('');
     this.showInviteModal.set(true);
   }
@@ -468,7 +408,7 @@ export class Users implements OnInit {
     this.inviting.set(true);
     this.inviteError.set('');
     this.memberService
-      .addMember(this.orgId, { email: this.inviteEmail().trim(), role: this.inviteRole })
+      .addMember(this.orgId, { email: this.inviteEmail().trim(), role: this.inviteRole() })
       .subscribe({
         next: () => {
           this.inviting.set(false);
@@ -483,12 +423,13 @@ export class Users implements OnInit {
       });
   }
 
-  changeRole(member: Membership, newRole: OrganisationRole): void {
-    if (newRole === member.role) return;
+  changeRole(member: Membership, newRole: string): void {
+    const role = newRole as OrganisationRole;
+    if (role === member.role) return;
 
     this.updatingUserId.set(member.userId);
     this.actionError.set('');
-    this.memberService.updateRole(this.orgId, member.userId, { role: newRole }).subscribe({
+    this.memberService.updateRole(this.orgId, member.userId, { role }).subscribe({
       next: (updated) => {
         this.members.update((list) =>
           list.map((m) => (m.userId === member.userId ? { ...m, role: updated.role } : m)),

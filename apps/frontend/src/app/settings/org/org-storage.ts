@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { ContentService } from '../../content/content.service';
 import { StorageInfo } from '../../content/content.model';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
 import { StorageUsageBars } from '../../shared/storage-usage-bars';
-import { CardComponent, CardHeadComponent } from '../../ui';
+import { SettingsTabsComponent } from '../settings-tabs.component';
+import { CardComponent, CardHeadComponent, PageHeaderComponent } from '../../ui';
 
 /**
  * Org-admin storage overview: the active organisation's original/transcoded
@@ -15,14 +16,21 @@ import { CardComponent, CardHeadComponent } from '../../ui';
   selector: 'app-org-storage',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, StorageUsageBars, CardComponent, CardHeadComponent],
+  imports: [
+    SettingsTabsComponent,
+    StorageUsageBars,
+    CardComponent,
+    CardHeadComponent,
+    PageHeaderComponent,
+  ],
   template: `
-    <!-- Tab bar -->
-    <div class="flex gap-1 border-b border-border mb-[var(--gap,1.5rem)]">
-      <a class="settings-tab" routerLink="/settings/users">User Management</a>
-      <a class="settings-tab" routerLink="/settings/org/notifications">Notification Config</a>
-      <a class="settings-tab settings-tab--active" aria-current="page">Storage</a>
-    </div>
+    <app-settings-tabs />
+
+    <mns-page-header
+      title="Storage"
+      sub="Track media usage against your allocated limits."
+      icon="Storage"
+    />
 
     @if (loading()) {
       <p class="loading-text text-sm text-muted mt-6">Loading storage usage...</p>
@@ -46,31 +54,6 @@ import { CardComponent, CardHeadComponent } from '../../ui';
   styles: `
     :host {
       display: block;
-    }
-
-    .settings-tab {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 12px 14px;
-      margin-bottom: -1px;
-      font-size: 14px;
-      font-weight: 600;
-      white-space: nowrap;
-      background: transparent;
-      border: none;
-      border-bottom: 2px solid transparent;
-      color: var(--text-muted);
-      cursor: pointer;
-      text-decoration: none;
-      transition: color 0.15s;
-    }
-    .settings-tab:hover {
-      color: var(--text);
-    }
-    .settings-tab--active {
-      color: var(--text);
-      border-bottom-color: var(--accent);
     }
 
     @media (prefers-reduced-motion: reduce) {

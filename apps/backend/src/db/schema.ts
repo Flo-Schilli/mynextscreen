@@ -329,6 +329,31 @@ export const notifications = pgTable('notifications', {
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Per-organisation alert rules — which events should trigger a notification.
+ * Persisted as a single jsonb object on the notification config row.
+ */
+export interface AlertRules {
+  /** Alert after a display is unreachable for 5 minutes. */
+  offline: boolean;
+  /** Notify when an offline display comes back online. */
+  recovered: boolean;
+  /** Alert when uploaded media fails to process. */
+  transcodeFail: boolean;
+  /** Warn when usage passes 90% of the allocation. */
+  storage: boolean;
+  /** A digest of uptime and activity every Monday. */
+  weekly: boolean;
+}
+
+export const DEFAULT_ALERT_RULES: AlertRules = {
+  offline: true,
+  recovered: true,
+  transcodeFail: true,
+  storage: false,
+  weekly: false,
+};
+
 export const organisationNotificationConfigs = pgTable(
   'organisation_notification_configs',
   {
@@ -348,6 +373,10 @@ export const organisationNotificationConfigs = pgTable(
     ntfyUrl: text(),
     ntfyTopic: text(),
     ntfyToken: text(),
+    // Per-org alert rules: which events trigger a notification across channels.
+    // Stored as one jsonb object so the toggle set evolves without a migration
+    // per flag. Dispatch logic reads these flags when emitting alerts.
+    alertRules: jsonb().$type<AlertRules>().notNull().default(DEFAULT_ALERT_RULES),
   },
   (t) => [uniqueIndex('UQ_org_notification_config_org').on(t.organisationId)],
 );

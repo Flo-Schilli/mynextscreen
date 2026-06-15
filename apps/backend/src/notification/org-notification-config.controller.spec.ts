@@ -33,6 +33,13 @@ describe('OrgNotificationConfigController', () => {
     ntfyUrl: 'https://ntfy.sh',
     ntfyTopic: 'my-topic',
     ntfyToken: 'token123',
+    alertRules: {
+      offline: true,
+      recovered: true,
+      transcodeFail: true,
+      storage: false,
+      weekly: false,
+    },
   };
 
   const mockReq = {
@@ -77,6 +84,13 @@ describe('OrgNotificationConfigController', () => {
       expect(result.organisationId).toBe(orgId);
       expect(result.smtpHost).toBeNull();
       expect(result.ntfyUrl).toBeNull();
+      expect(result.alertRules).toEqual({
+        offline: true,
+        recovered: true,
+        transcodeFail: true,
+        storage: false,
+        weekly: false,
+      });
     });
 
     it('should not redact null passwords', async () => {

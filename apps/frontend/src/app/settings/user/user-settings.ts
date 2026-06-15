@@ -21,6 +21,8 @@ import {
   CardComponent,
   CardHeadComponent,
   BtnComponent,
+  OverlayComponent,
+  PageHeaderComponent,
   SFieldComponent,
   SInputComponent,
   SwitchComponent,
@@ -55,14 +57,22 @@ const DENSITY_OPTIONS: { value: Density; label: string; desc: string }[] = [
     CardComponent,
     CardHeadComponent,
     BtnComponent,
+    OverlayComponent,
+    PageHeaderComponent,
     SFieldComponent,
     SInputComponent,
     SwitchComponent,
     ToggleRowComponent,
   ],
   template: `
+    <mns-page-header
+      title="User Settings"
+      sub="Manage your personal account across every organisation."
+      icon="Settings"
+    />
+
     <!-- Profile & display name -->
-    <mns-card [animate]="true" class="block mb-5 max-w-[640px]">
+    <mns-card [animate]="true" class="block mb-5 max-w-[760px]">
       <mns-card-head title="Profile" sub="Your account details and display name." icon="User" />
 
       <!-- Gravatar row -->
@@ -142,7 +152,7 @@ const DENSITY_OPTIONS: { value: Density; label: string; desc: string }[] = [
     </mns-card>
 
     <!-- Notification preferences -->
-    <mns-card [animate]="true" [delay]="0.05" class="block mb-5 max-w-[640px]">
+    <mns-card [animate]="true" [delay]="0.05" class="block mb-5 max-w-[760px]">
       <mns-card-head
         title="Notification Channels"
         sub="Choose how you receive notifications. These apply across all organisations you belong to."
@@ -183,7 +193,7 @@ const DENSITY_OPTIONS: { value: Density; label: string; desc: string }[] = [
     </mns-card>
 
     <!-- Appearance: accent + density -->
-    <mns-card [animate]="true" [delay]="0.08" class="block mb-5 max-w-[640px]">
+    <mns-card [animate]="true" [delay]="0.08" class="block mb-5 max-w-[760px]">
       <mns-card-head
         title="Appearance"
         sub="Customise the colour accent and interface density."
@@ -244,7 +254,7 @@ const DENSITY_OPTIONS: { value: Density; label: string; desc: string }[] = [
     </mns-card>
 
     <!-- Change password -->
-    <mns-card [animate]="true" [delay]="0.1" class="block mb-5 max-w-[640px]">
+    <mns-card [animate]="true" [delay]="0.1" class="block mb-5 max-w-[760px]">
       <mns-card-head
         title="Change password"
         sub="Update the password you use to sign in."
@@ -296,7 +306,7 @@ const DENSITY_OPTIONS: { value: Density; label: string; desc: string }[] = [
     </mns-card>
 
     <!-- Change email -->
-    <mns-card [animate]="true" [delay]="0.12" class="block mb-5 max-w-[640px]">
+    <mns-card [animate]="true" [delay]="0.12" class="block mb-5 max-w-[760px]">
       <mns-card-head
         title="Change email"
         sub="We'll send a confirmation link to the new address; the change applies once you confirm it."
@@ -332,7 +342,11 @@ const DENSITY_OPTIONS: { value: Density; label: string; desc: string }[] = [
     </mns-card>
 
     <!-- Danger zone -->
-    <mns-card [animate]="true" [delay]="0.14" class="block mb-5 max-w-[640px] border-offline/40">
+    <mns-card
+      [animate]="true"
+      [delay]="0.14"
+      class="block mb-5 max-w-[760px] border-offline/40 shadow-[0_0_0_1px_var(--offline-dim)]"
+    >
       <mns-card-head
         title="Danger Zone"
         sub="Permanently delete your account. This removes your organisation memberships and cannot be undone."
@@ -344,18 +358,11 @@ const DENSITY_OPTIONS: { value: Density; label: string; desc: string }[] = [
 
     <!-- Delete account modal -->
     @if (showDeleteAccount) {
-      <div
-        class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-[6px]"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Confirm account deletion"
-        tabindex="0"
-        (click)="cancelDeleteAccount()"
-        (keydown.escape)="cancelDeleteAccount()"
-      >
+      <mns-overlay (closed)="cancelDeleteAccount()">
         <div
-          class="modal bg-surface border border-border-strong rounded-xl shadow-[var(--shadow-lg)] w-full max-w-[420px] p-6"
-          role="document"
+          class="relative w-full max-w-[420px] bg-surface border border-border-strong rounded-xl p-6"
+          style="box-shadow: var(--shadow-lg); animation: fadeUp .3s cubic-bezier(.22,.61,.36,1) both"
+          tabindex="0"
           (click)="$event.stopPropagation()"
           (keydown)="$event.stopPropagation()"
         >
@@ -400,7 +407,7 @@ const DENSITY_OPTIONS: { value: Density; label: string; desc: string }[] = [
             </div>
           </form>
         </div>
-      </div>
+      </mns-overlay>
     }
   `,
   styles: `
