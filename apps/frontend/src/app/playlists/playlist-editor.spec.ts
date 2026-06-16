@@ -21,6 +21,7 @@ function buildItem(overrides: Partial<PlaylistItem> = {}): PlaylistItem {
       originalFilename: 'clip.png',
       transcodingStatus: 'completed',
       durationSeconds: null,
+      thumbnailSizeBytes: null,
     },
     ...overrides,
   };
@@ -283,6 +284,7 @@ describe('PlaylistEditor', () => {
                 originalFilename: 'm.mp4',
                 transcodingStatus: 'completed',
                 durationSeconds: 42,
+                thumbnailSizeBytes: null,
               },
             }),
           ],
@@ -375,6 +377,7 @@ describe('PlaylistEditor', () => {
           originalFilename: 'm.mp4',
           transcodingStatus: 'completed',
           durationSeconds: 42,
+          thumbnailSizeBytes: null,
         },
       });
       fixture.componentRef.setInput('previewingItem', item);

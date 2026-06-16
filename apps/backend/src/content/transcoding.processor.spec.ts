@@ -4,7 +4,12 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BadRequestException } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { Job } from 'bullmq';
-import { TranscodingProcessor, TranscodeJobData } from './transcoding.processor';
+import {
+  TranscodingProcessor,
+  TranscodeJobData,
+  ThumbnailJobData,
+  THUMBNAIL_JOB,
+} from './transcoding.processor';
 import { DRIZZLE } from '../db/database.constants';
 import { contents, organisations, type Content, type Organisation } from '../db/schema';
 import { ContentType } from './content-type.enum';
@@ -26,8 +31,12 @@ jest.mock('child_process', () => ({
 jest.mock('fs/promises', () => ({
   ...jest.requireActual('fs/promises'),
   mkdir: jest.fn().mockResolvedValue(undefined),
-  stat: jest.fn().mockResolvedValue({ size: 5000 }),
+  // Transcoded files report 5000 bytes; the small thumbnail reports 100.
+  stat: jest.fn((p: string) =>
+    Promise.resolve({ size: String(p).includes('_thumb') ? 100 : 5000 }),
+  ),
   unlink: jest.fn().mockResolvedValue(undefined),
+  access: jest.fn().mockResolvedValue(undefined),
 }));
 
 // Mock ffprobe-duration utility
@@ -36,45 +45,69 @@ jest.mock('./ffprobe-duration.util', () => ({
   ffprobeDuration: (...args: unknown[]) => mockFfprobeDuration(...args),
 }));
 
+/**
+ * Build a per-spawn fake child process with its own handler registry, so the
+ * transcode spawn and the follow-up thumbnail spawn each resolve independently
+ * (the production code spawns FFmpeg twice per video/image transcode).
+ *
+ * `shouldFail` lets a predicate fail only specific spawns (e.g. the thumbnail
+ * pass, identified by its `-frames:v` arg) while letting the transcode succeed.
+ */
+function makeProc(args: string[], shouldFail: (args: string[]) => boolean) {
+  const handlers: Record<string, (arg: unknown) => void> = {};
+  const stderrHandlers: Record<string, (chunk: Buffer) => void> = {};
+  const proc = {
+    stderr: {
+      on: (event: string, cb: (chunk: Buffer) => void) => {
+        stderrHandlers[event] = cb;
+        mockStderrOn(event, cb);
+      },
+    },
+    on: (event: string, cb: (arg: unknown) => void) => {
+      handlers[event] = cb;
+      mockOn(event, cb);
+      return proc;
+    },
+    stdin: null,
+    stdout: null,
+  };
+  const fail = shouldFail(args);
+  setTimeout(() => {
+    if (fail) {
+      stderrHandlers.data?.(Buffer.from('Error: something went wrong\n'));
+      handlers.close?.(1);
+      return;
+    }
+    stderrHandlers.data?.(
+      Buffer.from('  Duration: 00:01:00.00, start: 0.000000, bitrate: 1234 kb/s\n'),
+    );
+    stderrHandlers.data?.(
+      Buffer.from(
+        'frame=  900 fps= 30 q=28.0 size=    1024kB time=00:00:30.00 bitrate= 279.6kbits/s\n',
+      ),
+    );
+    handlers.close?.(0);
+  }, 10);
+  return proc;
+}
+
+const NEVER_FAIL = (): boolean => false;
+
 function setupSpawnSuccess(): void {
-  mockSpawn.mockImplementation(() => {
-    const proc = { stderr: { on: mockStderrOn }, on: mockOn, stdin: null, stdout: null };
-    setTimeout(() => {
-      const dataCallback = mockStderrOn.mock.calls.find((c: unknown[]) => c[0] === 'data');
-      if (dataCallback) {
-        dataCallback[1](
-          Buffer.from('  Duration: 00:01:00.00, start: 0.000000, bitrate: 1234 kb/s\n'),
-        );
-        dataCallback[1](
-          Buffer.from(
-            'frame=  900 fps= 30 q=28.0 size=    1024kB time=00:00:30.00 bitrate= 279.6kbits/s\n',
-          ),
-        );
-      }
-      const closeCallback = mockOn.mock.calls.find((c: unknown[]) => c[0] === 'close');
-      if (closeCallback) {
-        closeCallback[1](0);
-      }
-    }, 10);
-    return proc;
-  });
+  mockSpawn.mockImplementation((_path: string, args: string[]) => makeProc(args, NEVER_FAIL));
 }
 
 function setupSpawnFailure(exitCode: number): void {
-  mockSpawn.mockImplementation(() => {
-    const proc = { stderr: { on: mockStderrOn }, on: mockOn, stdin: null, stdout: null };
-    setTimeout(() => {
-      const dataCallback = mockStderrOn.mock.calls.find((c: unknown[]) => c[0] === 'data');
-      if (dataCallback) {
-        dataCallback[1](Buffer.from('Error: something went wrong\n'));
-      }
-      const closeCallback = mockOn.mock.calls.find((c: unknown[]) => c[0] === 'close');
-      if (closeCallback) {
-        closeCallback[1](exitCode);
-      }
-    }, 10);
-    return proc;
-  });
+  mockSpawn.mockImplementation((_path: string, args: string[]) =>
+    makeProc(args, () => exitCode !== 0),
+  );
+}
+
+/** Transcode succeeds but the thumbnail FFmpeg pass fails (best-effort path). */
+function setupSpawnThumbnailFailure(): void {
+  mockSpawn.mockImplementation((_path: string, args: string[]) =>
+    makeProc(args, (a) => a.includes('-frames:v')),
+  );
 }
 
 describe('TranscodingProcessor', () => {
@@ -186,18 +219,49 @@ describe('TranscodingProcessor', () => {
       const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
       expect(row.transcodingStatus).toBe(TranscodingStatus.Completed);
       expect(Number(row.transcodedSizeBytes)).toBe(5000);
+      expect(Number(row.thumbnailSizeBytes)).toBe(100);
       expect(row.durationSeconds).toBe(60);
       expect(row.transcodingError).toBeNull();
     });
 
-    it('should update org storage counter on success', async () => {
+    it('should update org storage counter on success (transcoded + thumbnail)', async () => {
       const org = await seedOrg();
       const content = await seedContent(org.id);
       setupSpawnSuccess();
 
       await processor.process(createJob(content.id, org.id));
 
-      expect(storageService.checkTranscodedLimit).toHaveBeenCalledWith(org.id, 5000);
+      // 5000 (transcoded) + 100 (thumbnail) = 5100
+      expect(storageService.checkTranscodedLimit).toHaveBeenCalledWith(org.id, 5100);
+      expect(storageService.addTranscodedUsage).toHaveBeenCalledWith(org.id, 5100);
+    });
+
+    it('should generate a thumbnail with the thumbnail filter for videos', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id);
+      setupSpawnSuccess();
+
+      await processor.process(createJob(content.id, org.id));
+
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'ffmpeg',
+        expect.arrayContaining(['-vf', expect.stringContaining('thumbnail'), '-frames:v', '1']),
+        expect.any(Object),
+      );
+    });
+
+    it('should still complete (thumbnail null) when thumbnail generation fails', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id);
+      setupSpawnThumbnailFailure();
+
+      await processor.process(createJob(content.id, org.id));
+
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(row.transcodingStatus).toBe(TranscodingStatus.Completed);
+      expect(Number(row.transcodedSizeBytes)).toBe(5000);
+      expect(row.thumbnailSizeBytes).toBeNull();
+      // Only the transcoded bytes are billed when no thumbnail was produced.
       expect(storageService.addTranscodedUsage).toHaveBeenCalledWith(org.id, 5000);
     });
 
@@ -397,6 +461,99 @@ describe('TranscodingProcessor', () => {
         }),
       );
 
+      expect(storageService.addTranscodedUsage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('process — thumbnail backfill job', () => {
+    function createThumbnailJob(contentId: string, organisationId: string): Job<ThumbnailJobData> {
+      return {
+        id: 'thumb-job-1',
+        name: THUMBNAIL_JOB,
+        data: { contentId, organisationId },
+        updateProgress: jest.fn().mockResolvedValue(undefined),
+      } as unknown as Job<ThumbnailJobData>;
+    }
+
+    async function seedCompleted(
+      organisationId: string,
+      overrides: Partial<typeof contents.$inferInsert> = {},
+    ): Promise<Content> {
+      const content = await seedContent(organisationId);
+      const [row] = await db
+        .update(contents)
+        .set({
+          transcodingStatus: TranscodingStatus.Completed,
+          transcodedSizeBytes: 5000,
+          thumbnailSizeBytes: null,
+          ...overrides,
+        })
+        .where(eq(contents.id, content.id))
+        .returning();
+      return row;
+    }
+
+    it('generates and records a thumbnail for completed content without one', async () => {
+      const org = await seedOrg();
+      const content = await seedCompleted(org.id);
+      setupSpawnSuccess();
+
+      await processor.process(createThumbnailJob(content.id, org.id));
+
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(Number(row.thumbnailSizeBytes)).toBe(100);
+      expect(storageService.addTranscodedUsage).toHaveBeenCalledWith(org.id, 100);
+    });
+
+    it('is a no-op when the content already has a thumbnail', async () => {
+      const org = await seedOrg();
+      const content = await seedCompleted(org.id, { thumbnailSizeBytes: 77 });
+      setupSpawnSuccess();
+
+      await processor.process(createThumbnailJob(content.id, org.id));
+
+      expect(mockSpawn).not.toHaveBeenCalled();
+      expect(storageService.addTranscodedUsage).not.toHaveBeenCalled();
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(Number(row.thumbnailSizeBytes)).toBe(77);
+    });
+
+    it('is a no-op when the content is not yet completed', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id); // status pending
+      setupSpawnSuccess();
+
+      await processor.process(createThumbnailJob(content.id, org.id));
+
+      expect(mockSpawn).not.toHaveBeenCalled();
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(row.thumbnailSizeBytes).toBeNull();
+    });
+
+    it('is a no-op when the transcoded file is missing', async () => {
+      const org = await seedOrg();
+      const content = await seedCompleted(org.id);
+      setupSpawnSuccess();
+      const fsPromises = jest.requireMock('fs/promises') as { access: jest.Mock };
+      fsPromises.access.mockRejectedValueOnce(new Error('ENOENT'));
+
+      await processor.process(createThumbnailJob(content.id, org.id));
+
+      expect(mockSpawn).not.toHaveBeenCalled();
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(row.thumbnailSizeBytes).toBeNull();
+    });
+
+    it('skips recording when the thumbnail would exceed the storage limit', async () => {
+      const org = await seedOrg();
+      const content = await seedCompleted(org.id);
+      setupSpawnSuccess();
+      storageService.checkTranscodedLimit.mockRejectedValueOnce(new BadRequestException('limit'));
+
+      await processor.process(createThumbnailJob(content.id, org.id));
+
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(row.thumbnailSizeBytes).toBeNull();
       expect(storageService.addTranscodedUsage).not.toHaveBeenCalled();
     });
   });

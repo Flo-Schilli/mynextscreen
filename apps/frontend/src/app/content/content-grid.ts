@@ -40,8 +40,13 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
                 (click)="$event.stopPropagation()"
               />
             </div>
-            @if (item.type === 'image' && item.transcodingStatus === 'completed') {
-              <img [src]="previewUrl()(item)" alt="" class="thumb-img" loading="lazy" />
+            @if (item.transcodingStatus === 'completed' && thumbUrl()(item); as src) {
+              <img [src]="src" alt="" class="thumb-img" loading="lazy" />
+              @if (item.type === 'video') {
+                <span class="thumb-play-overlay" aria-hidden="true">
+                  <span class="thumb-play-badge">&#9654;</span>
+                </span>
+              }
             } @else if (item.type === 'video') {
               <div class="thumb-placeholder video">
                 <span class="thumb-icon">&#9654;</span>
@@ -130,6 +135,26 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
       background: #1a1a2e;
     }
 
+    /* Play badge centered over a video thumbnail (matches the playlist look). */
+    .thumb-play-overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+    }
+    .thumb-play-badge {
+      display: grid;
+      place-items: center;
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 9999px;
+      background: rgba(0, 0, 0, 0.45);
+      color: #fff;
+      font-size: 0.9rem;
+      padding-left: 0.15rem;
+    }
+
     /* Transcoding overlay on grid cards */
     .transcoding-overlay {
       position: absolute;
@@ -214,7 +239,8 @@ export class ContentGrid {
   readonly contentIds = input.required<string[]>();
   readonly transcodingProgress = input.required<Record<string, number | undefined>>();
   readonly bulkActions = input.required<BulkAction[]>();
-  readonly previewUrl = input.required<(content: Content) => string>();
+  /** Returns the still-image thumbnail URL for a card, or null to show a placeholder. */
+  readonly thumbUrl = input.required<(content: Content) => string | null>();
   readonly selectItem = output<Content>();
 
   protected readonly selectionService = inject(SelectionService);

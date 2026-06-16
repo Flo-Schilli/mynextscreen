@@ -64,11 +64,14 @@ import {
                   <span
                     class="relative w-11 h-7 rounded-[5px] flex-shrink-0 overflow-hidden bg-surface-3"
                   >
-                    @if (content.type === 'image') {
-                      <img [src]="thumbUrl()(content)" alt="" class="w-full h-full object-cover" />
+                    @if (thumbUrl()(content); as src) {
+                      <img [src]="src" alt="" class="w-full h-full object-cover" loading="lazy" />
                     } @else {
                       <span class="absolute inset-0 grid place-items-center text-white">
-                        <mns-icon name="Play" [size]="10" />
+                        <mns-icon
+                          [name]="content.type === 'video' ? 'Play' : 'Image'"
+                          [size]="10"
+                        />
                       </span>
                     }
                   </span>
@@ -95,7 +98,7 @@ import {
 export class PlaylistAddContentModal {
   readonly availableContent = input.required<Content[]>();
   readonly loading = input.required<boolean>();
-  readonly thumbUrl = input.required<(content: Content) => string>();
+  readonly thumbUrl = input.required<(content: Content) => string | null>();
   readonly selectContent = output<Content>();
   readonly dismiss = output<void>();
 

@@ -219,6 +219,9 @@ export const contents = pgTable('contents', {
   originalMimeType: text().notNull(),
   originalSizeBytes: bigint({ mode: 'number' }).notNull(),
   transcodedSizeBytes: bigint({ mode: 'number' }),
+  // Size of the precomputed thumbnail (small WebP). null = no thumbnail generated
+  // yet; its bytes are folded into the org's transcoded storage usage.
+  thumbnailSizeBytes: bigint({ mode: 'number' }),
   durationSeconds: integer(),
   transcodingStatus: text().$type<TranscodingStatus>().notNull().default(TranscodingStatus.Pending),
   transcodingError: text(),

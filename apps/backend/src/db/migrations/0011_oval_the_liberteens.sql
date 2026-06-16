@@ -1,0 +1,1 @@
+ALTER TABLE "contents" ADD COLUMN "thumbnail_size_bytes" bigint;

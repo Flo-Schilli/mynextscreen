@@ -32,7 +32,7 @@ import { CurrentOrganisation } from '../organisation/current-organisation.decora
 import { OrganisationRole } from '../user/organisation-role.enum';
 import type { Content } from '../db/schema';
 import { ContentType } from './content-type.enum';
-import { getOriginalPath, getTranscodedPath } from './content-storage.util';
+import { getOriginalPath, getTranscodedPath, getThumbnailPath } from './content-storage.util';
 
 @Controller('content')
 export class ContentController {
@@ -191,6 +191,26 @@ export class ContentController {
       webp: 'image/webp',
     };
     res.setHeader('Content-Type', mimeMap[transcodedExt] || 'application/octet-stream');
+    res.sendFile(absPath);
+  }
+
+  @Get(':id/file/thumbnail')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
+  async serveThumbnail(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    // Verify the content exists in this org (scoping); 404 if no thumbnail yet so
+    // the frontend can fall back to the transcoded URL / video preview.
+    await this.contentService.findOne(organisationId, id);
+    const filePath = getThumbnailPath(this.mediaBasePath, organisationId, id);
+    const absPath = path.resolve(filePath);
+    if (!fs.existsSync(absPath)) {
+      throw new NotFoundException('Thumbnail not found');
+    }
+    res.setHeader('Content-Type', 'image/webp');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
     res.sendFile(absPath);
   }
 }

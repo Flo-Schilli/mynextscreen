@@ -57,7 +57,7 @@ import { CardComponent, CardHeadComponent, BadgeComponent, IconComponent } from 
               style="border: 1px solid rgba(255,255,255,.13)"
             >
               @if (current()?.content?.type === 'image') {
-                <img [src]="thumbUrl()(current()!)" alt="" class="w-full h-full object-contain" />
+                <img [src]="mediaUrl()(current()!)" alt="" class="w-full h-full object-contain" />
               } @else if (current()?.content?.type === 'video') {
                 <video
                   #previewVideo
@@ -182,9 +182,7 @@ import { CardComponent, CardHeadComponent, BadgeComponent, IconComponent } from 
 })
 export class PlaylistLoopPreview {
   readonly items = input.required<PlaylistItem[]>();
-  /** Builds a still/poster URL for an item (used by the `<img>` branch). */
-  readonly thumbUrl = input.required<(item: PlaylistItem) => string>();
-  /** Builds the playable media URL for an item (used by the `<video>` branch). */
+  /** Builds the full-resolution media URL for an item (image `<img>` + video `<video>`). */
   readonly mediaUrl = input.required<(item: PlaylistItem) => string>();
 
   protected readonly format = inject(PlaylistFormatService);

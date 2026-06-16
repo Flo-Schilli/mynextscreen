@@ -22,6 +22,7 @@ function makeContent(overrides: Partial<Content> = {}): Content {
     originalMimeType: 'image/png',
     originalSizeBytes: 100,
     transcodedSizeBytes: null,
+    thumbnailSizeBytes: null,
     transcodingStatus: 'completed',
     transcodingError: null,
     durationSeconds: null,

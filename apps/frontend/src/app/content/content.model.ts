@@ -9,6 +9,8 @@ export interface Content {
   originalMimeType: string;
   originalSizeBytes: number;
   transcodedSizeBytes: number | null;
+  /** Size of the precomputed thumbnail; null = none yet (fall back to transcoded). */
+  thumbnailSizeBytes: number | null;
   transcodingStatus: 'pending' | 'processing' | 'completed' | 'failed';
   transcodingError: string | null;
   durationSeconds: number | null;

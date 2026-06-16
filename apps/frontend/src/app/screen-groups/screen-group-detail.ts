@@ -644,38 +644,25 @@ export class ScreenGroupDetail implements OnInit {
       this.previewImageUrl.set(null);
       return;
     }
-    const url =
-      content.transcodingStatus === 'completed'
-        ? this.contentService.getTranscodedUrl(content.id)
-        : this.contentService.getOriginalUrl(content.id);
 
+    // Prefer the precomputed thumbnail — covers images and videos uniformly,
+    // with no client-side video decoding.
+    if (content.thumbnailSizeBytes != null) {
+      this.previewImageUrl.set(this.contentService.getThumbnailUrl(content.id));
+      return;
+    }
+
+    // No thumbnail yet: images can still render their own frame; a video
+    // without a thumbnail simply has no still preview.
     if (content.type === 'image') {
+      const url =
+        content.transcodingStatus === 'completed'
+          ? this.contentService.getTranscodedUrl(content.id)
+          : this.contentService.getOriginalUrl(content.id);
       this.previewImageUrl.set(url);
     } else {
-      this.extractVideoThumbnail(url);
+      this.previewImageUrl.set(null);
     }
-  }
-
-  private extractVideoThumbnail(url: string): void {
-    const video = document.createElement('video');
-    video.crossOrigin = 'anonymous';
-    video.muted = true;
-    video.preload = 'auto';
-    video.onloadeddata = () => {
-      video.currentTime = 0;
-    };
-    video.onseeked = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(video, 0, 0);
-        this.previewImageUrl.set(canvas.toDataURL('image/jpeg'));
-      }
-    };
-    video.onerror = () => this.previewImageUrl.set(url);
-    video.src = url;
   }
 
   goBack(): void {

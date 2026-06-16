@@ -28,6 +28,19 @@ export function getTranscodedPath(
 }
 
 /**
+ * Returns the filesystem path for a content's precomputed thumbnail (small WebP).
+ * Lives alongside the transcoded file so org/content media cleanup covers it.
+ * Structure: {basePath}/{organisationId}/transcoded/{contentId}_thumb.webp
+ */
+export function getThumbnailPath(
+  basePath: string,
+  organisationId: string,
+  contentId: string,
+): string {
+  return path.join(basePath, organisationId, 'transcoded', `${contentId}_thumb.webp`);
+}
+
+/**
  * Returns the per-organisation media directory (holds the `originals/` and
  * `transcoded/` subtrees for every content item of that org).
  * Structure: {basePath}/{organisationId}

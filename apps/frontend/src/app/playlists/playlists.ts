@@ -687,16 +687,24 @@ export class Playlists implements OnInit {
     });
   }
 
-  getThumbUrl = (item: PlaylistItem): string => {
-    return this.contentService.getTranscodedUrl(item.contentId);
+  /** Still-image thumbnail for sequence/strip tiles, or null to show a placeholder. */
+  getThumbUrl = (item: PlaylistItem): string | null => {
+    const c = item.content;
+    if (!c) return null;
+    return this.contentService.getStaticThumbnailUrl({
+      id: c.id,
+      type: c.type,
+      thumbnailSizeBytes: c.thumbnailSizeBytes,
+    });
   };
 
+  /** Full-resolution media URL for playback/large preview (loop preview, inline preview). */
   getPreviewUrl = (item: PlaylistItem): string => {
     return this.contentService.getTranscodedUrl(item.contentId);
   };
 
-  getContentThumbUrl = (content: Content): string => {
-    return this.contentService.getTranscodedUrl(content.id);
+  getContentThumbUrl = (content: Content): string | null => {
+    return this.contentService.getStaticThumbnailUrl(content);
   };
 
   // --- Bulk Delete ---

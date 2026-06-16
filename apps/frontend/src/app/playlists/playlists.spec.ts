@@ -67,6 +67,7 @@ function buildContent(overrides: Partial<Content> = {}): Content {
     originalMimeType: 'image/png',
     originalSizeBytes: 100,
     transcodedSizeBytes: 50,
+    thumbnailSizeBytes: null,
     transcodingStatus: 'completed',
     transcodingError: null,
     durationSeconds: null,
@@ -103,6 +104,8 @@ interface OrgStub {
 interface ContentStub {
   getAll: ReturnType<typeof vi.fn>;
   getTranscodedUrl: ReturnType<typeof vi.fn>;
+  getThumbnailUrl: ReturnType<typeof vi.fn>;
+  getStaticThumbnailUrl: ReturnType<typeof vi.fn>;
 }
 interface ScreenStub {
   getAll: ReturnType<typeof vi.fn>;
@@ -130,6 +133,15 @@ describe('Playlists', () => {
     contentStub = {
       getAll: vi.fn(() => of([])),
       getTranscodedUrl: vi.fn((id: string) => `/media/${id}`),
+      getThumbnailUrl: vi.fn((id: string) => `/thumb/${id}`),
+      getStaticThumbnailUrl: vi.fn(
+        (ref: { id: string; type: string; thumbnailSizeBytes: number | null }) =>
+          ref.thumbnailSizeBytes != null
+            ? `/thumb/${ref.id}`
+            : ref.type === 'image'
+              ? `/media/${ref.id}`
+              : null,
+      ),
     };
     screenStub = { getAll: vi.fn(() => of([])) };
     routeParams$ = new BehaviorSubject<ParamMap>(convertToParamMap({}));
@@ -724,11 +736,42 @@ describe('Playlists', () => {
   describe('thumbnail url helpers', () => {
     beforeEach(() => init());
 
-    it('delegates thumb/preview urls to the content service', () => {
-      const item = buildItem({ contentId: 'cX' });
+    function itemWithContent(
+      contentId: string,
+      type: 'image' | 'video',
+      thumbnailSizeBytes: number | null,
+    ): PlaylistItem {
+      return buildItem({
+        contentId,
+        content: {
+          id: contentId,
+          title: 't',
+          type,
+          originalFilename: 'f',
+          transcodingStatus: 'completed',
+          durationSeconds: null,
+          thumbnailSizeBytes,
+        },
+      });
+    }
+
+    it('falls back to the transcoded frame for an image without a thumbnail', () => {
+      const item = itemWithContent('cX', 'image', null);
       expect(component.getThumbUrl(item)).toBe('/media/cX');
       expect(component.getPreviewUrl(item)).toBe('/media/cX');
       expect(component.getContentThumbUrl(buildContent({ id: 'cY' }))).toBe('/media/cY');
+    });
+
+    it('uses the precomputed thumbnail when one exists', () => {
+      expect(component.getThumbUrl(itemWithContent('cZ', 'video', 99))).toBe('/thumb/cZ');
+    });
+
+    it('returns null thumbnail for a video without a thumbnail', () => {
+      expect(component.getThumbUrl(itemWithContent('cV', 'video', null))).toBeNull();
+    });
+
+    it('returns null when the item has no embedded content', () => {
+      expect(component.getThumbUrl(buildItem({ contentId: 'c0' }))).toBeNull();
     });
   });
 

@@ -10,6 +10,13 @@ export interface UploadProgress {
   content?: Content;
 }
 
+/** Minimal content shape needed to resolve a thumbnail URL. */
+export interface ThumbnailRef {
+  id: string;
+  type: 'image' | 'video';
+  thumbnailSizeBytes: number | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ContentService {
   private http = inject(HttpClient);
@@ -181,6 +188,27 @@ export class ContentService {
 
   getTranscodedUrl(id: string): string {
     return this.buildMediaUrl(`/api/content/${id}/file/transcoded`);
+  }
+
+  /** URL of the precomputed thumbnail (small WebP). 404s until one is generated. */
+  getThumbnailUrl(id: string): string {
+    return this.buildMediaUrl(`/api/content/${id}/file/thumbnail`);
+  }
+
+  /**
+   * Best still-image URL for a grid/list thumbnail, or null when none exists as
+   * a still (a video without a precomputed thumbnail — the caller should fall
+   * back to a <video> element). Prefers the small precomputed thumbnail and
+   * falls back to the full transcoded image for not-yet-thumbnailed images.
+   */
+  getStaticThumbnailUrl(ref: ThumbnailRef): string | null {
+    if (ref.thumbnailSizeBytes != null) {
+      return this.getThumbnailUrl(ref.id);
+    }
+    if (ref.type === 'image') {
+      return this.getTranscodedUrl(ref.id);
+    }
+    return null;
   }
 
   private buildMediaUrl(base: string): string {

@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { ContentService } from './content.service';
 import { ContentController } from './content.controller';
 import { TranscodingProcessor } from './transcoding.processor';
+import { ThumbnailBackfillService } from './thumbnail-backfill.service';
 import { OrganisationModule } from '../organisation/organisation.module';
 
 @Module({
@@ -20,7 +21,7 @@ import { OrganisationModule } from '../organisation/organisation.module';
     OrganisationModule,
   ],
   controllers: [ContentController],
-  providers: [ContentService, TranscodingProcessor],
+  providers: [ContentService, TranscodingProcessor, ThumbnailBackfillService],
   exports: [ContentService],
 })
 export class ContentModule {}

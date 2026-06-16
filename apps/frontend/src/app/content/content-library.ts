@@ -181,7 +181,7 @@ import {
           [contentIds]="contentIds"
           [transcodingProgress]="transcodingProgress"
           [bulkActions]="bulkActions"
-          [previewUrl]="getPreviewUrl"
+          [thumbUrl]="getThumbUrl"
           (selectItem)="selectContent($event)"
         />
       }
@@ -723,6 +723,11 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
       return this.contentService.getTranscodedUrl(content.id);
     }
     return this.contentService.getOriginalUrl(content.id);
+  };
+
+  /** Still-image thumbnail for grid cards (precomputed thumb, or null for a placeholder). */
+  getThumbUrl = (content: Content): string | null => {
+    return this.contentService.getStaticThumbnailUrl(content);
   };
 
   // --- Metadata ---

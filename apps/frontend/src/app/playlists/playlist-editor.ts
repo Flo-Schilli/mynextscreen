@@ -126,11 +126,7 @@ export interface ItemFieldChange<T> {
 
     <!-- live loop preview -->
     <div class="mt-[var(--gap)]">
-      <app-playlist-loop-preview
-        [items]="playlist().items"
-        [thumbUrl]="thumbUrl()"
-        [mediaUrl]="previewUrl()"
-      />
+      <app-playlist-loop-preview [items]="playlist().items" [mediaUrl]="previewUrl()" />
     </div>
 
     <!-- sequence -->
@@ -186,23 +182,21 @@ export interface ItemFieldChange<T> {
                   (click)="previewItem.emit(item)"
                   aria-label="Preview item"
                 >
-                  @if (item.content?.type === 'video') {
-                    <video
-                      [src]="videoThumbSrc(item)"
-                      class="w-full h-full object-cover bg-black"
-                      muted
-                      playsinline
-                      preload="metadata"
-                    ></video>
-                    <span class="absolute inset-0 grid place-items-center pointer-events-none">
-                      <span
-                        class="grid place-items-center w-5 h-5 rounded-full bg-black/45 text-white"
-                      >
-                        <mns-icon name="Play" [size]="10" />
+                  @if (thumbUrl()(item); as src) {
+                    <img [src]="src" alt="" class="w-full h-full object-cover" loading="lazy" />
+                    @if (item.content?.type === 'video') {
+                      <span class="absolute inset-0 grid place-items-center pointer-events-none">
+                        <span
+                          class="grid place-items-center w-5 h-5 rounded-full bg-black/45 text-white"
+                        >
+                          <mns-icon name="Play" [size]="10" />
+                        </span>
                       </span>
+                    }
+                  } @else if (item.content?.type === 'video') {
+                    <span class="absolute inset-0 grid place-items-center text-white bg-black/45">
+                      <mns-icon name="Play" [size]="11" />
                     </span>
-                  } @else if (item.content?.type === 'image') {
-                    <img [src]="thumbUrl()(item)" alt="" class="w-full h-full object-cover" />
                   } @else {
                     <span class="absolute inset-0 grid place-items-center text-white">
                       <mns-icon name="Image" [size]="11" />
@@ -365,7 +359,7 @@ export class PlaylistEditor {
   readonly settingDefault = input.required<boolean>();
   readonly editorError = input.required<string>();
   readonly previewingItem = input.required<PlaylistItem | null>();
-  readonly thumbUrl = input.required<(item: PlaylistItem) => string>();
+  readonly thumbUrl = input.required<(item: PlaylistItem) => string | null>();
   readonly previewUrl = input.required<(item: PlaylistItem) => string>();
 
   readonly rename = output<string>();
@@ -418,14 +412,6 @@ export class PlaylistEditor {
 
   protected asTransition(value: string): TransitionType {
     return value as TransitionType;
-  }
-
-  /**
-   * Transcoded video URL with a media fragment so the browser seeks to and
-   * paints the first frame as a still thumbnail under the play overlay.
-   */
-  protected videoThumbSrc(item: PlaylistItem): string {
-    return this.thumbUrl()(item) + '#t=0.1';
   }
 
   protected durationDisplay(item: PlaylistItem): string {

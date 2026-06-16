@@ -13,7 +13,7 @@ import { contents } from '../db/schema';
 import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
 import { StorageService } from '../organisation/storage.service';
-import { getTranscodedPath } from './content-storage.util';
+import { getTranscodedPath, getThumbnailPath } from './content-storage.util';
 import { parseDuration, parseProgressTime, calculateProgress } from './ffmpeg-progress.util';
 import { ffprobeDuration } from './ffprobe-duration.util';
 import {
@@ -32,6 +32,18 @@ export interface TranscodeJobData {
   mimeType: string;
   type: ContentType;
 }
+
+/** Payload for the lightweight `thumbnail` job (backfill of existing content). */
+export interface ThumbnailJobData {
+  contentId: string;
+  organisationId: string;
+}
+
+/** BullMQ job name for (re)generating a thumbnail without a full transcode. */
+export const THUMBNAIL_JOB = 'thumbnail';
+
+/** Longest edge of a generated thumbnail, in pixels. Never upscales. */
+const THUMBNAIL_MAX_WIDTH = 480;
 
 @Processor('transcoding')
 export class TranscodingProcessor extends WorkerHost {
@@ -61,7 +73,14 @@ export class TranscodingProcessor extends WorkerHost {
       this.configService.get<string>('FFMPEG_VIDEO_STRIP_AUDIO', 'false') === 'true';
   }
 
-  async process(job: Job<TranscodeJobData>): Promise<void> {
+  async process(job: Job<TranscodeJobData | ThumbnailJobData>): Promise<void> {
+    if (job.name === THUMBNAIL_JOB) {
+      return this.processThumbnailJob(job as Job<ThumbnailJobData>);
+    }
+    return this.processTranscode(job as Job<TranscodeJobData>);
+  }
+
+  private async processTranscode(job: Job<TranscodeJobData>): Promise<void> {
     const { contentId, organisationId, originalPath, type } = job.data;
 
     this.logger.log(`Processing transcoding job ${job.id} for content ${contentId}`);
@@ -89,12 +108,23 @@ export class TranscodingProcessor extends WorkerHost {
       const stat = await fs.stat(outputPath);
       const transcodedSizeBytes = stat.size;
 
-      // Check transcoded storage limit before saving
+      // Generate the thumbnail from the freshly transcoded file (best-effort).
+      const thumbnailPath = getThumbnailPath(this.mediaBasePath, organisationId, contentId);
+      const thumbnailSizeBytes = await this.generateThumbnailSafe(
+        type,
+        outputPath,
+        thumbnailPath,
+        contentId,
+      );
+      const addedBytes = transcodedSizeBytes + (thumbnailSizeBytes ?? 0);
+
+      // Check transcoded storage limit before saving (transcoded + thumbnail)
       try {
-        await this.storageService.checkTranscodedLimit(organisationId, transcodedSizeBytes);
+        await this.storageService.checkTranscodedLimit(organisationId, addedBytes);
       } catch {
-        // Limit exceeded: remove the transcoded file and mark as failed
+        // Limit exceeded: remove the transcoded file + thumbnail and mark as failed
         await this.unlinkSafe(outputPath);
+        await this.unlinkSafe(thumbnailPath);
         const limitError = 'Transcoded file would exceed organisation transcoded storage limit';
         await this.db
           .update(contents)
@@ -129,14 +159,15 @@ export class TranscodingProcessor extends WorkerHost {
         .update(contents)
         .set({
           transcodedSizeBytes,
+          thumbnailSizeBytes,
           durationSeconds,
           transcodingStatus: TranscodingStatus.Completed,
           transcodingError: null,
         })
         .where(eq(contents.id, contentId));
 
-      // Update org storage counter
-      await this.storageService.addTranscodedUsage(organisationId, transcodedSizeBytes);
+      // Update org storage counter (transcoded file + thumbnail)
+      await this.storageService.addTranscodedUsage(organisationId, addedBytes);
 
       this.eventEmitter.emit(
         TRANSCODING_COMPLETED,
@@ -207,6 +238,98 @@ export class TranscodingProcessor extends WorkerHost {
     return this.runFfmpeg(job, args);
   }
 
+  /**
+   * Regenerate a thumbnail for already-transcoded content (backfill / repair).
+   * No-op if the content is missing, not yet completed, or already has a
+   * thumbnail. Best-effort: a generation failure leaves `thumbnailSizeBytes`
+   * null so the frontend keeps falling back to the transcoded URL.
+   */
+  private async processThumbnailJob(job: Job<ThumbnailJobData>): Promise<void> {
+    const { contentId, organisationId } = job.data;
+
+    const [content] = await this.db
+      .select()
+      .from(contents)
+      .where(eq(contents.id, contentId))
+      .limit(1);
+
+    if (
+      !content ||
+      content.organisationId !== organisationId ||
+      content.thumbnailSizeBytes != null ||
+      content.transcodingStatus !== TranscodingStatus.Completed
+    ) {
+      return;
+    }
+
+    const transcodedExt = content.type === ContentType.Video ? 'mp4' : 'webp';
+    const transcodedPath = getTranscodedPath(
+      this.mediaBasePath,
+      organisationId,
+      contentId,
+      transcodedExt,
+    );
+    try {
+      await fs.access(transcodedPath);
+    } catch {
+      this.logger.warn(`Cannot backfill thumbnail for ${contentId}: transcoded file missing`);
+      return;
+    }
+
+    const thumbnailPath = getThumbnailPath(this.mediaBasePath, organisationId, contentId);
+    const thumbnailSizeBytes = await this.generateThumbnailSafe(
+      content.type,
+      transcodedPath,
+      thumbnailPath,
+      contentId,
+    );
+    if (thumbnailSizeBytes == null) {
+      return;
+    }
+
+    try {
+      await this.storageService.checkTranscodedLimit(organisationId, thumbnailSizeBytes);
+    } catch {
+      await this.unlinkSafe(thumbnailPath);
+      this.logger.warn(`Thumbnail backfill for ${contentId} skipped: storage limit reached`);
+      return;
+    }
+
+    await this.db.update(contents).set({ thumbnailSizeBytes }).where(eq(contents.id, contentId));
+    await this.storageService.addTranscodedUsage(organisationId, thumbnailSizeBytes);
+    this.logger.log(`Backfilled thumbnail for content ${contentId} (${thumbnailSizeBytes} bytes)`);
+  }
+
+  /**
+   * Generate a small WebP thumbnail from a transcoded media file. Returns the
+   * thumbnail size in bytes, or null on failure (logged, non-fatal). For videos
+   * the `thumbnail` filter picks a representative frame (avoids black frames);
+   * images are simply downscaled. Never upscales below the source width.
+   */
+  private async generateThumbnailSafe(
+    type: ContentType,
+    inputPath: string,
+    outputPath: string,
+    contentId: string,
+  ): Promise<number | null> {
+    // Comma inside min() must be escaped — ffmpeg parses commas as filter separators.
+    const scale = `scale='min(${THUMBNAIL_MAX_WIDTH}\\,iw)':-2`;
+    const filter = type === ContentType.Video ? `thumbnail,${scale}` : scale;
+    const args = ['-i', inputPath, '-vf', filter, '-frames:v', '1', '-y', outputPath];
+
+    try {
+      await this.runFfmpegQuiet(args);
+      const stat = await fs.stat(outputPath);
+      return stat.size;
+    } catch (err: unknown) {
+      this.logger.warn(
+        `Failed to generate thumbnail for content ${contentId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      await this.unlinkSafe(outputPath);
+      return null;
+    }
+  }
+
   private runFfmpeg(job: Job<TranscodeJobData>, args: string[]): Promise<void> {
     return new Promise((resolve, reject) => {
       const proc: ChildProcess = spawn(this.ffmpegPath, args, {
@@ -248,6 +371,33 @@ export class TranscodingProcessor extends WorkerHost {
           // Extract last few lines of stderr for error context
           const lines = stderrOutput.trim().split('\n');
           const tail = lines.slice(-5).join('\n');
+          reject(new Error(`FFmpeg exited with code ${code}: ${tail}`));
+        }
+      });
+    });
+  }
+
+  /** Run FFmpeg without progress reporting; resolve on success, reject on error. */
+  private runFfmpegQuiet(args: string[]): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const proc: ChildProcess = spawn(this.ffmpegPath, args, {
+        stdio: ['ignore', 'ignore', 'pipe'],
+      });
+
+      let stderrOutput = '';
+      proc.stderr!.on('data', (data: Buffer) => {
+        stderrOutput += data.toString();
+      });
+
+      proc.on('error', (err) => {
+        reject(new Error(`Failed to spawn FFmpeg: ${err.message}`));
+      });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          const tail = stderrOutput.trim().split('\n').slice(-5).join('\n');
           reject(new Error(`FFmpeg exited with code ${code}: ${tail}`));
         }
       });
