@@ -40,7 +40,7 @@ type LayerId = 0 | 1;
   template: `
     <div class="playback-container">
       @if (isLiveStreaming()) {
-        <app-live-stream-view [streamId]="liveStreamId()" />
+        <app-live-stream-view [streamId]="liveStreamId()" [showUnmute]="showUnmute()" />
       } @else if (isPending()) {
         <div class="no-content">
           <p class="text-text-muted text-lg">Preparing content…</p>
@@ -110,7 +110,7 @@ type LayerId = 0 | 1;
           }
         </div>
 
-        @if (isMuted() && currentItem()?.type === 'video') {
+        @if (isMuted() && showUnmute() && currentItem()?.type === 'video') {
           <button class="unmute-overlay" (click)="unmute()" (keydown.enter)="unmute()">
             <span class="unmute-icon">🔇</span>
             <span class="text-sm">Click to unmute</span>
@@ -384,6 +384,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
   readonly isLiveStreaming = computed(() => this.playerService.isLiveStreaming());
   readonly liveStreamId = computed(() => this.playerService.activeLiveStream()?.id ?? null);
+  readonly showUnmute = computed(() => this.playerService.showUnmuteButton());
 
   readonly items = computed(() => {
     const playlist = this.playerService.activePlaylist();

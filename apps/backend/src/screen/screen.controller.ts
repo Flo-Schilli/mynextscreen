@@ -115,6 +115,16 @@ export class ScreenController {
     return this.screenService.repairScreen(organisationId, id, dto.pairingCode, req.user.userId);
   }
 
+  @Post(':id/refresh')
+  @Roles(OrganisationRole.OrgAdmin)
+  refresh(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<Screen> {
+    return this.screenService.refreshScreen(organisationId, id, req.user.userId);
+  }
+
   @Get(':id/state')
   @ScreenAuth()
   getState(

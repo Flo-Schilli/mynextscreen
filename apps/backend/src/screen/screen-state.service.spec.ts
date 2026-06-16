@@ -65,6 +65,8 @@ describe('ScreenStateService', () => {
       groupId: null,
       gridRow: null,
       gridColumn: null,
+      showUnmuteButton: true,
+      showDisconnectButton: true,
       ...overrides,
     };
   }
@@ -215,6 +217,8 @@ describe('ScreenStateService', () => {
         groupId: null,
         gridRow: null,
         gridColumn: null,
+        showUnmuteButton: true,
+        showDisconnectButton: true,
       });
     });
 
@@ -420,6 +424,8 @@ describe('ScreenStateService', () => {
           groupId: null,
           gridRow: null,
           gridColumn: null,
+          showUnmuteButton: true,
+          showDisconnectButton: true,
         },
         currentPlaylist: {
           id: playlistId,

@@ -33,6 +33,8 @@ function makeScreen(overrides: Partial<ScreenListItem> = {}): ScreenListItem {
     groupId: null,
     gridRow: null,
     gridColumn: null,
+    showUnmuteButton: true,
+    showDisconnectButton: true,
     createdAt: '2026-06-01T08:00:00.000Z',
     updatedAt: '2026-06-01T08:00:00.000Z',
     currentPlaylistName: null,

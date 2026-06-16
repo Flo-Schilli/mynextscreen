@@ -57,6 +57,20 @@ export class ScreenService {
     );
   }
 
+  /**
+   * Ask the screen's player to reload itself (like hitting F5 in a browser).
+   * Fire-and-forget for an offline screen — the server still accepts it.
+   */
+  refreshPlayer(orgId: string, id: string): Observable<Screen> {
+    return this.http.post<Screen>(
+      `/api/screens/${id}/refresh`,
+      {},
+      {
+        headers: this.orgHeader(orgId),
+      },
+    );
+  }
+
   /** Delete a single screen (reuses the bulk endpoint with a one-element list). */
   deleteOne(orgId: string, id: string): Observable<BulkDeleteResponse> {
     return this.bulkDelete(orgId, [id]);

@@ -24,6 +24,7 @@ import {
   AUDIT_SCREEN_REGISTERED,
   AUDIT_SCREEN_UPDATED,
   AUDIT_SCREEN_KEY_REGENERATED,
+  AUDIT_SCREEN_REFRESHED,
   AUDIT_SCREEN_ONLINE,
   AUDIT_SCREEN_OFFLINE,
   AUDIT_SCREEN_BULK_DELETED,
@@ -286,6 +287,18 @@ export class AuditListener {
   handleScreenKeyRegenerated(event: AuditScreenEvent): void {
     this.record(
       AuditAction.ScreenKeyRegenerated,
+      'screen',
+      event.screenId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_SCREEN_REFRESHED, { async: true })
+  handleScreenRefreshed(event: AuditScreenEvent): void {
+    this.record(
+      AuditAction.ScreenRefresh,
       'screen',
       event.screenId,
       event.organisationId,

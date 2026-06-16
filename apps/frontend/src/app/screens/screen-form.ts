@@ -10,6 +10,7 @@ import {
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Screen, CreateScreenRequest, UpdateScreenRequest } from './screen.model';
+import { ToggleRowComponent } from '../ui';
 
 const PRESET_RESOLUTIONS = ['1920x1080', '3840x2160', '1280x720', '2560x1440', '1080x1920'];
 
@@ -34,7 +35,7 @@ type ScreenFormMode = 'create' | 'edit';
   selector: 'app-screen-form',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, DatePipe],
+  imports: [FormsModule, DatePipe, ToggleRowComponent],
   template: `
     <div
       class="pairing-overlay"
@@ -203,6 +204,27 @@ type ScreenFormMode = 'create' | 'edit';
             </div>
           }
 
+          <!-- Player options (edit only) -->
+          @if (mode() === 'edit') {
+            <div class="form-group">
+              <span class="field-label">Player options</span>
+              <div class="toggle-card">
+                <mns-toggle-row
+                  icon="Video"
+                  label="Show “Click to unmute”"
+                  desc="Display the unmute overlay on videos with sound."
+                  [(checked)]="showUnmuteButton"
+                />
+                <mns-toggle-row
+                  icon="Power"
+                  label="Show “Disconnect”"
+                  desc="Display the disconnect button in the player corner."
+                  [(checked)]="showDisconnectButton"
+                />
+              </div>
+            </div>
+          }
+
           <!-- Pairing code (create only) -->
           @if (mode() === 'create') {
             <div class="form-group">
@@ -257,6 +279,27 @@ type ScreenFormMode = 'create' | 'edit';
               <div class="info-item">
                 <span class="info-label">Registered</span>
                 <span class="info-value">{{ s.createdAt | date: 'mediumDate' }}</span>
+              </div>
+            </div>
+
+            <div class="repair-block">
+              <h3 class="repair-title">Refresh player</h3>
+              <p class="repair-hint">
+                Reload the display's player remotely (like pressing F5). Useful after changing
+                settings or if the screen looks stuck.
+              </p>
+              <div class="repair-row">
+                <button
+                  type="button"
+                  class="btn-repair"
+                  (click)="refresh.emit()"
+                  [disabled]="refreshing() || !s.isOnline"
+                >
+                  {{ refreshing() ? 'Refreshing…' : 'Refresh player' }}
+                </button>
+                @if (!s.isOnline) {
+                  <span class="repair-hint">Screen is offline.</span>
+                }
               </div>
             </div>
 
@@ -463,6 +506,12 @@ type ScreenFormMode = 'create' | 'edit';
     .pairing-input {
       letter-spacing: 0.18em;
     }
+    .toggle-card {
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      background: var(--surface-2);
+      padding: 2px 13px;
+    }
 
     /* Error */
     .error {
@@ -621,10 +670,12 @@ export class ScreenForm implements OnInit {
   readonly saving = input<boolean>(false);
   readonly error = input<string>('');
   readonly repairing = input<boolean>(false);
+  readonly refreshing = input<boolean>(false);
 
   readonly create = output<CreateScreenRequest>();
   readonly update = output<UpdateScreenRequest>();
   readonly repair = output<string>();
+  readonly refresh = output<void>();
   readonly dismiss = output<void>();
 
   protected name = '';
@@ -633,6 +684,8 @@ export class ScreenForm implements OnInit {
   protected customResolution = '';
   protected pairingCode = '';
   protected repairCode = '';
+  protected showUnmuteButton = true;
+  protected showDisconnectButton = true;
   protected readonly localError = signal('');
   protected readonly repairError = signal('');
 
@@ -661,6 +714,8 @@ export class ScreenForm implements OnInit {
           this.resolution = 'custom';
           this.customResolution = screen.resolution;
         }
+        this.showUnmuteButton = screen.showUnmuteButton ?? true;
+        this.showDisconnectButton = screen.showDisconnectButton ?? true;
       }
     }
   }
@@ -688,7 +743,13 @@ export class ScreenForm implements OnInit {
       return;
     }
     this.localError.set('');
-    this.update.emit({ name: this.name, location: this.location, resolution });
+    this.update.emit({
+      name: this.name,
+      location: this.location,
+      resolution,
+      showUnmuteButton: this.showUnmuteButton,
+      showDisconnectButton: this.showDisconnectButton,
+    });
   }
 
   onBackdropClick(e: MouseEvent): void {

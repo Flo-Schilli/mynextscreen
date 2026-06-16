@@ -56,6 +56,9 @@ export class PlayerService implements OnDestroy {
   readonly activePlaylist = computed(() => this._currentPlaylist() ?? this._fallbackPlaylist());
   readonly isLiveStreaming = computed(() => this._activeLiveStream() !== null);
   readonly isSplitMode = computed(() => this._groupInfo()?.mode === 'split');
+  // Player UI toggles — default to shown when the flag is absent (older server).
+  readonly showUnmuteButton = computed(() => this._screen()?.showUnmuteButton !== false);
+  readonly showDisconnectButton = computed(() => this._screen()?.showDisconnectButton !== false);
 
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private sseAbortController: AbortController | null = null;
@@ -137,7 +140,13 @@ export class PlayerService implements OnDestroy {
       case 'schedule_update':
       case 'playlist_update':
       case 'content_update':
+      case 'settings_update':
         this.fetchState().catch(() => undefined);
+        break;
+
+      case 'refresh':
+        // Reload the player like an F5 — picks up fresh assets and re-syncs.
+        window.location.reload();
         break;
 
       case 'live_stream_start':

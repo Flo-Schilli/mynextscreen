@@ -13,9 +13,15 @@ import { ScreenPairingService } from './screen-pairing.service';
 import { ScheduleService } from '../schedule';
 import { ScreenStatusEvent, SCREEN_STATUS_CHANGED } from './screen-status.event';
 import {
+  SCREEN_SETTINGS_CHANGED,
+  SCREEN_REFRESH_REQUESTED,
+  ScreenStateChangeEvent,
+} from './screen-state.event';
+import {
   AUDIT_SCREEN_REGISTERED,
   AUDIT_SCREEN_UPDATED,
   AUDIT_SCREEN_KEY_REGENERATED,
+  AUDIT_SCREEN_REFRESHED,
   AUDIT_SCREEN_ONLINE,
   AUDIT_SCREEN_BULK_DELETED,
   AUDIT_SCREEN_BULK_GROUP_ASSIGNED,
@@ -110,13 +116,39 @@ export class ScreenService extends OrganisationScopedService<Screen> {
   }
 
   /**
-   * Update a screen's name, resolution, or location.
+   * Update a screen's name, resolution, location, or player UI toggles
+   * (show/hide unmute & disconnect). Pushes a settings refresh to the live
+   * screen so a connected player re-fetches its state immediately.
    */
   async updateScreen(organisationId: string, id: string, dto: UpdateScreenDto): Promise<Screen> {
     const screen = await this.update(organisationId, id, dto);
     this.eventEmitter.emit(
       AUDIT_SCREEN_UPDATED,
       new AuditScreenEvent(id, organisationId, null, null),
+    );
+    this.eventEmitter.emit(SCREEN_SETTINGS_CHANGED, new ScreenStateChangeEvent(id, organisationId));
+    return screen;
+  }
+
+  /**
+   * Ask a screen's player to reload itself (like hitting F5 in a browser).
+   * Validates the screen belongs to the org, then emits a refresh request that
+   * the SSE layer pushes to the connected player. No-op for an offline screen
+   * (the event simply has no listener), but still audited.
+   */
+  async refreshScreen(
+    organisationId: string,
+    id: string,
+    userId: string | null = null,
+  ): Promise<Screen> {
+    const screen = await this.findOne(organisationId, id);
+    this.eventEmitter.emit(
+      SCREEN_REFRESH_REQUESTED,
+      new ScreenStateChangeEvent(id, organisationId),
+    );
+    this.eventEmitter.emit(
+      AUDIT_SCREEN_REFRESHED,
+      new AuditScreenEvent(id, organisationId, userId, null),
     );
     return screen;
   }

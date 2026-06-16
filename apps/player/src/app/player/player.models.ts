@@ -35,6 +35,10 @@ export interface ScreenInfo {
   groupId: string | null;
   gridRow: number | null;
   gridColumn: number | null;
+  /** Show the "Click to unmute" overlay (optional — defaults to shown). */
+  showUnmuteButton?: boolean;
+  /** Show the "Disconnect" button (optional — defaults to shown). */
+  showDisconnectButton?: boolean;
 }
 
 export interface GroupInfo {
@@ -66,7 +70,9 @@ export type ScreenEventType =
   | 'live_stream_start'
   | 'live_stream_stop'
   | 'group_play'
-  | 'pending';
+  | 'pending'
+  | 'settings_update'
+  | 'refresh';
 
 export interface ScreenEvent {
   type: ScreenEventType;

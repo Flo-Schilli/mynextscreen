@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateScreenDto {
   @IsOptional()
@@ -15,4 +15,14 @@ export class UpdateScreenDto {
   @IsString()
   @MaxLength(200)
   location?: string;
+
+  /** Show the "Click to unmute" overlay on the player. */
+  @IsOptional()
+  @IsBoolean()
+  showUnmuteButton?: boolean;
+
+  /** Show the "Disconnect" button on the player. */
+  @IsOptional()
+  @IsBoolean()
+  showDisconnectButton?: boolean;
 }

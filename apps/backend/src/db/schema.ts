@@ -175,6 +175,10 @@ export const screens = pgTable(
     groupId: uuid().references(() => screenGroups.id, { onDelete: 'set null' }),
     gridRow: integer(),
     gridColumn: integer(),
+    // Player UI toggles (pushed to the screen via screen state). Default on so
+    // existing screens keep the current behaviour until an admin opts out.
+    showUnmuteButton: boolean().notNull().default(true),
+    showDisconnectButton: boolean().notNull().default(true),
     ...timestamps,
   },
   (t) => [index('IDX_screens_api_key_hash').on(t.apiKeyHash)],

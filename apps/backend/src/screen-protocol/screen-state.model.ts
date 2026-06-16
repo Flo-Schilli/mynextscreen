@@ -37,6 +37,10 @@ export interface ScreenInfo {
   groupId: string | null;
   gridRow: number | null;
   gridColumn: number | null;
+  /** Show the "Click to unmute" overlay on the player. */
+  showUnmuteButton: boolean;
+  /** Show the "Disconnect" button on the player. */
+  showDisconnectButton: boolean;
 }
 
 export interface GroupInfo {

@@ -229,6 +229,8 @@ describe('ScreenForm', () => {
         name: 'Renamed',
         location: 'Entrance',
         resolution: '1920x1080',
+        showUnmuteButton: true,
+        showDisconnectButton: true,
       });
     });
 

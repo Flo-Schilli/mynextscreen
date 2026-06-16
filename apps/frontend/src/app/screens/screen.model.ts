@@ -9,6 +9,10 @@ export interface Screen {
   groupId: string | null;
   gridRow: number | null;
   gridColumn: number | null;
+  /** Show the "Click to unmute" overlay on the player (defaults to shown). */
+  showUnmuteButton?: boolean;
+  /** Show the "Disconnect" button on the player (defaults to shown). */
+  showDisconnectButton?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -42,6 +46,8 @@ export interface UpdateScreenRequest {
   name?: string;
   resolution?: string;
   location?: string;
+  showUnmuteButton?: boolean;
+  showDisconnectButton?: boolean;
 }
 
 export interface BulkDeleteResponse {

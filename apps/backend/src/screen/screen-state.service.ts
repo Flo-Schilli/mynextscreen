@@ -33,6 +33,8 @@ import {
   CONTENT_CHANGED,
   LIVE_STREAM_STARTED,
   LIVE_STREAM_STOPPED,
+  SCREEN_SETTINGS_CHANGED,
+  SCREEN_REFRESH_REQUESTED,
   ScreenStateChangeEvent,
 } from './screen-state.event';
 import { SCHEDULE_ENTRY_CHANGED, ScheduleEntryChangedEvent, ScheduleService } from '../schedule';
@@ -86,6 +88,8 @@ export class ScreenStateService implements OnModuleDestroy {
       groupId: screen.groupId,
       gridRow: screen.gridRow,
       gridColumn: screen.gridColumn,
+      showUnmuteButton: screen.showUnmuteButton,
+      showDisconnectButton: screen.showDisconnectButton,
     };
 
     let groupInfo: GroupInfo | null = null;
@@ -352,6 +356,28 @@ export class ScreenStateService implements OnModuleDestroy {
     this.pushEvent(
       event.screenId,
       new ScreenEvent(ScreenEventType.LiveStreamStop, {
+        screenId: event.screenId,
+        organisationId: event.organisationId,
+      }),
+    );
+  }
+
+  @OnEvent(SCREEN_SETTINGS_CHANGED)
+  handleScreenSettingsChanged(event: ScreenStateChangeEvent): void {
+    this.pushEvent(
+      event.screenId,
+      new ScreenEvent(ScreenEventType.SettingsUpdate, {
+        screenId: event.screenId,
+        organisationId: event.organisationId,
+      }),
+    );
+  }
+
+  @OnEvent(SCREEN_REFRESH_REQUESTED)
+  handleScreenRefreshRequested(event: ScreenStateChangeEvent): void {
+    this.pushEvent(
+      event.screenId,
+      new ScreenEvent(ScreenEventType.ScreenRefresh, {
         screenId: event.screenId,
         organisationId: event.organisationId,
       }),

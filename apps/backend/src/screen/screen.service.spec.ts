@@ -18,9 +18,11 @@ import {
 } from '../db/schema';
 import { ContentType } from '../content/content-type.enum';
 import { SCREEN_STATUS_CHANGED } from './screen-status.event';
+import { SCREEN_SETTINGS_CHANGED, SCREEN_REFRESH_REQUESTED } from './screen-state.event';
 import {
   AUDIT_SCREEN_REGISTERED,
   AUDIT_SCREEN_ONLINE,
+  AUDIT_SCREEN_REFRESHED,
   AUDIT_SCREEN_BULK_DELETED,
   AUDIT_SCREEN_BULK_GROUP_ASSIGNED,
   AUDIT_SCREEN_PAIRING_FAILED,
@@ -360,10 +362,56 @@ describe('ScreenService', () => {
       expect(row.name).toBe('Updated Name');
     });
 
+    it('persists the player UI toggles and pushes a settings refresh to the screen', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+
+      const result = await service.updateScreen(org.id, screen.id, {
+        showUnmuteButton: false,
+        showDisconnectButton: false,
+      });
+
+      expect(result.showUnmuteButton).toBe(false);
+      expect(result.showDisconnectButton).toBe(false);
+      const [row] = await db.select().from(screens).where(eq(screens.id, screen.id));
+      expect(row.showUnmuteButton).toBe(false);
+      expect(row.showDisconnectButton).toBe(false);
+      expect(emit).toHaveBeenCalledWith(
+        SCREEN_SETTINGS_CHANGED,
+        expect.objectContaining({ screenId: screen.id, organisationId: org.id }),
+      );
+    });
+
     it('should throw NotFoundException when screen not found', async () => {
       const org = await seedOrg();
       await expect(
         service.updateScreen(org.id, '00000000-0000-0000-0000-000000000000', { name: 'X' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('refreshScreen', () => {
+    it('emits a refresh request + audit event and returns the screen', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+
+      const result = await service.refreshScreen(org.id, screen.id, 'user-7');
+
+      expect(result.id).toBe(screen.id);
+      expect(emit).toHaveBeenCalledWith(
+        SCREEN_REFRESH_REQUESTED,
+        expect.objectContaining({ screenId: screen.id, organisationId: org.id }),
+      );
+      expect(emit).toHaveBeenCalledWith(
+        AUDIT_SCREEN_REFRESHED,
+        expect.objectContaining({ screenId: screen.id, organisationId: org.id, userId: 'user-7' }),
+      );
+    });
+
+    it('should throw NotFoundException when screen not found', async () => {
+      const org = await seedOrg();
+      await expect(
+        service.refreshScreen(org.id, '00000000-0000-0000-0000-000000000000'),
       ).rejects.toThrow(NotFoundException);
     });
   });

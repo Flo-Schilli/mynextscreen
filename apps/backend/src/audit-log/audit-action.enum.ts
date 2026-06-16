@@ -11,6 +11,7 @@ export enum AuditAction {
   ScreenRegister = 'screen.register',
   ScreenUpdate = 'screen.update',
   ScreenKeyRegenerated = 'screen.key_regenerated',
+  ScreenRefresh = 'screen.refresh',
   ScreenOnline = 'screen.online',
   ScreenOffline = 'screen.offline',
   UserInvited = 'user.invited',
