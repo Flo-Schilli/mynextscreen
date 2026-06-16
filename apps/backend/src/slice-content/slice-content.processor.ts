@@ -13,7 +13,7 @@ import type { DrizzleDB } from '../db/drizzle.types';
 import { slicedRenditions, screenGroups, screens, playlists, playlistItems } from '../db/schema';
 import { ContentType } from '../content/content-type.enum';
 import { computeCropParams, buildCropFilter } from './crop-computation.util';
-import { getTranscodedPath } from '../content/content-storage.util';
+import { getOriginalPath, getTranscodedPath } from '../content/content-storage.util';
 import { SliceStatusService } from './slice-status.service';
 import { GROUP_SCHEDULE_CHANGED, GroupScheduleChangedEvent } from '../schedule/schedule.event';
 
@@ -125,14 +125,22 @@ export class SliceContentProcessor extends WorkerHost {
           continue;
         }
 
-        // Determine source file path (use transcoded version)
-        const sourceExt = content.type === ContentType.Video ? 'mp4' : 'webp';
-        const sourcePath = getTranscodedPath(
-          this.mediaBasePath,
-          organisationId,
-          content.id,
-          sourceExt,
-        );
+        // Determine source file path. Videos slice from the transcoded MP4 (it
+        // decodes cleanly). Images slice from the ORIGINAL, NOT the transcoded
+        // WebP: FFmpeg's native WebP decoder cannot read back a WebP we produced
+        // (especially animated ones), so feeding it the transcoded `.webp` dies
+        // with a decode error (`dec:webp ... Task finished with error code`).
+        // Same reason thumbnails are generated from the original — see
+        // transcoding.processor.ts.
+        const sourcePath =
+          content.type === ContentType.Video
+            ? getTranscodedPath(this.mediaBasePath, organisationId, content.id, 'mp4')
+            : getOriginalPath(
+                this.mediaBasePath,
+                organisationId,
+                content.id,
+                path.extname(content.originalFilename).replace('.', '') || 'bin',
+              );
 
         // Compute source hash for idempotency
         const sourceHash = await this.computeFileHash(sourcePath);
