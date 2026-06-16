@@ -2,9 +2,9 @@ import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, ParamMap } from '@angular/router';
 import { CdkDragDrop } from '@angular/cdk/drag-drop';
-import { of, throwError } from 'rxjs';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import { Playlists } from './playlists';
 import { Playlist, PlaylistItem } from './playlist.model';
 import { MemberService } from '../settings/users/member.service';
@@ -118,6 +118,7 @@ describe('Playlists', () => {
   let screenStub: ScreenStub;
   let router: Router;
   let toastService: ToastService;
+  let routeParams$: BehaviorSubject<ParamMap>;
 
   function lastToast(): Toast | undefined {
     return toastService.toasts().at(-1);
@@ -131,6 +132,7 @@ describe('Playlists', () => {
       getTranscodedUrl: vi.fn((id: string) => `/media/${id}`),
     };
     screenStub = { getAll: vi.fn(() => of([])) };
+    routeParams$ = new BehaviorSubject<ParamMap>(convertToParamMap({}));
 
     await TestBed.configureTestingModule({
       imports: [Playlists],
@@ -142,6 +144,7 @@ describe('Playlists', () => {
         { provide: OrganisationService, useValue: orgStub },
         { provide: ContentService, useValue: contentStub },
         { provide: ScreenService, useValue: screenStub },
+        { provide: ActivatedRoute, useValue: { paramMap: routeParams$.asObservable() } },
       ],
     }).compileComponents();
 
@@ -340,6 +343,21 @@ describe('Playlists', () => {
       httpMock.expectOne('/api/playlists').flush([]);
 
       expect(component.selectedPlaylist).toBeNull();
+    });
+
+    it('selectPlaylist reflects the open playlist in the URL', () => {
+      component.selectPlaylist(buildPlaylist({ id: 'p1' }));
+      httpMock.expectOne('/api/playlists/p1').flush(buildPlaylist({ id: 'p1' }));
+
+      expect(router.navigate).toHaveBeenCalledWith(['/playlists', 'p1']);
+    });
+
+    it('loads the playlist from a /playlists/:id deeplink', () => {
+      const full = buildPlaylist({ id: 'deep', items: [buildItem()] });
+      routeParams$.next(convertToParamMap({ id: 'deep' }));
+      httpMock.expectOne('/api/playlists/deep').flush(full);
+
+      expect(component.selectedPlaylist?.id).toBe('deep');
     });
   });
 

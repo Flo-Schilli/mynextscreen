@@ -101,6 +101,10 @@ export const routes: Routes = [
         loadComponent: () => import('./playlists/playlists').then((m) => m.Playlists),
       },
       {
+        path: 'playlists/:id',
+        loadComponent: () => import('./playlists/playlists').then((m) => m.Playlists),
+      },
+      {
         path: 'schedules',
         loadComponent: () => import('./schedules/schedules').then((m) => m.Schedules),
       },

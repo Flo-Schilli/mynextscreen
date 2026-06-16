@@ -107,11 +107,26 @@ import { CardComponent, IconComponent } from '../ui';
                   <div
                     class="relative flex-1 aspect-[16/10] rounded-[6px] overflow-hidden bg-surface-2"
                   >
-                    @if (item.content?.type === 'image') {
+                    @if (item.content?.type === 'video') {
+                      <video
+                        [src]="videoThumbSrc(item)"
+                        class="w-full h-full object-cover bg-black"
+                        muted
+                        playsinline
+                        preload="metadata"
+                      ></video>
+                      <span class="absolute inset-0 grid place-items-center pointer-events-none">
+                        <span
+                          class="grid place-items-center w-7 h-7 rounded-full bg-black/45 text-white"
+                        >
+                          <mns-icon name="Play" [size]="12" />
+                        </span>
+                      </span>
+                    } @else if (item.content?.type === 'image') {
                       <img [src]="thumbUrl()(item)" alt="" class="w-full h-full object-cover" />
                     } @else {
                       <span class="absolute inset-0 grid place-items-center text-faint">
-                        <mns-icon name="Play" [size]="13" />
+                        <mns-icon name="Image" [size]="13" />
                       </span>
                     }
                   </div>
@@ -165,6 +180,14 @@ export class PlaylistGrid {
 
   protected strip(items: PlaylistItem[]): PlaylistItem[] {
     return items.slice(0, 6);
+  }
+
+  /**
+   * Transcoded video URL with a media fragment so the browser seeks to and
+   * paints the first frame as a still thumbnail under the play overlay.
+   */
+  protected videoThumbSrc(item: PlaylistItem): string {
+    return `${this.thumbUrl()(item)}#t=0.1`;
   }
 
   protected tileGradient(color: string): string {

@@ -93,6 +93,9 @@ export interface ItemFieldChange<T> {
             {{ isDefault() ? 'Default playlist' : 'Set as default' }}
           </mns-btn>
         }
+        <mns-btn variant="soft" size="sm" icon="Copy" (mnsClick)="copyLink.emit()"
+          >Copy link</mns-btn
+        >
         <mns-btn variant="danger" size="sm" icon="Trash" (mnsClick)="deletePlaylist.emit()"
           >Delete</mns-btn
         >
@@ -123,7 +126,11 @@ export interface ItemFieldChange<T> {
 
     <!-- live loop preview -->
     <div class="mt-[var(--gap)]">
-      <app-playlist-loop-preview [items]="playlist().items" [thumbUrl]="thumbUrl()" />
+      <app-playlist-loop-preview
+        [items]="playlist().items"
+        [thumbUrl]="thumbUrl()"
+        [mediaUrl]="previewUrl()"
+      />
     </div>
 
     <!-- sequence -->
@@ -179,11 +186,26 @@ export interface ItemFieldChange<T> {
                   (click)="previewItem.emit(item)"
                   aria-label="Preview item"
                 >
-                  @if (item.content?.type === 'image') {
+                  @if (item.content?.type === 'video') {
+                    <video
+                      [src]="videoThumbSrc(item)"
+                      class="w-full h-full object-cover bg-black"
+                      muted
+                      playsinline
+                      preload="metadata"
+                    ></video>
+                    <span class="absolute inset-0 grid place-items-center pointer-events-none">
+                      <span
+                        class="grid place-items-center w-5 h-5 rounded-full bg-black/45 text-white"
+                      >
+                        <mns-icon name="Play" [size]="10" />
+                      </span>
+                    </span>
+                  } @else if (item.content?.type === 'image') {
                     <img [src]="thumbUrl()(item)" alt="" class="w-full h-full object-cover" />
                   } @else {
                     <span class="absolute inset-0 grid place-items-center text-white">
-                      <mns-icon name="Play" [size]="11" />
+                      <mns-icon name="Image" [size]="11" />
                     </span>
                   }
                 </button>
@@ -350,6 +372,7 @@ export class PlaylistEditor {
   readonly colorChange = output<string>();
   readonly toggleDefault = output<void>();
   readonly deletePlaylist = output<void>();
+  readonly copyLink = output<void>();
   readonly dismiss = output<void>();
   readonly addContent = output<void>();
   readonly removeItem = output<PlaylistItem>();
@@ -395,6 +418,14 @@ export class PlaylistEditor {
 
   protected asTransition(value: string): TransitionType {
     return value as TransitionType;
+  }
+
+  /**
+   * Transcoded video URL with a media fragment so the browser seeks to and
+   * paints the first frame as a still thumbnail under the play overlay.
+   */
+  protected videoThumbSrc(item: PlaylistItem): string {
+    return this.thumbUrl()(item) + '#t=0.1';
   }
 
   protected durationDisplay(item: PlaylistItem): string {

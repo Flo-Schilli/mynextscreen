@@ -2,25 +2,27 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   computed,
   effect,
   inject,
   input,
   signal,
+  viewChild,
 } from '@angular/core';
 import { PlaylistItem } from './playlist.model';
 import { PlaylistFormatService } from './playlist-format.service';
 import { CardComponent, CardHeadComponent, BadgeComponent, IconComponent } from '../ui';
 
-/** Playlist-seconds advanced per real second so the loop is watchable. */
-const PREVIEW_SPEED = 3;
-
 /**
- * Client-side live loop preview: a 16:9 monitor frame, play/prev/next controls
- * and a segmented timeline that advances through the playlist items at an
- * accelerated speed using `requestAnimationFrame`. Honours
- * `prefers-reduced-motion` by never auto-animating. Purely presentational —
- * the loop is reconstructed from the item durations.
+ * Client-side loop preview that plays the playlist the way the screen player
+ * does: a 16:9 monitor frame renders the actual media (`object-contain` on
+ * black), images hold for their configured duration and videos play in real
+ * time (muted, inline) and advance when they end. Play/pause, prev/next and a
+ * clickable segmented timeline drive a single `requestAnimationFrame` loop that
+ * keeps the elapsed counter and timeline fill in sync — for videos the elapsed
+ * value is read straight from the `<video>` element. Purely presentational: the
+ * sequence is reconstructed from the item durations.
  */
 @Component({
   selector: 'app-playlist-loop-preview',
@@ -55,7 +57,29 @@ const PREVIEW_SPEED = 3;
               style="border: 1px solid rgba(255,255,255,.13)"
             >
               @if (current()?.content?.type === 'image') {
-                <img [src]="thumbUrl()(current()!)" alt="" class="w-full h-full object-cover" />
+                <img [src]="thumbUrl()(current()!)" alt="" class="w-full h-full object-contain" />
+              } @else if (current()?.content?.type === 'video') {
+                <video
+                  #previewVideo
+                  [src]="mediaUrl()(current()!)"
+                  class="w-full h-full object-contain bg-black"
+                  [muted]="muted()"
+                  playsinline
+                  preload="auto"
+                  (ended)="onVideoEnded()"
+                  (error)="onMediaError()"
+                ></video>
+                @if (muted()) {
+                  <button
+                    type="button"
+                    title="Unmute"
+                    class="absolute right-2 top-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[99px] text-[11px] font-semibold text-white cursor-pointer"
+                    style="background: rgba(4,6,11,.6); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,.13)"
+                    (click)="unmute()"
+                  >
+                    <span aria-hidden="true">🔇</span> Unmute
+                  </button>
+                }
               } @else {
                 <span class="absolute inset-0 grid place-items-center">
                   <span
@@ -83,7 +107,7 @@ const PREVIEW_SPEED = 3;
                 class="grid place-items-center w-[38px] h-[38px] rounded-[10px] border border-border-strong bg-surface text-muted"
                 (click)="prev()"
               >
-                <mns-icon name="Chevron" [size]="17" style="transform: rotate(180deg)" />
+                <mns-icon name="ChevronLeft" [size]="17" />
               </button>
               <button
                 type="button"
@@ -158,21 +182,26 @@ const PREVIEW_SPEED = 3;
 })
 export class PlaylistLoopPreview {
   readonly items = input.required<PlaylistItem[]>();
+  /** Builds a still/poster URL for an item (used by the `<img>` branch). */
   readonly thumbUrl = input.required<(item: PlaylistItem) => string>();
+  /** Builds the playable media URL for an item (used by the `<video>` branch). */
+  readonly mediaUrl = input.required<(item: PlaylistItem) => string>();
 
   protected readonly format = inject(PlaylistFormatService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly videoRef = viewChild<ElementRef<HTMLVideoElement>>('previewVideo');
 
   protected readonly idx = signal(0);
-  /** Seconds into the current item (playlist-time, not real-time). */
+  /** Seconds into the current item (real-time). */
   protected readonly elapsed = signal(0);
   protected readonly playing = signal(false);
+  /** Videos autoplay muted (browser policy); the user can opt into sound. */
+  protected readonly muted = signal(true);
 
   private rafId = 0;
   private lastFrame = 0;
-  private readonly reducedMotion =
-    typeof window !== 'undefined' &&
-    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+  /** Item-id ordering last seen, used to detect reorder/add/remove. */
+  private lastOrderKey = '';
 
   protected readonly current = computed<PlaylistItem | undefined>(() => this.items()[this.idx()]);
   protected readonly currentDur = computed(() => this.current()?.durationSeconds ?? 0);
@@ -185,12 +214,31 @@ export class PlaylistLoopPreview {
   });
 
   constructor() {
-    // Keep idx in range when items change.
+    // Jump back to the start of the first item whenever the sequence order or
+    // membership changes (reorder, add, remove). In-place edits like duration
+    // or transition tweaks keep the ids and their order, so they don't reset.
     effect(() => {
-      const len = this.items().length;
-      if (this.idx() >= len && len > 0) {
+      const key = this.items()
+        .map((i) => i.id)
+        .join('|');
+      if (key !== this.lastOrderKey) {
+        this.lastOrderKey = key;
         this.idx.set(0);
         this.elapsed.set(0);
+      }
+    });
+
+    // Drive the <video> element from play/pause + which item is current.
+    effect(() => {
+      const item = this.current();
+      const isPlaying = this.playing();
+      const video = this.videoRef()?.nativeElement;
+      if (!video || item?.content?.type !== 'video') return;
+      video.muted = this.muted();
+      if (isPlaying) {
+        video.play().catch(() => undefined);
+      } else {
+        video.pause();
       }
     });
 
@@ -213,10 +261,8 @@ export class PlaylistLoopPreview {
       this.stopRaf();
     } else {
       this.playing.set(true);
-      if (!this.reducedMotion) {
-        this.lastFrame = performance.now();
-        this.rafId = requestAnimationFrame((t) => this.tick(t));
-      }
+      this.lastFrame = performance.now();
+      this.rafId = requestAnimationFrame((t) => this.tick(t));
     }
   }
 
@@ -237,6 +283,39 @@ export class PlaylistLoopPreview {
     this.elapsed.set(0);
   }
 
+  protected unmute(): void {
+    this.muted.set(false);
+    const video = this.videoRef()?.nativeElement;
+    if (video) video.muted = false;
+  }
+
+  protected onVideoEnded(): void {
+    if (!this.playing()) return;
+    // Single-item playlist: the index can't change, so restart the video.
+    if (this.items().length <= 1) {
+      const video = this.videoRef()?.nativeElement;
+      if (video) {
+        video.currentTime = 0;
+        video.play().catch(() => undefined);
+      }
+      this.elapsed.set(0);
+      return;
+    }
+    this.goNext();
+  }
+
+  protected onMediaError(): void {
+    // Skip broken/not-yet-transcoded items so the loop keeps running.
+    if (this.playing() && this.items().length > 1) this.goNext();
+  }
+
+  private goNext(): void {
+    const len = this.items().length;
+    if (!len) return;
+    this.idx.set(this.idx() === len - 1 ? 0 : this.idx() + 1);
+    this.elapsed.set(0);
+  }
+
   private tick(now: number): void {
     const dt = (now - this.lastFrame) / 1000;
     this.lastFrame = now;
@@ -246,19 +325,23 @@ export class PlaylistLoopPreview {
       this.playing.set(false);
       return;
     }
-    const ne = this.elapsed() + dt * PREVIEW_SPEED;
-    if (ne >= cur.durationSeconds) {
-      const nextIdx = this.idx() + 1;
-      if (nextIdx >= this.items().length) {
-        this.idx.set(0);
-        this.elapsed.set(0);
-      } else {
-        this.idx.set(nextIdx);
-        this.elapsed.set(0);
+
+    if (cur.content?.type === 'video') {
+      // Videos play in real time; the element drives elapsed and advances on end.
+      const video = this.videoRef()?.nativeElement;
+      if (video && Number.isFinite(video.currentTime)) {
+        this.elapsed.set(video.currentTime);
       }
     } else {
-      this.elapsed.set(ne);
+      // Images (and anything non-video) hold for their configured duration.
+      const ne = this.elapsed() + dt;
+      if (ne >= this.currentDur()) {
+        this.goNext();
+      } else {
+        this.elapsed.set(ne);
+      }
     }
+
     this.rafId = requestAnimationFrame((t) => this.tick(t));
   }
 
