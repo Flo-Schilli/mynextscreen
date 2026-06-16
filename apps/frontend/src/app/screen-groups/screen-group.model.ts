@@ -16,6 +16,8 @@ export interface ScreenGroup {
   mode: ScreenGroupMode;
   gridColumns: number | null;
   gridRows: number | null;
+  color: string;
+  icon: string;
   screens: ScreenGroupScreen[];
   createdAt: string;
   updatedAt: string;
@@ -26,6 +28,8 @@ export interface CreateScreenGroupRequest {
   mode: ScreenGroupMode;
   gridColumns?: number;
   gridRows?: number;
+  color?: string;
+  icon?: string;
 }
 
 export interface UpdateScreenGroupRequest {
@@ -33,9 +37,17 @@ export interface UpdateScreenGroupRequest {
   mode?: ScreenGroupMode;
   gridColumns?: number;
   gridRows?: number;
+  color?: string;
+  icon?: string;
 }
 
 export interface AssignScreenRequest {
   gridRow?: number;
   gridColumn?: number;
+}
+
+/** Create-modal payload: the group request plus screen ids to assign on create. */
+export interface CreateScreenGroupSubmit {
+  request: CreateScreenGroupRequest;
+  screenIds: string[];
 }

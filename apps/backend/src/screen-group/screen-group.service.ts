@@ -72,6 +72,8 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
       mode: dto.mode,
       gridColumns: dto.mode === ScreenGroupMode.Split ? dto.gridColumns : null,
       gridRows: dto.mode === ScreenGroupMode.Split ? dto.gridRows : null,
+      ...(dto.color !== undefined ? { color: dto.color } : {}),
+      ...(dto.icon !== undefined ? { icon: dto.icon } : {}),
     });
 
     this.eventEmitter.emit(
@@ -109,6 +111,8 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
     const updates: Partial<ScreenGroup> = {};
     if (dto.name !== undefined) updates.name = dto.name;
     if (dto.mode !== undefined) updates.mode = dto.mode;
+    if (dto.color !== undefined) updates.color = dto.color;
+    if (dto.icon !== undefined) updates.icon = dto.icon;
 
     if (effectiveMode === ScreenGroupMode.Mirror) {
       updates.gridColumns = null;

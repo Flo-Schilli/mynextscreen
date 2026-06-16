@@ -146,6 +146,8 @@ export const screenGroups = pgTable('screen_groups', {
   mode: text().$type<ScreenGroupMode>().notNull().default(ScreenGroupMode.Mirror),
   gridColumns: integer(),
   gridRows: integer(),
+  color: text().notNull().default('#6d6cf6'),
+  icon: text().notNull().default('Groups'),
   ...timestamps,
 });
 

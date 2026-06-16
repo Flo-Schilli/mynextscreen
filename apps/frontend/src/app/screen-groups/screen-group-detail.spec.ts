@@ -1,7 +1,6 @@
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { Observable, of, throwError } from 'rxjs';
 import { ScreenGroupDetail } from './screen-group-detail';
 import { ScreenGroupService } from './screen-group.service';
@@ -17,7 +16,7 @@ import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { ContentService } from '../content/content.service';
 import { Content } from '../content/content.model';
-import { GridCell } from './screen-group-grid-editor';
+import { ToastService } from '../shared/toast/toast.service';
 
 const ORG_ID = 'org1';
 
@@ -41,6 +40,8 @@ function makeGroup(overrides: Partial<ScreenGroup> = {}): ScreenGroup {
     mode: 'split',
     gridColumns: 2,
     gridRows: 2,
+    color: '#6d6cf6',
+    icon: 'Groups',
     screens: [],
     createdAt: '2026-06-01T00:00:00Z',
     updatedAt: '2026-06-01T00:00:00Z',
@@ -131,17 +132,25 @@ class ContentServiceStub {
   }
 }
 
+class ToastServiceStub {
+  success = vi.fn();
+  error = vi.fn();
+  info = vi.fn();
+}
+
 class ScreenGroupServiceStub {
   getOneResult: Observable<ScreenGroup> = of(makeGroup());
   assignResult: Observable<ScreenGroupScreen> = of(makeAssigned());
   removeResult: Observable<ScreenGroupScreen> = of(makeAssigned());
   updateResult: Observable<ScreenGroup> = of(makeGroup());
+  deleteResult: Observable<void> = of(undefined);
 
   getOneCalls: { orgId: string; id: string }[] = [];
   assignCalls: { orgId: string; groupId: string; screenId: string; dto: AssignScreenRequest }[] =
     [];
   removeCalls: { orgId: string; groupId: string; screenId: string }[] = [];
   updateCalls: { orgId: string; id: string; dto: UpdateScreenGroupRequest }[] = [];
+  deleteCalls: { orgId: string; id: string }[] = [];
 
   getOne(orgId: string, id: string): Observable<ScreenGroup> {
     this.getOneCalls.push({ orgId, id });
@@ -164,25 +173,10 @@ class ScreenGroupServiceStub {
     this.updateCalls.push({ orgId, id, dto });
     return this.updateResult;
   }
-}
-
-/**
- * Builds a minimal CDK drop event. The component only reads
- * `previousContainer.{id,data}`, `container.data` and `item.data`, so a partial
- * shape is sufficient. Returned loosely typed; call sites cast to the exact
- * `CdkDragDrop<...>` the handler expects.
- */
-function dropEvent(
-  prevContainerId: string,
-  prevData: unknown,
-  containerData: unknown,
-  itemData: ScreenGroupScreen | Screen,
-): CdkDragDrop<GridCell, GridCell> {
-  return {
-    previousContainer: { id: prevContainerId, data: prevData },
-    container: { data: containerData },
-    item: { data: itemData },
-  } as unknown as CdkDragDrop<GridCell, GridCell>;
+  delete(orgId: string, id: string): Observable<void> {
+    this.deleteCalls.push({ orgId, id });
+    return this.deleteResult;
+  }
 }
 
 describe('ScreenGroupDetail', () => {
@@ -218,6 +212,7 @@ describe('ScreenGroupDetail', () => {
         { provide: ScreenService, useValue: screens },
         { provide: ContentService, useValue: content },
         { provide: ScreenGroupService, useValue: groupSvc },
+        { provide: ToastService, useClass: ToastServiceStub },
         { provide: Router, useValue: { navigate: navigateSpy } },
         {
           provide: ActivatedRoute,
@@ -227,491 +222,167 @@ describe('ScreenGroupDetail', () => {
     });
   });
 
-  describe('org context + initial load', () => {
-    it('prefers the org_admin membership', async () => {
-      member.memberships = [membership('viewer', 'orgV'), membership('org_admin', 'orgA')];
-      groupSvc.getOneResult = of(makeGroup({ organisationId: 'orgA' }));
-      await setUp();
+  it('loads the group for the resolved org', async () => {
+    groupSvc.getOneResult = of(makeGroup({ id: 'g1' }));
+    await setUp();
 
-      expect(component.orgId).toBe('orgA');
-      expect(component.loading).toBe(false);
-    });
+    expect(component.orgId()).toBe(ORG_ID);
+    expect(groupSvc.getOneCalls[0]).toEqual({ orgId: ORG_ID, id: 'g1' });
+    expect(component.group()?.id).toBe('g1');
+  });
 
-    it('reports an error when the user has no organisation', async () => {
-      member.memberships = [];
-      await setUp();
+  it('reports an error when no route id is present', async () => {
+    routeId = null;
+    await setUp();
 
-      expect(component.loadError).toBe('You are not a member of any organisation.');
-      expect(component.loading).toBe(false);
-    });
+    expect(component.loadError()).toBe('No group ID provided.');
+    expect(component.loading()).toBe(false);
+  });
 
-    it('reports an error when the memberships request fails', async () => {
-      member.fail = true;
-      await setUp();
+  it('maps a 404 to a not-found error', async () => {
+    groupSvc.getOneResult = throwError(() => httpError(404));
+    await setUp();
 
-      expect(component.loadError).toBe('Failed to load organisation context.');
-    });
+    expect(component.loadError()).toBe('Screen group not found.');
+  });
 
-    it('reports a missing-id error when the route has no id', async () => {
-      routeId = null;
-      await setUp();
+  it('builds wall cells for a split group', async () => {
+    groupSvc.getOneResult = of(
+      makeGroup({
+        gridColumns: 2,
+        gridRows: 2,
+        screens: [makeAssigned({ id: 's1', gridRow: 0, gridColumn: 0 })],
+      }),
+    );
+    await setUp();
 
-      expect(component.loadError).toBe('No group ID provided.');
-    });
+    const cells = component.wallCells();
+    expect(cells.length).toBe(4);
+    expect(cells[0].screen?.id).toBe('s1');
+    expect(cells[1].screen).toBeNull();
+  });
 
-    it('maps a 404 to a not-found error', async () => {
-      groupSvc.getOneResult = throwError(() => httpError(404));
-      await setUp();
+  it('counts placed screens and computes panels-needed', async () => {
+    groupSvc.getOneResult = of(
+      makeGroup({
+        gridColumns: 2,
+        gridRows: 1,
+        screens: [makeAssigned({ id: 's1', gridRow: 0, gridColumn: 0 })],
+      }),
+    );
+    await setUp();
 
-      expect(component.loadError).toBe('Screen group not found.');
-    });
+    expect(component.assignedCount()).toBe(1);
+    expect(component.cellsNeeded()).toBe(2);
+  });
 
-    it('maps other load errors to a generic message', async () => {
-      groupSvc.getOneResult = throwError(() => httpError(500));
-      await setUp();
+  it('assigns a screen to a cell on wall assign', async () => {
+    groupSvc.getOneResult = of(makeGroup({ screens: [] }));
+    await setUp();
 
-      expect(component.loadError).toBe('Failed to load screen group.');
+    component.onWallAssign({ row: 1, col: 0, idx: 2, screenId: 'av1' });
+    await fixture.whenStable();
+
+    expect(groupSvc.assignCalls[0]).toEqual({
+      orgId: ORG_ID,
+      groupId: 'g1',
+      screenId: 'av1',
+      dto: { gridRow: 1, gridColumn: 0 },
     });
   });
 
-  describe('grid building (split mode)', () => {
-    it('builds a cell per row/col with screens placed at their coordinates', async () => {
-      groupSvc.getOneResult = of(
-        makeGroup({
-          gridColumns: 2,
-          gridRows: 2,
-          screens: [makeAssigned({ id: 'sA', gridRow: 1, gridColumn: 0 })],
-        }),
-      );
-      await setUp();
+  it('clears a cell when wall assign passes a null screen', async () => {
+    groupSvc.getOneResult = of(
+      makeGroup({ screens: [makeAssigned({ id: 's1', gridRow: 0, gridColumn: 0 })] }),
+    );
+    await setUp();
 
-      expect(component.gridCells.length).toBe(4);
-      const occupied = component.gridCells.find((c: GridCell) => c.screen?.id === 'sA');
-      expect(occupied?.row).toBe(1);
-      expect(occupied?.col).toBe(0);
-      const empties = component.gridCells.filter((c: GridCell) => c.screen === null);
-      expect(empties.length).toBe(3);
-    });
+    component.onWallAssign({ row: 0, col: 0, idx: 0, screenId: null });
+    await fixture.whenStable();
 
-    it('exposes drop list ids including the sidebar', async () => {
-      groupSvc.getOneResult = of(makeGroup({ gridColumns: 2, gridRows: 1 }));
-      await setUp();
+    expect(groupSvc.removeCalls[0]).toEqual({ orgId: ORG_ID, groupId: 'g1', screenId: 's1' });
+  });
 
-      expect(component.allDropListIds).toEqual(['sidebar-list', 'cell-0-0', 'cell-0-1']);
-    });
+  it('adds a mirror screen via the dashed select', async () => {
+    groupSvc.getOneResult = of(makeGroup({ mode: 'mirror', gridColumns: null, gridRows: null }));
+    screens.screens = [makeScreen({ id: 'av1' })];
+    await setUp();
 
-    it('filters assigned screens out of the available list', async () => {
-      groupSvc.getOneResult = of(makeGroup({ screens: [makeAssigned({ id: 'sA' })] }));
-      screens.screens = [makeScreen({ id: 'sA' }), makeScreen({ id: 'sB' })];
-      await setUp();
+    component.onAddScreenSelect('av1');
+    await fixture.whenStable();
 
-      expect(component.availableScreens.map((s: Screen) => s.id)).toEqual(['sB']);
-    });
-
-    it('reports allCellsAssigned false when a cell is empty', async () => {
-      groupSvc.getOneResult = of(
-        makeGroup({
-          gridColumns: 2,
-          gridRows: 1,
-          screens: [makeAssigned({ gridRow: 0, gridColumn: 0 })],
-        }),
-      );
-      await setUp();
-
-      expect(component.allCellsAssigned).toBe(false);
-    });
-
-    it('reports allCellsAssigned true when every cell is filled', async () => {
-      groupSvc.getOneResult = of(
-        makeGroup({
-          gridColumns: 2,
-          gridRows: 1,
-          screens: [
-            makeAssigned({ id: 's0', gridRow: 0, gridColumn: 0 }),
-            makeAssigned({ id: 's1', gridRow: 0, gridColumn: 1 }),
-          ],
-        }),
-      );
-      await setUp();
-
-      expect(component.allCellsAssigned).toBe(true);
+    expect(groupSvc.assignCalls[0]).toEqual({
+      orgId: ORG_ID,
+      groupId: 'g1',
+      screenId: 'av1',
+      dto: {},
     });
   });
 
-  describe('drag & drop assign', () => {
-    beforeEach(() => {
-      groupSvc.getOneResult = of(makeGroup({ gridColumns: 2, gridRows: 1 }));
-    });
+  it('removes a screen from the group', async () => {
+    groupSvc.getOneResult = of(
+      makeGroup({ screens: [makeAssigned({ id: 's1', gridRow: 0, gridColumn: 0 })] }),
+    );
+    await setUp();
 
-    it('assigns a screen dragged from the sidebar to a cell', async () => {
-      screens.screens = [makeScreen({ id: 'av1', groupId: null })];
-      await setUp();
-      const targetCell: GridCell = { row: 0, col: 1, screen: null, dropListId: 'cell-0-1' };
+    component.removeScreenFromGroup('s1');
+    await fixture.whenStable();
 
-      component.onDropToCell(
-        dropEvent('sidebar-list', [] as Screen[], targetCell, makeScreen({ id: 'av1' })),
-      );
-      await fixture.whenStable();
-
-      expect(groupSvc.assignCalls[0]).toEqual({
-        orgId: ORG_ID,
-        groupId: 'g1',
-        screenId: 'av1',
-        dto: { gridRow: 0, gridColumn: 1 },
-      });
-    });
-
-    it('rejects assigning a screen that belongs to another group', async () => {
-      screens.screens = [makeScreen({ id: 'av1', groupId: 'other', name: 'Foreign' })];
-      await setUp();
-      const targetCell: GridCell = { row: 0, col: 0, screen: null, dropListId: 'cell-0-0' };
-
-      component.onDropToCell(
-        dropEvent(
-          'sidebar-list',
-          [] as Screen[],
-          targetCell,
-          makeScreen({ id: 'av1', name: 'Foreign' }),
-        ),
-      );
-
-      expect(groupSvc.assignCalls.length).toBe(0);
-      expect(component.actionError).toContain('already belongs to another group');
-    });
-
-    it('ignores a drop onto an occupied cell holding a different screen', async () => {
-      await setUp();
-      const occupied: GridCell = {
-        row: 0,
-        col: 0,
-        screen: makeAssigned({ id: 'existing' }),
-        dropListId: 'cell-0-0',
-      };
-
-      component.onDropToCell(
-        dropEvent('sidebar-list', [] as Screen[], occupied, makeScreen({ id: 'av1' })),
-      );
-
-      expect(groupSvc.assignCalls.length).toBe(0);
-    });
-
-    it('ignores drops while an operation is in progress', async () => {
-      await setUp();
-      component.operationInProgress = true;
-      const targetCell: GridCell = { row: 0, col: 0, screen: null, dropListId: 'cell-0-0' };
-
-      component.onDropToCell(
-        dropEvent('sidebar-list', [] as Screen[], targetCell, makeScreen({ id: 'av1' })),
-      );
-
-      expect(groupSvc.assignCalls.length).toBe(0);
-    });
-
-    it('surfaces the server message when assigning fails', async () => {
-      screens.screens = [makeScreen({ id: 'av1', groupId: null })];
-      groupSvc.assignResult = throwError(() => httpError(400, 'Assign failed'));
-      await setUp();
-      const targetCell: GridCell = { row: 0, col: 0, screen: null, dropListId: 'cell-0-0' };
-
-      component.onDropToCell(
-        dropEvent('sidebar-list', [] as Screen[], targetCell, makeScreen({ id: 'av1' })),
-      );
-      await fixture.whenStable();
-
-      expect(component.actionError).toBe('Assign failed');
-      expect(component.operationInProgress).toBe(false);
-    });
+    expect(groupSvc.removeCalls[0]).toEqual({ orgId: ORG_ID, groupId: 'g1', screenId: 's1' });
   });
 
-  describe('drag & drop move between cells', () => {
-    it('removes then re-assigns when moving a screen to a new cell', async () => {
-      groupSvc.getOneResult = of(
-        makeGroup({
-          gridColumns: 2,
-          gridRows: 1,
-          screens: [makeAssigned({ id: 'sM', gridRow: 0, gridColumn: 0 })],
-        }),
-      );
-      await setUp();
-      const source: GridCell = {
-        row: 0,
-        col: 0,
-        screen: makeAssigned({ id: 'sM' }),
-        dropListId: 'cell-0-0',
-      };
-      const target: GridCell = { row: 0, col: 1, screen: null, dropListId: 'cell-0-1' };
+  it('switches mode inline via the mode toggle', async () => {
+    groupSvc.getOneResult = of(makeGroup({ mode: 'split', gridColumns: 2, gridRows: 2 }));
+    await setUp();
 
-      component.onDropToCell(dropEvent('cell-0-0', source, target, makeAssigned({ id: 'sM' })));
-      await fixture.whenStable();
+    component.changeMode('mirror');
+    await fixture.whenStable();
 
-      expect(groupSvc.removeCalls[0]).toMatchObject({ groupId: 'g1', screenId: 'sM' });
-      expect(groupSvc.assignCalls[0]).toEqual({
-        orgId: ORG_ID,
-        groupId: 'g1',
-        screenId: 'sM',
-        dto: { gridRow: 0, gridColumn: 1 },
-      });
-    });
-
-    it('ignores a move back onto the same cell', async () => {
-      groupSvc.getOneResult = of(
-        makeGroup({
-          gridColumns: 2,
-          gridRows: 1,
-          screens: [makeAssigned({ id: 'sM', gridRow: 0, gridColumn: 0 })],
-        }),
-      );
-      await setUp();
-      const same: GridCell = {
-        row: 0,
-        col: 0,
-        screen: makeAssigned({ id: 'sM' }),
-        dropListId: 'cell-0-0',
-      };
-
-      component.onDropToCell(dropEvent('cell-0-0', same, same, makeAssigned({ id: 'sM' })));
-
-      expect(groupSvc.removeCalls.length).toBe(0);
-      expect(groupSvc.assignCalls.length).toBe(0);
-    });
+    expect(groupSvc.updateCalls[0].dto).toEqual({ mode: 'mirror' });
   });
 
-  describe('drag & drop to sidebar (remove)', () => {
-    it('removes a screen dropped back onto the sidebar', async () => {
-      groupSvc.getOneResult = of(
-        makeGroup({ gridColumns: 2, gridRows: 1, screens: [makeAssigned({ id: 'sR' })] }),
-      );
-      await setUp();
-      const sourceCell: GridCell = {
-        row: 0,
-        col: 0,
-        screen: makeAssigned({ id: 'sR' }),
-        dropListId: 'cell-0-0',
-      };
+  it('commits grid size from the steppers in split mode', async () => {
+    groupSvc.getOneResult = of(makeGroup({ mode: 'split', gridColumns: 2, gridRows: 2 }));
+    await setUp();
 
-      component.onDropToSidebar(
-        dropEvent(
-          'cell-0-0',
-          sourceCell,
-          [] as Screen[],
-          makeAssigned({ id: 'sR' }),
-        ) as unknown as CdkDragDrop<Screen[], GridCell>,
-      );
-      await fixture.whenStable();
+    component.cols.set(3);
+    component.rows.set(2);
+    component.commitGrid();
+    await fixture.whenStable();
 
-      expect(groupSvc.removeCalls[0]).toMatchObject({ groupId: 'g1', screenId: 'sR' });
-    });
-
-    it('ignores a drop that originates in the sidebar', async () => {
-      groupSvc.getOneResult = of(makeGroup({ gridColumns: 2, gridRows: 1 }));
-      await setUp();
-
-      component.onDropToSidebar(
-        dropEvent(
-          'sidebar-list',
-          [] as Screen[],
-          [] as Screen[],
-          makeScreen({ id: 'av1' }),
-        ) as unknown as CdkDragDrop<Screen[], GridCell>,
-      );
-
-      expect(groupSvc.removeCalls.length).toBe(0);
-    });
+    expect(groupSvc.updateCalls.at(-1)?.dto).toEqual({ gridColumns: 3, gridRows: 2 });
   });
 
-  describe('mirror mode add/remove', () => {
-    beforeEach(() => {
-      groupSvc.getOneResult = of(makeGroup({ mode: 'mirror', gridColumns: null, gridRows: null }));
-    });
+  it('blocks delete while screens remain, then deletes once empty', async () => {
+    groupSvc.getOneResult = of(
+      makeGroup({ screens: [makeAssigned({ id: 's1', gridRow: 0, gridColumn: 0 })] }),
+    );
+    await setUp();
 
-    it('opens and cancels the add-screen modal', async () => {
-      await setUp();
+    component.onDelete();
+    expect(groupSvc.deleteCalls.length).toBe(0);
+    expect(component.actionError()).toContain('Remove all screens');
 
-      component.openAddScreen();
-      expect(component.showAddScreen).toBe(true);
+    groupSvc.getOneResult = of(makeGroup({ screens: [] }));
+    component['group'].set(makeGroup({ screens: [] }));
+    component.onDelete();
+    await fixture.whenStable();
 
-      component.cancelAddScreen();
-      expect(component.showAddScreen).toBe(false);
-    });
-
-    it('assigns a screen with no grid coords in mirror mode', async () => {
-      await setUp();
-
-      component.addScreenMirror(makeScreen({ id: 'av1', groupId: null }));
-      await fixture.whenStable();
-
-      expect(groupSvc.assignCalls[0]).toEqual({
-        orgId: ORG_ID,
-        groupId: 'g1',
-        screenId: 'av1',
-        dto: {},
-      });
-    });
-
-    it('rejects adding a screen from another group in mirror mode', async () => {
-      await setUp();
-
-      component.addScreenMirror(makeScreen({ id: 'av1', groupId: 'other', name: 'Foreign' }));
-
-      expect(groupSvc.assignCalls.length).toBe(0);
-      expect(component.addScreenError).toContain('already belongs to another group');
-    });
-
-    it('surfaces the server message when mirror add fails', async () => {
-      groupSvc.assignResult = throwError(() => httpError(400, 'Add failed'));
-      await setUp();
-
-      component.addScreenMirror(makeScreen({ id: 'av1', groupId: null }));
-      await fixture.whenStable();
-
-      expect(component.addScreenError).toBe('Add failed');
-      expect(component.operationInProgress).toBe(false);
-    });
-
-    it('removes a screen from the group', async () => {
-      await setUp();
-
-      component.removeScreenFromGroup('sR');
-      await fixture.whenStable();
-
-      expect(groupSvc.removeCalls[0]).toMatchObject({ groupId: 'g1', screenId: 'sR' });
-    });
-
-    it('surfaces the server message when removing fails', async () => {
-      groupSvc.removeResult = throwError(() => httpError(400, 'Remove failed'));
-      await setUp();
-
-      component.removeScreenFromGroup('sR');
-      await fixture.whenStable();
-
-      expect(component.actionError).toBe('Remove failed');
-      expect(component.operationInProgress).toBe(false);
-    });
+    expect(groupSvc.deleteCalls[0]).toEqual({ orgId: ORG_ID, id: 'g1' });
+    expect(navigateSpy).toHaveBeenCalledWith(['/screen-groups']);
   });
 
-  describe('switch mode', () => {
-    it('seeds the grid defaults from the current group on open', async () => {
-      groupSvc.getOneResult = of(makeGroup({ mode: 'split', gridColumns: 4, gridRows: 3 }));
-      await setUp();
+  it('resolves a preview image url from completed content', async () => {
+    groupSvc.getOneResult = of(makeGroup());
+    content.items = [makeContent({ id: 'c1', type: 'image', transcodingStatus: 'completed' })];
+    await setUp();
 
-      component.openSwitchMode();
-
-      expect(component.showSwitchMode).toBe(true);
-      expect(component.switchGridColumns).toBe(4);
-      expect(component.switchGridRows).toBe(3);
-    });
-
-    it('switches a mirror group to split with the chosen grid', async () => {
-      groupSvc.getOneResult = of(makeGroup({ mode: 'mirror', gridColumns: null, gridRows: null }));
-      await setUp();
-      component.switchGridColumns = 3;
-      component.switchGridRows = 2;
-
-      component.executeSwitchMode();
-      await fixture.whenStable();
-
-      expect(groupSvc.updateCalls[0]).toEqual({
-        orgId: ORG_ID,
-        id: 'g1',
-        dto: { mode: 'split', gridColumns: 3, gridRows: 2 },
-      });
-      expect(component.showSwitchMode).toBe(false);
-    });
-
-    it('switches a split group to mirror without grid dimensions', async () => {
-      groupSvc.getOneResult = of(makeGroup({ mode: 'split', gridColumns: 2, gridRows: 2 }));
-      await setUp();
-
-      component.executeSwitchMode();
-      await fixture.whenStable();
-
-      expect(groupSvc.updateCalls[0].dto).toEqual({ mode: 'mirror' });
-    });
-
-    it('blocks switching to split without grid dimensions', async () => {
-      groupSvc.getOneResult = of(makeGroup({ mode: 'mirror', gridColumns: null, gridRows: null }));
-      await setUp();
-      component.switchGridColumns = 0;
-      component.switchGridRows = 0;
-
-      component.executeSwitchMode();
-
-      expect(groupSvc.updateCalls.length).toBe(0);
-      expect(component.switchError).toBe('Grid columns and rows are required for split mode.');
-    });
-
-    it('surfaces the server message when switching fails', async () => {
-      groupSvc.getOneResult = of(makeGroup({ mode: 'split', gridColumns: 2, gridRows: 2 }));
-      groupSvc.updateResult = throwError(() => httpError(400, 'Switch failed'));
-      await setUp();
-
-      component.executeSwitchMode();
-      await fixture.whenStable();
-
-      expect(component.switchError).toBe('Switch failed');
-      expect(component.switching).toBe(false);
-    });
-
-    it('cancels the switch-mode modal', async () => {
-      groupSvc.getOneResult = of(makeGroup());
-      await setUp();
-
-      component.openSwitchMode();
-      component.cancelSwitchMode();
-
-      expect(component.showSwitchMode).toBe(false);
-    });
+    expect(component.previewImageUrl()).toBe('/transcoded/c1');
   });
 
-  describe('wall-preview content selection', () => {
-    it('filters content to completed items and non-failed images', async () => {
-      content.items = [
-        makeContent({ id: 'done', transcodingStatus: 'completed' }),
-        makeContent({ id: 'imgPending', type: 'image', transcodingStatus: 'pending' }),
-        makeContent({ id: 'imgFailed', type: 'image', transcodingStatus: 'failed' }),
-        makeContent({ id: 'videoPending', type: 'video', transcodingStatus: 'pending' }),
-      ];
-      await setUp();
-
-      expect(component.contentItems.map((c: Content) => c.id)).toEqual(['done', 'imgPending']);
-    });
-
-    it('clears the preview when no content id is selected', async () => {
-      await setUp();
-      component.previewImageUrl = 'something';
-
-      component.onPreviewContentSelect('');
-
-      expect(component.previewImageUrl).toBeNull();
-      expect(component.selectedContent).toBeNull();
-    });
-
-    it('ignores an unknown content id', async () => {
-      content.items = [makeContent({ id: 'c1' })];
-      await setUp();
-
-      component.onPreviewContentSelect('does-not-exist');
-
-      expect(component.selectedContent).toBeNull();
-    });
-
-    it('sets the selected content and starts image loading for image content', async () => {
-      content.items = [makeContent({ id: 'c1', type: 'image', transcodingStatus: 'completed' })];
-      await setUp();
-
-      component.onPreviewContentSelect('c1');
-
-      expect(component.selectedContent?.id).toBe('c1');
-    });
-  });
-
-  describe('navigation', () => {
-    it('navigates back to the groups list', async () => {
-      await setUp();
-
-      component.goBack();
-
-      expect(navigateSpy).toHaveBeenCalledWith(['/screen-groups']);
-    });
+  it('navigates back to the list', async () => {
+    await setUp();
+    component.goBack();
+    expect(navigateSpy).toHaveBeenCalledWith(['/screen-groups']);
   });
 });

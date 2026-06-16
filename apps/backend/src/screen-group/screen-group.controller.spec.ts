@@ -23,6 +23,8 @@ describe('ScreenGroupController', () => {
     mode: ScreenGroupMode.Split,
     gridColumns: 2,
     gridRows: 2,
+    color: '#6d6cf6',
+    icon: 'Groups',
     createdAt: new Date(),
     updatedAt: new Date(),
   };
