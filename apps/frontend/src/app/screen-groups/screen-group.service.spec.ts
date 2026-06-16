@@ -42,6 +42,7 @@ function makeGroupScreen(overrides: Partial<ScreenGroupScreen> = {}): ScreenGrou
     id: 'screen-1',
     name: 'Lobby TV',
     location: 'Lobby',
+    isOnline: false,
     groupId: 'group-1',
     gridRow: 0,
     gridColumn: 0,

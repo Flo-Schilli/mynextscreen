@@ -13,7 +13,15 @@ function cell(
 }
 
 function assigned(id: string, gridRow: number, gridColumn: number): ScreenGroupScreen {
-  return { id, name: `S${id}`, location: 'Hall', groupId: 'g1', gridRow, gridColumn };
+  return {
+    id,
+    name: `S${id}`,
+    location: 'Hall',
+    isOnline: false,
+    groupId: 'g1',
+    gridRow,
+    gridColumn,
+  };
 }
 
 const PLACEABLE: WallPlaceable[] = [

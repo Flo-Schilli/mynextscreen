@@ -13,8 +13,6 @@ import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
-import { ContentService } from '../content/content.service';
-import { Content } from '../content/content.model';
 import { ToastService } from '../shared/toast/toast.service';
 import {
   CardComponent,
@@ -243,7 +241,6 @@ export class ScreenGroupDetail implements OnInit {
   private screenGroupService = inject(ScreenGroupService);
   private screenService = inject(ScreenService);
   private memberService = inject(MemberService);
-  private contentService = inject(ContentService);
   private toast = inject(ToastService);
 
   readonly orgId = signal('');
@@ -258,10 +255,6 @@ export class ScreenGroupDetail implements OnInit {
   // inline grid steppers (split mode)
   readonly cols = signal(2);
   readonly rows = signal(1);
-
-  // preview content source
-  readonly contentItems = signal<Content[]>([]);
-  readonly previewImageUrl = signal<string | null>(null);
 
   readonly gradient = computed(() => {
     const g = this.group();
@@ -287,9 +280,11 @@ export class ScreenGroupDetail implements OnInit {
   readonly monitorContent = computed<MonitorContent | null>(() => {
     const g = this.group();
     if (!g) return null;
-    const url = this.previewImageUrl();
+    // The preview shows the group's own colour, not arbitrary library content —
+    // a screen group has no single "current" content, so a real thumbnail would
+    // just be a misleading first-found pick layered under the group label.
     return {
-      bg: url ? `center / cover no-repeat url(${url})` : this.gradient(),
+      bg: this.gradient(),
       label: this.contentLabel(),
       type: 'image',
     };
@@ -389,7 +384,6 @@ export class ScreenGroupDetail implements OnInit {
           this.orgId.set(m.organisationId);
           this.loadGroup();
           this.loadAllScreens();
-          this.loadContentItems();
         } else {
           this.loadError.set('You are not a member of any organisation.');
           this.loading.set(false);
@@ -618,51 +612,6 @@ export class ScreenGroupDetail implements OnInit {
         this.actionError.set(err.error?.message || 'Failed to delete group.');
       },
     });
-  }
-
-  // --- Preview content ---
-  private loadContentItems(): void {
-    this.contentService.getAll(this.orgId()).subscribe({
-      next: (items) => {
-        this.contentItems.set(
-          items.filter(
-            (i) =>
-              i.transcodingStatus === 'completed' ||
-              (i.type === 'image' && i.transcodingStatus !== 'failed'),
-          ),
-        );
-        this.resolvePreview();
-      },
-      error: () => this.contentItems.set([]),
-    });
-  }
-
-  /** Pick the first available content item as the wall's preview source. */
-  private resolvePreview(): void {
-    const content = this.contentItems()[0];
-    if (!content) {
-      this.previewImageUrl.set(null);
-      return;
-    }
-
-    // Prefer the precomputed thumbnail — covers images and videos uniformly,
-    // with no client-side video decoding.
-    if (content.thumbnailSizeBytes != null) {
-      this.previewImageUrl.set(this.contentService.getThumbnailUrl(content.id));
-      return;
-    }
-
-    // No thumbnail yet: images can still render their own frame; a video
-    // without a thumbnail simply has no still preview.
-    if (content.type === 'image') {
-      const url =
-        content.transcodingStatus === 'completed'
-          ? this.contentService.getTranscodedUrl(content.id)
-          : this.contentService.getOriginalUrl(content.id);
-      this.previewImageUrl.set(url);
-    } else {
-      this.previewImageUrl.set(null);
-    }
   }
 
   goBack(): void {

@@ -4,6 +4,7 @@ export interface ScreenGroupScreen {
   id: string;
   name: string;
   location: string;
+  isOnline: boolean;
   groupId: string | null;
   gridRow: number | null;
   gridColumn: number | null;

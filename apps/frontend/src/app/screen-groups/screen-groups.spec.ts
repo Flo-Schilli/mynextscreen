@@ -80,6 +80,7 @@ class ScreenGroupServiceStub {
     id: 's1',
     name: 'S1',
     location: 'L1',
+    isOnline: false,
     groupId: 'g1',
     gridRow: null,
     gridColumn: null,

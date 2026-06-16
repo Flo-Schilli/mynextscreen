@@ -30,7 +30,7 @@ export interface MonitorSlice {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [IconComponent, StatusDotComponent],
   template: `
-    <div class="monitor-frame">
+    <div class="monitor-frame" [class.square]="square()">
       @if (empty()) {
         <div class="empty-state">
           <mns-icon name="Plus" [size]="16" />
@@ -69,6 +69,11 @@ export interface MonitorSlice {
       box-shadow:
         inset 0 0 0 2px rgba(0, 0, 0, 0.5),
         0 12px 28px -18px rgba(0, 0, 0, 0.9);
+    }
+    /* Flush, square panels for a contiguous video-wall surface (split mode). */
+    .monitor-frame.square,
+    .monitor-frame.square .empty-state {
+      border-radius: 0;
     }
     .empty-state {
       position: absolute;
@@ -154,6 +159,8 @@ export class ScreenGroupMonitorFrame {
   readonly label = input<string | null>(null);
   readonly status = input<StatusDotStatus>('online');
   readonly empty = input<boolean>(false);
+  /** Render with no rounded corners so panels tile into a seamless wall. */
+  readonly square = input<boolean>(false);
 
   readonly sliceStyle = computed<Record<string, string>>(() => {
     const s = this.slice();
