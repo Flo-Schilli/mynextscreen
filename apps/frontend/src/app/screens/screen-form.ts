@@ -36,12 +36,21 @@ type ScreenFormMode = 'create' | 'edit';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FormsModule, DatePipe],
   template: `
-    <div class="pairing-overlay" role="dialog" aria-modal="true" [attr.aria-label]="panelTitle()">
+    <div
+      class="pairing-overlay"
+      role="dialog"
+      aria-modal="true"
+      tabindex="0"
+      [attr.aria-label]="panelTitle()"
+      (click)="onBackdropClick($event)"
+      (keydown.escape)="dismiss.emit()"
+    >
       <div
         class="pairing-panel"
         role="document"
         (click)="$event.stopPropagation()"
         (keydown)="$event.stopPropagation()"
+        (keydown.escape)="dismiss.emit()"
       >
         <!-- Header -->
         <div class="panel-header">
@@ -84,6 +93,21 @@ type ScreenFormMode = 'create' | 'edit';
             <div class="panel-title">{{ panelTitle() }}</div>
             <div class="panel-sub">{{ panelSub() }}</div>
           </div>
+          <button type="button" class="panel-close" aria-label="Close" (click)="dismiss.emit()">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         <!-- Hint banner (create only) -->
@@ -335,6 +359,32 @@ type ScreenFormMode = 'create' | 'edit';
       font-size: 13px;
       color: var(--text-muted);
       margin-top: 1px;
+    }
+    .panel-close {
+      margin-left: auto;
+      align-self: flex-start;
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition:
+        background-color 120ms,
+        color 120ms;
+    }
+    .panel-close:hover {
+      background: var(--hover);
+      color: var(--text);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .panel-close {
+        transition: none;
+      }
     }
 
     /* Hint banner */
@@ -639,6 +689,12 @@ export class ScreenForm implements OnInit {
     }
     this.localError.set('');
     this.update.emit({ name: this.name, location: this.location, resolution });
+  }
+
+  onBackdropClick(e: MouseEvent): void {
+    if (e.target === e.currentTarget) {
+      this.dismiss.emit();
+    }
   }
 
   onRepair(): void {

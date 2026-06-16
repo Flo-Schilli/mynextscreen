@@ -207,7 +207,7 @@ export function resolutionLabel(resolution: string): string {
       height: 28px;
       border-radius: 8px;
       border: 1px solid transparent;
-      color: #fff;
+      color: var(--color-offline);
       background: rgba(8, 11, 18, 0.6);
       backdrop-filter: blur(6px);
       cursor: pointer;
@@ -217,8 +217,9 @@ export function resolutionLabel(resolution: string): string {
         border-color 150ms;
     }
     .delete-btn:hover {
-      color: var(--offline);
-      border-color: var(--offline);
+      color: #fff;
+      background: var(--color-offline);
+      border-color: var(--color-offline);
     }
 
     /* Body */
