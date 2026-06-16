@@ -1,8 +1,12 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { SliceContentProcessor } from './slice-content.processor';
+import { SliceStatusService } from './slice-status.service';
+import { SliceEnqueueService } from './slice-enqueue.service';
+import { PlaylistSliceBridgeService } from './playlist-slice-bridge.service';
+import { SLICE_CONTENT_QUEUE } from './slice-content.constants';
 
-export const SLICE_CONTENT_QUEUE = 'slice-content';
+export { SLICE_CONTENT_QUEUE };
 
 @Module({
   imports: [
@@ -17,7 +21,12 @@ export const SLICE_CONTENT_QUEUE = 'slice-content';
       },
     }),
   ],
-  providers: [SliceContentProcessor],
-  exports: [BullModule],
+  providers: [
+    SliceContentProcessor,
+    SliceStatusService,
+    SliceEnqueueService,
+    PlaylistSliceBridgeService,
+  ],
+  exports: [BullModule, SliceStatusService, SliceEnqueueService],
 })
 export class SliceContentModule {}

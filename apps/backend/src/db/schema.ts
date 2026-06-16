@@ -42,6 +42,7 @@ import { TranscodingPreset } from '../live-stream/transcoding-preset.enum';
 import { NotificationEventType } from '../notification/notification-event-type.enum';
 import { TransitionType } from '../playlist/transition-type.enum';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
+import { SliceStatus } from '../slice-content/slice-status.enum';
 import { OrganisationRole } from '../user/organisation-role.enum';
 
 // ── Local literal-union types ────────────────────────────────────────────────
@@ -621,6 +622,41 @@ export type NewAuditEntry = typeof auditEntries.$inferInsert;
 
 export type SlicedRendition = typeof slicedRenditions.$inferSelect;
 export type NewSlicedRendition = typeof slicedRenditions.$inferInsert;
+
+/**
+ * Durable status of a split-group pre-transcoding (slicing) run, keyed by
+ * (groupId, playlistId). One row per pair — re-enqueues are last-write-wins. The
+ * frontend reads this for a reload-safe view of "is this wall's content ready?"
+ * and overlays live SSE `slice.*` events on top. Progress % is derived from
+ * `completedItems / totalItems` (no redundant column).
+ */
+export const sliceJobs = pgTable(
+  'slice_jobs',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    groupId: uuid()
+      .notNull()
+      .references(() => screenGroups.id, { onDelete: 'cascade' }),
+    playlistId: uuid()
+      .notNull()
+      .references(() => playlists.id, { onDelete: 'cascade' }),
+    status: text().$type<SliceStatus>().notNull().default(SliceStatus.Queued),
+    // Total slice operations to perform = playlist items × screens in the group.
+    totalItems: integer().notNull().default(0),
+    completedItems: integer().notNull().default(0),
+    error: text(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('UQ_slice_jobs_group_playlist').on(t.groupId, t.playlistId)],
+);
+
+export type SliceJob = typeof sliceJobs.$inferSelect;
+export type NewSliceJob = typeof sliceJobs.$inferInsert;
 
 export type OrgMetricSnapshot = typeof orgMetricSnapshots.$inferSelect;
 export type NewOrgMetricSnapshot = typeof orgMetricSnapshots.$inferInsert;

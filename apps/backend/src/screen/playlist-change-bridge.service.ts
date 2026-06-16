@@ -3,7 +3,8 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
-import { organisations, screens, scheduleEntries } from '../db/schema';
+import { organisations, screens, scheduleEntries, screenGroups } from '../db/schema';
+import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { ScreenStateService } from './screen-state.service';
 import { PLAYLIST_CHANGED, ScreenStateChangeEvent } from './screen-state.event';
 import { PLAYLIST_UPDATED, PlaylistUpdatedEvent } from '../playlist/playlist.event';
@@ -105,6 +106,17 @@ export class PlaylistChangeBridgeService {
       }
 
       if (entry.groupId) {
+        // Split groups must not be pushed yet: their renditions are (re)generated
+        // asynchronously and the slice processor re-pulls them once ready, so an
+        // immediate push would briefly show un-sliced full-frame content. Mirror
+        // groups have no renditions and update immediately.
+        const [group] = await this.db
+          .select()
+          .from(screenGroups)
+          .where(eq(screenGroups.id, entry.groupId))
+          .limit(1);
+        if (group?.mode === ScreenGroupMode.Split) continue;
+
         const groupScreens = await this.db
           .select()
           .from(screens)

@@ -30,6 +30,9 @@ export class DashboardSseService implements OnDestroy {
   readonly transcodingProgress$ = new Subject<DashboardEvent>();
   readonly transcodingComplete$ = new Subject<DashboardEvent>();
   readonly transcodingFailed$ = new Subject<DashboardEvent>();
+  readonly sliceProgress$ = new Subject<DashboardEvent>();
+  readonly sliceComplete$ = new Subject<DashboardEvent>();
+  readonly sliceFailed$ = new Subject<DashboardEvent>();
   readonly notificationNew$ = new Subject<DashboardEvent>();
   readonly liveStreamHealth$ = new Subject<DashboardEvent>();
 
@@ -188,6 +191,15 @@ export class DashboardSseService implements OnDestroy {
         break;
       case 'transcoding.failed':
         this.transcodingFailed$.next(event);
+        break;
+      case 'slice.progress':
+        this.sliceProgress$.next(event);
+        break;
+      case 'slice.complete':
+        this.sliceComplete$.next(event);
+        break;
+      case 'slice.failed':
+        this.sliceFailed$.next(event);
         break;
       case 'notification.new':
         this.notificationNew$.next(event);

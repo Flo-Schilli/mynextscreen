@@ -19,7 +19,7 @@ import {
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { SCHEDULE_ENTRY_CHANGED, GROUP_SCHEDULE_CHANGED } from './schedule.event';
 import { AUDIT_SCHEDULE_DELETED } from '../audit-log/audit.events';
-import { SLICE_CONTENT_QUEUE } from '../slice-content';
+import { SLICE_CONTENT_QUEUE, SliceEnqueueService, SliceStatusService } from '../slice-content';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 
@@ -44,6 +44,8 @@ describe('ScheduleService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ScheduleService,
+        SliceEnqueueService,
+        SliceStatusService,
         { provide: DRIZZLE, useValue: db },
         { provide: getQueueToken(SLICE_CONTENT_QUEUE), useValue: { add: queueAdd } },
         { provide: EventEmitter2, useValue: { emit } },

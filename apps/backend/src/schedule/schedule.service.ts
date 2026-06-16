@@ -5,9 +5,7 @@ import {
   BadRequestException,
   Inject,
 } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Queue } from 'bullmq';
 import { and, asc, eq } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
@@ -17,10 +15,11 @@ import {
   screens,
   playlists,
   screenGroups,
+  sliceJobs,
   type ScheduleEntry,
   type Playlist,
+  type SliceJob,
 } from '../db/schema';
-import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { CreateScheduleEntryDto } from './dto/create-schedule-entry.dto';
 import { UpdateScheduleEntryDto } from './dto/update-schedule-entry.dto';
 import { getOccurrences, DateRange } from './rrule.util';
@@ -36,8 +35,7 @@ import {
   AUDIT_SCHEDULE_DELETED,
   AuditScheduleEvent,
 } from '../audit-log/audit.events';
-import { SLICE_CONTENT_QUEUE } from '../slice-content';
-import { SliceContentJobData } from '../slice-content/slice-content.processor';
+import { SliceEnqueueService } from '../slice-content';
 
 const OVERLAP_WINDOW_DAYS = 365;
 
@@ -45,8 +43,7 @@ const OVERLAP_WINDOW_DAYS = 365;
 export class ScheduleService {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
-    @InjectQueue(SLICE_CONTENT_QUEUE)
-    private readonly sliceContentQueue: Queue<SliceContentJobData>,
+    private readonly sliceEnqueue: SliceEnqueueService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -208,12 +205,26 @@ export class ScheduleService {
     organisationId: string,
     _from: Date,
     _to: Date,
-  ): Promise<ScheduleEntry[]> {
-    return this.db.query.scheduleEntries.findMany({
+  ): Promise<(ScheduleEntry & { sliceStatus?: SliceJob | null })[]> {
+    const entries = await this.db.query.scheduleEntries.findMany({
       where: eq(scheduleEntries.organisationId, organisationId),
       with: { playlist: true, screen: true, group: true },
       orderBy: asc(scheduleEntries.startTime),
     });
+
+    // Attach split-group slicing status to each group entry so the calendar can
+    // badge "preparing renditions". Keyed by (groupId, playlistId).
+    const jobs = await this.db
+      .select()
+      .from(sliceJobs)
+      .where(eq(sliceJobs.organisationId, organisationId));
+    const byKey = new Map(jobs.map((j) => [`${j.groupId}:${j.playlistId}`, j]));
+
+    return entries.map((entry) =>
+      entry.groupId
+        ? { ...entry, sliceStatus: byKey.get(`${entry.groupId}:${entry.playlistId}`) ?? null }
+        : entry,
+    );
   }
 
   async getCurrentPlaylist(
@@ -432,20 +443,11 @@ export class ScheduleService {
 
   private async enqueueSliceJobIfNeeded(entry: ScheduleEntry): Promise<void> {
     if (!entry.groupId) return;
-
-    const [group] = await this.db
-      .select()
-      .from(screenGroups)
-      .where(eq(screenGroups.id, entry.groupId))
-      .limit(1);
-
-    if (!group || group.mode !== ScreenGroupMode.Split) return;
-
-    await this.sliceContentQueue.add('slice', {
-      groupId: entry.groupId,
-      scheduleId: entry.id,
-      playlistId: entry.playlistId,
-      organisationId: entry.organisationId,
-    });
+    await this.sliceEnqueue.enqueueForGroup(
+      entry.organisationId,
+      entry.groupId,
+      entry.playlistId,
+      entry.id,
+    );
   }
 }

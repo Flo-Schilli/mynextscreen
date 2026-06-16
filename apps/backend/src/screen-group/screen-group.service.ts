@@ -6,11 +6,18 @@ import {
   Inject,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { OrganisationScopedService } from '../organisation/organisation-scope.service';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
-import { screens, screenGroups, type Screen, type ScreenGroup } from '../db/schema';
+import {
+  screens,
+  screenGroups,
+  sliceJobs,
+  type Screen,
+  type ScreenGroup,
+  type SliceJob,
+} from '../db/schema';
 import { ScreenGroupMode } from './screen-group-mode.enum';
 import { CreateScreenGroupDto } from './dto/create-screen-group.dto';
 import { UpdateScreenGroupDto } from './dto/update-screen-group.dto';
@@ -25,7 +32,11 @@ import {
   AuditGroupEvent,
 } from '../audit-log/audit.events';
 
-type ScreenGroupWithScreens = ScreenGroup & { screens: Screen[] };
+type ScreenGroupWithScreens = ScreenGroup & {
+  screens: Screen[];
+  /** Latest split pre-transcoding status for this group, or null if never sliced. */
+  sliceStatus?: SliceJob | null;
+};
 
 @Injectable()
 export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
@@ -53,7 +64,15 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
         `ScreenGroup with id "${id}" not found in organisation "${organisationId}"`,
       );
     }
-    return entity;
+    // Latest slicing run for this group (last-write-wins per playlist) — drives the
+    // reload-safe "preparing renditions" indicator on the detail wall.
+    const [sliceStatus] = await this.db
+      .select()
+      .from(sliceJobs)
+      .where(eq(sliceJobs.groupId, id))
+      .orderBy(desc(sliceJobs.updatedAt))
+      .limit(1);
+    return { ...entity, sliceStatus: sliceStatus ?? null };
   }
 
   async createGroup(

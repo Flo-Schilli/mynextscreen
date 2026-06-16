@@ -1,5 +1,17 @@
 export type ScreenGroupMode = 'mirror' | 'split';
 
+export type SliceStatus = 'queued' | 'processing' | 'completed' | 'failed';
+
+/** Durable split pre-transcoding status for a group's playlist (reload-safe). */
+export interface SliceJobStatus {
+  groupId: string;
+  playlistId: string;
+  status: SliceStatus;
+  totalItems: number;
+  completedItems: number;
+  error: string | null;
+}
+
 export interface ScreenGroupScreen {
   id: string;
   name: string;
@@ -20,6 +32,8 @@ export interface ScreenGroup {
   color: string;
   icon: string;
   screens: ScreenGroupScreen[];
+  /** Latest split slicing status; present on detail (findOne), null if never sliced. */
+  sliceStatus?: SliceJobStatus | null;
   createdAt: string;
   updatedAt: string;
 }

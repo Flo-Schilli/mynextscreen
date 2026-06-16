@@ -21,6 +21,7 @@ import { SelectionService } from '../shared/selection/selection.service';
 import { BulkAction } from '../shared/selection/bulk-action-toolbar';
 import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dialog';
 import { ToastService } from '../shared/toast/toast.service';
+import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
 import {
   PageHeaderComponent,
   BtnComponent,
@@ -92,6 +93,7 @@ import {
           [settingDefault]="settingDefault"
           [editorError]="editorError"
           [previewingItem]="previewingItem"
+          [reslicing]="selectedPlaylist.id === reslicingPlaylistId"
           [thumbUrl]="getThumbUrl"
           [previewUrl]="getPreviewUrl"
           (rename)="onRename($event)"
@@ -222,6 +224,7 @@ export class Playlists implements OnInit {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private destroyRef = inject(DestroyRef);
+  private sse = inject(DashboardSseService);
 
   /** Playlist id currently loaded/loading — guards duplicate route-driven loads. */
   private loadedDetailId: string | null = null;
@@ -244,6 +247,8 @@ export class Playlists implements OnInit {
   // Detail / editor
   selectedPlaylist: Playlist | null = null;
   editorError = '';
+  /** Playlist id whose split-group wall is currently (re)slicing, or null. */
+  reslicingPlaylistId: string | null = null;
 
   // Delete
   showDeleteConfirm = false;
@@ -299,6 +304,25 @@ export class Playlists implements OnInit {
 
   ngOnInit(): void {
     this.loadCurrentOrg();
+    this.subscribeToSlicing();
+  }
+
+  /**
+   * Reflects split-group wall (re)slicing of the open playlist as a transient
+   * "Re-rendering video wall…" badge. The durable, reload-safe view lives on the
+   * screen-group detail; here we only surface the live moment of an edit.
+   */
+  private subscribeToSlicing(): void {
+    this.sse.sliceProgress$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((event) => {
+      this.reslicingPlaylistId = event.data['playlistId'] as string;
+    });
+    const clear = (event: DashboardEvent): void => {
+      if (this.reslicingPlaylistId === event.data['playlistId']) {
+        this.reslicingPlaylistId = null;
+      }
+    };
+    this.sse.sliceComplete$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(clear);
+    this.sse.sliceFailed$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(clear);
   }
 
   private loadCurrentOrg(): void {

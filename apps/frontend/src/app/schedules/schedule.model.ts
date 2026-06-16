@@ -1,4 +1,4 @@
-import { ScreenGroupMode } from '../screen-groups/screen-group.model';
+import { ScreenGroupMode, SliceJobStatus } from '../screen-groups/screen-group.model';
 
 /** Priority of a schedule entry; "high" wins when entries overlap. */
 export type SchedulePriority = 'normal' | 'high';
@@ -30,6 +30,8 @@ export interface ScheduleEntry {
     name: string;
     mode: ScreenGroupMode;
   };
+  /** Split pre-transcoding status for group entries; null/absent when not slicing. */
+  sliceStatus?: SliceJobStatus | null;
 }
 
 export interface CreateScheduleEntryRequest {

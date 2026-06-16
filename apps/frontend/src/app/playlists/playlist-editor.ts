@@ -81,6 +81,9 @@ export interface ItemFieldChange<T> {
             @if (isDefault()) {
               <mns-badge tone="info" icon="Check">Default</mns-badge>
             }
+            @if (reslicing()) {
+              <mns-badge tone="warning" icon="Layers">Re-rendering video wall…</mns-badge>
+            }
           </div>
         </div>
         @if (isOrgAdmin()) {
@@ -359,6 +362,8 @@ export class PlaylistEditor {
   readonly settingDefault = input.required<boolean>();
   readonly editorError = input.required<string>();
   readonly previewingItem = input.required<PlaylistItem | null>();
+  /** True while a split group's wall is (re)slicing this playlist's content. */
+  readonly reslicing = input<boolean>(false);
   readonly thumbUrl = input.required<(item: PlaylistItem) => string | null>();
   readonly previewUrl = input.required<(item: PlaylistItem) => string>();
 

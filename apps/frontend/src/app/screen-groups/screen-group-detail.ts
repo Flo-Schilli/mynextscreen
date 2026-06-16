@@ -2,13 +2,21 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   inject,
   signal,
   OnInit,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ScreenGroupService } from './screen-group.service';
-import { ScreenGroup, ScreenGroupMode, UpdateScreenGroupRequest } from './screen-group.model';
+import {
+  ScreenGroup,
+  ScreenGroupMode,
+  SliceJobStatus,
+  UpdateScreenGroupRequest,
+} from './screen-group.model';
+import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
 import { MemberService } from '../settings/users/member.service';
@@ -114,6 +122,33 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
           <mns-card-head title="Live preview" [sub]="previewSub()" icon="Cast">
             <mns-badge slot="right" tone="neutral" icon="Image">{{ contentLabel() }}</mns-badge>
           </mns-card-head>
+
+          @if (g.mode === 'split' && sliceStatus(); as ss) {
+            @if (ss.status === 'queued' || ss.status === 'processing') {
+              <div class="mb-3 p-3 rounded-[12px] bg-surface-2 border border-border">
+                <div class="flex items-center gap-2 text-[13px] font-semibold text-muted mb-2">
+                  <mns-icon name="Layers" [size]="15" />
+                  Preparing video-wall renditions…
+                  <span class="mono"
+                    >{{ ss.completedItems }}/{{ ss.totalItems }} · {{ slicePct() }}%</span
+                  >
+                </div>
+                <div class="h-1.5 rounded-full bg-surface-3 overflow-hidden">
+                  <div
+                    class="h-full bg-accent transition-[width] duration-300"
+                    [style.width.%]="slicePct()"
+                  ></div>
+                </div>
+              </div>
+            } @else if (ss.status === 'failed') {
+              <div
+                class="mb-3 p-3 rounded-[12px] bg-surface-2 border border-offline/40 text-offline text-[13px] flex items-center gap-2"
+              >
+                <mns-icon name="Alert" [size]="15" />
+                Rendition pre-transcoding failed{{ ss.error ? ': ' + ss.error : '' }}
+              </div>
+            }
+          }
           <app-screen-group-wall
             [mode]="g.mode"
             [cols]="g.gridColumns ?? 1"
@@ -242,9 +277,13 @@ export class ScreenGroupDetail implements OnInit {
   private screenService = inject(ScreenService);
   private memberService = inject(MemberService);
   private toast = inject(ToastService);
+  private sse = inject(DashboardSseService);
+  private destroyRef = inject(DestroyRef);
 
   readonly orgId = signal('');
   readonly group = signal<ScreenGroup | null>(null);
+  /** Live split slicing status, seeded from the group and updated via SSE. */
+  readonly sliceStatus = signal<SliceJobStatus | null>(null);
   readonly loading = signal(true);
   readonly loadError = signal('');
   readonly actionError = signal('');
@@ -318,6 +357,12 @@ export class ScreenGroupDetail implements OnInit {
 
   readonly assignedCount = computed(() => this.placed().length);
 
+  readonly slicePct = computed(() => {
+    const ss = this.sliceStatus();
+    if (!ss || ss.totalItems <= 0) return 0;
+    return Math.round((ss.completedItems / ss.totalItems) * 100);
+  });
+
   readonly availableScreens = computed<Screen[]>(() => {
     const g = this.group();
     if (!g) return [];
@@ -377,6 +422,7 @@ export class ScreenGroupDetail implements OnInit {
   });
 
   ngOnInit(): void {
+    this.subscribeToSlicing();
     this.memberService.getMyMemberships().subscribe({
       next: (memberships: MyMembership[]) => {
         const m = memberships.find((x) => x.role === 'org_admin') ?? memberships[0];
@@ -393,6 +439,54 @@ export class ScreenGroupDetail implements OnInit {
         this.loadError.set('Failed to load organisation context.');
         this.loading.set(false);
       },
+    });
+  }
+
+  /** Returns true if the SSE event targets the currently displayed group. */
+  private isForCurrentGroup(event: DashboardEvent): boolean {
+    return event.data['groupId'] === this.group()?.id;
+  }
+
+  private subscribeToSlicing(): void {
+    this.sse.sliceProgress$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((event) => {
+      if (!this.isForCurrentGroup(event)) return;
+      const d = event.data;
+      this.sliceStatus.set({
+        groupId: d['groupId'] as string,
+        playlistId: d['playlistId'] as string,
+        status: 'processing',
+        totalItems: (d['totalItems'] as number) ?? 0,
+        completedItems: (d['completedItems'] as number) ?? 0,
+        error: null,
+      });
+    });
+
+    this.sse.sliceComplete$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((event) => {
+      if (!this.isForCurrentGroup(event)) return;
+      const d = event.data;
+      const total = (d['totalItems'] as number) ?? 0;
+      this.sliceStatus.set({
+        groupId: d['groupId'] as string,
+        playlistId: d['playlistId'] as string,
+        status: 'completed',
+        totalItems: total,
+        completedItems: total,
+        error: null,
+      });
+    });
+
+    this.sse.sliceFailed$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((event) => {
+      if (!this.isForCurrentGroup(event)) return;
+      const d = event.data;
+      const prev = this.sliceStatus();
+      this.sliceStatus.set({
+        groupId: d['groupId'] as string,
+        playlistId: d['playlistId'] as string,
+        status: 'failed',
+        totalItems: prev?.totalItems ?? 0,
+        completedItems: prev?.completedItems ?? 0,
+        error: (d['error'] as string) ?? null,
+      });
     });
   }
 
@@ -417,6 +511,7 @@ export class ScreenGroupDetail implements OnInit {
     this.screenGroupService.getOne(this.orgId(), id).subscribe({
       next: (group) => {
         this.group.set(group);
+        this.sliceStatus.set(group.sliceStatus ?? null);
         this.cols.set(group.gridColumns ?? 2);
         this.rows.set(group.gridRows ?? 1);
         this.loading.set(false);
@@ -443,6 +538,7 @@ export class ScreenGroupDetail implements OnInit {
     this.screenGroupService.getOne(this.orgId(), g.id).subscribe({
       next: (group) => {
         this.group.set(group);
+        this.sliceStatus.set(group.sliceStatus ?? null);
         this.loadAllScreens();
       },
       error: () => this.actionError.set('Failed to refresh group data.'),

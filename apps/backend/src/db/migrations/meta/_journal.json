@@ -92,6 +92,13 @@
       "when": 1781606519304,
       "tag": "0012_rich_strong_guy",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1781610234537,
+      "tag": "0013_mysterious_giant_man",
+      "breakpoints": true
     }
   ]
 }
