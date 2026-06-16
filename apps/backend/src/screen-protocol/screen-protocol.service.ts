@@ -48,13 +48,13 @@ export class ScreenProtocolService {
       return;
     }
 
-    const syncToken = Date.now().toString();
-
-    // Resolve the current playlist for the group via the first screen
-    // (all screens in the group share the same group schedule)
+    // Resolve the current playlist + shared playback epoch for the group via the
+    // first screen (all screens in the group share the same group schedule).
     let currentPlaylist: { id: string; name: string } | null = null;
+    let epoch = 0;
     try {
       const result = await this.scheduleService.getCurrentPlaylist(group.screens[0].id);
+      epoch = result.epoch;
       currentPlaylist = result.playlist
         ? { id: result.playlist.id, name: result.playlist.name }
         : null;
@@ -63,9 +63,9 @@ export class ScreenProtocolService {
     }
 
     if (group.mode === ScreenGroupMode.Mirror) {
-      await this.fanOutMirror(group, currentPlaylist, syncToken, event.organisationId);
+      await this.fanOutMirror(group, currentPlaylist, epoch, event.organisationId);
     } else {
-      await this.fanOutSplit(group, currentPlaylist, syncToken, event.organisationId);
+      await this.fanOutSplit(group, currentPlaylist, epoch, event.organisationId);
     }
   }
 
@@ -126,6 +126,12 @@ export class ScreenProtocolService {
     await Promise.all(events.map((e) => Promise.resolve(e)));
   }
 
+  /**
+   * @deprecated Legacy backend-driven group playback. Split/mirror groups now
+   * advance through the playlist locally via a shared epoch + synchronized clock
+   * (see schedule fan-out + player playlist-clock). Not wired into any production
+   * flow; kept only for the live-stream coordination experiment.
+   */
   async triggerGroupPlay(
     groupId: string,
     organisationId: string,
@@ -191,7 +197,7 @@ export class ScreenProtocolService {
   private async fanOutMirror(
     group: GroupWithScreens,
     currentPlaylist: { id: string; name: string } | null,
-    syncToken: string,
+    epoch: number,
     organisationId: string,
   ): Promise<void> {
     const pushes = group.screens.map((screen) =>
@@ -204,7 +210,7 @@ export class ScreenProtocolService {
             currentPlaylist,
             isDefault: false,
             groupId: group.id,
-            syncToken,
+            epoch,
           }),
         ),
       ),
@@ -215,7 +221,7 @@ export class ScreenProtocolService {
   private async fanOutSplit(
     group: GroupWithScreens,
     currentPlaylist: { id: string; name: string } | null,
-    syncToken: string,
+    epoch: number,
     organisationId: string,
   ): Promise<void> {
     const pushes = group.screens.map((screen) =>
@@ -228,7 +234,7 @@ export class ScreenProtocolService {
             currentPlaylist,
             isDefault: false,
             groupId: group.id,
-            syncToken,
+            epoch,
           }),
         ),
       ),

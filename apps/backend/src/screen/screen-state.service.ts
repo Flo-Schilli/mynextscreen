@@ -108,9 +108,11 @@ export class ScreenStateService implements OnModuleDestroy {
 
     let currentPlaylist: ProtocolPlaylist | null = null;
     let fallbackPlaylist: ProtocolPlaylist | null = null;
+    let epoch = 0;
 
     try {
       const result = await this.scheduleService.getCurrentPlaylist(screenId);
+      epoch = result.epoch;
       if (result.playlist) {
         const full = await this.loadPlaylistWithItems(result.playlist.id);
         const mapped = full ? this.mapPlaylist(full) : null;
@@ -172,6 +174,7 @@ export class ScreenStateService implements OnModuleDestroy {
       activeLiveStream,
       fallbackPlaylist,
       groupInfo,
+      epoch,
     );
   }
 

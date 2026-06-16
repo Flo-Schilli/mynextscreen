@@ -39,6 +39,23 @@ import { SliceEnqueueService } from '../slice-content';
 
 const OVERLAP_WINDOW_DAYS = 365;
 
+/**
+ * Epoch used to anchor deterministic playback for the fallback/default playlist
+ * (no active schedule). A fixed value means every screen in a group computes the
+ * same modulo position purely from the synchronized clock.
+ */
+const FALLBACK_EPOCH = 0;
+
+/**
+ * Result of resolving the currently-active playlist for a screen, including the
+ * shared playback `epoch` (ms) that anchors synchronized transitions across a group.
+ */
+export interface CurrentPlaylistResult {
+  playlist: Playlist | null;
+  isDefault: boolean;
+  epoch: number;
+}
+
 @Injectable()
 export class ScheduleService {
   constructor(
@@ -227,9 +244,7 @@ export class ScheduleService {
     );
   }
 
-  async getCurrentPlaylist(
-    screenId: string,
-  ): Promise<{ playlist: Playlist | null; isDefault: boolean }> {
+  async getCurrentPlaylist(screenId: string): Promise<CurrentPlaylistResult> {
     const now = new Date();
 
     // Find all direct entries for this screen
@@ -250,7 +265,9 @@ export class ScheduleService {
 
       for (const occ of occurrences) {
         if (occ.start <= now && occ.end > now) {
-          return { playlist: entry.playlist, isDefault: false };
+          // Epoch = start of the active occurrence. Identical for every screen
+          // in a group, so all members compute the same playlist position.
+          return { playlist: entry.playlist, isDefault: false, epoch: occ.start.getTime() };
         }
       }
     }
@@ -258,7 +275,7 @@ export class ScheduleService {
     // No direct schedule active — check group schedule as fallback
     const [screen] = await this.db.select().from(screens).where(eq(screens.id, screenId)).limit(1);
     if (!screen) {
-      return { playlist: null, isDefault: false };
+      return { playlist: null, isDefault: false, epoch: FALLBACK_EPOCH };
     }
 
     if (screen.groupId) {
@@ -278,7 +295,7 @@ export class ScheduleService {
 
         for (const occ of occurrences) {
           if (occ.start <= now && occ.end > now) {
-            return { playlist: entry.playlist, isDefault: false };
+            return { playlist: entry.playlist, isDefault: false, epoch: occ.start.getTime() };
           }
         }
       }
@@ -404,23 +421,21 @@ export class ScheduleService {
     }
   }
 
-  private async getFallbackPlaylist(
-    organisationId: string,
-  ): Promise<{ playlist: Playlist | null; isDefault: boolean }> {
+  private async getFallbackPlaylist(organisationId: string): Promise<CurrentPlaylistResult> {
     const [org] = await this.db
       .select()
       .from(organisations)
       .where(eq(organisations.id, organisationId))
       .limit(1);
     if (!org?.defaultPlaylistId) {
-      return { playlist: null, isDefault: true };
+      return { playlist: null, isDefault: true, epoch: FALLBACK_EPOCH };
     }
     const [playlist] = await this.db
       .select()
       .from(playlists)
       .where(eq(playlists.id, org.defaultPlaylistId))
       .limit(1);
-    return { playlist: playlist ?? null, isDefault: true };
+    return { playlist: playlist ?? null, isDefault: true, epoch: FALLBACK_EPOCH };
   }
 
   private emitScheduleChanged(screenId: string, organisationId: string): void {

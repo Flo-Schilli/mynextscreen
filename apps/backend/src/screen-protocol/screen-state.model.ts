@@ -55,5 +55,10 @@ export class ScreenState {
     public readonly activeLiveStream: LiveStream | null,
     public readonly fallbackPlaylist: Playlist | null,
     public readonly group: GroupInfo | null = null,
+    /**
+     * Shared playback anchor (epoch ms) for the active playlist. Identical for
+     * every screen in a group so players compute the same deterministic position.
+     */
+    public readonly epoch: number = 0,
   ) {}
 }

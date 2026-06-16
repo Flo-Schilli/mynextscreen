@@ -52,6 +52,11 @@ export interface ScreenStateResponse {
   fallbackPlaylist: Playlist | null;
   liveStream: LiveStream | null;
   group: GroupInfo | null;
+  /**
+   * Shared playback anchor (epoch ms) for the active playlist — identical for
+   * every screen in a group, so deterministic positions stay in lockstep.
+   */
+  epoch: number;
 }
 
 export type ScreenEventType =

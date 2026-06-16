@@ -2,6 +2,7 @@ import { inject, Injectable, signal, computed, NgZone, OnDestroy } from '@angula
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { ConnectionService } from '../connection/connection.service';
+import { TimeSyncService } from './time-sync.service';
 import {
   ScreenStateResponse,
   ScreenEvent,
@@ -25,11 +26,13 @@ const SSE_MAX_RETRY_MS = 30_000;
 export class PlayerService implements OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly connection = inject(ConnectionService);
+  private readonly timeSync = inject(TimeSyncService);
   private readonly zone = inject(NgZone);
 
   private readonly _screen = signal<ScreenInfo | null>(null);
   private readonly _currentPlaylist = signal<Playlist | null>(null);
   private readonly _fallbackPlaylist = signal<Playlist | null>(null);
+  private readonly _epoch = signal(0);
   private readonly _scheduleEntries = signal<ScheduleEntry[]>([]);
   private readonly _activeLiveStream = signal<LiveStream | null>(null);
   private readonly _status = signal<PlayerConnectionStatus>('disconnected');
@@ -41,6 +44,7 @@ export class PlayerService implements OnDestroy {
   readonly screen = this._screen.asReadonly();
   readonly currentPlaylist = this._currentPlaylist.asReadonly();
   readonly fallbackPlaylist = this._fallbackPlaylist.asReadonly();
+  readonly epoch = this._epoch.asReadonly();
   readonly scheduleEntries = this._scheduleEntries.asReadonly();
   readonly activeLiveStream = this._activeLiveStream.asReadonly();
   readonly status = this._status.asReadonly();
@@ -71,6 +75,7 @@ export class PlayerService implements OnDestroy {
     try {
       await this.fetchState();
       this._status.set('connected');
+      this.timeSync.start();
       this.startHeartbeat();
       this.connectSse();
       window.addEventListener('beforeunload', this.beforeUnloadHandler);
@@ -83,10 +88,12 @@ export class PlayerService implements OnDestroy {
   disconnect(): void {
     this.stopHeartbeat();
     this.disconnectSse();
+    this.timeSync.stop();
     this._status.set('disconnected');
     this._screen.set(null);
     this._currentPlaylist.set(null);
     this._fallbackPlaylist.set(null);
+    this._epoch.set(0);
     this._scheduleEntries.set([]);
     this._activeLiveStream.set(null);
     this._lastEvent.set(null);
@@ -120,6 +127,7 @@ export class PlayerService implements OnDestroy {
     this._scheduleEntries.set(state.schedule);
     this._activeLiveStream.set(state.liveStream);
     this._groupInfo.set(state.group);
+    this._epoch.set(state.epoch ?? 0);
   }
 
   handleEvent(event: ScreenEvent): void {
@@ -207,6 +215,9 @@ export class PlayerService implements OnDestroy {
         this.sseRetryDelay = SSE_INITIAL_RETRY_MS;
         if (this._status() === 'reconnecting') {
           this._status.set('connected');
+          // Re-anchor the clock after a gap — the connection may have been down
+          // long enough for the local clock to drift.
+          this.timeSync.sync().catch(() => undefined);
         }
       });
 

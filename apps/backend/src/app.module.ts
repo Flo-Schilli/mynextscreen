@@ -24,6 +24,7 @@ import { InstanceAdminModule } from './instance-admin';
 import { MetricsModule } from './metrics';
 import { HealthController } from './health.controller';
 import { VersionController } from './version.controller';
+import { TimeController } from './time.controller';
 import { validateEnv } from './config/env.validation';
 
 @Module({
@@ -63,6 +64,6 @@ import { validateEnv } from './config/env.validation';
     InstanceAdminModule,
     MetricsModule,
   ],
-  controllers: [HealthController, VersionController],
+  controllers: [HealthController, VersionController, TimeController],
 })
 export class AppModule {}
