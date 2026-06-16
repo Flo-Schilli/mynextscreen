@@ -6,11 +6,16 @@ import { ScreenGroups } from './screen-groups';
 import { ScreenGroupService } from './screen-group.service';
 import {
   ScreenGroup,
+  ScreenGroupScreen,
   CreateScreenGroupRequest,
+  CreateScreenGroupSubmit,
   UpdateScreenGroupRequest,
 } from './screen-group.model';
+import { ScreenService } from '../screens/screen.service';
+import { Screen } from '../screens/screen.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
+import { ToastService } from '../shared/toast/toast.service';
 
 function makeGroup(overrides: Partial<ScreenGroup> = {}): ScreenGroup {
   return {
@@ -20,6 +25,8 @@ function makeGroup(overrides: Partial<ScreenGroup> = {}): ScreenGroup {
     mode: 'mirror',
     gridColumns: null,
     gridRows: null,
+    color: '#6d6cf6',
+    icon: 'Groups',
     screens: [],
     createdAt: '2026-06-01T00:00:00Z',
     updatedAt: '2026-06-01T00:00:00Z',
@@ -37,7 +44,6 @@ function membership(role: MyMembership['role'], orgId: string): MyMembership {
   };
 }
 
-/** Stub for {@link MemberService}: only `getMyMemberships` is used here. */
 class MemberServiceStub {
   memberships: MyMembership[] = [membership('org_admin', 'org1')];
   failMemberships = false;
@@ -47,22 +53,43 @@ class MemberServiceStub {
   }
 }
 
+class ScreenServiceStub {
+  getAllResult: Observable<Screen[]> = of([]);
+  getAll(): Observable<Screen[]> {
+    return this.getAllResult;
+  }
+}
+
+class ToastServiceStub {
+  success = vi.fn();
+  error = vi.fn();
+  info = vi.fn();
+}
+
 interface HttpLikeError {
   status?: number;
   error?: { message?: string };
 }
 
-/** Stub for {@link ScreenGroupService} with capturable args and per-call results. */
 class ScreenGroupServiceStub {
   getAllResult: Observable<ScreenGroup[]> = of([]);
   createResult: Observable<ScreenGroup> = of(makeGroup());
   updateResult: Observable<ScreenGroup> = of(makeGroup());
   deleteResult: Observable<void> = of(undefined);
+  assignResult: Observable<ScreenGroupScreen> = of({
+    id: 's1',
+    name: 'S1',
+    location: 'L1',
+    groupId: 'g1',
+    gridRow: null,
+    gridColumn: null,
+  });
 
   getAllCalls: string[] = [];
   createArgs: { orgId: string; dto: CreateScreenGroupRequest } | null = null;
   updateArgs: { orgId: string; id: string; dto: UpdateScreenGroupRequest } | null = null;
   deleteArgs: { orgId: string; id: string } | null = null;
+  assignCalls: { orgId: string; groupId: string; screenId: string }[] = [];
 
   getAll(orgId: string): Observable<ScreenGroup[]> {
     this.getAllCalls.push(orgId);
@@ -83,6 +110,11 @@ class ScreenGroupServiceStub {
     this.deleteArgs = { orgId, id };
     return this.deleteResult;
   }
+
+  assignScreen(orgId: string, groupId: string, screenId: string): Observable<ScreenGroupScreen> {
+    this.assignCalls.push({ orgId, groupId, screenId });
+    return this.assignResult;
+  }
 }
 
 const httpError = (status: number, message?: string): HttpLikeError => ({
@@ -90,10 +122,19 @@ const httpError = (status: number, message?: string): HttpLikeError => ({
   error: message ? { message } : undefined,
 });
 
+const submit = (
+  request: CreateScreenGroupRequest,
+  screenIds: string[] = [],
+): CreateScreenGroupSubmit => ({
+  request,
+  screenIds,
+});
+
 describe('ScreenGroups', () => {
   let fixture: ComponentFixture<ScreenGroups>;
   let component: ScreenGroups;
   let member: MemberServiceStub;
+  let screens: ScreenServiceStub;
   let groups: ScreenGroupServiceStub;
   let navigateSpy: ReturnType<typeof vi.fn>;
 
@@ -107,13 +148,16 @@ describe('ScreenGroups', () => {
 
   beforeEach(() => {
     member = new MemberServiceStub();
+    screens = new ScreenServiceStub();
     groups = new ScreenGroupServiceStub();
     navigateSpy = vi.fn().mockResolvedValue(true);
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
         { provide: MemberService, useValue: member },
+        { provide: ScreenService, useValue: screens },
         { provide: ScreenGroupService, useValue: groups },
+        { provide: ToastService, useClass: ToastServiceStub },
         { provide: Router, useValue: { navigate: navigateSpy } },
       ],
     });
@@ -159,6 +203,31 @@ describe('ScreenGroups', () => {
     expect(component.groups.length).toBe(2);
   });
 
+  it('renders one card per group', async () => {
+    groups.getAllResult = of([makeGroup({ id: 'g1' }), makeGroup({ id: 'g2' })]);
+    await setUp();
+
+    const cards = fixture.nativeElement.querySelectorAll('app-screen-group-card');
+    expect(cards.length).toBe(2);
+  });
+
+  it('exposes a group count in the header sub', async () => {
+    groups.getAllResult = of([makeGroup({ id: 'g1' }), makeGroup({ id: 'g2' })]);
+    await setUp();
+
+    expect(component.headerSub()).toBe('2 groups');
+  });
+
+  it('only offers unassigned screens to the create modal', async () => {
+    screens.getAllResult = of([
+      { id: 's1', groupId: null } as Screen,
+      { id: 's2', groupId: 'gX' } as Screen,
+    ]);
+    await setUp();
+
+    expect(component.availableScreens.map((s) => s.id)).toEqual(['s1']);
+  });
+
   it('maps a 403 to an access-denied error', async () => {
     groups.getAllResult = throwError(() => httpError(403));
     await setUp();
@@ -195,7 +264,7 @@ describe('ScreenGroups', () => {
     groups.getAllResult = of([makeGroup({ id: 'gNew' })]);
 
     component.openCreateForm();
-    component.submitCreate(dto);
+    component.submitCreate(submit(dto));
     await fixture.whenStable();
 
     expect(groups.createArgs).toEqual({ orgId: 'org1', dto });
@@ -204,11 +273,22 @@ describe('ScreenGroups', () => {
     expect(component.groups.length).toBe(1);
   });
 
+  it('assigns selected screens after creating a mirror group', async () => {
+    await setUp();
+    groups.createResult = of(makeGroup({ id: 'gNew' }));
+
+    component.submitCreate(submit({ name: 'Mirror', mode: 'mirror' }, ['s1', 's2']));
+    await fixture.whenStable();
+
+    expect(groups.assignCalls.map((c) => c.screenId)).toEqual(['s1', 's2']);
+    expect(groups.assignCalls[0].groupId).toBe('gNew');
+  });
+
   it('surfaces the server message on create failure', async () => {
     await setUp();
     groups.createResult = throwError(() => httpError(400, 'Name taken'));
 
-    component.submitCreate({ name: 'X', mode: 'mirror' });
+    component.submitCreate(submit({ name: 'X', mode: 'mirror' }));
     await fixture.whenStable();
 
     expect(component.createError).toBe('Name taken');
@@ -304,13 +384,5 @@ describe('ScreenGroups', () => {
     component.viewGroup(makeGroup({ id: 'g7' }));
 
     expect(navigateSpy).toHaveBeenCalledWith(['/screen-groups', 'g7']);
-  });
-
-  it('navigates home on goBack', async () => {
-    await setUp();
-
-    component.goBack();
-
-    expect(navigateSpy).toHaveBeenCalledWith(['/']);
   });
 });

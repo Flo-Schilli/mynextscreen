@@ -1,7 +1,5 @@
-import { Component, inject, OnInit } from '@angular/core';
-import { TitleCasePipe } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { InstanceAuditLogService, InstanceAuditLogFilters } from './instance-audit-log.service';
 import { AdminUserService } from '../users/admin-user.service';
 import { OrganisationService } from '../organisations/organisation.service';
@@ -12,11 +10,22 @@ import {
   INSTANCE_RESOURCE_TYPES,
 } from '../../audit-log/audit-log.model';
 import { AuditLogTable } from '../../audit-log/audit-log-table';
+import {
+  BtnComponent,
+  IconComponent,
+  EmptyComponent,
+  SFieldComponent,
+  SInputComponent,
+  SelectComponent,
+  SelectOption,
+} from '../../ui';
 
 interface UserOption {
   userId: string;
   label: string;
 }
+
+const titleCase = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 /**
  * Smart container for the instance-wide (super-admin) audit log. Spans every
@@ -28,105 +37,129 @@ interface UserOption {
 @Component({
   selector: 'app-instance-audit-log',
   standalone: true,
-  imports: [TitleCasePipe, FormsModule, RouterLink, AuditLogTable],
+  imports: [
+    RouterLink,
+    RouterLinkActive,
+    AuditLogTable,
+    BtnComponent,
+    IconComponent,
+    EmptyComponent,
+    SFieldComponent,
+    SInputComponent,
+    SelectComponent,
+  ],
   template: `
     <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Instance Admin</h1>
+      <!-- amber page header -->
+      <div class="flex items-end justify-between gap-4 flex-wrap mb-[22px]">
+        <div class="flex items-center gap-4 min-w-0">
+          <div class="flex items-center gap-[13px] min-w-0">
+            <span
+              class="grid place-items-center w-11 h-11 rounded-[12px] flex-shrink-0 text-white"
+              style="background:linear-gradient(135deg,var(--color-elevated),var(--color-elevated-2));box-shadow:0 8px 20px -10px var(--color-elevated)"
+            >
+              <mns-icon name="Audit" [size]="23" />
+            </span>
+            <div class="min-w-0">
+              <h1 class="m-0 text-[27px] font-extrabold tracking-[-0.025em]">Instance Admin</h1>
+              <div class="text-muted text-[14px] mt-[3px]">Audit Log</div>
+            </div>
+          </div>
         </div>
-      </header>
+        <mns-btn variant="outline" size="md" icon="Download" (click)="exportCsv()"
+          >Export CSV</mns-btn
+        >
+      </div>
 
-      <nav class="settings-nav">
-        <a class="settings-nav-link" routerLink="/admin/dashboard">Dashboard</a>
-        <a class="settings-nav-link" routerLink="/admin/organisations">Organisations</a>
-        <a class="settings-nav-link" routerLink="/admin/users">Users</a>
-        <a class="settings-nav-link active">Audit Log</a>
-      </nav>
-
-      <div class="filter-bar">
-        <div class="filter-group">
-          <label for="filterOrg">Organisation</label>
-          <select id="filterOrg" [(ngModel)]="filterOrg" (ngModelChange)="applyFilters()">
-            <option value="">All organisations</option>
-            @for (org of orgOptions; track org.id) {
-              <option [value]="org.id">{{ org.name }}</option>
-            }
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label for="filterAction">Action</label>
-          <select id="filterAction" [(ngModel)]="filterAction" (ngModelChange)="applyFilters()">
-            <option value="">All actions</option>
-            @for (a of auditActions; track a) {
-              <option [value]="a">{{ actionLabel(a) }}</option>
-            }
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label for="filterUser">User</label>
-          <select id="filterUser" [(ngModel)]="filterUserId" (ngModelChange)="applyFilters()">
-            <option value="">All users</option>
-            @for (u of userOptions; track u.userId) {
-              <option [value]="u.userId">{{ u.label }}</option>
-            }
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label for="filterResource">Resource Type</label>
-          <select
-            id="filterResource"
-            [(ngModel)]="filterResourceType"
-            (ngModelChange)="applyFilters()"
+      <!-- tab bar -->
+      <div class="flex gap-1 border-b border-border mb-[var(--gap)] overflow-x-auto">
+        @for (tab of tabs; track tab.route) {
+          <a
+            [routerLink]="tab.route"
+            class="flex items-center gap-2 px-[14px] py-3 -mb-px text-[14px] font-semibold whitespace-nowrap border-b-2 border-transparent text-muted hover:text-default transition-colors no-underline"
+            routerLinkActive="border-accent text-default"
+            [routerLinkActiveOptions]="{ exact: true }"
           >
-            <option value="">All types</option>
-            @for (type of resourceTypes; track type) {
-              <option [value]="type">{{ type | titlecase }}</option>
-            }
-          </select>
+            <mns-icon [name]="tab.icon" [size]="16" />
+            {{ tab.label }}
+          </a>
+        }
+      </div>
+
+      <div
+        class="flex flex-wrap items-end gap-4 mb-6 p-4 bg-surface border border-border rounded-lg"
+      >
+        <div class="min-w-[10rem]">
+          <mns-sfield label="Organisation">
+            <mns-select
+              [options]="orgSelectOptions()"
+              [(value)]="filterOrg"
+              (changed)="applyFilters()"
+            />
+          </mns-sfield>
         </div>
 
-        <div class="filter-group">
-          <label for="filterFrom">From</label>
-          <input
-            id="filterFrom"
-            type="date"
-            [(ngModel)]="filterFrom"
-            (ngModelChange)="applyFilters()"
-          />
+        <div class="min-w-[10rem]">
+          <mns-sfield label="Action">
+            <mns-select
+              [options]="actionSelectOptions()"
+              [(value)]="filterAction"
+              (changed)="applyFilters()"
+            />
+          </mns-sfield>
         </div>
 
-        <div class="filter-group">
-          <label for="filterTo">To</label>
-          <input
-            id="filterTo"
-            type="date"
-            [(ngModel)]="filterTo"
-            (ngModelChange)="applyFilters()"
-          />
+        <div class="min-w-[10rem]">
+          <mns-sfield label="User">
+            <mns-select
+              [options]="userSelectOptions()"
+              [(value)]="filterUserId"
+              (changed)="applyFilters()"
+            />
+          </mns-sfield>
+        </div>
+
+        <div class="min-w-[10rem]">
+          <mns-sfield label="Resource Type">
+            <mns-select
+              [options]="resourceSelectOptions()"
+              [(value)]="filterResourceType"
+              (changed)="applyFilters()"
+            />
+          </mns-sfield>
+        </div>
+
+        <div class="min-w-[9rem]">
+          <mns-sfield label="From">
+            <mns-sinput type="date" [(value)]="filterFrom" (valueChange)="applyFilters()" />
+          </mns-sfield>
+        </div>
+
+        <div class="min-w-[9rem]">
+          <mns-sfield label="To">
+            <mns-sinput type="date" [(value)]="filterTo" (valueChange)="applyFilters()" />
+          </mns-sfield>
         </div>
 
         @if (hasActiveFilters()) {
-          <button class="btn btn-secondary btn-small clear-btn" (click)="clearFilters()">
-            Clear filters
-          </button>
+          <mns-btn variant="ghost" size="sm" (mnsClick)="clearFilters()">Clear filters</mns-btn>
         }
       </div>
 
       @if (loadError) {
-        <p class="error">{{ loadError }}</p>
+        <p class="text-offline text-sm">{{ loadError }}</p>
       }
 
       @if (loading && entries.length === 0) {
-        <p class="loading-text">Loading audit log...</p>
+        <p class="text-muted text-sm">Loading audit log…</p>
       }
 
       @if (!loading && entries.length === 0 && !loadError) {
-        <p class="empty-text">No audit log entries found.</p>
+        <mns-empty
+          icon="Audit"
+          title="No audit log entries found"
+          desc="Instance-wide activity across every organisation will show up here."
+        />
       }
 
       @if (entries.length > 0) {
@@ -144,94 +177,24 @@ interface UserOption {
       }
     </div>
   `,
-  styles: `
-    .settings-nav {
-      display: flex;
-      gap: 0;
-      margin-bottom: 1.5rem;
-      border-bottom: 1px solid var(--color-border);
-    }
-    .settings-nav-link {
-      padding: 0.625rem 1rem;
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-      text-decoration: none;
-      border-bottom: 2px solid transparent;
-      cursor: pointer;
-      transition:
-        color 0.15s,
-        border-color 0.15s;
-    }
-    .settings-nav-link:hover {
-      color: var(--color-text-primary);
-    }
-    .settings-nav-link.active {
-      color: var(--color-text-primary);
-      border-bottom-color: var(--color-accent);
-      font-weight: 500;
-    }
-
-    .filter-bar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      align-items: flex-end;
-      margin-bottom: 1.5rem;
-      padding: 1rem;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-    }
-    .filter-group {
-      display: flex;
-      flex-direction: column;
-      gap: 0.375rem;
-    }
-    .filter-group label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--color-text-secondary);
-    }
-    .filter-group select,
-    .filter-group input {
-      padding: 0.5rem 0.75rem;
-      background: var(--color-bg-primary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-      color: var(--color-text-primary);
-      font-size: 0.875rem;
-      min-width: 10rem;
-    }
-    .filter-group input[type='date'] {
-      min-width: 9rem;
-    }
-    .filter-group select:focus,
-    .filter-group input:focus {
-      outline: none;
-      border-color: var(--color-accent);
-    }
-    .clear-btn {
-      align-self: flex-end;
-    }
-
-    @media (max-width: 768px) {
-      .filter-bar {
-        flex-direction: column;
-      }
-      .filter-group select,
-      .filter-group input {
-        min-width: 100%;
-      }
-    }
-  `,
+  styles: ``,
 })
 export class InstanceAuditLog implements OnInit {
   private auditLogService = inject(InstanceAuditLogService);
   private userService = inject(AdminUserService);
   private orgService = inject(OrganisationService);
   private router = inject(Router);
+
+  readonly tabs = [
+    { label: 'Dashboard', route: '/admin/dashboard', icon: 'Dashboard' as const },
+    { label: 'Organisations', route: '/admin/organisations', icon: 'Building' as const },
+    { label: 'Users', route: '/admin/users', icon: 'User' as const },
+    { label: 'Audit Log', route: '/admin/audit-log', icon: 'Audit' as const },
+  ];
+
+  exportCsv(): void {
+    // Placeholder — backend CSV export endpoint wired when available
+  }
 
   readonly auditActions = INSTANCE_AUDIT_ACTIONS;
   readonly resourceTypes = INSTANCE_RESOURCE_TYPES;
@@ -241,19 +204,37 @@ export class InstanceAuditLog implements OnInit {
   loading = true;
   loadError = '';
 
-  orgOptions: { id: string; name: string }[] = [];
-  userOptions: UserOption[] = [];
+  readonly orgOptions = signal<{ id: string; name: string }[]>([]);
+  readonly userOptions = signal<UserOption[]>([]);
   readonly userMap = new Map<string, string>();
   readonly orgMap = new Map<string, string>();
 
   // Filter state. Empty filterOrg = all orgs (instance-level events included,
   // shown as "Instance" in the org column).
-  filterOrg = '';
-  filterAction = '';
-  filterUserId = '';
-  filterResourceType = '';
-  filterFrom = '';
-  filterTo = '';
+  readonly filterOrg = signal('');
+  readonly filterAction = signal('');
+  readonly filterUserId = signal('');
+  readonly filterResourceType = signal('');
+  readonly filterFrom = signal('');
+  readonly filterTo = signal('');
+
+  // ── Select options for the filter bar (mns-select) ──
+  readonly orgSelectOptions = computed<SelectOption[]>(() => [
+    { value: '', label: 'All organisations' },
+    ...this.orgOptions().map((o) => ({ value: o.id, label: o.name })),
+  ]);
+  readonly actionSelectOptions = computed<SelectOption[]>(() => [
+    { value: '', label: 'All actions' },
+    ...this.auditActions.map((a) => ({ value: a, label: this.actionLabel(a) })),
+  ]);
+  readonly userSelectOptions = computed<SelectOption[]>(() => [
+    { value: '', label: 'All users' },
+    ...this.userOptions().map((u) => ({ value: u.userId, label: u.label })),
+  ]);
+  readonly resourceSelectOptions = computed<SelectOption[]>(() => [
+    { value: '', label: 'All types' },
+    ...this.resourceTypes.map((t) => ({ value: t, label: titleCase(t) })),
+  ]);
 
   private readonly pageSize = 50;
 
@@ -270,7 +251,7 @@ export class InstanceAuditLog implements OnInit {
   private loadOrganisations(): void {
     this.orgService.getAll().subscribe({
       next: (orgs) => {
-        this.orgOptions = orgs.map((o) => ({ id: o.id, name: o.name }));
+        this.orgOptions.set(orgs.map((o) => ({ id: o.id, name: o.name })));
         for (const o of orgs) {
           this.orgMap.set(o.id, o.name);
         }
@@ -281,7 +262,7 @@ export class InstanceAuditLog implements OnInit {
   private loadUsers(): void {
     this.userService.getAll().subscribe({
       next: (users) => {
-        this.userOptions = users.map((u) => ({ userId: u.id, label: u.name || u.email }));
+        this.userOptions.set(users.map((u) => ({ userId: u.id, label: u.name || u.email })));
         for (const u of users) {
           this.userMap.set(u.id, u.name || u.email);
         }
@@ -294,15 +275,15 @@ export class InstanceAuditLog implements OnInit {
       limit: this.pageSize,
       offset,
     };
-    if (this.filterOrg) {
-      filters.organisationId = this.filterOrg;
+    if (this.filterOrg()) {
+      filters.organisationId = this.filterOrg();
     }
-    if (this.filterAction) filters.action = this.filterAction;
-    if (this.filterUserId) filters.userId = this.filterUserId;
-    if (this.filterResourceType) filters.resourceType = this.filterResourceType;
-    if (this.filterFrom) filters.from = new Date(this.filterFrom).toISOString();
-    if (this.filterTo) {
-      const to = new Date(this.filterTo);
+    if (this.filterAction()) filters.action = this.filterAction();
+    if (this.filterUserId()) filters.userId = this.filterUserId();
+    if (this.filterResourceType()) filters.resourceType = this.filterResourceType();
+    if (this.filterFrom()) filters.from = new Date(this.filterFrom()).toISOString();
+    if (this.filterTo()) {
+      const to = new Date(this.filterTo());
       to.setHours(23, 59, 59, 999);
       filters.to = to.toISOString();
     }
@@ -351,23 +332,23 @@ export class InstanceAuditLog implements OnInit {
   }
 
   clearFilters(): void {
-    this.filterOrg = '';
-    this.filterAction = '';
-    this.filterUserId = '';
-    this.filterResourceType = '';
-    this.filterFrom = '';
-    this.filterTo = '';
+    this.filterOrg.set('');
+    this.filterAction.set('');
+    this.filterUserId.set('');
+    this.filterResourceType.set('');
+    this.filterFrom.set('');
+    this.filterTo.set('');
     this.applyFilters();
   }
 
   hasActiveFilters(): boolean {
     return !!(
-      this.filterOrg ||
-      this.filterAction ||
-      this.filterUserId ||
-      this.filterResourceType ||
-      this.filterFrom ||
-      this.filterTo
+      this.filterOrg() ||
+      this.filterAction() ||
+      this.filterUserId() ||
+      this.filterResourceType() ||
+      this.filterFrom() ||
+      this.filterTo()
     );
   }
 
@@ -380,10 +361,6 @@ export class InstanceAuditLog implements OnInit {
     if (route) {
       this.router.navigate([route]);
     }
-  }
-
-  goBack(): void {
-    this.router.navigate(['/']);
   }
 
   protected actionLabel(action: string): string {

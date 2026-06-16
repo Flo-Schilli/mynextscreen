@@ -3,9 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideZonelessChangeDetection } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { ScreenGrid } from './screen-grid';
-import { Screen } from './screen.model';
-import { SelectionService } from '../shared/selection/selection.service';
-import { BulkAction } from '../shared/selection/bulk-action-toolbar';
+import { ScreenListItem } from './screen.model';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -13,7 +11,7 @@ try {
   // already initialized
 }
 
-function makeScreen(overrides: Partial<Screen> = {}): Screen {
+function makeScreen(overrides: Partial<ScreenListItem> = {}): ScreenListItem {
   return {
     id: 's1',
     organisationId: 'org1',
@@ -27,73 +25,77 @@ function makeScreen(overrides: Partial<Screen> = {}): Screen {
     gridColumn: null,
     createdAt: '2026-06-01T00:00:00Z',
     updatedAt: '2026-06-01T00:00:00Z',
+    currentPlaylistName: null,
     ...overrides,
   };
 }
 
 describe('ScreenGrid', () => {
   let fixture: ComponentFixture<ScreenGrid>;
-  let selection: SelectionService;
 
-  const bulkActions: BulkAction[] = [
-    { label: 'Delete selected', variant: 'danger', handler: () => undefined },
-  ];
-
-  async function setUp(screens: Screen[]): Promise<void> {
+  async function setUp(screens: ScreenListItem[]): Promise<void> {
     fixture = TestBed.createComponent(ScreenGrid);
-    selection = fixture.componentRef.injector.get(SelectionService);
     fixture.componentRef.setInput('screens', screens);
-    fixture.componentRef.setInput(
-      'screenIds',
-      screens.map((s) => s.id),
-    );
-    fixture.componentRef.setInput('bulkActions', bulkActions);
     fixture.detectChanges();
     await fixture.whenStable();
   }
 
   beforeEach(() => {
-    TestBed.configureTestingModule({
-      providers: [provideZonelessChangeDetection(), SelectionService],
-    });
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
   });
 
-  it('renders one card per screen', async () => {
+  it('renders one tile per screen', async () => {
     await setUp([makeScreen(), makeScreen({ id: 's2', name: 'Bar TV' })]);
 
-    expect(fixture.debugElement.queryAll(By.css('.screen-card')).length).toBe(2);
+    expect(fixture.debugElement.queryAll(By.css('app-screen-tile')).length).toBe(2);
   });
 
-  it('renders the screen name, location, resolution and status text', async () => {
+  it('renders the screen name, status badge and resolution badge in the tile', async () => {
     await setUp([makeScreen({ isOnline: true })]);
 
-    const card = fixture.debugElement.query(By.css('.screen-card')).nativeElement;
-    expect(card.querySelector('.screen-name').textContent).toContain('Main Stage');
-    expect(card.textContent).toContain('Hall A');
-    expect(card.textContent).toContain('1920x1080');
-    expect(card.querySelector('.status-text').textContent.trim()).toBe('Online');
+    const tile = fixture.nativeElement.querySelector('app-screen-tile');
+    expect(tile.querySelector('.screen-name').textContent).toContain('Main Stage');
+    expect(tile.querySelector('.status-badge').textContent.trim()).toContain('Online');
+    expect(tile.querySelector('.res-badge').textContent).toContain('FHD');
   });
 
-  it('marks the status dot online for an online screen', async () => {
-    await setUp([makeScreen({ isOnline: true })]);
+  it('shows the now-playing footer for an online screen with a current playlist', async () => {
+    await setUp([makeScreen({ isOnline: true, currentPlaylistName: 'Morning Loop' })]);
 
-    const dot = fixture.debugElement.query(By.css('.status-dot')).nativeElement;
-    expect(dot.classList).toContain('online');
-    expect(dot.getAttribute('title')).toBe('Online');
+    expect(fixture.nativeElement.querySelector('.now-playing').textContent).toContain(
+      'Morning Loop',
+    );
   });
 
-  it('marks the status dot offline for an offline screen', async () => {
-    await setUp([makeScreen({ isOnline: false })]);
+  it('renders status filter pills with counts', async () => {
+    await setUp([
+      makeScreen({ id: 's1', isOnline: true }),
+      makeScreen({ id: 's2', isOnline: false }),
+      makeScreen({ id: 's3', isOnline: false }),
+    ]);
 
-    const dot = fixture.debugElement.query(By.css('.status-dot')).nativeElement;
-    expect(dot.classList).toContain('offline');
-    expect(dot.getAttribute('title')).toBe('Offline');
-    expect(
-      fixture.debugElement.query(By.css('.status-text')).nativeElement.textContent.trim(),
-    ).toBe('Offline');
+    const pills = fixture.debugElement.queryAll(By.css('.filter-pill'));
+    expect(pills.length).toBe(3);
+    expect(pills[0].nativeElement.textContent).toContain('3'); // all
+    expect(pills[1].nativeElement.textContent).toContain('1'); // online
+    expect(pills[2].nativeElement.textContent).toContain('2'); // offline
   });
 
-  it('emits the clicked screen on selectItem', async () => {
+  it('filters to online screens when the Online pill is clicked', async () => {
+    await setUp([
+      makeScreen({ id: 's1', isOnline: true }),
+      makeScreen({ id: 's2', isOnline: false }),
+    ]);
+
+    const onlinePill = fixture.debugElement.queryAll(By.css('.filter-pill'))[1].nativeElement;
+    onlinePill.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(fixture.debugElement.queryAll(By.css('app-screen-tile')).length).toBe(1);
+  });
+
+  it('forwards the tile open event as selectItem', async () => {
     const screen = makeScreen();
     await setUp([screen]);
     const spy = vi.fn();
@@ -104,34 +106,27 @@ describe('ScreenGrid', () => {
     expect(spy).toHaveBeenCalledWith(screen);
   });
 
-  it('emits the clicked screen when Enter is pressed on a card', async () => {
+  it('forwards the tile delete action as remove', async () => {
     const screen = makeScreen();
     await setUp([screen]);
-    const spy = vi.fn();
-    fixture.componentInstance.selectItem.subscribe(spy);
+    const removeSpy = vi.fn();
+    fixture.componentInstance.remove.subscribe(removeSpy);
 
-    fixture.debugElement
-      .query(By.css('.screen-card'))
-      .nativeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    (fixture.nativeElement.querySelector('.delete-btn') as HTMLButtonElement).click();
 
-    expect(spy).toHaveBeenCalledWith(screen);
+    expect(removeSpy).toHaveBeenCalledWith(screen);
   });
 
-  it('applies the selected class when the screen is selected in the SelectionService', async () => {
-    await setUp([makeScreen({ id: 's1' })]);
+  it('renders the trash action on each tile and no legacy ⋯ menu', async () => {
+    await setUp([makeScreen()]);
 
-    selection.toggle('s1');
-    fixture.detectChanges();
-    await fixture.whenStable();
-
-    expect(fixture.debugElement.query(By.css('.screen-card')).nativeElement.classList).toContain(
-      'selected',
-    );
+    expect(fixture.nativeElement.querySelector('.delete-btn')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.menu-trigger')).toBeNull();
   });
 
   it('renders nothing in the grid when there are no screens', async () => {
     await setUp([]);
 
-    expect(fixture.debugElement.queryAll(By.css('.screen-card')).length).toBe(0);
+    expect(fixture.debugElement.queryAll(By.css('app-screen-tile')).length).toBe(0);
   });
 });

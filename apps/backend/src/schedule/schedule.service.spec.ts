@@ -119,6 +119,42 @@ describe('ScheduleService', () => {
       );
     });
 
+    it('should persist the provided colour', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id);
+
+      const result = await service.create(org.id, {
+        screenId: screen.id,
+        playlistId: playlist.id,
+        startTime: '2026-04-01T10:00:00Z',
+        endTime: '2026-04-01T12:00:00Z',
+        colour: '#00FF00',
+      });
+
+      expect(result.colour).toBe('#00FF00');
+      const [row] = await db
+        .select()
+        .from(scheduleEntries)
+        .where(eq(scheduleEntries.id, result.id));
+      expect(row.colour).toBe('#00FF00');
+    });
+
+    it('should fall back to the default colour when none is provided', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id);
+
+      const result = await service.create(org.id, {
+        screenId: screen.id,
+        playlistId: playlist.id,
+        startTime: '2026-04-01T10:00:00Z',
+        endTime: '2026-04-01T12:00:00Z',
+      });
+
+      expect(result.colour).toBe('#6d6cf6');
+    });
+
     it('should throw NotFoundException when screen not found', async () => {
       const org = await seedOrg();
       const playlist = await seedPlaylist(org.id);

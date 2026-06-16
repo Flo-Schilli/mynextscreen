@@ -3,25 +3,43 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { eq } from 'drizzle-orm';
 import { ScreenService } from './screen.service';
+import { ScreenPairingService } from './screen-pairing.service';
+import { ScheduleService } from '../schedule';
 import { DRIZZLE } from '../db/database.constants';
-import { organisations, screens, type Organisation, type Screen } from '../db/schema';
+import {
+  organisations,
+  screenPairings,
+  screens,
+  type Organisation,
+  type Screen,
+} from '../db/schema';
 import { SCREEN_STATUS_CHANGED } from './screen-status.event';
 import {
   AUDIT_SCREEN_REGISTERED,
   AUDIT_SCREEN_ONLINE,
   AUDIT_SCREEN_BULK_DELETED,
   AUDIT_SCREEN_BULK_GROUP_ASSIGNED,
+  AUDIT_SCREEN_PAIRING_FAILED,
 } from '../audit-log/audit.events';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 import * as apiKeyUtil from './api-key.util';
+import { sha256hex } from './api-key.util';
 
-jest.mock('./api-key.util');
+jest.mock('./api-key.util', () => {
+  const actual = jest.requireActual('./api-key.util');
+  return {
+    ...actual,
+    generateApiKey: jest.fn(),
+    hashApiKey: jest.fn(),
+  };
+});
 
 const mockedApiKeyUtil = apiKeyUtil as jest.Mocked<typeof apiKeyUtil>;
 
 describe('ScreenService', () => {
   let service: ScreenService;
+  let getCurrentPlaylist: jest.Mock;
   let db: DrizzleDB;
   let emit: jest.Mock;
 
@@ -36,11 +54,14 @@ describe('ScreenService', () => {
   beforeEach(async () => {
     await truncateAll();
     emit = jest.fn();
+    getCurrentPlaylist = jest.fn();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ScreenService,
+        ScreenPairingService,
         { provide: DRIZZLE, useValue: db },
         { provide: EventEmitter2, useValue: { emit } },
+        { provide: ScheduleService, useValue: { getCurrentPlaylist } },
       ],
     }).compile();
     service = module.get<ScreenService>(ScreenService);
@@ -48,6 +69,24 @@ describe('ScreenService', () => {
     mockedApiKeyUtil.generateApiKey.mockReturnValue('test-api-key-plaintext');
     mockedApiKeyUtil.hashApiKey.mockResolvedValue('$2b$10$hashedvalue');
   });
+
+  /** Insert a pending pairing row and return its code. */
+  async function seedPairing(
+    code: string,
+    overrides: Partial<typeof screenPairings.$inferInsert> = {},
+  ) {
+    const [row] = await db
+      .insert(screenPairings)
+      .values({
+        code,
+        pairingSecretHash: sha256hex('secret'),
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 60_000),
+        ...overrides,
+      })
+      .returning();
+    return row;
+  }
 
   async function seedOrg(overrides: Partial<Organisation> = {}): Promise<Organisation> {
     const [org] = await db
@@ -76,26 +115,90 @@ describe('ScreenService', () => {
   }
 
   describe('createScreen', () => {
-    it('should create a screen with a generated API key', async () => {
+    it('should create a screen and claim the pairing, attaching the key to the pairing', async () => {
       const org = await seedOrg();
+      await seedPairing('123456');
       const dto = {
         name: 'Main Stage',
         resolution: '1920x1080',
         location: 'Stage Left',
+        pairingCode: '123456',
       };
 
-      const result = await service.createScreen(org.id, dto);
+      const screen = await service.createScreen(org.id, dto);
 
       expect(mockedApiKeyUtil.generateApiKey).toHaveBeenCalled();
       expect(mockedApiKeyUtil.hashApiKey).toHaveBeenCalledWith('test-api-key-plaintext');
-      expect(result.apiKey).toBe('test-api-key-plaintext');
-      expect(result.screen.name).toBe(dto.name);
-      expect(result.screen.organisationId).toBe(org.id);
-      expect(result.screen.apiKeyHash).toBe('$2b$10$hashedvalue');
+      expect(screen.name).toBe(dto.name);
+      expect(screen.organisationId).toBe(org.id);
+      expect(screen.apiKeyHash).toBe('$2b$10$hashedvalue');
 
-      const rows = await db.select().from(screens).where(eq(screens.id, result.screen.id));
+      const rows = await db.select().from(screens).where(eq(screens.id, screen.id));
       expect(rows).toHaveLength(1);
+
+      const [pairing] = await db
+        .select()
+        .from(screenPairings)
+        .where(eq(screenPairings.code, '123456'));
+      expect(pairing.status).toBe('claimed');
+      expect(pairing.screenId).toBe(screen.id);
+      expect(pairing.organisationId).toBe(org.id);
+      expect(pairing.apiKey).toBe('test-api-key-plaintext');
+
       expect(emit).toHaveBeenCalledWith(AUDIT_SCREEN_REGISTERED, expect.anything());
+    });
+
+    it('should throw BadRequestException when the pairing code is invalid', async () => {
+      const org = await seedOrg();
+      await expect(
+        service.createScreen(org.id, {
+          name: 'X',
+          resolution: '1920x1080',
+          location: 'Y',
+          pairingCode: '000000',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('emits a failed-claim audit event with a REDACTED code on an invalid code', async () => {
+      const org = await seedOrg();
+      await expect(
+        service.createScreen(
+          org.id,
+          {
+            name: 'X',
+            resolution: '1920x1080',
+            location: 'Y',
+            pairingCode: '987654',
+          },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(emit).toHaveBeenCalledWith(
+        AUDIT_SCREEN_PAIRING_FAILED,
+        expect.objectContaining({
+          organisationId: org.id,
+          userId: 'user-1',
+          details: { code: '98****', context: 'create' },
+        }),
+      );
+      // The full code must never appear in the emitted payload.
+      const failedCall = emit.mock.calls.find((c) => c[0] === AUDIT_SCREEN_PAIRING_FAILED);
+      expect(JSON.stringify(failedCall)).not.toContain('987654');
+    });
+
+    it('should throw BadRequestException when the pairing code is expired', async () => {
+      const org = await seedOrg();
+      await seedPairing('654321', { expiresAt: new Date(Date.now() - 1000) });
+      await expect(
+        service.createScreen(org.id, {
+          name: 'X',
+          resolution: '1920x1080',
+          location: 'Y',
+          pairingCode: '654321',
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -113,6 +216,54 @@ describe('ScreenService', () => {
       const org = await seedOrg();
       const result = await service.findAll(org.id);
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('findAllWithPlaylist', () => {
+    it('resolves the current playlist name for online screens', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id, { isOnline: true });
+      getCurrentPlaylist.mockResolvedValue({
+        playlist: { id: 'p1', name: 'Morning Loop' },
+        isDefault: false,
+      });
+
+      const result = await service.findAllWithPlaylist(org.id);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe(screen.id);
+      expect(result[0].currentPlaylistName).toBe('Morning Loop');
+      expect(getCurrentPlaylist).toHaveBeenCalledWith(screen.id);
+    });
+
+    it('returns null playlist for offline screens without querying the schedule', async () => {
+      const org = await seedOrg();
+      await seedScreen(org.id, { isOnline: false });
+
+      const result = await service.findAllWithPlaylist(org.id);
+
+      expect(result[0].currentPlaylistName).toBeNull();
+      expect(getCurrentPlaylist).not.toHaveBeenCalled();
+    });
+
+    it('returns null when an online screen has no active playlist', async () => {
+      const org = await seedOrg();
+      await seedScreen(org.id, { isOnline: true });
+      getCurrentPlaylist.mockResolvedValue({ playlist: null, isDefault: false });
+
+      const result = await service.findAllWithPlaylist(org.id);
+
+      expect(result[0].currentPlaylistName).toBeNull();
+    });
+
+    it('falls back to null when the schedule lookup throws', async () => {
+      const org = await seedOrg();
+      await seedScreen(org.id, { isOnline: true });
+      getCurrentPlaylist.mockRejectedValue(new Error('boom'));
+
+      const result = await service.findAllWithPlaylist(org.id);
+
+      expect(result[0].currentPlaylistName).toBeNull();
     });
   });
 
@@ -154,25 +305,65 @@ describe('ScreenService', () => {
     });
   });
 
-  describe('regenerateApiKey', () => {
-    it('should generate a new API key and hash it', async () => {
+  describe('repairScreen', () => {
+    it('regenerates the key and attaches it to the pending pairing', async () => {
       const org = await seedOrg();
       const screen = await seedScreen(org.id);
+      await seedPairing('246810');
 
-      const result = await service.regenerateApiKey(org.id, screen.id);
+      const result = await service.repairScreen(org.id, screen.id, '246810');
 
       expect(mockedApiKeyUtil.generateApiKey).toHaveBeenCalled();
       expect(mockedApiKeyUtil.hashApiKey).toHaveBeenCalledWith('test-api-key-plaintext');
-      expect(result.apiKey).toBe('test-api-key-plaintext');
+      expect(result.id).toBe(screen.id);
+
       const [row] = await db.select().from(screens).where(eq(screens.id, screen.id));
       expect(row.apiKeyHash).toBe('$2b$10$hashedvalue');
+
+      const [pairing] = await db
+        .select()
+        .from(screenPairings)
+        .where(eq(screenPairings.code, '246810'));
+      expect(pairing.status).toBe('claimed');
+      expect(pairing.screenId).toBe(screen.id);
+      expect(pairing.apiKey).toBe('test-api-key-plaintext');
     });
 
     it('should throw NotFoundException when screen not found', async () => {
       const org = await seedOrg();
+      await seedPairing('111111');
       await expect(
-        service.regenerateApiKey(org.id, '00000000-0000-0000-0000-000000000000'),
+        service.repairScreen(org.id, '00000000-0000-0000-0000-000000000000', '111111'),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException when the pairing code is invalid', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      await expect(service.repairScreen(org.id, screen.id, '999999')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('emits a failed-claim audit event with a REDACTED code on an invalid code', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+
+      await expect(service.repairScreen(org.id, screen.id, '654321', 'user-9')).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(emit).toHaveBeenCalledWith(
+        AUDIT_SCREEN_PAIRING_FAILED,
+        expect.objectContaining({
+          screenId: screen.id,
+          organisationId: org.id,
+          userId: 'user-9',
+          details: { code: '65****', context: 'repair' },
+        }),
+      );
+      const failedCall = emit.mock.calls.find((c) => c[0] === AUDIT_SCREEN_PAIRING_FAILED);
+      expect(JSON.stringify(failedCall)).not.toContain('654321');
     });
   });
 

@@ -4,11 +4,13 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { SetupService } from '../setup/setup.service';
 import { VersionBadge } from '../shared/version-badge';
+import { BtnComponent, IconComponent } from '../ui';
 
 @Component({
   selector: 'app-login',
-  imports: [ReactiveFormsModule, RouterLink, VersionBadge],
+  imports: [ReactiveFormsModule, RouterLink, VersionBadge, BtnComponent, IconComponent],
   templateUrl: './login.html',
+  styleUrl: './login.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Login {
@@ -27,6 +29,14 @@ export class Login {
 
   readonly submitting = signal(false);
   readonly error = signal<string | null>(null);
+  readonly showPassword = signal(false);
+
+  readonly ticks = [
+    'Pair any screen in seconds',
+    'Schedule content across locations',
+    'Monitor every display in real time',
+  ] as const;
+
   /** Set when the backend rejects login with 403 "Email not verified". */
   readonly needsVerification = signal(false);
   readonly resending = signal(false);

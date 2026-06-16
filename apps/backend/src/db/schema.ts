@@ -44,6 +44,11 @@ import { TransitionType } from '../playlist/transition-type.enum';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { OrganisationRole } from '../user/organisation-role.enum';
 
+// ── Local literal-union types ────────────────────────────────────────────────
+
+/** Lifecycle of a 6-digit screen pairing. */
+export type ScreenPairingStatus = 'pending' | 'claimed' | 'consumed';
+
 // ── Shared column builders ───────────────────────────────────────────────────
 
 const timestamps = {
@@ -141,6 +146,8 @@ export const screenGroups = pgTable('screen_groups', {
   mode: text().$type<ScreenGroupMode>().notNull().default(ScreenGroupMode.Mirror),
   gridColumns: integer(),
   gridRows: integer(),
+  color: text().notNull().default('#6d6cf6'),
+  icon: text().notNull().default('Groups'),
   ...timestamps,
 });
 
@@ -167,6 +174,32 @@ export const screens = pgTable(
     ...timestamps,
   },
   (t) => [index('IDX_screens_api_key_hash').on(t.apiKeyHash)],
+);
+
+// ── screen pairings (6-digit device-flow) ─────────────────────────────────────
+
+export const screenPairings = pgTable(
+  'screen_pairings',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    // 6-digit numeric code displayed on the player, typed by the admin.
+    code: text().notNull(),
+    // SHA-256 hex of the high-entropy poll token the player keeps.
+    pairingSecretHash: text().notNull(),
+    // Set on claim; the org the screen was created in.
+    organisationId: uuid().references(() => organisations.id, { onDelete: 'cascade' }),
+    // Set on claim; FK to the created screen.
+    screenId: uuid().references(() => screens.id, { onDelete: 'cascade' }),
+    // Plaintext API key — transient: delivered to the player once, then nulled.
+    apiKey: text(),
+    // pending → claimed → consumed.
+    status: text().$type<ScreenPairingStatus>().notNull().default('pending'),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    ...timestamps,
+  },
+  (t) => [index('IDX_screen_pairings_code').on(t.code)],
 );
 
 // ── content library ──────────────────────────────────────────────────────────
@@ -202,6 +235,7 @@ export const playlists = pgTable('playlists', {
     .notNull()
     .references(() => organisations.id, { onDelete: 'cascade' }),
   name: text().notNull(),
+  color: text().notNull().default('#6d6cf6'),
   ...timestamps,
 });
 
@@ -238,7 +272,7 @@ export const scheduleEntries = pgTable('schedule_entries', {
   startTime: timestamp({ withTimezone: true }).notNull(),
   endTime: timestamp({ withTimezone: true }).notNull(),
   rrule: text(),
-  colour: text().notNull(),
+  colour: text().notNull().default('#6d6cf6'),
   ...timestamps,
 });
 
@@ -297,6 +331,31 @@ export const notifications = pgTable('notifications', {
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Per-organisation alert rules — which events should trigger a notification.
+ * Persisted as a single jsonb object on the notification config row.
+ */
+export interface AlertRules {
+  /** Alert after a display is unreachable for 5 minutes. */
+  offline: boolean;
+  /** Notify when an offline display comes back online. */
+  recovered: boolean;
+  /** Alert when uploaded media fails to process. */
+  transcodeFail: boolean;
+  /** Warn when usage passes 90% of the allocation. */
+  storage: boolean;
+  /** A digest of uptime and activity every Monday. */
+  weekly: boolean;
+}
+
+export const DEFAULT_ALERT_RULES: AlertRules = {
+  offline: true,
+  recovered: true,
+  transcodeFail: true,
+  storage: false,
+  weekly: false,
+};
+
 export const organisationNotificationConfigs = pgTable(
   'organisation_notification_configs',
   {
@@ -316,6 +375,10 @@ export const organisationNotificationConfigs = pgTable(
     ntfyUrl: text(),
     ntfyTopic: text(),
     ntfyToken: text(),
+    // Per-org alert rules: which events trigger a notification across channels.
+    // Stored as one jsonb object so the toggle set evolves without a migration
+    // per flag. Dispatch logic reads these flags when emitting alerts.
+    alertRules: jsonb().$type<AlertRules>().notNull().default(DEFAULT_ALERT_RULES),
   },
   (t) => [uniqueIndex('UQ_org_notification_config_org').on(t.organisationId)],
 );
@@ -378,6 +441,50 @@ export const slicedRenditions = pgTable('sliced_renditions', {
   sourceHash: text().notNull(),
   ...timestamps,
 });
+
+// ── metric snapshots (dashboard mini-graph 24h history) ──────────────────────
+
+/**
+ * Periodic per-organisation KPI snapshots powering the dashboard sparklines.
+ * A scheduler writes one row per org every few minutes; the dashboard reads the
+ * last 24h, hourly-bucketed, to render the "Screens online / Content / Playlists
+ * / Alerts" trend lines. Rows older than the retention window are pruned.
+ */
+export const orgMetricSnapshots = pgTable(
+  'org_metric_snapshots',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    capturedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    screensOnline: integer().notNull().default(0),
+    contentCount: integer().notNull().default(0),
+    playlistCount: integer().notNull().default(0),
+    openAlerts: integer().notNull().default(0),
+  },
+  (t) => [index('IDX_org_metric_snapshots_org_time').on(t.organisationId, t.capturedAt)],
+);
+
+/**
+ * Instance-wide host load snapshots (CPU + RAM percent) powering the super-admin
+ * system-load chart. Not org-scoped. Same capture/retention lifecycle as
+ * {@link orgMetricSnapshots}.
+ */
+export const systemMetricSnapshots = pgTable(
+  'system_metric_snapshots',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    capturedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    cpuPercent: integer().notNull(),
+    ramPercent: integer().notNull(),
+  },
+  (t) => [index('IDX_system_metric_snapshots_time').on(t.capturedAt)],
+);
 
 // ── relations (for db.query.*.findMany({ with: … }) eager loads) ─────────────
 
@@ -471,6 +578,9 @@ export type NewScreenGroup = typeof screenGroups.$inferInsert;
 export type Screen = typeof screens.$inferSelect;
 export type NewScreen = typeof screens.$inferInsert;
 
+export type ScreenPairing = typeof screenPairings.$inferSelect;
+export type NewScreenPairing = typeof screenPairings.$inferInsert;
+
 export type Content = typeof contents.$inferSelect;
 export type NewContent = typeof contents.$inferInsert;
 
@@ -503,3 +613,9 @@ export type NewAuditEntry = typeof auditEntries.$inferInsert;
 
 export type SlicedRendition = typeof slicedRenditions.$inferSelect;
 export type NewSlicedRendition = typeof slicedRenditions.$inferInsert;
+
+export type OrgMetricSnapshot = typeof orgMetricSnapshots.$inferSelect;
+export type NewOrgMetricSnapshot = typeof orgMetricSnapshots.$inferInsert;
+
+export type SystemMetricSnapshot = typeof systemMetricSnapshots.$inferSelect;
+export type NewSystemMetricSnapshot = typeof systemMetricSnapshots.$inferInsert;

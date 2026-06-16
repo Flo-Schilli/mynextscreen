@@ -2,10 +2,22 @@ export interface Playlist {
   id: string;
   organisationId: string;
   name: string;
+  color: string;
   items: PlaylistItem[];
   createdAt: string;
   updatedAt: string;
 }
+
+/** The seven accent swatches offered when creating/editing a playlist. */
+export const PLAYLIST_COLORS = [
+  '#6d6cf6',
+  '#0ea5e9',
+  '#ec4899',
+  '#14b8a6',
+  '#10b981',
+  '#f59e0b',
+  '#8b5cf6',
+] as const;
 
 export type TransitionType =
   | 'cut'
@@ -48,6 +60,12 @@ export interface PlaylistItem {
 
 export interface CreatePlaylistRequest {
   name: string;
+  color?: string;
+}
+
+export interface UpdatePlaylistRequest {
+  name: string;
+  color?: string;
 }
 
 export interface AddPlaylistItemRequest {

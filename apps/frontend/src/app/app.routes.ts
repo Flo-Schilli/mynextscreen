@@ -109,6 +109,11 @@ export const routes: Routes = [
         loadComponent: () => import('./live-streams/live-streams').then((m) => m.LiveStreams),
       },
       {
+        path: 'live-streams/:id',
+        loadComponent: () =>
+          import('./live-streams/live-stream-detail').then((m) => m.LiveStreamDetail),
+      },
+      {
         path: 'audit-log',
         loadComponent: () => import('./audit-log/audit-log').then((m) => m.AuditLog),
       },

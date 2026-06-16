@@ -51,9 +51,9 @@ import { ContentFormatService } from './content-format.service';
   `,
   styles: `
     .storage-bar-container {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
       padding: 1rem 1.25rem;
       margin-bottom: 1.25rem;
     }
@@ -65,15 +65,15 @@ import { ContentFormatService } from './content-format.service';
     .storage-label {
       font-size: 0.8125rem;
       font-weight: 600;
-      color: var(--color-text-secondary);
+      color: var(--text-muted);
     }
     .storage-values {
       font-size: 0.8125rem;
-      color: var(--color-text-primary);
+      color: var(--text);
     }
     .storage-bar {
       height: 0.5rem;
-      background: var(--color-bg-tertiary);
+      background: var(--surface-3);
       border-radius: 9999px;
       position: relative;
       overflow: hidden;
@@ -83,7 +83,7 @@ import { ContentFormatService } from './content-format.service';
       left: 0;
       top: 0;
       height: 100%;
-      background: var(--color-accent);
+      background: var(--accent);
       border-radius: 9999px 0 0 9999px;
       transition: width 0.3s;
     }
@@ -107,7 +107,7 @@ import { ContentFormatService } from './content-format.service';
       align-items: center;
       gap: 0.375rem;
       font-size: 0.75rem;
-      color: var(--color-text-secondary);
+      color: var(--text-muted);
     }
     .legend-dot {
       width: 0.5rem;
@@ -115,7 +115,7 @@ import { ContentFormatService } from './content-format.service';
       border-radius: 50%;
     }
     .legend-dot.original {
-      background: var(--color-accent);
+      background: var(--accent);
     }
     .legend-dot.transcoded {
       background: #8b5cf6;

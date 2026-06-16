@@ -57,10 +57,13 @@ export const AUDIT_SCREEN_ONLINE = 'audit.screen.online';
 export const AUDIT_SCREEN_OFFLINE = 'audit.screen.offline';
 export const AUDIT_SCREEN_BULK_DELETED = 'audit.screen.bulk_deleted';
 export const AUDIT_SCREEN_BULK_GROUP_ASSIGNED = 'audit.screen.bulk_group_assigned';
+export const AUDIT_SCREEN_PAIRING_FAILED = 'audit.screen.pairing_failed';
 
 export class AuditScreenEvent {
   constructor(
-    public readonly screenId: string,
+    // null when the event has no concrete screen yet (e.g. a failed pairing
+    // claim before the screen is created).
+    public readonly screenId: string | null,
     public readonly organisationId: string,
     public readonly userId: string | null,
     public readonly details: Record<string, unknown> | null,

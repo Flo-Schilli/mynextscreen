@@ -3,6 +3,8 @@ import { BadRequestException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { eq } from 'drizzle-orm';
 import { ScreenService } from './screen.service';
+import { ScreenPairingService } from './screen-pairing.service';
+import { ScheduleService } from '../schedule';
 import { DRIZZLE } from '../db/database.constants';
 import { organisations, screens, screenGroups, type Organisation, type Screen } from '../db/schema';
 import {
@@ -35,8 +37,10 @@ describe('ScreenService — bulk operations', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ScreenService,
+        ScreenPairingService,
         { provide: DRIZZLE, useValue: db },
         { provide: EventEmitter2, useValue: { emit } },
+        { provide: ScheduleService, useValue: { getCurrentPlaylist: jest.fn() } },
       ],
     }).compile();
     service = module.get<ScreenService>(ScreenService);

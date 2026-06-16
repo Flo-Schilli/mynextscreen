@@ -1,6 +1,8 @@
-import { Controller, Req, Sse } from '@nestjs/common';
+import { Controller, Get, Req, Sse } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { DashboardSseService } from './dashboard-sse.service';
+import { DashboardSummaryService } from './dashboard-summary.service';
+import type { DashboardSummary } from './dto/dashboard-summary.dto';
 import { AuthenticatedRequest } from '../auth';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { Roles } from '../auth/roles.decorator';
@@ -15,7 +17,10 @@ interface MessageEvent {
 
 @Controller('dashboard')
 export class DashboardController {
-  constructor(private readonly dashboardSseService: DashboardSseService) {}
+  constructor(
+    private readonly dashboardSseService: DashboardSseService,
+    private readonly dashboardSummaryService: DashboardSummaryService,
+  ) {}
 
   @Sse('events')
   @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
@@ -24,5 +29,11 @@ export class DashboardController {
     @Req() req: AuthenticatedRequest,
   ): Observable<MessageEvent> {
     return this.dashboardSseService.subscribe(organisationId, req.user.userId);
+  }
+
+  @Get('summary')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
+  getSummary(@CurrentOrganisation() organisationId: string): Promise<DashboardSummary> {
+    return this.dashboardSummaryService.getSummary(organisationId);
   }
 }

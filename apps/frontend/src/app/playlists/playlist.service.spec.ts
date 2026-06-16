@@ -28,6 +28,7 @@ function buildPlaylist(overrides: Partial<Playlist> = {}): Playlist {
     id: 'p1',
     organisationId: ORG_ID,
     name: 'Lobby Loop',
+    color: '#6d6cf6',
     items: [],
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',

@@ -1,7 +1,6 @@
 import { TestBed, getTestBed, ComponentFixture } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
-import { By } from '@angular/platform-browser';
 import { ScheduleToolbar } from './schedule-toolbar';
 import { TargetOption } from './schedule.model';
 import { ScheduleViewMode } from './schedule-calendar.service';
@@ -48,60 +47,49 @@ describe('ScheduleToolbar', () => {
     TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
   });
 
-  describe('target options rendering', () => {
-    it('renders a screen optgroup with one option per screen target', async () => {
+  describe('target options', () => {
+    it('builds a flat option per screen target prefixed with "Screen ·"', async () => {
       // Arrange / Act
       await setUp();
 
       // Assert
-      const optgroups = fixture.nativeElement.querySelectorAll('optgroup');
-      const screenGroup = Array.from(optgroups).find(
-        (g) => (g as HTMLOptGroupElement).label === 'Screens',
-      ) as HTMLOptGroupElement;
-      expect(screenGroup).toBeTruthy();
-      const options = screenGroup.querySelectorAll('option');
-      expect(options.length).toBe(2);
-      expect((options[0] as HTMLOptionElement).value).toBe('screen:s1');
+      const screenOptions = fixture.componentInstance
+        .targetOptions()
+        .filter((o) => o.value.startsWith('screen:'));
+      expect(screenOptions.length).toBe(2);
+      expect(screenOptions[0].value).toBe('screen:s1');
+      expect(screenOptions[0].label).toContain('Screen · Lobby Screen');
     });
 
-    it('renders a screen-group optgroup including the mode label', async () => {
+    it('builds a group option including the mode label', async () => {
       // Arrange / Act
       await setUp();
 
       // Assert
-      const optgroups = fixture.nativeElement.querySelectorAll('optgroup');
-      const groupGroup = Array.from(optgroups).find(
-        (g) => (g as HTMLOptGroupElement).label === 'Screen Groups',
-      ) as HTMLOptGroupElement;
-      expect(groupGroup).toBeTruthy();
-      const option = groupGroup.querySelector('option') as HTMLOptionElement;
-      expect(option.value).toBe('group:g1');
-      expect(option.textContent).toContain('Video Wall');
-      expect(option.textContent).toContain('split');
+      const groupOption = fixture.componentInstance
+        .targetOptions()
+        .find((o) => o.value.startsWith('group:'));
+      expect(groupOption?.value).toBe('group:g1');
+      expect(groupOption?.label).toContain('Video Wall');
+      expect(groupOption?.label).toContain('split');
     });
 
-    it('shows the empty placeholder option when there are no targets at all', async () => {
+    it('produces no options when there are no targets at all', async () => {
       // Arrange / Act
       await setUp({ screenTargets: [], groupTargets: [] });
 
       // Assert
-      const optgroups = fixture.nativeElement.querySelectorAll('optgroup');
-      expect(optgroups.length).toBe(0);
-      const placeholder = fixture.nativeElement.querySelector(
-        'option[disabled]',
-      ) as HTMLOptionElement;
-      expect(placeholder.textContent).toContain('No screens or groups');
+      expect(fixture.componentInstance.targetOptions().length).toBe(0);
     });
 
-    it('omits the group optgroup when there are no group targets', async () => {
+    it('omits group options when there are no group targets', async () => {
       // Arrange / Act
       await setUp({ groupTargets: [] });
 
       // Assert
-      const optgroups = fixture.nativeElement.querySelectorAll('optgroup');
-      const labels = Array.from(optgroups).map((g) => (g as HTMLOptGroupElement).label);
-      expect(labels).toContain('Screens');
-      expect(labels).not.toContain('Screen Groups');
+      const values = fixture.componentInstance.targetOptions().map((o) => o.value);
+      expect(values.some((v) => v.startsWith('screen:'))).toBe(true);
+      expect(values.some((v) => v.startsWith('group:'))).toBe(false);
     });
   });
 
@@ -111,7 +99,7 @@ describe('ScheduleToolbar', () => {
       await setUp({ viewMode: 'month' });
 
       // Assert
-      const buttons = fixture.nativeElement.querySelectorAll('.toggle-btn');
+      const buttons = fixture.nativeElement.querySelectorAll('.seg-btn');
       const active = Array.from(buttons).filter((b) =>
         (b as HTMLElement).classList.contains('active'),
       );
@@ -126,7 +114,7 @@ describe('ScheduleToolbar', () => {
       fixture.componentInstance.viewChange.subscribe((v) => emitted.push(v));
 
       // Act
-      const buttons = fixture.nativeElement.querySelectorAll('.toggle-btn');
+      const buttons = fixture.nativeElement.querySelectorAll('.seg-btn');
       (buttons[0] as HTMLButtonElement).click(); // Day
 
       // Assert
@@ -141,11 +129,17 @@ describe('ScheduleToolbar', () => {
       let emitted: string | undefined;
       fixture.componentInstance.targetChange.subscribe((v) => (emitted = v));
 
-      // Act
-      const select = fixture.debugElement.query(By.css('#targetSelect'))
-        .nativeElement as HTMLSelectElement;
-      select.value = 'screen:s2';
-      select.dispatchEvent(new Event('change'));
+      // Act — open the mns-select and pick the second screen option
+      const trigger = fixture.nativeElement.querySelector(
+        '#targetSelect mns-select button',
+      ) as HTMLButtonElement;
+      trigger.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const options = fixture.nativeElement.querySelectorAll(
+        '#targetSelect [role="option"]',
+      ) as NodeListOf<HTMLButtonElement>;
+      options[1].click();
       fixture.detectChanges();
       await fixture.whenStable();
 
@@ -163,23 +157,23 @@ describe('ScheduleToolbar', () => {
 
       // Act
       const navButtons = fixture.nativeElement.querySelectorAll('.nav-buttons button');
-      (navButtons[0] as HTMLButtonElement).click();
-      (navButtons[1] as HTMLButtonElement).click();
-      (navButtons[2] as HTMLButtonElement).click();
+      (navButtons[0] as HTMLButtonElement).click(); // prev
+      (navButtons[1] as HTMLButtonElement).click(); // today (mns-btn)
+      (navButtons[2] as HTMLButtonElement).click(); // next
 
       // Assert
       expect(calls).toEqual(['prev', 'today', 'next']);
     });
 
-    it('emits create when the schedule button is clicked', async () => {
+    it('emits create when the new-schedule button is clicked', async () => {
       // Arrange
       await setUp();
       let created = false;
       fixture.componentInstance.create.subscribe(() => (created = true));
 
-      // Act
-      const createBtn = fixture.nativeElement.querySelector('.btn-primary') as HTMLButtonElement;
-      createBtn.click();
+      // Act — the create button is the last mns-btn in the toolbar
+      const buttons = fixture.nativeElement.querySelectorAll('mns-btn button');
+      (buttons[buttons.length - 1] as HTMLButtonElement).click();
 
       // Assert
       expect(created).toBe(true);

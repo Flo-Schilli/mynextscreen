@@ -1,5 +1,4 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { firstValueFrom } from 'rxjs';
 import { PlaylistService } from './playlist.service';
@@ -20,6 +19,13 @@ import { SelectionService } from '../shared/selection/selection.service';
 import { BulkAction } from '../shared/selection/bulk-action-toolbar';
 import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dialog';
 import { ToastService } from '../shared/toast/toast.service';
+import {
+  PageHeaderComponent,
+  BtnComponent,
+  EmptyComponent,
+  OverlayComponent,
+  ModalComponent,
+} from '../ui';
 
 /**
  * Smart container for the playlists feature. Owns data loading, all HTTP
@@ -38,32 +44,36 @@ import { ToastService } from '../shared/toast/toast.service';
     PlaylistAddContentModal,
     PlaylistAssignScreenModal,
     BulkConfirmDialogComponent,
+    PageHeaderComponent,
+    BtnComponent,
+    EmptyComponent,
+    OverlayComponent,
+    ModalComponent,
   ],
   providers: [SelectionService],
   template: `
     <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Playlists</h1>
-        </div>
+      <mns-page-header title="Playlists" [sub]="playlistCountLabel()" icon="Playlists">
         @if (!loading && !selectedPlaylist && !showCreateForm) {
-          <button class="btn btn-primary" (click)="openCreateForm()">+ Create Playlist</button>
+          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()"
+            >New playlist</mns-btn
+          >
         }
-      </header>
+      </mns-page-header>
 
       @if (loadError) {
-        <p class="error">{{ loadError }}</p>
+        <p class="text-offline text-sm mt-3">{{ loadError }}</p>
       }
 
       @if (loading) {
-        <p class="loading-text">Loading playlists...</p>
+        <p class="text-muted text-sm mt-3">Loading playlists…</p>
       }
 
-      <!-- Create Playlist Form -->
+      <!-- Create Playlist Modal -->
       @if (showCreateForm) {
         <app-playlist-create-form
           [(name)]="createName"
+          [(color)]="createColor"
           [error]="createError"
           [creating]="creating"
           (create)="submitCreate()"
@@ -83,6 +93,7 @@ import { ToastService } from '../shared/toast/toast.service';
           [thumbUrl]="getThumbUrl"
           [previewUrl]="getPreviewUrl"
           (rename)="onRename($event)"
+          (colorChange)="onColorChange($event)"
           (toggleDefault)="toggleDefault()"
           (deletePlaylist)="confirmDelete()"
           (dismiss)="closeDetail()"
@@ -104,57 +115,45 @@ import { ToastService } from '../shared/toast/toast.service';
           [playlistIds]="playlistIds"
           [defaultPlaylistId]="defaultPlaylistId"
           [bulkActions]="bulkActions"
+          [thumbUrl]="getThumbUrl"
           (selectItem)="selectPlaylist($event)"
+          (deletePlaylist)="requestDeleteFromGrid($event)"
         />
       }
 
       @if (
         !loading && !selectedPlaylist && !showCreateForm && playlists.length === 0 && !loadError
       ) {
-        <div class="empty-state">
-          <p class="empty-text">No playlists created yet.</p>
-          <button class="btn btn-primary" (click)="openCreateForm()">
-            Create Your First Playlist
-          </button>
-        </div>
+        <mns-empty icon="Playlists" title="No playlists yet" desc="No playlists created yet.">
+          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()"
+            >Create Your First Playlist</mns-btn
+          >
+        </mns-empty>
       }
 
       <!-- Delete Confirmation Modal -->
       @if (showDeleteConfirm) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Confirm deletion"
-          tabindex="0"
-          (click)="cancelDelete()"
-          (keydown.escape)="cancelDelete()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Delete Playlist</h2>
-            <p>
-              Are you sure you want to delete <strong>{{ selectedPlaylist?.name }}</strong
+        <mns-overlay (closed)="cancelDelete()">
+          <mns-modal title="Delete Playlist" icon="Trash" (closed)="cancelDelete()">
+            <p class="text-sm text-muted mb-3">
+              Are you sure you want to delete
+              <strong class="text-text">{{ selectedPlaylist?.name }}</strong
               >? This action cannot be undone.
             </p>
             @if (selectedPlaylist?.id === defaultPlaylistId) {
-              <p class="warning-text">
+              <p class="warning-text mb-3">
                 This playlist is currently set as the organisation's default. Deleting it will clear
                 the default playlist setting.
               </p>
             }
-            <div class="form-actions">
-              <button class="btn btn-secondary" (click)="cancelDelete()">Cancel</button>
-              <button class="btn btn-danger" (click)="executeDelete()" [disabled]="deleting">
-                {{ deleting ? 'Deleting...' : 'Delete' }}
-              </button>
+            <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
+              <mns-btn variant="outline" (mnsClick)="cancelDelete()">Cancel</mns-btn>
+              <mns-btn variant="danger" [disabled]="deleting" (mnsClick)="executeDelete()">
+                {{ deleting ? 'Deleting…' : 'Delete' }}
+              </mns-btn>
             </div>
-          </div>
-        </div>
+          </mns-modal>
+        </mns-overlay>
       }
 
       <!-- Add Content Modal -->
@@ -200,12 +199,12 @@ import { ToastService } from '../shared/toast/toast.service';
     }
 
     .warning-text {
-      color: #fbbf24 !important;
-      background: #92400e20;
-      border: 1px solid #92400e;
-      border-radius: 0.375rem;
+      color: var(--warn);
+      background: var(--warn-dim);
+      border: 1px solid var(--warn);
+      border-radius: 0.5rem;
       padding: 0.75rem 1rem;
-      font-size: 0.8125rem !important;
+      font-size: 0.8125rem;
     }
   `,
 })
@@ -215,7 +214,6 @@ export class Playlists implements OnInit {
   private screenService = inject(ScreenService);
   private memberService = inject(MemberService);
   private organisationService = inject(OrganisationService);
-  private router = inject(Router);
   readonly selectionService = inject(SelectionService);
   private toast = inject(ToastService);
 
@@ -230,6 +228,7 @@ export class Playlists implements OnInit {
   // Create form
   showCreateForm = false;
   createName = '';
+  createColor = '#6d6cf6';
   createError = '';
   creating = false;
 
@@ -345,9 +344,15 @@ export class Playlists implements OnInit {
     });
   }
 
+  playlistCountLabel(): string {
+    const n = this.playlists.length;
+    return `${n} playlist${n !== 1 ? 's' : ''}`;
+  }
+
   // --- Create ---
   openCreateForm(): void {
     this.createName = '';
+    this.createColor = '#6d6cf6';
     this.createError = '';
     this.showCreateForm = true;
   }
@@ -364,19 +369,21 @@ export class Playlists implements OnInit {
 
     this.creating = true;
     this.createError = '';
-    this.playlistService.create(this.orgId, { name: this.createName.trim() }).subscribe({
-      next: (playlist) => {
-        this.creating = false;
-        this.showCreateForm = false;
-        this.loadPlaylists();
-        this.selectPlaylist(playlist);
-        this.toast.success('Playlist created.');
-      },
-      error: (err) => {
-        this.createError = err.error?.message || 'Failed to create playlist.';
-        this.creating = false;
-      },
-    });
+    this.playlistService
+      .create(this.orgId, { name: this.createName.trim(), color: this.createColor })
+      .subscribe({
+        next: (playlist) => {
+          this.creating = false;
+          this.showCreateForm = false;
+          this.loadPlaylists();
+          this.selectPlaylist(playlist);
+          this.toast.success('Playlist created.');
+        },
+        error: (err) => {
+          this.createError = err.error?.message || 'Failed to create playlist.';
+          this.creating = false;
+        },
+      });
   }
 
   // --- Detail ---
@@ -403,17 +410,42 @@ export class Playlists implements OnInit {
   // --- Rename ---
   onRename(name: string): void {
     if (!this.selectedPlaylist) return;
-    this.playlistService.update(this.orgId, this.selectedPlaylist.id, { name }).subscribe({
+    this.playlistService
+      .update(this.orgId, this.selectedPlaylist.id, { name, color: this.selectedPlaylist.color })
+      .subscribe({
+        next: (updated) => {
+          if (this.selectedPlaylist) {
+            this.selectedPlaylist = { ...this.selectedPlaylist, name: updated.name };
+          }
+          this.toast.success('Playlist renamed.');
+        },
+        error: (err) => {
+          this.editorError = err.error?.message || 'Failed to rename playlist.';
+        },
+      });
+  }
+
+  // --- Accent colour ---
+  onColorChange(color: string): void {
+    if (!this.selectedPlaylist) return;
+    const name = this.selectedPlaylist.name;
+    this.playlistService.update(this.orgId, this.selectedPlaylist.id, { name, color }).subscribe({
       next: (updated) => {
         if (this.selectedPlaylist) {
-          this.selectedPlaylist.name = updated.name;
+          this.selectedPlaylist = { ...this.selectedPlaylist, color: updated.color };
         }
-        this.toast.success('Playlist renamed.');
+        this.toast.success('Accent colour updated.');
       },
       error: (err) => {
-        this.editorError = err.error?.message || 'Failed to rename playlist.';
+        this.editorError = err.error?.message || 'Failed to update colour.';
       },
     });
+  }
+
+  // --- Delete from grid dots-menu ---
+  requestDeleteFromGrid(playlist: Playlist): void {
+    this.selectedPlaylist = playlist;
+    this.showDeleteConfirm = true;
   }
 
   // --- Delete ---
@@ -706,9 +738,5 @@ export class Playlists implements OnInit {
   private showToast(message: string, type: 'error' | 'success' | 'warning'): void {
     // The global ToastService has no 'warning' variant; surface those as info.
     this.toast.show(type === 'warning' ? 'info' : type, message);
-  }
-
-  goBack(): void {
-    this.router.navigate(['/']);
   }
 }

@@ -26,7 +26,11 @@ import { Notification, NotificationEventType } from './notification.model';
               [class.unread]="!notification.read"
               (click)="onClickNotification(notification)"
             >
-              <span class="event-icon" [innerHTML]="getEventIcon(notification.eventType)"></span>
+              <span
+                class="event-icon"
+                [style.color]="getEventColor(notification.eventType)"
+                [innerHTML]="getEventIcon(notification.eventType)"
+              ></span>
               <div class="notification-body">
                 <span class="notification-title">{{ notification.title }}</span>
                 <span class="notification-message">{{ truncate(notification.message, 80) }}</span>
@@ -45,14 +49,15 @@ import { Notification, NotificationEventType } from './notification.model';
       right: 0;
       width: 380px;
       max-height: 480px;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 8px;
-      box-shadow: 0 8px 24px var(--color-shadow);
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 14px;
+      box-shadow: var(--shadow-lg);
       display: flex;
       flex-direction: column;
       z-index: 100;
       overflow: hidden;
+      animation: fadeUp 0.14s ease both;
     }
 
     .dropdown-header {
@@ -60,18 +65,18 @@ import { Notification, NotificationEventType } from './notification.model';
       align-items: center;
       justify-content: space-between;
       padding: 0.75rem 1rem;
-      border-bottom: 1px solid var(--color-border);
+      border-bottom: 1px solid var(--border);
     }
 
     .dropdown-title {
       font-size: 0.875rem;
       font-weight: 600;
-      color: var(--color-text-primary);
+      color: var(--text);
     }
 
     .mark-all-btn {
       font-size: 0.75rem;
-      color: var(--color-accent);
+      color: var(--accent);
       background: none;
       border: none;
       cursor: pointer;
@@ -79,7 +84,7 @@ import { Notification, NotificationEventType } from './notification.model';
       border-radius: 4px;
     }
     .mark-all-btn:hover {
-      background: var(--color-bg-tertiary);
+      background: var(--hover);
     }
 
     .dropdown-list {
@@ -96,23 +101,23 @@ import { Notification, NotificationEventType } from './notification.model';
       text-align: left;
       background: transparent;
       border: none;
-      border-bottom: 1px solid var(--color-border);
+      border-bottom: 1px solid var(--border);
       cursor: pointer;
       transition: background 0.15s;
-      color: var(--color-text-secondary);
+      color: var(--text-muted);
     }
     .notification-row:last-child {
       border-bottom: none;
     }
     .notification-row:hover {
-      background: var(--color-bg-tertiary);
+      background: var(--hover);
     }
     .notification-row.unread {
-      background: rgba(59, 130, 246, 0.08);
-      color: var(--color-text-primary);
+      background: var(--accent-soft);
+      color: var(--text);
     }
     .notification-row.unread:hover {
-      background: rgba(59, 130, 246, 0.14);
+      background: color-mix(in srgb, var(--accent-soft) 160%, transparent);
     }
 
     .event-icon {
@@ -144,7 +149,7 @@ import { Notification, NotificationEventType } from './notification.model';
 
     .notification-message {
       font-size: 0.75rem;
-      color: var(--color-text-secondary);
+      color: var(--text-muted);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -152,7 +157,7 @@ import { Notification, NotificationEventType } from './notification.model';
 
     .notification-time {
       font-size: 0.6875rem;
-      color: var(--color-text-muted);
+      color: var(--text-faint);
       white-space: nowrap;
       flex-shrink: 0;
       margin-top: 2px;
@@ -164,7 +169,7 @@ import { Notification, NotificationEventType } from './notification.model';
       justify-content: center;
       padding: 2rem;
       font-size: 0.875rem;
-      color: var(--color-text-muted);
+      color: var(--text-muted);
     }
 
     @media (max-width: 480px) {
@@ -217,16 +222,31 @@ export class NotificationDropdown implements OnInit {
     return `${diffDay}d ago`;
   }
 
+  getEventColor(eventType: NotificationEventType): string {
+    switch (eventType) {
+      case 'screen.offline':
+        return 'var(--offline)';
+      case 'screen.online':
+        return 'var(--online)';
+      case 'transcoding.complete':
+        return 'var(--accent)';
+      case 'transcoding.failed':
+        return 'var(--warn)';
+      default:
+        return 'currentColor';
+    }
+  }
+
   getEventIcon(eventType: NotificationEventType): string {
     switch (eventType) {
       case 'screen.offline':
-        return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#ef4444" stroke-width="1.5"/><path d="M6 6l4 4M10 6l-4 4" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round"/></svg>';
+        return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M6 6l4 4M10 6l-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
       case 'screen.online':
-        return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#22c55e" stroke-width="1.5"/><path d="M5.5 8l2 2 3-4" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 8l2 2 3-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       case 'transcoding.complete':
-        return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#3b82f6" stroke-width="1.5"/><path d="M5.5 8l2 2 3-4" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 8l2 2 3-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       case 'transcoding.failed':
-        return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#f59e0b" stroke-width="1.5"/><path d="M8 5v3M8 10v1" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/></svg>';
+        return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3M8 10v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
       default:
         return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/></svg>';
     }

@@ -2,12 +2,14 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ScreenScheduler } from './screen.scheduler';
 import { ScreenService } from './screen.service';
+import { ScreenPairingService } from './screen-pairing.service';
 import type { Screen } from '../db/schema';
 import { SCREEN_STATUS_CHANGED } from './screen-status.event';
 
 describe('ScreenScheduler', () => {
   let scheduler: ScreenScheduler;
   let screenService: { detectOfflineScreens: jest.Mock };
+  let pairingService: { cleanupExpired: jest.Mock };
   let eventEmitter: { emit: jest.Mock };
   let configService: { get: jest.Mock };
 
@@ -31,11 +33,13 @@ describe('ScreenScheduler', () => {
 
   beforeEach(() => {
     screenService = { detectOfflineScreens: jest.fn() };
+    pairingService = { cleanupExpired: jest.fn().mockResolvedValue(0) };
     eventEmitter = { emit: jest.fn() };
     configService = { get: jest.fn().mockReturnValue(120_000) };
 
     scheduler = new ScreenScheduler(
       screenService as unknown as ScreenService,
+      pairingService as unknown as ScreenPairingService,
       eventEmitter as unknown as EventEmitter2,
       configService as unknown as ConfigService,
     );
@@ -84,10 +88,27 @@ describe('ScreenScheduler', () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _ = new ScreenScheduler(
       screenService as unknown as ScreenService,
+      pairingService as unknown as ScreenPairingService,
       eventEmitter as unknown as EventEmitter2,
       customConfig as unknown as ConfigService,
     );
 
     expect(customConfig.get).toHaveBeenCalledWith('SCREEN_OFFLINE_THRESHOLD_MS', 120_000);
+  });
+
+  describe('cleanupExpiredPairings', () => {
+    it('delegates to the pairing service', async () => {
+      pairingService.cleanupExpired.mockResolvedValue(3);
+
+      await scheduler.cleanupExpiredPairings();
+
+      expect(pairingService.cleanupExpired).toHaveBeenCalled();
+    });
+
+    it('does not log when nothing was removed', async () => {
+      pairingService.cleanupExpired.mockResolvedValue(0);
+
+      await expect(scheduler.cleanupExpiredPairings()).resolves.toBeUndefined();
+    });
   });
 });

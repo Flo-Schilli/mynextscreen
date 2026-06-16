@@ -1,6 +1,8 @@
-import { Component, inject, output } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ConnectionService } from './connection.service';
+
+const POLL_INTERVAL_MS = 3_000;
 
 @Component({
   selector: 'app-connection-dialog',
@@ -26,11 +28,48 @@ import { ConnectionService } from './connection.service';
               />
             </svg>
           </div>
-          <h1 class="title">Connect to Server</h1>
-          <p class="subtitle">Enter your server URL and screen API key.</p>
+          <h1 class="title">Pair this screen</h1>
+          <p class="subtitle">Enter this code in your dashboard → Add a screen.</p>
         </div>
 
-        <form (ngSubmit)="onConnect()" class="form">
+        @if (connectionService.error()) {
+          <div class="error">
+            {{ connectionService.error() }}
+          </div>
+        }
+
+        @if (groupedCode()) {
+          <div class="code" aria-label="Pairing code" data-testid="pairing-code">
+            {{ groupedCode() }}
+          </div>
+
+          <div class="waiting">
+            <span class="spinner" aria-hidden="true"></span>
+            <span>Waiting to be paired…</span>
+          </div>
+        } @else {
+          <div class="waiting">
+            <span class="spinner" aria-hidden="true"></span>
+            <span>Requesting a code…</span>
+          </div>
+        }
+
+        @if (connectionService.error()) {
+          <button type="button" class="retry" (click)="restart()" data-testid="retry-pairing">
+            Get a new code
+          </button>
+        }
+
+        <button
+          type="button"
+          class="advanced-toggle"
+          (click)="showAdvanced.set(!showAdvanced())"
+          data-testid="advanced-toggle"
+        >
+          {{ showAdvanced() ? 'Hide' : 'Advanced' }}
+        </button>
+
+        @if (showAdvanced()) {
           <div class="field">
             <label for="serverUrl">Server URL</label>
             <input
@@ -41,34 +80,11 @@ import { ConnectionService } from './connection.service';
               [placeholder]="serverUrl || 'http://localhost:3000'"
               autocomplete="url"
             />
+            <button type="button" class="retry" (click)="restart()" data-testid="apply-server-url">
+              Apply &amp; get a new code
+            </button>
           </div>
-
-          <div class="field">
-            <label for="apiKey">Screen API Key</label>
-            <input
-              id="apiKey"
-              type="password"
-              [(ngModel)]="apiKey"
-              name="apiKey"
-              placeholder="Enter your screen API key"
-              autocomplete="off"
-            />
-          </div>
-
-          @if (connectionService.error()) {
-            <div class="error">
-              {{ connectionService.error() }}
-            </div>
-          }
-
-          <button type="submit" [disabled]="!canConnect() || connectionService.connecting()">
-            @if (connectionService.connecting()) {
-              Connecting...
-            } @else {
-              Connect
-            }
-          </button>
-        </form>
+        }
       </div>
     </div>
   `,
@@ -84,21 +100,17 @@ import { ConnectionService } from './connection.service';
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(0, 0, 0, 0.92);
+      background: rgb(0 0 0 / 0.92);
     }
 
     .card {
       width: 100%;
-      max-width: 380px;
+      max-width: 420px;
       margin: 0 16px;
       padding: 36px 32px 32px;
-      border-radius: 16px;
-      background: linear-gradient(
-        180deg,
-        rgba(255, 255, 255, 0.07) 0%,
-        rgba(255, 255, 255, 0.025) 100%
-      );
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-lg);
+      background: linear-gradient(180deg, var(--border-strong) 0%, rgb(255 255 255 / 0.025) 100%);
+      border: 1px solid var(--border);
       box-shadow:
         0 25px 60px rgba(0, 0, 0, 0.5),
         0 0 0 1px rgba(255, 255, 255, 0.05);
@@ -119,9 +131,9 @@ import { ConnectionService } from './connection.service';
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 12px;
-      background: rgba(59, 130, 246, 0.15);
-      color: #3b82f6;
+      border-radius: var(--radius-md);
+      background: var(--info-dim);
+      color: var(--color-info);
       margin-bottom: 16px;
     }
 
@@ -129,25 +141,97 @@ import { ConnectionService } from './connection.service';
       margin: 0;
       font-size: 20px;
       font-weight: 600;
-      color: #f1f5f9;
+      color: var(--text);
     }
 
     .subtitle {
       margin: 6px 0 0;
       font-size: 14px;
-      color: #64748b;
+      color: var(--text-muted);
     }
 
-    .form {
+    .code {
+      font-family: var(--font-mono);
+      font-size: 56px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-align: center;
+      color: var(--text);
+      margin: 8px 0 20px;
+      user-select: all;
+    }
+
+    .waiting {
       display: flex;
-      flex-direction: column;
-      gap: 20px;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid var(--track);
+      border-top-color: var(--color-info);
+      animation: spin 0.8s linear infinite;
+    }
+
+    .error {
+      padding: 10px 14px;
+      font-size: 14px;
+      color: var(--color-offline);
+      background: var(--offline-dim);
+      border: 1px solid rgb(239 71 87 / 0.2);
+      border-radius: var(--radius-sm);
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .retry {
+      display: block;
+      margin: 12px auto 0;
+      padding: 9px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      color: #fff;
+      background: var(--color-info);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .retry:hover {
+      background: #2563eb;
+    }
+
+    .advanced-toggle {
+      display: block;
+      margin: 18px auto 0;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-family: inherit;
+      color: var(--text-faint);
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .advanced-toggle:hover {
+      color: var(--text-muted);
     }
 
     .field {
       display: flex;
       flex-direction: column;
       gap: 6px;
+      margin-top: 16px;
     }
 
     .field label {
@@ -155,16 +239,16 @@ import { ConnectionService } from './connection.service';
       font-weight: 500;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: #64748b;
+      color: var(--text-faint);
     }
 
     .field input {
       width: 100%;
       padding: 10px 14px;
       font-size: 14px;
-      color: #f1f5f9;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text);
+      background: var(--hover);
+      border: 1px solid var(--border);
       border-radius: 10px;
       outline: none;
       transition:
@@ -175,49 +259,12 @@ import { ConnectionService } from './connection.service';
     }
 
     .field input::placeholder {
-      color: #475569;
+      color: var(--text-faint);
     }
 
     .field input:focus {
-      border-color: #3b82f6;
-      background: rgba(255, 255, 255, 0.08);
-    }
-
-    .error {
-      padding: 10px 14px;
-      font-size: 14px;
-      color: #f87171;
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid rgba(239, 68, 68, 0.2);
-      border-radius: 10px;
-    }
-
-    button[type='submit'] {
-      width: 100%;
-      padding: 11px 16px;
-      font-size: 14px;
-      font-weight: 500;
-      font-family: inherit;
-      color: #fff;
-      background: #3b82f6;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      transition:
-        background 0.2s,
-        box-shadow 0.2s;
-      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);
-    }
-
-    button[type='submit']:hover:not(:disabled) {
-      background: #2563eb;
-      box-shadow: 0 4px 20px rgba(59, 130, 246, 0.35);
-    }
-
-    button[type='submit']:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-      box-shadow: none;
+      border-color: var(--color-info);
+      background: rgb(255 255 255 / 0.08);
     }
 
     @keyframes enter {
@@ -232,12 +279,75 @@ import { ConnectionService } from './connection.service';
     }
   `,
 })
-export class ConnectionDialogComponent {
+export class ConnectionDialogComponent implements OnInit {
   readonly connectionService = inject(ConnectionService);
+  private readonly destroyRef = inject(DestroyRef);
   readonly connected = output<void>();
 
   serverUrl = this.getDefaultServerUrl();
-  apiKey = '';
+  readonly showAdvanced = signal(false);
+
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  readonly groupedCode = computed(() => {
+    const code = this.connectionService.pairingCode();
+    if (code.length === 6) {
+      return `${code.slice(0, 3)} ${code.slice(3)}`;
+    }
+    return code;
+  });
+
+  ngOnInit(): void {
+    this.destroyRef.onDestroy(() => this.stopPolling());
+    void this.beginPairing();
+  }
+
+  /** Re-request a code (after expiry or an edited server URL). */
+  restart(): void {
+    void this.beginPairing();
+  }
+
+  private async beginPairing(): Promise<void> {
+    this.stopPolling();
+
+    const url = this.serverUrl.trim();
+    if (!url) return;
+
+    try {
+      await this.connectionService.startPairing(url);
+    } catch {
+      return; // error signal already set by the service
+    }
+
+    this.startPolling(url);
+  }
+
+  private startPolling(serverUrl: string): void {
+    this.stopPolling();
+    this.pollTimer = setInterval(() => void this.poll(serverUrl), POLL_INTERVAL_MS);
+  }
+
+  private async poll(serverUrl: string): Promise<void> {
+    const result = await this.connectionService.pollPairing(serverUrl);
+
+    if (result === 'claimed') {
+      this.stopPolling();
+      this.connected.emit();
+      return;
+    }
+
+    if (result === 'expired') {
+      this.stopPolling();
+      void this.beginPairing();
+    }
+  }
+
+  private stopPolling(): void {
+    if (this.pollTimer !== null) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
 
   private getDefaultServerUrl(): string {
     const hostname = window.location.hostname;
@@ -251,19 +361,5 @@ export class ConnectionDialogComponent {
       return `https://${parts.join('.')}`;
     }
     return '';
-  }
-
-  canConnect(): boolean {
-    return this.serverUrl.trim().length > 0 && this.apiKey.trim().length > 0;
-  }
-
-  async onConnect(): Promise<void> {
-    if (!this.canConnect()) return;
-
-    const success = await this.connectionService.connect(this.serverUrl.trim(), this.apiKey.trim());
-
-    if (success) {
-      this.connected.emit();
-    }
   }
 }

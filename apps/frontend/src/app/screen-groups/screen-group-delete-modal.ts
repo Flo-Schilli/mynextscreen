@@ -1,71 +1,55 @@
-import { Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { OverlayComponent, ModalComponent, BtnComponent } from '../ui';
 import { ScreenGroup } from './screen-group.model';
 
 /**
- * Delete-confirmation modal for a screen group. Blocks deletion while the group
- * still has assigned screens; otherwise asks for confirmation. The parent
- * performs the HTTP request and feeds `deleting`/`error` back in.
+ * Delete-confirmation modal for a screen group (mns-overlay/mns-modal). Blocks
+ * deletion while the group still has assigned screens; otherwise asks for
+ * confirmation. The parent runs the HTTP work and feeds `deleting`/`error` back.
  */
 @Component({
   selector: 'app-screen-group-delete-modal',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayComponent, ModalComponent, BtnComponent],
   template: `
-    <div
-      class="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Confirm deletion"
-      tabindex="0"
-      (click)="dismiss.emit()"
-      (keydown.escape)="dismiss.emit()"
-    >
-      <div
-        class="modal"
-        role="document"
-        (click)="$event.stopPropagation()"
-        (keydown)="$event.stopPropagation()"
-      >
-        <h2>Delete Screen Group</h2>
-        @if (group().screens.length > 0) {
-          <div class="delete-blocked">
+    <mns-overlay (closed)="dismiss.emit()">
+      <mns-modal title="Delete screen group" icon="Trash" [widthPx]="460" (closed)="dismiss.emit()">
+        @if (blocked()) {
+          <div
+            class="text-[13px] leading-relaxed text-warn bg-warn-dim border border-warn/40 rounded-[10px] px-4 py-3"
+          >
             Cannot delete "{{ group().name }}" because it still has
             {{ group().screens.length }} assigned screen(s). Remove all screens from the group
             before deleting it.
           </div>
-          <div class="form-actions">
-            <button class="btn btn-secondary" (click)="dismiss.emit()">Close</button>
-          </div>
         } @else {
-          <p>
+          <p class="text-sm text-muted leading-relaxed">
             Are you sure you want to delete the screen group
-            <strong>{{ group().name }}</strong
+            <strong class="text-text">{{ group().name }}</strong
             >? This action cannot be undone.
           </p>
           @if (error()) {
-            <p class="error">{{ error() }}</p>
+            <p class="text-offline text-sm mt-3">{{ error() }}</p>
           }
-          <div class="form-actions">
-            <button class="btn btn-secondary" (click)="dismiss.emit()">Cancel</button>
-            <button class="btn btn-danger" (click)="confirm.emit()" [disabled]="deleting()">
-              {{ deleting() ? 'Deleting...' : 'Delete' }}
-            </button>
-          </div>
         }
-      </div>
-    </div>
-  `,
-  styles: `
-    /* Delete blocked notice */
-    .delete-blocked {
-      background: #92400e20;
-      border: 1px solid #92400e;
-      border-radius: 0.375rem;
-      padding: 0.75rem 1rem;
-      margin-bottom: 1rem;
-      font-size: 0.8125rem;
-      color: #fbbf24;
-      line-height: 1.5;
-    }
+
+        <div slot="footer" class="flex justify-end gap-2.5 px-6 py-5 border-t border-border">
+          @if (blocked()) {
+            <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Close</mns-btn>
+          } @else {
+            <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+            <mns-btn
+              variant="danger"
+              icon="Trash"
+              [disabled]="deleting()"
+              (mnsClick)="confirm.emit()"
+              >{{ deleting() ? 'Deleting…' : 'Delete' }}</mns-btn
+            >
+          }
+        </div>
+      </mns-modal>
+    </mns-overlay>
   `,
 })
 export class ScreenGroupDeleteModal {
@@ -75,4 +59,6 @@ export class ScreenGroupDeleteModal {
 
   readonly confirm = output<void>();
   readonly dismiss = output<void>();
+
+  readonly blocked = computed(() => this.group().screens.length > 0);
 }

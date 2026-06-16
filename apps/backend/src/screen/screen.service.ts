@@ -8,6 +8,8 @@ import { screens, type Screen } from '../db/schema';
 import { CreateScreenDto } from './dto/create-screen.dto';
 import { UpdateScreenDto } from './dto/update-screen.dto';
 import { generateApiKey, hashApiKey } from './api-key.util';
+import { ScreenPairingService } from './screen-pairing.service';
+import { ScheduleService } from '../schedule';
 import { ScreenStatusEvent, SCREEN_STATUS_CHANGED } from './screen-status.event';
 import {
   AUDIT_SCREEN_REGISTERED,
@@ -16,26 +18,56 @@ import {
   AUDIT_SCREEN_ONLINE,
   AUDIT_SCREEN_BULK_DELETED,
   AUDIT_SCREEN_BULK_GROUP_ASSIGNED,
+  AUDIT_SCREEN_PAIRING_FAILED,
   AuditScreenEvent,
 } from '../audit-log/audit.events';
+
+/**
+ * Redact a pairing code for audit logs: keep only the first two digits so the
+ * full code is never persisted (a failed-claim trail must not leak guessable
+ * codes). E.g. '123456' → '12****'.
+ */
+function redactPairingCode(code: string): string {
+  return `${code.slice(0, 2)}****`;
+}
+
+/** A screen enriched with the name of its currently-playing playlist. */
+export type ScreenWithPlaylist = Screen & { currentPlaylistName: string | null };
 
 @Injectable()
 export class ScreenService extends OrganisationScopedService<Screen> {
   constructor(
     @Inject(DRIZZLE) db: DrizzleDB,
     private readonly eventEmitter: EventEmitter2,
+    private readonly pairingService: ScreenPairingService,
+    private readonly scheduleService: ScheduleService,
   ) {
     super(db, screens, 'Screen');
   }
 
   /**
-   * Create a new screen with a generated API key.
-   * Returns the screen and the plaintext API key (shown only once).
+   * Create a new screen, claiming the pending pairing identified by the
+   * 6-digit `pairingCode`. The generated plaintext API key is handed to the
+   * pairing row (the player pulls it) — never returned to the admin.
+   * @throws BadRequestException if the code is invalid or expired.
    */
   async createScreen(
     organisationId: string,
     dto: CreateScreenDto,
-  ): Promise<{ screen: Screen; apiKey: string }> {
+    userId: string | null = null,
+  ): Promise<Screen> {
+    const pairing = await this.pairingService.findClaimableByCode(dto.pairingCode);
+    if (!pairing) {
+      this.eventEmitter.emit(
+        AUDIT_SCREEN_PAIRING_FAILED,
+        new AuditScreenEvent(null, organisationId, userId, {
+          code: redactPairingCode(dto.pairingCode),
+          context: 'create',
+        }),
+      );
+      throw new BadRequestException('Invalid or expired pairing code');
+    }
+
     const apiKey = generateApiKey();
     const apiKeyHash = await hashApiKey(apiKey);
 
@@ -46,6 +78,8 @@ export class ScreenService extends OrganisationScopedService<Screen> {
       apiKeyHash,
     });
 
+    await this.pairingService.markClaimed(pairing.id, screen.id, organisationId, apiKey);
+
     this.eventEmitter.emit(
       AUDIT_SCREEN_REGISTERED,
       new AuditScreenEvent(screen.id, organisationId, null, {
@@ -53,7 +87,7 @@ export class ScreenService extends OrganisationScopedService<Screen> {
       }),
     );
 
-    return { screen, apiKey };
+    return screen;
   }
 
   /**
@@ -69,14 +103,31 @@ export class ScreenService extends OrganisationScopedService<Screen> {
   }
 
   /**
-   * Regenerate a screen's API key.
-   * Returns the screen and the new plaintext API key (shown only once).
+   * Re-pair a screen: regenerate its API key and attach the new plaintext key
+   * to the pending pairing identified by `pairingCode`, so a re-opened display
+   * pulls the fresh token. The key is never returned to the admin.
+   * @throws BadRequestException if the code is invalid or expired.
    */
-  async regenerateApiKey(
+  async repairScreen(
     organisationId: string,
     id: string,
-  ): Promise<{ screen: Screen; apiKey: string }> {
+    pairingCode: string,
+    userId: string | null = null,
+  ): Promise<Screen> {
     await this.findOne(organisationId, id);
+
+    const pairing = await this.pairingService.findClaimableByCode(pairingCode);
+    if (!pairing) {
+      this.eventEmitter.emit(
+        AUDIT_SCREEN_PAIRING_FAILED,
+        new AuditScreenEvent(id, organisationId, userId, {
+          code: redactPairingCode(pairingCode),
+          context: 'repair',
+        }),
+      );
+      throw new BadRequestException('Invalid or expired pairing code');
+    }
+
     const apiKey = generateApiKey();
     const apiKeyHash = await hashApiKey(apiKey);
     const [saved] = await this.db
@@ -84,11 +135,37 @@ export class ScreenService extends OrganisationScopedService<Screen> {
       .set({ apiKeyHash })
       .where(and(eq(screens.id, id), eq(screens.organisationId, organisationId)))
       .returning();
+
+    await this.pairingService.markClaimed(pairing.id, id, organisationId, apiKey);
+
     this.eventEmitter.emit(
       AUDIT_SCREEN_KEY_REGENERATED,
       new AuditScreenEvent(id, organisationId, null, null),
     );
-    return { screen: saved, apiKey };
+
+    return saved;
+  }
+
+  /**
+   * List all screens for the organisation, each enriched with the name of its
+   * currently-playing playlist. Only online screens are resolved (offline
+   * screens get `null` without a schedule query).
+   */
+  async findAllWithPlaylist(organisationId: string): Promise<ScreenWithPlaylist[]> {
+    const all = await this.findAll(organisationId);
+    return Promise.all(
+      all.map(async (screen) => {
+        if (!screen.isOnline) {
+          return { ...screen, currentPlaylistName: null };
+        }
+        try {
+          const { playlist } = await this.scheduleService.getCurrentPlaylist(screen.id);
+          return { ...screen, currentPlaylistName: playlist?.name ?? null };
+        } catch {
+          return { ...screen, currentPlaylistName: null };
+        }
+      }),
+    );
   }
 
   /**

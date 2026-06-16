@@ -24,6 +24,8 @@ function makeGroup(overrides: Partial<ScreenGroup> = {}): ScreenGroup {
     mode: 'split',
     gridColumns: 2,
     gridRows: 2,
+    color: '#6d6cf6',
+    icon: 'Groups',
     screens: [],
     createdAt: '',
     updatedAt: '',
@@ -32,7 +34,15 @@ function makeGroup(overrides: Partial<ScreenGroup> = {}): ScreenGroup {
 }
 
 const PLAYLISTS: Playlist[] = [
-  { id: 'p1', organisationId: 'org1', name: 'Loop A', items: [], createdAt: '', updatedAt: '' },
+  {
+    id: 'p1',
+    organisationId: 'org1',
+    name: 'Loop A',
+    color: '#6d6cf6',
+    items: [],
+    createdAt: '',
+    updatedAt: '',
+  },
 ];
 
 interface SetUpOptions {
@@ -151,6 +161,20 @@ describe('ScheduleFormModal', () => {
       expect(fixture.nativeElement.querySelector('#modalTarget')).toBeNull();
       // Delete button only present in edit mode
       expect(fixture.nativeElement.querySelector('.btn-danger')).toBeTruthy();
+    });
+  });
+
+  describe('setRecurrence', () => {
+    it('clears the selected weekdays when leaving the weekdays mode', async () => {
+      // Arrange
+      await setUp({ initialRecurrence: 'weekdays', initialWeekdays: ['MO', 'TU'] });
+
+      // Act
+      component.setRecurrence('weekly');
+
+      // Assert
+      expect(component.recurrence).toBe('weekly');
+      expect(component.weekdays).toEqual([]);
     });
   });
 
@@ -323,7 +347,7 @@ describe('ScheduleFormModal', () => {
       component.dismiss.subscribe(() => (dismissed = true));
 
       // Act
-      (fixture.nativeElement.querySelector('.btn-secondary') as HTMLButtonElement).click();
+      (fixture.nativeElement.querySelector('.btn-secondary button') as HTMLButtonElement).click();
 
       // Assert
       expect(dismissed).toBe(true);
@@ -349,7 +373,7 @@ describe('ScheduleFormModal', () => {
       component.remove.subscribe(() => (removed = true));
 
       // Act
-      (fixture.nativeElement.querySelector('.btn-danger') as HTMLButtonElement).click();
+      (fixture.nativeElement.querySelector('.btn-danger button') as HTMLButtonElement).click();
 
       // Assert
       expect(removed).toBe(true);

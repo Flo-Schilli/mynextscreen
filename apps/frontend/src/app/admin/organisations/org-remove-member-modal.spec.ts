@@ -22,6 +22,12 @@ function makeOrgMember(overrides: Partial<OrgMember> = {}): OrgMember {
   };
 }
 
+function confirmBtn(fixture: ComponentFixture<OrgRemoveMemberModal>) {
+  return fixture.debugElement
+    .queryAll(By.css('mns-btn'))
+    .find((b) => /Remov/.test(b.nativeElement.textContent));
+}
+
 describe('OrgRemoveMemberModal', () => {
   let fixture: ComponentFixture<OrgRemoveMemberModal>;
   let component: OrgRemoveMemberModal;
@@ -57,12 +63,12 @@ describe('OrgRemoveMemberModal', () => {
     fixture.detectChanges();
 
     // Assert
-    const confirm = fixture.debugElement.query(By.css('.btn-danger'));
-    expect(confirm.nativeElement.disabled).toBe(false);
-    expect(confirm.nativeElement.textContent).toContain('Remove');
+    const confirm = confirmBtn(fixture);
+    expect(confirm?.componentInstance.disabled()).toBe(false);
+    expect(confirm?.nativeElement.textContent).toContain('Remove');
   });
 
-  it('shows "Removing..." and disables the confirm button while removing', () => {
+  it('shows "Removing…" and disables the confirm button while removing', () => {
     // Arrange
     fixture.componentRef.setInput('removing', true);
 
@@ -70,9 +76,9 @@ describe('OrgRemoveMemberModal', () => {
     fixture.detectChanges();
 
     // Assert
-    const confirm = fixture.debugElement.query(By.css('.btn-danger'));
-    expect(confirm.nativeElement.disabled).toBe(true);
-    expect(confirm.nativeElement.textContent).toContain('Removing...');
+    const confirm = confirmBtn(fixture);
+    expect(confirm?.componentInstance.disabled()).toBe(true);
+    expect(confirm?.nativeElement.textContent).toContain('Removing');
   });
 
   it('emits confirm when the Remove button is clicked', () => {
@@ -82,7 +88,7 @@ describe('OrgRemoveMemberModal', () => {
     fixture.detectChanges();
 
     // Act
-    fixture.debugElement.query(By.css('.btn-danger')).triggerEventHandler('click', undefined);
+    confirmBtn(fixture)?.componentInstance.mnsClick.emit(new MouseEvent('click'));
 
     // Assert
     expect(spy).toHaveBeenCalledTimes(1);
@@ -95,20 +101,23 @@ describe('OrgRemoveMemberModal', () => {
     fixture.detectChanges();
 
     // Act
-    fixture.debugElement.query(By.css('.btn-secondary')).triggerEventHandler('click', undefined);
+    const cancel = fixture.debugElement
+      .queryAll(By.css('mns-btn'))
+      .find((b) => b.nativeElement.textContent.includes('Cancel'));
+    cancel?.componentInstance.mnsClick.emit(new MouseEvent('click'));
 
     // Assert
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
-  it('emits dismiss when the overlay backdrop is clicked', () => {
+  it('emits dismiss when the overlay backdrop is closed', () => {
     // Arrange
     const spy = vi.fn();
     component.dismiss.subscribe(spy);
     fixture.detectChanges();
 
     // Act
-    fixture.debugElement.query(By.css('.modal-overlay')).triggerEventHandler('click', undefined);
+    fixture.debugElement.query(By.css('mns-overlay')).componentInstance.closed.emit();
 
     // Assert
     expect(spy).toHaveBeenCalledTimes(1);

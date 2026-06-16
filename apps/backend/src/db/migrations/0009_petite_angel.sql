@@ -1,0 +1,1 @@
+ALTER TABLE "organisation_notification_configs" ADD COLUMN "alert_rules" jsonb DEFAULT '{"offline":true,"recovered":true,"transcodeFail":true,"storage":false,"weekly":false}'::jsonb NOT NULL;

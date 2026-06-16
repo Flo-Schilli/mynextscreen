@@ -70,46 +70,32 @@ describe('NotificationBell', () => {
     expect(serviceStub.ngOnDestroy).toHaveBeenCalledTimes(1);
   });
 
-  describe('unread badge', () => {
-    it('hides the badge when unread count is zero', () => {
+  describe('unread dot', () => {
+    it('hides the dot when unread count is zero', () => {
       // Arrange / Act
       serviceStub.unreadCount.set(0);
       render();
 
       // Assert
-      expect(fixture.debugElement.query(By.css('.badge'))).toBeNull();
+      expect(fixture.debugElement.query(By.css('.unread-dot'))).toBeNull();
     });
 
-    it('shows the exact count when unread is between 1 and 99', () => {
+    it('shows the dot when unread count is positive', () => {
       // Arrange / Act
       serviceStub.unreadCount.set(7);
       render();
 
       // Assert
-      const badge = fixture.debugElement.query(By.css('.badge'));
-      expect(badge).not.toBeNull();
-      expect(badge.nativeElement.textContent.trim()).toBe('7');
+      expect(fixture.debugElement.query(By.css('.unread-dot'))).not.toBeNull();
     });
 
-    it('caps the badge text at 99+ when unread exceeds 99', () => {
+    it('shows the dot regardless of how high the unread count is', () => {
       // Arrange / Act
       serviceStub.unreadCount.set(150);
       render();
 
       // Assert
-      const badge = fixture.debugElement.query(By.css('.badge'));
-      expect(badge.nativeElement.textContent.trim()).toBe('99+');
-    });
-
-    it('shows 99 at the boundary value', () => {
-      // Arrange / Act
-      serviceStub.unreadCount.set(99);
-      render();
-
-      // Assert
-      expect(fixture.debugElement.query(By.css('.badge')).nativeElement.textContent.trim()).toBe(
-        '99',
-      );
+      expect(fixture.debugElement.query(By.css('.unread-dot'))).not.toBeNull();
     });
   });
 

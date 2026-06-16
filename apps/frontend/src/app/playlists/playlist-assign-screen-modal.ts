@@ -1,6 +1,13 @@
-import { Component, input, model, output } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, computed, input, model, output } from '@angular/core';
 import { Screen } from '../screens/screen.model';
+import {
+  OverlayComponent,
+  ModalComponent,
+  BtnComponent,
+  SelectComponent,
+  SFieldComponent,
+  SelectOption,
+} from '../ui';
 
 /**
  * Presentational modal for bulk-assigning the selected playlists to a screen.
@@ -10,51 +17,39 @@ import { Screen } from '../screens/screen.model';
 @Component({
   selector: 'app-playlist-assign-screen-modal',
   standalone: true,
-  imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayComponent, ModalComponent, BtnComponent, SelectComponent, SFieldComponent],
   template: `
-    <div
-      class="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Assign to screens"
-      tabindex="0"
-      (click)="dismiss.emit()"
-      (keydown.escape)="dismiss.emit()"
-    >
-      <div
-        class="modal"
-        role="document"
-        (click)="$event.stopPropagation()"
-        (keydown)="$event.stopPropagation()"
-      >
-        <h2>Assign to Screen</h2>
-        <p>
-          Select a screen to assign <strong>{{ count() }} playlist(s)</strong> to:
-        </p>
-        <div class="form-group">
-          <label for="screenSelect">Screen</label>
-          <select id="screenSelect" [(ngModel)]="selectedScreenId" name="screenSelect">
-            <option value="">-- Select a screen --</option>
-            @for (screen of screens(); track screen.id) {
-              <option [value]="screen.id">{{ screen.name }} ({{ screen.location }})</option>
-            }
-          </select>
+    <mns-overlay (closed)="dismiss.emit()">
+      <mns-modal title="Assign to screen" icon="Screens" (closed)="dismiss.emit()">
+        <div class="px-6 pt-4 pb-2">
+          <p class="text-sm text-muted mb-4">
+            Select a screen to assign
+            <strong class="text-text">{{ count() }} playlist(s)</strong> to:
+          </p>
+          <mns-sfield label="Screen">
+            <mns-select
+              [options]="screenOptions()"
+              [(value)]="selectedScreenId"
+              placeholder="-- Select a screen --"
+            />
+          </mns-sfield>
+          @if (loadError()) {
+            <p class="text-offline text-sm mt-3">{{ loadError() }}</p>
+          }
         </div>
-        @if (loadError()) {
-          <p class="error">{{ loadError() }}</p>
-        }
-        <div class="form-actions">
-          <button class="btn btn-secondary" (click)="dismiss.emit()">Cancel</button>
-          <button
-            class="btn btn-primary"
-            (click)="confirm.emit()"
+        <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
+          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn
+            variant="primary"
             [disabled]="loading() || !selectedScreenId()"
+            (mnsClick)="confirm.emit()"
           >
-            {{ loading() ? 'Loading...' : 'Assign' }}
-          </button>
+            {{ loading() ? 'Loading…' : 'Assign' }}
+          </mns-btn>
         </div>
-      </div>
-    </div>
+      </mns-modal>
+    </mns-overlay>
   `,
 })
 export class PlaylistAssignScreenModal {
@@ -65,4 +60,8 @@ export class PlaylistAssignScreenModal {
   readonly selectedScreenId = model.required<string>();
   readonly confirm = output<void>();
   readonly dismiss = output<void>();
+
+  protected readonly screenOptions = computed<SelectOption[]>(() =>
+    this.screens().map((s) => ({ value: s.id, label: `${s.name} (${s.location})` })),
+  );
 }

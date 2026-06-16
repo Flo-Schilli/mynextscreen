@@ -46,23 +46,23 @@ describe('PlaylistAddContentModal', () => {
     fixture.componentRef.setInput('loading', true);
     fixture.detectChanges();
 
-    expect(fixture.debugElement.query(By.css('.loading-text'))).not.toBeNull();
-    expect(fixture.debugElement.query(By.css('.content-grid'))).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Loading content library');
   });
 
   it('shows the empty message when no content is available', () => {
     fixture.detectChanges();
 
-    expect(fixture.debugElement.query(By.css('.empty-text'))).not.toBeNull();
-    expect(fixture.debugElement.query(By.css('.content-grid'))).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('No content available');
   });
 
-  it('renders the content grid when content is available', () => {
+  it('renders a list row per content item when content is available', () => {
     fixture.componentRef.setInput('availableContent', [buildContent()]);
     fixture.detectChanges();
 
-    expect(fixture.debugElement.query(By.css('.content-grid'))).not.toBeNull();
-    expect(fixture.debugElement.queryAll(By.css('.content-item')).length).toBe(1);
+    expect(
+      fixture.debugElement.queryAll(By.css('mns-modal button img, mns-modal button')).length,
+    ).toBeGreaterThan(0);
+    expect(fixture.nativeElement.textContent).toContain('Clip');
   });
 
   describe('filteredContent', () => {
@@ -111,22 +111,29 @@ describe('PlaylistAddContentModal', () => {
 
       expect(component['filteredContent']().map((c) => c.id)).toEqual(['img', 'vid']);
     });
-  });
 
-  it('marks the All toggle active by default', () => {
-    fixture.componentRef.setInput('availableContent', [buildContent()]);
-    fixture.detectChanges();
+    it('filters by the search query', () => {
+      fixture.componentRef.setInput('availableContent', [
+        buildContent({ id: 'a', title: 'Sunset' }),
+        buildContent({ id: 'b', title: 'Mountain' }),
+      ]);
+      fixture.detectChanges();
 
-    const toggles = fixture.debugElement.queryAll(By.css('.toggle-btn'));
-    expect(toggles[0].nativeElement.classList).toContain('active');
+      component['query'].set('moun');
+      fixture.detectChanges();
+
+      expect(component['filteredContent']().map((c) => c.id)).toEqual(['b']);
+    });
   });
 
   it('sets the filter when a type toggle is clicked', () => {
     fixture.componentRef.setInput('availableContent', [buildContent()]);
     fixture.detectChanges();
 
-    const toggles = fixture.debugElement.queryAll(By.css('.toggle-btn'));
-    toggles[1].triggerEventHandler('click', undefined);
+    const imagesBtn = fixture.debugElement
+      .queryAll(By.css('mns-btn'))
+      .find((b) => b.nativeElement.textContent.trim() === 'Images');
+    imagesBtn!.triggerEventHandler('mnsClick', new MouseEvent('click'));
 
     expect(component['filter']()).toBe('image');
   });
@@ -135,16 +142,8 @@ describe('PlaylistAddContentModal', () => {
     fixture.componentRef.setInput('availableContent', [buildContent({ id: 'c9', type: 'image' })]);
     fixture.detectChanges();
 
-    const img = fixture.debugElement.query(By.css('.content-thumb'));
+    const img = fixture.debugElement.query(By.css('img'));
     expect(img.nativeElement.getAttribute('src')).toBe('/thumb/c9');
-  });
-
-  it('renders a video placeholder for video content', () => {
-    fixture.componentRef.setInput('availableContent', [buildContent({ type: 'video' })]);
-    fixture.detectChanges();
-
-    expect(fixture.debugElement.query(By.css('.content-thumb-video'))).not.toBeNull();
-    expect(fixture.debugElement.query(By.css('.content-thumb'))).toBeNull();
   });
 
   it('emits selectContent with the picked content', () => {
@@ -154,7 +153,10 @@ describe('PlaylistAddContentModal', () => {
 
     const spy = vi.fn();
     component.selectContent.subscribe(spy);
-    fixture.debugElement.query(By.css('.content-item')).triggerEventHandler('click', undefined);
+    const row = fixture.debugElement
+      .queryAll(By.css('button'))
+      .find((b) => (b.nativeElement.textContent as string).includes('Clip'));
+    row!.triggerEventHandler('click', new MouseEvent('click'));
 
     expect(spy).toHaveBeenCalledWith(picked);
   });
@@ -164,7 +166,10 @@ describe('PlaylistAddContentModal', () => {
 
     const spy = vi.fn();
     component.dismiss.subscribe(spy);
-    fixture.debugElement.query(By.css('.btn-secondary')).triggerEventHandler('click', undefined);
+    const closeBtn = fixture.debugElement
+      .queryAll(By.css('mns-btn'))
+      .find((b) => b.nativeElement.textContent.trim() === 'Close');
+    closeBtn!.triggerEventHandler('mnsClick', new MouseEvent('click'));
 
     expect(spy).toHaveBeenCalledTimes(1);
   });

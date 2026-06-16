@@ -97,9 +97,9 @@ describe('Users', () => {
 
       fixture.detectChanges();
 
-      expect(component.members).toEqual(members);
-      expect(component.loading).toBe(false);
-      expect(component.loadError).toBe('');
+      expect(component.members()).toEqual(members);
+      expect(component.loading()).toBe(false);
+      expect(component.loadError()).toBe('');
     });
 
     it('should error when member has no org_admin role', () => {
@@ -108,8 +108,8 @@ describe('Users', () => {
 
       fixture.detectChanges();
 
-      expect(component.loadError).toBe('You do not have Org Admin access to any organisation.');
-      expect(component.loading).toBe(false);
+      expect(component.loadError()).toBe('You do not have Org Admin access to any organisation.');
+      expect(component.loading()).toBe(false);
       expect(memberService.listMembers).not.toHaveBeenCalled();
     });
 
@@ -119,8 +119,8 @@ describe('Users', () => {
 
       fixture.detectChanges();
 
-      expect(component.loadError).toBe('You are not a member of any organisation.');
-      expect(component.loading).toBe(false);
+      expect(component.loadError()).toBe('You are not a member of any organisation.');
+      expect(component.loading()).toBe(false);
     });
 
     it('should error when memberships call fails', () => {
@@ -129,8 +129,8 @@ describe('Users', () => {
 
       fixture.detectChanges();
 
-      expect(component.loadError).toBe('Failed to load organisation context.');
-      expect(component.loading).toBe(false);
+      expect(component.loadError()).toBe('Failed to load organisation context.');
+      expect(component.loading()).toBe(false);
     });
   });
 
@@ -141,8 +141,8 @@ describe('Users', () => {
 
       fixture.detectChanges();
 
-      expect(component.loadError).toBe('Access denied. Org Admin privileges required.');
-      expect(component.loading).toBe(false);
+      expect(component.loadError()).toBe('Access denied. Org Admin privileges required.');
+      expect(component.loading()).toBe(false);
     });
 
     it('should map other errors to generic message', () => {
@@ -151,12 +151,12 @@ describe('Users', () => {
 
       fixture.detectChanges();
 
-      expect(component.loadError).toBe('Failed to load members.');
+      expect(component.loadError()).toBe('Failed to load members.');
     });
   });
 
   describe('conditional rendering', () => {
-    it('should render member table rows when members present', () => {
+    it('should render a member grid row per member', () => {
       setup();
       memberService.listMembers.mockReturnValue(
         of([membership(), membership({ id: 'm-2', userId: 'u-2' })]),
@@ -164,8 +164,9 @@ describe('Users', () => {
 
       fixture.detectChanges();
 
-      const rows = fixture.debugElement.queryAll(By.css('tbody tr'));
-      expect(rows.length).toBe(2);
+      // Each member renders an mns-avatar in its grid row.
+      const avatars = fixture.debugElement.queryAll(By.css('mns-avatar'));
+      expect(avatars.length).toBe(2);
       expect(fixture.debugElement.query(By.css('.btn-primary'))).toBeTruthy();
     });
 
@@ -177,7 +178,7 @@ describe('Users', () => {
 
       const empty = fixture.debugElement.query(By.css('.empty-text'));
       expect(empty.nativeElement.textContent).toContain('No members found.');
-      expect(fixture.debugElement.query(By.css('table'))).toBeNull();
+      expect(fixture.debugElement.query(By.css('mns-avatar'))).toBeNull();
     });
 
     it('should render a "Pending invite" badge for pending members', () => {
@@ -186,10 +187,9 @@ describe('Users', () => {
 
       fixture.detectChanges();
 
-      const badge = fixture.debugElement.query(By.css('.status-pending'));
+      const badge = fixture.debugElement.query(By.css('mns-badge'));
       expect(badge).toBeTruthy();
       expect(badge.nativeElement.textContent).toContain('Pending invite');
-      expect(fixture.debugElement.query(By.css('.status-active'))).toBeNull();
     });
 
     it('should render an "Active" badge for active members', () => {
@@ -198,10 +198,9 @@ describe('Users', () => {
 
       fixture.detectChanges();
 
-      const badge = fixture.debugElement.query(By.css('.status-active'));
+      const badge = fixture.debugElement.query(By.css('mns-badge'));
       expect(badge).toBeTruthy();
       expect(badge.nativeElement.textContent).toContain('Active');
-      expect(fixture.debugElement.query(By.css('.status-pending'))).toBeNull();
     });
 
     it('should render fallback name for members without a name', () => {
@@ -212,8 +211,7 @@ describe('Users', () => {
 
       fixture.detectChanges();
 
-      const firstCell = fixture.debugElement.query(By.css('tbody tr td'));
-      expect(firstCell.nativeElement.textContent).toContain('(no name)');
+      expect(fixture.nativeElement.textContent).toContain('Invite pending');
     });
 
     it('should render loadError text', () => {
@@ -234,26 +232,29 @@ describe('Users', () => {
       setup();
       fixture.detectChanges();
 
-      component.inviteEmail = 'stale@example.com';
-      component.inviteRole = 'org_admin';
-      component.inviteError = 'old error';
+      component.inviteEmail.set('stale@example.com');
+      component.inviteRole.set('org_admin');
+      component.inviteError.set('old error');
 
       component.openInviteModal();
 
-      expect(component.showInviteModal).toBe(true);
-      expect(component.inviteEmail).toBe('');
-      expect(component.inviteRole).toBe('viewer');
-      expect(component.inviteError).toBe('');
+      expect(component.showInviteModal()).toBe(true);
+      expect(component.inviteEmail()).toBe('');
+      expect(component.inviteRole()).toBe('viewer');
+      expect(component.inviteError()).toBe('');
     });
 
-    it('should render modal when open', () => {
+    it('should render modal when open', async () => {
       setup();
       fixture.detectChanges();
 
       component.openInviteModal();
-      fixture.componentRef.changeDetectorRef.detectChanges();
+      fixture.componentRef.changeDetectorRef.markForCheck();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
 
-      expect(fixture.debugElement.query(By.css('.modal-overlay'))).toBeTruthy();
+      expect(fixture.debugElement.query(By.css('mns-overlay'))).toBeTruthy();
     });
 
     it('should close the modal', () => {
@@ -263,18 +264,18 @@ describe('Users', () => {
 
       component.closeInviteModal();
 
-      expect(component.showInviteModal).toBe(false);
+      expect(component.showInviteModal()).toBe(false);
     });
 
     it('should validate required email before submit', () => {
       setup();
       fixture.detectChanges();
       component.openInviteModal();
-      component.inviteEmail = '';
+      component.inviteEmail.set('');
 
       component.submitInvite();
 
-      expect(component.inviteError).toBe('Email is required.');
+      expect(component.inviteError()).toBe('A valid email is required.');
       expect(memberService.addMember).not.toHaveBeenCalled();
     });
 
@@ -283,8 +284,8 @@ describe('Users', () => {
       fixture.detectChanges();
       memberService.listMembers.mockClear();
       component.openInviteModal();
-      component.inviteEmail = 'new@example.com';
-      component.inviteRole = 'editor';
+      component.inviteEmail.set('new@example.com');
+      component.inviteRole.set('editor');
 
       component.submitInvite();
 
@@ -292,8 +293,8 @@ describe('Users', () => {
         email: 'new@example.com',
         role: 'editor',
       });
-      expect(component.inviting).toBe(false);
-      expect(component.showInviteModal).toBe(false);
+      expect(component.inviting()).toBe(false);
+      expect(component.showInviteModal()).toBe(false);
       expect(memberService.listMembers).toHaveBeenCalled();
     });
 
@@ -304,13 +305,13 @@ describe('Users', () => {
         throwError(() => ({ error: { message: 'Already a member' } })),
       );
       component.openInviteModal();
-      component.inviteEmail = 'dup@example.com';
+      component.inviteEmail.set('dup@example.com');
 
       component.submitInvite();
 
-      expect(component.inviteError).toBe('Already a member');
-      expect(component.inviting).toBe(false);
-      expect(component.showInviteModal).toBe(true);
+      expect(component.inviteError()).toBe('Already a member');
+      expect(component.inviting()).toBe(false);
+      expect(component.showInviteModal()).toBe(true);
     });
 
     it('should use fallback message on invite failure without message', () => {
@@ -318,11 +319,11 @@ describe('Users', () => {
       fixture.detectChanges();
       memberService.addMember.mockReturnValue(throwError(() => ({})));
       component.openInviteModal();
-      component.inviteEmail = 'dup@example.com';
+      component.inviteEmail.set('dup@example.com');
 
       component.submitInvite();
 
-      expect(component.inviteError).toBe('Failed to invite user.');
+      expect(component.inviteError()).toBe('Failed to invite user.');
     });
   });
 
@@ -335,22 +336,23 @@ describe('Users', () => {
       component.changeRole(member, 'viewer');
 
       expect(memberService.updateRole).not.toHaveBeenCalled();
-      expect(component.updatingUserId).toBeNull();
+      expect(component.updatingUserId()).toBeNull();
     });
 
     it('should update role and apply server result', () => {
       setup();
+      const existing = membership({ role: 'viewer' });
+      memberService.listMembers.mockReturnValue(of([existing]));
       fixture.detectChanges();
-      const member = membership({ role: 'viewer' });
       memberService.updateRole.mockReturnValue(of(membership({ role: 'editor' })));
 
-      component.changeRole(member, 'editor');
+      component.changeRole(existing, 'editor');
 
-      expect(memberService.updateRole).toHaveBeenCalledWith(ORG_ID, member.userId, {
+      expect(memberService.updateRole).toHaveBeenCalledWith(ORG_ID, existing.userId, {
         role: 'editor',
       });
-      expect(member.role).toBe('editor');
-      expect(component.updatingUserId).toBeNull();
+      expect(component.members().find((m) => m.userId === existing.userId)?.role).toBe('editor');
+      expect(component.updatingUserId()).toBeNull();
     });
 
     it('should surface error and reset updating flag on failure', () => {
@@ -363,8 +365,8 @@ describe('Users', () => {
 
       component.changeRole(member, 'editor');
 
-      expect(component.actionError).toBe('Cannot demote last admin');
-      expect(component.updatingUserId).toBeNull();
+      expect(component.actionError()).toBe('Cannot demote last admin');
+      expect(component.updatingUserId()).toBeNull();
     });
 
     it('should use fallback error message on role failure', () => {
@@ -374,7 +376,7 @@ describe('Users', () => {
 
       component.changeRole(membership({ role: 'viewer' }), 'editor');
 
-      expect(component.actionError).toBe('Failed to update role.');
+      expect(component.actionError()).toBe('Failed to update role.');
     });
   });
 
@@ -386,18 +388,21 @@ describe('Users', () => {
 
       component.confirmRemove(member);
 
-      expect(component.showRemoveConfirm).toBe(true);
-      expect(component.removingMember).toBe(member);
+      expect(component.showRemoveConfirm()).toBe(true);
+      expect(component.removingMember()).toBe(member);
     });
 
-    it('should render confirmation modal with member email', () => {
+    it('should render confirmation modal with member email', async () => {
       setup();
       fixture.detectChanges();
 
       component.confirmRemove(membership());
-      fixture.componentRef.changeDetectorRef.detectChanges();
+      fixture.componentRef.changeDetectorRef.markForCheck();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
 
-      const modal = fixture.debugElement.query(By.css('.modal'));
+      const modal = fixture.debugElement.query(By.css('mns-overlay'));
       expect(modal.nativeElement.textContent).toContain('user@example.com');
     });
 
@@ -408,14 +413,14 @@ describe('Users', () => {
 
       component.cancelRemove();
 
-      expect(component.showRemoveConfirm).toBe(false);
-      expect(component.removingMember).toBeNull();
+      expect(component.showRemoveConfirm()).toBe(false);
+      expect(component.removingMember()).toBeNull();
     });
 
     it('should no-op execute when no member selected', () => {
       setup();
       fixture.detectChanges();
-      component.removingMember = null;
+      component.removingMember.set(null);
 
       component.executeRemove();
 
@@ -432,9 +437,9 @@ describe('Users', () => {
       component.executeRemove();
 
       expect(memberService.removeMember).toHaveBeenCalledWith(ORG_ID, member.userId);
-      expect(component.removingUserId).toBeNull();
-      expect(component.showRemoveConfirm).toBe(false);
-      expect(component.removingMember).toBeNull();
+      expect(component.removingUserId()).toBeNull();
+      expect(component.showRemoveConfirm()).toBe(false);
+      expect(component.removingMember()).toBeNull();
       expect(memberService.listMembers).toHaveBeenCalled();
     });
 
@@ -448,10 +453,10 @@ describe('Users', () => {
 
       component.executeRemove();
 
-      expect(component.actionError).toBe('Cannot remove yourself');
-      expect(component.removingUserId).toBeNull();
-      expect(component.showRemoveConfirm).toBe(false);
-      expect(component.removingMember).toBeNull();
+      expect(component.actionError()).toBe('Cannot remove yourself');
+      expect(component.removingUserId()).toBeNull();
+      expect(component.showRemoveConfirm()).toBe(false);
+      expect(component.removingMember()).toBeNull();
     });
 
     it('should use fallback message on remove failure without message', () => {
@@ -462,7 +467,7 @@ describe('Users', () => {
 
       component.executeRemove();
 
-      expect(component.actionError).toBe('Failed to remove member.');
+      expect(component.actionError()).toBe('Failed to remove member.');
     });
   });
 

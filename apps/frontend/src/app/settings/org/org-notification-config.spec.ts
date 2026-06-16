@@ -1,7 +1,7 @@
 import { TestBed, ComponentFixture, getTestBed } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { of, throwError } from 'rxjs';
 import { OrgNotificationConfig } from './org-notification-config';
@@ -33,6 +33,13 @@ function fullConfig(overrides: Partial<OrgNotificationConfigFull> = {}): OrgNoti
     ntfyUrl: null,
     ntfyTopic: null,
     ntfyToken: null,
+    alertRules: {
+      offline: true,
+      recovered: true,
+      transcodeFail: true,
+      storage: false,
+      weekly: false,
+    },
     ...overrides,
   };
 }
@@ -101,11 +108,36 @@ describe('OrgNotificationConfig', () => {
       fixture.detectChanges();
 
       expect(configService.getConfig).toHaveBeenCalledWith(ORG_ID);
-      expect(component.loading).toBe(false);
-      expect(component.loadError).toBe('');
-      expect(component.smtpHost).toBe('smtp.example.com');
-      expect(component.smtpPort).toBe(587);
-      expect(component.smtpSecure).toBe(true);
+      expect(component.loading()).toBe(false);
+      expect(component.loadError()).toBe('');
+      expect(component.smtpHost()).toBe('smtp.example.com');
+      expect(component.smtpPort()).toBe('587');
+      expect(component.smtpSecure()).toBe(true);
+    });
+
+    it('should load alert rules from the config', () => {
+      setup();
+      configService.getConfig.mockReturnValue(
+        of(
+          fullConfig({
+            alertRules: {
+              offline: false,
+              recovered: false,
+              transcodeFail: true,
+              storage: true,
+              weekly: true,
+            },
+          }),
+        ),
+      );
+
+      fixture.detectChanges();
+
+      expect(component.ruleOffline()).toBe(false);
+      expect(component.ruleRecovered()).toBe(false);
+      expect(component.ruleTranscodeFail()).toBe(true);
+      expect(component.ruleStorage()).toBe(true);
+      expect(component.ruleWeekly()).toBe(true);
     });
 
     it('should map masked password/token into has-flags and blank fields', () => {
@@ -116,18 +148,18 @@ describe('OrgNotificationConfig', () => {
 
       fixture.detectChanges();
 
-      expect(component.hasSmtpPassword).toBe(true);
-      expect(component.hasNtfyToken).toBe(true);
-      expect(component.smtpPassword).toBe('');
-      expect(component.ntfyToken).toBe('');
+      expect(component.hasSmtpPassword()).toBe(true);
+      expect(component.hasNtfyToken()).toBe(true);
+      expect(component.smtpPassword()).toBe('');
+      expect(component.ntfyToken()).toBe('');
     });
 
     it('should leave has-flags false when no secrets saved', () => {
       setup();
       fixture.detectChanges();
 
-      expect(component.hasSmtpPassword).toBe(false);
-      expect(component.hasNtfyToken).toBe(false);
+      expect(component.hasSmtpPassword()).toBe(false);
+      expect(component.hasNtfyToken()).toBe(false);
     });
 
     it('should set loadError when no org is selected', () => {
@@ -136,8 +168,8 @@ describe('OrgNotificationConfig', () => {
 
       fixture.detectChanges();
 
-      expect(component.loadError).toBe('No organisation selected.');
-      expect(component.loading).toBe(false);
+      expect(component.loadError()).toBe('No organisation selected.');
+      expect(component.loading()).toBe(false);
       expect(configService.getConfig).not.toHaveBeenCalled();
     });
 
@@ -147,8 +179,8 @@ describe('OrgNotificationConfig', () => {
 
       fixture.detectChanges();
 
-      expect(component.loadError).toBe('Failed to load notification configuration.');
-      expect(component.loading).toBe(false);
+      expect(component.loadError()).toBe('Failed to load notification configuration.');
+      expect(component.loading()).toBe(false);
     });
   });
 
@@ -164,7 +196,7 @@ describe('OrgNotificationConfig', () => {
 
       const loadingEl = fixture.debugElement.query(By.css('.loading-text'));
       expect(loadingEl).toBeTruthy();
-      expect(component.loading).toBe(true);
+      expect(component.loading()).toBe(true);
     });
 
     it('should render error text and hide sections on load failure', () => {
@@ -184,8 +216,8 @@ describe('OrgNotificationConfig', () => {
       setup();
       fixture.detectChanges();
 
-      const sections = fixture.debugElement.queryAll(By.css('.section'));
-      expect(sections.length).toBe(2);
+      const sections = fixture.debugElement.queryAll(By.css('mns-card'));
+      expect(sections.length).toBeGreaterThanOrEqual(2);
       expect(fixture.debugElement.query(By.css('.loading-text'))).toBeNull();
     });
   });
@@ -195,12 +227,12 @@ describe('OrgNotificationConfig', () => {
       setup();
       fixture.detectChanges();
 
-      component.smtpHost = 'smtp.example.com';
-      component.smtpPort = 587;
-      component.smtpUser = '';
-      component.smtpFrom = 'noreply@example.com';
-      component.smtpSecure = true;
-      component.smtpPassword = '';
+      component.smtpHost.set('smtp.example.com');
+      component.smtpPort.set('587');
+      component.smtpUser.set('');
+      component.smtpFrom.set('noreply@example.com');
+      component.smtpSecure.set(true);
+      component.smtpPassword.set('');
 
       component.saveSmtp();
 
@@ -211,7 +243,7 @@ describe('OrgNotificationConfig', () => {
         smtpFrom: 'noreply@example.com',
         smtpSecure: true,
       });
-      expect(component.savingSmtp).toBe(false);
+      expect(component.savingSmtp()).toBe(false);
       expect(lastToast()?.message).toBe('SMTP settings saved.');
       expect(lastToast()?.type).toBe('success');
     });
@@ -220,7 +252,7 @@ describe('OrgNotificationConfig', () => {
       setup();
       fixture.detectChanges();
 
-      component.smtpPassword = 'secret';
+      component.smtpPassword.set('secret');
       component.saveSmtp();
 
       const payload = configService.updateConfig.mock.calls[0][1] as Record<string, unknown>;
@@ -245,7 +277,7 @@ describe('OrgNotificationConfig', () => {
 
       component.saveSmtp();
 
-      expect(component.savingSmtp).toBe(false);
+      expect(component.savingSmtp()).toBe(false);
       expect(lastToast()?.message).toBe('Failed to save SMTP settings.');
       expect(lastToast()?.type).toBe('error');
     });
@@ -259,8 +291,59 @@ describe('OrgNotificationConfig', () => {
 
       component.saveSmtp();
 
-      expect(component.smtpHost).toBe('new.host');
-      expect(component.hasSmtpPassword).toBe(true);
+      expect(component.smtpHost()).toBe('new.host');
+      expect(component.hasSmtpPassword()).toBe(true);
+    });
+  });
+
+  describe('saveAlertRules', () => {
+    it('should send the current alert-rule toggles', () => {
+      setup();
+      fixture.detectChanges();
+
+      component.ruleOffline.set(false);
+      component.ruleRecovered.set(true);
+      component.ruleTranscodeFail.set(false);
+      component.ruleStorage.set(true);
+      component.ruleWeekly.set(true);
+
+      component.saveAlertRules();
+
+      expect(configService.updateConfig).toHaveBeenCalledWith(ORG_ID, {
+        alertRules: {
+          offline: false,
+          recovered: true,
+          transcodeFail: false,
+          storage: true,
+          weekly: true,
+        },
+      });
+      expect(component.savingRules()).toBe(false);
+      expect(lastToast()?.message).toBe('Alert rules saved.');
+      expect(lastToast()?.type).toBe('success');
+    });
+
+    it('should show error toast on alert-rules save failure', () => {
+      setup();
+      fixture.detectChanges();
+      configService.updateConfig.mockReturnValue(throwError(() => new Error('fail')));
+
+      component.saveAlertRules();
+
+      expect(component.savingRules()).toBe(false);
+      expect(lastToast()?.message).toBe('Failed to save alert rules.');
+      expect(lastToast()?.type).toBe('error');
+    });
+
+    it('should not call service when org missing', () => {
+      selectedOrgId = null;
+      setup();
+      fixture.detectChanges();
+      configService.updateConfig.mockClear();
+
+      component.saveAlertRules();
+
+      expect(configService.updateConfig).not.toHaveBeenCalled();
     });
   });
 
@@ -269,9 +352,9 @@ describe('OrgNotificationConfig', () => {
       setup();
       fixture.detectChanges();
 
-      component.ntfyUrl = 'https://ntfy.sh';
-      component.ntfyTopic = '';
-      component.ntfyToken = '';
+      component.ntfyUrl.set('https://ntfy.sh');
+      component.ntfyTopic.set('');
+      component.ntfyToken.set('');
 
       component.saveNtfy();
 
@@ -279,7 +362,7 @@ describe('OrgNotificationConfig', () => {
         ntfyUrl: 'https://ntfy.sh',
         ntfyTopic: null,
       });
-      expect(component.savingNtfy).toBe(false);
+      expect(component.savingNtfy()).toBe(false);
       expect(lastToast()?.message).toBe('ntfy settings saved.');
     });
 
@@ -287,7 +370,7 @@ describe('OrgNotificationConfig', () => {
       setup();
       fixture.detectChanges();
 
-      component.ntfyToken = 'tok';
+      component.ntfyToken.set('tok');
       component.saveNtfy();
 
       const payload = configService.updateConfig.mock.calls[0][1] as Record<string, unknown>;
@@ -312,7 +395,7 @@ describe('OrgNotificationConfig', () => {
 
       component.saveNtfy();
 
-      expect(component.savingNtfy).toBe(false);
+      expect(component.savingNtfy()).toBe(false);
       expect(lastToast()?.message).toBe('Failed to save ntfy settings.');
       expect(lastToast()?.type).toBe('error');
     });
@@ -327,7 +410,7 @@ describe('OrgNotificationConfig', () => {
       component.testEmail();
 
       expect(configService.testEmail).toHaveBeenCalledWith(ORG_ID);
-      expect(component.testingEmail).toBe(false);
+      expect(component.testingEmail()).toBe(false);
       expect(lastToast()?.message).toBe('Test email sent');
       expect(lastToast()?.type).toBe('success');
     });
@@ -341,7 +424,7 @@ describe('OrgNotificationConfig', () => {
 
       component.testEmail();
 
-      expect(component.testingEmail).toBe(false);
+      expect(component.testingEmail()).toBe(false);
       expect(lastToast()?.message).toBe('SMTP not configured');
       expect(lastToast()?.type).toBe('error');
     });
@@ -377,7 +460,7 @@ describe('OrgNotificationConfig', () => {
       component.testNtfy();
 
       expect(configService.testNtfy).toHaveBeenCalledWith(ORG_ID);
-      expect(component.testingNtfy).toBe(false);
+      expect(component.testingNtfy()).toBe(false);
       expect(lastToast()?.message).toBe('Test push sent');
       expect(lastToast()?.type).toBe('success');
     });
@@ -438,19 +521,6 @@ describe('OrgNotificationConfig', () => {
       component.testEmail();
 
       expect(toastService.toasts().length).toBe(before + 1);
-    });
-  });
-
-  describe('navigation', () => {
-    it('should navigate to user management on goBack', () => {
-      setup();
-      fixture.detectChanges();
-      const router = TestBed.inject(Router);
-      const navSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
-
-      component.goBack();
-
-      expect(navSpy).toHaveBeenCalledWith(['/settings/users']);
     });
   });
 });

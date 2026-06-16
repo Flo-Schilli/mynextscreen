@@ -21,6 +21,7 @@ function makePlaylist(id: string, name: string): Playlist {
     id,
     organisationId: 'org1',
     name,
+    color: '#6d6cf6',
     items: [],
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
@@ -46,8 +47,17 @@ describe('ContentPlaylistModal', () => {
     fixture.detectChanges();
   }
 
+  function footerBtns(): HTMLButtonElement[] {
+    return Array.from(fixture.nativeElement.querySelectorAll('[slot="footer"] button'));
+  }
+
   function confirmBtn(): HTMLButtonElement {
-    return fixture.nativeElement.querySelector('.btn-primary');
+    // The confirm button is the second (primary) footer button.
+    return footerBtns()[1];
+  }
+
+  function cancelBtn(): HTMLButtonElement {
+    return footerBtns()[0];
   }
 
   beforeEach(() => {
@@ -138,7 +148,7 @@ describe('ContentPlaylistModal', () => {
     fixture.componentInstance.dismiss.subscribe(spy);
 
     // Act
-    fixture.nativeElement.querySelector('.btn-secondary').click();
+    cancelBtn().click();
 
     // Assert
     expect(spy).toHaveBeenCalledTimes(1);

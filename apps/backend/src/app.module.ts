@@ -21,6 +21,7 @@ import { NotificationModule } from './notification';
 import { LiveStreamModule } from './live-stream';
 import { SearchModule } from './search/search.module';
 import { InstanceAdminModule } from './instance-admin';
+import { MetricsModule } from './metrics';
 import { HealthController } from './health.controller';
 import { VersionController } from './version.controller';
 import { validateEnv } from './config/env.validation';
@@ -60,6 +61,7 @@ import { validateEnv } from './config/env.validation';
     LiveStreamModule,
     SearchModule,
     InstanceAdminModule,
+    MetricsModule,
   ],
   controllers: [HealthController, VersionController],
 })

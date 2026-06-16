@@ -6,9 +6,9 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ScreenService } from './screen.service';
 import {
   Screen,
+  ScreenListItem,
   CreateScreenRequest,
   UpdateScreenRequest,
-  ScreenWithApiKey,
   BulkDeleteResponse,
   BulkAssignGroupResponse,
 } from './screen.model';
@@ -59,11 +59,18 @@ describe('ScreenService', () => {
 
   afterEach(() => httpMock.verify());
 
+  function makeListItem(overrides: Partial<ScreenListItem> = {}): ScreenListItem {
+    return { ...makeScreen(), currentPlaylistName: null, ...overrides };
+  }
+
   describe('getAll', () => {
-    it('issues a GET to /api/screens with the org header and returns the list', () => {
+    it('issues a GET to /api/screens with the org header and returns the enriched list', () => {
       // Arrange
-      const expected = [makeScreen(), makeScreen({ id: 'screen-2' })];
-      let actual: Screen[] | undefined;
+      const expected = [
+        makeListItem({ currentPlaylistName: 'Morning Loop' }),
+        makeListItem({ id: 'screen-2' }),
+      ];
+      let actual: ScreenListItem[] | undefined;
 
       // Act
       service.getAll(ORG_ID).subscribe((res) => (actual = res));
@@ -74,6 +81,7 @@ describe('ScreenService', () => {
       expect(req.request.headers.get('X-Organisation-Id')).toBe(ORG_ID);
       req.flush(expected);
       expect(actual).toEqual(expected);
+      expect(actual?.[0].currentPlaylistName).toBe('Morning Loop');
     });
   });
 
@@ -96,18 +104,16 @@ describe('ScreenService', () => {
   });
 
   describe('create', () => {
-    it('POSTs the create dto to /api/screens and returns the screen with its api key', () => {
+    it('POSTs the create dto (incl. pairing code) to /api/screens and returns the screen', () => {
       // Arrange
       const dto: CreateScreenRequest = {
         name: 'Bar TV',
         resolution: '3840x2160',
         location: 'Bar',
+        pairingCode: '123456',
       };
-      const expected: ScreenWithApiKey = {
-        screen: makeScreen({ name: 'Bar TV' }),
-        apiKey: 'secret-key',
-      };
-      let actual: ScreenWithApiKey | undefined;
+      const expected = makeScreen({ name: 'Bar TV' });
+      let actual: Screen | undefined;
 
       // Act
       service.create(ORG_ID, dto).subscribe((res) => (actual = res));
@@ -142,19 +148,38 @@ describe('ScreenService', () => {
     });
   });
 
-  describe('regenerateApiKey', () => {
-    it('POSTs an empty body to /api/screens/:id/regenerate-key and returns a fresh key', () => {
+  describe('repair', () => {
+    it('POSTs the pairing code to /api/screens/:id/repair and returns the screen', () => {
       // Arrange
-      const expected: ScreenWithApiKey = { screen: makeScreen(), apiKey: 'new-key' };
-      let actual: ScreenWithApiKey | undefined;
+      const expected = makeScreen();
+      let actual: Screen | undefined;
 
       // Act
-      service.regenerateApiKey(ORG_ID, 'screen-1').subscribe((res) => (actual = res));
-      const req = httpMock.expectOne('/api/screens/screen-1/regenerate-key');
+      service.repair(ORG_ID, 'screen-1', '654321').subscribe((res) => (actual = res));
+      const req = httpMock.expectOne('/api/screens/screen-1/repair');
 
       // Assert
       expect(req.request.method).toBe('POST');
-      expect(req.request.body).toEqual({});
+      expect(req.request.body).toEqual({ pairingCode: '654321' });
+      expect(req.request.headers.get('X-Organisation-Id')).toBe(ORG_ID);
+      req.flush(expected);
+      expect(actual).toEqual(expected);
+    });
+  });
+
+  describe('deleteOne', () => {
+    it('POSTs a single-element id list to /api/screens/bulk-delete', () => {
+      // Arrange
+      const expected: BulkDeleteResponse = { deleted: 1, notFound: [] };
+      let actual: BulkDeleteResponse | undefined;
+
+      // Act
+      service.deleteOne(ORG_ID, 'screen-1').subscribe((res) => (actual = res));
+      const req = httpMock.expectOne('/api/screens/bulk-delete');
+
+      // Assert
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ ids: ['screen-1'] });
       expect(req.request.headers.get('X-Organisation-Id')).toBe(ORG_ID);
       req.flush(expected);
       expect(actual).toEqual(expected);

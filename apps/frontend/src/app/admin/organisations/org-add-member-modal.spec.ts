@@ -1,23 +1,15 @@
 import { TestBed, ComponentFixture } from '@angular/core/testing';
-import { provideZonelessChangeDetection } from '@angular/core';
+import { provideZonelessChangeDetection, WritableSignal } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { OrgAddMemberModal, AddMemberPayload } from './org-add-member-modal';
 
-/**
- * Type into a field through ngModel and flush view <-> model. ngModel write-back
- * is asynchronous under zoneless change detection, so detect changes then await
- * stability after dispatching the input event.
- */
-async function typeInto(
-  fixture: ComponentFixture<unknown>,
-  selector: string,
-  value: string,
-): Promise<void> {
-  const el: HTMLInputElement = fixture.nativeElement.querySelector(selector);
-  el.value = value;
-  el.dispatchEvent(new Event('input'));
-  fixture.detectChanges();
-  await fixture.whenStable();
+interface AddMemberFields {
+  email: WritableSignal<string>;
+  role: WritableSignal<string>;
+}
+
+function fields(component: OrgAddMemberModal): AddMemberFields {
+  return component as unknown as AddMemberFields;
 }
 
 describe('OrgAddMemberModal', () => {
@@ -38,7 +30,7 @@ describe('OrgAddMemberModal', () => {
 
   it('defaults the role to viewer', () => {
     // Assert
-    expect((component as unknown as { role: string }).role).toBe('viewer');
+    expect(fields(component).role()).toBe('viewer');
   });
 
   it('shows a local validation error and does not emit when email is empty', () => {
@@ -58,14 +50,12 @@ describe('OrgAddMemberModal', () => {
     );
   });
 
-  it('emits the add payload with the entered email and role', async () => {
+  it('emits the add payload with the entered email and role', () => {
     // Arrange
     let payload: AddMemberPayload | undefined;
     component.add.subscribe((p) => (payload = p));
     fixture.detectChanges();
-    await fixture.whenStable(); // let NgForm register its controls
-
-    await typeInto(fixture, '#memberEmail', 'new@example.com');
+    fields(component).email.set('new@example.com');
 
     // Act
     component.onSubmit();
@@ -74,15 +64,14 @@ describe('OrgAddMemberModal', () => {
     expect(payload).toEqual({ email: 'new@example.com', role: 'viewer' });
   });
 
-  it('clears the local error once a valid email is submitted', async () => {
+  it('clears the local error once a valid email is submitted', () => {
     // Arrange
     fixture.detectChanges();
-    await fixture.whenStable(); // let NgForm register its controls
     component.onSubmit(); // sets local error
     fixture.detectChanges();
     expect(fixture.debugElement.query(By.css('.error'))).not.toBeNull();
 
-    await typeInto(fixture, '#memberEmail', 'a@b.com');
+    fields(component).email.set('a@b.com');
 
     // Act
     component.onSubmit();
@@ -105,7 +94,7 @@ describe('OrgAddMemberModal', () => {
     );
   });
 
-  it('shows "Adding..." and disables submit while adding', () => {
+  it('disables the submit button while adding', () => {
     // Arrange
     fixture.componentRef.setInput('adding', true);
 
@@ -113,9 +102,11 @@ describe('OrgAddMemberModal', () => {
     fixture.detectChanges();
 
     // Assert
-    const submit = fixture.debugElement.query(By.css('button[type="submit"]'));
-    expect(submit.nativeElement.disabled).toBe(true);
-    expect(submit.nativeElement.textContent).toContain('Adding...');
+    const submit = fixture.debugElement
+      .queryAll(By.css('mns-btn'))
+      .find((b) => b.nativeElement.textContent.includes('Adding'));
+    expect(submit?.nativeElement.textContent).toContain('Adding');
+    expect(submit?.componentInstance.disabled()).toBe(true);
   });
 
   it('emits dismiss when Cancel is clicked', () => {
@@ -125,20 +116,23 @@ describe('OrgAddMemberModal', () => {
     fixture.detectChanges();
 
     // Act
-    fixture.debugElement.query(By.css('.btn-secondary')).triggerEventHandler('click', undefined);
+    const cancel = fixture.debugElement
+      .queryAll(By.css('mns-btn'))
+      .find((b) => b.nativeElement.textContent.includes('Cancel'));
+    cancel?.componentInstance.mnsClick.emit(new MouseEvent('click'));
 
     // Assert
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
-  it('emits dismiss when the overlay backdrop is clicked', () => {
+  it('emits dismiss when the overlay backdrop is closed', () => {
     // Arrange
     const spy = vi.fn();
     component.dismiss.subscribe(spy);
     fixture.detectChanges();
 
     // Act
-    fixture.debugElement.query(By.css('.modal-overlay')).triggerEventHandler('click', undefined);
+    fixture.debugElement.query(By.css('mns-overlay')).componentInstance.closed.emit();
 
     // Assert
     expect(spy).toHaveBeenCalledTimes(1);

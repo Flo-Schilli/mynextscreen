@@ -1,7 +1,7 @@
-import { Component, input, output } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { TargetOption } from './schedule.model';
 import { ScheduleViewMode } from './schedule-calendar.service';
+import { BtnComponent, IconComponent, SelectComponent, SelectOption } from '../ui';
 
 /**
  * Presentational toolbar for the schedules view: target selector, view-mode
@@ -11,133 +11,71 @@ import { ScheduleViewMode } from './schedule-calendar.service';
 @Component({
   selector: 'app-schedule-toolbar',
   standalone: true,
-  imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SelectComponent, BtnComponent, IconComponent],
   template: `
-    <div class="toolbar">
-      <div class="target-selector">
-        <label for="targetSelect">Target:</label>
-        <select
-          id="targetSelect"
-          [ngModel]="selectedTargetId()"
-          (ngModelChange)="targetChange.emit($event)"
-          name="targetSelect"
-        >
-          @if (screenTargets().length === 0 && groupTargets().length === 0) {
-            <option value="" disabled>No screens or groups</option>
-          }
-          @if (screenTargets().length > 0) {
-            <optgroup label="Screens">
-              @for (opt of screenTargets(); track opt.id) {
-                <option [value]="'screen:' + opt.id">&#9633; {{ opt.name }}</option>
-              }
-            </optgroup>
-          }
-          @if (groupTargets().length > 0) {
-            <optgroup label="Screen Groups">
-              @for (opt of groupTargets(); track opt.id) {
-                <option [value]="'group:' + opt.id">&#9638; {{ opt.name }} ({{ opt.mode }})</option>
-              }
-            </optgroup>
-          }
-        </select>
+    <div class="flex items-center gap-3 mb-5 flex-wrap">
+      <!-- Target selector — id="targetSelect" preserved for specs -->
+      <div id="targetSelect" class="flex items-center gap-2">
+        <span class="text-sm font-semibold text-muted">Target</span>
+        <div class="min-w-[14rem]">
+          <mns-select
+            [options]="targetOptions()"
+            [value]="selectedTargetId()"
+            placeholder="No screens or groups"
+            (changed)="targetChange.emit($event)"
+          />
+        </div>
       </div>
 
-      <div class="view-buttons">
-        <button
-          class="toggle-btn"
-          [class.active]="viewMode() === 'day'"
-          (click)="viewChange.emit('day')"
-        >
-          Day
-        </button>
-        <button
-          class="toggle-btn"
-          [class.active]="viewMode() === 'week'"
-          (click)="viewChange.emit('week')"
-        >
-          Week
-        </button>
-        <button
-          class="toggle-btn"
-          [class.active]="viewMode() === 'month'"
-          (click)="viewChange.emit('month')"
-        >
-          Month
-        </button>
+      <!-- View-mode segmented control -->
+      <div class="flex gap-[2px] p-[3px] rounded-[11px] bg-surface-2 border border-border view-seg">
+        @for (v of viewOptions; track v.value) {
+          <button
+            type="button"
+            class="seg-btn px-3 py-[5px] rounded-lg text-[13px] font-semibold cursor-pointer transition-all duration-[150ms]"
+            [class.active]="viewMode() === v.value"
+            [class.bg-surface]="viewMode() === v.value"
+            [class.text-text]="viewMode() === v.value"
+            [class.text-muted]="viewMode() !== v.value"
+            [style.box-shadow]="viewMode() === v.value ? 'var(--shadow)' : 'none'"
+            (click)="viewChange.emit(v.value)"
+          >
+            {{ v.label }}
+          </button>
+        }
       </div>
 
-      <div class="nav-buttons">
-        <button class="btn btn-secondary btn-sm" (click)="prev.emit()">&#8592;</button>
-        <button class="btn btn-secondary btn-sm" (click)="today.emit()">Today</button>
-        <button class="btn btn-secondary btn-sm" (click)="next.emit()">&#8594;</button>
-        <span class="current-range">{{ currentRangeLabel() }}</span>
+      <!-- Navigation -->
+      <div class="flex items-center gap-1.5 nav-buttons">
+        <button
+          type="button"
+          class="grid place-items-center w-8 h-8 rounded-lg border border-border-strong bg-surface text-muted cursor-pointer transition-colors duration-[150ms] hover:bg-surface-3 hover:text-text"
+          title="Previous"
+          (click)="prev.emit()"
+        >
+          <span class="inline-grid place-items-center rotate-180">
+            <mns-icon name="Chevron" [size]="16" />
+          </span>
+        </button>
+        <mns-btn variant="outline" size="sm" (mnsClick)="today.emit()">Today</mns-btn>
+        <button
+          type="button"
+          class="grid place-items-center w-8 h-8 rounded-lg border border-border-strong bg-surface text-muted cursor-pointer transition-colors duration-[150ms] hover:bg-surface-3 hover:text-text"
+          title="Next"
+          (click)="next.emit()"
+        >
+          <mns-icon name="Chevron" [size]="16" />
+        </button>
+        <span class="current-range text-sm font-semibold text-text min-w-[10rem] ml-1">
+          {{ currentRangeLabel() }}
+        </span>
       </div>
 
-      <button class="btn btn-primary" (click)="create.emit()">+ Schedule</button>
+      <div class="ml-auto">
+        <mns-btn variant="primary" icon="Plus" (mnsClick)="create.emit()">New schedule</mns-btn>
+      </div>
     </div>
-  `,
-  styles: `
-    .toolbar {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      margin-bottom: 1rem;
-      flex-wrap: wrap;
-    }
-    .target-selector {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .target-selector label {
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-    }
-    .target-selector select {
-      padding: 0.5rem 0.75rem;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-      color: var(--color-text-primary);
-      font-size: 0.875rem;
-    }
-    .view-buttons {
-      display: flex;
-      gap: 0.25rem;
-    }
-    .toggle-btn {
-      padding: 0.375rem 0.75rem;
-      border-radius: 0.375rem;
-      border: 1px solid var(--color-border);
-      background: transparent;
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      font-size: 0.8125rem;
-      transition: all 0.15s;
-    }
-    .toggle-btn:hover {
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-primary);
-    }
-    .toggle-btn.active {
-      background: var(--color-accent);
-      color: #fff;
-      border-color: var(--color-accent);
-    }
-    .nav-buttons {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .current-range {
-      font-size: 0.875rem;
-      font-weight: 500;
-      min-width: 10rem;
-    }
-    .btn-sm {
-      padding: 0.325rem 0.75rem;
-      font-size: 0.8125rem;
-    }
   `,
 })
 export class ScheduleToolbar {
@@ -153,4 +91,25 @@ export class ScheduleToolbar {
   readonly today = output<void>();
   readonly next = output<void>();
   readonly create = output<void>();
+
+  readonly viewOptions: { value: ScheduleViewMode; label: string }[] = [
+    { value: 'day', label: 'Day' },
+    { value: 'week', label: 'Week' },
+    { value: 'month', label: 'Month' },
+  ];
+
+  /**
+   * Flat option list for {@link SelectComponent} (no native optgroup support):
+   * screens first, then groups, each prefixed with its kind.
+   */
+  readonly targetOptions = computed<SelectOption[]>(() => {
+    const opts: SelectOption[] = [];
+    for (const s of this.screenTargets()) {
+      opts.push({ value: 'screen:' + s.id, label: 'Screen · ' + s.name });
+    }
+    for (const g of this.groupTargets()) {
+      opts.push({ value: 'group:' + g.id, label: 'Group · ' + g.name + ' (' + g.mode + ')' });
+    }
+    return opts;
+  });
 }

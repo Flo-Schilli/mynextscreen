@@ -1,13 +1,14 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { AuthService } from './auth.service';
+import { IconComponent } from '../ui';
 
 type State = 'confirming' | 'done' | 'error';
 
 /** Reads the `?t=` token and confirms an email-address change. */
 @Component({
   selector: 'app-confirm-email-change',
-  imports: [],
+  imports: [IconComponent],
   templateUrl: './confirm-email-change.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

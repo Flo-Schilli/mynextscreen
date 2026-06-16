@@ -85,7 +85,7 @@ export class ScheduleService {
         startTime,
         endTime,
         rrule: dto.rrule ?? null,
-        colour: dto.colour,
+        ...(dto.colour !== undefined ? { colour: dto.colour } : {}),
       })
       .returning();
     if (saved.screenId) {

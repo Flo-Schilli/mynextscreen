@@ -3,7 +3,7 @@ import { ScreenController } from './screen.controller';
 import { ScreenService } from './screen.service';
 import { ScreenStateService } from './screen-state.service';
 import type { Screen } from '../db/schema';
-import { ScreenAuthenticatedRequest } from '../auth';
+import { ScreenAuthenticatedRequest, AuthenticatedRequest } from '../auth';
 
 describe('ScreenController', () => {
   let controller: ScreenController;
@@ -11,6 +11,8 @@ describe('ScreenController', () => {
 
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
   const screenId = '770e8400-e29b-41d4-a716-446655440000';
+  const userId = '660e8400-e29b-41d4-a716-446655440000';
+  const userReq = { user: { userId } } as unknown as AuthenticatedRequest;
 
   const mockScreen: Screen = {
     id: screenId,
@@ -32,9 +34,10 @@ describe('ScreenController', () => {
     service = {
       createScreen: jest.fn(),
       findAll: jest.fn(),
+      findAllWithPlaylist: jest.fn(),
       findOne: jest.fn(),
       updateScreen: jest.fn(),
-      regenerateApiKey: jest.fn(),
+      repairScreen: jest.fn(),
       recordHeartbeat: jest.fn(),
     };
 
@@ -55,33 +58,32 @@ describe('ScreenController', () => {
   });
 
   describe('create', () => {
-    it('should create a screen and return it with the API key', async () => {
+    it('should create a screen and return the screen only (no API key)', async () => {
       const dto = {
         name: 'Main Stage',
         resolution: '1920x1080',
         location: 'Stage Left',
+        pairingCode: '123456',
       };
-      service.createScreen.mockResolvedValue({
-        screen: mockScreen,
-        apiKey: 'plaintext-key',
-      });
+      service.createScreen.mockResolvedValue(mockScreen);
 
-      const result = await controller.create(orgId, dto);
+      const result = await controller.create(orgId, dto, userReq);
 
-      expect(service.createScreen).toHaveBeenCalledWith(orgId, dto);
-      expect(result.screen).toEqual(mockScreen);
-      expect(result.apiKey).toBe('plaintext-key');
+      expect(service.createScreen).toHaveBeenCalledWith(orgId, dto, userId);
+      expect(result).toEqual(mockScreen);
+      expect((result as unknown as Record<string, unknown>).apiKey).toBeUndefined();
     });
   });
 
   describe('findAll', () => {
-    it('should return all screens for the organisation', async () => {
-      service.findAll.mockResolvedValue([mockScreen]);
+    it('should return all screens enriched with the current playlist name', async () => {
+      const enriched = { ...mockScreen, currentPlaylistName: 'Morning Loop' };
+      service.findAllWithPlaylist.mockResolvedValue([enriched]);
 
       const result = await controller.findAll(orgId);
 
-      expect(service.findAll).toHaveBeenCalledWith(orgId);
-      expect(result).toEqual([mockScreen]);
+      expect(service.findAllWithPlaylist).toHaveBeenCalledWith(orgId);
+      expect(result).toEqual([enriched]);
     });
   });
 
@@ -109,17 +111,15 @@ describe('ScreenController', () => {
     });
   });
 
-  describe('regenerateKey', () => {
-    it('should regenerate the API key and return it', async () => {
-      service.regenerateApiKey.mockResolvedValue({
-        screen: mockScreen,
-        apiKey: 'new-plaintext-key',
-      });
+  describe('repair', () => {
+    it('should re-pair the screen and return the screen only', async () => {
+      service.repairScreen.mockResolvedValue(mockScreen);
 
-      const result = await controller.regenerateKey(orgId, screenId);
+      const result = await controller.repair(orgId, screenId, { pairingCode: '123456' }, userReq);
 
-      expect(service.regenerateApiKey).toHaveBeenCalledWith(orgId, screenId);
-      expect(result.apiKey).toBe('new-plaintext-key');
+      expect(service.repairScreen).toHaveBeenCalledWith(orgId, screenId, '123456', userId);
+      expect(result).toEqual(mockScreen);
+      expect((result as unknown as Record<string, unknown>).apiKey).toBeUndefined();
     });
   });
 

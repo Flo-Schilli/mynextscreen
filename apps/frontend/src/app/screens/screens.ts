@@ -1,259 +1,188 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
-import { firstValueFrom, Subscription } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { ScreenService } from './screen.service';
-import { Screen, CreateScreenRequest, UpdateScreenRequest } from './screen.model';
-import { ScreenCreateForm } from './screen-create-form';
-import { ScreenEditForm } from './screen-edit-form';
-import { ScreenDetail } from './screen-detail';
+import { ScreenListItem, CreateScreenRequest, UpdateScreenRequest } from './screen.model';
+import { ScreenForm } from './screen-form';
 import { ScreenGrid } from './screen-grid';
-import { ScreenApiKeyModal } from './screen-api-key-modal';
-import { ScreenAssignGroupModal } from './screen-assign-group-modal';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
-import { ScreenGroupService } from '../screen-groups/screen-group.service';
-import { ScreenGroup } from '../screen-groups/screen-group.model';
-import { SelectionService } from '../shared/selection/selection.service';
-import { BulkAction } from '../shared/selection/bulk-action-toolbar';
-import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dialog';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { ToastService } from '../shared/toast/toast.service';
+import {
+  PageHeaderComponent,
+  BtnComponent,
+  EmptyComponent,
+  OverlayComponent,
+  ModalComponent,
+} from '../ui';
 
 /**
  * Smart container for the screens feature. Owns data loading, the org context,
- * all HTTP orchestration (register/edit/regenerate-key, bulk delete/assign),
- * live online/offline updates via SSE, and toast state. Presentation is
- * delegated to the create-form, edit-form, detail, grid and modal children.
+ * all HTTP orchestration (register via pairing code / edit / re-pair / single
+ * delete), live online/offline updates via SSE, and toast feedback.
+ *
+ * The unified {@link ScreenForm} modal handles both adding a screen (create mode)
+ * and editing one (edit mode, opened by a card click); the same modal hosts the
+ * read-only info block and re-pair flow. A click on a card's trash icon opens a
+ * confirm-delete modal. Presentation is otherwise delegated to the grid.
  */
 @Component({
   selector: 'app-screens',
   standalone: true,
   imports: [
-    ScreenCreateForm,
-    ScreenEditForm,
-    ScreenDetail,
+    ScreenForm,
     ScreenGrid,
-    ScreenApiKeyModal,
-    ScreenAssignGroupModal,
-    BulkConfirmDialogComponent,
+    PageHeaderComponent,
+    BtnComponent,
+    EmptyComponent,
+    OverlayComponent,
+    ModalComponent,
   ],
-  providers: [SelectionService],
   template: `
-    <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Screen Management</h1>
-        </div>
-        @if (!loading && !selectedScreen && !showCreateForm) {
-          <button class="btn btn-primary" (click)="openCreateForm()">+ Register Screen</button>
-        }
-      </header>
-
-      @if (loadError) {
-        <p class="error">{{ loadError }}</p>
-      }
-
+    <div>
+      <!-- Loading -->
       @if (loading) {
-        <p class="loading-text">Loading screens...</p>
+        <div class="flex items-center justify-center py-20 text-muted text-sm">
+          Loading screens…
+        </div>
       }
 
-      <!-- Create Screen Form -->
+      <!-- Load error -->
+      @if (loadError) {
+        <div
+          class="rounded-xl border border-offline-dim bg-offline-dim/30 px-5 py-4 text-sm text-offline mb-5"
+        >
+          {{ loadError }}
+        </div>
+      }
+
+      <!-- Create Screen Modal -->
       @if (showCreateForm) {
-        <app-screen-create-form
-          [creating]="creating"
+        <app-screen-form
+          mode="create"
+          [saving]="creating"
           [error]="createError"
           (create)="submitCreate($event)"
           (dismiss)="cancelCreate()"
         />
       }
 
-      <!-- Screen Detail View -->
-      @if (selectedScreen && !editingScreen) {
-        <app-screen-detail
-          [screen]="selectedScreen"
-          [regenerating]="regenerating"
-          (edit)="startEdit()"
-          (dismiss)="closeDetail()"
-          (regenerate)="confirmRegenerate()"
-        />
-      }
-
-      <!-- Edit Screen Form -->
+      <!-- Edit Screen Modal (opened by a card click) -->
       @if (selectedScreen && editingScreen) {
-        <app-screen-edit-form
+        <app-screen-form
+          mode="edit"
           [screen]="selectedScreen"
           [saving]="saving"
           [error]="editError"
-          (save)="submitEdit($event)"
+          [repairing]="repairing"
+          (update)="submitEdit($event)"
+          (repair)="submitRepair($event)"
           (dismiss)="cancelEdit()"
         />
       }
 
-      <!-- Screen Grid -->
-      @if (!loading && !selectedScreen && !showCreateForm && !editingScreen && screens.length > 0) {
-        <app-screen-grid
-          [screens]="screens"
-          [screenIds]="screenIds"
-          [bulkActions]="bulkActions"
-          (selectItem)="selectScreen($event)"
-        />
-      }
+      <!-- Default view: page header + grid or empty state -->
+      @if (!loading) {
+        <mns-page-header title="Screens" icon="Screens" [sub]="screenSubtitle">
+          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">
+            Add screen
+          </mns-btn>
+        </mns-page-header>
 
-      @if (!loading && !selectedScreen && !showCreateForm && screens.length === 0 && !loadError) {
-        <div class="empty-state">
-          <p class="empty-text">No screens registered yet.</p>
-          <button class="btn btn-primary" (click)="openCreateForm()">
-            Register Your First Screen
-          </button>
-        </div>
+        @if (screens.length > 0) {
+          <app-screen-grid
+            [screens]="screens"
+            (selectItem)="selectScreen($event)"
+            (remove)="onDeleteScreen($event)"
+          />
+        } @else if (!loadError) {
+          <div class="empty-state">
+            <mns-empty
+              icon="Screens"
+              title="No screens yet"
+              desc="Pair your first display with a one-time code to start broadcasting content."
+            >
+              <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">
+                Add your first screen
+              </mns-btn>
+            </mns-empty>
+          </div>
+        }
       }
 
       @if (actionError) {
-        <p class="error">{{ actionError }}</p>
-      }
-
-      <!-- API Key Modal -->
-      @if (showApiKeyModal) {
-        <app-screen-api-key-modal [apiKey]="displayedApiKey" (dismiss)="closeApiKeyModal()" />
-      }
-
-      <!-- Regenerate Confirmation Modal -->
-      @if (showRegenerateConfirm) {
         <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Confirm regeneration"
-          tabindex="0"
-          (click)="cancelRegenerate()"
-          (keydown.escape)="cancelRegenerate()"
+          class="rounded-xl border border-offline-dim bg-offline-dim/30 px-5 py-4 text-sm text-offline mt-4"
         >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Regenerate API Key</h2>
-            <p>
-              Are you sure you want to regenerate the API key for
-              <strong>{{ selectedScreen?.name }}</strong
-              >?
-            </p>
-            <p>
-              The current API key will be invalidated immediately. The screen will need to be
-              reconfigured with the new key.
-            </p>
-            <div class="form-actions">
-              <button class="btn btn-secondary" (click)="cancelRegenerate()">Cancel</button>
-              <button
-                class="btn btn-danger"
-                (click)="executeRegenerate()"
-                [disabled]="regenerating"
-              >
-                {{ regenerating ? 'Regenerating...' : 'Regenerate' }}
-              </button>
-            </div>
-          </div>
+          {{ actionError }}
         </div>
       }
 
-      <!-- Bulk Delete Confirmation Modal -->
-      @if (showBulkDeleteConfirm) {
-        <app-bulk-confirm-dialog
-          title="Delete Screens"
-          [message]="bulkDeleteMessage()"
-          confirmLabel="Delete"
-          [itemCount]="selectionService.count()"
-          (confirmed)="onBulkDeleteConfirmed($event)"
-        />
-      }
-
-      <!-- Assign to Group Modal -->
-      @if (showAssignGroupModal) {
-        <app-screen-assign-group-modal
-          [groups]="groups"
-          [loading]="groupsLoading"
-          [loadError]="groupsLoadError"
-          [count]="selectionService.count()"
-          [(selectedGroupId)]="selectedGroupId"
-          (confirm)="executeAssignGroup()"
-          (dismiss)="cancelAssignGroup()"
-        />
+      <!-- Delete Confirmation Modal -->
+      @if (showDeleteConfirm) {
+        <mns-overlay (closed)="cancelDelete()">
+          <mns-modal title="Delete screen" icon="Trash" (closed)="cancelDelete()">
+            <div class="flex flex-col gap-4">
+              <p class="text-sm text-muted leading-relaxed">
+                Are you sure you want to delete
+                <strong class="text-text">{{ deleteTarget?.name }}</strong
+                >? This cannot be undone.
+              </p>
+              <div class="flex gap-2 pt-1" slot="footer">
+                <div class="flex gap-2 px-6 pb-5 w-full">
+                  <mns-btn variant="outline" [full]="true" (mnsClick)="cancelDelete()">
+                    Cancel
+                  </mns-btn>
+                  <mns-btn
+                    variant="danger"
+                    [full]="true"
+                    [disabled]="deleting"
+                    (mnsClick)="executeDelete()"
+                  >
+                    {{ deleting ? 'Deleting…' : 'Delete' }}
+                  </mns-btn>
+                </div>
+              </div>
+            </div>
+          </mns-modal>
+        </mns-overlay>
       }
     </div>
-  `,
-  styles: `
-    /* Extra bottom padding for sticky bulk-action bar */
-    .page {
-      padding-bottom: 5rem;
-    }
   `,
 })
 export class Screens implements OnInit, OnDestroy {
   private screenService = inject(ScreenService);
   private memberService = inject(MemberService);
-  private screenGroupService = inject(ScreenGroupService);
   private router = inject(Router);
   private sseService = inject(DashboardSseService);
   private toast = inject(ToastService);
-  readonly selectionService = inject(SelectionService);
   private subscriptions: Subscription[] = [];
 
   orgId = '';
-  screens: Screen[] = [];
-  screenIds: string[] = [];
+  screens: ScreenListItem[] = [];
   loading = true;
   loadError = '';
   actionError = '';
 
-  // Create form
+  // Create modal
   showCreateForm = false;
   createError = '';
   creating = false;
 
-  // Detail view state
-  selectedScreen: Screen | null = null;
-
-  // Edit state
+  // Edit modal state (opened via a card click)
+  selectedScreen: ScreenListItem | null = null;
   editingScreen = false;
   editError = '';
   saving = false;
 
-  // API key modal
-  showApiKeyModal = false;
-  displayedApiKey = '';
+  // Re-pair (inside the edit modal)
+  repairing = false;
 
-  // Regenerate confirmation
-  showRegenerateConfirm = false;
-  regenerating = false;
-
-  // Bulk delete confirmation
-  showBulkDeleteConfirm = false;
-  private bulkDeleteResolve: ((value: boolean) => void) | null = null;
-
-  // Assign to group modal
-  showAssignGroupModal = false;
-  groups: ScreenGroup[] = [];
-  selectedGroupId = '';
-  groupsLoading = false;
-  groupsLoadError = '';
-  private assignGroupResolve: ((value: boolean) => void) | null = null;
-
-  // Bulk actions
-  bulkActions: BulkAction[] = [
-    {
-      label: 'Delete selected',
-      variant: 'danger',
-      handler: () => this.handleBulkDelete(),
-    },
-    {
-      label: 'Assign to group',
-      variant: 'default',
-      handler: () => this.handleBulkAssignGroup(),
-    },
-  ];
+  // Single delete confirmation
+  showDeleteConfirm = false;
+  deleteTarget: ScreenListItem | null = null;
+  deleting = false;
 
   ngOnInit(): void {
     this.loadCurrentOrg();
@@ -314,7 +243,6 @@ export class Screens implements OnInit, OnDestroy {
     this.screenService.getAll(this.orgId).subscribe({
       next: (screens) => {
         this.screens = screens;
-        this.screenIds = screens.map((s) => s.id);
         this.loading = false;
       },
       error: (err) => {
@@ -338,12 +266,10 @@ export class Screens implements OnInit, OnDestroy {
     this.creating = true;
     this.createError = '';
     this.screenService.create(this.orgId, dto).subscribe({
-      next: (result) => {
+      next: (screen) => {
         this.creating = false;
         this.showCreateForm = false;
-        this.displayedApiKey = result.apiKey;
-        this.showApiKeyModal = true;
-        this.toast.success(`Screen “${result.screen.name}” created.`);
+        this.toast.success(`Screen “${screen.name}” created.`);
         this.loadScreens();
       },
       error: (err) => {
@@ -353,17 +279,13 @@ export class Screens implements OnInit, OnDestroy {
     });
   }
 
-  // --- Detail ---
-  selectScreen(screen: Screen): void {
+  // --- Edit (card click opens the unified modal in edit mode) ---
+  selectScreen(screen: ScreenListItem): void {
     this.selectedScreen = screen;
-    this.editingScreen = false;
+    this.editError = '';
+    this.editingScreen = true;
   }
 
-  closeDetail(): void {
-    this.selectedScreen = null;
-  }
-
-  // --- Edit ---
   startEdit(): void {
     this.editError = '';
     this.editingScreen = true;
@@ -371,6 +293,7 @@ export class Screens implements OnInit, OnDestroy {
 
   cancelEdit(): void {
     this.editingScreen = false;
+    this.selectedScreen = null;
   }
 
   submitEdit(dto: UpdateScreenRequest): void {
@@ -382,7 +305,7 @@ export class Screens implements OnInit, OnDestroy {
       next: (updated) => {
         this.saving = false;
         this.editingScreen = false;
-        this.selectedScreen = updated;
+        this.selectedScreen = null;
         this.toast.success(`Screen “${updated.name}” updated.`);
         this.loadScreens();
       },
@@ -393,129 +316,67 @@ export class Screens implements OnInit, OnDestroy {
     });
   }
 
-  // --- Regenerate API Key ---
-  confirmRegenerate(): void {
-    this.showRegenerateConfirm = true;
-  }
-
-  cancelRegenerate(): void {
-    this.showRegenerateConfirm = false;
-  }
-
-  executeRegenerate(): void {
+  // --- Re-pair ---
+  submitRepair(pairingCode: string): void {
     if (!this.selectedScreen) return;
 
-    this.regenerating = true;
+    this.repairing = true;
     this.actionError = '';
-    this.screenService.regenerateApiKey(this.orgId, this.selectedScreen.id).subscribe({
-      next: (result) => {
-        this.regenerating = false;
-        this.showRegenerateConfirm = false;
-        this.selectedScreen = result.screen;
-        this.displayedApiKey = result.apiKey;
-        this.showApiKeyModal = true;
-        this.toast.success('API key regenerated.');
+    this.screenService.repair(this.orgId, this.selectedScreen.id, pairingCode).subscribe({
+      next: (screen) => {
+        this.repairing = false;
+        this.selectedScreen = { ...this.selectedScreen!, ...screen };
+        this.toast.success('Re-pairing started. The display will pick up the new key.');
       },
       error: (err) => {
-        this.actionError = err.error?.message || 'Failed to regenerate API key.';
-        this.regenerating = false;
-        this.showRegenerateConfirm = false;
+        this.actionError = err.error?.message || 'Failed to re-pair screen.';
+        this.repairing = false;
       },
     });
   }
 
-  // --- API Key Modal ---
-  closeApiKeyModal(): void {
-    this.showApiKeyModal = false;
-    this.displayedApiKey = '';
+  // --- Single Delete ---
+  onDeleteScreen(screen: ScreenListItem): void {
+    this.deleteTarget = screen;
+    this.showDeleteConfirm = true;
   }
 
-  // --- Bulk Delete ---
-  async handleBulkDelete(): Promise<void> {
-    const confirmed = await this.openBulkDeleteConfirm();
-    if (!confirmed) throw new Error('cancelled');
-
-    const ids = [...this.selectionService.selectedIds()];
-    const result = await firstValueFrom(this.screenService.bulkDelete(this.orgId, ids));
-
-    this.toast.success(`${result.deleted} screen(s) deleted.`);
-    if (result.notFound.length > 0) {
-      this.toast.info(`${result.notFound.length} item(s) could not be found and were skipped`);
-    }
-    this.loadScreens();
+  cancelDelete(): void {
+    this.showDeleteConfirm = false;
+    this.deleteTarget = null;
   }
 
-  private openBulkDeleteConfirm(): Promise<boolean> {
-    this.showBulkDeleteConfirm = true;
-    return new Promise<boolean>((resolve) => {
-      this.bulkDeleteResolve = resolve;
-    });
-  }
+  executeDelete(): void {
+    if (!this.deleteTarget) return;
+    const target = this.deleteTarget;
 
-  bulkDeleteMessage(): string {
-    return (
-      `You are about to permanently delete ${this.selectionService.count()} screen(s). ` +
-      'This cannot be undone.'
-    );
-  }
-
-  onBulkDeleteConfirmed(confirmed: boolean): void {
-    this.showBulkDeleteConfirm = false;
-    this.bulkDeleteResolve?.(confirmed);
-    this.bulkDeleteResolve = null;
-  }
-
-  // --- Bulk Assign Group ---
-  async handleBulkAssignGroup(): Promise<void> {
-    const confirmed = await this.openAssignGroupModal();
-    if (!confirmed) throw new Error('cancelled');
-
-    const ids = [...this.selectionService.selectedIds()];
-    const groupId = this.selectedGroupId || null;
-    const result = await firstValueFrom(
-      this.screenService.bulkAssignGroup(this.orgId, ids, groupId),
-    );
-
-    const groupName = groupId
-      ? (this.groups.find((g) => g.id === groupId)?.name ?? 'selected group')
-      : 'no group';
-    this.toast.success(`${result.updated} screen(s) assigned to ${groupName}.`);
-    if (result.notFound.length > 0) {
-      this.toast.info(`${result.notFound.length} item(s) could not be found and were skipped`);
-    }
-    this.loadScreens();
-  }
-
-  private openAssignGroupModal(): Promise<boolean> {
-    this.showAssignGroupModal = true;
-    this.selectedGroupId = '';
-    this.groupsLoadError = '';
-    this.groupsLoading = true;
-    this.screenGroupService.getAll(this.orgId).subscribe({
-      next: (groups) => {
-        this.groups = groups;
-        this.groupsLoading = false;
+    this.deleting = true;
+    this.actionError = '';
+    this.screenService.deleteOne(this.orgId, target.id).subscribe({
+      next: () => {
+        this.deleting = false;
+        this.showDeleteConfirm = false;
+        this.deleteTarget = null;
+        if (this.selectedScreen?.id === target.id) {
+          this.selectedScreen = null;
+          this.editingScreen = false;
+        }
+        this.toast.success(`Screen “${target.name}” deleted.`);
+        this.loadScreens();
       },
-      error: () => {
-        this.groupsLoadError = 'Failed to load groups.';
-        this.groupsLoading = false;
+      error: (err) => {
+        this.deleting = false;
+        this.showDeleteConfirm = false;
+        this.actionError = err.error?.message || 'Failed to delete screen.';
       },
     });
-    return new Promise<boolean>((resolve) => {
-      this.assignGroupResolve = resolve;
-    });
   }
 
-  cancelAssignGroup(): void {
-    this.showAssignGroupModal = false;
-    this.assignGroupResolve?.(false);
-    this.assignGroupResolve = null;
-  }
-
-  executeAssignGroup(): void {
-    this.showAssignGroupModal = false;
-    this.assignGroupResolve?.(true);
-    this.assignGroupResolve = null;
+  get screenSubtitle(): string {
+    const online = this.screens.filter((s) => s.isOnline).length;
+    const offline = this.screens.length - online;
+    if (!this.screens.length) return 'Pair and manage every display in your network';
+    return `${online} online · ${offline} offline`;
   }
 
   goBack(): void {

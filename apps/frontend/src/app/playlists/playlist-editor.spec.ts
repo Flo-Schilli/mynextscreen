@@ -31,6 +31,7 @@ function buildPlaylist(overrides: Partial<Playlist> = {}): Playlist {
     id: 'p1',
     organisationId: 'org1',
     name: 'Lobby Loop',
+    color: '#6d6cf6',
     items: [],
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
@@ -61,93 +62,79 @@ describe('PlaylistEditor', () => {
   });
 
   describe('inline rename', () => {
-    it('starts editing with the current name pre-filled', () => {
-      fixture.componentRef.setInput('playlist', buildPlaylist({ name: 'Original' }));
-      component.startEditName();
+    function nameInput(): HTMLInputElement {
+      return fixture.debugElement.query(By.css('input[type="text"]')).nativeElement;
+    }
 
-      expect(component['editingName']).toBe(true);
-      expect(component['editNameValue']).toBe('Original');
-    });
-
-    it('emits rename with the trimmed name and exits edit mode on save', () => {
-      const spy = vi.fn();
-      component.rename.subscribe(spy);
-      component.startEditName();
-      component['editNameValue'] = '  New Name  ';
-
-      component.saveName();
-
-      expect(spy).toHaveBeenCalledWith('New Name');
-      expect(component['editingName']).toBe(false);
-    });
-
-    it('does not emit rename when the trimmed name is empty', () => {
-      const spy = vi.fn();
-      component.rename.subscribe(spy);
-      component.startEditName();
-      component['editNameValue'] = '   ';
-
-      component.saveName();
-
-      expect(spy).not.toHaveBeenCalled();
-      expect(component['editingName']).toBe(true);
-    });
-
-    it('exits edit mode without emitting on cancel', () => {
-      const spy = vi.fn();
-      component.rename.subscribe(spy);
-      component.startEditName();
-
-      component.cancelEditName();
-
-      expect(component['editingName']).toBe(false);
-      expect(spy).not.toHaveBeenCalled();
-    });
-
-    it('shows the name heading and Rename button when not editing', () => {
+    it('shows the current name in the rename input', () => {
       fixture.componentRef.setInput('playlist', buildPlaylist({ name: 'Heading Name' }));
       fixture.detectChanges();
 
-      expect(fixture.debugElement.query(By.css('h2')).nativeElement.textContent).toContain(
-        'Heading Name',
-      );
-      expect(fixture.debugElement.query(By.css('.name-input'))).toBeNull();
+      expect(nameInput().value).toBe('Heading Name');
     });
 
-    it('shows the name input when editing', () => {
-      component.startEditName();
+    it('emits rename with the trimmed name on blur', () => {
       fixture.detectChanges();
+      const spy = vi.fn();
+      component.rename.subscribe(spy);
 
-      expect(fixture.debugElement.query(By.css('.name-input'))).not.toBeNull();
-      expect(fixture.debugElement.query(By.css('h2'))).toBeNull();
+      component['commitName']('  New Name  ');
+
+      expect(spy).toHaveBeenCalledWith('New Name');
+    });
+
+    it('does not emit rename when the name is unchanged', () => {
+      fixture.detectChanges();
+      const spy = vi.fn();
+      component.rename.subscribe(spy);
+
+      component['commitName']('Lobby Loop');
+
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('does not emit rename when the trimmed name is empty', () => {
+      fixture.detectChanges();
+      const spy = vi.fn();
+      component.rename.subscribe(spy);
+
+      component['commitName']('   ');
+
+      expect(spy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('accent colour', () => {
+    it('emits colorChange when a swatch is clicked', () => {
+      fixture.detectChanges();
+      const spy = vi.fn();
+      component.colorChange.subscribe(spy);
+
+      const swatch = fixture.debugElement.query(
+        By.css('button[aria-label="Set accent colour #ec4899"]'),
+      );
+      swatch.triggerEventHandler('click', new MouseEvent('click'));
+
+      expect(spy).toHaveBeenCalledWith('#ec4899');
     });
   });
 
   describe('default-playlist controls', () => {
-    it('shows the Set as Default button for org admins', () => {
+    it('shows the Set as default button for org admins', () => {
       fixture.detectChanges();
-      const buttons = fixture.debugElement
-        .queryAll(By.css('.editor-actions button'))
-        .map((b) => b.nativeElement.textContent.trim());
-      expect(buttons.some((t: string) => t.includes('Set as Default'))).toBe(true);
+      expect(fixture.nativeElement.textContent).toContain('Set as default');
     });
 
     it('hides the default button for non-admins', () => {
       fixture.componentRef.setInput('isOrgAdmin', false);
       fixture.detectChanges();
-      const buttons = fixture.debugElement
-        .queryAll(By.css('.editor-actions button'))
-        .map((b) => b.nativeElement.textContent.trim());
-      expect(buttons.some((t: string) => t.includes('Default'))).toBe(false);
+      expect(fixture.nativeElement.textContent).not.toContain('Set as default');
     });
 
-    it('labels the button "Default Playlist" when already default', () => {
+    it('labels the button "Default playlist" when already default', () => {
       fixture.componentRef.setInput('isDefault', true);
       fixture.detectChanges();
-      const labels = fixture.debugElement
-        .queryAll(By.css('.editor-actions button'))
-        .map((b) => b.nativeElement.textContent.trim());
-      expect(labels.some((t: string) => t === 'Default Playlist')).toBe(true);
+      expect(fixture.nativeElement.textContent).toContain('Default playlist');
     });
 
     it('emits toggleDefault when the default button is clicked', () => {
@@ -156,49 +143,55 @@ describe('PlaylistEditor', () => {
       fixture.detectChanges();
 
       const btn = fixture.debugElement
-        .queryAll(By.css('.editor-actions button'))
-        .find((b) => b.nativeElement.textContent.includes('Set as Default'));
-      btn!.triggerEventHandler('click', undefined);
+        .queryAll(By.css('mns-btn'))
+        .find((b) => b.nativeElement.textContent.includes('Set as default'));
+      btn!.triggerEventHandler('mnsClick', new MouseEvent('click'));
 
       expect(spy).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('header actions', () => {
-    it('emits deletePlaylist and dismiss from the header buttons', () => {
+    it('emits deletePlaylist from the Delete button', () => {
       const del = vi.fn();
-      const dismiss = vi.fn();
       component.deletePlaylist.subscribe(del);
+      fixture.detectChanges();
+
+      const deleteBtn = fixture.debugElement
+        .queryAll(By.css('mns-btn'))
+        .find((b) => b.nativeElement.textContent.trim() === 'Delete');
+      deleteBtn!.triggerEventHandler('mnsClick', new MouseEvent('click'));
+
+      expect(del).toHaveBeenCalledTimes(1);
+    });
+
+    it('emits dismiss from the back button', () => {
+      const dismiss = vi.fn();
       component.dismiss.subscribe(dismiss);
       fixture.detectChanges();
 
-      fixture.debugElement.query(By.css('.btn-danger')).triggerEventHandler('click', undefined);
-      const closeBtn = fixture.debugElement
-        .queryAll(By.css('.editor-actions button'))
-        .find((b) => b.nativeElement.textContent.trim() === 'Close');
-      closeBtn!.triggerEventHandler('click', undefined);
+      fixture.debugElement
+        .query(By.css('button'))
+        .triggerEventHandler('click', new MouseEvent('click'));
 
-      expect(del).toHaveBeenCalledTimes(1);
       expect(dismiss).toHaveBeenCalledTimes(1);
     });
 
     it('renders the editor error when set', () => {
       fixture.componentRef.setInput('editorError', 'boom');
       fixture.detectChanges();
-      expect(fixture.debugElement.query(By.css('.error')).nativeElement.textContent).toContain(
-        'boom',
-      );
+      expect(fixture.nativeElement.textContent).toContain('boom');
     });
   });
 
   describe('items list', () => {
     it('shows the empty state when there are no items', () => {
       fixture.detectChanges();
-      expect(fixture.debugElement.query(By.css('.empty-items'))).not.toBeNull();
-      expect(fixture.debugElement.query(By.css('.item-list'))).toBeNull();
+      expect(fixture.nativeElement.textContent).toContain('No items yet');
+      expect(fixture.debugElement.query(By.css('.item-row'))).toBeNull();
     });
 
-    it('renders one row per item with the item list', () => {
+    it('renders one row per item', () => {
       fixture.componentRef.setInput(
         'playlist',
         buildPlaylist({ items: [buildItem({ id: 'i1' }), buildItem({ id: 'i2' })] }),
@@ -208,15 +201,16 @@ describe('PlaylistEditor', () => {
       expect(fixture.debugElement.queryAll(By.css('.item-row')).length).toBe(2);
     });
 
-    it('emits addContent from the Add Content header button', () => {
+    it('emits addContent from the Add content header button', () => {
       const spy = vi.fn();
       component.addContent.subscribe(spy);
       fixture.componentRef.setInput('playlist', buildPlaylist({ items: [buildItem()] }));
       fixture.detectChanges();
 
-      fixture.debugElement
-        .query(By.css('.items-header .btn-primary'))
-        .triggerEventHandler('click', undefined);
+      const addBtn = fixture.debugElement
+        .queryAll(By.css('mns-btn'))
+        .find((b) => b.nativeElement.textContent.includes('Add content'));
+      addBtn!.triggerEventHandler('mnsClick', new MouseEvent('click'));
 
       expect(spy).toHaveBeenCalledTimes(1);
     });
@@ -228,7 +222,9 @@ describe('PlaylistEditor', () => {
 
       const spy = vi.fn();
       component.removeItem.subscribe(spy);
-      fixture.debugElement.query(By.css('.btn-remove')).triggerEventHandler('click', undefined);
+      fixture.debugElement
+        .query(By.css('button[title="Remove from playlist"]'))
+        .triggerEventHandler('click', new MouseEvent('click'));
 
       expect(spy).toHaveBeenCalledWith(item);
     });
@@ -240,7 +236,9 @@ describe('PlaylistEditor', () => {
 
       const spy = vi.fn();
       component.previewItem.subscribe(spy);
-      fixture.debugElement.query(By.css('.item-thumbnail')).triggerEventHandler('click', undefined);
+      fixture.debugElement
+        .query(By.css('button[aria-label="Preview item"]'))
+        .triggerEventHandler('click', new MouseEvent('click'));
 
       expect(spy).toHaveBeenCalledWith(item);
     });
@@ -256,25 +254,23 @@ describe('PlaylistEditor', () => {
         currentIndex: 0,
       } as CdkDragDrop<PlaylistItem[]>;
       fixture.debugElement
-        .query(By.css('.item-list'))
+        .query(By.css('[cdkDropList]'))
         .triggerEventHandler('cdkDropListDropped', dropEvent);
 
       expect(spy).toHaveBeenCalledWith(dropEvent);
     });
 
-    it('renders the total duration', () => {
+    it('renders the total duration in a header badge', () => {
       fixture.componentRef.setInput(
         'playlist',
         buildPlaylist({ items: [buildItem({ durationSeconds: 65 })] }),
       );
       fixture.detectChanges();
 
-      expect(
-        fixture.debugElement.query(By.css('.total-duration')).nativeElement.textContent,
-      ).toContain('1m 5s');
+      expect(fixture.nativeElement.textContent).toContain('1m 5s');
     });
 
-    it('disables the duration input for video items', async () => {
+    it('renders a fixed clock pill for video items instead of a stepper', () => {
       fixture.componentRef.setInput(
         'playlist',
         buildPlaylist({
@@ -293,62 +289,37 @@ describe('PlaylistEditor', () => {
         }),
       );
       fixture.detectChanges();
-      for (let i = 0; i < 6; i++) await Promise.resolve();
-      await fixture.whenStable();
-      fixture.detectChanges();
 
-      expect(fixture.debugElement.query(By.css('.duration-input')).nativeElement.disabled).toBe(
-        true,
+      // Video shows its content length; no decrease-duration button for videos.
+      expect(fixture.nativeElement.textContent).toContain('42s');
+      const decBtns = fixture.debugElement.queryAll(
+        By.css('button[aria-label="Decrease duration"]'),
       );
+      expect(decBtns.length).toBe(0);
     });
 
     it('renders an image thumbnail using thumbUrl for image items', () => {
       fixture.componentRef.setInput('playlist', buildPlaylist({ items: [buildItem()] }));
       fixture.detectChanges();
 
-      expect(
-        fixture.debugElement.query(By.css('.thumb-img')).nativeElement.getAttribute('src'),
-      ).toBe('/thumb/c1');
-    });
-
-    it('renders a video placeholder for video items', () => {
-      fixture.componentRef.setInput(
-        'playlist',
-        buildPlaylist({
-          items: [
-            buildItem({
-              content: {
-                id: 'c1',
-                title: 'Movie',
-                type: 'video',
-                originalFilename: 'm.mp4',
-                transcodingStatus: 'completed',
-                durationSeconds: 42,
-              },
-            }),
-          ],
-        }),
-      );
-      fixture.detectChanges();
-
-      expect(fixture.debugElement.query(By.css('.thumb-video'))).not.toBeNull();
-      expect(fixture.debugElement.query(By.css('.thumb-img'))).toBeNull();
+      const img = fixture.debugElement.query(By.css('.item-row img'));
+      expect(img.nativeElement.getAttribute('src')).toBe('/thumb/c1');
     });
   });
 
   describe('per-item field changes', () => {
-    it('emits durationChange when the duration model changes', () => {
-      const item = buildItem({ id: 'i1' });
+    it('emits durationChange when the image duration stepper increments', () => {
+      const item = buildItem({ id: 'i1', durationSeconds: 10 });
       fixture.componentRef.setInput('playlist', buildPlaylist({ items: [item] }));
       fixture.detectChanges();
 
       const spy = vi.fn();
       component.durationChange.subscribe(spy);
       fixture.debugElement
-        .query(By.css('.duration-input'))
-        .triggerEventHandler('ngModelChange', 25);
+        .query(By.css('button[aria-label="Increase duration"]'))
+        .triggerEventHandler('click', new MouseEvent('click'));
 
-      expect(spy).toHaveBeenCalledWith({ item, value: 25 });
+      expect(spy).toHaveBeenCalledWith({ item, value: 11 });
     });
 
     it('emits transitionChange when the transition select changes', () => {
@@ -358,31 +329,30 @@ describe('PlaylistEditor', () => {
 
       const spy = vi.fn();
       component.transitionChange.subscribe(spy);
-      fixture.debugElement
-        .query(By.css('.transition-select'))
-        .triggerEventHandler('ngModelChange', 'zoom-in');
+      fixture.debugElement.query(By.css('mns-select')).triggerEventHandler('changed', 'zoom-in');
 
       expect(spy).toHaveBeenCalledWith({ item, value: 'zoom-in' });
     });
 
-    it('emits transitionDurationChange when the trans-ms model changes', () => {
-      const item = buildItem({ id: 'i1' });
+    it('emits transitionDurationChange when the trans-ms stepper increments', () => {
+      const item = buildItem({ id: 'i1', transitionDurationMs: 500 });
       fixture.componentRef.setInput('playlist', buildPlaylist({ items: [item] }));
       fixture.detectChanges();
 
       const spy = vi.fn();
       component.transitionDurationChange.subscribe(spy);
-      const tdur = fixture.debugElement.queryAll(By.css('.duration-input'))[1];
-      tdur.triggerEventHandler('ngModelChange', 800);
+      fixture.debugElement
+        .query(By.css('button[aria-label="Increase transition ms"]'))
+        .triggerEventHandler('click', new MouseEvent('click'));
 
-      expect(spy).toHaveBeenCalledWith({ item, value: 800 });
+      expect(spy).toHaveBeenCalledWith({ item, value: 600 });
     });
   });
 
   describe('inline preview', () => {
-    it('does not render the preview section when no item is previewing', () => {
+    it('does not render the preview card when no item is previewing', () => {
       fixture.detectChanges();
-      expect(fixture.debugElement.query(By.css('.preview-section'))).toBeNull();
+      expect(fixture.nativeElement.textContent).not.toContain('Preview:');
     });
 
     it('renders an image preview for an image item', () => {
@@ -390,7 +360,7 @@ describe('PlaylistEditor', () => {
       fixture.componentRef.setInput('previewingItem', item);
       fixture.detectChanges();
 
-      const media = fixture.debugElement.query(By.css('img.preview-media'));
+      const media = fixture.debugElement.query(By.css('img[alt="Preview"]'));
       expect(media).not.toBeNull();
       expect(media.nativeElement.getAttribute('src')).toBe('/preview/c1');
     });
@@ -410,19 +380,20 @@ describe('PlaylistEditor', () => {
       fixture.componentRef.setInput('previewingItem', item);
       fixture.detectChanges();
 
-      expect(fixture.debugElement.query(By.css('video.preview-media'))).not.toBeNull();
-      expect(fixture.debugElement.query(By.css('img.preview-media'))).toBeNull();
+      expect(fixture.debugElement.query(By.css('video'))).not.toBeNull();
+      expect(fixture.debugElement.query(By.css('img[alt="Preview"]'))).toBeNull();
     });
 
-    it('emits closePreview when Close Preview is clicked', () => {
+    it('emits closePreview when Close is clicked', () => {
       fixture.componentRef.setInput('previewingItem', buildItem());
       fixture.detectChanges();
 
       const spy = vi.fn();
       component.closePreview.subscribe(spy);
-      fixture.debugElement
-        .query(By.css('.preview-header .btn-secondary'))
-        .triggerEventHandler('click', undefined);
+      const closeBtn = fixture.debugElement
+        .queryAll(By.css('mns-btn'))
+        .find((b) => b.nativeElement.textContent.trim() === 'Close');
+      closeBtn!.triggerEventHandler('mnsClick', new MouseEvent('click'));
 
       expect(spy).toHaveBeenCalledTimes(1);
     });

@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy } from '@angular/core';
 import {
   AbstractControl,
   FormBuilder,
@@ -16,6 +16,18 @@ import { AuthService } from '../../auth/auth.service';
 import { ProfileService } from './profile.service';
 import { ToastService } from '../../shared/toast/toast.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
+import { ThemeService, Accent, Density } from '../../shell/theme.service';
+import {
+  CardComponent,
+  CardHeadComponent,
+  BtnComponent,
+  OverlayComponent,
+  PageHeaderComponent,
+  SFieldComponent,
+  SInputComponent,
+  SwitchComponent,
+  ToggleRowComponent,
+} from '../../ui';
 
 function passwordsMatch(control: AbstractControl): ValidationErrors | null {
   const next = control.get('newPassword')?.value;
@@ -23,480 +35,391 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
   return next === confirm ? null : { mismatch: true };
 }
 
+const ACCENT_OPTIONS: { value: Accent; label: string; color: string }[] = [
+  { value: 'indigo', label: 'Indigo', color: '#6d6cf6' },
+  { value: 'teal', label: 'Teal', color: '#0d9488' },
+  { value: 'amber', label: 'Amber', color: '#f59e0b' },
+  { value: 'blue', label: 'Blue', color: '#3b82f6' },
+];
+
+const DENSITY_OPTIONS: { value: Density; label: string; desc: string }[] = [
+  { value: 'compact', label: 'Compact', desc: 'Tighter spacing' },
+  { value: 'regular', label: 'Regular', desc: 'Default spacing' },
+  { value: 'comfy', label: 'Comfy', desc: 'More breathing room' },
+];
+
 @Component({
   selector: 'app-user-settings',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    ReactiveFormsModule,
+    CardComponent,
+    CardHeadComponent,
+    BtnComponent,
+    OverlayComponent,
+    PageHeaderComponent,
+    SFieldComponent,
+    SInputComponent,
+    SwitchComponent,
+    ToggleRowComponent,
+  ],
   template: `
-    <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>User Settings</h1>
-        </div>
-      </header>
+    <mns-page-header
+      title="User Settings"
+      sub="Manage your personal account across every organisation."
+      icon="Settings"
+    />
 
-      <section class="section">
-        <h2 class="section-title">Profile</h2>
-        <p class="section-desc">Your account details and display name.</p>
+    <!-- Profile & display name -->
+    <mns-card [animate]="true" class="block mb-5 max-w-[760px]">
+      <mns-card-head title="Profile" sub="Your account details and display name." icon="User" />
 
-        <div class="avatar-row">
-          <span class="avatar-preview" [class.super-admin]="false">
-            @if (gravatarEnabled && avatarUrl) {
-              <img
-                class="avatar-preview-img"
-                [src]="avatarUrl"
-                alt="Your avatar"
-                referrerpolicy="no-referrer"
+      <!-- Gravatar row -->
+      <div class="flex items-center gap-4 pb-5 mb-5 border-b border-border">
+        <span
+          class="w-12 h-12 flex-shrink-0 rounded-full bg-surface-3 text-muted border border-border overflow-hidden flex items-center justify-center"
+        >
+          @if (gravatarEnabled && avatarUrl) {
+            <img
+              class="w-full h-full object-cover"
+              [src]="avatarUrl"
+              alt="Your avatar"
+              referrerpolicy="no-referrer"
+            />
+          } @else {
+            <svg width="22" height="22" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="8" r="3" stroke="currentColor" stroke-width="1.5" />
+              <path
+                d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
               />
-            } @else {
-              <svg width="28" height="28" viewBox="0 0 20 20" fill="none">
-                <circle cx="10" cy="8" r="3" stroke="currentColor" stroke-width="1.5" />
-                <path
-                  d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                />
-              </svg>
-            }
-          </span>
-          <div class="toggle-info avatar-info">
-            <span class="toggle-label">Use Gravatar</span>
-            <span class="toggle-desc">Show the avatar linked to your email via Gravatar</span>
-            <span class="toggle-note">
-              When off, no email hash is sent to gravatar.com and a placeholder is shown.
-            </span>
+            </svg>
+          }
+        </span>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-semibold">Use Gravatar</div>
+          <div class="text-[12.5px] text-muted">
+            Show the avatar linked to your email via Gravatar
           </div>
-          <button
-            class="toggle-switch"
-            [class.active]="gravatarEnabled"
-            (click)="toggleGravatar()"
-            [disabled]="savingGravatar || loadingProfile"
-            role="switch"
-            [attr.aria-checked]="gravatarEnabled"
-            aria-label="Toggle Gravatar avatar"
-          >
-            <span class="toggle-knob"></span>
-          </button>
+          <div class="text-[11.5px] text-faint italic mt-0.5">
+            When off, no email hash is sent to gravatar.com
+          </div>
         </div>
+        <mns-switch
+          [checked]="gravatarEnabled"
+          [disabled]="savingGravatar || loadingProfile"
+          (toggled)="onGravatarToggle()"
+        />
+      </div>
 
-        <form [formGroup]="profileForm" (ngSubmit)="submitProfile()" class="form-grid">
-          <div class="field">
-            <span class="field-label">Email</span>
-            <input type="email" [value]="profileEmail" disabled />
-            <span class="field-note">
-              Change your email below; we'll send a confirmation link first.
-            </span>
-          </div>
-          <label class="field">
-            <span class="field-label">Display name</span>
-            <input
-              type="text"
-              formControlName="name"
-              autocomplete="name"
-              placeholder="Your name"
-              maxlength="255"
-            />
-            @if (profileForm.controls.name.touched && profileForm.controls.name.invalid) {
-              <span class="field-error">Name must be 255 characters or fewer.</span>
-            }
-          </label>
-          <div>
-            <button type="submit" class="primary-btn" [disabled]="savingProfile || loadingProfile">
-              {{ savingProfile ? 'Saving…' : 'Save profile' }}
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section class="section">
-        <h2 class="section-title">Notification Channels</h2>
-        <p class="section-desc">
-          Choose how you receive notifications. These apply across all organisations you belong to.
-        </p>
-
-        @if (loading) {
-          <p class="loading-text">Loading preferences...</p>
-        }
-
-        @if (loadError) {
-          <p class="error">{{ loadError }}</p>
-        }
-
-        @if (!loading && !loadError && preferences) {
-          <div class="toggle-list">
-            <div class="toggle-row">
-              <div class="toggle-info">
-                <span class="toggle-label">In-app</span>
-                <span class="toggle-desc">Receive notifications in the dashboard</span>
-              </div>
-              <button
-                class="toggle-switch"
-                [class.active]="preferences.inAppEnabled"
-                (click)="toggle('inAppEnabled')"
-                role="switch"
-                [attr.aria-checked]="preferences.inAppEnabled"
-                aria-label="Toggle in-app notifications"
-              >
-                <span class="toggle-knob"></span>
-              </button>
-            </div>
-
-            <div class="toggle-row">
-              <div class="toggle-info">
-                <span class="toggle-label">Email</span>
-                <span class="toggle-desc">Receive notifications by email</span>
-                <span class="toggle-note">Sent for organisations that have email configured</span>
-              </div>
-              <button
-                class="toggle-switch"
-                [class.active]="preferences.emailEnabled"
-                (click)="toggle('emailEnabled')"
-                role="switch"
-                [attr.aria-checked]="preferences.emailEnabled"
-                aria-label="Toggle email notifications"
-              >
-                <span class="toggle-knob"></span>
-              </button>
-            </div>
-
-            <div class="toggle-row">
-              <div class="toggle-info">
-                <span class="toggle-label">ntfy</span>
-                <span class="toggle-desc">Receive notifications via ntfy</span>
-                <span class="toggle-note">Sent for organisations that have ntfy configured</span>
-              </div>
-              <button
-                class="toggle-switch"
-                [class.active]="preferences.ntfyEnabled"
-                (click)="toggle('ntfyEnabled')"
-                role="switch"
-                [attr.aria-checked]="preferences.ntfyEnabled"
-                aria-label="Toggle ntfy notifications"
-              >
-                <span class="toggle-knob"></span>
-              </button>
-            </div>
-          </div>
-        }
-      </section>
-
-      <section class="section">
-        <h2 class="section-title">Change password</h2>
-        <p class="section-desc">Update the password you use to sign in.</p>
-        <form [formGroup]="passwordForm" (ngSubmit)="submitPassword()" class="form-grid">
-          <label class="field">
-            <span class="field-label">Current password</span>
-            <input
-              type="password"
-              formControlName="currentPassword"
-              autocomplete="current-password"
-            />
-          </label>
-          <label class="field">
-            <span class="field-label">New password</span>
-            <input type="password" formControlName="newPassword" autocomplete="new-password" />
-            @if (
-              passwordForm.controls.newPassword.touched && passwordForm.controls.newPassword.invalid
-            ) {
-              <span class="field-error">Use at least 8 characters.</span>
-            }
-          </label>
-          <label class="field">
-            <span class="field-label">Confirm new password</span>
-            <input
-              type="password"
-              formControlName="confirmNewPassword"
-              autocomplete="new-password"
-            />
-            @if (passwordForm.touched && passwordForm.hasError('mismatch')) {
-              <span class="field-error">Passwords do not match.</span>
-            }
-          </label>
-          <div>
-            <button type="submit" class="primary-btn" [disabled]="savingPassword">
-              {{ savingPassword ? 'Saving…' : 'Update password' }}
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section class="section">
-        <h2 class="section-title">Change email</h2>
-        <p class="section-desc">
-          We'll send a confirmation link to the new address; the change applies once you confirm it.
-        </p>
-        <form [formGroup]="emailForm" (ngSubmit)="submitEmail()" class="form-grid">
-          <label class="field">
-            <span class="field-label">New email</span>
-            <input type="email" formControlName="newEmail" autocomplete="email" />
-            @if (emailForm.controls.newEmail.touched && emailForm.controls.newEmail.invalid) {
-              <span class="field-error">Enter a valid email address.</span>
-            }
-          </label>
-          <label class="field">
-            <span class="field-label">Current password</span>
-            <input
-              type="password"
-              formControlName="currentPassword"
-              autocomplete="current-password"
-            />
-          </label>
-          <div>
-            <button type="submit" class="primary-btn" [disabled]="savingEmail">
-              {{ savingEmail ? 'Sending…' : 'Send confirmation link' }}
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section class="section danger-zone">
-        <h2 class="section-title">Danger Zone</h2>
-        <p class="section-desc">
-          Permanently delete your account. This removes your organisation memberships and cannot be
-          undone.
-        </p>
-        <button type="button" class="btn btn-danger" (click)="openDeleteAccount()">
-          Account löschen
-        </button>
-      </section>
-    </div>
-
-    @if (showDeleteAccount) {
-      <div
-        class="modal-overlay"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Confirm account deletion"
-        tabindex="0"
-        (click)="cancelDeleteAccount()"
-        (keydown.escape)="cancelDeleteAccount()"
+      <!-- Profile form -->
+      <form
+        [formGroup]="profileForm"
+        (ngSubmit)="submitProfile()"
+        class="flex flex-col gap-4 max-w-sm"
       >
+        <mns-sfield
+          label="Email"
+          hint="Change your email below; we'll send a confirmation link first."
+        >
+          <mns-sinput [value]="profileEmail" [disabled]="true" />
+        </mns-sfield>
+        <mns-sfield label="Display name">
+          <mns-sinput
+            [value]="profileForm.controls.name.value"
+            (valueChange)="profileForm.controls.name.setValue($event)"
+            placeholder="Your name"
+          />
+          @if (profileForm.controls.name.touched && profileForm.controls.name.invalid) {
+            <span class="text-xs text-offline mt-1 block"
+              >Name must be 255 characters or fewer.</span
+            >
+          }
+        </mns-sfield>
+        <div>
+          <mns-btn
+            variant="primary"
+            [disabled]="savingProfile || loadingProfile"
+            (mnsClick)="submitProfile()"
+          >
+            {{ savingProfile ? 'Saving…' : 'Save profile' }}
+          </mns-btn>
+        </div>
+      </form>
+    </mns-card>
+
+    <!-- Notification preferences -->
+    <mns-card [animate]="true" [delay]="0.05" class="block mb-5 max-w-[760px]">
+      <mns-card-head
+        title="Notification Channels"
+        sub="Choose how you receive notifications. These apply across all organisations you belong to."
+        icon="Bell"
+      />
+
+      @if (loading) {
+        <p class="loading-text text-sm text-muted">Loading preferences...</p>
+      }
+      @if (loadError) {
+        <p class="error text-sm text-offline">{{ loadError }}</p>
+      }
+      @if (!loading && !loadError && preferences) {
+        <div class="divide-y divide-border">
+          <mns-toggle-row
+            icon="Bell"
+            label="In-app"
+            desc="Receive notifications in the dashboard"
+            [checked]="preferences.inAppEnabled"
+            (toggled)="toggle('inAppEnabled')"
+          />
+          <mns-toggle-row
+            icon="Mail"
+            label="Email"
+            desc="Receive notifications by email — sent for orgs that have email configured"
+            [checked]="preferences.emailEnabled"
+            (toggled)="toggle('emailEnabled')"
+          />
+          <mns-toggle-row
+            icon="Cast"
+            label="ntfy"
+            desc="Receive notifications via ntfy — sent for orgs that have ntfy configured"
+            [checked]="preferences.ntfyEnabled"
+            (toggled)="toggle('ntfyEnabled')"
+          />
+        </div>
+      }
+    </mns-card>
+
+    <!-- Appearance: accent + density -->
+    <mns-card [animate]="true" [delay]="0.08" class="block mb-5 max-w-[760px]">
+      <mns-card-head
+        title="Appearance"
+        sub="Customise the colour accent and interface density."
+        icon="Settings"
+      />
+
+      <!-- Accent picker -->
+      <div class="mb-5">
+        <div class="text-[12.5px] font-semibold text-muted mb-3">Accent colour</div>
+        <div class="flex gap-3 flex-wrap">
+          @for (opt of accentOptions; track opt.value) {
+            <button
+              type="button"
+              class="flex items-center gap-2.5 px-3 py-2 rounded-[10px] border text-[13px] font-semibold transition-all duration-[180ms] cursor-pointer"
+              [style.borderColor]="currentAccent() === opt.value ? opt.color : 'var(--border)'"
+              [style.background]="
+                currentAccent() === opt.value ? opt.color + '22' : 'var(--surface-2)'
+              "
+              [style.color]="currentAccent() === opt.value ? opt.color : 'var(--text-muted)'"
+              [attr.aria-pressed]="currentAccent() === opt.value"
+              (click)="setAccent(opt.value)"
+            >
+              <span
+                class="w-4 h-4 rounded-full flex-shrink-0"
+                [style.background]="opt.color"
+              ></span>
+              {{ opt.label }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Density picker -->
+      <div>
+        <div class="text-[12.5px] font-semibold text-muted mb-3">Interface density</div>
+        <div class="flex gap-3 flex-wrap">
+          @for (opt of densityOptions; track opt.value) {
+            <button
+              type="button"
+              class="flex flex-col items-start px-3.5 py-2.5 rounded-[10px] border text-left transition-all duration-[180ms] cursor-pointer"
+              [class.border-accent]="currentDensity() === opt.value"
+              [class.bg-accent-soft]="currentDensity() === opt.value"
+              [class.border-border]="currentDensity() !== opt.value"
+              [class.bg-surface-2]="currentDensity() !== opt.value"
+              [attr.aria-pressed]="currentDensity() === opt.value"
+              (click)="setDensity(opt.value)"
+            >
+              <span
+                class="text-[13px] font-semibold"
+                [class.text-accent]="currentDensity() === opt.value"
+                >{{ opt.label }}</span
+              >
+              <span class="text-[11.5px] text-muted mt-0.5">{{ opt.desc }}</span>
+            </button>
+          }
+        </div>
+      </div>
+    </mns-card>
+
+    <!-- Change password -->
+    <mns-card [animate]="true" [delay]="0.1" class="block mb-5 max-w-[760px]">
+      <mns-card-head
+        title="Change password"
+        sub="Update the password you use to sign in."
+        icon="Lock"
+      />
+      <form
+        [formGroup]="passwordForm"
+        (ngSubmit)="submitPassword()"
+        class="flex flex-col gap-4 max-w-sm"
+      >
+        <mns-sfield label="Current password">
+          <mns-sinput
+            [value]="passwordForm.controls.currentPassword.value"
+            (valueChange)="passwordForm.controls.currentPassword.setValue($event)"
+            type="password"
+            icon="Lock"
+          />
+        </mns-sfield>
+        <mns-sfield label="New password">
+          <mns-sinput
+            [value]="passwordForm.controls.newPassword.value"
+            (valueChange)="passwordForm.controls.newPassword.setValue($event)"
+            type="password"
+            icon="Lock"
+          />
+          @if (
+            passwordForm.controls.newPassword.touched && passwordForm.controls.newPassword.invalid
+          ) {
+            <span class="text-xs text-offline mt-1 block">Use at least 8 characters.</span>
+          }
+        </mns-sfield>
+        <mns-sfield label="Confirm new password">
+          <mns-sinput
+            [value]="passwordForm.controls.confirmNewPassword.value"
+            (valueChange)="passwordForm.controls.confirmNewPassword.setValue($event)"
+            type="password"
+            icon="Lock"
+          />
+          @if (passwordForm.touched && passwordForm.hasError('mismatch')) {
+            <span class="text-xs text-offline mt-1 block">Passwords do not match.</span>
+          }
+        </mns-sfield>
+        <div>
+          <mns-btn variant="primary" [disabled]="savingPassword" (mnsClick)="submitPassword()">
+            {{ savingPassword ? 'Saving…' : 'Update password' }}
+          </mns-btn>
+        </div>
+      </form>
+    </mns-card>
+
+    <!-- Change email -->
+    <mns-card [animate]="true" [delay]="0.12" class="block mb-5 max-w-[760px]">
+      <mns-card-head
+        title="Change email"
+        sub="We'll send a confirmation link to the new address; the change applies once you confirm it."
+        icon="Mail"
+      />
+      <form [formGroup]="emailForm" (ngSubmit)="submitEmail()" class="flex flex-col gap-4 max-w-sm">
+        <mns-sfield label="New email">
+          <mns-sinput
+            [value]="emailForm.controls.newEmail.value"
+            (valueChange)="emailForm.controls.newEmail.setValue($event)"
+            type="email"
+            icon="Mail"
+            placeholder="new@example.com"
+          />
+          @if (emailForm.controls.newEmail.touched && emailForm.controls.newEmail.invalid) {
+            <span class="text-xs text-offline mt-1 block">Enter a valid email address.</span>
+          }
+        </mns-sfield>
+        <mns-sfield label="Current password">
+          <mns-sinput
+            [value]="emailForm.controls.currentPassword.value"
+            (valueChange)="emailForm.controls.currentPassword.setValue($event)"
+            type="password"
+            icon="Lock"
+          />
+        </mns-sfield>
+        <div>
+          <mns-btn variant="primary" [disabled]="savingEmail" (mnsClick)="submitEmail()">
+            {{ savingEmail ? 'Sending…' : 'Send confirmation link' }}
+          </mns-btn>
+        </div>
+      </form>
+    </mns-card>
+
+    <!-- Danger zone -->
+    <mns-card
+      [animate]="true"
+      [delay]="0.14"
+      class="block mb-5 max-w-[760px] border-offline/40 shadow-[0_0_0_1px_var(--offline-dim)]"
+    >
+      <mns-card-head
+        title="Danger Zone"
+        sub="Permanently delete your account. This removes your organisation memberships and cannot be undone."
+      />
+      <mns-btn variant="danger" icon="Trash" (mnsClick)="openDeleteAccount()">
+        Delete account
+      </mns-btn>
+    </mns-card>
+
+    <!-- Delete account modal -->
+    @if (showDeleteAccount) {
+      <mns-overlay (closed)="cancelDeleteAccount()">
         <div
-          class="modal"
-          role="document"
+          class="relative w-full max-w-[420px] bg-surface border border-border-strong rounded-xl p-6"
+          style="box-shadow: var(--shadow-lg); animation: fadeUp .3s cubic-bezier(.22,.61,.36,1) both"
+          tabindex="0"
           (click)="$event.stopPropagation()"
           (keydown)="$event.stopPropagation()"
         >
-          <h2>Account löschen</h2>
-          <p>
+          <h2 class="text-[17px] font-bold mb-2">Delete account</h2>
+          <p class="text-[13.5px] text-muted mb-5">
             This permanently deletes your account and cannot be undone. Enter your current password
             to confirm.
           </p>
           <form
             [formGroup]="deleteAccountForm"
             (ngSubmit)="confirmDeleteAccount()"
-            class="form-grid"
+            class="flex flex-col gap-4"
           >
-            <label class="field">
-              <span class="field-label">Current password</span>
-              <input
+            <mns-sfield label="Current password">
+              <mns-sinput
+                [value]="deleteAccountForm.controls.currentPassword.value"
+                (valueChange)="deleteAccountForm.controls.currentPassword.setValue($event)"
                 type="password"
-                formControlName="currentPassword"
-                autocomplete="current-password"
+                icon="Lock"
               />
-            </label>
+            </mns-sfield>
             @if (deleteAccountError) {
-              <p class="error">{{ deleteAccountError }}</p>
+              <p class="error text-sm text-offline">{{ deleteAccountError }}</p>
             }
-            <div class="form-actions">
-              <button
-                type="button"
-                class="btn btn-secondary"
-                (click)="cancelDeleteAccount()"
+            <div class="form-actions flex gap-2.5 mt-1">
+              <mns-btn
+                variant="outline"
+                [full]="true"
                 [disabled]="deletingAccount"
+                (mnsClick)="cancelDeleteAccount()"
               >
                 Cancel
-              </button>
-              <button type="submit" class="btn btn-danger" [disabled]="deletingAccount">
+              </mns-btn>
+              <mns-btn
+                variant="danger"
+                [full]="true"
+                [disabled]="deletingAccount"
+                (mnsClick)="confirmDeleteAccount()"
+              >
                 {{ deletingAccount ? 'Deleting…' : 'Delete account' }}
-              </button>
+              </mns-btn>
             </div>
           </form>
         </div>
-      </div>
+      </mns-overlay>
     }
   `,
   styles: `
-    .section {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.5rem;
-      max-width: 40rem;
-      margin-bottom: 1.5rem;
-      box-shadow:
-        0 1px 3px var(--color-shadow),
-        0 1px 2px var(--color-shadow);
-    }
-    .section-title {
-      font-size: 1.125rem;
-      font-weight: 600;
-      margin: 0 0 0.25rem;
-    }
-    .section-desc {
-      font-size: 0.875rem;
-      color: var(--color-text-secondary);
-      margin: 0 0 1.25rem;
+    :host {
+      display: block;
     }
 
-    .avatar-row {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      padding-bottom: 1.25rem;
-      margin-bottom: 1.25rem;
-      border-bottom: 1px solid var(--color-border);
-    }
-    .avatar-preview {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 48px;
-      height: 48px;
-      flex-shrink: 0;
-      border-radius: 999px;
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-secondary);
-      border: 1px solid var(--color-border);
-      overflow: hidden;
-    }
-    .avatar-preview-img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    .avatar-info {
-      flex: 1;
-    }
-
-    .toggle-list {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-    }
-    .toggle-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 1rem 0;
-      border-top: 1px solid var(--color-border);
-    }
-    .toggle-row:first-child {
-      border-top: none;
-      padding-top: 0;
-    }
-    .toggle-row:last-child {
-      padding-bottom: 0;
-    }
-    .toggle-info {
-      display: flex;
-      flex-direction: column;
-      gap: 0.125rem;
-    }
-    .toggle-label {
-      font-size: 0.875rem;
-      font-weight: 500;
-      color: var(--color-text-primary);
-    }
-    .toggle-desc {
-      font-size: 0.8125rem;
-      color: var(--color-text-secondary);
-    }
-    .toggle-note {
-      font-size: 0.75rem;
-      color: var(--color-text-muted);
-      font-style: italic;
-      margin-top: 0.125rem;
-    }
-
-    .toggle-switch {
-      position: relative;
-      width: 44px;
-      height: 24px;
-      border-radius: 12px;
-      border: none;
-      background: var(--color-bg-tertiary);
-      cursor: pointer;
-      transition: background 0.2s;
-      flex-shrink: 0;
-      padding: 0;
-    }
-    .toggle-switch.active {
-      background: var(--color-accent);
-    }
-    .toggle-knob {
-      position: absolute;
-      top: 2px;
-      left: 2px;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: #fff;
-      transition: transform 0.2s;
-    }
-    .toggle-switch.active .toggle-knob {
-      transform: translateX(20px);
-    }
-
-    .form-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      max-width: 24rem;
-    }
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 0.375rem;
-    }
-    .field-label {
-      font-size: 0.8125rem;
-      font-weight: 500;
-      color: var(--color-text-secondary);
-    }
-    .field input {
-      width: 100%;
-      border-radius: 0.375rem;
-      border: 1px solid var(--color-border);
-      background: var(--color-bg-primary);
-      color: var(--color-text-primary);
-      padding: 0.5rem 0.75rem;
-      font-size: 0.875rem;
-    }
-    .field input:focus {
-      outline: none;
-      border-color: var(--color-accent);
-      box-shadow: 0 0 0 1px var(--color-accent);
-    }
-    .field-error {
-      font-size: 0.75rem;
-      color: #f87171;
-    }
-    .field-note {
-      font-size: 0.75rem;
-      color: var(--color-text-muted);
-    }
-    .field input:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
-    }
-    .primary-btn {
-      border-radius: 0.375rem;
-      background: var(--color-accent);
-      color: #fff;
-      font-weight: 500;
-      padding: 0.5rem 1rem;
-      border: none;
-      cursor: pointer;
-    }
-    .primary-btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    .danger-zone {
-      border-color: #991b1b;
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        transition: none !important;
+        animation: none !important;
+      }
     }
   `,
 })
@@ -508,6 +431,20 @@ export class UserSettings implements OnInit, OnDestroy {
   private profile = inject(ProfileService);
   private toast = inject(ToastService);
   private orgState = inject(OrganisationStateService);
+  private themeService = inject(ThemeService);
+
+  readonly accentOptions = ACCENT_OPTIONS;
+  readonly densityOptions = DENSITY_OPTIONS;
+  readonly currentAccent = this.themeService.accent;
+  readonly currentDensity = this.themeService.density;
+
+  setAccent(a: Accent): void {
+    this.themeService.setAccent(a);
+  }
+
+  setDensity(d: Density): void {
+    this.themeService.setDensity(d);
+  }
 
   preferences: NotificationPreferences | null = null;
   loading = true;
@@ -592,6 +529,10 @@ export class UserSettings implements OnInit, OnDestroy {
     } finally {
       this.savingProfile = false;
     }
+  }
+
+  onGravatarToggle(): void {
+    void this.toggleGravatar();
   }
 
   async toggleGravatar(): Promise<void> {

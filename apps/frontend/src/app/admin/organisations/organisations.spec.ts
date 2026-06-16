@@ -505,13 +505,5 @@ describe('Organisations', () => {
         transcodedLimitBytes: 2048,
       });
     });
-
-    it('goBack navigates to the root route', () => {
-      // Act
-      component.goBack();
-
-      // Assert
-      expect(router.navigate).toHaveBeenCalledWith(['/']);
-    });
   });
 });

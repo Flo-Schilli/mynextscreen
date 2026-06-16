@@ -1,5 +1,4 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
-import { Router } from '@angular/router';
 import { ScheduleService } from './schedule.service';
 import {
   ScheduleEntry,
@@ -30,28 +29,39 @@ import { ScheduleSidePanel } from './schedule-side-panel';
 import { ScheduleCalendarGrid } from './schedule-calendar-grid';
 import { ScheduleFormModal, ScheduleFormResult, PRESET_COLOURS } from './schedule-form-modal';
 import { ToastService } from '../shared/toast/toast.service';
+import { PageHeaderComponent } from '../ui';
 
 const HOUR_HEIGHT = 60;
 
 @Component({
   selector: 'app-schedules',
   standalone: true,
-  imports: [ScheduleToolbar, ScheduleSidePanel, ScheduleCalendarGrid, ScheduleFormModal],
+  imports: [
+    ScheduleToolbar,
+    ScheduleSidePanel,
+    ScheduleCalendarGrid,
+    ScheduleFormModal,
+    PageHeaderComponent,
+  ],
   template: `
     <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Schedules</h1>
-        </div>
-      </header>
+      <mns-page-header title="Schedules" icon="Schedules" [sub]="scheduleSubtitle" />
 
       @if (loadError) {
-        <p class="error">{{ loadError }}</p>
+        <p
+          class="error text-sm text-offline px-4 py-3 rounded-lg border border-offline/30 bg-offline-dim mb-4"
+        >
+          {{ loadError }}
+        </p>
       }
 
       @if (loading) {
-        <p class="loading-text">Loading...</p>
+        <div class="flex items-center justify-center py-20 text-muted text-sm">
+          <span
+            class="w-5 h-5 rounded-full border-2 border-border border-t-accent animate-spin mr-3"
+          ></span>
+          Loading schedules…
+        </div>
       }
 
       @if (!loading && !loadError) {
@@ -72,7 +82,7 @@ const HOUR_HEIGHT = 60;
         @if (sliceProcessing) {
           <div class="slice-status">
             <span class="slice-spinner"></span>
-            Processing slices... Content is being prepared for the video wall.
+            Processing slices… Content is being prepared for the video wall.
           </div>
         }
 
@@ -133,22 +143,22 @@ const HOUR_HEIGHT = 60;
       align-items: center;
       gap: 0.5rem;
       padding: 0.625rem 1rem;
-      background: color-mix(in srgb, var(--color-accent) 10%, var(--color-bg-secondary));
-      border: 1px solid color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
-      border-radius: 0.375rem;
+      background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
+      border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+      border-radius: var(--r-lg);
       margin-bottom: 1rem;
       font-size: 0.8125rem;
-      color: var(--color-text-secondary);
+      color: var(--text-muted);
     }
     .slice-spinner {
       width: 0.875rem;
       height: 0.875rem;
-      border: 2px solid var(--color-border);
-      border-top-color: var(--color-accent);
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
       border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+      animation: sched-spin 0.8s linear infinite;
     }
-    @keyframes spin {
+    @keyframes sched-spin {
       to {
         transform: rotate(360deg);
       }
@@ -157,7 +167,7 @@ const HOUR_HEIGHT = 60;
     /* Calendar Layout */
     .calendar-layout {
       display: flex;
-      gap: 1rem;
+      gap: var(--gap, 1rem);
     }
     .calendar-container {
       flex: 1;
@@ -174,7 +184,6 @@ export class Schedules implements OnInit, OnDestroy {
   private screenGroupService = inject(ScreenGroupService);
   private recurrence = inject(ScheduleRecurrenceService);
   private calendar = inject(ScheduleCalendarService);
-  private router = inject(Router);
   private toast = inject(ToastService);
 
   orgId = '';
@@ -235,6 +244,13 @@ export class Schedules implements OnInit, OnDestroy {
   // Bound handlers for mouse events
   private boundMouseMove = this.onMouseMove.bind(this);
   private boundMouseUp = this.onMouseUp.bind(this);
+
+  get scheduleSubtitle(): string {
+    if (this.loading) return 'Plan playlists across screens and groups by the calendar';
+    const count = this.entries.length;
+    if (!count) return 'Plan playlists across screens and groups by the calendar';
+    return `${count} scheduled ${count === 1 ? 'block' : 'blocks'}`;
+  }
 
   get screenTargets(): TargetOption[] {
     return this.targetOptions.filter((t) => t.type === 'screen');
@@ -812,9 +828,5 @@ export class Schedules implements OnInit, OnDestroy {
       day: 'numeric',
       year: 'numeric',
     });
-  }
-
-  goBack(): void {
-    this.router.navigate(['/']);
   }
 }

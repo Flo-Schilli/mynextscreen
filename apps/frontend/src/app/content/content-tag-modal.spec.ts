@@ -32,8 +32,17 @@ describe('ContentTagModal', () => {
     return Array.from(fixture.nativeElement.querySelectorAll('.tag-chip'));
   }
 
+  function footerBtns(): HTMLButtonElement[] {
+    return Array.from(fixture.nativeElement.querySelectorAll('[slot="footer"] button'));
+  }
+
   function confirmBtn(): HTMLButtonElement {
-    return fixture.nativeElement.querySelector('.btn-primary');
+    // The confirm button is the second (primary) footer button.
+    return footerBtns()[1];
+  }
+
+  function cancelBtn(): HTMLButtonElement {
+    return footerBtns()[0];
   }
 
   beforeEach(() => {
@@ -135,8 +144,7 @@ describe('ContentTagModal', () => {
     fixture.componentInstance.dismiss.subscribe(spy);
 
     // Act
-    const cancel: HTMLButtonElement = fixture.nativeElement.querySelector('.btn-secondary');
-    cancel.click();
+    cancelBtn().click();
 
     // Assert
     expect(spy).toHaveBeenCalledTimes(1);
@@ -148,8 +156,8 @@ describe('ContentTagModal', () => {
     const spy = vi.fn();
     fixture.componentInstance.dismiss.subscribe(spy);
 
-    // Act
-    const overlay: HTMLElement = fixture.nativeElement.querySelector('.modal-overlay');
+    // Act: click the overlay backdrop (the mns-overlay dialog element)
+    const overlay: HTMLElement = fixture.nativeElement.querySelector('[role="dialog"]');
     overlay.click();
 
     // Assert

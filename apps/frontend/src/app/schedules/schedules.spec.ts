@@ -75,6 +75,8 @@ function makeGroup(overrides: Partial<ScreenGroup> = {}): ScreenGroup {
     mode: 'split',
     gridColumns: 2,
     gridRows: 2,
+    color: '#6d6cf6',
+    icon: 'Groups',
     screens: [],
     createdAt: '',
     updatedAt: '',
@@ -87,6 +89,7 @@ function makePlaylist(overrides: Partial<Playlist> = {}): Playlist {
     id: 'p1',
     organisationId: ORG_ID,
     name: 'Loop A',
+    color: '#6d6cf6',
     items: [],
     createdAt: '',
     updatedAt: '',
@@ -807,20 +810,6 @@ describe('Schedules', () => {
       // Assert
       expect(lastToast()?.type).toBe('error');
       expect(lastToast()?.message).toContain('Overlap');
-    });
-  });
-
-  describe('goBack', () => {
-    it('navigates to the root route', async () => {
-      // Arrange
-      await setUp();
-      routerStub.navigate.mockClear();
-
-      // Act
-      component.goBack();
-
-      // Assert
-      expect(routerStub.navigate).toHaveBeenCalledWith(['/']);
     });
   });
 });

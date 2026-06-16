@@ -8,6 +8,7 @@ import {
 } from '@angular/forms';
 import { Router } from '@angular/router';
 import { SetupService } from './setup.service';
+import { BtnComponent, IconComponent } from '../ui';
 
 function passwordsMatch(control: AbstractControl): ValidationErrors | null {
   const password = control.get('password')?.value;
@@ -22,7 +23,7 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
  */
 @Component({
   selector: 'app-setup',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, BtnComponent, IconComponent],
   templateUrl: './setup.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

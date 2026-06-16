@@ -1,36 +1,79 @@
-<div class="flex min-h-screen items-center justify-center bg-bg-primary px-4">
-  <div class="w-full max-w-sm rounded-lg border border-border bg-bg-secondary p-8 shadow-lg">
-    <h1 class="mb-6 text-center text-2xl font-semibold text-text-primary">Verify your email</h1>
-
-    @if (state() === 'verifying') {
-      <p class="text-center text-sm text-text-secondary">Verifying your email…</p>
-    } @else {
-      <div class="space-y-4 text-center">
-        <p class="text-sm text-red-400" role="alert">
-          This verification link is invalid or has expired.
-        </p>
-
-        @if (resent()) {
-          <p class="text-sm text-text-secondary">
-            If that account needs verifying, a new link is on its way.
-          </p>
-        } @else {
-          <button
-            type="button"
-            [disabled]="resending()"
-            (click)="resend()"
-            class="w-full rounded-md bg-accent px-4 py-2 font-medium text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {{ resending() ? 'Sending…' : 'Resend verification email' }}
-          </button>
-        }
-
-        <a
-          href="/login"
-          class="inline-block text-sm font-medium text-accent hover:text-accent-hover"
-          >Back to sign in</a
+<div class="flex min-h-screen items-center justify-center bg-bg px-4 py-10">
+  <div
+    class="w-full max-w-[400px]"
+    style="animation: fadeUp 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both"
+  >
+    <!-- Logo -->
+    <div class="mb-7 flex justify-center">
+      <div class="flex items-center gap-3">
+        <div
+          class="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px]"
+          style="background: linear-gradient(135deg, var(--accent), var(--accent-2))"
         >
+          <mns-icon name="Layers" [size]="19" class="text-white" />
+        </div>
+        <span class="text-xl font-extrabold tracking-tight">
+          <span class="text-text">my</span
+          ><span
+            style="
+              background: linear-gradient(135deg, var(--accent), var(--accent-2));
+              -webkit-background-clip: text;
+              background-clip: text;
+              color: transparent;
+            "
+            >NextScreen</span
+          >
+        </span>
       </div>
-    }
+    </div>
+
+    <div
+      class="w-full rounded-xl border border-border bg-surface p-8"
+      style="box-shadow: var(--shadow)"
+    >
+      <h1 class="mb-4 text-[22px] font-extrabold tracking-tight">Verify your email</h1>
+
+      @if (state() === 'verifying') {
+        <!-- Verifying state -->
+        <div class="flex flex-col items-center gap-3 py-4 text-center">
+          <div
+            class="h-10 w-10 animate-spin rounded-full border-2 border-border border-t-accent"
+            style="@media (prefers-reduced-motion: reduce) {animation: none}"
+          ></div>
+          <p class="text-[13.5px] text-muted">Verifying your email…</p>
+        </div>
+      } @else {
+        <!-- Error state -->
+        <div class="flex flex-col gap-4 text-center">
+          <div
+            class="mx-auto grid h-14 w-14 place-items-center rounded-full"
+            style="background: color-mix(in srgb, var(--offline) 12%, transparent)"
+          >
+            <mns-icon name="Alert" [size]="26" class="text-offline" />
+          </div>
+
+          <p class="text-[13.5px] text-offline" role="alert">
+            This verification link is invalid or has expired.
+          </p>
+
+          @if (resent()) {
+            <p class="text-[13.5px] text-muted">
+              If that account needs verifying, a new link is on its way.
+            </p>
+          } @else {
+            <mns-btn variant="primary" [full]="true" [disabled]="resending()" (mnsClick)="resend()">
+              {{ resending() ? 'Sending…' : 'Resend verification email' }}
+            </mns-btn>
+          }
+
+          <a
+            href="/login"
+            class="inline-flex items-center justify-center gap-1.5 text-sm font-semibold text-accent hover:opacity-80"
+          >
+            <mns-icon name="ChevronLeft" [size]="15" />Back to sign in
+          </a>
+        </div>
+      }
+    </div>
   </div>
 </div>

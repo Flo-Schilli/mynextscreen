@@ -1,6 +1,5 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { ContentService, UploadProgress } from './content.service';
 import { Content, StorageInfo, UploadItem } from './content.model';
@@ -20,6 +19,13 @@ import { BulkAction } from '../shared/selection/bulk-action-toolbar';
 import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dialog';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { ToastService } from '../shared/toast/toast.service';
+import {
+  PageHeaderComponent,
+  BtnComponent,
+  EmptyComponent,
+  OverlayComponent,
+  ModalComponent,
+} from '../ui';
 
 /**
  * Smart container for the content library. Owns data loading, upload/HTTP
@@ -40,43 +46,42 @@ import { ToastService } from '../shared/toast/toast.service';
     ContentTagModal,
     ContentPlaylistModal,
     BulkConfirmDialogComponent,
+    PageHeaderComponent,
+    BtnComponent,
+    EmptyComponent,
+    OverlayComponent,
+    ModalComponent,
   ],
   providers: [SelectionService],
   template: `
     <div class="page">
-      <header class="page-header">
-        <div class="header-left">
-          <button class="back-btn" (click)="goBack()">&#8592; Back</button>
-          <h1>Content Library</h1>
-        </div>
+      <mns-page-header title="Content Library" icon="Image">
         @if (!selectedContent) {
-          <div class="header-right">
-            <div class="type-toggle">
-              <button
-                class="toggle-btn"
-                [class.active]="!filterType"
-                (click)="setTypeFilter(undefined)"
-              >
-                All
-              </button>
-              <button
-                class="toggle-btn"
-                [class.active]="filterType === 'image'"
-                (click)="setTypeFilter('image')"
-              >
-                Images
-              </button>
-              <button
-                class="toggle-btn"
-                [class.active]="filterType === 'video'"
-                (click)="setTypeFilter('video')"
-              >
-                Videos
-              </button>
-            </div>
+          <div class="type-toggle">
+            <button
+              class="toggle-btn"
+              [class.active]="!filterType"
+              (click)="setTypeFilter(undefined)"
+            >
+              All
+            </button>
+            <button
+              class="toggle-btn"
+              [class.active]="filterType === 'image'"
+              (click)="setTypeFilter('image')"
+            >
+              Images
+            </button>
+            <button
+              class="toggle-btn"
+              [class.active]="filterType === 'video'"
+              (click)="setTypeFilter('video')"
+            >
+              Videos
+            </button>
           </div>
         }
-      </header>
+      </mns-page-header>
 
       <!-- Storage Usage -->
       @if (storage && !selectedContent) {
@@ -143,41 +148,30 @@ import { ToastService } from '../shared/toast/toast.service';
       }
 
       @if (!loading && !selectedContent && filteredContent.length === 0 && !loadError) {
-        <div class="empty-state">
-          <p class="empty-text">No content uploaded yet. Drag files above to get started.</p>
-        </div>
+        <mns-empty
+          icon="Image"
+          title="No content yet"
+          desc="No content uploaded yet. Drag files above to get started."
+        />
       }
 
       <!-- Delete Confirmation Modal -->
       @if (showDeleteConfirm) {
-        <div
-          class="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Confirm deletion"
-          tabindex="0"
-          (click)="cancelDelete()"
-          (keydown.escape)="cancelDelete()"
-        >
-          <div
-            class="modal"
-            role="document"
-            (click)="$event.stopPropagation()"
-            (keydown)="$event.stopPropagation()"
-          >
-            <h2>Delete Content</h2>
-            <p>
-              Are you sure you want to delete <strong>{{ selectedContent?.title }}</strong
+        <mns-overlay (closed)="cancelDelete()">
+          <mns-modal title="Delete Content" icon="Trash" (closed)="cancelDelete()">
+            <p class="text-sm text-muted mb-4">
+              Are you sure you want to delete
+              <strong class="text-text">{{ selectedContent?.title }}</strong
               >? This will permanently remove the original and transcoded files.
             </p>
-            <div class="form-actions">
-              <button class="btn btn-secondary" (click)="cancelDelete()">Cancel</button>
-              <button class="btn btn-danger" (click)="executeDelete()" [disabled]="deleting">
-                {{ deleting ? 'Deleting...' : 'Delete' }}
-              </button>
+            <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
+              <mns-btn variant="outline" (mnsClick)="cancelDelete()">Cancel</mns-btn>
+              <mns-btn variant="danger" [disabled]="deleting" (mnsClick)="executeDelete()">
+                {{ deleting ? 'Deleting…' : 'Delete' }}
+              </mns-btn>
             </div>
-          </div>
-        </div>
+          </mns-modal>
+        </mns-overlay>
       }
 
       <!-- Bulk Delete Confirmation Modal -->
@@ -220,35 +214,37 @@ import { ToastService } from '../shared/toast/toast.service';
     </div>
   `,
   styles: `
-    .header-right {
-      display: flex;
-      gap: 0.75rem;
-      align-items: center;
-    }
-
-    /* Type Toggle */
+    /* Type Toggle — pill chips matching the reference filter row */
     .type-toggle {
       display: flex;
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
-      overflow: hidden;
+      gap: 0.5rem;
+      flex-wrap: wrap;
     }
     .toggle-btn {
-      padding: 0.375rem 0.75rem;
-      border: none;
-      background: none;
-      color: var(--color-text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 0.4375rem;
+      padding: 0.5rem 0.875rem;
+      border-radius: 99px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
       font-size: 0.8125rem;
+      font-weight: 600;
       cursor: pointer;
-      transition: all 0.15s;
+      transition:
+        border-color 0.15s,
+        background-color 0.15s,
+        color 0.15s;
     }
     .toggle-btn.active {
-      background: var(--color-accent);
-      color: #fff;
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
     }
     .toggle-btn:hover:not(.active) {
-      background: var(--color-bg-tertiary);
+      border-color: var(--text-muted);
+      color: var(--text);
     }
 
     /* Tag Filter */
@@ -259,28 +255,39 @@ import { ToastService } from '../shared/toast/toast.service';
       margin-bottom: 1rem;
     }
     .tag-chip {
-      padding: 0.25rem 0.75rem;
-      border-radius: 9999px;
-      border: 1px solid var(--color-border);
-      background: var(--color-bg-secondary);
-      color: var(--color-text-secondary);
+      padding: 0.375rem 0.875rem;
+      border-radius: 99px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
       font-size: 0.75rem;
+      font-weight: 600;
       cursor: pointer;
-      transition: all 0.15s;
+      transition:
+        border-color 0.15s,
+        background-color 0.15s,
+        color 0.15s;
     }
     .tag-chip.active {
-      background: var(--color-accent);
-      border-color: var(--color-accent);
-      color: #fff;
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
     }
     .tag-chip.clear {
       background: none;
-      border-color: var(--color-text-muted);
-      color: var(--color-text-muted);
+      border-color: var(--text-faint);
+      color: var(--text-faint);
     }
     .tag-chip:hover:not(.active) {
-      border-color: var(--color-text-secondary);
-      color: var(--color-text-primary);
+      border-color: var(--text-muted);
+      color: var(--text);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .toggle-btn,
+      .tag-chip {
+        transition: none;
+      }
     }
   `,
 })
@@ -289,7 +296,6 @@ export class ContentLibrary implements OnInit, OnDestroy {
   private contentFilter = inject(ContentFilterService);
   private memberService = inject(MemberService);
   private playlistService = inject(PlaylistService);
-  private router = inject(Router);
   private toast = inject(ToastService);
   readonly selectionService = inject(SelectionService);
 
@@ -803,9 +809,5 @@ export class ContentLibrary implements OnInit, OnDestroy {
   private showToast(message: string, type: 'error' | 'success' | 'warning'): void {
     // The global ToastService has no 'warning' level; surface those as 'info'.
     this.toast.show(type === 'warning' ? 'info' : type, message);
-  }
-
-  goBack(): void {
-    this.router.navigate(['/']);
   }
 }

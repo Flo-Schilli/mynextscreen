@@ -13,14 +13,24 @@ const STORAGE_KEY = 'signage_theme';
 
 function createService(): ThemeService {
   // Service is instantiated lazily on inject, so localStorage must already be set.
-  return TestBed.inject(ThemeService);
+  const svc = TestBed.inject(ThemeService);
+  // Flush pending effects so data-theme/data-accent/data-density are written to the DOM.
+  TestBed.flushEffects();
+  return svc;
+}
+
+function getDataTheme(): string | undefined {
+  return document.documentElement.dataset['theme'];
 }
 
 describe('ThemeService', () => {
   beforeEach(() => {
     // Arrange: ensure a clean environment before each test (constructor reads localStorage)
     localStorage.clear();
-    document.documentElement.classList.remove('light');
+    // Reset data attributes to avoid state leaking between tests
+    delete document.documentElement.dataset['theme'];
+    delete document.documentElement.dataset['accent'];
+    delete document.documentElement.dataset['density'];
     TestBed.configureTestingModule({
       providers: [provideZonelessChangeDetection(), ThemeService],
     });
@@ -28,7 +38,9 @@ describe('ThemeService', () => {
 
   afterEach(() => {
     localStorage.clear();
-    document.documentElement.classList.remove('light');
+    delete document.documentElement.dataset['theme'];
+    delete document.documentElement.dataset['accent'];
+    delete document.documentElement.dataset['density'];
   });
 
   describe('initialization', () => {
@@ -38,10 +50,11 @@ describe('ThemeService', () => {
 
       // Assert
       expect(service.isDark()).toBe(true);
-      expect(document.documentElement.classList.contains('light')).toBe(false);
+      expect(service.theme()).toBe('dark');
+      expect(getDataTheme()).toBe('dark');
     });
 
-    it('starts in light mode and adds the light class when "light" is stored', () => {
+    it('starts in light mode and sets data-theme="light" when "light" is stored', () => {
       // Arrange
       localStorage.setItem(STORAGE_KEY, 'light');
 
@@ -50,10 +63,11 @@ describe('ThemeService', () => {
 
       // Assert
       expect(service.isDark()).toBe(false);
-      expect(document.documentElement.classList.contains('light')).toBe(true);
+      expect(service.theme()).toBe('light');
+      expect(getDataTheme()).toBe('light');
     });
 
-    it('stays in dark mode and does not add the light class when "dark" is stored', () => {
+    it('stays in dark mode when "dark" is stored', () => {
       // Arrange
       localStorage.setItem(STORAGE_KEY, 'dark');
 
@@ -62,10 +76,11 @@ describe('ThemeService', () => {
 
       // Assert
       expect(service.isDark()).toBe(true);
-      expect(document.documentElement.classList.contains('light')).toBe(false);
+      expect(service.theme()).toBe('dark');
+      expect(getDataTheme()).toBe('dark');
     });
 
-    it('ignores unrecognized stored values and stays in dark mode', () => {
+    it('ignores unrecognized stored values and defaults to dark mode', () => {
       // Arrange
       localStorage.setItem(STORAGE_KEY, 'sepia');
 
@@ -74,35 +89,40 @@ describe('ThemeService', () => {
 
       // Assert
       expect(service.isDark()).toBe(true);
-      expect(document.documentElement.classList.contains('light')).toBe(false);
+      expect(service.theme()).toBe('dark');
+      expect(getDataTheme()).toBe('dark');
     });
   });
 
   describe('toggle', () => {
-    it('switches from dark to light, adds the light class, and persists "light"', () => {
+    it('switches from dark to light, sets data-theme="light", and persists "light"', () => {
       // Arrange
       const service = createService();
 
       // Act
       service.toggle();
+      TestBed.flushEffects();
 
       // Assert
       expect(service.isDark()).toBe(false);
-      expect(document.documentElement.classList.contains('light')).toBe(true);
+      expect(service.theme()).toBe('light');
+      expect(getDataTheme()).toBe('light');
       expect(localStorage.getItem(STORAGE_KEY)).toBe('light');
     });
 
-    it('switches from light back to dark, removes the light class, and persists "dark"', () => {
+    it('switches from light back to dark, sets data-theme="dark", and persists "dark"', () => {
       // Arrange
       localStorage.setItem(STORAGE_KEY, 'light');
       const service = createService();
 
       // Act
       service.toggle();
+      TestBed.flushEffects();
 
       // Assert
       expect(service.isDark()).toBe(true);
-      expect(document.documentElement.classList.contains('light')).toBe(false);
+      expect(service.theme()).toBe('dark');
+      expect(getDataTheme()).toBe('dark');
       expect(localStorage.getItem(STORAGE_KEY)).toBe('dark');
     });
 
@@ -113,11 +133,47 @@ describe('ThemeService', () => {
       // Act
       service.toggle();
       service.toggle();
+      TestBed.flushEffects();
 
       // Assert
       expect(service.isDark()).toBe(true);
-      expect(document.documentElement.classList.contains('light')).toBe(false);
+      expect(service.theme()).toBe('dark');
+      expect(getDataTheme()).toBe('dark');
       expect(localStorage.getItem(STORAGE_KEY)).toBe('dark');
+    });
+  });
+
+  describe('setAccent', () => {
+    it('defaults to indigo', () => {
+      const service = createService();
+      expect(service.accent()).toBe('indigo');
+      expect(document.documentElement.dataset['accent']).toBe('indigo');
+    });
+
+    it('updates the accent and mirrors it to data-accent', () => {
+      const service = createService();
+      service.setAccent('teal');
+      TestBed.flushEffects();
+      expect(service.accent()).toBe('teal');
+      expect(document.documentElement.dataset['accent']).toBe('teal');
+      expect(localStorage.getItem('signage_accent')).toBe('teal');
+    });
+  });
+
+  describe('setDensity', () => {
+    it('defaults to regular', () => {
+      const service = createService();
+      expect(service.density()).toBe('regular');
+      expect(document.documentElement.dataset['density']).toBe('regular');
+    });
+
+    it('updates the density and mirrors it to data-density', () => {
+      const service = createService();
+      service.setDensity('compact');
+      TestBed.flushEffects();
+      expect(service.density()).toBe('compact');
+      expect(document.documentElement.dataset['density']).toBe('compact');
+      expect(localStorage.getItem('signage_density')).toBe('compact');
     });
   });
 });

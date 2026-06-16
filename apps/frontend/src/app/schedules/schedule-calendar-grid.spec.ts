@@ -160,6 +160,63 @@ describe('ScheduleCalendarGrid', () => {
     });
   });
 
+  describe('isOneOff', () => {
+    it('is true for a non-recurring entry without an rrule', async () => {
+      // Arrange
+      await setUp();
+
+      // Act / Assert
+      expect(component.isOneOff(makeBlock({ isRecurring: false }))).toBe(true);
+    });
+
+    it('is false for a recurring block', async () => {
+      // Arrange
+      await setUp();
+
+      // Act / Assert
+      expect(component.isOneOff(makeBlock({ isRecurring: true }))).toBe(false);
+    });
+  });
+
+  describe('hasConflict', () => {
+    it('flags overlapping blocks on the same day', async () => {
+      // Arrange
+      const a = makeBlock({
+        entry: makeEntry({ id: 'a' }),
+        occurrenceStart: new Date('2026-06-01T08:00:00.000Z'),
+        occurrenceEnd: new Date('2026-06-01T10:00:00.000Z'),
+      });
+      const b = makeBlock({
+        entry: makeEntry({ id: 'b' }),
+        occurrenceStart: new Date('2026-06-01T09:00:00.000Z'),
+        occurrenceEnd: new Date('2026-06-01T11:00:00.000Z'),
+      });
+      await setUp({ viewMode: 'day', blocks: [a, b] });
+
+      // Act / Assert
+      expect(component.hasConflict(a)).toBe(true);
+      expect(component.hasConflict(b)).toBe(true);
+    });
+
+    it('does not flag non-overlapping blocks', async () => {
+      // Arrange
+      const a = makeBlock({
+        entry: makeEntry({ id: 'a' }),
+        occurrenceStart: new Date('2026-06-01T08:00:00.000Z'),
+        occurrenceEnd: new Date('2026-06-01T09:00:00.000Z'),
+      });
+      const b = makeBlock({
+        entry: makeEntry({ id: 'b' }),
+        occurrenceStart: new Date('2026-06-01T09:00:00.000Z'),
+        occurrenceEnd: new Date('2026-06-01T10:00:00.000Z'),
+      });
+      await setUp({ viewMode: 'day', blocks: [a, b] });
+
+      // Act / Assert
+      expect(component.hasConflict(a)).toBe(false);
+    });
+  });
+
   describe('isDayToday', () => {
     it('returns true for the current date', async () => {
       // Arrange

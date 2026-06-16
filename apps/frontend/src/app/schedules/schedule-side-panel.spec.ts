@@ -38,13 +38,14 @@ describe('ScheduleSidePanel', () => {
     TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
   });
 
-  it('renders the date label as the heading', async () => {
+  it('renders the date label and scheduled count in the card-head sub', async () => {
     // Arrange / Act
     await setUp([], 'Tuesday, June 2, 2026');
 
-    // Assert
-    const heading = fixture.nativeElement.querySelector('h3') as HTMLElement;
-    expect(heading.textContent?.trim()).toBe('Tuesday, June 2, 2026');
+    // Assert — card-head shows "Today" with the date + count as the sub line
+    expect(fixture.nativeElement.textContent).toContain('Today');
+    expect(fixture.nativeElement.textContent).toContain('Tuesday, June 2, 2026');
+    expect(fixture.nativeElement.textContent).toContain('0 scheduled');
   });
 
   it('shows the empty-state message when the timeline is empty', async () => {

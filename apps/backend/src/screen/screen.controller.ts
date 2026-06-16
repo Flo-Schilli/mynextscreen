@@ -1,8 +1,15 @@
 import { Controller, Get, Post, Patch, Param, Body, Req, Sse, ParseUUIDPipe } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Observable } from 'rxjs';
-import { ScreenService } from './screen.service';
+import { ScreenService, type ScreenWithPlaylist } from './screen.service';
 import { ScreenStateService } from './screen-state.service';
-import { CreateScreenDto, UpdateScreenDto, BulkDeleteScreensDto, BulkAssignGroupDto } from './dto';
+import {
+  CreateScreenDto,
+  RepairScreenDto,
+  UpdateScreenDto,
+  BulkDeleteScreensDto,
+  BulkAssignGroupDto,
+} from './dto';
 import { Roles } from '../auth/roles.decorator';
 import { ScreenAuth, ScreenAuthenticatedRequest, AuthenticatedRequest } from '../auth';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
@@ -25,17 +32,21 @@ export class ScreenController {
 
   @Post()
   @Roles(OrganisationRole.OrgAdmin)
+  // Stricter than the global limit: claiming a screen consumes a pairing code.
+  // 20/min is generous for an admin while throttling brute-force code guessing.
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   create(
     @CurrentOrganisation() organisationId: string,
     @Body() dto: CreateScreenDto,
-  ): Promise<{ screen: Screen; apiKey: string }> {
-    return this.screenService.createScreen(organisationId, dto);
+    @Req() req: AuthenticatedRequest,
+  ): Promise<Screen> {
+    return this.screenService.createScreen(organisationId, dto, req.user.userId);
   }
 
   @Get()
   @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
-  findAll(@CurrentOrganisation() organisationId: string): Promise<Screen[]> {
-    return this.screenService.findAll(organisationId);
+  findAll(@CurrentOrganisation() organisationId: string): Promise<ScreenWithPlaylist[]> {
+    return this.screenService.findAllWithPlaylist(organisationId);
   }
 
   @Get('me')
@@ -91,13 +102,17 @@ export class ScreenController {
     );
   }
 
-  @Post(':id/regenerate-key')
+  @Post(':id/repair')
   @Roles(OrganisationRole.OrgAdmin)
-  regenerateKey(
+  // Same brute-force protection as create: re-pairing consumes a pairing code.
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  repair(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<{ screen: Screen; apiKey: string }> {
-    return this.screenService.regenerateApiKey(organisationId, id);
+    @Body() dto: RepairScreenDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<Screen> {
+    return this.screenService.repairScreen(organisationId, id, dto.pairingCode, req.user.userId);
   }
 
   @Get(':id/state')

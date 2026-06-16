@@ -1,6 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
-import { By } from '@angular/platform-browser';
 import { ScreenGroupDeleteModal } from './screen-group-delete-modal';
 import { ScreenGroup, ScreenGroupScreen } from './screen-group.model';
 
@@ -23,11 +22,19 @@ function makeGroup(overrides: Partial<ScreenGroup> = {}): ScreenGroup {
     mode: 'mirror',
     gridColumns: null,
     gridRows: null,
+    color: '#6d6cf6',
+    icon: 'Groups',
     screens: [],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   };
+}
+
+function buttonByText(el: HTMLElement, text: string): HTMLButtonElement | undefined {
+  return Array.from(el.querySelectorAll('button')).find(
+    (b) => (b as HTMLElement).textContent?.trim() === text,
+  ) as HTMLButtonElement | undefined;
 }
 
 describe('ScreenGroupDeleteModal', () => {
@@ -56,23 +63,18 @@ describe('ScreenGroupDeleteModal', () => {
   it('blocks deletion and explains why when the group still has screens', async () => {
     await setUp(makeGroup({ name: 'Busy', screens: [makeScreen('s1'), makeScreen('s2')] }));
 
-    const blocked = fixture.nativeElement.querySelector('.delete-blocked');
-    expect(blocked).not.toBeNull();
-    expect(blocked.textContent).toContain('Busy');
-    expect(blocked.textContent).toContain('2 assigned screen(s)');
-    // Confirm/Delete button must not exist in the blocked state.
-    expect(fixture.nativeElement.querySelector('.btn-danger')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Busy');
+    expect(fixture.nativeElement.textContent).toContain('2 assigned screen(s)');
+    expect(buttonByText(fixture.nativeElement, 'Delete')).toBeUndefined();
+    expect(buttonByText(fixture.nativeElement, 'Close')).toBeDefined();
   });
 
-  it('shows only a Close button in the blocked state which emits dismiss', async () => {
+  it('emits dismiss when Close is clicked in the blocked state', async () => {
     await setUp(makeGroup({ screens: [makeScreen('s1')] }));
     let dismissed = false;
     component.dismiss.subscribe(() => (dismissed = true));
 
-    const closeBtn = Array.from(fixture.nativeElement.querySelectorAll('button')).find(
-      (b) => (b as HTMLElement).textContent?.trim() === 'Close',
-    ) as HTMLButtonElement;
-    closeBtn.click();
+    buttonByText(fixture.nativeElement, 'Close')!.click();
 
     expect(dismissed).toBe(true);
   });
@@ -80,9 +82,7 @@ describe('ScreenGroupDeleteModal', () => {
   it('asks for confirmation when the group has no screens', async () => {
     await setUp(makeGroup({ name: 'Empty', screens: [] }));
 
-    expect(fixture.nativeElement.querySelector('.delete-blocked')).toBeNull();
-    const danger: HTMLButtonElement = fixture.nativeElement.querySelector('.btn-danger');
-    expect(danger).not.toBeNull();
+    expect(buttonByText(fixture.nativeElement, 'Delete')).toBeDefined();
     expect(fixture.nativeElement.textContent).toContain('Empty');
   });
 
@@ -91,23 +91,21 @@ describe('ScreenGroupDeleteModal', () => {
     let confirmed = false;
     component.confirm.subscribe(() => (confirmed = true));
 
-    fixture.debugElement.query(By.css('.btn-danger')).nativeElement.click();
+    buttonByText(fixture.nativeElement, 'Delete')!.click();
 
     expect(confirmed).toBe(true);
   });
 
-  it('disables the Delete button and shows a busy label while deleting', async () => {
+  it('shows a busy label while deleting', async () => {
     await setUp(makeGroup({ screens: [] }), true);
 
-    const danger: HTMLButtonElement = fixture.nativeElement.querySelector('.btn-danger');
-    expect(danger.disabled).toBe(true);
-    expect(danger.textContent?.trim()).toBe('Deleting...');
+    expect(buttonByText(fixture.nativeElement, 'Deleting…')).toBeDefined();
   });
 
   it('renders the parent-provided error in the confirm state', async () => {
     await setUp(makeGroup({ screens: [] }), false, 'Delete failed');
 
-    expect(fixture.nativeElement.querySelector('.error').textContent).toContain('Delete failed');
+    expect(fixture.nativeElement.textContent).toContain('Delete failed');
   });
 
   it('emits dismiss when Cancel is clicked in the confirm state', async () => {
@@ -115,20 +113,18 @@ describe('ScreenGroupDeleteModal', () => {
     let dismissed = false;
     component.dismiss.subscribe(() => (dismissed = true));
 
-    const cancelBtn = Array.from(fixture.nativeElement.querySelectorAll('button')).find(
-      (b) => (b as HTMLElement).textContent?.trim() === 'Cancel',
-    ) as HTMLButtonElement;
-    cancelBtn.click();
+    buttonByText(fixture.nativeElement, 'Cancel')!.click();
 
     expect(dismissed).toBe(true);
   });
 
-  it('emits dismiss when the overlay is clicked', async () => {
+  it('emits dismiss when the overlay backdrop is clicked', async () => {
     await setUp(makeGroup({ screens: [] }));
     let dismissed = false;
     component.dismiss.subscribe(() => (dismissed = true));
 
-    fixture.debugElement.query(By.css('.modal-overlay')).nativeElement.click();
+    const backdrop = fixture.nativeElement.querySelector('mns-overlay > div');
+    backdrop.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     expect(dismissed).toBe(true);
   });

@@ -133,6 +133,28 @@ describe('ScreenGroupService', () => {
       expect(result.gridColumns).toBeNull();
       expect(result.gridRows).toBeNull();
     });
+
+    it('should default color and icon when not provided', async () => {
+      const result = await service.createGroup(orgId, {
+        name: 'Defaults',
+        mode: ScreenGroupMode.Mirror,
+      });
+
+      expect(result.color).toBe('#6d6cf6');
+      expect(result.icon).toBe('Groups');
+    });
+
+    it('should persist provided color and icon', async () => {
+      const result = await service.createGroup(orgId, {
+        name: 'Custom',
+        mode: ScreenGroupMode.Mirror,
+        color: '#0ea5e9',
+        icon: 'Cast',
+      });
+
+      expect(result.color).toBe('#0ea5e9');
+      expect(result.icon).toBe('Cast');
+    });
   });
 
   describe('findAll', () => {
@@ -222,6 +244,18 @@ describe('ScreenGroupService', () => {
       await expect(service.updateGroup(orgId, MISSING_ID, { name: 'X' })).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('should update color and icon', async () => {
+      const group = await seedGroup();
+
+      const result = await service.updateGroup(orgId, group.id, {
+        color: '#ec4899',
+        icon: 'Layers',
+      });
+
+      expect(result.color).toBe('#ec4899');
+      expect(result.icon).toBe('Layers');
     });
   });
 

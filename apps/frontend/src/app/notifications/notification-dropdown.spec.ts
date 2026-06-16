@@ -295,21 +295,54 @@ describe('NotificationDropdown', () => {
     });
   });
 
+  describe('getEventColor', () => {
+    it('returns the offline token for screen.offline', () => {
+      expect(fixture.componentInstance.getEventColor('screen.offline')).toBe('var(--offline)');
+    });
+
+    it('returns the online token for screen.online', () => {
+      expect(fixture.componentInstance.getEventColor('screen.online')).toBe('var(--online)');
+    });
+
+    it('returns the accent token for transcoding.complete', () => {
+      expect(fixture.componentInstance.getEventColor('transcoding.complete')).toBe('var(--accent)');
+    });
+
+    it('returns the warn token for transcoding.failed', () => {
+      expect(fixture.componentInstance.getEventColor('transcoding.failed')).toBe('var(--warn)');
+    });
+
+    it('returns currentColor for an unknown event type', () => {
+      const color = fixture.componentInstance.getEventColor(
+        'unknown.event' as NotificationEventType,
+      );
+      expect(color).toBe('currentColor');
+    });
+  });
+
   describe('getEventIcon', () => {
-    it('returns a red cross icon for screen.offline', () => {
-      expect(fixture.componentInstance.getEventIcon('screen.offline')).toContain('#ef4444');
+    it('returns a color-agnostic cross icon for screen.offline', () => {
+      const icon = fixture.componentInstance.getEventIcon('screen.offline');
+      expect(icon).toContain('stroke="currentColor"');
+      expect(icon).toContain('M6 6l4 4M10 6l-4 4');
     });
 
-    it('returns a green check icon for screen.online', () => {
-      expect(fixture.componentInstance.getEventIcon('screen.online')).toContain('#22c55e');
+    it('returns a color-agnostic check icon for screen.online', () => {
+      const icon = fixture.componentInstance.getEventIcon('screen.online');
+      expect(icon).toContain('stroke="currentColor"');
+      expect(icon).toContain('M5.5 8l2 2 3-4');
     });
 
-    it('returns a blue icon for transcoding.complete', () => {
-      expect(fixture.componentInstance.getEventIcon('transcoding.complete')).toContain('#3b82f6');
+    it('returns a color-agnostic check icon for transcoding.complete', () => {
+      const icon = fixture.componentInstance.getEventIcon('transcoding.complete');
+      expect(icon).toContain('stroke="currentColor"');
+      expect(icon).toContain('M5.5 8l2 2 3-4');
     });
 
-    it('returns an amber icon for transcoding.failed', () => {
-      expect(fixture.componentInstance.getEventIcon('transcoding.failed')).toContain('#f59e0b');
+    it('returns a color-agnostic warning icon for transcoding.failed', () => {
+      const icon = fixture.componentInstance.getEventIcon('transcoding.failed');
+      expect(icon).toContain('stroke="currentColor"');
+      expect(icon).toContain('M8 5v3M8 10v1');
     });
 
     it('returns a fallback currentColor icon for an unknown event type', () => {

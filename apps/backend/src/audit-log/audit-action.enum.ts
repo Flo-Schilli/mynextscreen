@@ -32,6 +32,7 @@ export enum AuditAction {
   LiveStreamFailed = 'live_stream.failed',
   ScreenBulkDeleted = 'screen.bulk_deleted',
   ScreenBulkGroupAssigned = 'screen.bulk_group_assigned',
+  ScreenPairingFailed = 'screen.pairing_failed',
   ContentBulkDeleted = 'content.bulk_deleted',
   ContentBulkTagged = 'content.bulk_tagged',
   ContentBulkUntagged = 'content.bulk_untagged',

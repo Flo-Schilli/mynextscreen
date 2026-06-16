@@ -32,6 +32,7 @@ const TABLE_NAMES = [
   'user_organisation_memberships',
   'screen_groups',
   'screens',
+  'screen_pairings',
   'contents',
   'playlists',
   'playlist_items',
@@ -43,6 +44,8 @@ const TABLE_NAMES = [
   'user_notification_preferences',
   'audit_entries',
   'sliced_renditions',
+  'org_metric_snapshots',
+  'system_metric_snapshots',
 ];
 
 function baseUri(): string {

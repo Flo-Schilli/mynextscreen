@@ -2,7 +2,11 @@ import { Injectable, Inject } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
-import { organisationNotificationConfigs, type OrganisationNotificationConfig } from '../db/schema';
+import {
+  organisationNotificationConfigs,
+  type AlertRules,
+  type OrganisationNotificationConfig,
+} from '../db/schema';
 
 export interface OrgNotificationConfigData {
   smtpHost?: string | null;
@@ -14,6 +18,7 @@ export interface OrgNotificationConfigData {
   ntfyUrl?: string | null;
   ntfyTopic?: string | null;
   ntfyToken?: string | null;
+  alertRules?: AlertRules;
 }
 
 @Injectable()
@@ -51,6 +56,7 @@ export class OrgNotificationConfigService {
       if (config.ntfyToken !== undefined && config.ntfyToken !== '') {
         updates.ntfyToken = config.ntfyToken;
       }
+      if (config.alertRules !== undefined) updates.alertRules = config.alertRules;
       // Nothing to change (e.g. only a blank secret was sent): skip the write.
       // Drizzle's .set({}) throws "No values to set", and the blank-secret rule
       // intentionally keeps the stored value — so a no-op update returns as-is.
@@ -78,6 +84,8 @@ export class OrgNotificationConfigService {
         ntfyUrl: config.ntfyUrl ?? null,
         ntfyTopic: config.ntfyTopic ?? null,
         ntfyToken: config.ntfyToken || null,
+        // Omit when not provided so the column default (DEFAULT_ALERT_RULES) applies.
+        ...(config.alertRules !== undefined ? { alertRules: config.alertRules } : {}),
       })
       .returning();
     return saved;

@@ -26,9 +26,9 @@ import { VersionService } from './version.service';
       font-size: 0.6875rem;
       font-weight: 600;
       letter-spacing: 0.02em;
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-secondary);
-      border: 1px solid var(--color-border);
+      background: var(--surface-3);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
       white-space: nowrap;
     }
     .version-badge.compact {

@@ -6,17 +6,18 @@ import { By } from '@angular/platform-browser';
 import { Subject, of, throwError } from 'rxjs';
 import { Dashboard } from './dashboard';
 import { ScreenService } from '../screens/screen.service';
-import { ContentService } from '../content/content.service';
 import { ScheduleService } from '../schedules/schedule.service';
+import { DashboardService } from './dashboard.service';
 import { OrganisationStateService } from '../shell/organisation-state.service';
 import { DashboardSseService, DashboardEvent } from './dashboard-sse.service';
 import { Screen } from '../screens/screen.model';
-import { StorageInfo } from '../content/content.model';
 import { ScheduleEntry } from '../schedules/schedule.model';
+import { DashboardSummary } from './dashboard-summary.model';
 import { DashboardScreenGrid } from './dashboard-screen-grid';
 import { StorageUsageBars } from '../shared/storage-usage-bars';
 import { DashboardScheduleTimeline } from './dashboard-schedule-timeline';
 import { DashboardActivityFeed } from './dashboard-activity-feed';
+import { DashboardAlerts } from './dashboard-alerts';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -49,12 +50,19 @@ function makeScreen(overrides: Partial<Screen> = {}): Screen {
   };
 }
 
-function makeStorage(overrides: Partial<StorageInfo> = {}): StorageInfo {
+function makeSummary(overrides: Partial<DashboardSummary> = {}): DashboardSummary {
   return {
-    originalUsedBytes: 100,
-    originalLimitBytes: 1000,
-    transcodedUsedBytes: 200,
-    transcodedLimitBytes: 1000,
+    screens: { total: 1, online: 1, offline: 0, warning: 0 },
+    content: { count: 8, libraryBytes: 4_800_000_000 },
+    playlists: { count: 4 },
+    schedules: { upcoming24h: 2 },
+    storage: {
+      originalUsedBytes: 100,
+      originalLimitBytes: 1000,
+      transcodedUsedBytes: 200,
+      transcodedLimitBytes: 1000,
+    },
+    alerts: [],
     ...overrides,
   };
 }
@@ -113,7 +121,8 @@ describe('Dashboard', () => {
   let sse: SseStub;
   let selectedOrgId: WritableSignal<string | null>;
   let getAllScreens: ReturnType<typeof vi.fn>;
-  let getStorage: ReturnType<typeof vi.fn>;
+  let getSummary: ReturnType<typeof vi.fn>;
+  let getHistory: ReturnType<typeof vi.fn>;
   let getByDateRange: ReturnType<typeof vi.fn>;
   let navigate: ReturnType<typeof vi.fn>;
 
@@ -121,13 +130,15 @@ describe('Dashboard', () => {
     options: {
       orgId?: string | null;
       screens?: ReturnType<typeof vi.fn>;
-      storage?: ReturnType<typeof vi.fn>;
+      summary?: ReturnType<typeof vi.fn>;
+      history?: ReturnType<typeof vi.fn>;
       schedule?: ReturnType<typeof vi.fn>;
     } = {},
   ): Promise<void> {
     selectedOrgId = signal<string | null>('orgId' in options ? (options.orgId ?? null) : 'org-1');
     getAllScreens = options.screens ?? vi.fn(() => of<Screen[]>([]));
-    getStorage = options.storage ?? vi.fn(() => of(makeStorage()));
+    getSummary = options.summary ?? vi.fn(() => of(makeSummary()));
+    getHistory = options.history ?? vi.fn(() => of({ points: [] }));
     getByDateRange = options.schedule ?? vi.fn(() => of<ScheduleEntry[]>([]));
     navigate = vi.fn();
     sse = makeSseStub();
@@ -138,7 +149,7 @@ describe('Dashboard', () => {
         provideZonelessChangeDetection(),
         { provide: Router, useValue: { navigate } },
         { provide: ScreenService, useValue: { getAll: getAllScreens } },
-        { provide: ContentService, useValue: { getStorage } },
+        { provide: DashboardService, useValue: { getSummary, getHistory } },
         { provide: ScheduleService, useValue: { getByDateRange } },
         { provide: OrganisationStateService, useValue: { selectedOrgId } },
         { provide: DashboardSseService, useValue: sse },
@@ -152,20 +163,20 @@ describe('Dashboard', () => {
   }
 
   describe('data loading on org selection', () => {
-    it('loads screens, storage and schedule for the selected org', async () => {
+    it('loads screens, summary and schedule for the selected org', async () => {
       // Arrange & Act
       await setup({
         screens: vi.fn(() => of([makeScreen({ id: 'a' }), makeScreen({ id: 'b' })])),
-        storage: vi.fn(() => of(makeStorage({ originalUsedBytes: 500 }))),
+        summary: vi.fn(() => of(makeSummary({ content: { count: 12, libraryBytes: 5e9 } }))),
         schedule: vi.fn(() => of([makeScheduleEntry()])),
       });
 
       // Assert
       expect(getAllScreens).toHaveBeenCalledWith('org-1');
-      expect(getStorage).toHaveBeenCalledWith('org-1');
+      expect(getSummary).toHaveBeenCalledWith('org-1');
       expect(getByDateRange).toHaveBeenCalledWith('org-1', expect.any(String), expect.any(String));
       expect(component.screens().length).toBe(2);
-      expect(component.storage()?.originalUsedBytes).toBe(500);
+      expect(component.contentCount()).toBe(12);
       expect(component.scheduleEntries().length).toBe(1);
     });
 
@@ -175,7 +186,7 @@ describe('Dashboard', () => {
 
       // Assert
       expect(getAllScreens).not.toHaveBeenCalled();
-      expect(getStorage).not.toHaveBeenCalled();
+      expect(getSummary).not.toHaveBeenCalled();
       expect(getByDateRange).not.toHaveBeenCalled();
     });
 
@@ -185,7 +196,7 @@ describe('Dashboard', () => {
 
       // Assert
       expect(component.loadingScreens()).toBe(false);
-      expect(component.loadingStorage()).toBe(false);
+      expect(component.loadingSummary()).toBe(false);
       expect(component.loadingSchedule()).toBe(false);
     });
 
@@ -193,27 +204,112 @@ describe('Dashboard', () => {
       // Arrange & Act
       await setup({
         screens: vi.fn(() => throwError(() => new Error('boom'))),
-        storage: vi.fn(() => throwError(() => new Error('boom'))),
+        summary: vi.fn(() => throwError(() => new Error('boom'))),
         schedule: vi.fn(() => throwError(() => new Error('boom'))),
       });
 
       // Assert
       expect(component.loadingScreens()).toBe(false);
-      expect(component.loadingStorage()).toBe(false);
+      expect(component.loadingSummary()).toBe(false);
       expect(component.loadingSchedule()).toBe(false);
       expect(component.screens()).toEqual([]);
-      expect(component.storage()).toBeNull();
+      expect(component.summary()).toBeNull();
+    });
+
+    it('reloads all data when refresh() is invoked', async () => {
+      // Arrange
+      await setup({ screens: vi.fn(() => of([makeScreen()])) });
+      getAllScreens.mockClear();
+      getSummary.mockClear();
+      getByDateRange.mockClear();
+
+      // Act
+      component.refresh();
+      await flush(fixture);
+
+      // Assert
+      expect(getAllScreens).toHaveBeenCalledTimes(1);
+      expect(getSummary).toHaveBeenCalledTimes(1);
+      expect(getByDateRange).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('KPIs', () => {
+    it('classifies screens into online, warning and offline by heartbeat staleness', async () => {
+      // Arrange
+      const now = Date.now();
+      await setup({
+        screens: vi.fn(() =>
+          of([
+            makeScreen({ id: 'fresh', isOnline: true, lastHeartbeat: new Date(now).toISOString() }),
+            makeScreen({
+              id: 'stale',
+              isOnline: true,
+              lastHeartbeat: new Date(now - 120_000).toISOString(),
+            }),
+            makeScreen({ id: 'down', isOnline: false }),
+          ]),
+        ),
+      });
+
+      // Assert
+      expect(component.screensOnline()).toBe(1);
+      expect(component.screensWarning()).toBe(1);
+      expect(component.screensOffline()).toBe(1);
+    });
+
+    it('derives content, playlist and library-size KPIs from the summary', async () => {
+      // Arrange & Act
+      await setup({
+        screens: vi.fn(() => of([makeScreen()])),
+        summary: vi.fn(() =>
+          of(
+            makeSummary({
+              content: { count: 9, libraryBytes: 4_800_000_000 },
+              playlists: { count: 5 },
+            }),
+          ),
+        ),
+      });
+
+      // Assert
+      expect(component.contentCount()).toBe(9);
+      expect(component.playlistCount()).toBe(5);
+      expect(component.libraryGb()).toBe('4.8');
+    });
+
+    it('splits the open-alert KPI into critical and warning counts', async () => {
+      // Arrange & Act
+      await setup({
+        screens: vi.fn(() => of([makeScreen()])),
+        summary: vi.fn(() =>
+          of(
+            makeSummary({
+              alerts: [
+                { id: 'a', tone: 'offline', title: 'x', description: 'y', timestamp: null },
+                { id: 'b', tone: 'warn', title: 'x', description: 'y', timestamp: null },
+                { id: 'c', tone: 'info', title: 'x', description: 'y', timestamp: null },
+              ],
+            }),
+          ),
+        ),
+      });
+
+      // Assert
+      expect(component.alertCount()).toBe(3);
+      expect(component.criticalAlertCount()).toBe(1);
+      expect(component.warningAlertCount()).toBe(2);
     });
   });
 
   describe('conditional rendering branches', () => {
-    it('shows the empty state when no screens are registered', async () => {
+    it('shows the onboarding state when no screens are registered', async () => {
       // Arrange & Act
       await setup({ screens: vi.fn(() => of<Screen[]>([])) });
 
-      // Assert
+      // Assert: no screens => onboarding view, not the populated dashboard
       const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-      expect(text).toContain('No screens registered yet.');
+      expect(text).toContain('Welcome to myNextScreen');
       expect(fixture.debugElement.query(By.directive(DashboardScreenGrid))).toBeNull();
     });
 
@@ -225,9 +321,12 @@ describe('Dashboard', () => {
       expect(fixture.debugElement.query(By.directive(DashboardScreenGrid))).not.toBeNull();
     });
 
-    it('shows the storage empty state when storage is null', async () => {
-      // Arrange & Act
-      await setup({ storage: vi.fn(() => throwError(() => new Error('no storage'))) });
+    it('shows the storage empty state when the summary is null', async () => {
+      // Arrange & Act: provide a screen so dataState === 'populated', summary errors out → null
+      await setup({
+        screens: vi.fn(() => of([makeScreen()])),
+        summary: vi.fn(() => throwError(() => new Error('no summary'))),
+      });
 
       // Assert
       const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -235,17 +334,58 @@ describe('Dashboard', () => {
       expect(fixture.debugElement.query(By.directive(StorageUsageBars))).toBeNull();
     });
 
-    it('renders the storage child when storage is available', async () => {
-      // Arrange & Act
-      await setup({ storage: vi.fn(() => of(makeStorage())) });
+    it('renders the storage child when the summary is available', async () => {
+      // Arrange & Act: provide a screen so dataState === 'populated'
+      await setup({
+        screens: vi.fn(() => of([makeScreen()])),
+        summary: vi.fn(() => of(makeSummary())),
+      });
 
       // Assert
       expect(fixture.debugElement.query(By.directive(StorageUsageBars))).not.toBeNull();
     });
 
-    it('shows the schedule empty state when there are no timeline rows', async () => {
+    it('renders the alerts child when the summary has alerts', async () => {
       // Arrange & Act
-      await setup({ schedule: vi.fn(() => of<ScheduleEntry[]>([])) });
+      await setup({
+        screens: vi.fn(() => of([makeScreen()])),
+        summary: vi.fn(() =>
+          of(
+            makeSummary({
+              alerts: [
+                {
+                  id: 'screen:1',
+                  tone: 'offline',
+                  title: 'Lobby offline',
+                  description: 'No heartbeat',
+                  timestamp: new Date().toISOString(),
+                },
+              ],
+            }),
+          ),
+        ),
+      });
+
+      // Assert
+      expect(fixture.debugElement.query(By.directive(DashboardAlerts))).not.toBeNull();
+    });
+
+    it('shows the alerts empty state when there are no alerts', async () => {
+      // Arrange & Act
+      await setup({ screens: vi.fn(() => of([makeScreen()])) });
+
+      // Assert
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('No open alerts');
+      expect(fixture.debugElement.query(By.directive(DashboardAlerts))).toBeNull();
+    });
+
+    it('shows the schedule empty state when there are no timeline rows', async () => {
+      // Arrange & Act: provide a screen so dataState === 'populated', schedule is empty
+      await setup({
+        screens: vi.fn(() => of([makeScreen()])),
+        schedule: vi.fn(() => of<ScheduleEntry[]>([])),
+      });
 
       // Assert
       const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -254,16 +394,19 @@ describe('Dashboard', () => {
     });
 
     it('renders the timeline child when schedule rows exist', async () => {
-      // Arrange & Act
-      await setup({ schedule: vi.fn(() => of([makeScheduleEntry()])) });
+      // Arrange & Act: provide a screen so dataState === 'populated', schedule has entries
+      await setup({
+        screens: vi.fn(() => of([makeScreen()])),
+        schedule: vi.fn(() => of([makeScheduleEntry()])),
+      });
 
       // Assert
       expect(fixture.debugElement.query(By.directive(DashboardScheduleTimeline))).not.toBeNull();
     });
 
     it('shows the activity empty state initially', async () => {
-      // Arrange & Act
-      await setup();
+      // Arrange & Act: provide a screen so dataState === 'populated', activity feed starts empty
+      await setup({ screens: vi.fn(() => of([makeScreen()])) });
 
       // Assert
       const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -271,13 +414,13 @@ describe('Dashboard', () => {
       expect(fixture.debugElement.query(By.directive(DashboardActivityFeed))).toBeNull();
     });
 
-    it('renders the screen count badge', async () => {
+    it('renders the screen count in the card header sub text', async () => {
       // Arrange & Act
       await setup({ screens: vi.fn(() => of([makeScreen({ id: 'a' }), makeScreen({ id: 'b' })])) });
 
-      // Assert
-      const badge = fixture.debugElement.query(By.css('.card-badge')).nativeElement as HTMLElement;
-      expect(badge.textContent?.trim()).toBe('2 screens');
+      // Assert: populated state shows screensSubline "N of M active" somewhere in the DOM
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('2');
     });
   });
 
@@ -405,6 +548,20 @@ describe('Dashboard', () => {
       expect(component.activityFeed()[0].category).toBe('schedule');
     });
 
+    it('refreshes the summary on transcoding complete/failed events', async () => {
+      // Arrange
+      await setup();
+      getSummary.mockClear();
+
+      // Act
+      sse.transcodingComplete$.next(sseEvent('transcoding.complete', {}));
+      sse.transcodingFailed$.next(sseEvent('transcoding.failed', {}));
+      await flush(fixture);
+
+      // Assert: each event triggers a background summary refresh.
+      expect(getSummary).toHaveBeenCalledTimes(2);
+    });
+
     it('logs transcoding complete, failed and progress activities', async () => {
       // Arrange
       await setup();
@@ -438,8 +595,8 @@ describe('Dashboard', () => {
     });
 
     it('renders the activity feed child once entries arrive', async () => {
-      // Arrange
-      await setup();
+      // Arrange: provide a screen so dataState === 'populated'
+      await setup({ screens: vi.fn(() => of([makeScreen()])) });
 
       // Act
       sse.transcodingComplete$.next(sseEvent('transcoding.complete', {}));

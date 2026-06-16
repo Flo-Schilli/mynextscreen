@@ -46,6 +46,7 @@ class StubTopbar {
   readonly openOrgSwitch = output<void>();
   readonly toggleTheme = output<void>();
   readonly openProfile = output<void>();
+  readonly openInstanceAdmin = output<void>();
   readonly logout = output<void>();
 }
 

@@ -1,49 +1,46 @@
-import { Component, input, model, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, model, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { OverlayComponent, ModalComponent, BtnComponent, SFieldComponent } from '../ui';
 
 /**
  * Presentational modal for bulk add/remove tags. Owns nothing but its own view;
  * the comma-separated tag text is two-way bound via {@link model} so the parent
  * stays the source of truth for the value it later parses. Emits confirm/cancel;
  * the parent drives the show flag and the bulk request.
+ *
+ * Built on the shared `mns-overlay` / `mns-modal` primitives. The `.tag-chip`,
+ * `.tag-suggestions` and `#bulkTagInput` hooks are load-bearing for specs.
  */
 @Component({
   selector: 'app-content-tag-modal',
   standalone: true,
-  imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [FormsModule, OverlayComponent, ModalComponent, BtnComponent, SFieldComponent],
   template: `
-    <div
-      class="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Manage tags"
-      tabindex="0"
-      (click)="dismiss.emit()"
-      (keydown.escape)="dismiss.emit()"
-    >
-      <div
-        class="modal"
-        role="document"
-        (click)="$event.stopPropagation()"
-        (keydown)="$event.stopPropagation()"
-      >
-        <h2>{{ mode() === 'add' ? 'Add Tags' : 'Remove Tags' }}</h2>
-        <div class="form-group">
-          <label for="bulkTagInput">Tags (comma-separated)</label>
+    <mns-overlay (closed)="dismiss.emit()">
+      <mns-modal [title]="title()" icon="Hash" (closed)="dismiss.emit()">
+        <mns-sfield label="Tags (comma-separated)">
           <input
             id="bulkTagInput"
             type="text"
             [(ngModel)]="value"
             name="bulkTagInput"
             placeholder="e.g. promo, seasonal"
+            class="w-full px-3 py-2.5 rounded-[10px] bg-surface-2 border border-border-strong text-sm text-text outline-none transition-all duration-150 focus:border-accent placeholder:text-faint"
           />
-        </div>
+        </mns-sfield>
+
         @if (suggestions().length > 0) {
-          <div class="tag-suggestions">
+          <div class="tag-suggestions mt-3 flex flex-wrap gap-1.5">
             @for (tag of suggestions(); track tag) {
               <button
-                class="tag-chip"
-                [class.active]="selectedTags().includes(tag)"
+                type="button"
+                class="tag-chip px-3 py-1 rounded-[99px] border text-xs font-medium cursor-pointer transition-all duration-150"
+                [class]="
+                  selectedTags().includes(tag)
+                    ? 'active border-accent bg-accent text-white'
+                    : 'border-border bg-surface-2 text-muted hover:border-muted hover:text-text'
+                "
                 (click)="toggleTag(tag)"
               >
                 {{ tag }}
@@ -51,41 +48,15 @@ import { FormsModule } from '@angular/forms';
             }
           </div>
         }
-        <div class="form-actions">
-          <button class="btn btn-secondary" (click)="dismiss.emit()">Cancel</button>
-          <button class="btn btn-primary" (click)="confirm.emit()" [disabled]="!value().trim()">
-            {{ mode() === 'add' ? 'Add Tags' : 'Remove Tags' }}
-          </button>
+
+        <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
+          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn variant="primary" [disabled]="!value().trim()" (mnsClick)="confirm.emit()">
+            {{ title() }}
+          </mns-btn>
         </div>
-      </div>
-    </div>
-  `,
-  styles: `
-    .tag-suggestions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.375rem;
-      margin-bottom: 1rem;
-    }
-    .tag-chip {
-      padding: 0.25rem 0.75rem;
-      border-radius: 9999px;
-      border: 1px solid var(--color-border);
-      background: var(--color-bg-secondary);
-      color: var(--color-text-secondary);
-      font-size: 0.75rem;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .tag-chip.active {
-      background: var(--color-accent);
-      border-color: var(--color-accent);
-      color: #fff;
-    }
-    .tag-chip:hover:not(.active) {
-      border-color: var(--color-text-secondary);
-      color: var(--color-text-primary);
-    }
+      </mns-modal>
+    </mns-overlay>
   `,
 })
 export class ContentTagModal {
@@ -94,6 +65,8 @@ export class ContentTagModal {
   readonly value = model.required<string>();
   readonly confirm = output<void>();
   readonly dismiss = output<void>();
+
+  protected readonly title = computed(() => (this.mode() === 'add' ? 'Add Tags' : 'Remove Tags'));
 
   protected selectedTags(): string[] {
     return this.value()

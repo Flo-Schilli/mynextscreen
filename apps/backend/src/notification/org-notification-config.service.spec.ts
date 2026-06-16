@@ -150,5 +150,70 @@ describe('OrgNotificationConfigService', () => {
       const persisted = await readConfig();
       expect(persisted.id).toBe(result.id);
     });
+
+    it('should apply default alert rules when creating without alertRules', async () => {
+      const result = await service.upsert(org.id, { smtpHost: 'smtp.example.com' });
+
+      expect(result.alertRules).toEqual({
+        offline: true,
+        recovered: true,
+        transcodeFail: true,
+        storage: false,
+        weekly: false,
+      });
+    });
+
+    it('should persist alert rules when creating a new config', async () => {
+      const alertRules = {
+        offline: false,
+        recovered: false,
+        transcodeFail: true,
+        storage: true,
+        weekly: true,
+      };
+
+      const result = await service.upsert(org.id, { alertRules });
+
+      expect(result.alertRules).toEqual(alertRules);
+
+      const persisted = await readConfig();
+      expect(persisted.alertRules).toEqual(alertRules);
+    });
+
+    it('should update alert rules on an existing config', async () => {
+      await seedConfig();
+
+      const alertRules = {
+        offline: false,
+        recovered: true,
+        transcodeFail: false,
+        storage: true,
+        weekly: false,
+      };
+
+      await service.upsert(org.id, { alertRules });
+
+      const persisted = await readConfig();
+      expect(persisted.alertRules).toEqual(alertRules);
+      // Other fields untouched.
+      expect(persisted.smtpHost).toBe('smtp.example.com');
+    });
+
+    it('should preserve existing alert rules when none are provided', async () => {
+      const alertRules = {
+        offline: false,
+        recovered: false,
+        transcodeFail: false,
+        storage: false,
+        weekly: true,
+      };
+      await service.upsert(org.id, { alertRules });
+
+      await service.upsert(org.id, { smtpHost: 'changed.example.com' });
+
+      const persisted = await readConfig();
+      expect(persisted.alertRules).toEqual(alertRules);
+      expect(persisted.smtpHost).toBe('changed.example.com');
+    });
   });
 });

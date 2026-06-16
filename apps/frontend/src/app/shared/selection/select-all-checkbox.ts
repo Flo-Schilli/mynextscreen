@@ -19,12 +19,12 @@ import { SelectionService } from './selection.service';
       width: 1rem;
       height: 1rem;
       cursor: pointer;
-      accent-color: var(--color-accent);
+      accent-color: var(--accent);
       border-radius: 0.25rem;
     }
 
     .selection-checkbox:focus-visible {
-      outline: 2px solid var(--color-accent);
+      outline: 2px solid var(--accent);
       outline-offset: 2px;
     }
   `,

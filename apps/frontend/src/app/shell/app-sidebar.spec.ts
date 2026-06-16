@@ -19,20 +19,10 @@ try {
 // against the already-destroyed injector on teardown (NG0205).
 const createdFixtures: ComponentFixture<AppSidebar>[] = [];
 
-// Angular's HTML sanitizer strips <svg> from [innerHTML]; the SafeHtmlPipe
-// bypasses that so the inline icon markup actually renders. Use real <svg>
-// icons here to guard against that regression.
+// Nav items now use IconName strings instead of raw SVG HTML.
 const NAV_ITEMS: NavItem[] = [
-  {
-    label: 'Dashboard',
-    route: '/dashboard',
-    icon: '<svg class="icon-dash"><rect x="0" y="0" width="4" height="4" /></svg>',
-  },
-  {
-    label: 'Screens',
-    route: '/screens',
-    icon: '<svg class="icon-screens"><rect x="0" y="0" width="4" height="4" /></svg>',
-  },
+  { label: 'Dashboard', route: '/dashboard', icon: 'Dashboard' },
+  { label: 'Screens', route: '/screens', icon: 'Screens' },
 ];
 
 async function createFixture(
@@ -49,9 +39,6 @@ async function createFixture(
       provideZonelessChangeDetection(),
       provideHttpClient(),
       provideHttpClientTesting(),
-      // Wildcard route so clicking a RouterLink anchor resolves instead of
-      // rejecting with NG04002 (unhandled) — the test only cares that the link
-      // exists and emits, not where it lands.
       provideRouter([{ path: '**', children: [] }]),
     ],
   }).compileComponents();
@@ -78,8 +65,8 @@ describe('AppSidebar', () => {
       // Arrange + Act
       const fixture = await createFixture();
 
-      // Assert
-      const links = fixture.debugElement.queryAll(By.css('.sidebar-nav .nav-item'));
+      // Assert — each nav item becomes an <a class="nav-item">
+      const links = fixture.debugElement.queryAll(By.css('.sidebar-nav a.nav-item'));
       expect(links.length).toBe(NAV_ITEMS.length);
     });
 
@@ -94,15 +81,15 @@ describe('AppSidebar', () => {
       expect(anchors).toEqual(['/dashboard', '/screens']);
     });
 
-    it('renders the icon markup and label when expanded', async () => {
+    it('renders the icon and label when expanded', async () => {
       // Arrange + Act
       const fixture = await createFixture({ collapsed: false });
 
-      // Assert
+      // Assert — mns-icon is present and .nav-label shows the text
       const firstLink = fixture.debugElement.query(By.css('.sidebar-nav a.nav-item'));
-      const icon = firstLink.query(By.css('.nav-icon')).nativeElement as HTMLElement;
+      const icon = firstLink.query(By.css('mns-icon'));
       const label = firstLink.query(By.css('.nav-label')).nativeElement as HTMLElement;
-      expect(icon.querySelector('svg.icon-dash')).not.toBeNull();
+      expect(icon).not.toBeNull();
       expect(label.textContent?.trim()).toBe('Dashboard');
     });
   });
@@ -139,21 +126,17 @@ describe('AppSidebar', () => {
       expect(firstLink.getAttribute('title')).toBe('Dashboard');
     });
 
-    it('reflects collapse state in the collapse-button aria-label', async () => {
-      // Arrange
+    it('shows the expand button in .expand-wrap when collapsed', async () => {
+      const fixture = await createFixture({ collapsed: true });
+      expect(fixture.debugElement.query(By.css('.expand-wrap .collapse-btn'))).not.toBeNull();
+      expect(fixture.debugElement.query(By.css('.sidebar-header .collapse-btn'))).toBeNull();
+    });
+
+    it('shows the collapse button in the header when expanded', async () => {
       const fixture = await createFixture({ collapsed: false });
       const button = fixture.debugElement.query(By.css('.collapse-btn'))
         .nativeElement as HTMLButtonElement;
-
-      // Assert: expanded
       expect(button.getAttribute('aria-label')).toBe('Collapse sidebar');
-
-      // Act: collapse
-      fixture.componentRef.setInput('collapsed', true);
-      fixture.detectChanges();
-
-      // Assert: collapsed
-      expect(button.getAttribute('aria-label')).toBe('Expand sidebar');
     });
   });
 
@@ -206,7 +189,7 @@ describe('AppSidebar', () => {
   describe('output emits', () => {
     it('emits toggleCollapse when the collapse button is clicked', async () => {
       // Arrange
-      const fixture = await createFixture();
+      const fixture = await createFixture({ collapsed: false });
       const spy = vi.fn();
       fixture.componentInstance.toggleCollapse.subscribe(spy);
 

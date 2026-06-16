@@ -10,6 +10,7 @@ import {
   ReorderPlaylistItemsRequest,
   BulkDeletePlaylistsResponse,
   BulkAssignScreenResponse,
+  UpdatePlaylistRequest,
 } from './playlist.model';
 
 @Injectable({ providedIn: 'root' })
@@ -34,7 +35,7 @@ export class PlaylistService {
     });
   }
 
-  update(orgId: string, id: string, dto: { name: string }): Observable<Playlist> {
+  update(orgId: string, id: string, dto: UpdatePlaylistRequest): Observable<Playlist> {
     return this.http.patch<Playlist>(`/api/playlists/${id}`, dto, {
       headers: this.orgHeader(orgId),
     });

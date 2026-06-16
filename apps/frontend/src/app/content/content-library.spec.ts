@@ -482,6 +482,7 @@ describe('ContentLibrary', () => {
       id: 'p1',
       organisationId: ORG_ID,
       name: 'Lobby',
+      color: '#6d6cf6',
       items: [],
       createdAt: 't',
       updatedAt: 't',
@@ -545,16 +546,5 @@ describe('ContentLibrary', () => {
     // Assert
     expect(lastToast()?.message).toContain('could not be found');
     expect(lastToast()?.type).toBe('info');
-  });
-
-  it('navigates home on goBack', () => {
-    // Arrange
-    init([]);
-
-    // Act
-    component.goBack();
-
-    // Assert
-    expect(router.navigate).toHaveBeenCalledWith(['/']);
   });
 });

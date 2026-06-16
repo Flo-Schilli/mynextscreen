@@ -86,6 +86,21 @@ describe('Login', () => {
     expect(navigate).toHaveBeenCalledWith('/');
   });
 
+  it('submits (sign-in) when the form is submitted via Enter and both fields are filled', async () => {
+    const { fixture, auth } = setup();
+    fixture.detectChanges();
+    fixture.componentInstance.form.setValue({ email: 'user@example.com', password: 'pw' });
+
+    // A native type=submit button lets Enter in any field fire (ngSubmit).
+    const submitBtn = fixture.debugElement.query(By.css('button[type="submit"]'));
+    expect(submitBtn).not.toBeNull();
+
+    fixture.debugElement.query(By.css('form')).triggerEventHandler('submit', new Event('submit'));
+    await fixture.whenStable();
+
+    expect(auth.login).toHaveBeenCalledWith('user@example.com', 'pw');
+  });
+
   it('shows an error message when login fails', async () => {
     const { fixture, navigate } = setup(() => Promise.reject(new Error('bad')));
     fixture.detectChanges();

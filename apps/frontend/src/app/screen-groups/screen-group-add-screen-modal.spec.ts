@@ -1,6 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
-import { By } from '@angular/platform-browser';
 import { ScreenGroupAddScreenModal } from './screen-group-add-screen-modal';
 import { Screen } from '../screens/screen.model';
 
@@ -20,6 +19,12 @@ function makeScreen(overrides: Partial<Screen> = {}): Screen {
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   };
+}
+
+function addButtons(el: HTMLElement): HTMLButtonElement[] {
+  return Array.from(el.querySelectorAll('button')).filter(
+    (b) => (b as HTMLElement).textContent?.trim() === 'Add',
+  ) as HTMLButtonElement[];
 }
 
 describe('ScreenGroupAddScreenModal', () => {
@@ -54,27 +59,22 @@ describe('ScreenGroupAddScreenModal', () => {
   it('shows a loading message while screens are loading', async () => {
     await setUp({ loading: true });
 
-    expect(fixture.nativeElement.querySelector('.loading-text').textContent).toContain(
-      'Loading screens...',
-    );
-    expect(fixture.nativeElement.querySelector('.add-screen-list')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Loading screens');
+    expect(addButtons(fixture.nativeElement).length).toBe(0);
   });
 
   it('shows an empty message when no screens are available', async () => {
     await setUp({ screens: [] });
 
-    expect(fixture.nativeElement.querySelector('.sidebar-empty').textContent).toContain(
-      'No unassigned screens available.',
-    );
+    expect(fixture.nativeElement.textContent).toContain('No unassigned screens available.');
   });
 
-  it('renders one row per available screen', async () => {
+  it('renders one Add row per available screen', async () => {
     await setUp({
       screens: [makeScreen({ id: 's1' }), makeScreen({ id: 's2', name: 'Screen 2' })],
     });
 
-    const items = fixture.nativeElement.querySelectorAll('.add-screen-item');
-    expect(items.length).toBe(2);
+    expect(addButtons(fixture.nativeElement).length).toBe(2);
     expect(fixture.nativeElement.textContent).toContain('Screen 2');
   });
 
@@ -84,7 +84,7 @@ describe('ScreenGroupAddScreenModal', () => {
     let emitted: Screen | undefined;
     component.add.subscribe((v) => (emitted = v));
 
-    fixture.debugElement.query(By.css('.add-screen-item .btn-primary')).nativeElement.click();
+    addButtons(fixture.nativeElement)[0].click();
 
     expect(emitted).toEqual(screen);
   });
@@ -92,41 +92,30 @@ describe('ScreenGroupAddScreenModal', () => {
   it('marks and disables a screen already assigned to another group', async () => {
     await setUp({ screens: [makeScreen({ id: 's1', groupId: 'other-group' })], groupId: 'g1' });
 
-    expect(fixture.nativeElement.querySelector('.already-assigned-badge')).not.toBeNull();
-    const addBtn: HTMLButtonElement = fixture.nativeElement.querySelector(
-      '.add-screen-item .btn-primary',
-    );
-    expect(addBtn.disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('In another group');
+    expect(addButtons(fixture.nativeElement)[0].disabled).toBe(true);
   });
 
   it('does not mark a screen already assigned to the current group as foreign', async () => {
     await setUp({ screens: [makeScreen({ id: 's1', groupId: 'g1' })], groupId: 'g1' });
 
-    expect(fixture.nativeElement.querySelector('.already-assigned-badge')).toBeNull();
-    const addBtn: HTMLButtonElement = fixture.nativeElement.querySelector(
-      '.add-screen-item .btn-primary',
-    );
-    expect(addBtn.disabled).toBe(false);
+    expect(fixture.nativeElement.textContent).not.toContain('In another group');
+    expect(addButtons(fixture.nativeElement)[0].disabled).toBe(false);
   });
 
   it('disables Add buttons while an operation is in progress', async () => {
     await setUp({ screens: [makeScreen({ id: 's1' })], operationInProgress: true });
 
-    const addBtn: HTMLButtonElement = fixture.nativeElement.querySelector(
-      '.add-screen-item .btn-primary',
-    );
-    expect(addBtn.disabled).toBe(true);
+    expect(addButtons(fixture.nativeElement)[0].disabled).toBe(true);
   });
 
   it('renders the parent-provided error in the list state', async () => {
     await setUp({ screens: [makeScreen({ id: 's1' })], error: 'Assignment failed' });
 
-    expect(fixture.nativeElement.querySelector('.error').textContent).toContain(
-      'Assignment failed',
-    );
+    expect(fixture.nativeElement.textContent).toContain('Assignment failed');
   });
 
-  it('emits dismiss when Close is clicked in the empty state', async () => {
+  it('emits dismiss when Close is clicked', async () => {
     await setUp({ screens: [] });
     let dismissed = false;
     component.dismiss.subscribe(() => (dismissed = true));
@@ -139,12 +128,13 @@ describe('ScreenGroupAddScreenModal', () => {
     expect(dismissed).toBe(true);
   });
 
-  it('emits dismiss when the overlay is clicked', async () => {
+  it('emits dismiss when the overlay backdrop is clicked', async () => {
     await setUp({ screens: [makeScreen({ id: 's1' })] });
     let dismissed = false;
     component.dismiss.subscribe(() => (dismissed = true));
 
-    fixture.debugElement.query(By.css('.modal-overlay')).nativeElement.click();
+    const backdrop = fixture.nativeElement.querySelector('mns-overlay > div');
+    backdrop.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     expect(dismissed).toBe(true);
   });

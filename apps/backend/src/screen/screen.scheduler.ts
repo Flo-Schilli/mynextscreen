@@ -3,6 +3,7 @@ import { Interval } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { ScreenService } from './screen.service';
+import { ScreenPairingService } from './screen-pairing.service';
 import { ScreenStatusEvent, SCREEN_STATUS_CHANGED } from './screen-status.event';
 import { AUDIT_SCREEN_OFFLINE, AuditScreenEvent } from '../audit-log/audit.events';
 
@@ -13,6 +14,7 @@ export class ScreenScheduler {
 
   constructor(
     private readonly screenService: ScreenService,
+    private readonly pairingService: ScreenPairingService,
     private readonly eventEmitter: EventEmitter2,
     private readonly configService: ConfigService,
   ) {
@@ -39,6 +41,14 @@ export class ScreenScheduler {
 
     if (offlineScreens.length > 0) {
       this.logger.log(`Marked ${offlineScreens.length} screen(s) as offline`);
+    }
+  }
+
+  @Interval(5 * 60_000)
+  async cleanupExpiredPairings(): Promise<void> {
+    const removed = await this.pairingService.cleanupExpired();
+    if (removed > 0) {
+      this.logger.log(`Removed ${removed} expired/consumed pairing(s)`);
     }
   }
 }

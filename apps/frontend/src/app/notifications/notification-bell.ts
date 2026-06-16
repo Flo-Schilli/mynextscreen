@@ -2,7 +2,6 @@ import {
   Component,
   inject,
   signal,
-  computed,
   OnInit,
   OnDestroy,
   ElementRef,
@@ -31,7 +30,7 @@ import { NotificationDropdown } from './notification-dropdown';
           />
         </svg>
         @if (notificationService.unreadCount() > 0) {
-          <span class="badge">{{ badgeText() }}</span>
+          <span class="unread-dot"></span>
         }
       </button>
 
@@ -49,38 +48,32 @@ import { NotificationDropdown } from './notification-dropdown';
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 36px;
-      height: 36px;
-      border: none;
-      background: transparent;
-      color: var(--color-text-secondary);
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
       cursor: pointer;
-      border-radius: 6px;
+      border-radius: 11px;
     }
     .topbar-btn:hover {
-      background: var(--color-bg-tertiary);
-      color: var(--color-text-primary);
+      background: var(--hover);
+      color: var(--text);
     }
 
     .notification-btn {
       position: relative;
     }
 
-    .badge {
+    .unread-dot {
       position: absolute;
-      top: 4px;
-      right: 4px;
-      min-width: 16px;
-      height: 16px;
-      background: var(--color-accent);
-      color: #fff;
-      font-size: 0.625rem;
-      font-weight: 600;
-      border-radius: 999px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 3px;
+      top: 8px;
+      right: 9px;
+      width: 8px;
+      height: 8px;
+      border-radius: 99px;
+      background: var(--offline);
+      box-shadow: 0 0 0 2px var(--surface);
     }
   `,
 })
@@ -89,10 +82,6 @@ export class NotificationBell implements OnInit, OnDestroy {
   private elementRef = inject(ElementRef);
 
   readonly dropdownOpen = signal(false);
-  readonly badgeText = computed(() => {
-    const count = this.notificationService.unreadCount();
-    return count > 99 ? '99+' : String(count);
-  });
 
   ngOnInit(): void {
     this.notificationService.init();
