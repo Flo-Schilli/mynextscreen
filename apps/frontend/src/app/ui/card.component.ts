@@ -6,6 +6,9 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
  *
  * @example
  * <mns-card [hover]="true" [animate]="true" [delay]="0.1">…</mns-card>
+ *
+ * Set `hoverAccent` to make the whole card glow with the accent border and lift
+ * on hover — used by clickable list cards (screens / screen-groups / playlists).
  */
 @Component({
   selector: 'mns-card',
@@ -16,6 +19,8 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
       class="bg-surface border border-border rounded-lg transition-all duration-[180ms]"
       [class.p-[var(--card-pad)]]="pad()"
       [class.hover:shadow-lg]="hover()"
+      [class.hover:border-accent]="hoverAccent()"
+      [class.hover:-translate-y-px]="hoverAccent()"
       [class.cursor-pointer]="clickable()"
       [style.animation]="animStyle()"
       [style.box-shadow]="'var(--shadow)'"
@@ -43,6 +48,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 export class CardComponent {
   readonly pad = input<boolean>(true);
   readonly hover = input<boolean>(false);
+  readonly hoverAccent = input<boolean>(false);
   readonly clickable = input<boolean>(false);
   readonly animate = input<boolean>(false);
   readonly delay = input<number>(0);

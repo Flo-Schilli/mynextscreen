@@ -1,12 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import {
-  CardComponent,
-  BadgeComponent,
-  BtnComponent,
-  IconComponent,
-  IconName,
-  StatusDotComponent,
-} from '../ui';
+import { CardComponent, BadgeComponent, IconComponent, IconName, StatusDotComponent } from '../ui';
 import { ScreenGroup } from './screen-group.model';
 
 /** One panel in the split layout preview. */
@@ -31,20 +24,22 @@ const CELL_META_MAX_ROWS = 2;
  * mode badge, a mini layout preview that mirrors how the group is actually
  * arranged (split = the real grid with assigned cells coloured and empty cells
  * greyed; mirror = stacked frames; no screens = a greyed "No screens" frame),
- * and a ghost "Open" action. The parent owns navigation; the card only emits
- * `open`.
+ * and a trash action. The whole card is clickable to open; the parent owns
+ * navigation. The card emits `open` (card click) and `delete` (trash button).
  */
 @Component({
   selector: 'app-screen-group-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CardComponent, BadgeComponent, BtnComponent, IconComponent, StatusDotComponent],
+  imports: [CardComponent, BadgeComponent, IconComponent, StatusDotComponent],
   template: `
-    <mns-card [hover]="true" [clickable]="true">
+    <mns-card [hover]="true" [hoverAccent]="true" [clickable]="true">
       <div
         class="cursor-pointer"
+        [attr.aria-label]="'Open ' + group().name"
         (click)="open.emit(group())"
         (keydown.enter)="open.emit(group())"
+        (keydown.space)="open.emit(group())"
         tabindex="0"
         role="button"
       >
@@ -140,7 +135,14 @@ const CELL_META_MAX_ROWS = 2;
           <span class="text-[12.5px] text-muted inline-flex items-center gap-1.5">
             <mns-icon name="Image" [size]="14" />{{ contentLabel() }}
           </span>
-          <mns-btn variant="ghost" size="sm" iconRight="Arrow">Open</mns-btn>
+          <button
+            type="button"
+            class="grid place-items-center w-8 h-8 rounded-lg border border-border text-muted transition-colors duration-[120ms] hover:text-white hover:bg-offline hover:border-offline"
+            [attr.aria-label]="'Delete ' + group().name"
+            (click)="onDelete($event)"
+          >
+            <mns-icon name="Trash" [size]="15" />
+          </button>
         </div>
       </div>
     </mns-card>
@@ -149,6 +151,13 @@ const CELL_META_MAX_ROWS = 2;
 export class ScreenGroupCard {
   readonly group = input.required<ScreenGroup>();
   readonly open = output<ScreenGroup>();
+  readonly delete = output<ScreenGroup>();
+
+  /** Trash button — stop the click bubbling up to the card's `open` handler. */
+  protected onDelete(event: Event): void {
+    event.stopPropagation();
+    this.delete.emit(this.group());
+  }
 
   readonly iconName = computed<IconName>(() => {
     const allowed: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', 'Screens'];

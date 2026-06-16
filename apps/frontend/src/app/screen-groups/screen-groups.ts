@@ -70,7 +70,11 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
           style="grid-template-columns: repeat(auto-fill, minmax(290px, 1fr))"
         >
           @for (group of groups; track group.id) {
-            <app-screen-group-card [group]="group" (open)="viewGroup($event)" />
+            <app-screen-group-card
+              [group]="group"
+              (open)="viewGroup($event)"
+              (delete)="confirmDelete($event)"
+            />
           }
         </div>
       }

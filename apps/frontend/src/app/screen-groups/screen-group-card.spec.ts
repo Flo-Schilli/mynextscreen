@@ -166,4 +166,18 @@ describe('ScreenGroupCard', () => {
 
     expect(opened).toBe(group);
   });
+
+  it('emits delete from the trash button without opening', async () => {
+    const group = makeGroup();
+    await setUp(group);
+    let deleted: ScreenGroup | undefined;
+    let opened: ScreenGroup | undefined;
+    component.delete.subscribe((g) => (deleted = g));
+    component.open.subscribe((g) => (opened = g));
+
+    fixture.nativeElement.querySelector('button[aria-label^="Delete"]').click();
+
+    expect(deleted).toBe(group);
+    expect(opened).toBeUndefined();
+  });
 });
