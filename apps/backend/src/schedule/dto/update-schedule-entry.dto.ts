@@ -1,9 +1,27 @@
-import { IsOptional, IsString, IsDateString, IsUUID, Matches } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsDateString,
+  IsUUID,
+  IsIn,
+  MaxLength,
+  Matches,
+} from 'class-validator';
+import type { SchedulePriority } from '../../db/schema';
 
 export class UpdateScheduleEntryDto {
   @IsOptional()
   @IsUUID()
   playlistId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  name?: string | null;
+
+  @IsOptional()
+  @IsIn(['normal', 'high'])
+  priority?: SchedulePriority;
 
   @IsOptional()
   @IsDateString()

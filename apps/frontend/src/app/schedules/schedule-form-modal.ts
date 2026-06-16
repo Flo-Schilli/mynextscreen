@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ScheduleEntry, TargetOption } from './schedule.model';
+import { ScheduleEntry, SchedulePriority, TargetOption } from './schedule.model';
 import { Playlist } from '../playlists/playlist.model';
 import { ScreenGroup } from '../screen-groups/screen-group.model';
 import { RecurrenceType } from './schedule-recurrence.service';
@@ -9,6 +9,7 @@ import {
   ModalComponent,
   BtnComponent,
   IconComponent,
+  IconName,
   SelectComponent,
   SelectOption,
 } from '../ui';
@@ -33,6 +34,21 @@ const WEEKDAY_OPTIONS = [
   { value: 'SU', label: 'Sun' },
 ];
 
+/** Quick weekday presets shown alongside the per-day toggles. */
+const WEEKDAY_PRESETS: { label: string; days: string[] }[] = [
+  { label: 'Mon–Fri', days: ['MO', 'TU', 'WE', 'TH', 'FR'] },
+  { label: 'Weekends', days: ['SA', 'SU'] },
+  { label: 'All days', days: ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'] },
+];
+
+/** Quick start/end time presets for the time window. */
+const TIME_PRESETS: { label: string; start: string; end: string }[] = [
+  { label: 'Business 09–17', start: '09:00', end: '17:00' },
+  { label: 'Morning 06–12', start: '06:00', end: '12:00' },
+  { label: 'Evening 17–22', start: '17:00', end: '22:00' },
+  { label: 'All day 06–23', start: '06:00', end: '23:00' },
+];
+
 const RECURRENCE_OPTIONS: { value: RecurrenceType; label: string }[] = [
   { value: 'none', label: 'One-off' },
   { value: 'daily', label: 'Daily' },
@@ -40,10 +56,17 @@ const RECURRENCE_OPTIONS: { value: RecurrenceType; label: string }[] = [
   { value: 'weekdays', label: 'Specific days' },
 ];
 
+const PRIORITY_OPTIONS: { value: SchedulePriority; label: string; icon: IconName }[] = [
+  { value: 'normal', label: 'Normal', icon: 'Clock' },
+  { value: 'high', label: 'High', icon: 'Layers' },
+];
+
 /** The raw form values the modal emits; the parent validates and persists them. */
 export interface ScheduleFormResult {
   targetId: string;
   playlistId: string;
+  name: string;
+  priority: SchedulePriority;
   startDate: string;
   startTime: string;
   endDate: string;
@@ -75,12 +98,26 @@ export interface ScheduleFormResult {
     <mns-overlay (closed)="dismiss.emit()">
       <mns-modal
         [title]="editingEntry() ? 'Edit Schedule Entry' : 'Create Schedule Entry'"
+        sub="Decide when a playlist plays — and where"
         icon="Calendar"
         [widthPx]="680"
         (closed)="dismiss.emit()"
       >
         <form (ngSubmit)="submit()">
           <div class="flex flex-col gap-5">
+            <!-- Name -->
+            <div>
+              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Schedule name</div>
+              <input
+                type="text"
+                [(ngModel)]="name"
+                name="modalName"
+                maxlength="120"
+                placeholder="e.g. Morning Welcome (optional)"
+                class="w-full px-3.5 py-2.5 rounded-[10px] bg-surface-2 border border-border-strong text-text text-sm"
+              />
+            </div>
+
             <!-- Target Selector (create only) -->
             @if (!editingEntry()) {
               <div id="modalTarget">
@@ -118,56 +155,209 @@ export interface ScheduleFormResult {
               }
             }
 
-            <!-- Playlist -->
+            <!-- Playlist card grid -->
             <div>
-              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Playlist</div>
-              <mns-select
-                [options]="playlistSelectOptions()"
-                [value]="playlistId"
-                placeholder="Select a playlist"
-                (changed)="playlistId = $event"
-              />
+              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Playlist to play</div>
+              @if (playlists().length === 0) {
+                <div class="text-[13px] text-muted">No playlists yet — create one first.</div>
+              } @else {
+                <div
+                  class="grid gap-2"
+                  style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr))"
+                >
+                  @for (p of playlists(); track p.id) {
+                    <button
+                      type="button"
+                      class="playlist-card flex items-center gap-2.5 px-3 py-2.5 rounded-[11px] text-left cursor-pointer border transition-colors duration-[120ms]"
+                      [class.border-accent]="playlistId === p.id"
+                      [class.bg-accent-soft]="playlistId === p.id"
+                      [class.border-border]="playlistId !== p.id"
+                      [class.bg-surface-2]="playlistId !== p.id"
+                      (click)="playlistId = p.id"
+                    >
+                      <span
+                        class="grid place-items-center w-[30px] h-[30px] rounded-lg flex-shrink-0 text-white"
+                        [style.background]="
+                          'linear-gradient(135deg, ' +
+                          p.color +
+                          ', color-mix(in srgb, ' +
+                          p.color +
+                          ' 55%, #fff))'
+                        "
+                      >
+                        <mns-icon name="Playlists" [size]="15" />
+                      </span>
+                      <span class="flex-1 min-w-0">
+                        <span class="block text-[13.5px] font-semibold text-text truncate">{{
+                          p.name
+                        }}</span>
+                        <span class="block text-[11.5px] text-muted"
+                          >{{ p.items.length }} items</span
+                        >
+                      </span>
+                      @if (playlistId === p.id) {
+                        <mns-icon name="Check" [size]="16" class="text-accent flex-shrink-0" />
+                      }
+                    </button>
+                  }
+                </div>
+              }
             </div>
 
-            <!-- Date / time window -->
-            <div class="grid grid-cols-2 gap-3">
+            <!-- Recurrence -->
+            <div>
+              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">When does it run?</div>
+              <div
+                class="flex gap-[2px] p-[3px] rounded-[11px] bg-surface-2 border border-border w-fit"
+              >
+                @for (r of recurrenceOptions; track r.value) {
+                  <button
+                    type="button"
+                    class="recurrence-btn px-3 py-[5px] rounded-lg text-[13px] font-semibold cursor-pointer transition-all duration-[150ms]"
+                    [class.active]="recurrence === r.value"
+                    [class.bg-surface]="recurrence === r.value"
+                    [class.text-text]="recurrence === r.value"
+                    [class.text-muted]="recurrence !== r.value"
+                    [style.box-shadow]="recurrence === r.value ? 'var(--shadow)' : 'none'"
+                    (click)="setRecurrence(r.value)"
+                  >
+                    {{ r.label }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            @if (recurrence === 'weekdays') {
               <div>
-                <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Start</div>
-                <div class="flex gap-2">
-                  <input
-                    type="date"
-                    [(ngModel)]="startDate"
-                    name="modalStartDate"
-                    required
-                    class="flex-1 min-w-0 px-3 py-2 rounded-[10px] bg-surface border border-border-strong text-text text-sm"
-                  />
-                  <input
-                    type="time"
-                    [(ngModel)]="startTime"
-                    name="modalStartTime"
-                    required
-                    class="w-[5.5rem] px-2 py-2 rounded-[10px] bg-surface border border-border-strong text-text text-sm font-mono"
-                  />
+                <span class="text-[12.5px] font-semibold text-muted mb-[9px] block">Days</span>
+                <div class="flex gap-2 flex-wrap mb-2.5">
+                  @for (wd of weekdayOptions; track wd.value) {
+                    <button
+                      type="button"
+                      class="weekday-checkbox px-3 py-[6px] rounded-lg text-[13px] font-semibold cursor-pointer transition-all duration-[150ms] border"
+                      [class.border-accent]="weekdays.includes(wd.value)"
+                      [class.text-accent]="weekdays.includes(wd.value)"
+                      [class.bg-accent-soft]="weekdays.includes(wd.value)"
+                      [class.border-border-strong]="!weekdays.includes(wd.value)"
+                      [class.text-muted]="!weekdays.includes(wd.value)"
+                      (click)="toggleWeekday(wd.value)"
+                    >
+                      {{ wd.label }}
+                    </button>
+                  }
+                </div>
+                <div class="flex gap-[7px] flex-wrap">
+                  @for (preset of weekdayPresets; track preset.label) {
+                    <button
+                      type="button"
+                      class="day-preset px-[11px] py-[5px] rounded-full text-xs font-semibold cursor-pointer border transition-colors duration-[120ms]"
+                      [class.border-accent]="isWeekdayPresetActive(preset.days)"
+                      [class.text-accent]="isWeekdayPresetActive(preset.days)"
+                      [class.bg-accent-soft]="isWeekdayPresetActive(preset.days)"
+                      [class.border-border]="!isWeekdayPresetActive(preset.days)"
+                      [class.text-muted]="!isWeekdayPresetActive(preset.days)"
+                      (click)="applyWeekdayPreset(preset.days)"
+                    >
+                      {{ preset.label }}
+                    </button>
+                  }
                 </div>
               </div>
-              <div>
-                <div class="text-[12.5px] font-semibold text-muted mb-[9px]">End</div>
-                <div class="flex gap-2">
-                  <input
-                    type="date"
-                    [(ngModel)]="endDate"
-                    name="modalEndDate"
-                    required
-                    class="flex-1 min-w-0 px-3 py-2 rounded-[10px] bg-surface border border-border-strong text-text text-sm"
-                  />
-                  <input
-                    type="time"
-                    [(ngModel)]="endTime"
-                    name="modalEndTime"
-                    required
-                    class="w-[5.5rem] px-2 py-2 rounded-[10px] bg-surface border border-border-strong text-text text-sm font-mono"
-                  />
+            }
+
+            <!-- Date / time window -->
+            <div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Start</div>
+                  <div class="flex gap-2">
+                    <input
+                      type="date"
+                      [(ngModel)]="startDate"
+                      name="modalStartDate"
+                      required
+                      class="flex-1 min-w-0 px-3 py-2 rounded-[10px] bg-surface border border-border-strong text-text text-sm"
+                    />
+                    <input
+                      type="time"
+                      [(ngModel)]="startTime"
+                      name="modalStartTime"
+                      required
+                      class="w-[5.5rem] px-2 py-2 rounded-[10px] bg-surface border border-border-strong text-text text-sm font-mono"
+                    />
+                  </div>
                 </div>
+                <div>
+                  <div class="text-[12.5px] font-semibold text-muted mb-[9px]">End</div>
+                  <div class="flex gap-2">
+                    <input
+                      type="date"
+                      [(ngModel)]="endDate"
+                      name="modalEndDate"
+                      required
+                      class="flex-1 min-w-0 px-3 py-2 rounded-[10px] bg-surface border text-text text-sm"
+                      [class.border-border-strong]="!isTimeRangeInvalid()"
+                      [class.border-offline]="isTimeRangeInvalid()"
+                    />
+                    <input
+                      type="time"
+                      [(ngModel)]="endTime"
+                      name="modalEndTime"
+                      required
+                      class="w-[5.5rem] px-2 py-2 rounded-[10px] bg-surface border text-text text-sm font-mono"
+                      [class.border-border-strong]="!isTimeRangeInvalid()"
+                      [class.border-offline]="isTimeRangeInvalid()"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              @if (isTimeRangeInvalid()) {
+                <p class="text-xs text-offline mt-[7px]">End must be after the start.</p>
+              }
+
+              <div class="flex gap-[7px] flex-wrap mt-2.5">
+                @for (preset of timePresets; track preset.label) {
+                  <button
+                    type="button"
+                    class="time-preset px-[11px] py-[5px] rounded-full text-xs font-semibold cursor-pointer border transition-colors duration-[120ms]"
+                    [class.border-accent]="isTimePresetActive(preset)"
+                    [class.text-accent]="isTimePresetActive(preset)"
+                    [class.bg-accent-soft]="isTimePresetActive(preset)"
+                    [class.border-border]="!isTimePresetActive(preset)"
+                    [class.text-muted]="!isTimePresetActive(preset)"
+                    (click)="applyTimePreset(preset)"
+                  >
+                    {{ preset.label }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <!-- Priority -->
+            <div>
+              <span class="flex items-center gap-2 text-[12.5px] font-semibold text-muted mb-[9px]">
+                Priority
+                @if (priority === 'high') {
+                  <span class="text-accent font-semibold">· wins when schedules overlap</span>
+                }
+              </span>
+              <div class="flex gap-2">
+                @for (p of priorityOptions; track p.value) {
+                  <button
+                    type="button"
+                    class="priority-btn flex-1 flex items-center justify-center gap-2 py-[11px] rounded-[10px] text-[13.5px] font-semibold cursor-pointer border transition-colors duration-[120ms]"
+                    [class.border-accent]="priority === p.value"
+                    [class.text-accent]="priority === p.value"
+                    [class.bg-accent-soft]="priority === p.value"
+                    [class.border-border-strong]="priority !== p.value"
+                    [class.text-muted]="priority !== p.value"
+                    (click)="priority = p.value"
+                  >
+                    <mns-icon [name]="p.icon" [size]="16" />
+                    {{ p.label }}
+                  </button>
+                }
               </div>
             </div>
 
@@ -195,51 +385,6 @@ export interface ScheduleFormResult {
                 />
               </div>
             </div>
-
-            <!-- Recurrence -->
-            <div>
-              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Repeat</div>
-              <div
-                class="flex gap-[2px] p-[3px] rounded-[11px] bg-surface-2 border border-border w-fit"
-              >
-                @for (r of recurrenceOptions; track r.value) {
-                  <button
-                    type="button"
-                    class="recurrence-btn px-3 py-[5px] rounded-lg text-[13px] font-semibold cursor-pointer transition-all duration-[150ms]"
-                    [class.active]="recurrence === r.value"
-                    [class.bg-surface]="recurrence === r.value"
-                    [class.text-text]="recurrence === r.value"
-                    [class.text-muted]="recurrence !== r.value"
-                    [style.box-shadow]="recurrence === r.value ? 'var(--shadow)' : 'none'"
-                    (click)="setRecurrence(r.value)"
-                  >
-                    {{ r.label }}
-                  </button>
-                }
-              </div>
-            </div>
-
-            @if (recurrence === 'weekdays') {
-              <div>
-                <span class="text-[12.5px] font-semibold text-muted mb-[9px] block">Days</span>
-                <div class="flex gap-2 flex-wrap">
-                  @for (wd of weekdayOptions; track wd.value) {
-                    <button
-                      type="button"
-                      class="weekday-checkbox px-3 py-[6px] rounded-lg text-[13px] font-semibold cursor-pointer transition-all duration-[150ms] border"
-                      [class.border-accent]="weekdays.includes(wd.value)"
-                      [class.text-accent]="weekdays.includes(wd.value)"
-                      [class.bg-accent-soft]="weekdays.includes(wd.value)"
-                      [class.border-border-strong]="!weekdays.includes(wd.value)"
-                      [class.text-muted]="!weekdays.includes(wd.value)"
-                      (click)="toggleWeekday(wd.value)"
-                    >
-                      {{ wd.label }}
-                    </button>
-                  }
-                </div>
-              </div>
-            }
 
             @if (error()) {
               <p class="error text-sm text-offline">{{ error() }}</p>
@@ -295,6 +440,8 @@ export class ScheduleFormModal implements OnInit {
 
   readonly initialTargetId = input.required<string>();
   readonly initialPlaylistId = input.required<string>();
+  readonly initialName = input.required<string>();
+  readonly initialPriority = input.required<SchedulePriority>();
   readonly initialStart = input.required<Date>();
   readonly initialEnd = input.required<Date>();
   readonly initialColour = input.required<string>();
@@ -307,11 +454,16 @@ export class ScheduleFormModal implements OnInit {
 
   readonly presetColours = PRESET_COLOURS;
   readonly weekdayOptions = WEEKDAY_OPTIONS;
+  readonly weekdayPresets = WEEKDAY_PRESETS;
+  readonly timePresets = TIME_PRESETS;
   readonly recurrenceOptions = RECURRENCE_OPTIONS;
+  readonly priorityOptions = PRIORITY_OPTIONS;
 
   targetId = '';
   targetGroup: ScreenGroup | null = null;
   playlistId = '';
+  name = '';
+  priority: SchedulePriority = 'normal';
   startDate = '';
   startTime = '';
   endDate = '';
@@ -323,6 +475,8 @@ export class ScheduleFormModal implements OnInit {
   ngOnInit(): void {
     this.targetId = this.initialTargetId();
     this.playlistId = this.initialPlaylistId();
+    this.name = this.initialName();
+    this.priority = this.initialPriority();
     this.startDate = this.toDateInputValue(this.initialStart());
     this.startTime = this.toTimeInputValue(this.initialStart());
     this.endDate = this.toDateInputValue(this.initialEnd());
@@ -342,10 +496,6 @@ export class ScheduleFormModal implements OnInit {
       opts.push({ value: 'group:' + g.id, label: 'Group · ' + g.name + ' (' + g.mode + ')' });
     }
     return opts;
-  }
-
-  playlistSelectOptions(): SelectOption[] {
-    return this.playlists().map((p) => ({ value: p.id, label: p.name }));
   }
 
   onTargetChange(value: string): void {
@@ -375,10 +525,38 @@ export class ScheduleFormModal implements OnInit {
       : [...this.weekdays, value];
   }
 
+  applyWeekdayPreset(days: string[]): void {
+    this.weekdays = [...days];
+  }
+
+  isWeekdayPresetActive(days: string[]): boolean {
+    return days.length === this.weekdays.length && days.every((d) => this.weekdays.includes(d));
+  }
+
+  applyTimePreset(preset: { start: string; end: string }): void {
+    this.startTime = preset.start;
+    this.endTime = preset.end;
+  }
+
+  isTimePresetActive(preset: { start: string; end: string }): boolean {
+    return this.startTime === preset.start && this.endTime === preset.end;
+  }
+
+  isTimeRangeInvalid(): boolean {
+    if (!this.startDate || !this.startTime || !this.endDate || !this.endTime) {
+      return false;
+    }
+    const start = new Date(`${this.startDate}T${this.startTime}:00`);
+    const end = new Date(`${this.endDate}T${this.endTime}:00`);
+    return end <= start;
+  }
+
   submit(): void {
     this.save.emit({
       targetId: this.targetId,
       playlistId: this.playlistId,
+      name: this.name.trim(),
+      priority: this.priority,
       startDate: this.startDate,
       startTime: this.startTime,
       endDate: this.endDate,

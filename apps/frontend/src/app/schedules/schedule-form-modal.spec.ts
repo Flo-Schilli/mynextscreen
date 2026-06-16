@@ -49,6 +49,8 @@ interface SetUpOptions {
   editingEntry?: ScheduleEntry | null;
   initialTargetId?: string;
   initialPlaylistId?: string;
+  initialName?: string;
+  initialPriority?: 'normal' | 'high';
   initialStart?: Date;
   initialEnd?: Date;
   initialColour?: string;
@@ -74,6 +76,8 @@ describe('ScheduleFormModal', () => {
     fixture.componentRef.setInput('error', opts.error ?? '');
     fixture.componentRef.setInput('initialTargetId', opts.initialTargetId ?? 'screen:s1');
     fixture.componentRef.setInput('initialPlaylistId', opts.initialPlaylistId ?? 'p1');
+    fixture.componentRef.setInput('initialName', opts.initialName ?? '');
+    fixture.componentRef.setInput('initialPriority', opts.initialPriority ?? 'normal');
     fixture.componentRef.setInput('initialStart', opts.initialStart ?? new Date(2026, 5, 1, 8, 30));
     fixture.componentRef.setInput('initialEnd', opts.initialEnd ?? new Date(2026, 5, 1, 10, 0));
     fixture.componentRef.setInput('initialColour', opts.initialColour ?? '#3b82f6');
@@ -143,6 +147,8 @@ describe('ScheduleFormModal', () => {
         screenId: 's1',
         groupId: null,
         playlistId: 'p1',
+        name: null,
+        priority: 'normal',
         startTime: '2026-06-01T08:00:00.000Z',
         endTime: '2026-06-01T10:00:00.000Z',
         rrule: null,
@@ -291,6 +297,8 @@ describe('ScheduleFormModal', () => {
       expect(result).toEqual({
         targetId: 'screen:s1',
         playlistId: 'p1',
+        name: '',
+        priority: 'normal',
         startDate: '2026-06-01',
         startTime: '08:00',
         endDate: '2026-06-01',
@@ -361,6 +369,8 @@ describe('ScheduleFormModal', () => {
         screenId: 's1',
         groupId: null,
         playlistId: 'p1',
+        name: null,
+        priority: 'normal',
         startTime: '2026-06-01T08:00:00.000Z',
         endTime: '2026-06-01T10:00:00.000Z',
         rrule: null,

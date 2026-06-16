@@ -82,9 +82,11 @@ export class ScheduleService {
         screenId: dto.screenId ?? null,
         groupId: dto.groupId ?? null,
         playlistId: dto.playlistId,
+        name: dto.name?.trim() ? dto.name.trim() : null,
         startTime,
         endTime,
         rrule: dto.rrule ?? null,
+        ...(dto.priority !== undefined ? { priority: dto.priority } : {}),
         ...(dto.colour !== undefined ? { colour: dto.colour } : {}),
       })
       .returning();
@@ -136,6 +138,8 @@ export class ScheduleService {
 
     const updates: Partial<ScheduleEntry> = {};
     if (dto.playlistId !== undefined) updates.playlistId = dto.playlistId;
+    if (dto.name !== undefined) updates.name = dto.name?.trim() ? dto.name.trim() : null;
+    if (dto.priority !== undefined) updates.priority = dto.priority;
     if (dto.startTime !== undefined) updates.startTime = startTime;
     if (dto.endTime !== undefined) updates.endTime = endTime;
     if (dto.rrule !== undefined) updates.rrule = rrule ?? null;

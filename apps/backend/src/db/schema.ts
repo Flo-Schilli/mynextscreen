@@ -49,6 +49,9 @@ import { OrganisationRole } from '../user/organisation-role.enum';
 /** Lifecycle of a 6-digit screen pairing. */
 export type ScreenPairingStatus = 'pending' | 'claimed' | 'consumed';
 
+/** Priority of a schedule entry; "high" wins when entries overlap. */
+export type SchedulePriority = 'normal' | 'high';
+
 // ── Shared column builders ───────────────────────────────────────────────────
 
 const timestamps = {
@@ -272,6 +275,8 @@ export const scheduleEntries = pgTable('schedule_entries', {
   playlistId: uuid()
     .notNull()
     .references(() => playlists.id, { onDelete: 'cascade' }),
+  name: text(),
+  priority: text().$type<SchedulePriority>().notNull().default('normal'),
   startTime: timestamp({ withTimezone: true }).notNull(),
   endTime: timestamp({ withTimezone: true }).notNull(),
   rrule: text(),
