@@ -116,8 +116,7 @@ const NOW_TICK_MS = 60_000;
             }
           </div>
           <div
-            class="time-grid-body flex relative overflow-y-auto"
-            style="max-height: calc(100vh - 18rem)"
+            class="time-grid-body flex relative"
             (click)="onTimeGridClick($event)"
             (keydown.enter)="$event.preventDefault()"
             role="grid"
