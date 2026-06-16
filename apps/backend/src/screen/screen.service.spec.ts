@@ -7,12 +7,16 @@ import { ScreenPairingService } from './screen-pairing.service';
 import { ScheduleService } from '../schedule';
 import { DRIZZLE } from '../db/database.constants';
 import {
+  contents,
   organisations,
+  playlistItems,
+  playlists,
   screenPairings,
   screens,
   type Organisation,
   type Screen,
 } from '../db/schema';
+import { ContentType } from '../content/content-type.enum';
 import { SCREEN_STATUS_CHANGED } from './screen-status.event';
 import {
   AUDIT_SCREEN_REGISTERED,
@@ -112,6 +116,45 @@ describe('ScreenService', () => {
       })
       .returning();
     return screen;
+  }
+
+  async function seedContent(
+    organisationId: string,
+    overrides: Partial<typeof contents.$inferInsert> = {},
+  ) {
+    const [content] = await db
+      .insert(contents)
+      .values({
+        organisationId,
+        title: 'Clip',
+        type: ContentType.Image,
+        originalFilename: 'clip.png',
+        originalMimeType: 'image/png',
+        originalSizeBytes: 1024,
+        thumbnailSizeBytes: 256,
+        ...overrides,
+      })
+      .returning();
+    return content;
+  }
+
+  /** Seed a playlist with the given contents added as items in array order. */
+  async function seedPlaylistWithItems(organisationId: string, contentIds: string[]) {
+    const [playlist] = await db
+      .insert(playlists)
+      .values({ organisationId, name: 'Morning Loop' })
+      .returning();
+    if (contentIds.length > 0) {
+      await db.insert(playlistItems).values(
+        contentIds.map((contentId, position) => ({
+          playlistId: playlist.id,
+          contentId,
+          position,
+          durationSeconds: 10,
+        })),
+      );
+    }
+    return playlist;
   }
 
   describe('createScreen', () => {
@@ -220,20 +263,37 @@ describe('ScreenService', () => {
   });
 
   describe('findAllWithPlaylist', () => {
-    it('resolves the current playlist name for online screens', async () => {
+    it('resolves the current playlist name and first-item thumbnail for online screens', async () => {
       const org = await seedOrg();
       const screen = await seedScreen(org.id, { isOnline: true });
-      getCurrentPlaylist.mockResolvedValue({
-        playlist: { id: 'p1', name: 'Morning Loop' },
-        isDefault: false,
-      });
+      const first = await seedContent(org.id, { type: ContentType.Video, thumbnailSizeBytes: 512 });
+      const second = await seedContent(org.id);
+      const playlist = await seedPlaylistWithItems(org.id, [first.id, second.id]);
+      getCurrentPlaylist.mockResolvedValue({ playlist, isDefault: false });
 
       const result = await service.findAllWithPlaylist(org.id);
 
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe(screen.id);
       expect(result[0].currentPlaylistName).toBe('Morning Loop');
+      expect(result[0].currentPlaylistThumbnail).toEqual({
+        contentId: first.id,
+        type: ContentType.Video,
+        thumbnailSizeBytes: 512,
+      });
       expect(getCurrentPlaylist).toHaveBeenCalledWith(screen.id);
+    });
+
+    it('returns a null thumbnail when the active playlist has no items', async () => {
+      const org = await seedOrg();
+      await seedScreen(org.id, { isOnline: true });
+      const playlist = await seedPlaylistWithItems(org.id, []);
+      getCurrentPlaylist.mockResolvedValue({ playlist, isDefault: false });
+
+      const result = await service.findAllWithPlaylist(org.id);
+
+      expect(result[0].currentPlaylistName).toBe('Morning Loop');
+      expect(result[0].currentPlaylistThumbnail).toBeNull();
     });
 
     it('returns null playlist for offline screens without querying the schedule', async () => {
@@ -243,6 +303,7 @@ describe('ScreenService', () => {
       const result = await service.findAllWithPlaylist(org.id);
 
       expect(result[0].currentPlaylistName).toBeNull();
+      expect(result[0].currentPlaylistThumbnail).toBeNull();
       expect(getCurrentPlaylist).not.toHaveBeenCalled();
     });
 
@@ -254,6 +315,7 @@ describe('ScreenService', () => {
       const result = await service.findAllWithPlaylist(org.id);
 
       expect(result[0].currentPlaylistName).toBeNull();
+      expect(result[0].currentPlaylistThumbnail).toBeNull();
     });
 
     it('falls back to null when the schedule lookup throws', async () => {
@@ -264,6 +326,7 @@ describe('ScreenService', () => {
       const result = await service.findAllWithPlaylist(org.id);
 
       expect(result[0].currentPlaylistName).toBeNull();
+      expect(result[0].currentPlaylistThumbnail).toBeNull();
     });
   });
 

@@ -4,6 +4,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { ScreenTile, resolutionLabel } from './screen-tile';
 import { ScreenListItem } from './screen.model';
+import { ContentService } from '../content/content.service';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -26,6 +27,7 @@ function makeScreen(overrides: Partial<ScreenListItem> = {}): ScreenListItem {
     createdAt: '2026-06-01T00:00:00Z',
     updatedAt: '2026-06-01T00:00:00Z',
     currentPlaylistName: null,
+    currentPlaylistThumbnail: null,
     ...overrides,
   };
 }
@@ -46,6 +48,7 @@ describe('resolutionLabel', () => {
 
 describe('ScreenTile', () => {
   let fixture: ComponentFixture<ScreenTile>;
+  let getStaticThumbnailUrl: ReturnType<typeof vi.fn>;
 
   async function setUp(screen: ScreenListItem, showActions = false): Promise<void> {
     fixture = TestBed.createComponent(ScreenTile);
@@ -56,7 +59,13 @@ describe('ScreenTile', () => {
   }
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    getStaticThumbnailUrl = vi.fn().mockReturnValue(null);
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        { provide: ContentService, useValue: { getStaticThumbnailUrl } },
+      ],
+    });
   });
 
   it('renders the name and location', async () => {
@@ -102,6 +111,54 @@ describe('ScreenTile', () => {
     const footer = fixture.nativeElement.querySelector('.card-footer');
     expect(footer.querySelector('.now-playing')).toBeTruthy();
     expect(footer.textContent).toContain('Morning Loop');
+  });
+
+  it('renders the playlist first-item thumbnail when one is available', async () => {
+    getStaticThumbnailUrl.mockReturnValue('/api/content/c1/file/thumbnail?organisationId=org1');
+    await setUp(
+      makeScreen({
+        isOnline: true,
+        currentPlaylistName: 'Morning Loop',
+        currentPlaylistThumbnail: { contentId: 'c1', type: 'image', thumbnailSizeBytes: 256 },
+      }),
+    );
+
+    const img = fixture.nativeElement.querySelector('.thumb-img') as HTMLImageElement | null;
+    expect(img).toBeTruthy();
+    expect(img?.getAttribute('src')).toContain('/api/content/c1/file/thumbnail');
+    expect(getStaticThumbnailUrl).toHaveBeenCalledWith({
+      id: 'c1',
+      type: 'image',
+      thumbnailSizeBytes: 256,
+    });
+    // The fallback glyph is replaced by the image.
+    expect(fixture.nativeElement.querySelector('.thumb-glyph')).toBeNull();
+  });
+
+  it('overlays a play badge when the first item is a video', async () => {
+    getStaticThumbnailUrl.mockReturnValue('/api/content/v1/file/thumbnail');
+    await setUp(
+      makeScreen({
+        isOnline: true,
+        currentPlaylistThumbnail: { contentId: 'v1', type: 'video', thumbnailSizeBytes: 512 },
+      }),
+    );
+
+    expect(fixture.nativeElement.querySelector('.thumb-img')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.thumb-play-overlay')).toBeTruthy();
+  });
+
+  it('falls back to the screen glyph when no thumbnail URL resolves', async () => {
+    getStaticThumbnailUrl.mockReturnValue(null);
+    await setUp(
+      makeScreen({
+        isOnline: true,
+        currentPlaylistThumbnail: { contentId: 'v1', type: 'video', thumbnailSizeBytes: null },
+      }),
+    );
+
+    expect(fixture.nativeElement.querySelector('.thumb-img')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.thumb-glyph')).toBeTruthy();
   });
 
   it('shows the last-seen timestamp when offline with a heartbeat', async () => {

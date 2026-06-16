@@ -60,7 +60,12 @@ describe('ScreenService', () => {
   afterEach(() => httpMock.verify());
 
   function makeListItem(overrides: Partial<ScreenListItem> = {}): ScreenListItem {
-    return { ...makeScreen(), currentPlaylistName: null, ...overrides };
+    return {
+      ...makeScreen(),
+      currentPlaylistName: null,
+      currentPlaylistThumbnail: null,
+      ...overrides,
+    };
   }
 
   describe('getAll', () => {

@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { Screen, ScreenListItem } from './screen.model';
 import { IconComponent } from '../ui';
+import { ContentService } from '../content/content.service';
 
 type TileStatus = 'online' | 'offline' | 'never';
 
@@ -44,7 +45,16 @@ export function resolutionLabel(resolution: string): string {
     >
       <!-- Thumbnail band with status overlay -->
       <div class="thumb-band" [class.dim]="status() === 'offline' || status() === 'never'">
-        <mns-icon name="Screens" [size]="30" class="thumb-glyph" />
+        @if (thumbnailUrl(); as src) {
+          <img [src]="src" alt="" class="thumb-img" loading="lazy" />
+          @if (isVideoThumbnail()) {
+            <span class="thumb-play-overlay" aria-hidden="true">
+              <span class="thumb-play-badge">&#9654;</span>
+            </span>
+          }
+        } @else {
+          <mns-icon name="Screens" [size]="30" class="thumb-glyph" />
+        }
 
         <!-- Top-left status badge -->
         <span class="status-badge" [class]="status()">
@@ -136,6 +146,33 @@ export function resolutionLabel(resolution: string): string {
     }
     .thumb-glyph {
       color: var(--text-faint);
+    }
+    .thumb-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Play badge centered over a video thumbnail (matches the content grid). */
+    .thumb-play-overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+    }
+    .thumb-play-badge {
+      display: grid;
+      place-items: center;
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 9999px;
+      background: rgba(0, 0, 0, 0.45);
+      color: #fff;
+      font-size: 0.9rem;
+      padding-left: 0.15rem;
     }
 
     /* Status badge (blurred dark pill, top-left) */
@@ -301,11 +338,34 @@ export function resolutionLabel(resolution: string): string {
   `,
 })
 export class ScreenTile {
+  private readonly content = inject(ContentService);
+
   readonly screen = input.required<Screen | ScreenListItem>();
   readonly showActions = input<boolean>(false);
 
   readonly open = output<Screen>();
   readonly delete = output<Screen>();
+
+  /** First playlist item of the active playlist, when the screen carries one. */
+  private readonly thumbnailRef = computed(() => {
+    const s = this.screen();
+    return 'currentPlaylistThumbnail' in s ? s.currentPlaylistThumbnail : null;
+  });
+
+  /** Still-image URL for the playlist's first item, or null to show the icon. */
+  protected readonly thumbnailUrl = computed<string | null>(() => {
+    const ref = this.thumbnailRef();
+    if (!ref) return null;
+    return this.content.getStaticThumbnailUrl({
+      id: ref.contentId,
+      type: ref.type,
+      thumbnailSizeBytes: ref.thumbnailSizeBytes,
+    });
+  });
+
+  protected readonly isVideoThumbnail = computed<boolean>(
+    () => this.thumbnailRef()?.type === 'video',
+  );
 
   protected readonly status = computed<TileStatus>(() => {
     const s = this.screen();

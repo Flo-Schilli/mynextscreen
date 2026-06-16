@@ -26,6 +26,7 @@ function makeScreen(overrides: Partial<ScreenListItem> = {}): ScreenListItem {
     createdAt: '2026-06-01T00:00:00Z',
     updatedAt: '2026-06-01T00:00:00Z',
     currentPlaylistName: null,
+    currentPlaylistThumbnail: null,
     ...overrides,
   };
 }

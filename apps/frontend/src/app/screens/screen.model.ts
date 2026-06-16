@@ -13,12 +13,21 @@ export interface Screen {
   updatedAt: string;
 }
 
+/** Thumbnail reference for the first item of a screen's current playlist. */
+export interface PlaylistThumbnailRef {
+  contentId: string;
+  type: 'image' | 'video';
+  thumbnailSizeBytes: number | null;
+}
+
 /**
- * Screen as returned by `GET /api/screens` — enriched with the name of the
- * currently-playing playlist (null when offline or no active playlist).
+ * Screen as returned by `GET /api/screens` — enriched with the currently-playing
+ * playlist: its name and a thumbnail of its first item (both null when offline
+ * or no active playlist).
  */
 export interface ScreenListItem extends Screen {
   currentPlaylistName: string | null;
+  currentPlaylistThumbnail: PlaylistThumbnailRef | null;
 }
 
 export interface CreateScreenRequest {
