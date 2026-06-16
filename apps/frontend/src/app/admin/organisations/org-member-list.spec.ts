@@ -22,6 +22,13 @@ function makeOrgMember(overrides: Partial<OrgMember> = {}): OrgMember {
   };
 }
 
+/** Member rows carry a remove button (mns-btn). */
+function memberRows(fixture: ComponentFixture<OrgMemberList>) {
+  return fixture.debugElement
+    .queryAll(By.css('.grid'))
+    .filter((row) => row.query(By.css('mns-btn')) !== null);
+}
+
 describe('OrgMemberList', () => {
   let fixture: ComponentFixture<OrgMemberList>;
   let component: OrgMemberList;
@@ -50,7 +57,7 @@ describe('OrgMemberList', () => {
     fixture.detectChanges();
 
     // Assert
-    expect(fixture.debugElement.queryAll(By.css('tbody tr')).length).toBe(2);
+    expect(memberRows(fixture).length).toBe(2);
   });
 
   it('shows the member email and falls back to "(no name)" when name is null', () => {
@@ -63,7 +70,7 @@ describe('OrgMemberList', () => {
     fixture.detectChanges();
 
     // Assert
-    const row = fixture.debugElement.query(By.css('tbody tr'));
+    const row = memberRows(fixture)[0];
     expect(row.nativeElement.textContent).toContain('(no name)');
     expect(row.nativeElement.textContent).toContain('user@example.com');
   });
@@ -77,26 +84,22 @@ describe('OrgMemberList', () => {
     fixture.detectChanges();
 
     // Act
-    const select = fixture.debugElement.query(By.css('.role-select'));
-    select.triggerEventHandler('ngModelChange', 'org_admin');
+    fixture.debugElement.query(By.css('.role-select')).componentInstance.changed.emit('org_admin');
 
     // Assert
     expect(spy).toHaveBeenCalledWith({ member, newRole: 'org_admin' });
   });
 
-  it('disables the role select for the member whose role is updating', async () => {
+  it('reflects the current role as the selected value', () => {
     // Arrange
-    fixture.componentRef.setInput('members', [makeOrgMember({ userId: 'u1' })]);
-    fixture.componentRef.setInput('updatingMemberId', 'u1');
+    fixture.componentRef.setInput('members', [makeOrgMember({ role: 'viewer' })]);
 
-    // Act — ngModel-bound select settles its disabled binding asynchronously
-    fixture.detectChanges();
-    await fixture.whenStable();
+    // Act
     fixture.detectChanges();
 
     // Assert
     const select = fixture.debugElement.query(By.css('.role-select'));
-    expect(select.nativeElement.disabled).toBe(true);
+    expect(select.componentInstance.value()).toBe('viewer');
   });
 
   it('emits removeMember with the member when Remove is clicked', () => {
@@ -108,7 +111,9 @@ describe('OrgMemberList', () => {
     fixture.detectChanges();
 
     // Act
-    fixture.debugElement.query(By.css('.btn-danger')).triggerEventHandler('click', undefined);
+    memberRows(fixture)[0]
+      .query(By.css('mns-btn'))
+      .componentInstance.mnsClick.emit(new MouseEvent('click'));
 
     // Assert
     expect(spy).toHaveBeenCalledWith(member);
@@ -123,7 +128,7 @@ describe('OrgMemberList', () => {
     fixture.detectChanges();
 
     // Assert
-    const button = fixture.debugElement.query(By.css('.btn-danger'));
-    expect(button.nativeElement.disabled).toBe(true);
+    const button = memberRows(fixture)[0].query(By.css('mns-btn'));
+    expect(button.componentInstance.disabled()).toBe(true);
   });
 });

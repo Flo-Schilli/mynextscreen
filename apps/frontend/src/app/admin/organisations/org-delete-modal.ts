@@ -1,5 +1,6 @@
-import { Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { Organisation } from './organisation.model';
+import { OverlayComponent, ModalComponent, BtnComponent } from '../../ui';
 
 /**
  * Delete-confirmation modal for an organisation. Deleting an org is irreversible
@@ -10,39 +11,27 @@ import { Organisation } from './organisation.model';
 @Component({
   selector: 'app-org-delete-modal',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayComponent, ModalComponent, BtnComponent],
   template: `
-    <div
-      class="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Confirm organisation deletion"
-      tabindex="0"
-      (click)="dismiss.emit()"
-      (keydown.escape)="dismiss.emit()"
-    >
-      <div
-        class="modal"
-        role="document"
-        (click)="$event.stopPropagation()"
-        (keydown)="$event.stopPropagation()"
-      >
-        <h2>Delete Organisation</h2>
-        <p>
-          Are you sure you want to delete <strong>{{ org().name }}</strong
+    <mns-overlay (closed)="dismiss.emit()">
+      <mns-modal title="Delete Organisation" icon="Trash" (closed)="dismiss.emit()">
+        <p class="text-sm text-muted leading-relaxed">
+          Are you sure you want to delete <strong class="text-default">{{ org().name }}</strong
           >? This permanently deletes all of its screens, content, playlists and schedules. This
           action cannot be undone.
         </p>
         @if (error()) {
-          <p class="error">{{ error() }}</p>
+          <p class="text-offline text-sm mt-3">{{ error() }}</p>
         }
-        <div class="form-actions">
-          <button class="btn btn-secondary" (click)="dismiss.emit()">Cancel</button>
-          <button class="btn btn-danger" (click)="confirm.emit()" [disabled]="deleting()">
-            {{ deleting() ? 'Deleting...' : 'Delete' }}
-          </button>
+        <div slot="footer" class="flex justify-end gap-2 px-6 pb-5 pt-1">
+          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn variant="danger" [disabled]="deleting()" (mnsClick)="confirm.emit()">
+            {{ deleting() ? 'Deleting…' : 'Delete' }}
+          </mns-btn>
         </div>
-      </div>
-    </div>
+      </mns-modal>
+    </mns-overlay>
   `,
 })
 export class OrgDeleteModal {

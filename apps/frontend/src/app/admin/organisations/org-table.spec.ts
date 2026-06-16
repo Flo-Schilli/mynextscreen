@@ -20,6 +20,13 @@ function makeOrganisation(overrides: Partial<Organisation> = {}): Organisation {
   };
 }
 
+/** Data rows are the grid rows that carry a Manage button. */
+function dataRows(fixture: ComponentFixture<OrgTable>) {
+  return fixture.debugElement
+    .queryAll(By.css('.grid'))
+    .filter((row) => row.query(By.css('mns-btn')) !== null);
+}
+
 describe('OrgTable', () => {
   let fixture: ComponentFixture<OrgTable>;
   let component: OrgTable;
@@ -47,7 +54,7 @@ describe('OrgTable', () => {
     fixture.detectChanges();
 
     // Assert
-    const rows = fixture.debugElement.queryAll(By.css('tbody tr'));
+    const rows = dataRows(fixture);
     expect(rows.length).toBe(2);
     expect(rows[0].nativeElement.textContent).toContain('Acme');
     expect(rows[1].nativeElement.textContent).toContain('Globex');
@@ -62,8 +69,7 @@ describe('OrgTable', () => {
     fixture.detectChanges();
 
     // Assert
-    const cells = fixture.debugElement.queryAll(By.css('tbody td'));
-    expect(cells[2].nativeElement.textContent.trim()).toBe('5');
+    expect(dataRows(fixture)[0].nativeElement.textContent).toContain('5');
   });
 
   it('shows a placeholder when the member count is not yet loaded', () => {
@@ -75,11 +81,10 @@ describe('OrgTable', () => {
     fixture.detectChanges();
 
     // Assert
-    const cells = fixture.debugElement.queryAll(By.css('tbody td'));
-    expect(cells[2].nativeElement.textContent.trim()).toBe('...');
+    expect(dataRows(fixture)[0].nativeElement.textContent).toContain('…');
   });
 
-  it('emits selectOrg with the clicked organisation', () => {
+  it('emits selectOrg with the organisation when Manage is clicked', () => {
     // Arrange
     const org = makeOrganisation({ id: 'org-7' });
     fixture.componentRef.setInput('organisations', [org]);
@@ -88,7 +93,9 @@ describe('OrgTable', () => {
     fixture.detectChanges();
 
     // Act
-    fixture.debugElement.query(By.css('tbody tr')).triggerEventHandler('click', undefined);
+    dataRows(fixture)[0]
+      .query(By.css('mns-btn'))
+      .componentInstance.mnsClick.emit(new MouseEvent('click'));
 
     // Assert
     expect(spy).toHaveBeenCalledTimes(1);

@@ -11,6 +11,8 @@ import { DecimalPipe } from '@angular/common';
 import { InstanceAdminService } from './instance-admin.service';
 import { InstanceAdminSummary, SystemLoad } from './instance-admin.model';
 import { LoadGraphComponent, LoadData } from './load-graph.component';
+import { OrganisationService } from '../organisations/organisation.service';
+import { Organisation } from '../organisations/organisation.model';
 import { formatBytes } from '../../shared/format-bytes';
 import {
   CardComponent,
@@ -20,6 +22,7 @@ import {
   RingComponent,
   CountComponent,
   IconComponent,
+  AvatarComponent,
 } from '../../ui';
 
 /**
@@ -43,6 +46,7 @@ import {
     BarComponent,
     RingComponent,
     CountComponent,
+    AvatarComponent,
     LoadGraphComponent,
   ],
   template: `
@@ -225,6 +229,24 @@ import {
                 </div>
               </div>
             </div>
+
+            <!-- per-org legend (client-side aggregate) -->
+            @if (organisations().length > 0) {
+              <div class="mt-[22px] pt-[18px] border-t border-border grid grid-cols-2 gap-[14px]">
+                @for (org of organisations(); track org.id) {
+                  <div class="flex items-center gap-[11px] min-w-0">
+                    <mns-avatar [name]="org.name" [size]="26" />
+                    <div class="min-w-0">
+                      <div class="text-[13px] font-bold truncate">{{ org.name }}</div>
+                      <div class="mono text-[11.5px] text-muted">
+                        {{ formatBytes(orgUsed(org)) }} used ·
+                        {{ formatBytes(orgLimit(org)) }}
+                      </div>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
           </mns-card>
 
           <!-- Host disk ring + bar -->
@@ -320,6 +342,30 @@ import {
             </div>
           }
         </mns-card>
+
+        <!-- Organisations · Usage at a glance (client-side aggregate) -->
+        @if (organisations().length > 0) {
+          <mns-card [pad]="false" class="block overflow-hidden">
+            <div class="px-[22px] pt-[18px] pb-1">
+              <mns-card-head title="Organisations" sub="Usage at a glance" icon="Building" />
+            </div>
+            @for (org of organisations(); track org.id) {
+              <div class="flex items-center gap-4 px-[22px] py-[14px] border-t border-border">
+                <mns-avatar [name]="org.name" [size]="36" />
+                <div class="w-[150px] min-w-0">
+                  <div class="text-[14px] font-bold truncate">{{ org.name }}</div>
+                  <div class="text-[12px] text-muted truncate">{{ org.timeZone }}</div>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <mns-bar [value]="orgPct(org)" color="var(--accent)" [h]="7" />
+                  <div class="mono text-[11px] text-faint mt-[5px]">
+                    {{ formatBytes(orgUsed(org)) }} / {{ formatBytes(orgLimit(org)) }}
+                  </div>
+                </div>
+              </div>
+            }
+          </mns-card>
+        }
       </div>
     }
   `,
@@ -341,10 +387,14 @@ import {
 })
 export class InstanceDashboard implements OnInit {
   private service = inject(InstanceAdminService);
+  private orgService = inject(OrganisationService);
 
   readonly summary = signal<InstanceAdminSummary | null>(null);
   readonly loading = signal(true);
   readonly loadError = signal('');
+
+  /** Per-org list, aggregated client-side for the legend + snapshot card. */
+  readonly organisations = signal<Organisation[]>([]);
 
   /** Raw 24h host-load series fetched from the metrics endpoint. */
   readonly systemLoad = signal<SystemLoad | null>(null);
@@ -413,6 +463,20 @@ export class InstanceDashboard implements OnInit {
     ((this.load().ramPeak / 100) * this.load().ramTotalGB).toFixed(1),
   );
 
+  protected orgUsed(org: Organisation): number {
+    return org.storageOriginalUsedBytes + org.storageTranscodedUsedBytes;
+  }
+
+  protected orgLimit(org: Organisation): number {
+    return org.storageOriginalLimitBytes + org.storageTranscodedLimitBytes;
+  }
+
+  protected orgPct(org: Organisation): number {
+    const limit = this.orgLimit(org);
+    if (limit <= 0) return 0;
+    return Math.min((this.orgUsed(org) / limit) * 100, 100);
+  }
+
   ngOnInit(): void {
     this.service.getSummary().subscribe({
       next: (summary) => {
@@ -433,6 +497,14 @@ export class InstanceDashboard implements OnInit {
       next: (load) => this.systemLoad.set(load),
       error: () => {
         /* best-effort — the system-load chart shows a "collecting data" note */
+      },
+    });
+
+    // Per-org storage list for the legend + snapshot card (client-side aggregate).
+    this.orgService.getAll().subscribe({
+      next: (orgs) => this.organisations.set(orgs),
+      error: () => {
+        /* best-effort — the per-org legend / snapshot simply stays hidden */
       },
     });
   }
