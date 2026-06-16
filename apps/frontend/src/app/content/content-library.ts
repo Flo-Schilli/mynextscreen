@@ -1,5 +1,6 @@
 import {
   Component,
+  DestroyRef,
   ElementRef,
   Renderer2,
   inject,
@@ -7,6 +8,8 @@ import {
   OnInit,
   OnDestroy,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { ContentService, UploadProgress } from './content.service';
@@ -170,6 +173,7 @@ import {
           (save)="onDetailSave($event)"
           (remove)="confirmDelete()"
           (reupload)="onDetailReUpload($event)"
+          (copyLink)="copyShareLink()"
           (dismiss)="closeDetail()"
         />
       }
@@ -370,6 +374,9 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
   private memberService = inject(MemberService);
   private playlistService = inject(PlaylistService);
   private toast = inject(ToastService);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private destroyRef = inject(DestroyRef);
   readonly selectionService = inject(SelectionService);
 
   orgId = '';
@@ -407,6 +414,9 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
 
   // Detail view
   selectedContent: Content | null = null;
+  /** Tracks the content loaded into the detail view so the route watcher can
+   *  skip a redundant fetch when a card click already opened it. */
+  private loadedDetailId: string | null = null;
   savingMetadata = false;
   metadataError = '';
   metadataSaved = false;
@@ -488,6 +498,7 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
           this.loadContent();
           this.loadStorage();
           this.subscribeToTranscoding();
+          this.watchRoute();
         } else {
           this.loadError = 'You are not a member of any organisation.';
           this.loading = false;
@@ -708,14 +719,66 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
   }
 
   // --- Detail ---
+  /**
+   * Keeps the open content item in sync with the URL so `/content/:id`
+   * deeplinks (and browser back/forward) work and can be shared. Loads
+   * triggered from a card click are skipped here via {@link loadedDetailId} to
+   * avoid a double fetch.
+   */
+  private watchRoute(): void {
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const id = params.get('id');
+      if (id) {
+        if (id !== this.loadedDetailId) this.loadDetail(id);
+      } else {
+        this.loadedDetailId = null;
+        this.selectedContent = null;
+      }
+    });
+  }
+
+  private loadDetail(id: string): void {
+    this.metadataError = '';
+    this.metadataSaved = false;
+    this.loadedDetailId = id;
+    this.contentService.getOne(this.orgId, id).subscribe({
+      next: (content) => {
+        this.selectedContent = content;
+      },
+      error: () => {
+        this.toast.error('Could not open that content item.');
+        this.loadedDetailId = null;
+        void this.router.navigate(['/content']);
+      },
+    });
+  }
+
   selectContent(content: Content): void {
+    // Show the already-loaded item immediately for a snappy click, then reflect
+    // it in the URL so the detail view can be bookmarked/shared. The route
+    // guard skips re-fetching.
+    this.loadedDetailId = content.id;
     this.selectedContent = content;
     this.metadataError = '';
     this.metadataSaved = false;
+    void this.router.navigate(['/content', content.id]);
+  }
+
+  async copyShareLink(): Promise<void> {
+    if (!this.selectedContent) return;
+    const url = `${window.location.origin}/content/${this.selectedContent.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      this.toast.success('Link copied to clipboard.');
+    } catch {
+      this.toast.error('Could not copy link.');
+    }
   }
 
   closeDetail(): void {
+    this.loadedDetailId = null;
     this.selectedContent = null;
+    void this.router.navigate(['/content']);
   }
 
   getPreviewUrl = (content: Content): string => {
@@ -817,8 +880,10 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
         this.applyFilters();
         this.deleting = false;
         this.showDeleteConfirm = false;
+        this.loadedDetailId = null;
         this.selectedContent = null;
         this.loadStorage();
+        void this.router.navigate(['/content']);
         this.toast.success('Content deleted.');
       },
       error: (err) => {

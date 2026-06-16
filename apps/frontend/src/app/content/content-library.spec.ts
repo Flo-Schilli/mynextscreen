@@ -3,7 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideZonelessChangeDetection } from '@angular/core';
 import { provideHttpClient, HttpEventType } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router, ParamMap, convertToParamMap } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { ContentLibrary } from './content-library';
 import { Content, StorageInfo } from './content.model';
@@ -112,6 +112,7 @@ describe('ContentLibrary', () => {
   let memberService: { getMyMemberships: ReturnType<typeof vi.fn> };
   let playlistService: { getAll: ReturnType<typeof vi.fn> };
   let router: { navigate: ReturnType<typeof vi.fn> };
+  let paramMap$: Subject<ParamMap>;
   let sse: DashboardSseService;
   let toastService: ToastService;
 
@@ -137,6 +138,7 @@ describe('ContentLibrary', () => {
     memberService = { getMyMemberships: vi.fn().mockReturnValue(of([membership])) };
     playlistService = { getAll: vi.fn() };
     router = { navigate: vi.fn() };
+    paramMap$ = new Subject<ParamMap>();
     sse = makeSseStub();
 
     TestBed.configureTestingModule({
@@ -157,6 +159,7 @@ describe('ContentLibrary', () => {
         { provide: PlaylistService, useValue: playlistService },
         { provide: DashboardSseService, useValue: sse },
         { provide: Router, useValue: router },
+        { provide: ActivatedRoute, useValue: { paramMap: paramMap$.asObservable() } },
       ],
     });
 
@@ -300,7 +303,7 @@ describe('ContentLibrary', () => {
     ).toContain('/api/content/c2/file/original');
   });
 
-  it('selects and closes the detail view', () => {
+  it('selects and closes the detail view, syncing the URL', () => {
     // Arrange
     const item = makeContent();
     init([item]);
@@ -310,11 +313,85 @@ describe('ContentLibrary', () => {
     // Assert
     expect(component.selectedContent).toBe(item);
     expect(component.metadataSaved).toBe(false);
+    expect(router.navigate).toHaveBeenCalledWith(['/content', item.id]);
 
     // Act
     component.closeDetail();
     // Assert
     expect(component.selectedContent).toBeNull();
+    expect(router.navigate).toHaveBeenCalledWith(['/content']);
+  });
+
+  it('opens the detail view from a /content/:id deeplink', () => {
+    // Arrange
+    const item = makeContent({ id: 'deep-1' });
+    init([makeContent({ id: 'other' })]);
+
+    // Act — the router emits the deeplinked id
+    paramMap$.next(convertToParamMap({ id: 'deep-1' }));
+    httpMock.expectOne('/api/content/deep-1').flush(item);
+
+    // Assert
+    expect(component.selectedContent).toEqual(item);
+  });
+
+  it('clears the detail view when the id leaves the URL', () => {
+    // Arrange
+    const item = makeContent();
+    init([item]);
+    component.selectContent(item);
+
+    // Act — navigating back to /content emits an empty param map
+    paramMap$.next(convertToParamMap({}));
+
+    // Assert
+    expect(component.selectedContent).toBeNull();
+  });
+
+  it('skips the fetch when the deeplinked id is already open', () => {
+    // Arrange
+    const item = makeContent({ id: 'c1' });
+    init([item]);
+    component.selectContent(item);
+
+    // Act — the URL change for the click echoes back through the router
+    paramMap$.next(convertToParamMap({ id: 'c1' }));
+
+    // Assert — no extra GET /api/content/c1 is issued
+    httpMock.verify();
+    expect(component.selectedContent).toBe(item);
+  });
+
+  it('falls back to the list when a deeplinked id cannot be loaded', () => {
+    // Arrange
+    init([makeContent()]);
+
+    // Act
+    paramMap$.next(convertToParamMap({ id: 'missing' }));
+    httpMock
+      .expectOne('/api/content/missing')
+      .flush({ message: 'gone' }, { status: 404, statusText: 'Not Found' });
+
+    // Assert
+    expect(component.selectedContent).toBeNull();
+    expect(router.navigate).toHaveBeenCalledWith(['/content']);
+    expect(lastToast()?.type).toBe('error');
+  });
+
+  it('copies a shareable link for the open content', async () => {
+    // Arrange
+    const item = makeContent({ id: 'c1' });
+    init([item]);
+    component.selectContent(item);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+
+    // Act
+    await component.copyShareLink();
+
+    // Assert
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/content/c1`);
+    expect(lastToast()?.type).toBe('success');
   });
 
   it('saves metadata and updates the selected + list content', () => {
