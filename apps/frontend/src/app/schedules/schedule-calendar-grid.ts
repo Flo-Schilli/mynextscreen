@@ -214,8 +214,14 @@ const NOW_TICK_MS = 60_000;
                             >
                           }
                           @if (isSlicePreparing(block.entry)) {
-                            <span class="flex-shrink-0" title="Preparing wall renditions…">
-                              <mns-icon name="Layers" [size]="11" class="text-warn animate-pulse" />
+                            <span
+                              class="flex-shrink-0 inline-flex items-center gap-0.5 text-warn"
+                              [title]="'Preparing wall renditions… ' + slicePct(block.entry) + '%'"
+                            >
+                              <mns-icon name="Layers" [size]="11" class="animate-pulse" />
+                              <span class="text-[9px] font-bold tabular-nums"
+                                >{{ slicePct(block.entry) }}%</span
+                              >
                             </span>
                           } @else if (block.entry.sliceStatus?.status === 'failed') {
                             <span class="flex-shrink-0" title="Rendition pre-transcoding failed">
@@ -357,6 +363,13 @@ export class ScheduleCalendarGrid {
   isSlicePreparing(entry: ScheduleEntry): boolean {
     const status = entry.sliceStatus?.status;
     return status === 'queued' || status === 'processing';
+  }
+
+  /** Slice progress percent for the calendar badge. */
+  slicePct(entry: ScheduleEntry): number {
+    const ss = entry.sliceStatus;
+    if (!ss || ss.totalItems <= 0) return 0;
+    return Math.round((ss.completedItems / ss.totalItems) * 100);
   }
 
   blockBg(entry: ScheduleEntry): string {

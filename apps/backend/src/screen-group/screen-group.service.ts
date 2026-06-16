@@ -19,6 +19,7 @@ import {
   type SliceJob,
 } from '../db/schema';
 import { ScreenGroupMode } from './screen-group-mode.enum';
+import { SliceStatus } from '../slice-content/slice-status.enum';
 import { CreateScreenGroupDto } from './dto/create-screen-group.dto';
 import { UpdateScreenGroupDto } from './dto/update-screen-group.dto';
 import { AssignScreenDto } from './dto/assign-screen.dto';
@@ -64,15 +65,18 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
         `ScreenGroup with id "${id}" not found in organisation "${organisationId}"`,
       );
     }
-    // Latest slicing run for this group (last-write-wins per playlist) — drives the
-    // reload-safe "preparing renditions" indicator on the detail wall.
-    const [sliceStatus] = await this.db
+    // Slicing status for the detail wall's reload-safe "preparing renditions"
+    // indicator. Prefer an in-flight run (queued/processing) over a stale
+    // completed/failed one for another playlist; otherwise show the most recent.
+    const jobs = await this.db
       .select()
       .from(sliceJobs)
       .where(eq(sliceJobs.groupId, id))
-      .orderBy(desc(sliceJobs.updatedAt))
-      .limit(1);
-    return { ...entity, sliceStatus: sliceStatus ?? null };
+      .orderBy(desc(sliceJobs.updatedAt));
+    const active = jobs.find(
+      (j) => j.status === SliceStatus.Queued || j.status === SliceStatus.Processing,
+    );
+    return { ...entity, sliceStatus: active ?? jobs[0] ?? null };
   }
 
   async createGroup(

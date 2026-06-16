@@ -1,4 +1,5 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ScheduleService } from './schedule.service';
 import {
   ScheduleEntry,
@@ -15,7 +16,8 @@ import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { OrganisationService } from '../admin/organisations/organisation.service';
 import { ScreenGroupService } from '../screen-groups/screen-group.service';
-import { ScreenGroup } from '../screen-groups/screen-group.model';
+import { ScreenGroup, SliceJobStatus } from '../screen-groups/screen-group.model';
+import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { ScheduleRecurrenceService, RecurrenceType } from './schedule-recurrence.service';
 import {
   ScheduleCalendarService,
@@ -30,7 +32,7 @@ import { ScheduleSidePanel } from './schedule-side-panel';
 import { ScheduleCalendarGrid } from './schedule-calendar-grid';
 import { ScheduleFormModal, ScheduleFormResult, PRESET_COLOURS } from './schedule-form-modal';
 import { ToastService } from '../shared/toast/toast.service';
-import { PageHeaderComponent } from '../ui';
+import { PageHeaderComponent, OverlayComponent, ModalComponent } from '../ui';
 
 const HOUR_HEIGHT = 60;
 
@@ -43,6 +45,8 @@ const HOUR_HEIGHT = 60;
     ScheduleCalendarGrid,
     ScheduleFormModal,
     PageHeaderComponent,
+    OverlayComponent,
+    ModalComponent,
   ],
   template: `
     <div class="page">
@@ -79,13 +83,6 @@ const HOUR_HEIGHT = 60;
           (next)="navigateNext()"
           (create)="openCreateModal()"
         />
-
-        @if (sliceProcessing) {
-          <div class="slice-status">
-            <span class="slice-spinner"></span>
-            Processing slices… Content is being prepared for the video wall.
-          </div>
-        }
 
         <div class="calendar-layout">
           <div class="calendar-container">
@@ -137,36 +134,60 @@ const HOUR_HEIGHT = 60;
           (dismiss)="closeModal()"
         />
       }
+
+      @if (sliceModal; as ss) {
+        <mns-overlay (closed)="dismissSliceModal()">
+          <mns-modal
+            [title]="sliceModalTitle(ss)"
+            [icon]="ss.status === 'failed' ? 'Alert' : 'Layers'"
+            [widthPx]="420"
+            (closed)="dismissSliceModal()"
+          >
+            @if (ss.status === 'failed') {
+              <p class="text-[13px] text-muted leading-relaxed">
+                {{ ss.error || 'Slicing failed.' }} The wall keeps showing the previous content
+                until you re-assign or re-slice.
+              </p>
+            } @else if (ss.status === 'completed') {
+              <p class="text-[13px] text-muted mb-3">The video wall has been updated.</p>
+              <div class="h-1.5 rounded-full bg-surface-3 overflow-hidden">
+                <div class="h-full bg-accent" style="width: 100%"></div>
+              </div>
+            } @else {
+              <p class="text-[13px] text-muted mb-3 leading-relaxed">
+                The wall keeps showing the previous content and switches automatically when slicing
+                completes.
+              </p>
+              <div class="flex justify-between text-[12px] text-muted mb-1.5">
+                <span class="tabular-nums">{{ ss.completedItems }}/{{ ss.totalItems }}</span>
+                <span class="tabular-nums">{{ slicePct(ss) }}%</span>
+              </div>
+              <div class="h-1.5 rounded-full bg-surface-3 overflow-hidden">
+                <div
+                  class="h-full bg-accent transition-[width] duration-300"
+                  [style.width.%]="slicePct(ss)"
+                ></div>
+              </div>
+            }
+            <div slot="footer" class="flex justify-end px-6 pb-5">
+              <button
+                type="button"
+                class="text-[13px] font-semibold px-3.5 py-2 rounded-lg border border-border text-muted hover:bg-hover hover:text-text transition-colors"
+                (click)="dismissSliceModal()"
+              >
+                {{
+                  ss.status === 'queued' || ss.status === 'processing'
+                    ? 'Run in background'
+                    : 'Close'
+                }}
+              </button>
+            </div>
+          </mns-modal>
+        </mns-overlay>
+      }
     </div>
   `,
   styles: `
-    /* Slice Processing Status */
-    .slice-status {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.625rem 1rem;
-      background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
-      border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
-      border-radius: var(--r-lg);
-      margin-bottom: 1rem;
-      font-size: 0.8125rem;
-      color: var(--text-muted);
-    }
-    .slice-spinner {
-      width: 0.875rem;
-      height: 0.875rem;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: sched-spin 0.8s linear infinite;
-    }
-    @keyframes sched-spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
     /* Calendar Layout */
     .calendar-layout {
       display: flex;
@@ -188,6 +209,8 @@ export class Schedules implements OnInit, OnDestroy {
   private recurrence = inject(ScheduleRecurrenceService);
   private calendar = inject(ScheduleCalendarService);
   private toast = inject(ToastService);
+  private sse = inject(DashboardSseService);
+  private destroyRef = inject(DestroyRef);
 
   orgId = '';
   orgTimeZone = 'UTC';
@@ -215,9 +238,10 @@ export class Schedules implements OnInit, OnDestroy {
   monthWeeks: MonthDayCell[][] = [];
   dayTimeline: DayTimeline[] = [];
 
-  // Slice processing status
-  sliceProcessing = false;
-  private slicePollTimer: ReturnType<typeof setTimeout> | null = null;
+  // Live slice progress overlay, shown after assigning content to a split group.
+  // Fed by the slice.* SSE stream; null when no run is being surfaced.
+  sliceModal: SliceJobStatus | null = null;
+  private sliceModalAutoClose: ReturnType<typeof setTimeout> | null = null;
 
   // Modal state (form state itself lives in the modal child)
   showModal = false;
@@ -315,6 +339,7 @@ export class Schedules implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadCurrentOrg();
+    this.subscribeToSlicing();
     document.addEventListener('mousemove', this.boundMouseMove);
     document.addEventListener('mouseup', this.boundMouseUp);
   }
@@ -322,7 +347,94 @@ export class Schedules implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     document.removeEventListener('mousemove', this.boundMouseMove);
     document.removeEventListener('mouseup', this.boundMouseUp);
-    if (this.slicePollTimer) clearTimeout(this.slicePollTimer);
+    if (this.sliceModalAutoClose) clearTimeout(this.sliceModalAutoClose);
+  }
+
+  /**
+   * Live-update slice status across the calendar (badges) and the progress
+   * overlay from the dashboard SSE stream. Replaces the previous fixed-timer
+   * placeholder with real per-item progress.
+   */
+  private subscribeToSlicing(): void {
+    this.sse.sliceProgress$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((ev) => {
+      const d = ev.data;
+      this.applySliceEvent({
+        groupId: d['groupId'] as string,
+        playlistId: d['playlistId'] as string,
+        status: 'processing' as SliceJobStatus['status'],
+        totalItems: (d['totalItems'] as number) ?? 0,
+        completedItems: (d['completedItems'] as number) ?? 0,
+        error: null,
+      });
+    });
+    this.sse.sliceComplete$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((ev) => {
+      const d = ev.data;
+      const total = (d['totalItems'] as number) ?? 0;
+      this.applySliceEvent({
+        groupId: d['groupId'] as string,
+        playlistId: d['playlistId'] as string,
+        status: 'completed' as SliceJobStatus['status'],
+        totalItems: total,
+        completedItems: total,
+        error: null,
+      });
+    });
+    this.sse.sliceFailed$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((ev) => {
+      const d = ev.data;
+      this.applySliceEvent({
+        groupId: d['groupId'] as string,
+        playlistId: d['playlistId'] as string,
+        status: 'failed' as SliceJobStatus['status'],
+        totalItems: 0,
+        completedItems: 0,
+        error: (d['error'] as string) ?? null,
+      });
+    });
+  }
+
+  /** Patch the matching calendar entries + the open overlay with a slice update. */
+  private applySliceEvent(status: SliceJobStatus): void {
+    this.entries = this.entries.map((e) =>
+      e.groupId === status.groupId && e.playlistId === status.playlistId
+        ? { ...e, sliceStatus: status }
+        : e,
+    );
+    this.rebuildCalendar();
+
+    if (
+      this.sliceModal &&
+      this.sliceModal.groupId === status.groupId &&
+      this.sliceModal.playlistId === status.playlistId
+    ) {
+      this.sliceModal = status;
+      if (status.status === 'completed') {
+        // Renditions ready — the backend gate now lets the wall switch. Pull the
+        // authoritative entry state, then auto-dismiss the overlay shortly.
+        this.loadEntries();
+        if (this.sliceModalAutoClose) clearTimeout(this.sliceModalAutoClose);
+        this.sliceModalAutoClose = setTimeout(() => (this.sliceModal = null), 2500);
+      }
+    }
+  }
+
+  /** Progress percent for the overlay / badges. */
+  slicePct(status: SliceJobStatus | null): number {
+    if (!status || status.totalItems <= 0) return 0;
+    return Math.round((status.completedItems / status.totalItems) * 100);
+  }
+
+  /** Heading for the slice progress overlay by status. */
+  sliceModalTitle(status: SliceJobStatus): string {
+    if (status.status === 'failed') return 'Rendition pre-transcoding failed';
+    if (status.status === 'completed') return 'Renditions ready';
+    return 'Preparing video-wall renditions…';
+  }
+
+  /** Dismiss the overlay and keep tracking via calendar badges ("run in background"). */
+  dismissSliceModal(): void {
+    if (this.sliceModalAutoClose) clearTimeout(this.sliceModalAutoClose);
+    this.sliceModal = null;
+    this.loadEntries();
   }
 
   private loadCurrentOrg(): void {
@@ -551,6 +663,16 @@ export class Schedules implements OnInit, OnDestroy {
   }
 
   openEditModal(entry: ScheduleEntry): void {
+    // A split entry that is still slicing (or failed) shows its live progress
+    // instead of the edit form when clicked — editing is meaningless until the
+    // wall renditions are ready.
+    const ss = entry.sliceStatus;
+    if (ss && (ss.status === 'queued' || ss.status === 'processing' || ss.status === 'failed')) {
+      if (this.sliceModalAutoClose) clearTimeout(this.sliceModalAutoClose);
+      this.sliceModal = ss;
+      return;
+    }
+
     this.editingEntry = entry;
     this.modalInitialPlaylistId = entry.playlistId;
     this.modalInitialName = entry.name ?? '';
@@ -610,12 +732,21 @@ export class Schedules implements OnInit, OnDestroy {
         rrule: rrule || null,
         colour: result.colour,
       };
-      this.scheduleService.update(this.orgId, this.editingEntry.id, dto).subscribe({
+      const editEntry = this.editingEntry;
+      const editIsSplit =
+        !!editEntry.groupId &&
+        this.screenGroups.find((g) => g.id === editEntry.groupId)?.mode === 'split';
+      this.scheduleService.update(this.orgId, editEntry.id, dto).subscribe({
         next: () => {
           this.submitting = false;
           this.closeModal();
           this.loadEntries();
-          this.toast.success('Schedule updated.');
+          if (editIsSplit && editEntry.groupId) {
+            this.openSliceModal(editEntry.groupId, result.playlistId);
+            this.toast.success('Schedule updated. Preparing video-wall renditions…');
+          } else {
+            this.toast.success('Schedule updated.');
+          }
         },
         error: (err) => {
           this.submitting = false;
@@ -662,8 +793,8 @@ export class Schedules implements OnInit, OnDestroy {
           this.loadEntries();
 
           if (isSplitGroup) {
-            this.toast.success('Schedule created. Slicing content for video wall...');
-            this.startSlicePolling();
+            this.openSliceModal(targetId, result.playlistId);
+            this.toast.success('Schedule created. Preparing video-wall renditions…');
           } else {
             this.toast.success('Schedule created.');
           }
@@ -680,15 +811,17 @@ export class Schedules implements OnInit, OnDestroy {
     }
   }
 
-  private startSlicePolling(): void {
-    this.sliceProcessing = true;
-    // Poll for a few seconds to indicate processing, then clear.
-    // In a production system this would check a real status endpoint.
-    if (this.slicePollTimer) clearTimeout(this.slicePollTimer);
-    this.slicePollTimer = setTimeout(() => {
-      this.sliceProcessing = false;
-      this.loadEntries();
-    }, 8000);
+  /** Open the live progress overlay for a split group's slicing run. */
+  private openSliceModal(groupId: string, playlistId: string): void {
+    if (this.sliceModalAutoClose) clearTimeout(this.sliceModalAutoClose);
+    this.sliceModal = {
+      groupId,
+      playlistId,
+      status: 'queued' as SliceJobStatus['status'],
+      totalItems: 0,
+      completedItems: 0,
+      error: null,
+    };
   }
 
   deleteEntry(): void {

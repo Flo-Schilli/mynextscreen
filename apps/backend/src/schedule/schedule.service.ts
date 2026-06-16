@@ -36,6 +36,8 @@ import {
   AuditScheduleEvent,
 } from '../audit-log/audit.events';
 import { SliceEnqueueService } from '../slice-content';
+import { SliceStatus } from '../slice-content/slice-status.enum';
+import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 
 const OVERLAP_WINDOW_DAYS = 365;
 
@@ -284,6 +286,18 @@ export class ScheduleService {
         with: { playlist: true },
       });
 
+      // Split groups need per-screen sliced renditions before the wall can show a
+      // playlist. Until the slice job for that playlist is `completed`, the entry
+      // is NOT yet eligible to be "current" — we skip it so resolution falls
+      // through to the previously-active content (other entry / fallback). The
+      // moment slicing completes, `GROUP_SCHEDULE_CHANGED` re-pulls and the entry
+      // becomes current. A `failed` job also keeps the previous content (operator
+      // must re-slice). Mirror groups never slice, so they are unaffected.
+      const isSplitGroup = await this.isSplitGroup(screen.groupId);
+      const sliceReady = isSplitGroup
+        ? await this.loadCompletedSlicePlaylists(screen.groupId)
+        : null;
+
       for (const entry of groupEntries) {
         const occurrences = getOccurrences(
           entry.startTime,
@@ -295,6 +309,10 @@ export class ScheduleService {
 
         for (const occ of occurrences) {
           if (occ.start <= now && occ.end > now) {
+            if (sliceReady && !sliceReady.has(entry.playlistId)) {
+              // Not-yet-sliced split entry: ignore it, keep previous content.
+              break;
+            }
             return { playlist: entry.playlist, isDefault: false, epoch: occ.start.getTime() };
           }
         }
@@ -302,6 +320,25 @@ export class ScheduleService {
     }
 
     return this.getFallbackPlaylist(screen.organisationId);
+  }
+
+  /** True if the group exists and is in split (video-wall) mode. */
+  private async isSplitGroup(groupId: string): Promise<boolean> {
+    const [group] = await this.db
+      .select({ mode: screenGroups.mode })
+      .from(screenGroups)
+      .where(eq(screenGroups.id, groupId))
+      .limit(1);
+    return group?.mode === ScreenGroupMode.Split;
+  }
+
+  /** Playlist IDs whose slice job for this group is `completed` (renditions ready). */
+  private async loadCompletedSlicePlaylists(groupId: string): Promise<Set<string>> {
+    const jobs = await this.db
+      .select({ playlistId: sliceJobs.playlistId, status: sliceJobs.status })
+      .from(sliceJobs)
+      .where(eq(sliceJobs.groupId, groupId));
+    return new Set(jobs.filter((j) => j.status === SliceStatus.Completed).map((j) => j.playlistId));
   }
 
   async checkOverlap(
