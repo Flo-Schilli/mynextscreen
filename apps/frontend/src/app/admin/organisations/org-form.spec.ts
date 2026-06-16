@@ -1,5 +1,5 @@
 import { TestBed, ComponentFixture } from '@angular/core/testing';
-import { provideZonelessChangeDetection } from '@angular/core';
+import { provideZonelessChangeDetection, WritableSignal } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { OrgForm, OrganisationFormPayload } from './org-form';
 import { Organisation } from './organisation.model';
@@ -20,32 +20,27 @@ function makeOrganisation(overrides: Partial<Organisation> = {}): Organisation {
   };
 }
 
-/**
- * Type into a field through ngModel and flush view <-> model. ngModel write-back
- * is asynchronous under zoneless change detection, so detect changes then await
- * stability after dispatching the input event.
- */
-async function typeInto(
-  fixture: ComponentFixture<unknown>,
-  selector: string,
-  value: string,
-): Promise<void> {
-  const el: HTMLInputElement = fixture.nativeElement.querySelector(selector);
-  el.value = value;
-  el.dispatchEvent(new Event('input'));
-  fixture.detectChanges();
-  await fixture.whenStable();
-}
-
 interface OrgFormFields {
-  name: string;
-  timeZone: string;
-  storageOriginalMB: number;
-  storageTranscodedMB: number;
+  name: WritableSignal<string>;
+  timeZone: WritableSignal<string>;
+  storageOriginalMB: WritableSignal<string>;
+  storageTranscodedMB: WritableSignal<string>;
 }
 
 function fields(component: OrgForm): OrgFormFields {
   return component as unknown as OrgFormFields;
+}
+
+function submitBtn(fixture: ComponentFixture<OrgForm>) {
+  return fixture.debugElement
+    .queryAll(By.css('mns-btn'))
+    .find((b) => /Create|Save Changes/.test(b.nativeElement.textContent));
+}
+
+function cancelBtn(fixture: ComponentFixture<OrgForm>) {
+  return fixture.debugElement
+    .queryAll(By.css('mns-btn'))
+    .find((b) => b.nativeElement.textContent.includes('Cancel'));
 }
 
 describe('OrgForm', () => {
@@ -72,8 +67,7 @@ describe('OrgForm', () => {
 
       // Assert
       expect(fixture.nativeElement.textContent).toContain('Create Organisation');
-      const submit = fixture.debugElement.query(By.css('button[type="submit"]'));
-      expect(submit.nativeElement.textContent).toContain('Create');
+      expect(submitBtn(fixture)?.nativeElement.textContent).toContain('Create');
     });
 
     it('leaves the field state empty/zero on init', () => {
@@ -81,10 +75,10 @@ describe('OrgForm', () => {
       fixture.detectChanges();
 
       // Assert
-      expect(fields(component).name).toBe('');
-      expect(fields(component).timeZone).toBe('');
-      expect(fields(component).storageOriginalMB).toBe(0);
-      expect(fields(component).storageTranscodedMB).toBe(0);
+      expect(fields(component).name()).toBe('');
+      expect(fields(component).timeZone()).toBe('');
+      expect(fields(component).storageOriginalMB()).toBe('0');
+      expect(fields(component).storageTranscodedMB()).toBe('0');
     });
   });
 
@@ -107,8 +101,7 @@ describe('OrgForm', () => {
 
       // Assert
       expect(fixture.nativeElement.textContent).toContain('Edit Organisation');
-      const submit = fixture.debugElement.query(By.css('button[type="submit"]'));
-      expect(submit.nativeElement.textContent).toContain('Save Changes');
+      expect(submitBtn(fixture)?.nativeElement.textContent).toContain('Save Changes');
     });
 
     it('seeds field state from the org, converting bytes to MB', () => {
@@ -116,10 +109,10 @@ describe('OrgForm', () => {
       fixture.detectChanges();
 
       // Assert
-      expect(fields(component).name).toBe('Existing');
-      expect(fields(component).timeZone).toBe('UTC');
-      expect(fields(component).storageOriginalMB).toBe(50);
-      expect(fields(component).storageTranscodedMB).toBe(100);
+      expect(fields(component).name()).toBe('Existing');
+      expect(fields(component).timeZone()).toBe('UTC');
+      expect(fields(component).storageOriginalMB()).toBe('50');
+      expect(fields(component).storageTranscodedMB()).toBe('100');
     });
   });
 
@@ -129,8 +122,8 @@ describe('OrgForm', () => {
       const spy = vi.fn();
       component.save.subscribe(spy);
       fixture.detectChanges();
-      fields(component).name = '';
-      fields(component).timeZone = 'UTC';
+      fields(component).name.set('');
+      fields(component).timeZone.set('UTC');
 
       // Act
       component.onSubmit();
@@ -148,8 +141,8 @@ describe('OrgForm', () => {
       const spy = vi.fn();
       component.save.subscribe(spy);
       fixture.detectChanges();
-      fields(component).name = 'Acme';
-      fields(component).timeZone = '';
+      fields(component).name.set('Acme');
+      fields(component).timeZone.set('');
 
       // Act
       component.onSubmit();
@@ -163,10 +156,10 @@ describe('OrgForm', () => {
       let payload: OrganisationFormPayload | undefined;
       component.save.subscribe((p) => (payload = p));
       fixture.detectChanges();
-      fields(component).name = 'Acme';
-      fields(component).timeZone = 'Europe/Vienna';
-      fields(component).storageOriginalMB = 5;
-      fields(component).storageTranscodedMB = 7;
+      fields(component).name.set('Acme');
+      fields(component).timeZone.set('Europe/Vienna');
+      fields(component).storageOriginalMB.set('5');
+      fields(component).storageTranscodedMB.set('7');
 
       // Act
       component.onSubmit();
@@ -187,8 +180,8 @@ describe('OrgForm', () => {
       fixture.detectChanges();
       expect(fixture.debugElement.query(By.css('.error'))).not.toBeNull();
 
-      fields(component).name = 'Acme';
-      fields(component).timeZone = 'UTC';
+      fields(component).name.set('Acme');
+      fields(component).timeZone.set('UTC');
 
       // Act
       component.onSubmit();
@@ -200,18 +193,6 @@ describe('OrgForm', () => {
   });
 
   describe('inputs and outputs', () => {
-    it('writes name back through ngModel', async () => {
-      // Arrange
-      fixture.detectChanges();
-      await fixture.whenStable(); // let NgForm register its controls
-
-      // Act
-      await typeInto(fixture, '#name', 'Typed Org');
-
-      // Assert
-      expect(fields(component).name).toBe('Typed Org');
-    });
-
     it('disables the submit button while submitting', () => {
       // Arrange
       fixture.componentRef.setInput('submitting', true);
@@ -220,9 +201,7 @@ describe('OrgForm', () => {
       fixture.detectChanges();
 
       // Assert
-      expect(
-        fixture.debugElement.query(By.css('button[type="submit"]')).nativeElement.disabled,
-      ).toBe(true);
+      expect(submitBtn(fixture)?.componentInstance.disabled()).toBe(true);
     });
 
     it('renders the parent error when no local error is set', () => {
@@ -245,7 +224,7 @@ describe('OrgForm', () => {
       fixture.detectChanges();
 
       // Act
-      fixture.debugElement.query(By.css('.btn-secondary')).triggerEventHandler('click', undefined);
+      cancelBtn(fixture)?.componentInstance.mnsClick.emit(new MouseEvent('click'));
 
       // Assert
       expect(spy).toHaveBeenCalledTimes(1);

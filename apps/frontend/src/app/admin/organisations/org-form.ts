@@ -1,7 +1,15 @@
-import { Component, input, output, signal, OnInit } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, input, output, signal, OnInit } from '@angular/core';
 import { Organisation } from './organisation.model';
 import { IANA_TIME_ZONES } from './timezones';
+import {
+  CardComponent,
+  CardHeadComponent,
+  BtnComponent,
+  SFieldComponent,
+  SInputComponent,
+  SelectComponent,
+  SelectOption,
+} from '../../ui';
 
 export interface OrganisationFormPayload {
   name: string;
@@ -9,6 +17,8 @@ export interface OrganisationFormPayload {
   storageOriginalLimitBytes: number;
   storageTranscodedLimitBytes: number;
 }
+
+const TIME_ZONE_OPTIONS: SelectOption[] = IANA_TIME_ZONES.map((tz) => ({ value: tz, label: tz }));
 
 /**
  * Create/edit organisation form card. Seeds its field state once from the
@@ -20,89 +30,55 @@ export interface OrganisationFormPayload {
 @Component({
   selector: 'app-org-form',
   standalone: true,
-  imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    CardComponent,
+    CardHeadComponent,
+    BtnComponent,
+    SFieldComponent,
+    SInputComponent,
+    SelectComponent,
+  ],
   template: `
-    <div class="form-card">
-      <h2>{{ org() ? 'Edit Organisation' : 'Create Organisation' }}</h2>
-      <form (ngSubmit)="onSubmit()">
-        <div class="form-group">
-          <label for="name">Name</label>
-          <input
-            id="name"
-            type="text"
-            [(ngModel)]="name"
-            name="name"
-            required
-            placeholder="Organisation name"
+    <mns-card class="mb-8 block max-w-[40rem]">
+      <mns-card-head
+        [title]="org() ? 'Edit Organisation' : 'Create Organisation'"
+        icon="Building"
+      />
+      <div class="flex flex-col gap-4">
+        <mns-sfield label="Name">
+          <mns-sinput placeholder="Organisation name" [(value)]="name" />
+        </mns-sfield>
+
+        <mns-sfield label="Time Zone">
+          <mns-select
+            [options]="timeZoneOptions"
+            placeholder="Select a time zone"
+            [(value)]="timeZone"
           />
+        </mns-sfield>
+
+        <div class="grid grid-cols-2 gap-4">
+          <mns-sfield label="Original Storage Limit">
+            <mns-sinput type="number" [mono]="true" suffix="MB" [(value)]="storageOriginalMB" />
+          </mns-sfield>
+          <mns-sfield label="Transcoded Storage Limit">
+            <mns-sinput type="number" [mono]="true" suffix="MB" [(value)]="storageTranscodedMB" />
+          </mns-sfield>
         </div>
 
-        <div class="form-group">
-          <label for="timeZone">Time Zone</label>
-          <select id="timeZone" [(ngModel)]="timeZone" name="timeZone" required>
-            <option value="" disabled>Select a time zone</option>
-            @for (tz of timeZones; track tz) {
-              <option [value]="tz">{{ tz }}</option>
-            }
-          </select>
-        </div>
+        @if (localError() || error()) {
+          <p class="error text-offline text-sm">{{ localError() || error() }}</p>
+        }
 
-        <div class="form-row">
-          <div class="form-group">
-            <label for="storageOriginal">Original Storage Limit (MB)</label>
-            <input
-              id="storageOriginal"
-              type="number"
-              [(ngModel)]="storageOriginalMB"
-              name="storageOriginal"
-              required
-              min="0"
-            />
-          </div>
-          <div class="form-group">
-            <label for="storageTranscoded">Transcoded Storage Limit (MB)</label>
-            <input
-              id="storageTranscoded"
-              type="number"
-              [(ngModel)]="storageTranscodedMB"
-              name="storageTranscoded"
-              required
-              min="0"
-            />
-          </div>
-        </div>
-
-        <div class="form-actions">
-          <button type="button" class="btn btn-secondary" (click)="dismiss.emit()">Cancel</button>
-          <button type="submit" class="btn btn-primary" [disabled]="submitting()">
+        <div class="flex justify-end gap-2 mt-1">
+          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn variant="primary" [disabled]="submitting()" (mnsClick)="onSubmit()">
             {{ org() ? 'Save Changes' : 'Create' }}
-          </button>
+          </mns-btn>
         </div>
-      </form>
-      @if (localError() || error()) {
-        <p class="error">{{ localError() || error() }}</p>
-      }
-    </div>
-  `,
-  styles: `
-    .form-card {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
-      padding: 1.5rem;
-      margin-bottom: 2rem;
-      max-width: 40rem;
-    }
-    .form-card h2 {
-      margin: 0 0 1.25rem;
-      font-size: 1.125rem;
-      font-weight: 600;
-    }
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-    }
+      </div>
+    </mns-card>
   `,
 })
 export class OrgForm implements OnInit {
@@ -113,36 +89,38 @@ export class OrgForm implements OnInit {
   readonly save = output<OrganisationFormPayload>();
   readonly dismiss = output<void>();
 
-  protected readonly timeZones = IANA_TIME_ZONES;
+  protected readonly timeZoneOptions = TIME_ZONE_OPTIONS;
 
-  protected name = '';
-  protected timeZone = '';
-  protected storageOriginalMB = 0;
-  protected storageTranscodedMB = 0;
+  protected readonly name = signal('');
+  protected readonly timeZone = signal('');
+  protected readonly storageOriginalMB = signal('0');
+  protected readonly storageTranscodedMB = signal('0');
   protected readonly localError = signal('');
 
   ngOnInit(): void {
     const org = this.org();
     if (org) {
-      this.name = org.name;
-      this.timeZone = org.timeZone;
-      this.storageOriginalMB = Math.round(org.storageOriginalLimitBytes / (1024 * 1024));
-      this.storageTranscodedMB = Math.round(org.storageTranscodedLimitBytes / (1024 * 1024));
+      this.name.set(org.name);
+      this.timeZone.set(org.timeZone);
+      this.storageOriginalMB.set(String(Math.round(org.storageOriginalLimitBytes / (1024 * 1024))));
+      this.storageTranscodedMB.set(
+        String(Math.round(org.storageTranscodedLimitBytes / (1024 * 1024))),
+      );
     }
   }
 
   onSubmit(): void {
-    if (!this.name || !this.timeZone) {
+    if (!this.name() || !this.timeZone()) {
       this.localError.set('Name and time zone are required.');
       return;
     }
 
     this.localError.set('');
     this.save.emit({
-      name: this.name,
-      timeZone: this.timeZone,
-      storageOriginalLimitBytes: this.storageOriginalMB * 1024 * 1024,
-      storageTranscodedLimitBytes: this.storageTranscodedMB * 1024 * 1024,
+      name: this.name(),
+      timeZone: this.timeZone(),
+      storageOriginalLimitBytes: (Number(this.storageOriginalMB()) || 0) * 1024 * 1024,
+      storageTranscodedLimitBytes: (Number(this.storageTranscodedMB()) || 0) * 1024 * 1024,
     });
   }
 }

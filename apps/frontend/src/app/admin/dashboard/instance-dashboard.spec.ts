@@ -6,6 +6,7 @@ import { of, throwError } from 'rxjs';
 import { InstanceDashboard } from './instance-dashboard';
 import { InstanceAdminService } from './instance-admin.service';
 import { InstanceAdminSummary } from './instance-admin.model';
+import { OrganisationService } from '../organisations/organisation.service';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -32,11 +33,14 @@ describe('InstanceDashboard', () => {
   let fixture: ComponentFixture<InstanceDashboard>;
   const getSummary = vi.fn();
   const getSystemLoad = vi.fn();
+  const getAll = vi.fn();
 
   beforeEach(() => {
     getSummary.mockReset();
     getSystemLoad.mockReset();
+    getAll.mockReset();
     getSystemLoad.mockReturnValue(of({ cpu: [], ram: [], cores: 0, ramTotalGB: 0 }));
+    getAll.mockReturnValue(of([]));
   });
 
   async function setup(): Promise<void> {
@@ -46,6 +50,7 @@ describe('InstanceDashboard', () => {
         provideZonelessChangeDetection(),
         provideRouter([]),
         { provide: InstanceAdminService, useValue: { getSummary, getSystemLoad } },
+        { provide: OrganisationService, useValue: { getAll } },
       ],
     }).compileComponents();
 

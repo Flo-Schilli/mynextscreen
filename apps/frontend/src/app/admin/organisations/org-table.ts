@@ -1,133 +1,84 @@
-import { Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { Organisation } from './organisation.model';
 import { formatBytes } from '../../shared/format-bytes';
+import { CardComponent, BarComponent, AvatarComponent, BtnComponent } from '../../ui';
 
 /**
- * Presentational organisations list table. Renders one clickable row per org
- * with time zone, member count, original/transcoded storage usage (compact
- * progress bars vs. each limit) and created date; emits the selected org. The
- * parent owns data loading.
+ * Presentational organisations list. Renders one card-grid row per org with a
+ * gradient initial tile, member count, a combined storage bar (originals +
+ * transcoded vs. their limits) and created date, plus a "Manage" action that
+ * emits the selected org. The parent owns data loading.
  */
 @Component({
   selector: 'app-org-table',
   standalone: true,
-  imports: [DatePipe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [DatePipe, CardComponent, BarComponent, AvatarComponent, BtnComponent],
   template: `
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Time Zone</th>
-            <th>Members</th>
-            <th>Original</th>
-            <th>Transcoded</th>
-            <th>Created</th>
-          </tr>
-        </thead>
-        <tbody>
+    <mns-card [pad]="false" class="block overflow-hidden">
+      <div class="overflow-x-auto">
+        <div class="min-w-[760px]">
+          <!-- header row -->
+          <div
+            class="grid gap-4 px-[22px] py-[13px] bg-surface-2 border-b border-border"
+            [style.grid-template-columns]="cols"
+          >
+            @for (h of headers; track $index; let last = $last) {
+              <div
+                class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint"
+                [class.text-right]="last"
+              >
+                {{ h }}
+              </div>
+            }
+          </div>
+
+          <!-- rows -->
           @for (org of organisations(); track org.id) {
-            <tr class="clickable-row" (click)="selectOrg.emit(org)">
-              <td>{{ org.name }}</td>
-              <td>{{ org.timeZone }}</td>
-              <td>{{ memberCounts()[org.id] ?? '...' }}</td>
-              <td>
-                <div class="usage-cell">
-                  <span class="usage-text"
-                    >{{ formatBytes(org.storageOriginalUsedBytes) }} /
-                    {{ formatBytes(org.storageOriginalLimitBytes) }}</span
-                  >
-                  <div
-                    class="mini-bar"
-                    [class.warning]="
-                      isWarning(org.storageOriginalUsedBytes, org.storageOriginalLimitBytes)
-                    "
-                    [class.danger]="
-                      isDanger(org.storageOriginalUsedBytes, org.storageOriginalLimitBytes)
-                    "
-                  >
-                    <div
-                      class="mini-fill accent"
-                      [style.width.%]="
-                        percent(org.storageOriginalUsedBytes, org.storageOriginalLimitBytes)
-                      "
-                    ></div>
+            <div
+              class="grid gap-4 items-center px-[22px] py-[15px] border-t border-border hover:bg-hover transition-colors"
+              [style.grid-template-columns]="cols"
+            >
+              <!-- organisation -->
+              <div class="flex items-center gap-3 min-w-0">
+                <mns-avatar [name]="org.name" [size]="38" />
+                <div class="min-w-0">
+                  <div class="text-[14px] font-bold truncate">{{ org.name }}</div>
+                  <div class="mono text-[11.5px] text-faint mt-0.5 truncate">
+                    {{ org.timeZone }}
                   </div>
                 </div>
-              </td>
-              <td>
-                <div class="usage-cell">
-                  <span class="usage-text"
-                    >{{ formatBytes(org.storageTranscodedUsedBytes) }} /
-                    {{ formatBytes(org.storageTranscodedLimitBytes) }}</span
-                  >
-                  <div
-                    class="mini-bar"
-                    [class.warning]="
-                      isWarning(org.storageTranscodedUsedBytes, org.storageTranscodedLimitBytes)
-                    "
-                    [class.danger]="
-                      isDanger(org.storageTranscodedUsedBytes, org.storageTranscodedLimitBytes)
-                    "
-                  >
-                    <div
-                      class="mini-fill purple"
-                      [style.width.%]="
-                        percent(org.storageTranscodedUsedBytes, org.storageTranscodedLimitBytes)
-                      "
-                    ></div>
-                  </div>
+              </div>
+
+              <!-- users -->
+              <div class="mono text-[14px] font-semibold">{{ memberCountFor(org.id) }}</div>
+
+              <!-- storage (combined) -->
+              <div class="min-w-0">
+                <mns-bar [value]="storagePct(org)" color="var(--accent)" [h]="7" />
+                <div class="mono text-[11px] text-faint mt-[5px]">
+                  {{ formatBytes(usedOf(org)) }} / {{ formatBytes(limitOf(org)) }} ·
+                  {{ storagePct(org).toFixed(1) }}%
                 </div>
-              </td>
-              <td>{{ org.createdAt | date: 'mediumDate' }}</td>
-            </tr>
+              </div>
+
+              <!-- created -->
+              <div class="mono text-[12.5px] text-muted">
+                {{ org.createdAt | date: 'mediumDate' }}
+              </div>
+
+              <!-- actions -->
+              <div class="flex justify-end">
+                <mns-btn variant="outline" size="sm" icon="Eye" (mnsClick)="selectOrg.emit(org)">
+                  Manage
+                </mns-btn>
+              </div>
+            </div>
           }
-        </tbody>
-      </table>
-    </div>
-  `,
-  styles: `
-    tr:hover td {
-      background: var(--color-bg-tertiary);
-    }
-    .clickable-row {
-      cursor: pointer;
-    }
-    .usage-cell {
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-      min-width: 9rem;
-    }
-    .usage-text {
-      font-size: 0.75rem;
-      color: var(--color-text-secondary);
-      white-space: nowrap;
-    }
-    .mini-bar {
-      height: 6px;
-      background: var(--color-bg-tertiary);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .mini-fill {
-      height: 100%;
-      border-radius: 3px;
-      transition: width 0.3s ease;
-    }
-    .mini-fill.accent {
-      background: var(--color-accent);
-    }
-    .mini-fill.purple {
-      background: #8b5cf6;
-    }
-    .mini-bar.warning .mini-fill {
-      background: #f59e0b;
-    }
-    .mini-bar.danger .mini-fill {
-      background: #ef4444;
-    }
+        </div>
+      </div>
+    </mns-card>
   `,
 })
 export class OrgTable {
@@ -137,18 +88,25 @@ export class OrgTable {
   readonly selectOrg = output<Organisation>();
 
   protected readonly formatBytes = formatBytes;
+  protected readonly cols = '2.1fr 96px minmax(200px,1.4fr) 132px 110px';
+  protected readonly headers = ['Organisation', 'Users', 'Storage', 'Created', 'Actions'];
 
-  protected percent(used: number, limit: number): number {
+  protected memberCountFor(orgId: string): string {
+    const count = this.memberCounts()[orgId] as number | undefined;
+    return count === undefined ? '…' : String(count);
+  }
+
+  protected usedOf(org: Organisation): number {
+    return org.storageOriginalUsedBytes + org.storageTranscodedUsedBytes;
+  }
+
+  protected limitOf(org: Organisation): number {
+    return org.storageOriginalLimitBytes + org.storageTranscodedLimitBytes;
+  }
+
+  protected storagePct(org: Organisation): number {
+    const limit = this.limitOf(org);
     if (limit <= 0) return 0;
-    return Math.min((used / limit) * 100, 100);
-  }
-
-  protected isWarning(used: number, limit: number): boolean {
-    const p = this.percent(used, limit);
-    return p > 80 && p <= 95;
-  }
-
-  protected isDanger(used: number, limit: number): boolean {
-    return this.percent(used, limit) > 95;
+    return Math.min((this.usedOf(org) / limit) * 100, 100);
   }
 }

@@ -1,5 +1,6 @@
-import { Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { OrgMember } from './organisation.model';
+import { OverlayComponent, ModalComponent, BtnComponent } from '../../ui';
 
 /**
  * Remove-member confirmation modal. The parent performs the HTTP request and
@@ -8,35 +9,23 @@ import { OrgMember } from './organisation.model';
 @Component({
   selector: 'app-org-remove-member-modal',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [OverlayComponent, ModalComponent, BtnComponent],
   template: `
-    <div
-      class="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Confirm removal"
-      tabindex="0"
-      (click)="dismiss.emit()"
-      (keydown.escape)="dismiss.emit()"
-    >
-      <div
-        class="modal"
-        role="document"
-        (click)="$event.stopPropagation()"
-        (keydown)="$event.stopPropagation()"
-      >
-        <h2>Remove Member</h2>
-        <p>
+    <mns-overlay (closed)="dismiss.emit()">
+      <mns-modal title="Remove Member" icon="Trash" (closed)="dismiss.emit()">
+        <p class="text-sm text-muted leading-relaxed">
           Are you sure you want to remove
-          <strong>{{ member().user.email }}</strong> from this organisation?
+          <strong class="text-default">{{ member().user.email }}</strong> from this organisation?
         </p>
-        <div class="form-actions">
-          <button class="btn btn-secondary" (click)="dismiss.emit()">Cancel</button>
-          <button class="btn btn-danger" (click)="confirm.emit()" [disabled]="removing()">
-            {{ removing() ? 'Removing...' : 'Remove' }}
-          </button>
+        <div slot="footer" class="flex justify-end gap-2 px-6 pb-5 pt-1">
+          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn variant="danger" [disabled]="removing()" (mnsClick)="confirm.emit()">
+            {{ removing() ? 'Removing…' : 'Remove' }}
+          </mns-btn>
         </div>
-      </div>
-    </div>
+      </mns-modal>
+    </mns-overlay>
   `,
 })
 export class OrgRemoveMemberModal {
