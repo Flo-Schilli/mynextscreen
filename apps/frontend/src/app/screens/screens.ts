@@ -9,6 +9,7 @@ import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { ToastService } from '../shared/toast/toast.service';
+import { PublicConfigService } from '../shared/public-config.service';
 import {
   PageHeaderComponent,
   BtnComponent,
@@ -63,6 +64,7 @@ import {
           mode="create"
           [saving]="creating"
           [error]="createError"
+          [playerUrl]="configService.playerUrl()"
           (create)="submitCreate($event)"
           (dismiss)="cancelCreate()"
         />
@@ -159,6 +161,7 @@ export class Screens implements OnInit, OnDestroy {
   private router = inject(Router);
   private sseService = inject(DashboardSseService);
   private toast = inject(ToastService);
+  protected configService = inject(PublicConfigService);
   private subscriptions: Subscription[] = [];
 
   orgId = '';

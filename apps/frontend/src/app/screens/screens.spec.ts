@@ -12,6 +12,7 @@ import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
 import { ToastService, Toast } from '../shared/toast/toast.service';
+import { PublicConfigService } from '../shared/public-config.service';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -108,6 +109,12 @@ describe('Screens', () => {
         { provide: MemberService, useValue: memberStub },
         { provide: DashboardSseService, useValue: sseStub },
         { provide: Router, useValue: routerStub },
+        // Stub the config service so its constructor doesn't fire GET /api/config
+        // (which would trip httpMock.verify()).
+        {
+          provide: PublicConfigService,
+          useValue: { playerUrl: () => 'screen.mynextscreen.app', load: () => Promise.resolve() },
+        },
       ],
     });
 
