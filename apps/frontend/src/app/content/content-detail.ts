@@ -150,7 +150,6 @@ export interface MetadataUpdate {
       border: 1px solid var(--border-strong);
       border-radius: var(--r-xl, 16px);
       padding: 1.5rem;
-      max-width: 52rem;
       box-shadow: var(--shadow-lg);
     }
     .detail-header {
