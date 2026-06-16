@@ -60,6 +60,42 @@ function makeStorage(): StorageInfo {
   };
 }
 
+/**
+ * Builds a DragEvent carrying the given files and `dataTransfer.types`.
+ * jsdom has no DragEvent constructor, so we forge one off a plain Event.
+ */
+function makeDragEvent(opts: { files?: File[]; types?: string[]; type?: string } = {}): DragEvent {
+  const files = opts.files ?? [];
+  const event = new Event(opts.type ?? 'drag') as DragEvent;
+  const list = {
+    ...files,
+    length: files.length,
+    item: (i: number) => files[i],
+  } as unknown as FileList;
+  Object.defineProperty(event, 'dataTransfer', {
+    value: { files: list, types: opts.types ?? [] } as unknown as DataTransfer,
+  });
+  vi.spyOn(event, 'preventDefault');
+  return event;
+}
+
+/** Builds a change event whose target input carries the given files. */
+function makeFileInputEvent(files: File[]): Event {
+  const input = document.createElement('input');
+  input.type = 'file';
+  Object.defineProperty(input, 'files', {
+    value: {
+      ...files,
+      length: files.length,
+      item: (i: number) => files[i],
+    } as unknown as FileList,
+    configurable: true,
+  });
+  const event = new Event('change');
+  Object.defineProperty(event, 'target', { value: input });
+  return event;
+}
+
 const membership: MyMembership = {
   id: 'm1',
   userId: 'u1',
@@ -546,5 +582,197 @@ describe('ContentLibrary', () => {
     // Assert
     expect(lastToast()?.message).toContain('could not be found');
     expect(lastToast()?.type).toBe('info');
+  });
+
+  describe('page-wide drag & drop', () => {
+    it('shows the overlay on a file dragenter and prevents the default', () => {
+      // Arrange
+      const event = makeDragEvent({ types: ['Files'] });
+
+      // Act
+      component.onDragEnter(event);
+
+      // Assert
+      expect(component.isDragOver).toBe(true);
+      expect(event.preventDefault).toHaveBeenCalled();
+    });
+
+    it('ignores a non-file drag (e.g. selected text)', () => {
+      // Arrange
+      const event = makeDragEvent({ types: ['text/plain'] });
+
+      // Act
+      component.onDragEnter(event);
+
+      // Assert
+      expect(component.isDragOver).toBe(false);
+      expect(event.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it('keeps the overlay until the last nested dragleave resolves', () => {
+      // Arrange: cursor enters the page then a child element
+      component.onDragEnter(makeDragEvent({ types: ['Files'] }));
+      component.onDragEnter(makeDragEvent({ types: ['Files'] }));
+
+      // Act: leaving the child still leaves the page
+      component.onDragLeave(makeDragEvent());
+      // Assert
+      expect(component.isDragOver).toBe(true);
+
+      // Act: leaving the page itself
+      component.onDragLeave(makeDragEvent());
+      // Assert
+      expect(component.isDragOver).toBe(false);
+    });
+
+    it('does not let the leave counter underflow below zero', () => {
+      // Act: a stray leave with no matching enter
+      component.onDragLeave(makeDragEvent());
+      component.onDragEnter(makeDragEvent({ types: ['Files'] }));
+
+      // Assert: one enter still shows the overlay (counter was clamped at 0)
+      expect(component.isDragOver).toBe(true);
+    });
+
+    it('uploads dropped files and clears the overlay', () => {
+      // Arrange
+      const upload = vi.spyOn(component, 'uploadFiles').mockReturnValue(undefined);
+      const file = new File(['x'], 'dropped.png', { type: 'image/png' });
+      component.onDragEnter(makeDragEvent({ types: ['Files'] }));
+
+      // Act
+      const event = makeDragEvent({ files: [file], types: ['Files'] });
+      component.onDrop(event);
+
+      // Assert
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(component.isDragOver).toBe(false);
+      expect(upload).toHaveBeenCalledWith([file]);
+    });
+
+    it('ignores a drop that carries no files', () => {
+      // Arrange
+      const upload = vi.spyOn(component, 'uploadFiles').mockReturnValue(undefined);
+      component.onDragEnter(makeDragEvent({ types: ['Files'] }));
+
+      // Act
+      component.onDrop(makeDragEvent({ files: [], types: ['Files'] }));
+
+      // Assert
+      expect(component.isDragOver).toBe(false);
+      expect(upload).not.toHaveBeenCalled();
+    });
+
+    it('does not react to drag events while the detail view is open', () => {
+      // Arrange
+      const upload = vi.spyOn(component, 'uploadFiles').mockReturnValue(undefined);
+      component.selectedContent = makeContent();
+      const enter = makeDragEvent({ types: ['Files'] });
+      const drop = makeDragEvent({ files: [new File(['x'], 'd.png')], types: ['Files'] });
+
+      // Act
+      component.onDragEnter(enter);
+      component.onDrop(drop);
+
+      // Assert
+      expect(component.isDragOver).toBe(false);
+      expect(enter.preventDefault).not.toHaveBeenCalled();
+      expect(upload).not.toHaveBeenCalled();
+    });
+
+    it('uploads files picked via Browse and resets the input value', () => {
+      // Arrange
+      const upload = vi.spyOn(component, 'uploadFiles').mockReturnValue(undefined);
+      const file = new File(['x'], 'picked.png', { type: 'image/png' });
+      const event = makeFileInputEvent([file]);
+
+      // Act
+      component.onBrowse(event);
+
+      // Assert
+      expect(upload).toHaveBeenCalledWith([file]);
+      expect((event.target as HTMLInputElement).value).toBe('');
+    });
+
+    it('does nothing when Browse is dismissed without picking a file', () => {
+      // Arrange
+      const upload = vi.spyOn(component, 'uploadFiles').mockReturnValue(undefined);
+
+      // Act
+      component.onBrowse(makeFileInputEvent([]));
+
+      // Assert
+      expect(upload).not.toHaveBeenCalled();
+    });
+
+    /** Wires the host into a <main class="content"> and (re)binds the drop zone. */
+    function mountInsideContent(): HTMLElement {
+      const main = document.createElement('main');
+      main.className = 'content';
+      vi.spyOn(main, 'getBoundingClientRect').mockReturnValue({
+        top: 10,
+        left: 20,
+        width: 300,
+        height: 400,
+      } as DOMRect);
+      document.body.appendChild(main);
+      main.appendChild(fixture.nativeElement);
+      (component as unknown as { attachContentDropZone(): void }).attachContentDropZone();
+      return main;
+    }
+
+    it('binds drag handling to the main.content ancestor and sizes the overlay to it', () => {
+      // Arrange
+      const main = mountInsideContent();
+
+      // Act: a file drag entering the content area
+      main.dispatchEvent(makeDragEvent({ type: 'dragenter', types: ['Files'] }));
+
+      // Assert: overlay spans the whole content element, not the inner column
+      expect(component.isDragOver).toBe(true);
+      expect(component.overlayRect).toEqual({ top: 10, left: 20, width: 300, height: 400 });
+
+      // Act: leaving the content area
+      main.dispatchEvent(makeDragEvent({ type: 'dragleave' }));
+      // Assert
+      expect(component.isDragOver).toBe(false);
+
+      document.body.removeChild(main);
+    });
+
+    it('uploads a file dropped anywhere on the main.content ancestor', () => {
+      // Arrange
+      const upload = vi.spyOn(component, 'uploadFiles').mockReturnValue(undefined);
+      const main = mountInsideContent();
+      const file = new File(['x'], 'anywhere.png', { type: 'image/png' });
+
+      // Act
+      main.dispatchEvent(makeDragEvent({ type: 'drop', files: [file], types: ['Files'] }));
+
+      // Assert
+      expect(upload).toHaveBeenCalledWith([file]);
+      expect(component.isDragOver).toBe(false);
+
+      document.body.removeChild(main);
+    });
+
+    it('removes the content drag listeners on destroy', () => {
+      // Arrange
+      const upload = vi.spyOn(component, 'uploadFiles').mockReturnValue(undefined);
+      const main = mountInsideContent();
+
+      // Act
+      component.ngOnDestroy();
+      main.dispatchEvent(makeDragEvent({ type: 'dragenter', types: ['Files'] }));
+      main.dispatchEvent(
+        makeDragEvent({ type: 'drop', files: [new File(['x'], 'x.png')], types: ['Files'] }),
+      );
+
+      // Assert: listeners were torn down, so nothing reacts
+      expect(component.isDragOver).toBe(false);
+      expect(upload).not.toHaveBeenCalled();
+
+      document.body.removeChild(main);
+    });
   });
 });
