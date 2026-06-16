@@ -13,7 +13,7 @@ import { contents } from '../db/schema';
 import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
 import { StorageService } from '../organisation/storage.service';
-import { getTranscodedPath, getThumbnailPath } from './content-storage.util';
+import { getOriginalPath, getTranscodedPath, getThumbnailPath } from './content-storage.util';
 import { parseDuration, parseProgressTime, calculateProgress } from './ffmpeg-progress.util';
 import { ffprobeDuration } from './ffprobe-duration.util';
 import {
@@ -108,11 +108,15 @@ export class TranscodingProcessor extends WorkerHost {
       const stat = await fs.stat(outputPath);
       const transcodedSizeBytes = stat.size;
 
-      // Generate the thumbnail from the freshly transcoded file (best-effort).
+      // Generate the thumbnail (best-effort). Videos use the transcoded MP4 so the
+      // `thumbnail` filter can pick a representative frame; images use the ORIGINAL,
+      // because FFmpeg's native WebP decoder cannot read back an animated WebP we
+      // may have just produced from an animated source.
       const thumbnailPath = getThumbnailPath(this.mediaBasePath, organisationId, contentId);
+      const thumbnailSource = type === ContentType.Video ? outputPath : originalPath;
       const thumbnailSizeBytes = await this.generateThumbnailSafe(
         type,
-        outputPath,
+        thumbnailSource,
         thumbnailPath,
         contentId,
       );
@@ -262,24 +266,27 @@ export class TranscodingProcessor extends WorkerHost {
       return;
     }
 
-    const transcodedExt = content.type === ContentType.Video ? 'mp4' : 'webp';
-    const transcodedPath = getTranscodedPath(
-      this.mediaBasePath,
-      organisationId,
-      contentId,
-      transcodedExt,
-    );
+    // Videos derive the thumbnail from the transcoded MP4 (good representative
+    // frame); images use the ORIGINAL, since FFmpeg's native WebP decoder cannot
+    // read back an animated WebP produced from an animated source.
+    let thumbnailSource: string;
+    if (content.type === ContentType.Video) {
+      thumbnailSource = getTranscodedPath(this.mediaBasePath, organisationId, contentId, 'mp4');
+    } else {
+      const originalExt = path.extname(content.originalFilename).replace('.', '') || 'bin';
+      thumbnailSource = getOriginalPath(this.mediaBasePath, organisationId, contentId, originalExt);
+    }
     try {
-      await fs.access(transcodedPath);
+      await fs.access(thumbnailSource);
     } catch {
-      this.logger.warn(`Cannot backfill thumbnail for ${contentId}: transcoded file missing`);
+      this.logger.warn(`Cannot backfill thumbnail for ${contentId}: source file missing`);
       return;
     }
 
     const thumbnailPath = getThumbnailPath(this.mediaBasePath, organisationId, contentId);
     const thumbnailSizeBytes = await this.generateThumbnailSafe(
       content.type,
-      transcodedPath,
+      thumbnailSource,
       thumbnailPath,
       contentId,
     );
