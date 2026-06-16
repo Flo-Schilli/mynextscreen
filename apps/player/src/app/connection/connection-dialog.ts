@@ -32,6 +32,13 @@ const POLL_INTERVAL_MS = 3_000;
           <p class="subtitle">Enter this code in your dashboard → Add a screen.</p>
         </div>
 
+        @if (connectionService.reconnecting()) {
+          <div class="reconnecting" data-testid="reconnecting-notice">
+            <span class="spinner" aria-hidden="true"></span>
+            <span>Server unreachable — reconnecting automatically…</span>
+          </div>
+        }
+
         @if (connectionService.error()) {
           <div class="error">
             {{ connectionService.error() }}
@@ -178,6 +185,21 @@ const POLL_INTERVAL_MS = 3_000;
       border: 2px solid var(--track);
       border-top-color: var(--color-info);
       animation: spin 0.8s linear infinite;
+    }
+
+    .reconnecting {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      color: var(--text-muted);
+      background: var(--info-dim);
+      border: 1px solid rgb(59 130 246 / 0.2);
+      border-radius: var(--radius-sm);
+      margin-bottom: 16px;
+      text-align: center;
     }
 
     .error {
