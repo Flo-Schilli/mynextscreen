@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import {
   BtnComponent,
   OverlayComponent,
@@ -97,12 +97,15 @@ const PROTOCOLS: readonly LiveStreamProtocol[] = ['rtmp', 'rtp'];
         </div>
 
         <div slot="footer" class="flex gap-2.5 px-6 pb-5">
-          <mns-btn variant="outline" [full]="true" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn class="flex-1" variant="outline" [full]="true" (mnsClick)="dismiss.emit()"
+            >Cancel</mns-btn
+          >
           <mns-btn
+            class="flex-1"
             variant="primary"
             icon="Stream"
             [full]="true"
-            [disabled]="creating()"
+            [disabled]="creating() || !canSubmit()"
             (mnsClick)="onSubmit()"
           >
             {{ creating() ? 'Creating…' : 'Create stream' }}
@@ -176,6 +179,11 @@ export class LiveStreamCreateModal {
   protected readonly quality = signal<TranscodingPreset>('high_1080p');
   protected readonly audioEnabled = signal(true);
   protected readonly localError = signal('');
+
+  /** Both required fields filled — gates the submit button. */
+  protected readonly canSubmit = computed(
+    () => this.name().trim().length > 0 && this.sourceUrl().trim().length > 0,
+  );
 
   protected presetLabel(preset: TranscodingPreset): string {
     return TRANSCODING_PRESET_LABELS[preset] ?? preset;
