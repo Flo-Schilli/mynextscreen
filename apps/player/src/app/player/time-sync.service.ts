@@ -2,12 +2,12 @@ import { inject, Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { ConnectionService } from '../connection/connection.service';
-import { estimateOffset, median } from './time-sync.util';
+import { selectOffsetByMinRtt, type RoundTripSample } from './time-sync.util';
 
 /** Number of round-trip samples taken per synchronization pass. */
-const SAMPLE_COUNT = 5;
-/** How often the offset is refreshed to absorb slow clock drift. */
-const RESYNC_INTERVAL_MS = 5 * 60_000;
+const SAMPLE_COUNT = 9;
+/** How often the offset is refreshed to bound residual clock drift. */
+const RESYNC_INTERVAL_MS = 60_000;
 
 /**
  * Estimates and maintains the offset between the local clock and the server
@@ -48,26 +48,27 @@ export class TimeSyncService {
     }
   }
 
-  /** Take several samples against `/api/time` and adopt the median offset. */
+  /** Take several samples against `/api/time` and adopt the lowest-RTT offset. */
   async sync(samples = SAMPLE_COUNT): Promise<void> {
     const url = `${this.connection.serverUrl()}/api/time`;
-    const offsets: number[] = [];
+    const collected: RoundTripSample[] = [];
 
     for (let i = 0; i < samples; i++) {
       try {
-        const sentAt = Date.now();
+        const sentAtMs = Date.now();
         const res = await firstValueFrom(this.http.get<{ now: number }>(url));
-        const receivedAt = Date.now();
+        const receivedAtMs = Date.now();
         if (typeof res?.now === 'number') {
-          offsets.push(estimateOffset(res.now, sentAt, receivedAt));
+          collected.push({ serverTimeMs: res.now, sentAtMs, receivedAtMs });
         }
       } catch {
         // Ignore individual sample failures — a later pass will retry.
       }
     }
 
-    if (offsets.length > 0) {
-      this._offsetMs.set(median(offsets));
+    const offset = selectOffsetByMinRtt(collected);
+    if (offset !== null) {
+      this._offsetMs.set(offset);
       this._synced.set(true);
     }
   }

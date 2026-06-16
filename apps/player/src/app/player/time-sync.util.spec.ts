@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { estimateOffset, median } from './time-sync.util';
+import {
+  estimateOffset,
+  median,
+  selectOffsetByMinRtt,
+  type RoundTripSample,
+} from './time-sync.util';
 
 describe('median', () => {
   it('returns the middle value for an odd-length list', () => {
@@ -35,5 +40,26 @@ describe('estimateOffset', () => {
   it('compensates for round-trip latency via the midpoint assumption', () => {
     // rtt 200 → server stamp + 100 is the receipt-time server clock.
     expect(estimateOffset(2000, 5000, 5200)).toBe(2000 + 100 - 5200);
+  });
+});
+
+describe('selectOffsetByMinRtt', () => {
+  it('returns null for no samples', () => {
+    expect(selectOffsetByMinRtt([])).toBeNull();
+  });
+
+  it('picks the offset from the lowest-RTT sample, ignoring slow ones', () => {
+    const samples: RoundTripSample[] = [
+      // Slow first round trip (rtt 1000) — biased, must be ignored.
+      { serverTimeMs: 1000, sentAtMs: 0, receivedAtMs: 1000 },
+      // Fast round trip (rtt 20) — should win. Offset = 1600 + 10 - 1620 = -10.
+      { serverTimeMs: 1600, sentAtMs: 1600, receivedAtMs: 1620 },
+    ];
+    expect(selectOffsetByMinRtt(samples)).toBe(estimateOffset(1600, 1600, 1620));
+  });
+
+  it('uses the single sample when only one is present', () => {
+    const samples: RoundTripSample[] = [{ serverTimeMs: 500, sentAtMs: 100, receivedAtMs: 140 }];
+    expect(selectOffsetByMinRtt(samples)).toBe(estimateOffset(500, 100, 140));
   });
 });
