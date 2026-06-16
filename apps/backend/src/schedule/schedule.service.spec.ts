@@ -11,6 +11,7 @@ import {
   screenGroups,
   playlists,
   scheduleEntries,
+  sliceJobs,
   type Organisation,
   type Screen,
   type ScreenGroup,
@@ -20,6 +21,7 @@ import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { SCHEDULE_ENTRY_CHANGED, GROUP_SCHEDULE_CHANGED } from './schedule.event';
 import { AUDIT_SCHEDULE_DELETED } from '../audit-log/audit.events';
 import { SLICE_CONTENT_QUEUE, SliceEnqueueService, SliceStatusService } from '../slice-content';
+import { SliceStatus } from '../slice-content/slice-status.enum';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 
@@ -684,6 +686,69 @@ describe('ScheduleService', () => {
     it('should return null when the screen does not exist', async () => {
       const result = await service.getCurrentPlaylist('00000000-0000-0000-0000-000000000000');
       expect(result.playlist).toBeNull();
+      expect(result.isDefault).toBe(false);
+    });
+
+    it('should NOT switch a split group to a playlist whose slice job is not completed', async () => {
+      const org = await seedOrg();
+      const group = await seedGroup(org.id, { mode: ScreenGroupMode.Split });
+      const screen = await seedScreen(org.id, { groupId: group.id });
+      const groupPlaylist = await seedPlaylist(org.id, 'Group Playlist');
+      const now = Date.now();
+      await db.insert(scheduleEntries).values({
+        organisationId: org.id,
+        screenId: null,
+        groupId: group.id,
+        playlistId: groupPlaylist.id,
+        startTime: new Date(now - 60 * 60 * 1000),
+        endTime: new Date(now + 60 * 60 * 1000),
+        rrule: null,
+        colour: '#FF5733',
+      });
+      // Slicing still in progress → wall keeps previous content (fallback here).
+      await db.insert(sliceJobs).values({
+        organisationId: org.id,
+        groupId: group.id,
+        playlistId: groupPlaylist.id,
+        status: SliceStatus.Processing,
+        totalItems: 4,
+        completedItems: 1,
+      });
+
+      const result = await service.getCurrentPlaylist(screen.id);
+
+      expect(result.isDefault).toBe(true);
+      expect(result.playlist).toBeNull();
+    });
+
+    it('should switch a split group once its slice job is completed', async () => {
+      const org = await seedOrg();
+      const group = await seedGroup(org.id, { mode: ScreenGroupMode.Split });
+      const screen = await seedScreen(org.id, { groupId: group.id });
+      const groupPlaylist = await seedPlaylist(org.id, 'Group Playlist');
+      const now = Date.now();
+      await db.insert(scheduleEntries).values({
+        organisationId: org.id,
+        screenId: null,
+        groupId: group.id,
+        playlistId: groupPlaylist.id,
+        startTime: new Date(now - 60 * 60 * 1000),
+        endTime: new Date(now + 60 * 60 * 1000),
+        rrule: null,
+        colour: '#FF5733',
+      });
+      await db.insert(sliceJobs).values({
+        organisationId: org.id,
+        groupId: group.id,
+        playlistId: groupPlaylist.id,
+        status: SliceStatus.Completed,
+        totalItems: 4,
+        completedItems: 4,
+      });
+
+      const result = await service.getCurrentPlaylist(screen.id);
+
+      expect(result.playlist).toEqual(expect.objectContaining({ name: 'Group Playlist' }));
       expect(result.isDefault).toBe(false);
     });
   });

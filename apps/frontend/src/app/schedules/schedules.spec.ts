@@ -583,7 +583,7 @@ describe('Schedules', () => {
       expect(lastToast()?.type).toBe('success');
     });
 
-    it('creates a group-targeted entry and starts slice polling for a split group', async () => {
+    it('creates a group-targeted entry and opens the slice progress overlay for a split group', async () => {
       // Arrange
       await setUp();
       screenGroupStub.groups = [makeGroup({ id: 'g1', mode: 'split' })];
@@ -596,7 +596,9 @@ describe('Schedules', () => {
 
       // Assert
       expect(schedule.lastCreateDto?.groupId).toBe('g1');
-      expect(component.sliceProcessing).toBe(true);
+      expect(component.sliceModal).not.toBeNull();
+      expect(component.sliceModal?.groupId).toBe('g1');
+      expect(component.sliceModal?.status).toBe('queued');
     });
 
     it('maps a 409 conflict to an overlap error', async () => {
