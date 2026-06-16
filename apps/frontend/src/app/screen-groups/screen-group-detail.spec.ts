@@ -14,8 +14,6 @@ import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
-import { ContentService } from '../content/content.service';
-import { Content } from '../content/content.model';
 import { ToastService } from '../shared/toast/toast.service';
 
 const ORG_ID = 'org1';
@@ -25,6 +23,7 @@ function makeAssigned(overrides: Partial<ScreenGroupScreen> = {}): ScreenGroupSc
     id: 's1',
     name: 'Screen One',
     location: 'Lobby',
+    isOnline: false,
     groupId: 'g1',
     gridRow: 0,
     gridColumn: 0,
@@ -67,27 +66,6 @@ function makeScreen(overrides: Partial<Screen> = {}): Screen {
   };
 }
 
-function makeContent(overrides: Partial<Content> = {}): Content {
-  return {
-    id: 'c1',
-    organisationId: ORG_ID,
-    title: 'Promo',
-    description: null,
-    tags: [],
-    type: 'image',
-    originalFilename: 'promo.png',
-    originalMimeType: 'image/png',
-    originalSizeBytes: 100,
-    transcodedSizeBytes: null,
-    transcodingStatus: 'completed',
-    transcodingError: null,
-    durationSeconds: null,
-    createdAt: '2026-06-01T00:00:00Z',
-    updatedAt: '2026-06-01T00:00:00Z',
-    ...overrides,
-  };
-}
-
 function membership(role: MyMembership['role'], orgId: string): MyMembership {
   return { id: 'm', userId: 'u1', organisationId: orgId, role, createdAt: '2026-06-01T00:00:00Z' };
 }
@@ -115,20 +93,6 @@ class ScreenServiceStub {
   fail = false;
   getAll(): Observable<Screen[]> {
     return this.fail ? throwError(() => new Error('boom')) : of(this.screens);
-  }
-}
-
-class ContentServiceStub {
-  items: Content[] = [];
-  fail = false;
-  getAll(): Observable<Content[]> {
-    return this.fail ? throwError(() => new Error('boom')) : of(this.items);
-  }
-  getTranscodedUrl(id: string): string {
-    return `/transcoded/${id}`;
-  }
-  getOriginalUrl(id: string): string {
-    return `/original/${id}`;
   }
 }
 
@@ -184,7 +148,6 @@ describe('ScreenGroupDetail', () => {
   let component: ScreenGroupDetail;
   let member: MemberServiceStub;
   let screens: ScreenServiceStub;
-  let content: ContentServiceStub;
   let groupSvc: ScreenGroupServiceStub;
   let navigateSpy: ReturnType<typeof vi.fn>;
   let routeId: string | null;
@@ -200,7 +163,6 @@ describe('ScreenGroupDetail', () => {
   beforeEach(() => {
     member = new MemberServiceStub();
     screens = new ScreenServiceStub();
-    content = new ContentServiceStub();
     groupSvc = new ScreenGroupServiceStub();
     navigateSpy = vi.fn().mockResolvedValue(true);
     routeId = 'g1';
@@ -210,7 +172,6 @@ describe('ScreenGroupDetail', () => {
         provideZonelessChangeDetection(),
         { provide: MemberService, useValue: member },
         { provide: ScreenService, useValue: screens },
-        { provide: ContentService, useValue: content },
         { provide: ScreenGroupService, useValue: groupSvc },
         { provide: ToastService, useClass: ToastServiceStub },
         { provide: Router, useValue: { navigate: navigateSpy } },
@@ -372,12 +333,13 @@ describe('ScreenGroupDetail', () => {
     expect(navigateSpy).toHaveBeenCalledWith(['/screen-groups']);
   });
 
-  it('resolves a preview image url from completed content', async () => {
-    groupSvc.getOneResult = of(makeGroup());
-    content.items = [makeContent({ id: 'c1', type: 'image', transcodingStatus: 'completed' })];
+  it('renders the live preview from the group colour', async () => {
+    groupSvc.getOneResult = of(makeGroup({ color: '#ec4899' }));
     await setUp();
 
-    expect(component.previewImageUrl()).toBe('/transcoded/c1');
+    const preview = component.monitorContent();
+    expect(preview?.bg).toContain('#ec4899');
+    expect(preview?.bg).not.toContain('url(');
   });
 
   it('navigates back to the list', async () => {

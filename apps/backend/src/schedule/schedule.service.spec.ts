@@ -19,7 +19,7 @@ import {
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { SCHEDULE_ENTRY_CHANGED, GROUP_SCHEDULE_CHANGED } from './schedule.event';
 import { AUDIT_SCHEDULE_DELETED } from '../audit-log/audit.events';
-import { SLICE_CONTENT_QUEUE } from '../slice-content';
+import { SLICE_CONTENT_QUEUE, SliceEnqueueService, SliceStatusService } from '../slice-content';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 
@@ -44,6 +44,8 @@ describe('ScheduleService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ScheduleService,
+        SliceEnqueueService,
+        SliceStatusService,
         { provide: DRIZZLE, useValue: db },
         { provide: getQueueToken(SLICE_CONTENT_QUEUE), useValue: { add: queueAdd } },
         { provide: EventEmitter2, useValue: { emit } },
@@ -531,11 +533,12 @@ describe('ScheduleService', () => {
       const screen = await seedScreen(org.id);
       const playlist = await seedPlaylist(org.id, 'Active Playlist');
       const now = Date.now();
+      const startTime = new Date(now - 60 * 60 * 1000);
       await db.insert(scheduleEntries).values({
         organisationId: org.id,
         screenId: screen.id,
         playlistId: playlist.id,
-        startTime: new Date(now - 60 * 60 * 1000),
+        startTime,
         endTime: new Date(now + 60 * 60 * 1000),
         rrule: null,
         colour: '#FF5733',
@@ -545,6 +548,8 @@ describe('ScheduleService', () => {
 
       expect(result.playlist).toEqual(expect.objectContaining({ name: 'Active Playlist' }));
       expect(result.isDefault).toBe(false);
+      // Epoch anchors deterministic playback to the active occurrence start.
+      expect(result.epoch).toBe(startTime.getTime());
     });
 
     it('should return the fallback playlist when no entry is active', async () => {
@@ -571,6 +576,8 @@ describe('ScheduleService', () => {
 
       expect(result.isDefault).toBe(true);
       expect(result.playlist).toEqual(expect.objectContaining({ name: 'Default Playlist' }));
+      // Fallback playlist uses a fixed epoch so all group members align on the clock.
+      expect(result.epoch).toBe(0);
     });
 
     it('should return null playlist when no entries and no default', async () => {

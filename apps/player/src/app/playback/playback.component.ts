@@ -3,6 +3,7 @@ import {
   inject,
   signal,
   computed,
+  untracked,
   OnInit,
   OnDestroy,
   ElementRef,
@@ -11,40 +12,39 @@ import {
   NgZone,
 } from '@angular/core';
 import { PlayerService } from '../player/player.service';
+import { TimeSyncService } from '../player/time-sync.service';
 import { ConnectionService } from '../connection/connection.service';
 import { PlaylistItem } from '../player/player.models';
 import { PlaybackStateService } from './playback-state.service';
 import { StatusOverlayComponent } from './status-overlay.component';
 import { LiveStreamViewComponent } from './live-stream-view.component';
-import { GroupPlayViewComponent } from './group-play-view.component';
 import { resolveTransition, enterAnim, exitAnim, TransitionSpec } from './playback-transitions';
+import { computePosition } from './playlist-clock';
 
 type LayerId = 0 | 1;
 
 /**
  * Smart container + dual-layer transition engine for screen playback. Owns the
  * playlist sequencing, the two crossfading content layers, transition timing and
- * the playback mode selection. The live-stream (HLS) and split-mode group-play
- * modes are delegated to self-contained child views; the status overlay and
- * next-image preload stay inline.
+ * the playback mode selection. The live-stream (HLS) view is delegated to a
+ * self-contained child; the status overlay and next-image preload stay inline.
+ *
+ * Item timing is anchored to a shared epoch + the synchronized server clock
+ * (see {@link computePosition}), so every screen in a mirror/split group lands on
+ * the same item at the same moment and switches together — split groups run this
+ * exact same loop, just with per-screen sliced item URLs from the screen state.
  */
 @Component({
   selector: 'app-playback',
-  imports: [StatusOverlayComponent, LiveStreamViewComponent, GroupPlayViewComponent],
+  imports: [StatusOverlayComponent, LiveStreamViewComponent],
   template: `
     <div class="playback-container">
       @if (isLiveStreaming()) {
-        <app-live-stream-view [streamId]="liveStreamId()" />
+        <app-live-stream-view [streamId]="liveStreamId()" [showUnmute]="showUnmute()" />
       } @else if (isPending()) {
         <div class="no-content">
           <p class="text-text-muted text-lg">Preparing content…</p>
         </div>
-      } @else if (isSplitGroupPlay()) {
-        <app-group-play-view
-          [mediaUrl]="groupPlayMediaUrl()"
-          [contentType]="groupPlayContentType()"
-          (mediaError)="onMediaError($event)"
-        />
       } @else if (noContent()) {
         <div class="no-content">
           <img src="default-screen.png" class="default-screen-image" alt="" />
@@ -75,7 +75,6 @@ type LayerId = 0 | 1;
               muted
               playsinline
               (loadeddata)="onLayerVideoReady(0)"
-              (ended)="onLayerVideoEnded(0)"
               (error)="onMediaError($event)"
             ></video>
           }
@@ -106,13 +105,12 @@ type LayerId = 0 | 1;
               muted
               playsinline
               (loadeddata)="onLayerVideoReady(1)"
-              (ended)="onLayerVideoEnded(1)"
               (error)="onMediaError($event)"
             ></video>
           }
         </div>
 
-        @if (isMuted() && currentItem()?.type === 'video') {
+        @if (isMuted() && showUnmute() && currentItem()?.type === 'video') {
           <button class="unmute-overlay" (click)="unmute()" (keydown.enter)="unmute()">
             <span class="unmute-icon">🔇</span>
             <span class="text-sm">Click to unmute</span>
@@ -348,6 +346,7 @@ type LayerId = 0 | 1;
 })
 export class PlaybackComponent implements OnInit, OnDestroy {
   private readonly playerService = inject(PlayerService);
+  private readonly timeSync = inject(TimeSyncService);
   private readonly connectionService = inject(ConnectionService);
   private readonly playbackState = inject(PlaybackStateService);
   private readonly zone = inject(NgZone);
@@ -364,8 +363,6 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   private readonly _isTransitioning = signal(false);
   private readonly _initialLoad = signal(true);
   private readonly _isMuted = signal(true);
-  private readonly _groupPlayContentUrl = signal<string | null>(null);
-  private readonly _groupPlayContentType = signal<string>('image');
   private readonly _isPending = signal(false);
 
   private advanceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -373,9 +370,10 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   private destroyed = false;
   private _pendingTransition: TransitionSpec | null = null;
   private _isPendingImageLoad = false;
+  /** Offset (ms) to seek the active video to on first appearance after a clock re-anchor. */
+  private _pendingSeekOffsetMs = 0;
 
   readonly isMuted = this._isMuted.asReadonly();
-  readonly groupPlayContentType = this._groupPlayContentType.asReadonly();
   readonly isPending = this._isPending.asReadonly();
   readonly activeLayer = this._activeLayer.asReadonly();
   readonly isTransitioning = this._isTransitioning.asReadonly();
@@ -386,13 +384,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
   readonly isLiveStreaming = computed(() => this.playerService.isLiveStreaming());
   readonly liveStreamId = computed(() => this.playerService.activeLiveStream()?.id ?? null);
-  readonly isSplitGroupPlay = computed(() => this._groupPlayContentUrl() !== null);
-
-  readonly groupPlayMediaUrl = computed(() => {
-    const url = this._groupPlayContentUrl();
-    if (!url) return '';
-    return this.buildMediaUrl(url);
-  });
+  readonly showUnmute = computed(() => this.playerService.showUnmuteButton());
 
   readonly items = computed(() => {
     const playlist = this.playerService.activePlaylist();
@@ -442,49 +434,23 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   });
 
   constructor() {
-    // React to playlist changes — reset playback
+    // Re-anchor playback to the shared clock whenever the active playlist or the
+    // group epoch changes, and once the first clock sync completes (so a screen
+    // that started before its offset was known snaps onto the group timeline).
+    // `synced` flips true only once, so periodic re-syncs refresh the offset
+    // without re-initialising playback — ongoing drift is corrected because each
+    // scheduleAdvance() re-reads serverNow() for the next boundary.
     effect(() => {
-      const playlist = this.playerService.activePlaylist();
-      if (playlist) {
-        this._currentIndex.set(0);
-        this._activeLayer.set(0);
-        this._layer1Item.set(null);
-        this._layer0Anim.set('');
-        this._layer1Anim.set('');
-        this._isTransitioning.set(false);
-        this._initialLoad.set(true);
-        this._pendingTransition = null;
-        this._isPendingImageLoad = false;
-        this.clearAdvanceTimer();
-        this.clearTransitionTimer();
-
-        const firstItem = playlist.items?.[0] ?? null;
-        this._layer0Item.set(firstItem);
-      }
+      this.playerService.activePlaylist();
+      this.playerService.epoch();
+      this.timeSync.synced();
+      this.loadFromClock();
     });
 
     // Sync playback state for status overlay
     effect(() => {
       this.playbackState.setCurrentIndex(this._currentIndex());
       this.playbackState.setTotalItems(this.items().length);
-    });
-
-    // React to group_play events — display sliced content in split mode
-    effect(() => {
-      const event = this.playerService.groupPlayEvent();
-      if (event && this.playerService.isSplitMode()) {
-        this._isPending.set(false);
-        this._groupPlayContentUrl.set(event.contentUrl);
-        this._groupPlayContentType.set(event.contentType ?? 'image');
-      }
-    });
-
-    // React to pending events — show "preparing content" in split mode
-    effect(() => {
-      const event = this.playerService.pendingEvent();
-      if (event && this.playerService.isSplitMode()) {
-        this._isPending.set(true);
-      }
     });
   }
 
@@ -521,6 +487,10 @@ export class PlaybackComponent implements OnInit, OnDestroy {
       layer === 0 ? this.layer0Video()?.nativeElement : this.layer1Video()?.nativeElement;
     if (videoEl) {
       videoEl.muted = true;
+      // Late joiner: seek into the video so it lines up with the group timeline.
+      if (this._initialLoad() && layer === this._activeLayer() && this._pendingSeekOffsetMs > 0) {
+        videoEl.currentTime = this._pendingSeekOffsetMs / 1000;
+      }
       videoEl.play().catch((err: Error) => {
         console.warn(`[Playback] layer ${layer} play() rejected:`, err.message);
       });
@@ -530,11 +500,9 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     }
   }
 
-  onLayerVideoEnded(layer: LayerId): void {
-    if (layer === this._activeLayer() && !this._isTransitioning()) {
-      this.advance();
-    }
-  }
+  // Note: video advancing is driven by the deterministic boundary timer
+  // (scheduleAdvance), not the native `ended` event, so every group member
+  // switches at the same instant even if real video lengths differ slightly.
 
   onMediaError(event?: Event): void {
     const target = event?.target as HTMLVideoElement | HTMLImageElement | null;
@@ -572,17 +540,59 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     return `${serverUrl}${url}${separator}token=${apiKey}`;
   }
 
+  // ── Deterministic clock anchoring ──
+
+  /**
+   * Reset the layers to the item the shared clock says should be on screen now.
+   * Used on playlist/epoch change and on the first successful clock sync. Reads
+   * the clock untracked so this stays free of the periodic-resync offset signal.
+   */
+  private loadFromClock(): void {
+    this.clearAdvanceTimer();
+    this.clearTransitionTimer();
+    this._activeLayer.set(0);
+    this._layer1Item.set(null);
+    this._layer0Anim.set('');
+    this._layer1Anim.set('');
+    this._isTransitioning.set(false);
+    this._initialLoad.set(true);
+    this._pendingTransition = null;
+    this._isPendingImageLoad = false;
+
+    const items = this.items();
+    if (items.length === 0) {
+      this._currentIndex.set(0);
+      this._pendingSeekOffsetMs = 0;
+      this._layer0Item.set(null);
+      return;
+    }
+
+    const epoch = this.playerService.epoch();
+    const pos = untracked(() => computePosition(items, epoch, this.timeSync.serverNow()));
+    this._currentIndex.set(pos.index);
+    this._pendingSeekOffsetMs = items[pos.index]?.type === 'video' ? pos.offsetMs : 0;
+    this._layer0Item.set(items[pos.index] ?? null);
+  }
+
   // ── Playback scheduling ──
 
+  /**
+   * Schedule the next transition at the deterministic boundary derived from the
+   * shared epoch and synchronized clock (for both images and videos), so all
+   * group members switch together regardless of when each one started.
+   */
   private scheduleAdvance(): void {
     this.clearAdvanceTimer();
-    const item = this.currentItem();
-    if (!item || item.type === 'video') return;
+    const items = this.items();
+    if (items.length === 0) return;
 
-    const durationMs = (item.duration || 10) * 1000;
+    const pos = computePosition(items, this.playerService.epoch(), this.timeSync.serverNow());
+    if (!Number.isFinite(pos.nextBoundaryAtMs)) return;
+
+    const delay = Math.max(0, pos.nextBoundaryAtMs - this.timeSync.serverNow());
     this.advanceTimer = setTimeout(() => {
       this.zone.run(() => this.advance());
-    }, durationMs);
+    }, delay);
   }
 
   // ── Transitions ──
@@ -590,6 +600,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   private playInitialAppearance(): void {
     if (!this._initialLoad()) return;
     this._initialLoad.set(false);
+    this._pendingSeekOffsetMs = 0;
 
     const item = this.currentItem();
     const { type, duration } = resolveTransition(item);
@@ -616,6 +627,19 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     if (list.length === 0) return;
 
     const prevIndex = this._currentIndex();
+
+    // Self-heal: if the clock has moved well beyond the next item (e.g. a
+    // throttled background tab missed several boundaries), hard re-anchor to the
+    // clock instead of stepping by one and lagging the rest of the group.
+    if (list.length > 1) {
+      const pos = computePosition(list, this.playerService.epoch(), this.timeSync.serverNow());
+      const expected = (prevIndex + 1) % list.length;
+      if (pos.index !== prevIndex && pos.index !== expected) {
+        this.loadFromClock();
+        return;
+      }
+    }
+
     const nextIndex = (prevIndex + 1) % list.length;
     const isWrapping = nextIndex === prevIndex;
     const nextItem = list[nextIndex];

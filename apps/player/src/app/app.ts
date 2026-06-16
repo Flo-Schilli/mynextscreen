@@ -3,6 +3,7 @@ import { ConnectionService } from './connection/connection.service';
 import { ConnectionDialogComponent } from './connection/connection-dialog';
 import { DisconnectOverlayComponent } from './connection/disconnect-overlay';
 import { PlaybackComponent } from './playback/playback.component';
+import { PlayerService } from './player/player.service';
 
 @Component({
   selector: 'app-root',
@@ -11,7 +12,9 @@ import { PlaybackComponent } from './playback/playback.component';
     @if (!connectionService.connected()) {
       <app-connection-dialog />
     } @else {
-      <app-disconnect-overlay />
+      @if (playerService.showDisconnectButton()) {
+        <app-disconnect-overlay />
+      }
       <app-playback />
     }
   `,
@@ -27,6 +30,7 @@ import { PlaybackComponent } from './playback/playback.component';
 })
 export class App implements OnInit {
   readonly connectionService = inject(ConnectionService);
+  readonly playerService = inject(PlayerService);
 
   async ngOnInit(): Promise<void> {
     await this.connectionService.tryAutoConnect();

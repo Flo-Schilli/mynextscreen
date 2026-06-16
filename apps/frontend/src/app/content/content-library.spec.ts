@@ -3,7 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideZonelessChangeDetection } from '@angular/core';
 import { provideHttpClient, HttpEventType } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router, ParamMap, convertToParamMap } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { ContentLibrary } from './content-library';
 import { Content, StorageInfo } from './content.model';
@@ -42,6 +42,7 @@ function makeContent(overrides: Partial<Content> = {}): Content {
     originalMimeType: 'image/png',
     originalSizeBytes: 1000,
     transcodedSizeBytes: 500,
+    thumbnailSizeBytes: null,
     transcodingStatus: 'completed',
     transcodingError: null,
     durationSeconds: null,
@@ -60,6 +61,42 @@ function makeStorage(): StorageInfo {
   };
 }
 
+/**
+ * Builds a DragEvent carrying the given files and `dataTransfer.types`.
+ * jsdom has no DragEvent constructor, so we forge one off a plain Event.
+ */
+function makeDragEvent(opts: { files?: File[]; types?: string[]; type?: string } = {}): DragEvent {
+  const files = opts.files ?? [];
+  const event = new Event(opts.type ?? 'drag') as DragEvent;
+  const list = {
+    ...files,
+    length: files.length,
+    item: (i: number) => files[i],
+  } as unknown as FileList;
+  Object.defineProperty(event, 'dataTransfer', {
+    value: { files: list, types: opts.types ?? [] } as unknown as DataTransfer,
+  });
+  vi.spyOn(event, 'preventDefault');
+  return event;
+}
+
+/** Builds a change event whose target input carries the given files. */
+function makeFileInputEvent(files: File[]): Event {
+  const input = document.createElement('input');
+  input.type = 'file';
+  Object.defineProperty(input, 'files', {
+    value: {
+      ...files,
+      length: files.length,
+      item: (i: number) => files[i],
+    } as unknown as FileList,
+    configurable: true,
+  });
+  const event = new Event('change');
+  Object.defineProperty(event, 'target', { value: input });
+  return event;
+}
+
 const membership: MyMembership = {
   id: 'm1',
   userId: 'u1',
@@ -75,6 +112,7 @@ describe('ContentLibrary', () => {
   let memberService: { getMyMemberships: ReturnType<typeof vi.fn> };
   let playlistService: { getAll: ReturnType<typeof vi.fn> };
   let router: { navigate: ReturnType<typeof vi.fn> };
+  let paramMap$: Subject<ParamMap>;
   let sse: DashboardSseService;
   let toastService: ToastService;
 
@@ -100,6 +138,7 @@ describe('ContentLibrary', () => {
     memberService = { getMyMemberships: vi.fn().mockReturnValue(of([membership])) };
     playlistService = { getAll: vi.fn() };
     router = { navigate: vi.fn() };
+    paramMap$ = new Subject<ParamMap>();
     sse = makeSseStub();
 
     TestBed.configureTestingModule({
@@ -120,6 +159,7 @@ describe('ContentLibrary', () => {
         { provide: PlaylistService, useValue: playlistService },
         { provide: DashboardSseService, useValue: sse },
         { provide: Router, useValue: router },
+        { provide: ActivatedRoute, useValue: { paramMap: paramMap$.asObservable() } },
       ],
     });
 
@@ -263,7 +303,7 @@ describe('ContentLibrary', () => {
     ).toContain('/api/content/c2/file/original');
   });
 
-  it('selects and closes the detail view', () => {
+  it('selects and closes the detail view, syncing the URL', () => {
     // Arrange
     const item = makeContent();
     init([item]);
@@ -273,11 +313,85 @@ describe('ContentLibrary', () => {
     // Assert
     expect(component.selectedContent).toBe(item);
     expect(component.metadataSaved).toBe(false);
+    expect(router.navigate).toHaveBeenCalledWith(['/content', item.id]);
 
     // Act
     component.closeDetail();
     // Assert
     expect(component.selectedContent).toBeNull();
+    expect(router.navigate).toHaveBeenCalledWith(['/content']);
+  });
+
+  it('opens the detail view from a /content/:id deeplink', () => {
+    // Arrange
+    const item = makeContent({ id: 'deep-1' });
+    init([makeContent({ id: 'other' })]);
+
+    // Act — the router emits the deeplinked id
+    paramMap$.next(convertToParamMap({ id: 'deep-1' }));
+    httpMock.expectOne('/api/content/deep-1').flush(item);
+
+    // Assert
+    expect(component.selectedContent).toEqual(item);
+  });
+
+  it('clears the detail view when the id leaves the URL', () => {
+    // Arrange
+    const item = makeContent();
+    init([item]);
+    component.selectContent(item);
+
+    // Act — navigating back to /content emits an empty param map
+    paramMap$.next(convertToParamMap({}));
+
+    // Assert
+    expect(component.selectedContent).toBeNull();
+  });
+
+  it('skips the fetch when the deeplinked id is already open', () => {
+    // Arrange
+    const item = makeContent({ id: 'c1' });
+    init([item]);
+    component.selectContent(item);
+
+    // Act — the URL change for the click echoes back through the router
+    paramMap$.next(convertToParamMap({ id: 'c1' }));
+
+    // Assert — no extra GET /api/content/c1 is issued
+    httpMock.verify();
+    expect(component.selectedContent).toBe(item);
+  });
+
+  it('falls back to the list when a deeplinked id cannot be loaded', () => {
+    // Arrange
+    init([makeContent()]);
+
+    // Act
+    paramMap$.next(convertToParamMap({ id: 'missing' }));
+    httpMock
+      .expectOne('/api/content/missing')
+      .flush({ message: 'gone' }, { status: 404, statusText: 'Not Found' });
+
+    // Assert
+    expect(component.selectedContent).toBeNull();
+    expect(router.navigate).toHaveBeenCalledWith(['/content']);
+    expect(lastToast()?.type).toBe('error');
+  });
+
+  it('copies a shareable link for the open content', async () => {
+    // Arrange
+    const item = makeContent({ id: 'c1' });
+    init([item]);
+    component.selectContent(item);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+
+    // Act
+    await component.copyShareLink();
+
+    // Assert
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/content/c1`);
+    expect(lastToast()?.type).toBe('success');
   });
 
   it('saves metadata and updates the selected + list content', () => {
@@ -546,5 +660,197 @@ describe('ContentLibrary', () => {
     // Assert
     expect(lastToast()?.message).toContain('could not be found');
     expect(lastToast()?.type).toBe('info');
+  });
+
+  describe('page-wide drag & drop', () => {
+    it('shows the overlay on a file dragenter and prevents the default', () => {
+      // Arrange
+      const event = makeDragEvent({ types: ['Files'] });
+
+      // Act
+      component.onDragEnter(event);
+
+      // Assert
+      expect(component.isDragOver).toBe(true);
+      expect(event.preventDefault).toHaveBeenCalled();
+    });
+
+    it('ignores a non-file drag (e.g. selected text)', () => {
+      // Arrange
+      const event = makeDragEvent({ types: ['text/plain'] });
+
+      // Act
+      component.onDragEnter(event);
+
+      // Assert
+      expect(component.isDragOver).toBe(false);
+      expect(event.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it('keeps the overlay until the last nested dragleave resolves', () => {
+      // Arrange: cursor enters the page then a child element
+      component.onDragEnter(makeDragEvent({ types: ['Files'] }));
+      component.onDragEnter(makeDragEvent({ types: ['Files'] }));
+
+      // Act: leaving the child still leaves the page
+      component.onDragLeave(makeDragEvent());
+      // Assert
+      expect(component.isDragOver).toBe(true);
+
+      // Act: leaving the page itself
+      component.onDragLeave(makeDragEvent());
+      // Assert
+      expect(component.isDragOver).toBe(false);
+    });
+
+    it('does not let the leave counter underflow below zero', () => {
+      // Act: a stray leave with no matching enter
+      component.onDragLeave(makeDragEvent());
+      component.onDragEnter(makeDragEvent({ types: ['Files'] }));
+
+      // Assert: one enter still shows the overlay (counter was clamped at 0)
+      expect(component.isDragOver).toBe(true);
+    });
+
+    it('uploads dropped files and clears the overlay', () => {
+      // Arrange
+      const upload = vi.spyOn(component, 'uploadFiles').mockReturnValue(undefined);
+      const file = new File(['x'], 'dropped.png', { type: 'image/png' });
+      component.onDragEnter(makeDragEvent({ types: ['Files'] }));
+
+      // Act
+      const event = makeDragEvent({ files: [file], types: ['Files'] });
+      component.onDrop(event);
+
+      // Assert
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(component.isDragOver).toBe(false);
+      expect(upload).toHaveBeenCalledWith([file]);
+    });
+
+    it('ignores a drop that carries no files', () => {
+      // Arrange
+      const upload = vi.spyOn(component, 'uploadFiles').mockReturnValue(undefined);
+      component.onDragEnter(makeDragEvent({ types: ['Files'] }));
+
+      // Act
+      component.onDrop(makeDragEvent({ files: [], types: ['Files'] }));
+
+      // Assert
+      expect(component.isDragOver).toBe(false);
+      expect(upload).not.toHaveBeenCalled();
+    });
+
+    it('does not react to drag events while the detail view is open', () => {
+      // Arrange
+      const upload = vi.spyOn(component, 'uploadFiles').mockReturnValue(undefined);
+      component.selectedContent = makeContent();
+      const enter = makeDragEvent({ types: ['Files'] });
+      const drop = makeDragEvent({ files: [new File(['x'], 'd.png')], types: ['Files'] });
+
+      // Act
+      component.onDragEnter(enter);
+      component.onDrop(drop);
+
+      // Assert
+      expect(component.isDragOver).toBe(false);
+      expect(enter.preventDefault).not.toHaveBeenCalled();
+      expect(upload).not.toHaveBeenCalled();
+    });
+
+    it('uploads files picked via Browse and resets the input value', () => {
+      // Arrange
+      const upload = vi.spyOn(component, 'uploadFiles').mockReturnValue(undefined);
+      const file = new File(['x'], 'picked.png', { type: 'image/png' });
+      const event = makeFileInputEvent([file]);
+
+      // Act
+      component.onBrowse(event);
+
+      // Assert
+      expect(upload).toHaveBeenCalledWith([file]);
+      expect((event.target as HTMLInputElement).value).toBe('');
+    });
+
+    it('does nothing when Browse is dismissed without picking a file', () => {
+      // Arrange
+      const upload = vi.spyOn(component, 'uploadFiles').mockReturnValue(undefined);
+
+      // Act
+      component.onBrowse(makeFileInputEvent([]));
+
+      // Assert
+      expect(upload).not.toHaveBeenCalled();
+    });
+
+    /** Wires the host into a <main class="content"> and (re)binds the drop zone. */
+    function mountInsideContent(): HTMLElement {
+      const main = document.createElement('main');
+      main.className = 'content';
+      vi.spyOn(main, 'getBoundingClientRect').mockReturnValue({
+        top: 10,
+        left: 20,
+        width: 300,
+        height: 400,
+      } as DOMRect);
+      document.body.appendChild(main);
+      main.appendChild(fixture.nativeElement);
+      (component as unknown as { attachContentDropZone(): void }).attachContentDropZone();
+      return main;
+    }
+
+    it('binds drag handling to the main.content ancestor and sizes the overlay to it', () => {
+      // Arrange
+      const main = mountInsideContent();
+
+      // Act: a file drag entering the content area
+      main.dispatchEvent(makeDragEvent({ type: 'dragenter', types: ['Files'] }));
+
+      // Assert: overlay spans the whole content element, not the inner column
+      expect(component.isDragOver).toBe(true);
+      expect(component.overlayRect).toEqual({ top: 10, left: 20, width: 300, height: 400 });
+
+      // Act: leaving the content area
+      main.dispatchEvent(makeDragEvent({ type: 'dragleave' }));
+      // Assert
+      expect(component.isDragOver).toBe(false);
+
+      document.body.removeChild(main);
+    });
+
+    it('uploads a file dropped anywhere on the main.content ancestor', () => {
+      // Arrange
+      const upload = vi.spyOn(component, 'uploadFiles').mockReturnValue(undefined);
+      const main = mountInsideContent();
+      const file = new File(['x'], 'anywhere.png', { type: 'image/png' });
+
+      // Act
+      main.dispatchEvent(makeDragEvent({ type: 'drop', files: [file], types: ['Files'] }));
+
+      // Assert
+      expect(upload).toHaveBeenCalledWith([file]);
+      expect(component.isDragOver).toBe(false);
+
+      document.body.removeChild(main);
+    });
+
+    it('removes the content drag listeners on destroy', () => {
+      // Arrange
+      const upload = vi.spyOn(component, 'uploadFiles').mockReturnValue(undefined);
+      const main = mountInsideContent();
+
+      // Act
+      component.ngOnDestroy();
+      main.dispatchEvent(makeDragEvent({ type: 'dragenter', types: ['Files'] }));
+      main.dispatchEvent(
+        makeDragEvent({ type: 'drop', files: [new File(['x'], 'x.png')], types: ['Files'] }),
+      );
+
+      // Assert: listeners were torn down, so nothing reacts
+      expect(component.isDragOver).toBe(false);
+      expect(upload).not.toHaveBeenCalled();
+
+      document.body.removeChild(main);
+    });
   });
 });

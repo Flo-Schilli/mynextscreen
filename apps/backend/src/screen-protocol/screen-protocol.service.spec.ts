@@ -66,6 +66,7 @@ describe('ScreenProtocolService', () => {
       getCurrentPlaylist: jest.fn().mockResolvedValue({
         playlist: { id: playlistId, name: 'Test Playlist' },
         isDefault: false,
+        epoch: 1_700_000_000_000,
       }),
     };
 
@@ -153,7 +154,7 @@ describe('ScreenProtocolService', () => {
                 screenId: screen.id,
                 organisationId: orgId,
                 groupId: gid,
-                syncToken: expect.any(String),
+                epoch: 1_700_000_000_000,
                 currentPlaylist: { id: playlistId, name: 'Test Playlist' },
                 isDefault: false,
               }),
@@ -162,7 +163,7 @@ describe('ScreenProtocolService', () => {
         }
       });
 
-      it('should include syncToken in all events for synchronisation', async () => {
+      it('should include the same shared epoch in all events for synchronisation', async () => {
         const gid = await seedGroup(ScreenGroupMode.Mirror);
         await seedScreen(gid);
         await seedScreen(gid);
@@ -173,8 +174,8 @@ describe('ScreenProtocolService', () => {
 
         const call1 = screenStateService.pushEvent.mock.calls[0][1] as ScreenEvent;
         const call2 = screenStateService.pushEvent.mock.calls[1][1] as ScreenEvent;
-        expect(call1.payload['syncToken']).toBeDefined();
-        expect(call1.payload['syncToken']).toBe(call2.payload['syncToken']);
+        expect(call1.payload['epoch']).toBeDefined();
+        expect(call1.payload['epoch']).toBe(call2.payload['epoch']);
       });
 
       it('should include groupId in all events', async () => {
@@ -210,7 +211,7 @@ describe('ScreenProtocolService', () => {
               type: ScreenEventType.ScheduleUpdate,
               payload: expect.objectContaining({
                 groupId: gid,
-                syncToken: expect.any(String),
+                epoch: 1_700_000_000_000,
               }),
             }),
           );

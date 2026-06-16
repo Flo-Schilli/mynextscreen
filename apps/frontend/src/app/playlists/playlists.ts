@@ -1,4 +1,6 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { firstValueFrom } from 'rxjs';
 import { PlaylistService } from './playlist.service';
@@ -19,6 +21,7 @@ import { SelectionService } from '../shared/selection/selection.service';
 import { BulkAction } from '../shared/selection/bulk-action-toolbar';
 import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dialog';
 import { ToastService } from '../shared/toast/toast.service';
+import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
 import {
   PageHeaderComponent,
   BtnComponent,
@@ -90,12 +93,14 @@ import {
           [settingDefault]="settingDefault"
           [editorError]="editorError"
           [previewingItem]="previewingItem"
+          [reslicing]="selectedPlaylist.id === reslicingPlaylistId"
           [thumbUrl]="getThumbUrl"
           [previewUrl]="getPreviewUrl"
           (rename)="onRename($event)"
           (colorChange)="onColorChange($event)"
           (toggleDefault)="toggleDefault()"
           (deletePlaylist)="confirmDelete()"
+          (copyLink)="copyShareLink()"
           (dismiss)="closeDetail()"
           (addContent)="openAddContent()"
           (removeItem)="removeItem($event)"
@@ -216,6 +221,13 @@ export class Playlists implements OnInit {
   private organisationService = inject(OrganisationService);
   readonly selectionService = inject(SelectionService);
   private toast = inject(ToastService);
+  private router = inject(Router);
+  private route = inject(ActivatedRoute);
+  private destroyRef = inject(DestroyRef);
+  private sse = inject(DashboardSseService);
+
+  /** Playlist id currently loaded/loading — guards duplicate route-driven loads. */
+  private loadedDetailId: string | null = null;
 
   orgId = '';
   userRole = '';
@@ -235,6 +247,8 @@ export class Playlists implements OnInit {
   // Detail / editor
   selectedPlaylist: Playlist | null = null;
   editorError = '';
+  /** Playlist id whose split-group wall is currently (re)slicing, or null. */
+  reslicingPlaylistId: string | null = null;
 
   // Delete
   showDeleteConfirm = false;
@@ -290,6 +304,25 @@ export class Playlists implements OnInit {
 
   ngOnInit(): void {
     this.loadCurrentOrg();
+    this.subscribeToSlicing();
+  }
+
+  /**
+   * Reflects split-group wall (re)slicing of the open playlist as a transient
+   * "Re-rendering video wall…" badge. The durable, reload-safe view lives on the
+   * screen-group detail; here we only surface the live moment of an edit.
+   */
+  private subscribeToSlicing(): void {
+    this.sse.sliceProgress$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((event) => {
+      this.reslicingPlaylistId = event.data['playlistId'] as string;
+    });
+    const clear = (event: DashboardEvent): void => {
+      if (this.reslicingPlaylistId === event.data['playlistId']) {
+        this.reslicingPlaylistId = null;
+      }
+    };
+    this.sse.sliceComplete$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(clear);
+    this.sse.sliceFailed$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(clear);
   }
 
   private loadCurrentOrg(): void {
@@ -309,10 +342,44 @@ export class Playlists implements OnInit {
         }
         this.loadPlaylists();
         this.loadDefaultPlaylist();
+        this.watchRoute();
       },
       error: () => {
         this.loadError = 'Failed to load organisation context.';
         this.loading = false;
+      },
+    });
+  }
+
+  /**
+   * Keeps the open playlist in sync with the URL so `/playlists/:id` deeplinks
+   * (and browser back/forward) work and can be shared. Loads triggered from a
+   * card click are skipped here via {@link loadedDetailId} to avoid a double
+   * fetch.
+   */
+  private watchRoute(): void {
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const id = params.get('id');
+      if (id) {
+        if (id !== this.loadedDetailId) this.loadDetail(id);
+      } else {
+        this.loadedDetailId = null;
+        this.selectedPlaylist = null;
+        this.previewingItem = null;
+      }
+    });
+  }
+
+  private loadDetail(id: string): void {
+    this.editorError = '';
+    this.previewingItem = null;
+    this.loadedDetailId = id;
+    this.playlistService.getOne(this.orgId, id).subscribe({
+      next: (full) => {
+        this.selectedPlaylist = full;
+      },
+      error: () => {
+        this.editorError = 'Failed to load playlist details.';
       },
     });
   }
@@ -388,23 +455,29 @@ export class Playlists implements OnInit {
 
   // --- Detail ---
   selectPlaylist(playlist: Playlist): void {
-    this.editorError = '';
-    this.previewingItem = null;
-    // Reload full detail with items
-    this.playlistService.getOne(this.orgId, playlist.id).subscribe({
-      next: (full) => {
-        this.selectedPlaylist = full;
-      },
-      error: () => {
-        this.editorError = 'Failed to load playlist details.';
-      },
-    });
+    // Load immediately for a snappy click, then reflect it in the URL so the
+    // detail view can be bookmarked/shared. The route guard skips re-fetching.
+    this.loadDetail(playlist.id);
+    void this.router.navigate(['/playlists', playlist.id]);
+  }
+
+  async copyShareLink(): Promise<void> {
+    if (!this.selectedPlaylist) return;
+    const url = `${window.location.origin}/playlists/${this.selectedPlaylist.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      this.toast.success('Link copied to clipboard.');
+    } catch {
+      this.toast.error('Could not copy link.');
+    }
   }
 
   closeDetail(): void {
+    this.loadedDetailId = null;
     this.selectedPlaylist = null;
     this.previewingItem = null;
     this.loadPlaylists();
+    void this.router.navigate(['/playlists']);
   }
 
   // --- Rename ---
@@ -465,12 +538,16 @@ export class Playlists implements OnInit {
       next: () => {
         this.deleting = false;
         this.showDeleteConfirm = false;
+        const wasOpen = this.loadedDetailId === deletedId;
+        this.loadedDetailId = null;
         this.selectedPlaylist = null;
         this.previewingItem = null;
         if (this.defaultPlaylistId === deletedId) {
           this.defaultPlaylistId = null;
         }
         this.loadPlaylists();
+        // If the deleted playlist was the one open via deeplink, drop its id from the URL.
+        if (wasOpen) void this.router.navigate(['/playlists']);
         this.toast.success('Playlist deleted.');
       },
       error: (err) => {
@@ -560,8 +637,12 @@ export class Playlists implements OnInit {
   // --- Reorder ---
   onDrop(event: CdkDragDrop<PlaylistItem[]>): void {
     if (!this.selectedPlaylist || event.previousIndex === event.currentIndex) return;
-    moveItemInArray(this.selectedPlaylist.items, event.previousIndex, event.currentIndex);
-    const itemIds = this.selectedPlaylist.items.map((i) => i.id);
+    // Reorder on a fresh array + object reference so the OnPush editor and its
+    // loop preview pick up the new order (in-place mutation wouldn't emit).
+    const items = [...this.selectedPlaylist.items];
+    moveItemInArray(items, event.previousIndex, event.currentIndex);
+    this.selectedPlaylist = { ...this.selectedPlaylist, items };
+    const itemIds = items.map((i) => i.id);
     this.playlistService.reorderItems(this.orgId, this.selectedPlaylist.id, { itemIds }).subscribe({
       next: () => {
         this.toast.success('Playlist order saved.');
@@ -630,16 +711,24 @@ export class Playlists implements OnInit {
     });
   }
 
-  getThumbUrl = (item: PlaylistItem): string => {
-    return this.contentService.getTranscodedUrl(item.contentId);
+  /** Still-image thumbnail for sequence/strip tiles, or null to show a placeholder. */
+  getThumbUrl = (item: PlaylistItem): string | null => {
+    const c = item.content;
+    if (!c) return null;
+    return this.contentService.getStaticThumbnailUrl({
+      id: c.id,
+      type: c.type,
+      thumbnailSizeBytes: c.thumbnailSizeBytes,
+    });
   };
 
+  /** Full-resolution media URL for playback/large preview (loop preview, inline preview). */
   getPreviewUrl = (item: PlaylistItem): string => {
     return this.contentService.getTranscodedUrl(item.contentId);
   };
 
-  getContentThumbUrl = (content: Content): string => {
-    return this.contentService.getTranscodedUrl(content.id);
+  getContentThumbUrl = (content: Content): string | null => {
+    return this.contentService.getStaticThumbnailUrl(content);
   };
 
   // --- Bulk Delete ---

@@ -53,6 +53,7 @@ export class AuditScheduleEvent {
 export const AUDIT_SCREEN_REGISTERED = 'audit.screen.registered';
 export const AUDIT_SCREEN_UPDATED = 'audit.screen.updated';
 export const AUDIT_SCREEN_KEY_REGENERATED = 'audit.screen.key_regenerated';
+export const AUDIT_SCREEN_REFRESHED = 'audit.screen.refreshed';
 export const AUDIT_SCREEN_ONLINE = 'audit.screen.online';
 export const AUDIT_SCREEN_OFFLINE = 'audit.screen.offline';
 export const AUDIT_SCREEN_BULK_DELETED = 'audit.screen.bulk_deleted';

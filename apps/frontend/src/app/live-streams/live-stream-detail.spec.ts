@@ -69,6 +69,7 @@ function makeGroup(id: string, screenCount: number): ScreenGroup {
       id: `${id}-s${i}`,
       name: `s${i}`,
       location: '',
+      isOnline: false,
       groupId: id,
       gridRow: null,
       gridColumn: null,

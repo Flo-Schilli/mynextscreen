@@ -22,6 +22,8 @@ describe('JsonProtocolAdapter', () => {
     groupId: null,
     gridRow: null,
     gridColumn: null,
+    showUnmuteButton: true,
+    showDisconnectButton: true,
   };
 
   const playlistItem: PlaylistItem = {

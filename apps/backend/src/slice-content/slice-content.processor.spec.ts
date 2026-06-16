@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { SliceStatusService } from './slice-status.service';
 import { eq } from 'drizzle-orm';
 import { Job } from 'bullmq';
 import { SliceContentProcessor, SliceContentJobData } from './slice-content.processor';
@@ -130,7 +132,9 @@ describe('SliceContentProcessor', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SliceContentProcessor,
+        SliceStatusService,
         { provide: DRIZZLE, useValue: db },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         {
           provide: ConfigService,
           useValue: {

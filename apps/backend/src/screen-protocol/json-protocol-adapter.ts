@@ -8,6 +8,7 @@ export class JsonProtocolAdapter implements ScreenProtocolAdapter {
   renderState(state: ScreenState): Record<string, unknown> {
     return {
       screen: state.screen,
+      epoch: state.epoch,
       currentPlaylist: state.currentPlaylist
         ? {
             id: state.currentPlaylist.id,

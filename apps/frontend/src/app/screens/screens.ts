@@ -9,6 +9,7 @@ import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { ToastService } from '../shared/toast/toast.service';
+import { PublicConfigService } from '../shared/public-config.service';
 import {
   PageHeaderComponent,
   BtnComponent,
@@ -63,6 +64,7 @@ import {
           mode="create"
           [saving]="creating"
           [error]="createError"
+          [playerUrl]="configService.playerUrl()"
           (create)="submitCreate($event)"
           (dismiss)="cancelCreate()"
         />
@@ -76,8 +78,10 @@ import {
           [saving]="saving"
           [error]="editError"
           [repairing]="repairing"
+          [refreshing]="refreshing"
           (update)="submitEdit($event)"
           (repair)="submitRepair($event)"
+          (refresh)="submitRefresh()"
           (dismiss)="cancelEdit()"
         />
       }
@@ -157,6 +161,7 @@ export class Screens implements OnInit, OnDestroy {
   private router = inject(Router);
   private sseService = inject(DashboardSseService);
   private toast = inject(ToastService);
+  protected configService = inject(PublicConfigService);
   private subscriptions: Subscription[] = [];
 
   orgId = '';
@@ -178,6 +183,9 @@ export class Screens implements OnInit, OnDestroy {
 
   // Re-pair (inside the edit modal)
   repairing = false;
+
+  // Refresh player (inside the edit modal)
+  refreshing = false;
 
   // Single delete confirmation
   showDeleteConfirm = false;
@@ -331,6 +339,24 @@ export class Screens implements OnInit, OnDestroy {
       error: (err) => {
         this.actionError = err.error?.message || 'Failed to re-pair screen.';
         this.repairing = false;
+      },
+    });
+  }
+
+  // --- Refresh player ---
+  submitRefresh(): void {
+    if (!this.selectedScreen) return;
+
+    this.refreshing = true;
+    this.actionError = '';
+    this.screenService.refreshPlayer(this.orgId, this.selectedScreen.id).subscribe({
+      next: () => {
+        this.refreshing = false;
+        this.toast.success('Refresh sent. The player will reload shortly.');
+      },
+      error: (err) => {
+        this.actionError = err.error?.message || 'Failed to refresh player.';
+        this.refreshing = false;
       },
     });
   }

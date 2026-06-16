@@ -30,7 +30,6 @@ import {
   AuditPlaylistEvent,
 } from '../audit-log/audit.events';
 
-type PlaylistWithItems = Playlist & { items: PlaylistItem[] };
 type PlaylistWithItemsAndContent = Playlist & {
   items: (PlaylistItem & { content: Content })[];
 };
@@ -61,10 +60,15 @@ export class PlaylistService {
     return saved;
   }
 
-  async findAll(organisationId: string): Promise<PlaylistWithItems[]> {
+  async findAll(organisationId: string): Promise<PlaylistWithItemsAndContent[]> {
     return this.db.query.playlists.findMany({
       where: eq(playlists.organisationId, organisationId),
-      with: { items: true },
+      with: {
+        items: {
+          with: { content: true },
+          orderBy: asc(playlistItems.position),
+        },
+      },
       orderBy: asc(playlists.createdAt),
     });
   }

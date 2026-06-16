@@ -70,6 +70,7 @@ export interface WallAssignEvent {
                   [label]="cell.screen ? cell.screen.name : null"
                   [status]="cell.screen ? statusOf(cell.screen) : 'online'"
                   [empty]="!cell.screen"
+                  [square]="true"
                 >
                   <button
                     type="button"
@@ -175,8 +176,13 @@ export interface WallAssignEvent {
     }
     .split-grid {
       display: grid;
-      gap: 8px;
+      gap: 3px;
       width: 100%;
+      /* uniform thin bezels (gap + padding) framing the whole wall */
+      padding: 3px;
+      background: #000;
+      border-radius: 4px;
+      box-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.95);
     }
     .cell {
       position: relative;
@@ -187,7 +193,7 @@ export interface WallAssignEvent {
       border: none;
       background: transparent;
       cursor: pointer;
-      border-radius: 9px;
+      border-radius: 0;
       transition: box-shadow 0.15s;
       z-index: 2;
     }

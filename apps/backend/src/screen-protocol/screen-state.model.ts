@@ -37,6 +37,10 @@ export interface ScreenInfo {
   groupId: string | null;
   gridRow: number | null;
   gridColumn: number | null;
+  /** Show the "Click to unmute" overlay on the player. */
+  showUnmuteButton: boolean;
+  /** Show the "Disconnect" button on the player. */
+  showDisconnectButton: boolean;
 }
 
 export interface GroupInfo {
@@ -55,5 +59,10 @@ export class ScreenState {
     public readonly activeLiveStream: LiveStream | null,
     public readonly fallbackPlaylist: Playlist | null,
     public readonly group: GroupInfo | null = null,
+    /**
+     * Shared playback anchor (epoch ms) for the active playlist. Identical for
+     * every screen in a group so players compute the same deterministic position.
+     */
+    public readonly epoch: number = 0,
   ) {}
 }

@@ -206,4 +206,17 @@ describe('ContentController — CRUD endpoints', () => {
       ).rejects.toThrow(NotFoundException);
     });
   });
+
+  describe('serveThumbnail', () => {
+    it('scopes via findOne and throws NotFoundException when no thumbnail exists', async () => {
+      service.findOne.mockResolvedValue({ ...mockContent });
+
+      const res = { setHeader: jest.fn(), sendFile: jest.fn() };
+
+      await expect(
+        controller.serveThumbnail(orgId, contentId, res as unknown as import('express').Response),
+      ).rejects.toThrow(NotFoundException);
+      expect(service.findOne).toHaveBeenCalledWith(orgId, contentId);
+    });
+  });
 });

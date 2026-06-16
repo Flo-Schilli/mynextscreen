@@ -75,6 +75,8 @@ function makeScheduleEntry(overrides: Partial<ScheduleEntry> = {}): ScheduleEntr
     screenId: 'screen-1',
     groupId: null,
     playlistId: 'pl-1',
+    name: null,
+    priority: 'normal',
     startTime: new Date(now + 60 * 60 * 1000).toISOString(),
     endTime: new Date(now + 3 * 60 * 60 * 1000).toISOString(),
     rrule: null,

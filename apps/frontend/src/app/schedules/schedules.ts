@@ -4,6 +4,7 @@ import {
   ScheduleEntry,
   CreateScheduleEntryRequest,
   UpdateScheduleEntryRequest,
+  SchedulePriority,
   TargetOption,
 } from './schedule.model';
 import { ScreenService } from '../screens/screen.service';
@@ -124,6 +125,8 @@ const HOUR_HEIGHT = 60;
           [error]="modalError"
           [initialTargetId]="modalInitialTargetId"
           [initialPlaylistId]="modalInitialPlaylistId"
+          [initialName]="modalInitialName"
+          [initialPriority]="modalInitialPriority"
           [initialStart]="modalInitialStart"
           [initialEnd]="modalInitialEnd"
           [initialColour]="modalInitialColour"
@@ -223,6 +226,8 @@ export class Schedules implements OnInit, OnDestroy {
   submitting = false;
   modalInitialTargetId = '';
   modalInitialPlaylistId = '';
+  modalInitialName = '';
+  modalInitialPriority: SchedulePriority = 'normal';
   modalInitialStart = new Date();
   modalInitialEnd = new Date();
   modalInitialColour = PRESET_COLOURS[0];
@@ -534,6 +539,8 @@ export class Schedules implements OnInit, OnDestroy {
     this.editingEntry = null;
     this.modalInitialTargetId = this.selectedTargetId;
     this.modalInitialPlaylistId = this.playlists.length > 0 ? this.playlists[0].id : '';
+    this.modalInitialName = '';
+    this.modalInitialPriority = 'normal';
     this.modalInitialStart = start;
     this.modalInitialEnd = end;
     this.modalInitialColour = PRESET_COLOURS[Math.floor(Math.random() * PRESET_COLOURS.length)];
@@ -546,6 +553,8 @@ export class Schedules implements OnInit, OnDestroy {
   openEditModal(entry: ScheduleEntry): void {
     this.editingEntry = entry;
     this.modalInitialPlaylistId = entry.playlistId;
+    this.modalInitialName = entry.name ?? '';
+    this.modalInitialPriority = entry.priority;
     this.modalInitialStart = new Date(entry.startTime);
     this.modalInitialEnd = new Date(entry.endTime);
     this.modalInitialColour = entry.colour;
@@ -594,6 +603,8 @@ export class Schedules implements OnInit, OnDestroy {
     if (this.editingEntry) {
       const dto: UpdateScheduleEntryRequest = {
         playlistId: result.playlistId,
+        name: result.name ? result.name : null,
+        priority: result.priority,
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         rrule: rrule || null,
@@ -627,6 +638,8 @@ export class Schedules implements OnInit, OnDestroy {
 
       const dto: CreateScheduleEntryRequest = {
         playlistId: result.playlistId,
+        name: result.name || undefined,
+        priority: result.priority,
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         rrule: rrule || undefined,

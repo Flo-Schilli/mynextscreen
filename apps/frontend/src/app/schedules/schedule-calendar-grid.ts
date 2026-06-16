@@ -116,8 +116,7 @@ const NOW_TICK_MS = 60_000;
             }
           </div>
           <div
-            class="time-grid-body flex relative overflow-y-auto"
-            style="max-height: calc(100vh - 18rem)"
+            class="time-grid-body flex relative"
             (click)="onTimeGridClick($event)"
             (keydown.enter)="$event.preventDefault()"
             role="grid"
@@ -213,6 +212,15 @@ const NOW_TICK_MS = 60_000;
                               class="group-badge text-[9px] font-extrabold uppercase tracking-wide text-accent flex-shrink-0"
                               >Group</span
                             >
+                          }
+                          @if (isSlicePreparing(block.entry)) {
+                            <span class="flex-shrink-0" title="Preparing wall renditions…">
+                              <mns-icon name="Layers" [size]="11" class="text-warn animate-pulse" />
+                            </span>
+                          } @else if (block.entry.sliceStatus?.status === 'failed') {
+                            <span class="flex-shrink-0" title="Rendition pre-transcoding failed">
+                              <mns-icon name="Alert" [size]="11" class="text-offline" />
+                            </span>
                           }
                           @if (isOneOff(block) && !hasConflict(block)) {
                             <span
@@ -343,6 +351,12 @@ export class ScheduleCalendarGrid {
 
   getColour(entry: ScheduleEntry): string {
     return entry.colour || '#6d6cf6';
+  }
+
+  /** True while a split group's wall renditions for this entry are being prepared. */
+  isSlicePreparing(entry: ScheduleEntry): boolean {
+    const status = entry.sliceStatus?.status;
+    return status === 'queued' || status === 'processing';
   }
 
   blockBg(entry: ScheduleEntry): string {

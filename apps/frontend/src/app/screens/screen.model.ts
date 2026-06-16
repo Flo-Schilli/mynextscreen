@@ -9,16 +9,29 @@ export interface Screen {
   groupId: string | null;
   gridRow: number | null;
   gridColumn: number | null;
+  /** Show the "Click to unmute" overlay on the player (defaults to shown). */
+  showUnmuteButton?: boolean;
+  /** Show the "Disconnect" button on the player (defaults to shown). */
+  showDisconnectButton?: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
+/** Thumbnail reference for the first item of a screen's current playlist. */
+export interface PlaylistThumbnailRef {
+  contentId: string;
+  type: 'image' | 'video';
+  thumbnailSizeBytes: number | null;
+}
+
 /**
- * Screen as returned by `GET /api/screens` — enriched with the name of the
- * currently-playing playlist (null when offline or no active playlist).
+ * Screen as returned by `GET /api/screens` — enriched with the currently-playing
+ * playlist: its name and a thumbnail of its first item (both null when offline
+ * or no active playlist).
  */
 export interface ScreenListItem extends Screen {
   currentPlaylistName: string | null;
+  currentPlaylistThumbnail: PlaylistThumbnailRef | null;
 }
 
 export interface CreateScreenRequest {
@@ -33,6 +46,8 @@ export interface UpdateScreenRequest {
   name?: string;
   resolution?: string;
   location?: string;
+  showUnmuteButton?: boolean;
+  showDisconnectButton?: boolean;
 }
 
 export interface BulkDeleteResponse {

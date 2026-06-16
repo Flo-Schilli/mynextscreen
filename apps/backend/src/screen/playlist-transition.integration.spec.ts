@@ -52,6 +52,8 @@ describe('Playlist Transition Integration', () => {
       groupId: null,
       gridRow: null,
       gridColumn: null,
+      showUnmuteButton: true,
+      showDisconnectButton: true,
       ...overrides,
     };
   }

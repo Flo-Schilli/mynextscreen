@@ -81,7 +81,12 @@ export class OverlayComponent {
             <mns-icon [name]="icon()!" [size]="18" />
           </div>
         }
-        <h2 class="flex-1 text-base font-bold tracking-[-0.01em]">{{ title() }}</h2>
+        <div class="flex-1 min-w-0">
+          <h2 class="text-base font-bold tracking-[-0.01em] truncate">{{ title() }}</h2>
+          @if (sub()) {
+            <p class="text-[13px] text-muted truncate">{{ sub() }}</p>
+          }
+        </div>
         <button
           type="button"
           class="w-8 h-8 rounded-lg grid place-items-center text-muted transition-colors duration-[120ms] hover:bg-hover hover:text-text"
@@ -105,6 +110,8 @@ export class OverlayComponent {
 })
 export class ModalComponent {
   readonly title = input.required<string>();
+  /** Optional muted subtitle rendered under the title. */
+  readonly sub = input<string | undefined>(undefined);
   readonly icon = input<IconName | undefined>(undefined);
   /** Max width of the modal panel in px. Defaults to the standard 520. */
   readonly widthPx = input<number>(520);

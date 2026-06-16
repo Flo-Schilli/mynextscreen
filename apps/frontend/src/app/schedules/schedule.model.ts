@@ -1,4 +1,7 @@
-import { ScreenGroupMode } from '../screen-groups/screen-group.model';
+import { ScreenGroupMode, SliceJobStatus } from '../screen-groups/screen-group.model';
+
+/** Priority of a schedule entry; "high" wins when entries overlap. */
+export type SchedulePriority = 'normal' | 'high';
 
 export interface ScheduleEntry {
   id: string;
@@ -6,6 +9,8 @@ export interface ScheduleEntry {
   screenId: string | null;
   groupId: string | null;
   playlistId: string;
+  name: string | null;
+  priority: SchedulePriority;
   startTime: string;
   endTime: string;
   rrule: string | null;
@@ -25,12 +30,16 @@ export interface ScheduleEntry {
     name: string;
     mode: ScreenGroupMode;
   };
+  /** Split pre-transcoding status for group entries; null/absent when not slicing. */
+  sliceStatus?: SliceJobStatus | null;
 }
 
 export interface CreateScheduleEntryRequest {
   screenId?: string;
   groupId?: string;
   playlistId: string;
+  name?: string;
+  priority?: SchedulePriority;
   startTime: string;
   endTime: string;
   rrule?: string;
@@ -39,6 +48,8 @@ export interface CreateScheduleEntryRequest {
 
 export interface UpdateScheduleEntryRequest {
   playlistId?: string;
+  name?: string | null;
+  priority?: SchedulePriority;
   startTime?: string;
   endTime?: string;
   rrule?: string | null;

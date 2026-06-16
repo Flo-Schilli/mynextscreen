@@ -19,6 +19,8 @@ function makeEntry(overrides: Partial<ScheduleEntry> = {}): ScheduleEntry {
     screenId: 's1',
     groupId: null,
     playlistId: 'p1',
+    name: null,
+    priority: 'normal',
     startTime: '2026-06-10T09:00:00',
     endTime: '2026-06-10T10:00:00',
     rrule: null,

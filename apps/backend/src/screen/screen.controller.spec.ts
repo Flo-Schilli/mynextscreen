@@ -28,6 +28,8 @@ describe('ScreenController', () => {
     groupId: null,
     gridRow: null,
     gridColumn: null,
+    showUnmuteButton: true,
+    showDisconnectButton: true,
   };
 
   beforeEach(async () => {
@@ -38,6 +40,7 @@ describe('ScreenController', () => {
       findOne: jest.fn(),
       updateScreen: jest.fn(),
       repairScreen: jest.fn(),
+      refreshScreen: jest.fn(),
       recordHeartbeat: jest.fn(),
     };
 
@@ -120,6 +123,17 @@ describe('ScreenController', () => {
       expect(service.repairScreen).toHaveBeenCalledWith(orgId, screenId, '123456', userId);
       expect(result).toEqual(mockScreen);
       expect((result as unknown as Record<string, unknown>).apiKey).toBeUndefined();
+    });
+  });
+
+  describe('refresh', () => {
+    it('asks the service to refresh the screen and returns it', async () => {
+      service.refreshScreen.mockResolvedValue(mockScreen);
+
+      const result = await controller.refresh(orgId, screenId, userReq);
+
+      expect(service.refreshScreen).toHaveBeenCalledWith(orgId, screenId, userId);
+      expect(result).toEqual(mockScreen);
     });
   });
 

@@ -35,6 +35,10 @@ export interface ScreenInfo {
   groupId: string | null;
   gridRow: number | null;
   gridColumn: number | null;
+  /** Show the "Click to unmute" overlay (optional — defaults to shown). */
+  showUnmuteButton?: boolean;
+  /** Show the "Disconnect" button (optional — defaults to shown). */
+  showDisconnectButton?: boolean;
 }
 
 export interface GroupInfo {
@@ -52,6 +56,11 @@ export interface ScreenStateResponse {
   fallbackPlaylist: Playlist | null;
   liveStream: LiveStream | null;
   group: GroupInfo | null;
+  /**
+   * Shared playback anchor (epoch ms) for the active playlist — identical for
+   * every screen in a group, so deterministic positions stay in lockstep.
+   */
+  epoch: number;
 }
 
 export type ScreenEventType =
@@ -61,7 +70,9 @@ export type ScreenEventType =
   | 'live_stream_start'
   | 'live_stream_stop'
   | 'group_play'
-  | 'pending';
+  | 'pending'
+  | 'settings_update'
+  | 'refresh';
 
 export interface ScreenEvent {
   type: ScreenEventType;

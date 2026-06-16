@@ -98,7 +98,7 @@ describe('PlaylistGrid', () => {
     expect(text).toContain('1m 30s');
   });
 
-  it('emits selectItem when the Open button is clicked', () => {
+  it('emits selectItem when the card is clicked', () => {
     const playlist = buildPlaylist({ id: 'p1' });
     fixture.componentRef.setInput('playlists', [playlist]);
     fixture.componentRef.setInput('playlistIds', ['p1']);
@@ -106,36 +106,38 @@ describe('PlaylistGrid', () => {
 
     const spy = vi.fn();
     component.selectItem.subscribe(spy);
-    const openButtons = fixture.debugElement.queryAll(By.css('button'));
-    const openBtn = openButtons.find((b) =>
-      (b.nativeElement.textContent as string).includes('Open'),
-    );
-    openBtn!.triggerEventHandler('click', new MouseEvent('click'));
+    const card = fixture.debugElement.query(By.css('[role="button"]'));
+    card.triggerEventHandler('click', new MouseEvent('click'));
 
     expect(spy).toHaveBeenCalledWith(playlist);
   });
 
-  it('opens the dots menu and emits deletePlaylist', () => {
+  it('emits deletePlaylist from the trash button without opening', () => {
     const playlist = buildPlaylist({ id: 'p1' });
     fixture.componentRef.setInput('playlists', [playlist]);
     fixture.componentRef.setInput('playlistIds', ['p1']);
     fixture.detectChanges();
 
     const deleteSpy = vi.fn();
+    const selectSpy = vi.fn();
     component.deletePlaylist.subscribe(deleteSpy);
+    component.selectItem.subscribe(selectSpy);
 
-    const dotsBtn = fixture.debugElement.queryAll(By.css('button[title="Actions"]'))[0]
+    const trashBtn = fixture.debugElement.queryAll(By.css('button[aria-label^="Delete"]'))[0]
       .nativeElement as HTMLButtonElement;
-    dotsBtn.click();
+    trashBtn.click();
     fixture.detectChanges();
 
-    const menuButtons = fixture.debugElement.queryAll(By.css('button'));
-    const deleteItem = menuButtons.find((b) =>
-      (b.nativeElement.textContent as string).includes('Delete'),
-    );
-    deleteItem!.triggerEventHandler('click', new MouseEvent('click'));
-
     expect(deleteSpy).toHaveBeenCalledWith(playlist);
+    expect(selectSpy).not.toHaveBeenCalled();
+  });
+
+  it('renders no dots/actions menu', () => {
+    fixture.componentRef.setInput('playlists', [buildPlaylist({ id: 'p1' })]);
+    fixture.componentRef.setInput('playlistIds', ['p1']);
+    fixture.detectChanges();
+
+    expect(fixture.debugElement.queryAll(By.css('button[title="Actions"]')).length).toBe(0);
   });
 
   it('renders an empty grid when there are no playlists', () => {

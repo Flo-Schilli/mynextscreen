@@ -2,19 +2,25 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   inject,
   signal,
   OnInit,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ScreenGroupService } from './screen-group.service';
-import { ScreenGroup, ScreenGroupMode, UpdateScreenGroupRequest } from './screen-group.model';
+import {
+  ScreenGroup,
+  ScreenGroupMode,
+  SliceJobStatus,
+  UpdateScreenGroupRequest,
+} from './screen-group.model';
+import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
-import { ContentService } from '../content/content.service';
-import { Content } from '../content/content.model';
 import { ToastService } from '../shared/toast/toast.service';
 import {
   CardComponent,
@@ -116,6 +122,33 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
           <mns-card-head title="Live preview" [sub]="previewSub()" icon="Cast">
             <mns-badge slot="right" tone="neutral" icon="Image">{{ contentLabel() }}</mns-badge>
           </mns-card-head>
+
+          @if (g.mode === 'split' && sliceStatus(); as ss) {
+            @if (ss.status === 'queued' || ss.status === 'processing') {
+              <div class="mb-3 p-3 rounded-[12px] bg-surface-2 border border-border">
+                <div class="flex items-center gap-2 text-[13px] font-semibold text-muted mb-2">
+                  <mns-icon name="Layers" [size]="15" />
+                  Preparing video-wall renditions…
+                  <span class="mono"
+                    >{{ ss.completedItems }}/{{ ss.totalItems }} · {{ slicePct() }}%</span
+                  >
+                </div>
+                <div class="h-1.5 rounded-full bg-surface-3 overflow-hidden">
+                  <div
+                    class="h-full bg-accent transition-[width] duration-300"
+                    [style.width.%]="slicePct()"
+                  ></div>
+                </div>
+              </div>
+            } @else if (ss.status === 'failed') {
+              <div
+                class="mb-3 p-3 rounded-[12px] bg-surface-2 border border-offline/40 text-offline text-[13px] flex items-center gap-2"
+              >
+                <mns-icon name="Alert" [size]="15" />
+                Rendition pre-transcoding failed{{ ss.error ? ': ' + ss.error : '' }}
+              </div>
+            }
+          }
           <app-screen-group-wall
             [mode]="g.mode"
             [cols]="g.gridColumns ?? 1"
@@ -243,11 +276,14 @@ export class ScreenGroupDetail implements OnInit {
   private screenGroupService = inject(ScreenGroupService);
   private screenService = inject(ScreenService);
   private memberService = inject(MemberService);
-  private contentService = inject(ContentService);
   private toast = inject(ToastService);
+  private sse = inject(DashboardSseService);
+  private destroyRef = inject(DestroyRef);
 
   readonly orgId = signal('');
   readonly group = signal<ScreenGroup | null>(null);
+  /** Live split slicing status, seeded from the group and updated via SSE. */
+  readonly sliceStatus = signal<SliceJobStatus | null>(null);
   readonly loading = signal(true);
   readonly loadError = signal('');
   readonly actionError = signal('');
@@ -258,10 +294,6 @@ export class ScreenGroupDetail implements OnInit {
   // inline grid steppers (split mode)
   readonly cols = signal(2);
   readonly rows = signal(1);
-
-  // preview content source
-  readonly contentItems = signal<Content[]>([]);
-  readonly previewImageUrl = signal<string | null>(null);
 
   readonly gradient = computed(() => {
     const g = this.group();
@@ -287,9 +319,11 @@ export class ScreenGroupDetail implements OnInit {
   readonly monitorContent = computed<MonitorContent | null>(() => {
     const g = this.group();
     if (!g) return null;
-    const url = this.previewImageUrl();
+    // The preview shows the group's own colour, not arbitrary library content —
+    // a screen group has no single "current" content, so a real thumbnail would
+    // just be a misleading first-found pick layered under the group label.
     return {
-      bg: url ? `center / cover no-repeat url(${url})` : this.gradient(),
+      bg: this.gradient(),
       label: this.contentLabel(),
       type: 'image',
     };
@@ -322,6 +356,12 @@ export class ScreenGroupDetail implements OnInit {
   });
 
   readonly assignedCount = computed(() => this.placed().length);
+
+  readonly slicePct = computed(() => {
+    const ss = this.sliceStatus();
+    if (!ss || ss.totalItems <= 0) return 0;
+    return Math.round((ss.completedItems / ss.totalItems) * 100);
+  });
 
   readonly availableScreens = computed<Screen[]>(() => {
     const g = this.group();
@@ -382,6 +422,7 @@ export class ScreenGroupDetail implements OnInit {
   });
 
   ngOnInit(): void {
+    this.subscribeToSlicing();
     this.memberService.getMyMemberships().subscribe({
       next: (memberships: MyMembership[]) => {
         const m = memberships.find((x) => x.role === 'org_admin') ?? memberships[0];
@@ -389,7 +430,6 @@ export class ScreenGroupDetail implements OnInit {
           this.orgId.set(m.organisationId);
           this.loadGroup();
           this.loadAllScreens();
-          this.loadContentItems();
         } else {
           this.loadError.set('You are not a member of any organisation.');
           this.loading.set(false);
@@ -399,6 +439,54 @@ export class ScreenGroupDetail implements OnInit {
         this.loadError.set('Failed to load organisation context.');
         this.loading.set(false);
       },
+    });
+  }
+
+  /** Returns true if the SSE event targets the currently displayed group. */
+  private isForCurrentGroup(event: DashboardEvent): boolean {
+    return event.data['groupId'] === this.group()?.id;
+  }
+
+  private subscribeToSlicing(): void {
+    this.sse.sliceProgress$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((event) => {
+      if (!this.isForCurrentGroup(event)) return;
+      const d = event.data;
+      this.sliceStatus.set({
+        groupId: d['groupId'] as string,
+        playlistId: d['playlistId'] as string,
+        status: 'processing',
+        totalItems: (d['totalItems'] as number) ?? 0,
+        completedItems: (d['completedItems'] as number) ?? 0,
+        error: null,
+      });
+    });
+
+    this.sse.sliceComplete$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((event) => {
+      if (!this.isForCurrentGroup(event)) return;
+      const d = event.data;
+      const total = (d['totalItems'] as number) ?? 0;
+      this.sliceStatus.set({
+        groupId: d['groupId'] as string,
+        playlistId: d['playlistId'] as string,
+        status: 'completed',
+        totalItems: total,
+        completedItems: total,
+        error: null,
+      });
+    });
+
+    this.sse.sliceFailed$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((event) => {
+      if (!this.isForCurrentGroup(event)) return;
+      const d = event.data;
+      const prev = this.sliceStatus();
+      this.sliceStatus.set({
+        groupId: d['groupId'] as string,
+        playlistId: d['playlistId'] as string,
+        status: 'failed',
+        totalItems: prev?.totalItems ?? 0,
+        completedItems: prev?.completedItems ?? 0,
+        error: (d['error'] as string) ?? null,
+      });
     });
   }
 
@@ -423,6 +511,7 @@ export class ScreenGroupDetail implements OnInit {
     this.screenGroupService.getOne(this.orgId(), id).subscribe({
       next: (group) => {
         this.group.set(group);
+        this.sliceStatus.set(group.sliceStatus ?? null);
         this.cols.set(group.gridColumns ?? 2);
         this.rows.set(group.gridRows ?? 1);
         this.loading.set(false);
@@ -449,6 +538,7 @@ export class ScreenGroupDetail implements OnInit {
     this.screenGroupService.getOne(this.orgId(), g.id).subscribe({
       next: (group) => {
         this.group.set(group);
+        this.sliceStatus.set(group.sliceStatus ?? null);
         this.loadAllScreens();
       },
       error: () => this.actionError.set('Failed to refresh group data.'),
@@ -618,64 +708,6 @@ export class ScreenGroupDetail implements OnInit {
         this.actionError.set(err.error?.message || 'Failed to delete group.');
       },
     });
-  }
-
-  // --- Preview content ---
-  private loadContentItems(): void {
-    this.contentService.getAll(this.orgId()).subscribe({
-      next: (items) => {
-        this.contentItems.set(
-          items.filter(
-            (i) =>
-              i.transcodingStatus === 'completed' ||
-              (i.type === 'image' && i.transcodingStatus !== 'failed'),
-          ),
-        );
-        this.resolvePreview();
-      },
-      error: () => this.contentItems.set([]),
-    });
-  }
-
-  /** Pick the first available content item as the wall's preview source. */
-  private resolvePreview(): void {
-    const content = this.contentItems()[0];
-    if (!content) {
-      this.previewImageUrl.set(null);
-      return;
-    }
-    const url =
-      content.transcodingStatus === 'completed'
-        ? this.contentService.getTranscodedUrl(content.id)
-        : this.contentService.getOriginalUrl(content.id);
-
-    if (content.type === 'image') {
-      this.previewImageUrl.set(url);
-    } else {
-      this.extractVideoThumbnail(url);
-    }
-  }
-
-  private extractVideoThumbnail(url: string): void {
-    const video = document.createElement('video');
-    video.crossOrigin = 'anonymous';
-    video.muted = true;
-    video.preload = 'auto';
-    video.onloadeddata = () => {
-      video.currentTime = 0;
-    };
-    video.onseeked = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(video, 0, 0);
-        this.previewImageUrl.set(canvas.toDataURL('image/jpeg'));
-      }
-    };
-    video.onerror = () => this.previewImageUrl.set(url);
-    video.src = url;
   }
 
   goBack(): void {

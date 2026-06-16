@@ -2,9 +2,9 @@ import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, ParamMap } from '@angular/router';
 import { CdkDragDrop } from '@angular/cdk/drag-drop';
-import { of, throwError } from 'rxjs';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import { Playlists } from './playlists';
 import { Playlist, PlaylistItem } from './playlist.model';
 import { MemberService } from '../settings/users/member.service';
@@ -67,6 +67,7 @@ function buildContent(overrides: Partial<Content> = {}): Content {
     originalMimeType: 'image/png',
     originalSizeBytes: 100,
     transcodedSizeBytes: 50,
+    thumbnailSizeBytes: null,
     transcodingStatus: 'completed',
     transcodingError: null,
     durationSeconds: null,
@@ -103,6 +104,8 @@ interface OrgStub {
 interface ContentStub {
   getAll: ReturnType<typeof vi.fn>;
   getTranscodedUrl: ReturnType<typeof vi.fn>;
+  getThumbnailUrl: ReturnType<typeof vi.fn>;
+  getStaticThumbnailUrl: ReturnType<typeof vi.fn>;
 }
 interface ScreenStub {
   getAll: ReturnType<typeof vi.fn>;
@@ -118,6 +121,7 @@ describe('Playlists', () => {
   let screenStub: ScreenStub;
   let router: Router;
   let toastService: ToastService;
+  let routeParams$: BehaviorSubject<ParamMap>;
 
   function lastToast(): Toast | undefined {
     return toastService.toasts().at(-1);
@@ -129,8 +133,18 @@ describe('Playlists', () => {
     contentStub = {
       getAll: vi.fn(() => of([])),
       getTranscodedUrl: vi.fn((id: string) => `/media/${id}`),
+      getThumbnailUrl: vi.fn((id: string) => `/thumb/${id}`),
+      getStaticThumbnailUrl: vi.fn(
+        (ref: { id: string; type: string; thumbnailSizeBytes: number | null }) =>
+          ref.thumbnailSizeBytes != null
+            ? `/thumb/${ref.id}`
+            : ref.type === 'image'
+              ? `/media/${ref.id}`
+              : null,
+      ),
     };
     screenStub = { getAll: vi.fn(() => of([])) };
+    routeParams$ = new BehaviorSubject<ParamMap>(convertToParamMap({}));
 
     await TestBed.configureTestingModule({
       imports: [Playlists],
@@ -142,6 +156,7 @@ describe('Playlists', () => {
         { provide: OrganisationService, useValue: orgStub },
         { provide: ContentService, useValue: contentStub },
         { provide: ScreenService, useValue: screenStub },
+        { provide: ActivatedRoute, useValue: { paramMap: routeParams$.asObservable() } },
       ],
     }).compileComponents();
 
@@ -340,6 +355,21 @@ describe('Playlists', () => {
       httpMock.expectOne('/api/playlists').flush([]);
 
       expect(component.selectedPlaylist).toBeNull();
+    });
+
+    it('selectPlaylist reflects the open playlist in the URL', () => {
+      component.selectPlaylist(buildPlaylist({ id: 'p1' }));
+      httpMock.expectOne('/api/playlists/p1').flush(buildPlaylist({ id: 'p1' }));
+
+      expect(router.navigate).toHaveBeenCalledWith(['/playlists', 'p1']);
+    });
+
+    it('loads the playlist from a /playlists/:id deeplink', () => {
+      const full = buildPlaylist({ id: 'deep', items: [buildItem()] });
+      routeParams$.next(convertToParamMap({ id: 'deep' }));
+      httpMock.expectOne('/api/playlists/deep').flush(full);
+
+      expect(component.selectedPlaylist?.id).toBe('deep');
     });
   });
 
@@ -706,11 +736,42 @@ describe('Playlists', () => {
   describe('thumbnail url helpers', () => {
     beforeEach(() => init());
 
-    it('delegates thumb/preview urls to the content service', () => {
-      const item = buildItem({ contentId: 'cX' });
+    function itemWithContent(
+      contentId: string,
+      type: 'image' | 'video',
+      thumbnailSizeBytes: number | null,
+    ): PlaylistItem {
+      return buildItem({
+        contentId,
+        content: {
+          id: contentId,
+          title: 't',
+          type,
+          originalFilename: 'f',
+          transcodingStatus: 'completed',
+          durationSeconds: null,
+          thumbnailSizeBytes,
+        },
+      });
+    }
+
+    it('falls back to the transcoded frame for an image without a thumbnail', () => {
+      const item = itemWithContent('cX', 'image', null);
       expect(component.getThumbUrl(item)).toBe('/media/cX');
       expect(component.getPreviewUrl(item)).toBe('/media/cX');
       expect(component.getContentThumbUrl(buildContent({ id: 'cY' }))).toBe('/media/cY');
+    });
+
+    it('uses the precomputed thumbnail when one exists', () => {
+      expect(component.getThumbUrl(itemWithContent('cZ', 'video', 99))).toBe('/thumb/cZ');
+    });
+
+    it('returns null thumbnail for a video without a thumbnail', () => {
+      expect(component.getThumbUrl(itemWithContent('cV', 'video', null))).toBeNull();
+    });
+
+    it('returns null when the item has no embedded content', () => {
+      expect(component.getThumbUrl(buildItem({ contentId: 'c0' }))).toBeNull();
     });
   });
 

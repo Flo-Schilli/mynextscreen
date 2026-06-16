@@ -16,6 +16,14 @@ import {
   LIVE_STREAM_HEALTH_CHANGED,
   LiveStreamHealthChangedEvent,
 } from '../live-stream/stream-health.event';
+import {
+  SLICE_PROGRESS,
+  SLICE_COMPLETED,
+  SLICE_FAILED,
+  SliceProgressEvent,
+  SliceCompletedEvent,
+  SliceFailedEvent,
+} from '../slice-content/slice-content.event';
 
 export interface DashboardEventPayload {
   type: string;
@@ -159,6 +167,34 @@ export class DashboardSseService implements OnModuleDestroy {
   handleTranscodingFailed(event: TranscodingFailedEvent): void {
     this.emitToOrg(event.organisationId, 'transcoding.failed', {
       contentId: event.contentId,
+      error: event.error,
+    });
+  }
+
+  @OnEvent(SLICE_PROGRESS)
+  handleSliceProgress(event: SliceProgressEvent): void {
+    this.emitToOrg(event.organisationId, 'slice.progress', {
+      groupId: event.groupId,
+      playlistId: event.playlistId,
+      totalItems: event.totalItems,
+      completedItems: event.completedItems,
+    });
+  }
+
+  @OnEvent(SLICE_COMPLETED)
+  handleSliceCompleted(event: SliceCompletedEvent): void {
+    this.emitToOrg(event.organisationId, 'slice.complete', {
+      groupId: event.groupId,
+      playlistId: event.playlistId,
+      totalItems: event.totalItems,
+    });
+  }
+
+  @OnEvent(SLICE_FAILED)
+  handleSliceFailed(event: SliceFailedEvent): void {
+    this.emitToOrg(event.organisationId, 'slice.failed', {
+      groupId: event.groupId,
+      playlistId: event.playlistId,
       error: event.error,
     });
   }

@@ -55,6 +55,7 @@ export interface PlaylistItem {
     originalFilename: string;
     transcodingStatus: string;
     durationSeconds: number | null;
+    thumbnailSizeBytes: number | null;
   };
 }
 

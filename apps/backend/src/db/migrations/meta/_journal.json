@@ -78,6 +78,34 @@
       "when": 1781566808620,
       "tag": "0010_clever_timeslip",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781594946394,
+      "tag": "0011_oval_the_liberteens",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1781606519304,
+      "tag": "0012_rich_strong_guy",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1781610234537,
+      "tag": "0013_mysterious_giant_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1781621059106,
+      "tag": "0014_stormy_mole_man",
+      "breakpoints": true
     }
   ]
 }

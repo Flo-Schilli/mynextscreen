@@ -24,6 +24,7 @@ function makeContent(overrides: Partial<Content> = {}): Content {
     originalMimeType: 'image/png',
     originalSizeBytes: 1024,
     transcodedSizeBytes: null,
+    thumbnailSizeBytes: null,
     transcodingStatus: 'completed',
     transcodingError: null,
     durationSeconds: null,
@@ -54,7 +55,15 @@ describe('ContentGrid', () => {
     );
     fixture.componentRef.setInput('transcodingProgress', opts.progress ?? {});
     fixture.componentRef.setInput('bulkActions', opts.bulkActions ?? []);
-    fixture.componentRef.setInput('previewUrl', (c: Content) => `/preview/${c.id}`);
+    // Mirrors ContentService.getStaticThumbnailUrl: thumb when present, image
+    // falls back to the transcoded frame, video without a thumb gets null.
+    fixture.componentRef.setInput('thumbUrl', (c: Content) =>
+      c.thumbnailSizeBytes != null
+        ? `/thumb/${c.id}`
+        : c.type === 'image'
+          ? `/preview/${c.id}`
+          : null,
+    );
     fixture.detectChanges();
   }
 
@@ -79,7 +88,7 @@ describe('ContentGrid', () => {
     expect(firstMeta).toContain('1.0 KB');
   });
 
-  it('renders an image thumbnail for completed images using the previewUrl fn', () => {
+  it('renders an image thumbnail for completed images using the thumbUrl fn', () => {
     // Arrange / Act
     setUp({ items: [makeContent({ type: 'image', transcodingStatus: 'completed' })] });
 
@@ -89,7 +98,36 @@ describe('ContentGrid', () => {
     expect(img.getAttribute('src')).toBe('/preview/c1');
   });
 
-  it('renders the video placeholder for video items', () => {
+  it('renders a still thumbnail for a video that has a precomputed thumbnail', () => {
+    // Arrange / Act
+    setUp({
+      items: [
+        makeContent({ type: 'video', transcodingStatus: 'completed', thumbnailSizeBytes: 42 }),
+      ],
+    });
+
+    // Assert
+    const img: HTMLImageElement = fixture.nativeElement.querySelector('.thumb-img');
+    expect(img).not.toBeNull();
+    expect(img.getAttribute('src')).toBe('/thumb/c1');
+    // A play badge is overlaid on the video thumbnail.
+    expect(fixture.nativeElement.querySelector('.thumb-play-overlay')).not.toBeNull();
+  });
+
+  it('does not overlay a play badge on image thumbnails', () => {
+    // Arrange / Act
+    setUp({
+      items: [
+        makeContent({ type: 'image', transcodingStatus: 'completed', thumbnailSizeBytes: 42 }),
+      ],
+    });
+
+    // Assert
+    expect(fixture.nativeElement.querySelector('.thumb-img')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.thumb-play-overlay')).toBeNull();
+  });
+
+  it('renders the video placeholder for a video without a thumbnail', () => {
     // Arrange / Act
     setUp({ items: [makeContent({ type: 'video', transcodingStatus: 'completed' })] });
 

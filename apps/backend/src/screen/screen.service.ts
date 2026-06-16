@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable, Inject } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { and, eq, inArray, lt } from 'drizzle-orm';
+import { and, asc, eq, inArray, lt } from 'drizzle-orm';
 import { OrganisationScopedService } from '../organisation/organisation-scope.service';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
-import { screens, type Screen } from '../db/schema';
+import { playlistItems, screens, type Screen } from '../db/schema';
+import type { ContentType } from '../content/content-type.enum';
 import { CreateScreenDto } from './dto/create-screen.dto';
 import { UpdateScreenDto } from './dto/update-screen.dto';
 import { generateApiKey, hashApiKey } from './api-key.util';
@@ -12,9 +13,15 @@ import { ScreenPairingService } from './screen-pairing.service';
 import { ScheduleService } from '../schedule';
 import { ScreenStatusEvent, SCREEN_STATUS_CHANGED } from './screen-status.event';
 import {
+  SCREEN_SETTINGS_CHANGED,
+  SCREEN_REFRESH_REQUESTED,
+  ScreenStateChangeEvent,
+} from './screen-state.event';
+import {
   AUDIT_SCREEN_REGISTERED,
   AUDIT_SCREEN_UPDATED,
   AUDIT_SCREEN_KEY_REGENERATED,
+  AUDIT_SCREEN_REFRESHED,
   AUDIT_SCREEN_ONLINE,
   AUDIT_SCREEN_BULK_DELETED,
   AUDIT_SCREEN_BULK_GROUP_ASSIGNED,
@@ -31,8 +38,26 @@ function redactPairingCode(code: string): string {
   return `${code.slice(0, 2)}****`;
 }
 
-/** A screen enriched with the name of its currently-playing playlist. */
-export type ScreenWithPlaylist = Screen & { currentPlaylistName: string | null };
+/**
+ * The first (lowest-position) content item of a screen's current playlist,
+ * used to render a preview thumbnail on the screen card.
+ */
+export type PlaylistThumbnailRef = {
+  contentId: string;
+  type: ContentType;
+  /** Size of the precomputed thumbnail; null = none yet (fall back client-side). */
+  thumbnailSizeBytes: number | null;
+};
+
+/**
+ * A screen enriched with its currently-playing playlist: the playlist name and
+ * a thumbnail reference for the playlist's first item (both null when offline
+ * or when no playlist is active).
+ */
+export type ScreenWithPlaylist = Screen & {
+  currentPlaylistName: string | null;
+  currentPlaylistThumbnail: PlaylistThumbnailRef | null;
+};
 
 @Injectable()
 export class ScreenService extends OrganisationScopedService<Screen> {
@@ -91,13 +116,39 @@ export class ScreenService extends OrganisationScopedService<Screen> {
   }
 
   /**
-   * Update a screen's name, resolution, or location.
+   * Update a screen's name, resolution, location, or player UI toggles
+   * (show/hide unmute & disconnect). Pushes a settings refresh to the live
+   * screen so a connected player re-fetches its state immediately.
    */
   async updateScreen(organisationId: string, id: string, dto: UpdateScreenDto): Promise<Screen> {
     const screen = await this.update(organisationId, id, dto);
     this.eventEmitter.emit(
       AUDIT_SCREEN_UPDATED,
       new AuditScreenEvent(id, organisationId, null, null),
+    );
+    this.eventEmitter.emit(SCREEN_SETTINGS_CHANGED, new ScreenStateChangeEvent(id, organisationId));
+    return screen;
+  }
+
+  /**
+   * Ask a screen's player to reload itself (like hitting F5 in a browser).
+   * Validates the screen belongs to the org, then emits a refresh request that
+   * the SSE layer pushes to the connected player. No-op for an offline screen
+   * (the event simply has no listener), but still audited.
+   */
+  async refreshScreen(
+    organisationId: string,
+    id: string,
+    userId: string | null = null,
+  ): Promise<Screen> {
+    const screen = await this.findOne(organisationId, id);
+    this.eventEmitter.emit(
+      SCREEN_REFRESH_REQUESTED,
+      new ScreenStateChangeEvent(id, organisationId),
+    );
+    this.eventEmitter.emit(
+      AUDIT_SCREEN_REFRESHED,
+      new AuditScreenEvent(id, organisationId, userId, null),
     );
     return screen;
   }
@@ -147,25 +198,52 @@ export class ScreenService extends OrganisationScopedService<Screen> {
   }
 
   /**
-   * List all screens for the organisation, each enriched with the name of its
-   * currently-playing playlist. Only online screens are resolved (offline
-   * screens get `null` without a schedule query).
+   * List all screens for the organisation, each enriched with its currently-
+   * playing playlist name and a thumbnail of that playlist's first item. Only
+   * online screens are resolved (offline screens get `null` without a query).
    */
   async findAllWithPlaylist(organisationId: string): Promise<ScreenWithPlaylist[]> {
     const all = await this.findAll(organisationId);
     return Promise.all(
       all.map(async (screen) => {
         if (!screen.isOnline) {
-          return { ...screen, currentPlaylistName: null };
+          return { ...screen, currentPlaylistName: null, currentPlaylistThumbnail: null };
         }
         try {
           const { playlist } = await this.scheduleService.getCurrentPlaylist(screen.id);
-          return { ...screen, currentPlaylistName: playlist?.name ?? null };
+          if (!playlist) {
+            return { ...screen, currentPlaylistName: null, currentPlaylistThumbnail: null };
+          }
+          return {
+            ...screen,
+            currentPlaylistName: playlist.name,
+            currentPlaylistThumbnail: await this.loadFirstItemThumbnail(playlist.id),
+          };
         } catch {
-          return { ...screen, currentPlaylistName: null };
+          return { ...screen, currentPlaylistName: null, currentPlaylistThumbnail: null };
         }
       }),
     );
+  }
+
+  /**
+   * Load the first (lowest-position) content item of a playlist as a thumbnail
+   * reference for the screen card, or null when the playlist has no items.
+   */
+  private async loadFirstItemThumbnail(playlistId: string): Promise<PlaylistThumbnailRef | null> {
+    const item = await this.db.query.playlistItems.findFirst({
+      where: eq(playlistItems.playlistId, playlistId),
+      orderBy: asc(playlistItems.position),
+      with: { content: true },
+    });
+    if (!item?.content) {
+      return null;
+    }
+    return {
+      contentId: item.content.id,
+      type: item.content.type,
+      thumbnailSizeBytes: item.content.thumbnailSizeBytes,
+    };
   }
 
   /**

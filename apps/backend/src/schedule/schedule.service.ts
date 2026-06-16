@@ -5,9 +5,7 @@ import {
   BadRequestException,
   Inject,
 } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Queue } from 'bullmq';
 import { and, asc, eq } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
@@ -17,10 +15,11 @@ import {
   screens,
   playlists,
   screenGroups,
+  sliceJobs,
   type ScheduleEntry,
   type Playlist,
+  type SliceJob,
 } from '../db/schema';
-import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { CreateScheduleEntryDto } from './dto/create-schedule-entry.dto';
 import { UpdateScheduleEntryDto } from './dto/update-schedule-entry.dto';
 import { getOccurrences, DateRange } from './rrule.util';
@@ -36,17 +35,32 @@ import {
   AUDIT_SCHEDULE_DELETED,
   AuditScheduleEvent,
 } from '../audit-log/audit.events';
-import { SLICE_CONTENT_QUEUE } from '../slice-content';
-import { SliceContentJobData } from '../slice-content/slice-content.processor';
+import { SliceEnqueueService } from '../slice-content';
 
 const OVERLAP_WINDOW_DAYS = 365;
+
+/**
+ * Epoch used to anchor deterministic playback for the fallback/default playlist
+ * (no active schedule). A fixed value means every screen in a group computes the
+ * same modulo position purely from the synchronized clock.
+ */
+const FALLBACK_EPOCH = 0;
+
+/**
+ * Result of resolving the currently-active playlist for a screen, including the
+ * shared playback `epoch` (ms) that anchors synchronized transitions across a group.
+ */
+export interface CurrentPlaylistResult {
+  playlist: Playlist | null;
+  isDefault: boolean;
+  epoch: number;
+}
 
 @Injectable()
 export class ScheduleService {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
-    @InjectQueue(SLICE_CONTENT_QUEUE)
-    private readonly sliceContentQueue: Queue<SliceContentJobData>,
+    private readonly sliceEnqueue: SliceEnqueueService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -82,9 +96,11 @@ export class ScheduleService {
         screenId: dto.screenId ?? null,
         groupId: dto.groupId ?? null,
         playlistId: dto.playlistId,
+        name: dto.name?.trim() ? dto.name.trim() : null,
         startTime,
         endTime,
         rrule: dto.rrule ?? null,
+        ...(dto.priority !== undefined ? { priority: dto.priority } : {}),
         ...(dto.colour !== undefined ? { colour: dto.colour } : {}),
       })
       .returning();
@@ -136,6 +152,8 @@ export class ScheduleService {
 
     const updates: Partial<ScheduleEntry> = {};
     if (dto.playlistId !== undefined) updates.playlistId = dto.playlistId;
+    if (dto.name !== undefined) updates.name = dto.name?.trim() ? dto.name.trim() : null;
+    if (dto.priority !== undefined) updates.priority = dto.priority;
     if (dto.startTime !== undefined) updates.startTime = startTime;
     if (dto.endTime !== undefined) updates.endTime = endTime;
     if (dto.rrule !== undefined) updates.rrule = rrule ?? null;
@@ -204,17 +222,29 @@ export class ScheduleService {
     organisationId: string,
     _from: Date,
     _to: Date,
-  ): Promise<ScheduleEntry[]> {
-    return this.db.query.scheduleEntries.findMany({
+  ): Promise<(ScheduleEntry & { sliceStatus?: SliceJob | null })[]> {
+    const entries = await this.db.query.scheduleEntries.findMany({
       where: eq(scheduleEntries.organisationId, organisationId),
       with: { playlist: true, screen: true, group: true },
       orderBy: asc(scheduleEntries.startTime),
     });
+
+    // Attach split-group slicing status to each group entry so the calendar can
+    // badge "preparing renditions". Keyed by (groupId, playlistId).
+    const jobs = await this.db
+      .select()
+      .from(sliceJobs)
+      .where(eq(sliceJobs.organisationId, organisationId));
+    const byKey = new Map(jobs.map((j) => [`${j.groupId}:${j.playlistId}`, j]));
+
+    return entries.map((entry) =>
+      entry.groupId
+        ? { ...entry, sliceStatus: byKey.get(`${entry.groupId}:${entry.playlistId}`) ?? null }
+        : entry,
+    );
   }
 
-  async getCurrentPlaylist(
-    screenId: string,
-  ): Promise<{ playlist: Playlist | null; isDefault: boolean }> {
+  async getCurrentPlaylist(screenId: string): Promise<CurrentPlaylistResult> {
     const now = new Date();
 
     // Find all direct entries for this screen
@@ -235,7 +265,9 @@ export class ScheduleService {
 
       for (const occ of occurrences) {
         if (occ.start <= now && occ.end > now) {
-          return { playlist: entry.playlist, isDefault: false };
+          // Epoch = start of the active occurrence. Identical for every screen
+          // in a group, so all members compute the same playlist position.
+          return { playlist: entry.playlist, isDefault: false, epoch: occ.start.getTime() };
         }
       }
     }
@@ -243,7 +275,7 @@ export class ScheduleService {
     // No direct schedule active — check group schedule as fallback
     const [screen] = await this.db.select().from(screens).where(eq(screens.id, screenId)).limit(1);
     if (!screen) {
-      return { playlist: null, isDefault: false };
+      return { playlist: null, isDefault: false, epoch: FALLBACK_EPOCH };
     }
 
     if (screen.groupId) {
@@ -263,7 +295,7 @@ export class ScheduleService {
 
         for (const occ of occurrences) {
           if (occ.start <= now && occ.end > now) {
-            return { playlist: entry.playlist, isDefault: false };
+            return { playlist: entry.playlist, isDefault: false, epoch: occ.start.getTime() };
           }
         }
       }
@@ -389,23 +421,21 @@ export class ScheduleService {
     }
   }
 
-  private async getFallbackPlaylist(
-    organisationId: string,
-  ): Promise<{ playlist: Playlist | null; isDefault: boolean }> {
+  private async getFallbackPlaylist(organisationId: string): Promise<CurrentPlaylistResult> {
     const [org] = await this.db
       .select()
       .from(organisations)
       .where(eq(organisations.id, organisationId))
       .limit(1);
     if (!org?.defaultPlaylistId) {
-      return { playlist: null, isDefault: true };
+      return { playlist: null, isDefault: true, epoch: FALLBACK_EPOCH };
     }
     const [playlist] = await this.db
       .select()
       .from(playlists)
       .where(eq(playlists.id, org.defaultPlaylistId))
       .limit(1);
-    return { playlist: playlist ?? null, isDefault: true };
+    return { playlist: playlist ?? null, isDefault: true, epoch: FALLBACK_EPOCH };
   }
 
   private emitScheduleChanged(screenId: string, organisationId: string): void {
@@ -428,20 +458,11 @@ export class ScheduleService {
 
   private async enqueueSliceJobIfNeeded(entry: ScheduleEntry): Promise<void> {
     if (!entry.groupId) return;
-
-    const [group] = await this.db
-      .select()
-      .from(screenGroups)
-      .where(eq(screenGroups.id, entry.groupId))
-      .limit(1);
-
-    if (!group || group.mode !== ScreenGroupMode.Split) return;
-
-    await this.sliceContentQueue.add('slice', {
-      groupId: entry.groupId,
-      scheduleId: entry.id,
-      playlistId: entry.playlistId,
-      organisationId: entry.organisationId,
-    });
+    await this.sliceEnqueue.enqueueForGroup(
+      entry.organisationId,
+      entry.groupId,
+      entry.playlistId,
+      entry.id,
+    );
   }
 }

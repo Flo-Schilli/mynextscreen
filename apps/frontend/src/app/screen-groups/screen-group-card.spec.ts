@@ -4,7 +4,15 @@ import { ScreenGroupCard } from './screen-group-card';
 import { ScreenGroup, ScreenGroupScreen } from './screen-group.model';
 
 function makeScreen(id: string): ScreenGroupScreen {
-  return { id, name: `S${id}`, location: 'Hall', groupId: 'g1', gridRow: null, gridColumn: null };
+  return {
+    id,
+    name: `S${id}`,
+    location: 'Hall',
+    isOnline: false,
+    groupId: 'g1',
+    gridRow: null,
+    gridColumn: null,
+  };
 }
 
 function makeGroup(overrides: Partial<ScreenGroup> = {}): ScreenGroup {
@@ -74,14 +82,78 @@ describe('ScreenGroupCard', () => {
     expect(component.iconName()).toBe('Groups');
   });
 
-  it('shows two placeholders in the strip when there are no screens', async () => {
+  it('shows a "No screens" frame when the group is empty', async () => {
     await setUp(makeGroup({ screens: [] }));
-    expect(component.strip()).toEqual([null, null]);
+    expect(component.mirrorCount()).toBe(0);
+    expect(fixture.nativeElement.textContent).toContain('No screens');
   });
 
-  it('caps the preview strip at four screens', async () => {
+  it('caps the mirror stack at three layers', async () => {
     await setUp(makeGroup({ screens: Array.from({ length: 6 }, (_, i) => makeScreen(`s${i}`)) }));
-    expect(component.strip().length).toBe(4);
+    expect(component.mirrorCount()).toBe(3);
+    expect(component.mirrorLayers()).toEqual([0, 1, 2]);
+  });
+
+  it('marks split cells that hold a screen as assigned', async () => {
+    const at = (id: string, r: number, c: number, online = false): ScreenGroupScreen => ({
+      ...makeScreen(id),
+      isOnline: online,
+      gridRow: r,
+      gridColumn: c,
+    });
+    await setUp(
+      makeGroup({
+        mode: 'split',
+        gridColumns: 2,
+        gridRows: 2,
+        screens: [at('a', 0, 0, true), at('b', 1, 1)],
+      }),
+    );
+    // Row-major over the 2×2 grid: (0,0) and (1,1) are filled.
+    expect(component.splitCells().map((c) => c.assigned)).toEqual([true, false, false, true]);
+  });
+
+  it('exposes online status and panel numbers for split cells', async () => {
+    const at = (id: string, r: number, c: number, online: boolean): ScreenGroupScreen => ({
+      ...makeScreen(id),
+      isOnline: online,
+      gridRow: r,
+      gridColumn: c,
+    });
+    await setUp(
+      makeGroup({ mode: 'split', gridColumns: 2, gridRows: 1, screens: [at('a', 0, 0, true)] }),
+    );
+    const cells = component.splitCells();
+    expect(cells.map((c) => c.panel)).toEqual([1, 2]);
+    expect(cells[0].online).toBe(true);
+    expect(cells[1].assigned).toBe(false);
+  });
+
+  it('shows the full grid up to the 4×4 wall maximum', async () => {
+    await setUp(makeGroup({ mode: 'split', gridColumns: 4, gridRows: 4 }));
+    expect(component.displayCols()).toBe(4);
+    expect(component.displayRows()).toBe(4);
+    expect(component.splitCells().length).toBe(16);
+  });
+
+  it('caps an oversized grid at 4×4 and numbers panels by the full width', async () => {
+    // 6 real columns capped to 4 shown: row 1 still starts at the real panel 7.
+    await setUp(makeGroup({ mode: 'split', gridColumns: 6, gridRows: 2 }));
+    expect(component.displayCols()).toBe(4);
+    expect(component.displayRows()).toBe(2);
+    const cells = component.splitCells();
+    expect(cells.length).toBe(8);
+    expect(cells.map((c) => c.panel)).toEqual([1, 2, 3, 4, 7, 8, 9, 10]);
+  });
+
+  it('hides per-cell meta when the grid is too tall to read', async () => {
+    await setUp(makeGroup({ mode: 'split', gridColumns: 2, gridRows: 4 }));
+    expect(component.showCellMeta()).toBe(false);
+  });
+
+  it('shows per-cell meta for short grids', async () => {
+    await setUp(makeGroup({ mode: 'split', gridColumns: 4, gridRows: 2 }));
+    expect(component.showCellMeta()).toBe(true);
   });
 
   it('emits open with the group when clicked', async () => {
@@ -93,5 +165,19 @@ describe('ScreenGroupCard', () => {
     fixture.nativeElement.querySelector('[role="button"]').click();
 
     expect(opened).toBe(group);
+  });
+
+  it('emits delete from the trash button without opening', async () => {
+    const group = makeGroup();
+    await setUp(group);
+    let deleted: ScreenGroup | undefined;
+    let opened: ScreenGroup | undefined;
+    component.delete.subscribe((g) => (deleted = g));
+    component.open.subscribe((g) => (opened = g));
+
+    fixture.nativeElement.querySelector('button[aria-label^="Delete"]').click();
+
+    expect(deleted).toBe(group);
+    expect(opened).toBeUndefined();
   });
 });

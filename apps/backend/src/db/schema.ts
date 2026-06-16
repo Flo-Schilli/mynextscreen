@@ -42,12 +42,16 @@ import { TranscodingPreset } from '../live-stream/transcoding-preset.enum';
 import { NotificationEventType } from '../notification/notification-event-type.enum';
 import { TransitionType } from '../playlist/transition-type.enum';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
+import { SliceStatus } from '../slice-content/slice-status.enum';
 import { OrganisationRole } from '../user/organisation-role.enum';
 
 // ── Local literal-union types ────────────────────────────────────────────────
 
 /** Lifecycle of a 6-digit screen pairing. */
 export type ScreenPairingStatus = 'pending' | 'claimed' | 'consumed';
+
+/** Priority of a schedule entry; "high" wins when entries overlap. */
+export type SchedulePriority = 'normal' | 'high';
 
 // ── Shared column builders ───────────────────────────────────────────────────
 
@@ -171,6 +175,10 @@ export const screens = pgTable(
     groupId: uuid().references(() => screenGroups.id, { onDelete: 'set null' }),
     gridRow: integer(),
     gridColumn: integer(),
+    // Player UI toggles (pushed to the screen via screen state). Default on so
+    // existing screens keep the current behaviour until an admin opts out.
+    showUnmuteButton: boolean().notNull().default(true),
+    showDisconnectButton: boolean().notNull().default(true),
     ...timestamps,
   },
   (t) => [index('IDX_screens_api_key_hash').on(t.apiKeyHash)],
@@ -219,6 +227,9 @@ export const contents = pgTable('contents', {
   originalMimeType: text().notNull(),
   originalSizeBytes: bigint({ mode: 'number' }).notNull(),
   transcodedSizeBytes: bigint({ mode: 'number' }),
+  // Size of the precomputed thumbnail (small WebP). null = no thumbnail generated
+  // yet; its bytes are folded into the org's transcoded storage usage.
+  thumbnailSizeBytes: bigint({ mode: 'number' }),
   durationSeconds: integer(),
   transcodingStatus: text().$type<TranscodingStatus>().notNull().default(TranscodingStatus.Pending),
   transcodingError: text(),
@@ -269,6 +280,8 @@ export const scheduleEntries = pgTable('schedule_entries', {
   playlistId: uuid()
     .notNull()
     .references(() => playlists.id, { onDelete: 'cascade' }),
+  name: text(),
+  priority: text().$type<SchedulePriority>().notNull().default('normal'),
   startTime: timestamp({ withTimezone: true }).notNull(),
   endTime: timestamp({ withTimezone: true }).notNull(),
   rrule: text(),
@@ -613,6 +626,41 @@ export type NewAuditEntry = typeof auditEntries.$inferInsert;
 
 export type SlicedRendition = typeof slicedRenditions.$inferSelect;
 export type NewSlicedRendition = typeof slicedRenditions.$inferInsert;
+
+/**
+ * Durable status of a split-group pre-transcoding (slicing) run, keyed by
+ * (groupId, playlistId). One row per pair — re-enqueues are last-write-wins. The
+ * frontend reads this for a reload-safe view of "is this wall's content ready?"
+ * and overlays live SSE `slice.*` events on top. Progress % is derived from
+ * `completedItems / totalItems` (no redundant column).
+ */
+export const sliceJobs = pgTable(
+  'slice_jobs',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    groupId: uuid()
+      .notNull()
+      .references(() => screenGroups.id, { onDelete: 'cascade' }),
+    playlistId: uuid()
+      .notNull()
+      .references(() => playlists.id, { onDelete: 'cascade' }),
+    status: text().$type<SliceStatus>().notNull().default(SliceStatus.Queued),
+    // Total slice operations to perform = playlist items × screens in the group.
+    totalItems: integer().notNull().default(0),
+    completedItems: integer().notNull().default(0),
+    error: text(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('UQ_slice_jobs_group_playlist').on(t.groupId, t.playlistId)],
+);
+
+export type SliceJob = typeof sliceJobs.$inferSelect;
+export type NewSliceJob = typeof sliceJobs.$inferInsert;
 
 export type OrgMetricSnapshot = typeof orgMetricSnapshots.$inferSelect;
 export type NewOrgMetricSnapshot = typeof orgMetricSnapshots.$inferInsert;

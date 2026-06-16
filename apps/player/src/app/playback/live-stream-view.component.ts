@@ -32,7 +32,7 @@ import { PlaybackStateService } from './playback-state.service';
       }
     </div>
 
-    @if (isMuted()) {
+    @if (isMuted() && showUnmute()) {
       <button class="unmute-overlay" (click)="unmute()" (keydown.enter)="unmute()">
         <span class="unmute-icon">🔇</span>
         <span class="text-sm">Click to unmute</span>
@@ -94,6 +94,8 @@ import { PlaybackStateService } from './playback-state.service';
 })
 export class LiveStreamViewComponent implements OnDestroy {
   readonly streamId = input.required<string | null>();
+  /** Whether the "Click to unmute" overlay may be shown (admin toggle). */
+  readonly showUnmute = input<boolean>(true);
 
   private readonly hlsService = inject(HlsService);
   private readonly playbackState = inject(PlaybackStateService);

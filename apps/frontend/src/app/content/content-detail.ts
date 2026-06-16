@@ -39,6 +39,9 @@ export interface MetadataUpdate {
               style="display:none"
             />
           </label>
+          <mns-btn variant="outline" size="sm" icon="Copy" (mnsClick)="copyLink.emit()"
+            >Copy link</mns-btn
+          >
           <mns-btn variant="danger" size="sm" icon="Trash" (mnsClick)="remove.emit()"
             >Delete</mns-btn
           >
@@ -150,7 +153,6 @@ export interface MetadataUpdate {
       border: 1px solid var(--border-strong);
       border-radius: var(--r-xl, 16px);
       padding: 1.5rem;
-      max-width: 52rem;
       box-shadow: var(--shadow-lg);
     }
     .detail-header {
@@ -364,6 +366,7 @@ export class ContentDetail implements OnInit {
   readonly save = output<MetadataUpdate>();
   readonly remove = output<void>();
   readonly reupload = output<File>();
+  readonly copyLink = output<void>();
   readonly dismiss = output<void>();
 
   protected readonly format = inject(ContentFormatService);

@@ -81,6 +81,9 @@ export interface ItemFieldChange<T> {
             @if (isDefault()) {
               <mns-badge tone="info" icon="Check">Default</mns-badge>
             }
+            @if (reslicing()) {
+              <mns-badge tone="warning" icon="Layers">Re-rendering video wall…</mns-badge>
+            }
           </div>
         </div>
         @if (isOrgAdmin()) {
@@ -93,6 +96,9 @@ export interface ItemFieldChange<T> {
             {{ isDefault() ? 'Default playlist' : 'Set as default' }}
           </mns-btn>
         }
+        <mns-btn variant="soft" size="sm" icon="Copy" (mnsClick)="copyLink.emit()"
+          >Copy link</mns-btn
+        >
         <mns-btn variant="danger" size="sm" icon="Trash" (mnsClick)="deletePlaylist.emit()"
           >Delete</mns-btn
         >
@@ -123,7 +129,7 @@ export interface ItemFieldChange<T> {
 
     <!-- live loop preview -->
     <div class="mt-[var(--gap)]">
-      <app-playlist-loop-preview [items]="playlist().items" [thumbUrl]="thumbUrl()" />
+      <app-playlist-loop-preview [items]="playlist().items" [mediaUrl]="previewUrl()" />
     </div>
 
     <!-- sequence -->
@@ -179,11 +185,24 @@ export interface ItemFieldChange<T> {
                   (click)="previewItem.emit(item)"
                   aria-label="Preview item"
                 >
-                  @if (item.content?.type === 'image') {
-                    <img [src]="thumbUrl()(item)" alt="" class="w-full h-full object-cover" />
+                  @if (thumbUrl()(item); as src) {
+                    <img [src]="src" alt="" class="w-full h-full object-cover" loading="lazy" />
+                    @if (item.content?.type === 'video') {
+                      <span class="absolute inset-0 grid place-items-center pointer-events-none">
+                        <span
+                          class="grid place-items-center w-5 h-5 rounded-full bg-black/45 text-white"
+                        >
+                          <mns-icon name="Play" [size]="10" />
+                        </span>
+                      </span>
+                    }
+                  } @else if (item.content?.type === 'video') {
+                    <span class="absolute inset-0 grid place-items-center text-white bg-black/45">
+                      <mns-icon name="Play" [size]="11" />
+                    </span>
                   } @else {
                     <span class="absolute inset-0 grid place-items-center text-white">
-                      <mns-icon name="Play" [size]="11" />
+                      <mns-icon name="Image" [size]="11" />
                     </span>
                   }
                 </button>
@@ -343,13 +362,16 @@ export class PlaylistEditor {
   readonly settingDefault = input.required<boolean>();
   readonly editorError = input.required<string>();
   readonly previewingItem = input.required<PlaylistItem | null>();
-  readonly thumbUrl = input.required<(item: PlaylistItem) => string>();
+  /** True while a split group's wall is (re)slicing this playlist's content. */
+  readonly reslicing = input<boolean>(false);
+  readonly thumbUrl = input.required<(item: PlaylistItem) => string | null>();
   readonly previewUrl = input.required<(item: PlaylistItem) => string>();
 
   readonly rename = output<string>();
   readonly colorChange = output<string>();
   readonly toggleDefault = output<void>();
   readonly deletePlaylist = output<void>();
+  readonly copyLink = output<void>();
   readonly dismiss = output<void>();
   readonly addContent = output<void>();
   readonly removeItem = output<PlaylistItem>();

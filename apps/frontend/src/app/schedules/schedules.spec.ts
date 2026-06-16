@@ -39,6 +39,8 @@ function makeEntry(overrides: Partial<ScheduleEntry> = {}): ScheduleEntry {
     screenId: 's1',
     groupId: null,
     playlistId: 'p1',
+    name: null,
+    priority: 'normal',
     startTime: '2026-06-01T08:00:00.000Z',
     endTime: '2026-06-01T10:00:00.000Z',
     rrule: null,
@@ -114,6 +116,8 @@ function makeForm(overrides: Partial<ScheduleFormResult> = {}): ScheduleFormResu
   return {
     targetId: 'screen:s1',
     playlistId: 'p1',
+    name: '',
+    priority: 'normal',
     startDate: '2026-06-01',
     startTime: '08:00',
     endDate: '2026-06-01',

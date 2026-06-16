@@ -6,4 +6,8 @@ export enum ScreenEventType {
   LiveStreamStop = 'live_stream_stop',
   GroupPlay = 'group_play',
   Pending = 'pending',
+  /** Per-screen UI settings changed — the player re-fetches its state. */
+  SettingsUpdate = 'settings_update',
+  /** One-off command: the player reloads itself (like hitting F5). */
+  ScreenRefresh = 'refresh',
 }

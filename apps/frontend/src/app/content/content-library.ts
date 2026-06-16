@@ -1,11 +1,22 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  Renderer2,
+  inject,
+  AfterViewInit,
+  OnInit,
+  OnDestroy,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { ContentService, UploadProgress } from './content.service';
 import { Content, StorageInfo, UploadItem } from './content.model';
 import { ContentFilterService } from './content-filter.service';
 import { ContentStorageBar } from './content-storage-bar';
-import { ContentUploadZone } from './content-upload-zone';
+import { ContentUploadProgress } from './content-upload-progress';
 import { ContentGrid } from './content-grid';
 import { ContentDetail, MetadataUpdate } from './content-detail';
 import { ContentTagModal } from './content-tag-modal';
@@ -25,12 +36,14 @@ import {
   EmptyComponent,
   OverlayComponent,
   ModalComponent,
+  IconComponent,
 } from '../ui';
 
 /**
  * Smart container for the content library. Owns data loading, upload/HTTP
  * orchestration, filter state, transcoding SSE updates, and the bulk-action
- * modal flows. Presentation is delegated to the storage-bar, upload-zone,
+ * modal flows. The page itself is a drag & drop target (with a "Browse files"
+ * header button); presentation is delegated to the storage-bar, upload-progress,
  * grid, and detail child components; pure logic lives in
  * {@link ContentFilterService} and {@link ContentFormatService}.
  */
@@ -40,7 +53,7 @@ import {
   imports: [
     FormsModule,
     ContentStorageBar,
-    ContentUploadZone,
+    ContentUploadProgress,
     ContentGrid,
     ContentDetail,
     ContentTagModal,
@@ -51,6 +64,7 @@ import {
     EmptyComponent,
     OverlayComponent,
     ModalComponent,
+    IconComponent,
   ],
   providers: [SelectionService],
   template: `
@@ -80,8 +94,36 @@ import {
               Videos
             </button>
           </div>
+          <input
+            #browseInput
+            type="file"
+            multiple
+            accept="image/*,video/*"
+            (change)="onBrowse($event)"
+            hidden
+          />
+          <mns-btn variant="primary" icon="Upload" (mnsClick)="browseInput.click()">
+            Browse files
+          </mns-btn>
         }
       </mns-page-header>
+
+      <!-- Drag & drop overlay — spans the whole main content area -->
+      @if (isDragOver && !selectedContent) {
+        <div
+          class="drag-overlay"
+          [style.top.px]="overlayRect.top"
+          [style.left.px]="overlayRect.left"
+          [style.width.px]="overlayRect.width"
+          [style.height.px]="overlayRect.height"
+        >
+          <div class="drag-overlay-card">
+            <mns-icon name="Upload" [size]="40" />
+            <p class="drag-overlay-title">Drop files to upload</p>
+            <p class="drag-overlay-sub">Images and videos</p>
+          </div>
+        </div>
+      }
 
       <!-- Storage Usage -->
       @if (storage && !selectedContent) {
@@ -114,9 +156,9 @@ import {
         </div>
       }
 
-      <!-- Upload Area -->
+      <!-- Upload Progress -->
       @if (!selectedContent) {
-        <app-content-upload-zone [uploads]="uploads" (filesSelected)="uploadFiles($event)" />
+        <app-content-upload-progress [uploads]="uploads" />
       }
 
       <!-- Content Detail View -->
@@ -131,6 +173,7 @@ import {
           (save)="onDetailSave($event)"
           (remove)="confirmDelete()"
           (reupload)="onDetailReUpload($event)"
+          (copyLink)="copyShareLink()"
           (dismiss)="closeDetail()"
         />
       }
@@ -142,7 +185,7 @@ import {
           [contentIds]="contentIds"
           [transcodingProgress]="transcodingProgress"
           [bulkActions]="bulkActions"
-          [previewUrl]="getPreviewUrl"
+          [thumbUrl]="getThumbUrl"
           (selectItem)="selectContent($event)"
         />
       }
@@ -151,7 +194,7 @@ import {
         <mns-empty
           icon="Image"
           title="No content yet"
-          desc="No content uploaded yet. Drag files above to get started."
+          desc="Drag files anywhere onto this page or use Browse files to get started."
         />
       }
 
@@ -214,6 +257,40 @@ import {
     </div>
   `,
   styles: `
+    /* Drag & drop overlay — positioned (fixed) over the whole main content
+       area; its rect is taken from the host's <main class="content"> ancestor. */
+    .drag-overlay {
+      position: fixed;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      border-radius: 1rem;
+      border: 2px dashed var(--accent);
+      background: color-mix(in srgb, var(--surface) 82%, transparent);
+      backdrop-filter: blur(2px);
+      /* Let drag events pass through to the content area so the depth counter stays accurate */
+      pointer-events: none;
+    }
+    .drag-overlay-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--accent);
+      text-align: center;
+    }
+    .drag-overlay-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0.25rem 0 0;
+    }
+    .drag-overlay-sub {
+      font-size: 0.8125rem;
+      color: var(--text-faint);
+      margin: 0;
+    }
+
     /* Type Toggle — pill chips matching the reference filter row */
     .type-toggle {
       display: flex;
@@ -291,12 +368,15 @@ import {
     }
   `,
 })
-export class ContentLibrary implements OnInit, OnDestroy {
+export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
   private contentService = inject(ContentService);
   private contentFilter = inject(ContentFilterService);
   private memberService = inject(MemberService);
   private playlistService = inject(PlaylistService);
   private toast = inject(ToastService);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private destroyRef = inject(DestroyRef);
   readonly selectionService = inject(SelectionService);
 
   orgId = '';
@@ -318,8 +398,25 @@ export class ContentLibrary implements OnInit, OnDestroy {
   // Upload
   uploads: UploadItem[] = [];
 
+  // Drag & drop over the whole main content area. `dragDepth` counts nested
+  // enter/leave pairs so the overlay does not flicker as the cursor moves over
+  // child elements. The overlay rect mirrors the <main class="content">
+  // ancestor so the drop zone spans the full content area, not just the
+  // centered inner column.
+  isDragOver = false;
+  overlayRect = { top: 0, left: 0, width: 0, height: 0 };
+  private dragDepth = 0;
+  private contentEl: HTMLElement | null = null;
+  private dragUnlisten: (() => void)[] = [];
+
+  private el = inject<ElementRef<HTMLElement>>(ElementRef);
+  private renderer = inject(Renderer2);
+
   // Detail view
   selectedContent: Content | null = null;
+  /** Tracks the content loaded into the detail view so the route watcher can
+   *  skip a redundant fetch when a card click already opened it. */
+  private loadedDetailId: string | null = null;
   savingMetadata = false;
   metadataError = '';
   metadataSaved = false;
@@ -376,8 +473,17 @@ export class ContentLibrary implements OnInit, OnDestroy {
     this.loadCurrentOrg();
   }
 
+  ngAfterViewInit(): void {
+    // The <main class="content"> ancestor lives in the app shell, so it can
+    // only be resolved once this component is in the DOM. Binding here (rather
+    // than in afterNextRender) keeps the listeners inside the Angular zone, so
+    // toggling the overlay triggers change detection.
+    this.attachContentDropZone();
+  }
+
   ngOnDestroy(): void {
     for (const sub of this.sseSubs) sub.unsubscribe();
+    for (const unlisten of this.dragUnlisten) unlisten();
   }
 
   private loadCurrentOrg(): void {
@@ -392,6 +498,7 @@ export class ContentLibrary implements OnInit, OnDestroy {
           this.loadContent();
           this.loadStorage();
           this.subscribeToTranscoding();
+          this.watchRoute();
         } else {
           this.loadError = 'You are not a member of any organisation.';
           this.loading = false;
@@ -501,6 +608,74 @@ export class ContentLibrary implements OnInit, OnDestroy {
     this.applyFilters();
   }
 
+  // --- Drag & drop (whole main content area) ---
+  /**
+   * Binds the drag listeners to the host's `<main class="content">` ancestor so
+   * the drop zone covers the full content area (including the outer padding and
+   * the empty space below the content), not just the centered inner column.
+   */
+  private attachContentDropZone(): void {
+    const content = this.el.nativeElement.closest('main.content') as HTMLElement | null;
+    if (!content) return;
+    this.contentEl = content;
+    this.dragUnlisten = [
+      this.renderer.listen(content, 'dragenter', (e: DragEvent) => this.onDragEnter(e)),
+      this.renderer.listen(content, 'dragover', (e: DragEvent) => this.onDragOver(e)),
+      this.renderer.listen(content, 'dragleave', (e: DragEvent) => this.onDragLeave(e)),
+      this.renderer.listen(content, 'drop', (e: DragEvent) => this.onDrop(e)),
+    ];
+  }
+
+  private updateOverlayRect(): void {
+    if (!this.contentEl) return;
+    const r = this.contentEl.getBoundingClientRect();
+    this.overlayRect = { top: r.top, left: r.left, width: r.width, height: r.height };
+  }
+
+  private isFileDrag(event: DragEvent): boolean {
+    return Array.from(event.dataTransfer?.types ?? []).includes('Files');
+  }
+
+  onDragEnter(event: DragEvent): void {
+    if (this.selectedContent || !this.isFileDrag(event)) return;
+    event.preventDefault();
+    this.dragDepth++;
+    this.updateOverlayRect();
+    this.isDragOver = true;
+  }
+
+  onDragOver(event: DragEvent): void {
+    if (this.selectedContent || !this.isFileDrag(event)) return;
+    // Required so the element is a valid drop target.
+    event.preventDefault();
+  }
+
+  onDragLeave(event: DragEvent): void {
+    if (this.selectedContent) return;
+    event.preventDefault();
+    this.dragDepth = Math.max(0, this.dragDepth - 1);
+    if (this.dragDepth === 0) this.isDragOver = false;
+  }
+
+  onDrop(event: DragEvent): void {
+    if (this.selectedContent) return;
+    event.preventDefault();
+    this.dragDepth = 0;
+    this.isDragOver = false;
+    const files = event.dataTransfer?.files;
+    if (files && files.length > 0) {
+      this.uploadFiles(Array.from(files));
+    }
+  }
+
+  onBrowse(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      this.uploadFiles(Array.from(input.files));
+      input.value = '';
+    }
+  }
+
   // --- Upload ---
   uploadFiles(files: File[]): void {
     for (const file of files) {
@@ -544,14 +719,66 @@ export class ContentLibrary implements OnInit, OnDestroy {
   }
 
   // --- Detail ---
+  /**
+   * Keeps the open content item in sync with the URL so `/content/:id`
+   * deeplinks (and browser back/forward) work and can be shared. Loads
+   * triggered from a card click are skipped here via {@link loadedDetailId} to
+   * avoid a double fetch.
+   */
+  private watchRoute(): void {
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const id = params.get('id');
+      if (id) {
+        if (id !== this.loadedDetailId) this.loadDetail(id);
+      } else {
+        this.loadedDetailId = null;
+        this.selectedContent = null;
+      }
+    });
+  }
+
+  private loadDetail(id: string): void {
+    this.metadataError = '';
+    this.metadataSaved = false;
+    this.loadedDetailId = id;
+    this.contentService.getOne(this.orgId, id).subscribe({
+      next: (content) => {
+        this.selectedContent = content;
+      },
+      error: () => {
+        this.toast.error('Could not open that content item.');
+        this.loadedDetailId = null;
+        void this.router.navigate(['/content']);
+      },
+    });
+  }
+
   selectContent(content: Content): void {
+    // Show the already-loaded item immediately for a snappy click, then reflect
+    // it in the URL so the detail view can be bookmarked/shared. The route
+    // guard skips re-fetching.
+    this.loadedDetailId = content.id;
     this.selectedContent = content;
     this.metadataError = '';
     this.metadataSaved = false;
+    void this.router.navigate(['/content', content.id]);
+  }
+
+  async copyShareLink(): Promise<void> {
+    if (!this.selectedContent) return;
+    const url = `${window.location.origin}/content/${this.selectedContent.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      this.toast.success('Link copied to clipboard.');
+    } catch {
+      this.toast.error('Could not copy link.');
+    }
   }
 
   closeDetail(): void {
+    this.loadedDetailId = null;
     this.selectedContent = null;
+    void this.router.navigate(['/content']);
   }
 
   getPreviewUrl = (content: Content): string => {
@@ -559,6 +786,11 @@ export class ContentLibrary implements OnInit, OnDestroy {
       return this.contentService.getTranscodedUrl(content.id);
     }
     return this.contentService.getOriginalUrl(content.id);
+  };
+
+  /** Still-image thumbnail for grid cards (precomputed thumb, or null for a placeholder). */
+  getThumbUrl = (content: Content): string | null => {
+    return this.contentService.getStaticThumbnailUrl(content);
   };
 
   // --- Metadata ---
@@ -648,8 +880,10 @@ export class ContentLibrary implements OnInit, OnDestroy {
         this.applyFilters();
         this.deleting = false;
         this.showDeleteConfirm = false;
+        this.loadedDetailId = null;
         this.selectedContent = null;
         this.loadStorage();
+        void this.router.navigate(['/content']);
         this.toast.success('Content deleted.');
       },
       error: (err) => {
