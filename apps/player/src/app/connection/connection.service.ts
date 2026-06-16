@@ -14,6 +14,28 @@ const STORAGE_KEY_PAIRING_ID = 'signage_pairing_id';
  */
 const STORAGE_KEY_PAIRING_SECRET = 'signage_pairing_secret';
 
+/**
+ * Delay between automatic reconnect attempts when a previously-paired screen
+ * starts (or wakes) while the backend is unreachable. The screen retries its
+ * saved credentials silently until the server comes back.
+ */
+const AUTO_RECONNECT_DELAY_MS = 60_000;
+
+/**
+ * Error raised by {@link ConnectionService.verifyConnection}. `unreachable`
+ * distinguishes a transient server outage (network error / 5xx — worth
+ * retrying) from a rejected credential (401/403 — re-pairing required).
+ */
+class ConnectionError extends Error {
+  constructor(
+    message: string,
+    readonly unreachable: boolean,
+  ) {
+    super(message);
+    this.name = 'ConnectionError';
+  }
+}
+
 export interface ConnectionSettings {
   serverUrl: string;
   apiKey: string;
@@ -60,6 +82,7 @@ export class ConnectionService implements OnDestroy {
 
   ngOnDestroy(): void {
     window.removeEventListener('message', this.onMessage);
+    this.stopAutoReconnect();
   }
 
   private readonly _connected = signal(false);
@@ -71,6 +94,10 @@ export class ConnectionService implements OnDestroy {
   private readonly _connecting = signal(false);
   private readonly _pairingCode = signal('');
   private readonly _pairingExpiresAt = signal('');
+  private readonly _reconnecting = signal(false);
+
+  /** Timer for the saved-credentials auto-reconnect loop (see {@link tryAutoConnect}). */
+  private autoReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly connected = this._connected.asReadonly();
   readonly serverUrl = this._serverUrl.asReadonly();
@@ -81,6 +108,8 @@ export class ConnectionService implements OnDestroy {
   readonly connecting = this._connecting.asReadonly();
   readonly pairingCode = this._pairingCode.asReadonly();
   readonly pairingExpiresAt = this._pairingExpiresAt.asReadonly();
+  /** True while a saved-credentials reconnect attempt is pending after a failed auto-connect. */
+  readonly reconnecting = this._reconnecting.asReadonly();
 
   readonly hasSavedSettings = computed(() => {
     const url = localStorage.getItem(STORAGE_KEY_URL);
@@ -106,10 +135,42 @@ export class ConnectionService implements OnDestroy {
     try {
       await this.verifyConnection(serverUrl, apiKey, screenId);
       this._connected.set(true);
+      this.stopAutoReconnect();
       return true;
-    } catch {
+    } catch (err: unknown) {
+      // Backend unreachable (outage / 5xx) for a screen we have credentials for:
+      // keep retrying silently so it self-heals when the server returns. A
+      // rejected credential (401/403) is not retried — that needs re-pairing.
+      if (err instanceof ConnectionError && err.unreachable) {
+        this.scheduleAutoReconnect();
+      } else {
+        this.stopAutoReconnect();
+      }
       return false;
     }
+  }
+
+  /**
+   * Schedules a single auto-reconnect attempt after {@link AUTO_RECONNECT_DELAY_MS}.
+   * Each failed attempt re-arms the timer (via {@link tryAutoConnect}), forming a
+   * loop that runs until the server returns, the screen connects, or it is
+   * disconnected / re-paired.
+   */
+  private scheduleAutoReconnect(): void {
+    this.stopAutoReconnect();
+    this._reconnecting.set(true);
+    this.autoReconnectTimer = setTimeout(() => {
+      this.autoReconnectTimer = null;
+      void this.tryAutoConnect();
+    }, AUTO_RECONNECT_DELAY_MS);
+  }
+
+  private stopAutoReconnect(): void {
+    if (this.autoReconnectTimer !== null) {
+      clearTimeout(this.autoReconnectTimer);
+      this.autoReconnectTimer = null;
+    }
+    this._reconnecting.set(false);
   }
 
   async connect(serverUrl: string, apiKey: string): Promise<boolean> {
@@ -128,6 +189,7 @@ export class ConnectionService implements OnDestroy {
       this._screenId.set(identity.screenId);
       this._organisationId.set(identity.organisationId);
       this._connected.set(true);
+      this.stopAutoReconnect();
 
       localStorage.setItem(STORAGE_KEY_URL, normalizedUrl);
       localStorage.setItem(STORAGE_KEY_API_KEY, apiKey);
@@ -208,6 +270,7 @@ export class ConnectionService implements OnDestroy {
         this._organisationId.set(res.organisationId);
         this._connected.set(true);
         this._error.set('');
+        this.stopAutoReconnect();
 
         localStorage.setItem(STORAGE_KEY_URL, normalizedUrl);
         localStorage.setItem(STORAGE_KEY_API_KEY, res.apiKey);
@@ -239,6 +302,7 @@ export class ConnectionService implements OnDestroy {
   }
 
   disconnect(): void {
+    this.stopAutoReconnect();
     this._connected.set(false);
     this._serverUrl.set('');
     this._apiKey.set('');
@@ -288,8 +352,15 @@ export class ConnectionService implements OnDestroy {
           headers,
         }),
       );
-    } catch {
-      throw new Error('Server unreachable or invalid API key');
+    } catch (err: unknown) {
+      // status 0 (network error) or 5xx ⇒ server down/restarting → retryable.
+      // 401/403 ⇒ the credential itself was rejected → re-pairing required.
+      const status = err instanceof HttpErrorResponse ? err.status : 0;
+      const unreachable = status === 0 || status >= 500;
+      throw new ConnectionError(
+        unreachable ? 'Server unreachable' : 'Invalid API key',
+        unreachable,
+      );
     }
   }
 }

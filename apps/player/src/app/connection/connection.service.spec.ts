@@ -268,3 +268,101 @@ describe('ConnectionService pairing flow', () => {
     });
   });
 });
+
+describe('ConnectionService auto-reconnect', () => {
+  let service: ConnectionService;
+  let httpMock: HttpTestingController;
+
+  const SERVER = 'http://localhost:3000';
+  const STATE_URL = `${SERVER}/api/screens/screen-1/state`;
+
+  function seedSavedSettings(): void {
+    localStorage.setItem('signage_server_url', SERVER);
+    localStorage.setItem('signage_api_key', 'api-key-1');
+    localStorage.setItem('signage_screen_id', 'screen-1');
+    localStorage.setItem('signage_org_id', 'org-1');
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    vi.useFakeTimers();
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    service = TestBed.inject(ConnectionService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => {
+    httpMock.verify();
+    vi.useRealTimers();
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  // Lets queued microtasks (firstValueFrom resolution + async continuations) settle
+  // while fake timers are active.
+  const flushMicrotasks = async (): Promise<void> => {
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+  };
+
+  it('schedules a retry and reconnects after 60s when the backend was unreachable', async () => {
+    seedSavedSettings();
+
+    const first = service.tryAutoConnect();
+    // status 0 ⇒ network error ⇒ treated as unreachable
+    httpMock.expectOne(STATE_URL).error(new ProgressEvent('error'));
+    await expect(first).resolves.toBe(false);
+
+    expect(service.connected()).toBe(false);
+    expect(service.reconnecting()).toBe(true);
+
+    // Nothing fires before the 60s delay elapses.
+    vi.advanceTimersByTime(59_000);
+    httpMock.expectNone(STATE_URL);
+
+    // At 60s the retry runs; this time the server is back.
+    vi.advanceTimersByTime(1_000);
+    await flushMicrotasks();
+    httpMock.expectOne(STATE_URL).flush({});
+    await flushMicrotasks();
+
+    expect(service.connected()).toBe(true);
+    expect(service.reconnecting()).toBe(false);
+  });
+
+  it('does NOT schedule a retry when the credential is rejected (401)', async () => {
+    seedSavedSettings();
+
+    const promise = service.tryAutoConnect();
+    httpMock.expectOne(STATE_URL).flush('nope', { status: 401, statusText: 'Unauthorized' });
+    await expect(promise).resolves.toBe(false);
+
+    expect(service.reconnecting()).toBe(false);
+    vi.advanceTimersByTime(120_000);
+    httpMock.expectNone(STATE_URL);
+  });
+
+  it('does nothing when there are no saved settings', async () => {
+    await expect(service.tryAutoConnect()).resolves.toBe(false);
+    expect(service.reconnecting()).toBe(false);
+    vi.advanceTimersByTime(120_000);
+    httpMock.expectNone(STATE_URL);
+  });
+
+  it('stops the reconnect loop on disconnect()', async () => {
+    seedSavedSettings();
+
+    const promise = service.tryAutoConnect();
+    httpMock.expectOne(STATE_URL).error(new ProgressEvent('error'));
+    await expect(promise).resolves.toBe(false);
+    expect(service.reconnecting()).toBe(true);
+
+    service.disconnect();
+    expect(service.reconnecting()).toBe(false);
+
+    vi.advanceTimersByTime(120_000);
+    httpMock.expectNone(STATE_URL);
+  });
+});
