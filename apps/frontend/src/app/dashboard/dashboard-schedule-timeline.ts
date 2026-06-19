@@ -11,36 +11,42 @@ import { TimelineRow } from './dashboard.model';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="timeline">
-      <div class="timeline-header">
-        <span class="timeline-screen-label"></span>
-        <div class="timeline-hours">
-          @for (hour of hours(); track hour) {
-            <span class="timeline-hour">{{ hour }}</span>
-          }
-        </div>
-      </div>
-      @for (row of rows(); track row.screenName) {
-        <div class="timeline-row">
-          <span class="timeline-screen-label" [title]="row.screenName">{{ row.screenName }}</span>
-          <div class="timeline-track">
-            @for (entry of row.entries; track entry.startPercent) {
-              <div
-                class="timeline-block"
-                [style.left.%]="entry.startPercent"
-                [style.width.%]="entry.widthPercent"
-                [style.background]="entry.colour"
-                [title]="entry.playlistName + ' (' + entry.startTime + ' - ' + entry.endTime + ')'"
-              ></div>
+    <div class="overflow-x-auto">
+      <div class="timeline">
+        <div class="timeline-header">
+          <span class="timeline-screen-label"></span>
+          <div class="timeline-hours">
+            @for (hour of hours(); track hour) {
+              <span class="timeline-hour">{{ hour }}</span>
             }
           </div>
         </div>
-      }
+        @for (row of rows(); track row.screenName) {
+          <div class="timeline-row">
+            <span class="timeline-screen-label" [title]="row.screenName">{{ row.screenName }}</span>
+            <div class="timeline-track">
+              @for (entry of row.entries; track entry.startPercent) {
+                <div
+                  class="timeline-block"
+                  [style.left.%]="entry.startPercent"
+                  [style.width.%]="entry.widthPercent"
+                  [style.background]="entry.colour"
+                  [title]="
+                    entry.playlistName + ' (' + entry.startTime + ' - ' + entry.endTime + ')'
+                  "
+                ></div>
+              }
+            </div>
+          </div>
+        }
+      </div>
     </div>
   `,
   styles: `
     .timeline {
-      overflow-x: auto;
+      /* Keep label + track legible; the .overflow-x-auto wrapper scrolls
+         this on viewports narrower than the timeline. */
+      min-width: 320px;
     }
     .timeline-header {
       display: flex;

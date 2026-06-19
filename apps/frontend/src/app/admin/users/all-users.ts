@@ -98,7 +98,8 @@ import type { IconName } from '../../ui';
         </div>
 
         <mns-card [pad]="false" style="overflow:hidden">
-          <div style="overflow-x:auto">
+          <!-- ── table view (tablet and up) ── -->
+          <div class="hidden md:block" style="overflow-x:auto">
             <div style="min-width:900px">
               <!-- header row -->
               <div
@@ -204,6 +205,102 @@ import type { IconName } from '../../ui';
                 </div>
               }
             </div>
+          </div>
+
+          <!-- ── stacked-card view (mobile) ── -->
+          <div class="md:hidden flex flex-col">
+            @for (user of users; track user.id) {
+              <div
+                class="flex flex-col gap-3 p-[var(--card-pad)] border-t border-border first:border-t-0"
+              >
+                <!-- user identity -->
+                <div class="flex items-center gap-3 min-w-0">
+                  <mns-avatar [name]="initials(user)" [size]="36" />
+                  <div class="flex-1 min-w-0">
+                    <div
+                      class="flex items-center gap-[7px] text-[14px] font-bold min-w-0 flex-wrap"
+                    >
+                      <span [class.text-faint]="!user.name" [class.italic]="!user.name">
+                        {{ user.name || 'Invite pending' }}
+                      </span>
+                      @if (user.isSuperAdmin) {
+                        <span
+                          class="inline-flex items-center gap-1 flex-shrink-0 text-[10.5px] font-bold px-[7px] py-[2px] rounded-[99px]"
+                          style="background:var(--elevated-soft);color:var(--color-elevated)"
+                        >
+                          <mns-icon name="Settings" [size]="11" />Superuser
+                        </span>
+                      }
+                    </div>
+                    <div class="mono text-[11.5px] text-muted truncate">{{ user.email }}</div>
+                  </div>
+                </div>
+                <!-- organisations -->
+                <div class="flex items-start justify-between gap-3">
+                  <span
+                    class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint pt-[3px]"
+                    >Organisation</span
+                  >
+                  @if (user.memberships.length > 0) {
+                    <div class="flex flex-wrap justify-end gap-[6px]">
+                      @for (m of user.memberships; track m.organisationId) {
+                        <span
+                          class="inline-flex items-center gap-2 px-[10px] py-[4px] rounded-[99px] bg-surface-3 text-[12.5px] font-semibold"
+                        >
+                          {{ m.organisationName }}
+                        </span>
+                      }
+                    </div>
+                  } @else {
+                    <span class="text-faint text-[13px]">—</span>
+                  }
+                </div>
+                <!-- role -->
+                <div class="flex items-center justify-between gap-3">
+                  <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint"
+                    >Role</span
+                  >
+                  @if (user.isSuperAdmin) {
+                    <mns-badge tone="accent" icon="Lock">Instance Admin</mns-badge>
+                  } @else if (user.memberships.length > 0) {
+                    <mns-badge tone="neutral">{{ user.memberships[0].role }}</mns-badge>
+                  } @else {
+                    <span class="text-faint text-[13px]">—</span>
+                  }
+                </div>
+                <!-- status -->
+                <div class="flex items-center justify-between gap-3">
+                  <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint"
+                    >Status</span
+                  >
+                  @if (user.emailVerified) {
+                    <mns-badge tone="online" icon="Check">Verified</mns-badge>
+                  } @else {
+                    <mns-badge tone="warning" icon="Mail">Pending</mns-badge>
+                  }
+                </div>
+                <!-- created -->
+                <div class="flex items-center justify-between gap-3">
+                  <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint"
+                    >Created</span
+                  >
+                  <span class="text-[13px] text-muted">{{
+                    user.createdAt | date: 'mediumDate'
+                  }}</span>
+                </div>
+                <!-- actions -->
+                <div class="flex justify-end">
+                  <mns-btn
+                    variant="danger"
+                    size="sm"
+                    icon="Trash"
+                    (click)="confirmDelete(user)"
+                    [disabled]="deletingUserId === user.id"
+                    >Delete</mns-btn
+                  >
+                </div>
+              </div>
+            }
           </div>
         </mns-card>
       }

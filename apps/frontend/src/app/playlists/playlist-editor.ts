@@ -158,7 +158,7 @@ export interface ItemFieldChange<T> {
           <div cdkDropList class="flex flex-col gap-2" (cdkDropListDropped)="reorder.emit($event)">
             @for (item of playlist().items; track item.id; let i = $index) {
               <div
-                class="item-row flex items-center gap-3 px-3 py-2.5 rounded-[12px] bg-surface-2 border border-border"
+                class="item-row flex flex-wrap sm:flex-nowrap items-center gap-3 px-3 py-2.5 rounded-[12px] bg-surface-2 border border-border"
                 cdkDrag
               >
                 <span
@@ -224,7 +224,7 @@ export interface ItemFieldChange<T> {
                 <!-- duration -->
                 @if (item.content?.type === 'video') {
                   <span
-                    class="inline-flex items-center gap-1.5 px-[11px] py-1.5 rounded-[9px] bg-surface border border-border text-muted text-[12.5px] font-semibold"
+                    class="inline-flex w-full sm:w-auto justify-center sm:justify-start items-center gap-1.5 px-[11px] py-1.5 rounded-[9px] bg-surface border border-border text-muted text-[12.5px] font-semibold"
                     title="Plays the full video length"
                   >
                     <mns-icon name="Clock" [size]="13" />
@@ -232,7 +232,7 @@ export interface ItemFieldChange<T> {
                   </span>
                 } @else {
                   <div
-                    class="flex items-center border border-border-strong rounded-[9px] overflow-hidden bg-surface"
+                    class="flex w-full sm:w-auto justify-center sm:justify-start items-center border border-border-strong rounded-[9px] overflow-hidden bg-surface"
                   >
                     <button
                       type="button"
@@ -257,7 +257,7 @@ export interface ItemFieldChange<T> {
                 }
 
                 <!-- transition -->
-                <div class="w-[140px] flex-shrink-0">
+                <div class="w-full sm:w-[140px] sm:flex-shrink-0">
                   <mns-select
                     [options]="transitionOptions"
                     [value]="item.transition"
@@ -267,7 +267,7 @@ export interface ItemFieldChange<T> {
 
                 <!-- transition duration (ms) -->
                 <div
-                  class="flex items-center border border-border-strong rounded-[9px] overflow-hidden bg-surface flex-shrink-0"
+                  class="flex w-full sm:w-auto justify-center sm:justify-start items-center border border-border-strong rounded-[9px] overflow-hidden bg-surface sm:flex-shrink-0"
                   title="Transition duration (ms)"
                 >
                   <button

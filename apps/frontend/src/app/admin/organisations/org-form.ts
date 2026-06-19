@@ -58,7 +58,7 @@ const TIME_ZONE_OPTIONS: SelectOption[] = IANA_TIME_ZONES.map((tz) => ({ value: 
           />
         </mns-sfield>
 
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <mns-sfield label="Original Storage Limit">
             <mns-sinput type="number" [mono]="true" suffix="MB" [(value)]="storageOriginalMB" />
           </mns-sfield>

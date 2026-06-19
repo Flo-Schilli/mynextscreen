@@ -208,6 +208,30 @@ body {
   font-feature-settings: 'tnum' 1;
 }
 
+/* ---------------------------------------------------------------------------
+   Touch targets (WCAG 2.5.5) — interactive icon-buttons must be large enough
+   to hit reliably with a finger. Reusable helper class for any compact/icon
+   control; later phases reuse `.touch-target` rather than re-rolling sizes.
+   --------------------------------------------------------------------------- */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* On coarse (touch) pointers, enforce a ≥44px hit area on the shell's compact
+   icon-buttons and resize/chip handles without inflating them on mouse/desktop.
+   Keeps the visual box; only the hit area grows. */
+@media (pointer: coarse) {
+  .topbar-btn,
+  .collapse-btn,
+  .resize-handle,
+  .chip-btn,
+  .icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 /* custom scrollbar (optional, matches prototype) */
 ::-webkit-scrollbar {
   width: 11px;
@@ -513,8 +537,14 @@ body {
   }
   .form-actions {
     display: flex;
+    flex-direction: column;
     gap: 0.75rem;
     margin-top: 1.25rem;
+  }
+  @media (min-width: 640px) {
+    .form-actions {
+      flex-direction: row;
+    }
   }
   .radio-group {
     display: flex;

@@ -65,7 +65,7 @@ export class OverlayComponent {
   imports: [IconComponent],
   template: `
     <div
-      class="relative w-full bg-surface border border-border-strong rounded-xl overflow-hidden"
+      class="relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-xl border border-border-strong bg-surface"
       [style.maxWidth.px]="widthPx()"
       style="box-shadow: var(--shadow-lg); animation: fadeUp .3s cubic-bezier(.22,.61,.36,1) both"
       tabindex="0"
@@ -73,7 +73,7 @@ export class OverlayComponent {
       (keydown)="$event.stopPropagation()"
     >
       <!-- header -->
-      <div class="flex items-center gap-3 px-6 pt-5 pb-4 border-b border-border">
+      <div class="flex flex-shrink-0 items-center gap-3 px-6 pt-5 pb-4 border-b border-border">
         @if (icon()) {
           <div
             class="w-9 h-9 rounded-[9px] bg-accent-soft text-accent grid place-items-center flex-shrink-0"
@@ -98,7 +98,7 @@ export class OverlayComponent {
       </div>
 
       <!-- body -->
-      <div class="px-6 py-5">
+      <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
         <ng-content />
       </div>
 

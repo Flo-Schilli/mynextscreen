@@ -60,9 +60,13 @@ describe('AuditLogTable', () => {
    * original design.
    */
 
-  /** Returns only the entry-row divs (have aria-expanded attribute). */
+  /**
+   * Returns only the desktop table entry-row divs (have aria-expanded). The
+   * mobile card layout (md:hidden) renders its own expandable <button> with
+   * aria-expanded, so we scope to `div[aria-expanded]` to count table rows only.
+   */
   function entryRows(): ReturnType<typeof fixture.debugElement.queryAll> {
-    return fixture.debugElement.queryAll(By.css('[aria-expanded]'));
+    return fixture.debugElement.queryAll(By.css('div[aria-expanded]'));
   }
 
   describe('row rendering', () => {
