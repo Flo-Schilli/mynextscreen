@@ -232,7 +232,7 @@ const WARNING_HEARTBEAT_MS = 60_000;
       </mns-page-header>
 
       <!-- KPI row -->
-      <div class="kpi-row">
+      <div class="kpi-row grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <!-- Screens online -->
         <mns-card [animate]="true" [hover]="true">
           <div class="kpi-card">
@@ -466,10 +466,10 @@ const WARNING_HEARTBEAT_MS = 60_000;
     }
   `,
   styles: `
-    /* ── KPI row ── */
+    /* ── KPI row ──
+       Columns are owned by Tailwind utilities (grid-cols-1 / sm:2 / lg:4);
+       this rule only carries the design-token gap + bottom margin. */
     .kpi-row {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
       gap: var(--gap, 1.25rem);
       margin-bottom: var(--gap, 1.25rem);
     }
@@ -586,25 +586,16 @@ const WARNING_HEARTBEAT_MS = 60_000;
       text-align: center;
     }
 
-    /* ── Responsive ── */
+    /* ── Responsive ──
+       KPI columns are handled by Tailwind utilities on .kpi-row; these
+       breakpoints only collapse the main/bottom grids. */
     @media (max-width: 1100px) {
-      .kpi-row {
-        grid-template-columns: repeat(2, 1fr);
-      }
       .main-grid {
         grid-template-columns: 1fr;
       }
     }
     @media (max-width: 768px) {
-      .kpi-row {
-        grid-template-columns: 1fr 1fr;
-      }
       .bottom-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-    @media (max-width: 560px) {
-      .kpi-row {
         grid-template-columns: 1fr;
       }
     }
