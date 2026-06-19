@@ -13,7 +13,9 @@ import { IconComponent } from '../ui';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, RouterLinkActive, IconComponent],
   template: `
-    <nav class="flex gap-1 border-b border-border mb-[var(--gap,1.5rem)]">
+    <nav
+      class="flex gap-1 border-b border-border mb-[var(--gap,1.5rem)] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       <a
         routerLink="/settings/users"
         routerLinkActive="!text-text !border-accent"

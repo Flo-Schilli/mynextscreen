@@ -534,6 +534,14 @@ const WARNING_HEARTBEAT_MS = 60_000;
       align-items: center;
       gap: 22px;
     }
+    /* On narrow phones the fixed 104px donut + stats overflow the card; stack. */
+    @media (max-width: 420px) {
+      .storage-layout {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+      }
+    }
 
     /* ── Bottom grid ── */
     .bottom-grid {

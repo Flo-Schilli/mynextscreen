@@ -116,6 +116,12 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
       grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
       gap: var(--gap);
     }
+    /* 340px min track overflows the shell on phones; go single fluid column. */
+    @media (max-width: 420px) {
+      .stream-grid {
+        grid-template-columns: 1fr;
+      }
+    }
     .error {
       font-size: 0.875rem;
       color: var(--offline);
