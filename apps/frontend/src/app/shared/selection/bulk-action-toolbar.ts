@@ -48,6 +48,7 @@ export interface BulkAction {
       position: sticky;
       bottom: 0;
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 0.75rem;
       padding: 0.75rem 1rem;
@@ -99,9 +100,25 @@ export interface BulkAction {
 
     .toolbar-actions {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 0.5rem;
       margin-left: auto;
+    }
+
+    /* Mobile: let the actions block take the full row and its buttons shrink
+       so the toolbar never overflows at ~375px. Desktop is unchanged. */
+    @media (max-width: 560px) {
+      .toolbar-actions {
+        margin-left: 0;
+        width: 100%;
+      }
+      .toolbar-actions .btn {
+        flex: 1 1 auto;
+        justify-content: center;
+        min-width: 0;
+        padding: 0.5rem 0.625rem;
+      }
     }
 
     .btn {
