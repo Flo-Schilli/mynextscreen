@@ -96,6 +96,11 @@ const SIDEBAR_KEY = 'signage_sidebar_collapsed';
     /* ── Main wrapper ── */
     .main-wrapper {
       flex: 1;
+      /* Allow the column to shrink below its content's intrinsic width;
+         without this a wide child (e.g. a page-header action row) forces the
+         whole column — topbar included — past the viewport and :host
+         overflow:hidden clips the right edge on narrow phones. */
+      min-width: 0;
       margin-left: 252px;
       display: flex;
       flex-direction: column;

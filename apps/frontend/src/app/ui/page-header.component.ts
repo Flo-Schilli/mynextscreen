@@ -16,7 +16,7 @@ import { IconComponent, IconName } from './icon.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [IconComponent],
   template: `
-    <header class="flex items-center justify-between gap-4 mb-6">
+    <header class="flex flex-wrap items-center justify-between gap-3 mb-6">
       <div class="flex items-center gap-3">
         @if (icon()) {
           <div
