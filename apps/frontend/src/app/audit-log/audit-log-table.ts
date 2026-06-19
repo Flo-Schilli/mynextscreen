@@ -3,6 +3,7 @@ import { DatePipe } from '@angular/common';
 import { AuditEntry, AUDIT_ACTION_LABELS } from './audit-log.model';
 import { BadgeComponent, BadgeTone, BtnComponent, EmptyComponent, IconComponent } from '../ui';
 import type { IconName } from '../ui';
+import { AuditLogCard } from './audit-log-card';
 
 // ── action taxonomy ──────────────────────────────────────────────────────────
 
@@ -99,14 +100,15 @@ type TableRow =
   selector: 'app-audit-log-table',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, BadgeComponent, BtnComponent, EmptyComponent, IconComponent],
+  imports: [DatePipe, BadgeComponent, BtnComponent, EmptyComponent, IconComponent, AuditLogCard],
   template: `
     <!-- table card: no extra padding so header/rows bleed edge-to-edge -->
     <div
       class="bg-surface border border-border rounded-lg overflow-hidden"
       style="box-shadow:var(--shadow)"
     >
-      <div class="overflow-x-auto">
+      <!-- ── table view (tablet and up) ── -->
+      <div class="hidden md:block overflow-x-auto">
         <div class="min-w-[900px]">
           <!-- column header -->
           <div
@@ -322,6 +324,42 @@ type TableRow =
             }
           }
         </div>
+      </div>
+
+      <!-- ── stacked-card view (mobile) ── -->
+      <div class="md:hidden">
+        @if (rows().length === 0) {
+          <mns-empty
+            icon="Search"
+            title="No matching entries"
+            desc="Try clearing a filter or widening the date range."
+          />
+        } @else {
+          @for (row of rows(); track row.key) {
+            @if (row.kind === 'divider') {
+              <!-- day group header -->
+              <div
+                class="flex items-center gap-2.5 px-[var(--card-pad)] py-2 bg-surface-2 border-t border-border"
+              >
+                <mns-icon name="Calendar" [size]="13" class="text-faint" />
+                <span class="text-[11.5px] font-bold tracking-[.04em] text-muted">
+                  {{ row.label }}
+                </span>
+              </div>
+            } @else {
+              <app-audit-log-card
+                [entry]="row.entry"
+                [userDisplay]="getUserDisplay(row.entry.userId)"
+                [resourceDisplay]="getResourceDisplay(row.entry)"
+                [actionLabel]="actionLabel(row.entry.action)"
+                [actionCategory]="actionCategory(row.entry.action)"
+                [actionMeta]="actionMeta(row.entry.action)"
+                [detailEntries]="row.entry.details ? detailEntries(row.entry.details) : []"
+                (selectResource)="selectResource.emit($event)"
+              />
+            }
+          }
+        }
       </div>
 
       <!-- load-more / pagination footer -->

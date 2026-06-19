@@ -22,7 +22,8 @@ const ROLE_OPTIONS: SelectOption[] = [
   imports: [DatePipe, CardComponent, BtnComponent, SelectComponent],
   template: `
     <mns-card [pad]="false" class="block overflow-hidden">
-      <div class="overflow-x-auto">
+      <!-- ── table view (tablet and up) ── -->
+      <div class="hidden md:block overflow-x-auto">
         <div class="min-w-[680px]">
           <!-- header row -->
           <div
@@ -79,6 +80,56 @@ const ROLE_OPTIONS: SelectOption[] = [
             </div>
           }
         </div>
+      </div>
+
+      <!-- ── stacked-card view (mobile) ── -->
+      <div class="md:hidden flex flex-col">
+        @for (member of members(); track member.id) {
+          <div
+            class="flex flex-col gap-3 p-[var(--card-pad)] border-t border-border first:border-t-0"
+          >
+            <!-- identity -->
+            <div class="min-w-0">
+              <div class="text-[14px] font-semibold truncate">
+                {{ member.user.name || '(no name)' }}
+              </div>
+              <div class="mono text-[12.5px] text-muted truncate">{{ member.user.email }}</div>
+            </div>
+            <!-- role -->
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint"
+                >Role</span
+              >
+              <mns-select
+                class="role-select"
+                [options]="roleOptions"
+                [value]="member.role"
+                (changed)="changeRole.emit({ member, newRole: asRole($event) })"
+              />
+            </div>
+            <!-- joined -->
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint"
+                >Joined</span
+              >
+              <span class="text-[12.5px] text-muted">{{
+                member.createdAt | date: 'mediumDate'
+              }}</span>
+            </div>
+            <!-- actions -->
+            <div class="flex justify-end">
+              <mns-btn
+                variant="danger"
+                size="sm"
+                icon="Trash"
+                [disabled]="removingMemberId() === member.userId"
+                (mnsClick)="removeMember.emit(member)"
+              >
+                Remove
+              </mns-btn>
+            </div>
+          </div>
+        }
       </div>
     </mns-card>
   `,
