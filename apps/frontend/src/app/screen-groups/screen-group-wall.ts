@@ -168,11 +168,17 @@ export interface WallAssignEvent {
       color: var(--text-faint);
     }
     .split-wrap {
-      max-width: 420px;
+      /* Mobile-first: fill the available width; cap only at tablet+ (md). */
+      width: 100%;
       margin: 0 auto;
     }
-    .split-wrap.wide {
-      max-width: 680px;
+    @media (min-width: 768px) {
+      .split-wrap {
+        max-width: 420px;
+      }
+      .split-wrap.wide {
+        max-width: 680px;
+      }
     }
     .split-grid {
       display: grid;
@@ -226,26 +232,60 @@ export interface WallAssignEvent {
       inset: 0;
       z-index: 10;
       border: none;
-      background: transparent;
+      /* Mobile: dimmed backdrop behind the bottom sheet. */
+      background: rgba(4, 6, 11, 0.55);
       cursor: default;
     }
+    /* Mobile-first: render the menu as a bottom sheet anchored to the viewport
+       bottom so it never overflows the screen edge. Free-positioned popover is
+       restored at tablet+ (md) below. */
     .popover {
-      position: absolute;
+      position: fixed;
       z-index: 30;
       left: 0;
-      min-width: min(264px, 80vw);
-      max-width: 300px;
-      top: calc(100% + 8px);
+      right: 0;
+      bottom: 0;
+      max-width: 100%;
+      max-height: 80dvh;
       background: var(--surface);
       border: 1px solid var(--border-strong);
-      border-radius: 14px;
+      border-bottom: none;
+      border-radius: 16px 16px 0 0;
       box-shadow: var(--shadow-lg);
       overflow: hidden;
-      animation: fadeUp 0.16s ease both;
+      animation: sheetUp 0.18s ease both;
     }
-    .popover.upward {
-      top: auto;
-      bottom: calc(100% + 8px);
+    @media (min-width: 768px) {
+      .popover-scrim {
+        background: transparent;
+      }
+      .popover {
+        position: absolute;
+        left: 0;
+        right: auto;
+        min-width: min(264px, 80vw);
+        max-width: 300px;
+        max-height: none;
+        top: calc(100% + 8px);
+        bottom: auto;
+        border: 1px solid var(--border-strong);
+        border-radius: 14px;
+        animation: fadeUp 0.16s ease both;
+      }
+      .popover.upward {
+        top: auto;
+        bottom: calc(100% + 8px);
+      }
+    }
+    @keyframes sheetUp {
+      from {
+        transform: translateY(12px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
     }
     @media (prefers-reduced-motion: reduce) {
       .popover {
