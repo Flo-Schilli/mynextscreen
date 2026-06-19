@@ -464,8 +464,13 @@ type ScreenFormMode = 'create' | 'edit';
     }
     .form-row {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 12px;
+    }
+    @media (min-width: 640px) {
+      .form-row {
+        grid-template-columns: 1fr 1fr;
+      }
     }
     .form-group {
       display: flex;
@@ -567,10 +572,15 @@ type ScreenFormMode = 'create' | 'edit';
     }
     .info-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 14px 20px;
       padding-top: 20px;
       border-top: 1px solid var(--border);
+    }
+    @media (min-width: 640px) {
+      .info-grid {
+        grid-template-columns: 1fr 1fr;
+      }
     }
     .info-item {
       display: flex;

@@ -125,8 +125,13 @@ const PROTOCOLS: readonly LiveStreamProtocol[] = ['rtmp', 'rtp'];
     }
     .seg-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: 1fr;
       gap: 8px;
+    }
+    @media (min-width: 640px) {
+      .seg-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
     }
     .seg {
       flex: 1;

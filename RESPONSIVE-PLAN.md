@@ -54,11 +54,13 @@ Drei Tabellen teilen dasselbe Muster (`overflow-x-auto` + `min-w-[900px]` Grid).
 Grid-Tabelle, darunter gestapelte Karten (Label-Wert-Paare pro Datensatz).
 
 Betroffene Dateien:
+
 - `apps/frontend/src/app/audit-log/audit-log-table.ts` (7 Spalten, **expandable Rows + Tag-Divider** — komplexester Fall)
 - `apps/frontend/src/app/admin/users/all-users.ts` (6 Spalten, fixes inline `grid-template-columns`)
 - `apps/frontend/src/app/admin/organisations/org-member-list.ts` (gebundenes `cols`)
 
 **Vorgehen pro Tabelle:**
+
 - Grid-Header + Grid-Rows in `hidden md:grid` hüllen (Tabellenansicht nur ab Tablet).
 - Darunter `md:hidden` Karten-Stack: pro Eintrag eine `mns-card`-artige Box mit gestapelten
   „Label: Wert"-Zeilen. Bei Audit-Log die wichtigsten Felder (Zeit, User, Action-Badge, Resource) prominent,
@@ -79,6 +81,7 @@ pixel-positioniertes Time-Grid (`[style.top.px]`/`[style.height.px]`), Monat ein
 Drag&Drop/Resize sind maus-orientiert.
 
 **Mobile-Strategie (unter `md:`):**
+
 - **Tag/Woche → Agenda-Liste**: statt Time-Grid eine chronologische Liste der Blöcke des sichtbaren Tages
   (Zeit-Range + Playlist-Name + Badges), tap-to-edit über vorhandenes `blockClick`/`blockEnter`-Output.
   Erstellen über einen „+ Slot hinzufügen"-Button statt Klick-auf-Stunde (`createSlot`-Output wiederverwenden).
@@ -97,6 +100,7 @@ Drag&Drop/Resize sind maus-orientiert.
 ## Phase 4 — Video-Wall-Editor: Touch-Layout
 
 `apps/frontend/src/app/screen-groups/screen-group-wall.ts`:
+
 - `max-width: 420px/680px`-Caps responsiv machen (`100%` bis `md:`, Cap erst ab Tablet).
 - Grid behält Aspect-Ratio (`aspect-[16/9]`-Container), Zellen werden auf Mobile größer/touch-tauglich.
 - **Popover** (nach oben positioniert, Zeile ~95) auf Mobile als **Bottom-Sheet** (am Viewport-Boden,
@@ -141,6 +145,7 @@ Reihenfolge nach Hebel: **0 → 1 → 2 → 5 → 6 → 3 → 4** (Querschnitt &
 ## Verifikation
 
 End-to-end pro Phase:
+
 1. `npx nx serve frontend` und mit **Playwright-MCP** bei drei Viewports testen: **375×812** (Handy),
    **768×1024** (Tablet), **1280×800** (Desktop). Pro betroffener View: Snapshot + visuell auf
    Overflow/abgeschnittene Controls prüfen.

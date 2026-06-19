@@ -29,7 +29,7 @@ const MODES: ModeOption[] = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [IconComponent],
   template: `
-    <div class="grid grid-cols-2 gap-3">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       @for (m of modes; track m.key) {
         <button
           type="button"

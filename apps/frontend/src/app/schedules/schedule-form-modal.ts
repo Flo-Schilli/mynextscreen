@@ -267,7 +267,7 @@ export interface ScheduleFormResult {
 
             <!-- Date / time window -->
             <div>
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Start</div>
                   <div class="flex gap-2">
