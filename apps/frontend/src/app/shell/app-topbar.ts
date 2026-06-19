@@ -33,6 +33,16 @@ import { IconComponent } from '../ui/icon.component';
   imports: [NotificationBell, GlobalSearch, IconComponent],
   template: `
     <header class="topbar">
+      <!-- Hamburger — mobile only, opens the sidebar drawer -->
+      <button
+        type="button"
+        class="topbar-btn hamburger-btn"
+        (click)="openMobile.emit()"
+        aria-label="Open navigation menu"
+      >
+        <mns-icon name="Menu" [size]="20" />
+      </button>
+
       <!-- Search -->
       <div class="search-wrap">
         <span class="search-icon">
@@ -278,6 +288,11 @@ import { IconComponent } from '../ui/icon.component';
       color: var(--text);
     }
 
+    /* Hamburger — only visible on mobile (see <=768px block) */
+    .hamburger-btn {
+      display: none;
+    }
+
     /* Bell wrapper */
     .bell-wrap {
       display: flex;
@@ -389,6 +404,7 @@ import { IconComponent } from '../ui/icon.component';
       top: calc(100% + 10px);
       right: 0;
       width: 280px;
+      max-width: calc(100vw - 24px);
       z-index: 60;
       background: var(--surface);
       border: 1px solid var(--border-strong);
@@ -560,6 +576,9 @@ import { IconComponent } from '../ui/icon.component';
 
     /* ── Responsive: Mobile (<=768px) ── */
     @media (max-width: 768px) {
+      .hamburger-btn {
+        display: grid;
+      }
       .org-info {
         display: none;
       }

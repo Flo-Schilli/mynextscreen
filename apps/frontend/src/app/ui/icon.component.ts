@@ -54,7 +54,8 @@ export type IconName =
   | 'Lock'
   | 'User'
   | 'Building'
-  | 'Hash';
+  | 'Hash'
+  | 'Menu';
 
 /** SVG path data keyed by icon name. All icons share 24×24 viewBox. */
 const ICON_PATHS: Record<IconName, string> = {
@@ -110,6 +111,7 @@ const ICON_PATHS: Record<IconName, string> = {
   User: `<circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/>`,
   Building: `<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2M10 21v-3h4v3"/>`,
   Hash: `<path d="M9 3 7 21M17 3l-2 18M4 8.5h16M3.5 15.5h16"/>`,
+  Menu: `<path d="M3.5 6h17M3.5 12h17M3.5 18h17"/>`,
 };
 
 /**
