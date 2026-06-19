@@ -58,7 +58,7 @@ export interface ItemFieldChange<T> {
 
     <!-- header -->
     <mns-card>
-      <div class="flex items-center gap-4">
+      <div class="flex flex-wrap items-center gap-4">
         <span
           class="grid place-items-center w-[52px] h-[52px] rounded-[14px] text-white flex-shrink-0"
           [style.background]="tileGradient()"
@@ -86,22 +86,24 @@ export interface ItemFieldChange<T> {
             }
           </div>
         </div>
-        @if (isOrgAdmin()) {
-          <mns-btn
-            [variant]="isDefault() ? 'outline' : 'soft'"
-            size="sm"
-            [disabled]="settingDefault()"
-            (mnsClick)="toggleDefault.emit()"
+        <div class="flex flex-wrap items-center gap-2">
+          @if (isOrgAdmin()) {
+            <mns-btn
+              [variant]="isDefault() ? 'outline' : 'soft'"
+              size="sm"
+              [disabled]="settingDefault()"
+              (mnsClick)="toggleDefault.emit()"
+            >
+              {{ isDefault() ? 'Default playlist' : 'Set as default' }}
+            </mns-btn>
+          }
+          <mns-btn variant="soft" size="sm" icon="Copy" (mnsClick)="copyLink.emit()"
+            >Copy link</mns-btn
           >
-            {{ isDefault() ? 'Default playlist' : 'Set as default' }}
-          </mns-btn>
-        }
-        <mns-btn variant="soft" size="sm" icon="Copy" (mnsClick)="copyLink.emit()"
-          >Copy link</mns-btn
-        >
-        <mns-btn variant="danger" size="sm" icon="Trash" (mnsClick)="deletePlaylist.emit()"
-          >Delete</mns-btn
-        >
+          <mns-btn variant="danger" size="sm" icon="Trash" (mnsClick)="deletePlaylist.emit()"
+            >Delete</mns-btn
+          >
+        </div>
       </div>
 
       <!-- accent colour -->

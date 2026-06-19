@@ -164,6 +164,9 @@ export interface MetadataUpdate {
     }
     .detail-header h2 {
       margin: 0;
+      /* min-width:0 lets the nowrap title truncate instead of forcing the
+         flex row wider than the card (clips on phone). */
+      min-width: 0;
       font-size: 1.25rem;
       font-weight: 700;
       color: var(--text);
