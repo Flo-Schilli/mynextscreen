@@ -91,7 +91,7 @@ import { BtnComponent, IconComponent } from '../ui';
 
       <div class="mt-3.5">
         <mns-btn variant="outline" icon="Plus" [full]="true" (mnsClick)="addSlot.emit()">
-          Slot hinzufügen
+          Add slot
         </mns-btn>
       </div>
     </div>

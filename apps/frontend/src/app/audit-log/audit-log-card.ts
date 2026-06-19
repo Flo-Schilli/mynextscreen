@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { AuditEntry } from './audit-log.model';
 import { BadgeComponent, BadgeTone, IconComponent } from '../ui';
@@ -178,7 +178,6 @@ export class AuditLogCard {
   readonly selectResource = output<{ resourceType: string; resourceId: string | null }>();
 
   protected readonly expanded = signal(false);
-  protected readonly hasDetails = computed(() => this.detailEntries().length > 0);
 
   protected toggleExpand(): void {
     this.expanded.update((v) => !v);

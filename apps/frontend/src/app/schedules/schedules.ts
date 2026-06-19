@@ -631,6 +631,7 @@ export class Schedules implements OnInit, OnDestroy {
         1,
       );
     }
+    this.syncMobileDayIndex();
     this.loadEntries();
   }
 
@@ -646,6 +647,7 @@ export class Schedules implements OnInit, OnDestroy {
         1,
       );
     }
+    this.syncMobileDayIndex();
     this.loadEntries();
   }
 

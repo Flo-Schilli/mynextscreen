@@ -506,7 +506,13 @@ export class ScheduleCalendarGrid {
     const startHour = this.isDayToday(day) ? new Date().getHours() : 9;
     start.setHours(Math.min(23, startHour), 0, 0, 0);
     const end = new Date(start);
-    end.setHours(start.getHours() + 1);
+    if (start.getHours() >= 23) {
+      // Keep the slot inside the same day window: 23:00 ends at end-of-day,
+      // never rolling over to 00:00 of the next calendar day.
+      end.setHours(23, 59, 59, 999);
+    } else {
+      end.setHours(start.getHours() + 1);
+    }
     this.createSlot.emit({ start, end });
   }
 
@@ -529,7 +535,13 @@ export class ScheduleCalendarGrid {
     const start = new Date(day);
     start.setHours(clampedHour, 0, 0, 0);
     const end = new Date(start);
-    end.setHours(clampedHour + 1);
+    if (clampedHour >= 23) {
+      // Keep the slot inside the same day window: 23:00 ends at end-of-day,
+      // never rolling over to 00:00 of the next calendar day.
+      end.setHours(23, 59, 59, 999);
+    } else {
+      end.setHours(clampedHour + 1);
+    }
 
     this.createSlot.emit({ start, end });
   }
