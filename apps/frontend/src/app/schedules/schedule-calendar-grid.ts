@@ -7,6 +7,7 @@ import {
   ScheduleViewMode,
 } from './schedule-calendar.service';
 import { CardComponent, CardHeadComponent, IconComponent } from '../ui';
+import { ScheduleAgendaList } from './schedule-agenda-list';
 
 export interface CreateSlot {
   start: Date;
@@ -35,7 +36,7 @@ const NOW_TICK_MS = 60_000;
 @Component({
   selector: 'app-schedule-calendar-grid',
   standalone: true,
-  imports: [CardComponent, CardHeadComponent, IconComponent],
+  imports: [CardComponent, CardHeadComponent, IconComponent, ScheduleAgendaList],
   template: `
     <mns-card [pad]="false">
       <div class="px-[var(--card-pad)] pt-[var(--card-pad)] pb-3.5">
@@ -58,7 +59,7 @@ const NOW_TICK_MS = 60_000;
             <div class="month-week-row grid grid-cols-7">
               @for (day of week; track $index) {
                 <div
-                  class="month-day-cell min-h-[5rem] p-1.5 border-b border-r border-border cursor-pointer transition-colors duration-[120ms] hover:bg-surface-2"
+                  class="month-day-cell min-h-[3rem] md:min-h-[5rem] p-1 md:p-1.5 border-b border-r border-border cursor-pointer transition-colors duration-[120ms] hover:bg-surface-2"
                   [class.other-month]="!day.isCurrentMonth"
                   [class.opacity-40]="!day.isCurrentMonth"
                   [class.today]="day.isToday"
@@ -68,12 +69,21 @@ const NOW_TICK_MS = 60_000;
                   (keydown.enter)="monthDayClick.emit(day.date)"
                 >
                   <span
-                    class="month-day-number text-xs font-semibold text-muted inline-block mb-1"
+                    class="month-day-number text-[11px] md:text-xs font-semibold text-muted inline-block mb-0.5 md:mb-1"
                     [class.is-today]="day.isToday"
                   >
                     {{ day.dayNumber }}
                   </span>
-                  <div class="month-day-entries flex flex-col gap-0.5">
+                  <!-- Compact "•N" indicator where chips would not fit (below md) -->
+                  @if (day.blocks.length > 0) {
+                    <div class="month-day-dot md:hidden flex items-center gap-0.5 text-accent">
+                      <span class="w-1.5 h-1.5 rounded-full bg-accent inline-block"></span>
+                      <span class="text-[10px] font-bold tabular-nums">{{
+                        day.blocks.length
+                      }}</span>
+                    </div>
+                  }
+                  <div class="month-day-entries hidden md:flex flex-col gap-0.5">
                     @for (block of day.blocks; track block.entry.id) {
                       <div
                         class="month-entry-chip flex items-center gap-1 text-[10px] font-semibold text-text px-1.5 py-0.5 rounded truncate"
@@ -99,8 +109,22 @@ const NOW_TICK_MS = 60_000;
           }
         </div>
       } @else {
-        <!-- Day / Week View -->
-        <div class="time-grid border-t border-border">
+        <!-- Day / Week View — mobile agenda (below md) -->
+        <div class="md:hidden">
+          <app-schedule-agenda-list
+            [dayBlocks]="mobileDayBlocks()"
+            [dayLabel]="mobileDayLabel()"
+            [orgTimeZone]="orgTimeZone()"
+            [showDaySwitcher]="true"
+            (blockSelect)="blockEnter.emit($event)"
+            (addSlot)="emitMobileSlot()"
+            (prevDay)="mobilePrevDay.emit()"
+            (nextDay)="mobileNextDay.emit()"
+          />
+        </div>
+
+        <!-- Day / Week View — desktop time grid (md and up) -->
+        <div class="time-grid border-t border-border hidden md:block">
           <div class="time-grid-header flex border-b border-border">
             <div class="time-gutter-header w-14 flex-shrink-0 border-r border-border"></div>
             @for (day of visibleDays(); track $index) {
@@ -302,6 +326,12 @@ export class ScheduleCalendarGrid {
   readonly hourHeight = input.required<number>();
   readonly orgTimeZone = input.required<string>();
   readonly draggingEntryId = input<string | null>(null);
+  /**
+   * Which of {@link visibleDays} the mobile agenda shows. In week view the grid
+   * collapses to a single day on small screens; the parent steps this via the
+   * day switcher (mobilePrevDay/mobileNextDay) by moving the current date.
+   */
+  readonly mobileDayIndex = input<number>(0);
 
   readonly monthDayClick = output<Date>();
   readonly createSlot = output<CreateSlot>();
@@ -309,6 +339,8 @@ export class ScheduleCalendarGrid {
   readonly resizeMouseDown = output<ResizePointerEvent>();
   readonly blockClick = output<BlockPointerEvent>();
   readonly blockEnter = output<ScheduleEntry>();
+  readonly mobilePrevDay = output<void>();
+  readonly mobileNextDay = output<void>();
 
   readonly weekdayNames = WEEKDAY_NAMES;
   readonly hours = HOURS;
@@ -329,6 +361,31 @@ export class ScheduleCalendarGrid {
   });
 
   readonly cardSub = 'Click any block to edit';
+
+  /** The visible day the mobile agenda renders (defaults to the first day). */
+  private readonly mobileDay = computed<Date | null>(() => {
+    const days = this.visibleDays();
+    const idx = Math.max(0, Math.min(this.mobileDayIndex(), days.length - 1));
+    return days[idx] ?? null;
+  });
+
+  /** Blocks belonging to the mobile agenda's day, sorted by the agenda itself. */
+  readonly mobileDayBlocks = computed<CalendarBlock[]>(() => {
+    const idx = Math.max(0, Math.min(this.mobileDayIndex(), this.visibleDays().length - 1));
+    return this.blocks().filter((b) => b.dayIndex === idx);
+  });
+
+  /** Full-date heading for the mobile agenda's day. */
+  readonly mobileDayLabel = computed<string>(() => {
+    const day = this.mobileDay();
+    if (!day) return '';
+    return day.toLocaleDateString(undefined, {
+      timeZone: this.orgTimeZone(),
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    });
+  });
 
   readonly nowTopPx = computed<number | null>(() => {
     const now = new Date(this.nowMs());
@@ -435,6 +492,22 @@ export class ScheduleCalendarGrid {
       minute: '2-digit',
       hour12: false,
     });
+  }
+
+  /**
+   * Mobile "+ Slot hinzufügen": reuses the existing {@link createSlot} output
+   * with a sensible default 1-hour window on the agenda's day (current hour, or
+   * 09:00 for a day that is not today).
+   */
+  emitMobileSlot(): void {
+    const day = this.mobileDay();
+    if (!day) return;
+    const start = new Date(day);
+    const startHour = this.isDayToday(day) ? new Date().getHours() : 9;
+    start.setHours(Math.min(23, startHour), 0, 0, 0);
+    const end = new Date(start);
+    end.setHours(start.getHours() + 1);
+    this.createSlot.emit({ start, end });
   }
 
   onTimeGridClick(event: MouseEvent): void {

@@ -95,16 +95,20 @@ const HOUR_HEIGHT = 60;
               [hourHeight]="hourHeight"
               [orgTimeZone]="orgTimeZone"
               [draggingEntryId]="dragState?.entryId ?? null"
+              [mobileDayIndex]="mobileDayIndex"
               (monthDayClick)="onMonthDayClick($event)"
               (createSlot)="openCreateModalWithTimes($event.start, $event.end)"
               (blockMouseDown)="onBlockMouseDown($event.event, $event.block)"
               (resizeMouseDown)="onResizeMouseDown($event.event, $event.block, $event.edge)"
               (blockClick)="onBlockClick($event.event, $event.block)"
               (blockEnter)="openEditModal($event)"
+              (mobilePrevDay)="stepMobileDay(-1)"
+              (mobileNextDay)="stepMobileDay(1)"
             />
           </div>
 
           <app-schedule-side-panel
+            class="hidden md:block"
             [dateLabel]="formatSidePanelDate(selectedDate)"
             [timeline]="dayTimeline"
           />
@@ -229,6 +233,10 @@ export class Schedules implements OnInit, OnDestroy {
   viewMode: ScheduleViewMode = 'week';
   currentDate = new Date();
   selectedDate = new Date();
+
+  // Which visible day the mobile agenda shows (week view collapses to one day
+  // on small screens). Stays 0 in day view; tracks the weekday in week view.
+  mobileDayIndex = 0;
 
   hourHeight = HOUR_HEIGHT;
 
@@ -587,7 +595,28 @@ export class Schedules implements OnInit, OnDestroy {
   // --- Navigation ---
   setView(mode: ScheduleViewMode): void {
     this.viewMode = mode;
+    this.syncMobileDayIndex();
     this.loadEntries();
+  }
+
+  /**
+   * Point the mobile agenda at the visible day matching {@link selectedDate}
+   * (or day 0 when it falls outside the current range). Keeps the small-screen
+   * agenda aligned after view/date changes without a resize listener.
+   */
+  private syncMobileDayIndex(): void {
+    if (this.viewMode !== 'week') {
+      this.mobileDayIndex = 0;
+      return;
+    }
+    const days = this.visibleDays;
+    const idx = days.findIndex(
+      (d) =>
+        d.getFullYear() === this.selectedDate.getFullYear() &&
+        d.getMonth() === this.selectedDate.getMonth() &&
+        d.getDate() === this.selectedDate.getDate(),
+    );
+    this.mobileDayIndex = idx >= 0 ? idx : 0;
   }
 
   navigatePrev(): void {
@@ -623,6 +652,36 @@ export class Schedules implements OnInit, OnDestroy {
   navigateToday(): void {
     this.currentDate = new Date();
     this.selectedDate = new Date();
+    this.syncMobileDayIndex();
+    this.loadEntries();
+  }
+
+  /**
+   * Mobile day switcher (agenda). In day view this steps the current date by a
+   * day; in week view it walks the selected weekday across the visible week,
+   * shifting to the adjacent week when it runs past an edge. Keeps
+   * {@link selectedDate} aligned with the shown day for the timeline.
+   */
+  stepMobileDay(delta: number): void {
+    if (this.viewMode === 'day') {
+      this.currentDate = new Date(this.currentDate.getTime() + delta * 86400000);
+      this.selectedDate = new Date(this.currentDate);
+      this.mobileDayIndex = 0;
+      this.loadEntries();
+      return;
+    }
+    // Week view: 7 day-columns; step the index and roll over to the next week.
+    const next = this.mobileDayIndex + delta;
+    if (next < 0) {
+      this.currentDate = new Date(this.currentDate.getTime() - 7 * 86400000);
+      this.mobileDayIndex = 6;
+    } else if (next > 6) {
+      this.currentDate = new Date(this.currentDate.getTime() + 7 * 86400000);
+      this.mobileDayIndex = 0;
+    } else {
+      this.mobileDayIndex = next;
+    }
+    this.selectedDate = new Date(this.visibleDays[this.mobileDayIndex]);
     this.loadEntries();
   }
 
