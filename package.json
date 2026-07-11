@@ -1,6 +1,6 @@
 {
   "name": "signage-server",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Multi-tenant digital signage platform",
   "private": true,
   "engines": {
