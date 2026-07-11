@@ -1,10 +1,11 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { ScreenService } from './screen.service';
 import { ScreenListItem, CreateScreenRequest, UpdateScreenRequest } from './screen.model';
 import { ScreenForm } from './screen-form';
 import { ScreenGrid } from './screen-grid';
+import { PlayerAppsHelp } from './player-apps-help';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
@@ -34,6 +35,7 @@ import {
   imports: [
     ScreenForm,
     ScreenGrid,
+    PlayerAppsHelp,
     PageHeaderComponent,
     BtnComponent,
     EmptyComponent,
@@ -86,9 +88,17 @@ import {
         />
       }
 
+      <!-- Player-Apps help modal -->
+      @if (showPlayerAppsHelp()) {
+        <app-player-apps-help (dismiss)="showPlayerAppsHelp.set(false)" />
+      }
+
       <!-- Default view: page header + grid or empty state -->
       @if (!loading) {
         <mns-page-header title="Screens" icon="Screens" [sub]="screenSubtitle">
+          <mns-btn variant="outline" icon="Download" (mnsClick)="showPlayerAppsHelp.set(true)">
+            Install Player
+          </mns-btn>
           <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">
             Add screen
           </mns-btn>
@@ -163,6 +173,8 @@ export class Screens implements OnInit, OnDestroy {
   private toast = inject(ToastService);
   protected configService = inject(PublicConfigService);
   private subscriptions: Subscription[] = [];
+
+  showPlayerAppsHelp = signal(false);
 
   orgId = '';
   screens: ScreenListItem[] = [];

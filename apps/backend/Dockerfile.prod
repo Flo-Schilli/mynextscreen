@@ -31,6 +31,9 @@ RUN npm ci --omit=dev
 # Compiled output incl. db/migrations/*.sql (run automatically on boot)
 COPY --from=builder /app/dist/apps/backend ./dist/apps/backend
 
+# Player-app guides (Markdown) and pre-built binaries (IPK)
+COPY player-applications ./player-applications
+
 # Build metadata (passed by CI / images:build) -> runtime ENV + OCI labels
 ARG APP_VERSION=0.0.0-dev
 ARG GIT_COMMIT=unknown

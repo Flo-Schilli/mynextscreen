@@ -8,6 +8,7 @@ services:
     volumes:
       - ./apps/backend/src:/app/apps/backend/src
       - ./test-data/media:/app/media
+      - ./player-applications:/app/apps/backend/player-applications:ro
     environment:
       - DATABASE_URL=postgres://signage:signage@postgres:5432/signage
       - REDIS_URL=redis://redis:6379

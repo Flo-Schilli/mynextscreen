@@ -124,6 +124,15 @@ jobs:
             type=sha,prefix=sha-,format=short
             type=raw,value=latest,enable={{is_default_branch}}
 
+      # Build and package the LG webOS player app (.ipk) so it can be served
+      # as a download from the backend image. Only needed for the backend image.
+      - name: Build LG TVOS IPK
+        if: matrix.app == 'backend'
+        run: |
+          npm install -g @webos-tools/cli
+          mkdir -p player-applications/lg-tvos/dist
+          ares-package player-applications/lg-tvos --outdir player-applications/lg-tvos/dist
+
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v4
 
