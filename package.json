@@ -15,7 +15,7 @@
     "typecheck": "nx run-many -t typecheck",
     "format": "nx run-many -t format",
     "format:check": "nx run-many -t format:check",
-    "version": "node scripts/sync-versions.mjs && git add package-lock.json",
+    "version": "node scripts/sync-versions.mjs && git add package-lock.json player-applications/lg-tvos/appinfo.json",
     "version:patch": "npm version patch -m \"chore(release): %s\"",
     "version:minor": "npm version minor -m \"chore(release): %s\"",
     "version:major": "npm version major -m \"chore(release): %s\"",

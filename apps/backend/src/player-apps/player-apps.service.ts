@@ -16,16 +16,34 @@ interface PlayerAppDefinition {
   version: string;
 }
 
-const PLAYER_APPS: PlayerAppDefinition[] = [
-  { slug: 'lg-tvos', name: 'LG webOS', appId: 'com.cbf.webos', version: '1.0.0' },
+function readAppVersion(slug: string, appsBasePath: string): string {
+  const appinfoPath = path.join(appsBasePath, slug, 'appinfo.json');
+  try {
+    const raw = fs.readFileSync(appinfoPath, 'utf-8');
+    return (JSON.parse(raw) as { version?: string }).version ?? '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
+const PLAYER_APP_DEFS: Omit<PlayerAppDefinition, 'version'>[] = [
+  { slug: 'lg-tvos', name: 'LG webOS', appId: 'com.cbf.webos' },
 ];
 
 @Injectable()
 export class PlayerAppsService {
   private readonly appsBasePath = path.join(process.cwd(), 'player-applications');
+  private readonly playerApps: PlayerAppDefinition[];
+
+  constructor() {
+    this.playerApps = PLAYER_APP_DEFS.map((def) => ({
+      ...def,
+      version: readAppVersion(def.slug, this.appsBasePath),
+    }));
+  }
 
   listApps(): PlayerAppMeta[] {
-    return PLAYER_APPS.map((app) => ({
+    return this.playerApps.map((app) => ({
       slug: app.slug,
       name: app.name,
       downloadAvailable: this.binaryExists(app),
@@ -60,7 +78,7 @@ export class PlayerAppsService {
   }
 
   private findApp(slug: string): PlayerAppDefinition {
-    const app = PLAYER_APPS.find((a) => a.slug === slug);
+    const app = this.playerApps.find((a) => a.slug === slug);
     if (!app) throw new NotFoundException(`Player app "${slug}" not found`);
     return app;
   }

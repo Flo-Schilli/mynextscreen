@@ -11,36 +11,37 @@ const STORAGE_KEYS = {
 
 /**
  * Initialize the application.
- * If Server URL or API Key are missing, opens the settings overlay.
+ * All three values (serverUrl, apiKey, playerUrl) must be present in localStorage.
+ * If any is missing, the settings overlay is opened so the user can configure them.
+ * The playerUrl is fetched automatically from the backend on first save — no fallback.
  */
 function initApp() {
-    console.log('Initializing Digital Signage application...');
-
     const serverUrl = localStorage.getItem(STORAGE_KEYS.serverUrl);
     const apiKey = localStorage.getItem(STORAGE_KEYS.apiKey);
+    const playerUrl = localStorage.getItem(STORAGE_KEYS.playerUrl);
 
-    if (!serverUrl || !apiKey) {
-        const loadingMessage = document.getElementById('loadingMessage');
-        if (loadingMessage) {
-            loadingMessage.textContent = 'Configuration required. Open settings to enter Server URL and API Key.';
-        }
-        if (typeof window.toggleSettings === 'function') {
-            window.toggleSettings(true);
-        } else {
-            setTimeout(function() {
-                if (typeof window.toggleSettings === 'function') {
-                    window.toggleSettings(true);
-                }
-            }, 0);
-        }
-        console.warn('Server URL or API Key missing. Waiting for configuration.');
+    if (!serverUrl || !apiKey || !playerUrl) {
+        openSettings();
         return;
     }
 
-    // Resolve the player URL
-    const playerUrl = localStorage.getItem(STORAGE_KEYS.playerUrl) || (serverUrl.replace(/\/+$/, '') + '/player/');
-
     loadPlayer(playerUrl, serverUrl, apiKey);
+}
+
+function openSettings() {
+    const loadingMessage = document.getElementById('loadingMessage');
+    if (loadingMessage) {
+        loadingMessage.textContent = 'Configuration required.';
+    }
+    if (typeof window.toggleSettings === 'function') {
+        window.toggleSettings(true);
+    } else {
+        setTimeout(function() {
+            if (typeof window.toggleSettings === 'function') {
+                window.toggleSettings(true);
+            }
+        }, 0);
+    }
 }
 
 /**
@@ -53,7 +54,6 @@ function loadPlayer(playerUrl, serverUrl, apiKey) {
     iframe.src = playerUrl;
 
     iframe.onload = function() {
-        // Send credentials to the player via postMessage
         iframe.contentWindow.postMessage({
             type: 'signage-connect',
             serverUrl: serverUrl,
@@ -62,12 +62,10 @@ function loadPlayer(playerUrl, serverUrl, apiKey) {
 
         loadingMessage.style.display = 'none';
         iframe.style.display = 'block';
-        console.log('Player loaded successfully, credentials sent via postMessage');
     };
 
     iframe.onerror = function() {
         loadingMessage.textContent = 'Error loading content. Please check your connection.';
-        console.error('Error loading player');
     };
 }
 

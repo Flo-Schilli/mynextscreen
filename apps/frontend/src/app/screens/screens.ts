@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, OnDestroy, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { ScreenService } from './screen.service';
@@ -17,6 +17,7 @@ import {
   EmptyComponent,
   OverlayComponent,
   ModalComponent,
+  IconComponent,
 } from '../ui';
 
 /**
@@ -41,6 +42,7 @@ import {
     EmptyComponent,
     OverlayComponent,
     ModalComponent,
+    IconComponent,
   ],
   template: `
     <div>
@@ -103,6 +105,19 @@ import {
             Add screen
           </mns-btn>
         </mns-page-header>
+
+        <!-- Web Player link -->
+        <div class="flex items-center gap-1.5 mt-3 text-xs text-muted">
+          <mns-icon name="Monitor" [size]="13" />
+          <span>Web Player:</span>
+          <a
+            [href]="playerUrlHref()"
+            target="_blank"
+            rel="noopener"
+            class="text-accent hover:underline font-mono"
+            >{{ configService.playerUrl() }}</a
+          >
+        </div>
 
         @if (screens.length > 0) {
           <app-screen-grid
@@ -175,6 +190,11 @@ export class Screens implements OnInit, OnDestroy {
   private subscriptions: Subscription[] = [];
 
   showPlayerAppsHelp = signal(false);
+
+  readonly playerUrlHref = computed(() => {
+    const url = this.configService.playerUrl();
+    return url.startsWith('http') ? url : 'https://' + url;
+  });
 
   orgId = '';
   screens: ScreenListItem[] = [];

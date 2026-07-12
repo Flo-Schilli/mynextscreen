@@ -4,6 +4,7 @@ node_modules
 **/node_modules
 dist
 **/dist
+!player-applications/**/dist/
 .nx
 .angular
 .git

@@ -135,8 +135,8 @@
         </div>
         <div class="form-group">
             <label for="playerUrl">Player URL:</label>
-            <input type="url" id="playerUrl" placeholder="https://dev-server:4200">
-            <div class="settings-hint">Leave empty to use Server URL + /player/. Only set for development.</div>
+            <input type="url" id="playerUrl" placeholder="https://player.example.com">
+            <div class="settings-hint">Leave empty to fetch automatically from the server. Only set to override (e.g. for local development).</div>
         </div>
         <div id="settingsError" class="settings-error" role="alert"></div>
         <div class="button-group">
@@ -162,7 +162,7 @@
     }
     window.toggleSettings = toggleSettings;
 
-    function saveSettings() {
+    async function saveSettings() {
         var serverUrlInput = document.getElementById('serverUrl');
         var apiKeyInput = document.getElementById('apiKey');
         var playerUrlInput = document.getElementById('playerUrl');
@@ -170,9 +170,8 @@
 
         var serverUrl = serverUrlInput.value.trim();
         var apiKey = apiKeyInput.value.trim();
-        var playerUrl = playerUrlInput.value.trim();
+        var playerUrlOverride = playerUrlInput.value.trim();
 
-        // Validate required fields
         if (!serverUrl) {
             errorEl.textContent = 'Server URL is required.';
             serverUrlInput.focus();
@@ -193,10 +192,9 @@
             return;
         }
 
-        // Validate optional Player URL if provided
-        if (playerUrl) {
+        if (playerUrlOverride) {
             try {
-                new URL(playerUrl);
+                new URL(playerUrlOverride);
             } catch (e) {
                 errorEl.textContent = 'Player URL must be a valid URL (including http:// or https://).';
                 playerUrlInput.focus();
@@ -204,14 +202,30 @@
             }
         }
 
-        // Persist values
+        var playerUrl = playerUrlOverride;
+
+        if (!playerUrl) {
+            errorEl.textContent = 'Fetching player URL from server…';
+            try {
+                var response = await fetch(serverUrl.replace(/\/+$/, '') + '/api/config');
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                var data = await response.json();
+                if (!data.playerUrl) throw new Error('No playerUrl in response');
+                playerUrl = data.playerUrl;
+                if (!playerUrl.startsWith('http')) {
+                    playerUrl = 'https://' + playerUrl;
+                }
+                errorEl.textContent = '';
+            } catch (e) {
+                errorEl.textContent = 'Could not fetch player URL from server. Please enter it manually.';
+                playerUrlInput.focus();
+                return;
+            }
+        }
+
         localStorage.setItem('server_url', serverUrl);
         localStorage.setItem('api_key', apiKey);
-        if (playerUrl) {
-            localStorage.setItem('player_url', playerUrl);
-        } else {
-            localStorage.removeItem('player_url');
-        }
+        localStorage.setItem('player_url', playerUrl);
 
         location.reload();
     }
