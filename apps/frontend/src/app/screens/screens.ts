@@ -108,7 +108,7 @@ import {
 
         <!-- Web Player link -->
         <div class="flex items-center gap-1.5 mt-3 text-xs text-muted">
-          <mns-icon name="Monitor" [size]="13" />
+          <mns-icon name="Globe" [size]="13" />
           <span>Web Player:</span>
           <a
             [href]="playerUrlHref()"
