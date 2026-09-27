@@ -58,9 +58,10 @@ export class ScheduleController {
   @Get('current')
   @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   getCurrentPlaylist(
-    @Query('screenId') screenId: string,
+    @CurrentOrganisation() organisationId: string,
+    @Query('screenId', ParseUUIDPipe) screenId: string,
   ): Promise<{ playlist: Playlist | null; isDefault: boolean }> {
-    return this.scheduleService.getCurrentPlaylist(screenId);
+    return this.scheduleService.getCurrentPlaylistScoped(organisationId, screenId);
   }
 
   @Patch(':id')

@@ -9,8 +9,10 @@ import {
   Req,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { Roles } from '../auth/roles.decorator';
+import { OrgFromParam } from '../auth/org-from-param.decorator';
 import { AuthenticatedRequest } from '../auth';
 import { OrganisationRole } from './organisation-role.enum';
 import { MembershipService } from './membership.service';
@@ -18,19 +20,20 @@ import { AddMemberDto, UpdateMemberRoleDto } from './dto';
 import { toMemberResponse, type MemberResponse } from './member-response';
 
 @Controller('organisations/:orgId/members')
+@OrgFromParam('orgId')
 @Roles(OrganisationRole.OrgAdmin)
 export class MembershipController {
   constructor(private readonly membershipService: MembershipService) {}
 
   @Get()
-  async listMembers(@Param('orgId') orgId: string): Promise<MemberResponse[]> {
+  async listMembers(@Param('orgId', ParseUUIDPipe) orgId: string): Promise<MemberResponse[]> {
     const members = await this.membershipService.listMembers(orgId);
     return members.map(toMemberResponse);
   }
 
   @Post()
   async addMember(
-    @Param('orgId') orgId: string,
+    @Param('orgId', ParseUUIDPipe) orgId: string,
     @Body() dto: AddMemberDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<MemberResponse> {
@@ -41,8 +44,8 @@ export class MembershipController {
 
   @Patch(':userId')
   async updateRole(
-    @Param('orgId') orgId: string,
-    @Param('userId') userId: string,
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
     @Body() dto: UpdateMemberRoleDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<MemberResponse> {
@@ -54,8 +57,8 @@ export class MembershipController {
   @Delete(':userId')
   @HttpCode(HttpStatus.NO_CONTENT)
   removeMember(
-    @Param('orgId') orgId: string,
-    @Param('userId') userId: string,
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
     @Req() req: AuthenticatedRequest,
   ): Promise<void> {
     return this.membershipService.removeMember(orgId, userId, req.user.userId);

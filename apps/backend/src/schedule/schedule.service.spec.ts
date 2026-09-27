@@ -529,6 +529,60 @@ describe('ScheduleService', () => {
     });
   });
 
+  // `GET /api/schedules/current` used to call getCurrentPlaylist directly, which
+  // takes no tenant, so any authenticated user with any role in any organisation
+  // could read the current playlist of any screen anywhere given its UUID.
+  describe('getCurrentPlaylistScoped', () => {
+    it('returns the playlist when the screen belongs to the organisation', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id, 'Own Playlist');
+      const now = Date.now();
+      await db.insert(scheduleEntries).values({
+        organisationId: org.id,
+        screenId: screen.id,
+        playlistId: playlist.id,
+        startTime: new Date(now - 60 * 60 * 1000),
+        endTime: new Date(now + 60 * 60 * 1000),
+        rrule: null,
+        colour: '#FF5733',
+      });
+
+      const result = await service.getCurrentPlaylistScoped(org.id, screen.id);
+
+      expect(result.playlist).toEqual(expect.objectContaining({ name: 'Own Playlist' }));
+    });
+
+    it('throws for a screen belonging to another organisation', async () => {
+      const victim = await seedOrg();
+      const attacker = await seedOrg();
+      const victimScreen = await seedScreen(victim.id);
+      const victimPlaylist = await seedPlaylist(victim.id, 'Victim Playlist');
+      const now = Date.now();
+      await db.insert(scheduleEntries).values({
+        organisationId: victim.id,
+        screenId: victimScreen.id,
+        playlistId: victimPlaylist.id,
+        startTime: new Date(now - 60 * 60 * 1000),
+        endTime: new Date(now + 60 * 60 * 1000),
+        rrule: null,
+        colour: '#FF5733',
+      });
+
+      await expect(service.getCurrentPlaylistScoped(attacker.id, victimScreen.id)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws for an unknown screen id', async () => {
+      const org = await seedOrg();
+
+      await expect(
+        service.getCurrentPlaylistScoped(org.id, '00000000-0000-0000-0000-000000000000'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('getCurrentPlaylist', () => {
     it('should return the active playlist when a schedule entry is active', async () => {
       const org = await seedOrg();

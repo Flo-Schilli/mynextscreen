@@ -12,6 +12,7 @@ import {
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { Roles } from '../auth/roles.decorator';
+import { OrgFromParam } from '../auth/org-from-param.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { OrgNotificationConfigService } from './org-notification-config.service';
@@ -20,6 +21,7 @@ import { DEFAULT_ALERT_RULES, type OrganisationNotificationConfig } from '../db/
 import { SmtpEmailProvider } from './channels/smtp-email-provider';
 
 @Controller('organisations')
+@OrgFromParam('id')
 export class OrgNotificationConfigController {
   constructor(
     private readonly configService: OrgNotificationConfigService,

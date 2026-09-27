@@ -8,12 +8,15 @@ import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
 import { TranscodingPreset } from './transcoding-preset.enum';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
-import { BadGatewayException, ConflictException } from '@nestjs/common';
+import { ScreenAuthenticatedRequest } from '../auth/api-key-auth.guard';
+import { BadGatewayException, ConflictException, NotFoundException } from '@nestjs/common';
+import type { Response } from 'express';
 
 describe('LiveStreamController', () => {
   let controller: LiveStreamController;
   let service: Record<string, jest.Mock>;
   let streamHealthService: Record<string, jest.Mock>;
+  let ffmpegService: Record<string, jest.Mock>;
 
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
   const userId = '880e8400-e29b-41d4-a716-446655440000';
@@ -49,14 +52,16 @@ describe('LiveStreamController', () => {
       getAllHealthStates: jest.fn().mockReturnValue(new Map()),
     };
 
+    ffmpegService = {
+      getHlsOutputDir: jest.fn(),
+      isRunning: jest.fn().mockReturnValue(false),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [LiveStreamController],
       providers: [
         { provide: LiveStreamService, useValue: service },
-        {
-          provide: FfmpegLiveService,
-          useValue: { getHlsOutputDir: jest.fn() },
-        },
+        { provide: FfmpegLiveService, useValue: ffmpegService },
         { provide: StreamHealthService, useValue: streamHealthService },
       ],
     }).compile();
@@ -253,6 +258,39 @@ describe('LiveStreamController', () => {
 
       expect(service.deactivateStream).toHaveBeenCalledWith(orgId, streamId, userId);
       expect(result.status).toBe(LiveStreamStatus.Idle);
+    });
+  });
+
+  // @ScreenAuth() only proves *some* valid screen API key. These two routes used
+  // to resolve the HLS path from the stream id alone and never consult
+  // req.organisationId, so any screen in any tenant could pull any other
+  // organisation's live stream given its UUID.
+  describe('HLS routes are scoped to the requesting screen’s organisation', () => {
+    const foreignOrgId = '990e8400-e29b-41d4-a716-446655440000';
+    const screenReq = {
+      screenId: '770e8400-e29b-41d4-a716-446655440000',
+      organisationId: foreignOrgId,
+    } as unknown as ScreenAuthenticatedRequest;
+    const res = { setHeader: jest.fn(), sendFile: jest.fn() } as unknown as Response;
+
+    it('servePlaylist verifies the stream against the screen’s org before touching the filesystem', async () => {
+      service.findOne.mockRejectedValue(new NotFoundException('not found'));
+
+      await expect(controller.servePlaylist(screenReq, streamId, res)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(service.findOne).toHaveBeenCalledWith(foreignOrgId, streamId);
+      expect(ffmpegService.getHlsOutputDir).not.toHaveBeenCalled();
+    });
+
+    it('serveSegment verifies the stream against the screen’s org before touching the filesystem', async () => {
+      service.findOne.mockRejectedValue(new NotFoundException('not found'));
+
+      await expect(
+        controller.serveSegment(screenReq, streamId, 'segment0.ts', res),
+      ).rejects.toThrow(NotFoundException);
+      expect(service.findOne).toHaveBeenCalledWith(foreignOrgId, streamId);
+      expect(ffmpegService.getHlsOutputDir).not.toHaveBeenCalled();
     });
   });
 });

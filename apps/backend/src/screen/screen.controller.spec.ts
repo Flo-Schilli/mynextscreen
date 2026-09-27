@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ForbiddenException } from '@nestjs/common';
 import { ScreenController } from './screen.controller';
 import { ScreenService } from './screen.service';
 import { ScreenStateService } from './screen-state.service';
@@ -8,6 +9,7 @@ import { ScreenAuthenticatedRequest, AuthenticatedRequest } from '../auth';
 describe('ScreenController', () => {
   let controller: ScreenController;
   let service: Record<string, jest.Mock>;
+  let stateService: Record<string, jest.Mock>;
 
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
   const screenId = '770e8400-e29b-41d4-a716-446655440000';
@@ -44,7 +46,7 @@ describe('ScreenController', () => {
       recordHeartbeat: jest.fn(),
     };
 
-    const screenStateService = {
+    stateService = {
       getRenderedState: jest.fn(),
       subscribe: jest.fn(),
     };
@@ -53,7 +55,7 @@ describe('ScreenController', () => {
       controllers: [ScreenController],
       providers: [
         { provide: ScreenService, useValue: service },
-        { provide: ScreenStateService, useValue: screenStateService },
+        { provide: ScreenStateService, useValue: stateService },
       ],
     }).compile();
 
@@ -156,6 +158,42 @@ describe('ScreenController', () => {
       expect(service.recordHeartbeat).toHaveBeenCalledWith(orgId, screenId);
       expect(result.isOnline).toBe(true);
       expect(result.lastHeartbeat).toBeInstanceOf(Date);
+    });
+  });
+
+  // A screen API key authorises exactly one screen, but these three routes take
+  // their target from the path. Before the identity check a player could read a
+  // sibling screen's state, forge its heartbeat, or subscribe to its event
+  // stream — and because the path was never tied to the key's tenant, reach
+  // other organisations too. The SSE route was the worst of the three: its
+  // ownership check was `void`-ed, so it never blocked anything.
+  describe('screen-auth routes reject a key for a different screen', () => {
+    const otherScreenId = '880e8400-e29b-41d4-a716-446655440000';
+    const req = {
+      screenId,
+      organisationId: orgId,
+    } as unknown as ScreenAuthenticatedRequest;
+
+    it('getState throws and does not touch the state service', () => {
+      expect(() => controller.getState(req, otherScreenId)).toThrow(ForbiddenException);
+      expect(stateService.getRenderedState).not.toHaveBeenCalled();
+    });
+
+    it('events throws and never creates a subscription', () => {
+      expect(() => controller.events(req, otherScreenId)).toThrow(ForbiddenException);
+      expect(stateService.subscribe).not.toHaveBeenCalled();
+    });
+
+    it('heartbeat throws and does not record anything', () => {
+      expect(() => controller.heartbeat(req, otherScreenId)).toThrow(ForbiddenException);
+      expect(service.recordHeartbeat).not.toHaveBeenCalled();
+    });
+
+    it('still allows a screen to act on itself', () => {
+      stateService.subscribe.mockReturnValue('stream');
+
+      expect(controller.events(req, screenId)).toBe('stream');
+      expect(stateService.subscribe).toHaveBeenCalledWith(screenId);
     });
   });
 });

@@ -1,5 +1,6 @@
 import { Body, Controller, Get, NotFoundException, Patch, Req } from '@nestjs/common';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
+import { UserScoped } from '../auth/user-scoped.decorator';
 import { UserService } from './user.service';
 import { UpdateProfileDto } from './dto';
 import { buildGravatarUrl } from './gravatar.util';
@@ -17,6 +18,7 @@ interface ProfileView {
 }
 
 @Controller('me')
+@UserScoped()
 export class UserController {
   constructor(private readonly userService: UserService) {}
 

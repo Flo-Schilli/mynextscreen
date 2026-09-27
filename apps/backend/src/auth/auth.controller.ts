@@ -38,6 +38,7 @@ import { AuthService } from './auth.service';
 import { REFRESH_COOKIE, clearAuthCookies, setAccessCookie, setRefreshCookie } from './cookies';
 import { AuthenticatedRequest } from './jwt-auth.guard';
 import { Public } from './public.decorator';
+import { UserScoped } from './user-scoped.decorator';
 import { ChangeEmailDto } from './dto/change-email.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ConfirmEmailChangeDto } from './dto/confirm-email-change.dto';
@@ -256,6 +257,7 @@ export class AuthController {
   }
 
   @Post('change-password')
+  @UserScoped()
   @HttpCode(HttpStatus.NO_CONTENT)
   async changePassword(
     @Req() req: AuthenticatedRequest,
@@ -270,6 +272,7 @@ export class AuthController {
   }
 
   @Post('change-email')
+  @UserScoped()
   @HttpCode(HttpStatus.NO_CONTENT)
   async changeEmail(@Req() req: AuthenticatedRequest, @Body() dto: ChangeEmailDto): Promise<void> {
     const change = await this.auth.changeEmail(req.user.userId, dto.newEmail, dto.currentPassword);
@@ -302,6 +305,7 @@ export class AuthController {
   }
 
   @Post('delete-account')
+  @UserScoped()
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteAccount(
     @Req() req: AuthenticatedRequest,
@@ -313,6 +317,7 @@ export class AuthController {
   }
 
   @Get('me')
+  @UserScoped()
   async getMe(@Req() req: AuthenticatedRequest): Promise<AuthenticatedUserView> {
     // Read from the DB rather than echoing the JWT payload: the access token is
     // long-lived and carries the email/role from issue time, so after an

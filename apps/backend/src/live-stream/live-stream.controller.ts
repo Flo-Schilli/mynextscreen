@@ -20,6 +20,7 @@ import { FfmpegLiveService } from './ffmpeg-live.service';
 import { StreamHealthService, StreamHealthState } from './stream-health.service';
 import { CreateLiveStreamDto, UpdateLiveStreamDto, ActivateLiveStreamDto } from './dto';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
+import { ScreenAuthenticatedRequest } from '../auth/api-key-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { ScreenAuth } from '../auth/screen-auth.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
@@ -142,7 +143,16 @@ export class LiveStreamController {
 
   @Get(':id/hls/index.m3u8')
   @ScreenAuth()
-  servePlaylist(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response): void {
+  async servePlaylist(
+    @Req() req: ScreenAuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    // A valid screen API key only proves *some* screen; it says nothing about
+    // which tenant owns this stream. Without this check any screen could pull
+    // any other organisation's live stream given its UUID.
+    await this.liveStreamService.findOne(req.organisationId, id);
+
     const hlsDir = this.ffmpegLiveService.getHlsOutputDir(id);
     const filePath = path.resolve(path.join(hlsDir, 'index.m3u8'));
 
@@ -161,11 +171,14 @@ export class LiveStreamController {
 
   @Get(':id/hls/:segment')
   @ScreenAuth()
-  serveSegment(
+  async serveSegment(
+    @Req() req: ScreenAuthenticatedRequest,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('segment') segment: string,
     @Res() res: Response,
-  ): void {
+  ): Promise<void> {
+    await this.liveStreamService.findOne(req.organisationId, id);
+
     // Sanitize segment filename to prevent path traversal
     const sanitized = path.basename(segment);
     const hlsDir = this.ffmpegLiveService.getHlsOutputDir(id);

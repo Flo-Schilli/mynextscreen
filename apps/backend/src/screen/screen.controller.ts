@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Patch, Param, Body, Req, Sse, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Req,
+  Sse,
+  ParseUUIDPipe,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Observable } from 'rxjs';
 import { ScreenService, type ScreenWithPlaylist } from './screen.service';
@@ -131,6 +142,7 @@ export class ScreenController {
     @Req() req: ScreenAuthenticatedRequest,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<unknown> {
+    this.assertOwnScreen(req, id);
     return this.screenStateService.getRenderedState(req.organisationId, id);
   }
 
@@ -140,8 +152,13 @@ export class ScreenController {
     @Req() req: ScreenAuthenticatedRequest,
     @Param('id', ParseUUIDPipe) id: string,
   ): Observable<MessageEvent> {
-    // Validate screen exists and belongs to the org
-    void this.screenService.findOne(req.organisationId, id);
+    // This used to be `void this.screenService.findOne(req.organisationId, id)`:
+    // the promise was discarded, so the NotFoundException surfaced as an
+    // unhandled rejection in a detached microtask and never blocked the
+    // subscription — and `subscribe()` itself authorises nothing. The identity
+    // check below is strictly stronger than the org check it replaces: the key's
+    // screen necessarily lives in the key's organisation.
+    this.assertOwnScreen(req, id);
     return this.screenStateService.subscribe(id);
   }
 
@@ -151,6 +168,21 @@ export class ScreenController {
     @Req() req: ScreenAuthenticatedRequest,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<Screen> {
+    this.assertOwnScreen(req, id);
     return this.screenService.recordHeartbeat(req.organisationId, id);
+  }
+
+  /**
+   * A screen API key authorises exactly one screen, but these routes take their
+   * target from the path. Without this check a player could read a sibling
+   * screen's rendered state, forge its heartbeat, or subscribe to its event
+   * stream — across organisations, since the path is not tied to the key.
+   *
+   * Mirrors the check MediaController already performs for slice downloads.
+   */
+  private assertOwnScreen(req: ScreenAuthenticatedRequest, screenId: string): void {
+    if (req.screenId !== screenId) {
+      throw new ForbiddenException('Screen API key does not authorise this screen');
+    }
   }
 }
