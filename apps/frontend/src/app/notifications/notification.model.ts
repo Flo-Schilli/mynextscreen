@@ -11,10 +11,7 @@ export interface Notification {
 }
 
 export type NotificationEventType =
-  | 'screen.offline'
-  | 'screen.online'
-  | 'transcoding.complete'
-  | 'transcoding.failed';
+  'screen.offline' | 'screen.online' | 'transcoding.complete' | 'transcoding.failed';
 
 export interface UnreadCountResponse {
   count: number;
