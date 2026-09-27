@@ -12,7 +12,7 @@ import { UserService } from '../user/user.service';
 import { removeOrganisationMedia } from '../content/content-storage.util';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
-import type { LoginResult, RefreshResult } from './auth.types';
+import type { LoginResult, RefreshResult, SessionTokens } from './auth.types';
 
 const PASSWORD_RESET_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const EMAIL_VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
@@ -239,11 +239,18 @@ export class AuthService {
     }
   }
 
+  /**
+   * Change the password of a logged-in user. Every existing session is revoked —
+   * a password change must end any session an attacker still holds. The caller's
+   * own device is kept usable by issuing a fresh pair afterwards (revoke first,
+   * then issue, or the new pair dies with the old ones); the controller writes it
+   * back as cookies.
+   */
   async changePassword(
     userId: string,
     currentPassword: string,
     newPassword: string,
-  ): Promise<void> {
+  ): Promise<SessionTokens> {
     const user = await this.users.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
@@ -255,7 +262,14 @@ export class AuthService {
     }
     const hash = await this.passwords.hash(newPassword);
     await this.users.setPassword(userId, hash);
-    this.logger.log(`Password changed userId=${userId}`);
+    const revoked = await this.tokens.revokeAllForUser(userId);
+    const accessToken = await this.tokens.issueAccessToken(userId, {
+      email: user.email,
+      isSuperAdmin: user.isSuperAdmin,
+    });
+    const refreshToken = await this.tokens.issueInitialRefreshToken(userId);
+    this.logger.log(`Password changed userId=${userId} revokedSessions=${revoked}`);
+    return { accessToken, refreshToken };
   }
 
   /**
@@ -302,7 +316,10 @@ export class AuthService {
 
   /**
    * Accept-invite / password-reset: the token must be valid and unexpired. On
-   * success the password is set and the token cleared.
+   * success the password is set, the token cleared and every existing session
+   * revoked — a reset is how a user locks out whoever compromised the account,
+   * so a surviving refresh token would defeat it. No new session is issued: this
+   * route is public and the caller is not necessarily the account owner's browser.
    */
   async setPassword(token: string, newPassword: string): Promise<void> {
     const user = await this.users.findByPasswordResetToken(token);
@@ -315,7 +332,8 @@ export class AuthService {
     }
     const hash = await this.passwords.hash(newPassword);
     await this.users.setPassword(user.id, hash);
-    this.logger.log(`Password set via token userId=${user.id}`);
+    const revoked = await this.tokens.revokeAllForUser(user.id);
+    this.logger.log(`Password set via token userId=${user.id} revokedSessions=${revoked}`);
   }
 
   /**

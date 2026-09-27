@@ -7,14 +7,16 @@ export interface AuthenticatedUserView {
   isSuperAdmin: boolean;
 }
 
-export interface LoginResult {
-  user: User;
+/** A freshly issued access + refresh token pair (one logged-in session). */
+export interface SessionTokens {
   accessToken: IssuedAccessToken;
   refreshToken: IssuedRefreshToken;
 }
 
-export interface RefreshResult {
+export interface LoginResult extends SessionTokens {
+  user: User;
+}
+
+export interface RefreshResult extends SessionTokens {
   userId: string;
-  accessToken: IssuedAccessToken;
-  refreshToken: IssuedRefreshToken;
 }

@@ -410,6 +410,32 @@ describe('AuthService', () => {
       expect(users.setPassword).toHaveBeenCalledWith('user-1', 'new-hash');
     });
 
+    it('revokes every existing session and issues a fresh one for the caller', async () => {
+      users.findById.mockResolvedValue(makeUser());
+      passwords.verify.mockResolvedValue(true);
+      passwords.hash.mockResolvedValue('new-hash');
+
+      const result = await service.changePassword('user-1', 'old', 'newpassword');
+
+      expect(tokens.revokeAllForUser).toHaveBeenCalledWith('user-1');
+      // The new pair must be minted AFTER the revocation, otherwise it is killed too.
+      expect(tokens.revokeAllForUser.mock.invocationCallOrder[0]).toBeLessThan(
+        tokens.issueInitialRefreshToken.mock.invocationCallOrder[0],
+      );
+      expect(result.accessToken).toBe(issuedAccess);
+      expect(result.refreshToken).toBe(issuedRefresh);
+    });
+
+    it('keeps sessions alive when the current password is wrong', async () => {
+      users.findById.mockResolvedValue(makeUser());
+      passwords.verify.mockResolvedValue(false);
+
+      await expect(service.changePassword('user-1', 'bad', 'new')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(tokens.revokeAllForUser).not.toHaveBeenCalled();
+    });
+
     it('throws when the user is missing', async () => {
       users.findById.mockResolvedValue(null);
       await expect(service.changePassword('user-1', 'old', 'new')).rejects.toThrow(
@@ -503,9 +529,24 @@ describe('AuthService', () => {
       expect(users.setPassword).toHaveBeenCalledWith('user-1', 'new-hash');
     });
 
+    it('revokes every existing session (a reset must log out a thief)', async () => {
+      users.findByPasswordResetToken.mockResolvedValue(
+        makeUser({
+          passwordResetToken: 'tok',
+          passwordResetTokenExpiresAt: new Date(Date.now() + 60_000),
+        }),
+      );
+      passwords.hash.mockResolvedValue('new-hash');
+
+      await service.setPassword('tok', 'newpassword');
+
+      expect(tokens.revokeAllForUser).toHaveBeenCalledWith('user-1');
+    });
+
     it('throws for an unknown token', async () => {
       users.findByPasswordResetToken.mockResolvedValue(null);
       await expect(service.setPassword('tok', 'new')).rejects.toThrow(NotFoundException);
+      expect(tokens.revokeAllForUser).not.toHaveBeenCalled();
     });
 
     it('throws for an expired token', async () => {

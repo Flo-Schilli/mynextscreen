@@ -261,9 +261,18 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async changePassword(
     @Req() req: AuthenticatedRequest,
+    @Res({ passthrough: true }) res: Response,
     @Body() dto: ChangePasswordDto,
   ): Promise<void> {
-    await this.auth.changePassword(req.user.userId, dto.currentPassword, dto.newPassword);
+    // changePassword revokes every session, including this one — write the fresh
+    // pair back so the acting device stays logged in and only the others drop out.
+    const session = await this.auth.changePassword(
+      req.user.userId,
+      dto.currentPassword,
+      dto.newPassword,
+    );
+    setAccessCookie(res, this.config, session.accessToken.token, session.accessToken.expiresAt);
+    setRefreshCookie(res, this.config, session.refreshToken.token, session.refreshToken.expiresAt);
     this.events.emit(AUTH_PASSWORD_CHANGED, new AuthPasswordChangedEvent(req.user.email));
     this.events.emit(
       AUDIT_AUTH_PASSWORD_CHANGED,
