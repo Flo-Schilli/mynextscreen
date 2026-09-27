@@ -57,6 +57,27 @@ export function getOrganisationMediaDir(basePath: string, organisationId: string
 export async function removeOrganisationMedia(
   basePath: string,
   organisationId: string,
+  /**
+   * Absolute paths of files that belong to the org but sit outside its media
+   * directory. Slices written before they were org-scoped live under
+   * `{base}/slices/...` and would otherwise outlive the organisation.
+   */
+  legacyPaths: readonly string[] = [],
 ): Promise<void> {
   await fs.rm(getOrganisationMediaDir(basePath, organisationId), { recursive: true, force: true });
+
+  const orgDir = getOrganisationMediaDir(basePath, organisationId);
+  const resolvedBase = path.resolve(basePath);
+  for (const filePath of legacyPaths) {
+    const resolved = path.resolve(filePath);
+    // Never follow a path out of the media root, and skip anything already
+    // covered by the directory removal above.
+    if (
+      !resolved.startsWith(resolvedBase + path.sep) ||
+      resolved.startsWith(path.resolve(orgDir))
+    ) {
+      continue;
+    }
+    await fs.rm(resolved, { force: true });
+  }
 }

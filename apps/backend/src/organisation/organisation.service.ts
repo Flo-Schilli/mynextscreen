@@ -7,9 +7,10 @@ import type { DrizzleDB } from '../db/drizzle.types';
 import {
   organisations,
   playlists,
-  users,
-  userOrganisationMemberships,
+  slicedRenditions,
   type Organisation,
+  userOrganisationMemberships,
+  users,
 } from '../db/schema';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { removeOrganisationMedia } from '../content/content-storage.util';
@@ -98,6 +99,15 @@ export class OrganisationService {
       .where(eq(userOrganisationMemberships.organisationId, orgId));
     const memberUserIds = [...new Set(members.map((m) => m.userId))];
 
+    // Read before the cascade takes the rows with it: slices written before they
+    // were org-scoped live outside {base}/{orgId} and would otherwise remain on
+    // disk after the organisation is gone.
+    const renditions = await this.db
+      .select({ filePath: slicedRenditions.filePath })
+      .from(slicedRenditions)
+      .where(eq(slicedRenditions.organisationId, orgId));
+    const legacySlicePaths = renditions.map((rendition) => rendition.filePath);
+
     await this.db.transaction(async (tx) => {
       // Cascade removes memberships + all org-scoped rows for this org.
       await tx.delete(organisations).where(eq(organisations.id, orgId));
@@ -125,7 +135,7 @@ export class OrganisationService {
     // Best-effort media cleanup after the DB rows are gone; a filesystem error
     // must not roll back the (already committed) deletion.
     try {
-      await removeOrganisationMedia(this.mediaBasePath, orgId);
+      await removeOrganisationMedia(this.mediaBasePath, orgId, legacySlicePaths);
     } catch (error: unknown) {
       this.logger.warn(
         `Failed to remove media dir for organisation ${orgId}: ${
