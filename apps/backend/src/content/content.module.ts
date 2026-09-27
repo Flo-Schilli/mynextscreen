@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { getNumberConfig } from '../config/numeric-config.util';
 import { MulterModule } from '@nestjs/platform-express';
 import { ContentService, DEFAULT_MAX_FILE_SIZE_BYTES } from './content.service';
 import { ContentController } from './content.controller';
@@ -28,7 +29,7 @@ import { OrganisationModule } from '../organisation/organisation.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         limits: {
-          fileSize: config.get<number>('MAX_FILE_SIZE_BYTES', DEFAULT_MAX_FILE_SIZE_BYTES),
+          fileSize: getNumberConfig(config, 'MAX_FILE_SIZE_BYTES', DEFAULT_MAX_FILE_SIZE_BYTES),
           files: 1,
         },
       }),

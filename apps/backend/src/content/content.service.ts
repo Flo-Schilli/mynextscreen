@@ -28,6 +28,7 @@ import {
 } from '../audit-log/audit.events';
 import { CONTENT_DURATION_RESOLVED, ContentDurationResolvedEvent } from './content.event';
 import { DetectedMediaType, SUPPORTED_MEDIA_TYPES, detectMediaType } from './media-type.util';
+import { getNumberConfig } from '../config/numeric-config.util';
 
 /** 100 MB. Shared with the Multer limit so both layers cut off at the same size. */
 export const DEFAULT_MAX_FILE_SIZE_BYTES = 104_857_600;
@@ -47,7 +48,8 @@ export class ContentService {
     private readonly eventEmitter: EventEmitter2,
   ) {
     this.mediaBasePath = this.configService.get<string>('MEDIA_BASE_PATH', './media');
-    this.maxFileSizeBytes = this.configService.get<number>(
+    this.maxFileSizeBytes = getNumberConfig(
+      this.configService,
       'MAX_FILE_SIZE_BYTES',
       DEFAULT_MAX_FILE_SIZE_BYTES,
     );

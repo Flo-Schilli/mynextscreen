@@ -14,6 +14,7 @@ import * as path from 'path';
 import type { LiveStream } from '../db/schema';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { TranscodingPreset } from './transcoding-preset.enum';
+import { getNumberConfig } from '../config/numeric-config.util';
 
 const execFileAsync = promisify(execFile);
 
@@ -128,7 +129,8 @@ export class FfmpegLiveService implements OnModuleInit, OnModuleDestroy {
     this.ffmpegPath = this.configService.get<string>('FFMPEG_PATH', 'ffmpeg');
     this.ffprobePath = this.configService.get<string>('FFPROBE_PATH', 'ffprobe');
     this.hlsOutputDir = this.configService.get<string>('HLS_OUTPUT_DIR', '/tmp/signage-hls');
-    this.maxConcurrentStreams = this.configService.get<number>(
+    this.maxConcurrentStreams = getNumberConfig(
+      this.configService,
       'MAX_CONCURRENT_LIVE_STREAMS',
       DEFAULT_MAX_CONCURRENT_STREAMS,
     );
