@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CommonModule } from '../common/common.module';
 import { HttpModule } from '@nestjs/axios';
 import { NotificationService } from './notification.service';
 import { UserNotificationPreferenceService } from './user-notification-preference.service';
@@ -19,7 +20,7 @@ import { ScreenModule } from '../screen/screen.module';
 import { ContentModule } from '../content/content.module';
 
 @Module({
-  imports: [HttpModule, UserModule, DashboardModule, ScreenModule, ContentModule],
+  imports: [CommonModule, HttpModule, UserModule, DashboardModule, ScreenModule, ContentModule],
   controllers: [
     NotificationPreferencesController,
     OrgNotificationConfigController,
