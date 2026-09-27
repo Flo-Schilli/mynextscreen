@@ -106,4 +106,64 @@ describe('StorageService', () => {
       });
     });
   });
+
+  describe('reserveOriginalUsage (concurrency)', () => {
+    async function usedBytes(orgId: string): Promise<number> {
+      const info = await service.getStorageInfo(orgId);
+      return info.originalUsedBytes;
+    }
+
+    it('books the reservation atomically', async () => {
+      const org = await seedOrg({ storageOriginalLimitBytes: 1000, storageOriginalUsedBytes: 0 });
+
+      await service.reserveOriginalUsage(org.id, 400);
+
+      expect(await usedBytes(org.id)).toBe(400);
+    });
+
+    it('rejects a reservation that would exceed the limit', async () => {
+      const org = await seedOrg({ storageOriginalLimitBytes: 1000, storageOriginalUsedBytes: 900 });
+
+      await expect(service.reserveOriginalUsage(org.id, 200)).rejects.toThrow(BadRequestException);
+      expect(await usedBytes(org.id)).toBe(900);
+    });
+
+    it('treats limit 0 as unlimited', async () => {
+      const org = await seedOrg({ storageOriginalLimitBytes: 0, storageOriginalUsedBytes: 0 });
+
+      await service.reserveOriginalUsage(org.id, 10_000_000);
+
+      expect(await usedBytes(org.id)).toBe(10_000_000);
+    });
+
+    it('lets no more than the quota through under parallel load', async () => {
+      // Ten concurrent uploads of 200 bytes into 1000 bytes of free quota: the
+      // old read-then-write counter let all ten pass and then lost the writes.
+      const org = await seedOrg({ storageOriginalLimitBytes: 1000, storageOriginalUsedBytes: 0 });
+
+      const results = await Promise.allSettled(
+        Array.from({ length: 10 }, () => service.reserveOriginalUsage(org.id, 200)),
+      );
+      const accepted = results.filter((result) => result.status === 'fulfilled').length;
+
+      expect(accepted).toBe(5);
+      expect(await usedBytes(org.id)).toBe(1000);
+    });
+
+    it('keeps the counter exact when increments interleave', async () => {
+      const org = await seedOrg({ storageOriginalLimitBytes: 0, storageOriginalUsedBytes: 0 });
+
+      await Promise.all(Array.from({ length: 20 }, () => service.addOriginalUsage(org.id, 50)));
+
+      expect(await usedBytes(org.id)).toBe(1000);
+    });
+
+    it('never drives a counter below zero', async () => {
+      const org = await seedOrg({ storageOriginalLimitBytes: 0, storageOriginalUsedBytes: 100 });
+
+      await service.subtractOriginalUsage(org.id, 500);
+
+      expect(await usedBytes(org.id)).toBe(0);
+    });
+  });
 });

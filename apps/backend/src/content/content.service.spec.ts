@@ -71,6 +71,7 @@ describe('ContentService', () => {
 
     storageService = {
       checkOriginalLimit: jest.fn().mockResolvedValue(undefined),
+      reserveOriginalUsage: jest.fn().mockResolvedValue(undefined),
       checkTranscodedLimit: jest.fn().mockResolvedValue(undefined),
       addOriginalUsage: jest.fn().mockResolvedValue(undefined),
       subtractOriginalUsage: jest.fn().mockResolvedValue(undefined),
@@ -180,12 +181,12 @@ describe('ContentService', () => {
 
       await service.upload(org.id, file, { title: 'Test' });
 
-      expect(storageService.addOriginalUsage).toHaveBeenCalledWith(org.id, 5000);
+      expect(storageService.reserveOriginalUsage).toHaveBeenCalledWith(org.id, 5000);
     });
 
     it('should reject upload when storage limit would be exceeded', async () => {
       const org = await seedOrg();
-      storageService.checkOriginalLimit.mockRejectedValue(
+      storageService.reserveOriginalUsage.mockRejectedValue(
         new BadRequestException('Upload would exceed organisation original storage limit'),
       );
       const file = createMockFile({ size: 1000 });
@@ -378,9 +379,9 @@ describe('ContentService', () => {
       expect(result.transcodingStatus).toBe(TranscodingStatus.Pending);
       expect(result.transcodedSizeBytes).toBeNull();
       expect(result.transcodingError).toBeNull();
-      // sizeDelta = 3000 - 2000 = 1000 (positive)
-      expect(storageService.checkOriginalLimit).toHaveBeenCalledWith(org.id, 1000);
-      expect(storageService.addOriginalUsage).toHaveBeenCalledWith(org.id, 1000);
+      // sizeDelta = 3000 - 2000 = 1000 (positive) — reserved, not booked twice
+      expect(storageService.reserveOriginalUsage).toHaveBeenCalledWith(org.id, 1000);
+      expect(storageService.addOriginalUsage).not.toHaveBeenCalled();
       expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith(org.id, 1000);
       expect(queue.add).toHaveBeenCalledWith(
         'transcode',
@@ -396,7 +397,7 @@ describe('ContentService', () => {
         transcodedSizeBytes: null,
         type: ContentType.Image,
       });
-      storageService.checkOriginalLimit.mockRejectedValue(
+      storageService.reserveOriginalUsage.mockRejectedValue(
         new BadRequestException('Upload would exceed organisation original storage limit'),
       );
 

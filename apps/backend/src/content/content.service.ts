@@ -62,37 +62,45 @@ export class ContentService {
   ): Promise<Content> {
     const detectedType = this.validateFile(file);
 
-    // Check storage limit
-    await this.storageService.checkOriginalLimit(organisationId, file.size);
+    // Reserve quota up front, atomically: the counter is only released again if
+    // the upload fails below, so two parallel uploads cannot both fit into the
+    // same remaining space.
+    await this.storageService.reserveOriginalUsage(organisationId, file.size);
 
     const type = detectedType.kind === 'image' ? ContentType.Image : ContentType.Video;
     const ext = path.extname(file.originalname).replace('.', '') || 'bin';
 
     // Create content record first to get the ID
-    const [saved] = await this.db
-      .insert(contents)
-      .values({
-        organisationId,
-        title: dto.title,
-        description: dto.description ?? null,
-        tags: dto.tags ?? [],
-        type,
-        originalFilename: file.originalname,
-        originalMimeType: detectedType.mime,
-        originalSizeBytes: file.size,
-        transcodedSizeBytes: null,
-        transcodingStatus: TranscodingStatus.Pending,
-        transcodingError: null,
-      })
-      .returning();
+    let saved: Content;
+    let filePath: string;
+    try {
+      [saved] = await this.db
+        .insert(contents)
+        .values({
+          organisationId,
+          title: dto.title,
+          description: dto.description ?? null,
+          tags: dto.tags ?? [],
+          type,
+          originalFilename: file.originalname,
+          originalMimeType: detectedType.mime,
+          originalSizeBytes: file.size,
+          transcodedSizeBytes: null,
+          transcodingStatus: TranscodingStatus.Pending,
+          transcodingError: null,
+        })
+        .returning();
 
-    // Save file to filesystem
-    const filePath = getOriginalPath(this.mediaBasePath, organisationId, saved.id, ext);
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, file.buffer);
-
-    // Update org storage counter
-    await this.storageService.addOriginalUsage(organisationId, file.size);
+      // Save file to filesystem
+      filePath = getOriginalPath(this.mediaBasePath, organisationId, saved.id, ext);
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, file.buffer);
+    } catch (error) {
+      // Release the reservation, otherwise a failed upload permanently consumes
+      // quota that no file occupies.
+      await this.storageService.subtractOriginalUsage(organisationId, file.size);
+      throw error;
+    }
 
     // Enqueue transcoding job
     await this.transcodingQueue.add('transcode', {
@@ -244,10 +252,11 @@ export class ContentService {
 
     const content = await this.findOne(organisationId, id);
 
-    // Calculate storage delta (new size - old size) and check limit
+    // Reserve the growth atomically before touching any file, same reasoning as
+    // in upload(); a shrink is booked after the write.
     const sizeDelta = file.size - Number(content.originalSizeBytes);
     if (sizeDelta > 0) {
-      await this.storageService.checkOriginalLimit(organisationId, sizeDelta);
+      await this.storageService.reserveOriginalUsage(organisationId, sizeDelta);
     }
 
     const oldExt = path.extname(content.originalFilename).replace('.', '') || 'bin';
@@ -281,13 +290,18 @@ export class ContentService {
 
     // Write new file
     const filePath = getOriginalPath(this.mediaBasePath, organisationId, id, newExt);
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, file.buffer);
+    try {
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, file.buffer);
+    } catch (error) {
+      if (sizeDelta > 0) {
+        await this.storageService.subtractOriginalUsage(organisationId, sizeDelta);
+      }
+      throw error;
+    }
 
-    // Update storage counter: subtract old, add new
-    if (sizeDelta > 0) {
-      await this.storageService.addOriginalUsage(organisationId, sizeDelta);
-    } else if (sizeDelta < 0) {
+    // The growth was already reserved; only a shrink still has to be booked.
+    if (sizeDelta < 0) {
       await this.storageService.subtractOriginalUsage(organisationId, Math.abs(sizeDelta));
     }
 
