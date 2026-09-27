@@ -137,8 +137,13 @@ function isBlockedIpv6(address: string): boolean {
   return isUniqueLocal || isLinkLocal || isMulticast;
 }
 
-/** True when the literal IP belongs to a range the backend must not dial. */
-export function isBlockedIpAddress(address: string): boolean {
+/**
+ * True for loopback, private, link-local, CGNAT, multicast and reserved
+ * addresses — i.e. everything that is "inside" rather than on the public
+ * internet. Used both to refuse outbound targets and to recognise a request
+ * that arrived from a proxy on the internal network.
+ */
+export function isInternalIpAddress(address: string): boolean {
   const version = isIP(address);
   if (version === 4) {
     return isBlockedIpv4(address);
@@ -164,7 +169,7 @@ function assertHostSyntax(host: string, options: OutboundUrlOptions): void {
   ) {
     throw new BlockedOutboundUrlError('Host points at the local machine');
   }
-  if (isBlockedIpAddress(normalised)) {
+  if (isInternalIpAddress(normalised)) {
     throw new BlockedOutboundUrlError('Host points at a private or reserved address');
   }
 }
@@ -227,7 +232,7 @@ async function assertResolvesPublicly(host: string, options: OutboundUrlOptions)
     throw new BlockedOutboundUrlError('Host could not be resolved');
   }
   // Every address must be public: a split-horizon answer is still a way in.
-  if (addresses.some(({ address }) => isBlockedIpAddress(address))) {
+  if (addresses.some(({ address }) => isInternalIpAddress(address))) {
     throw new BlockedOutboundUrlError('Host resolves to a private or reserved address');
   }
 }
@@ -254,3 +259,6 @@ export async function assertOutboundHostAllowed(
   assertHostSyntax(host, options);
   await assertResolvesPublicly(normaliseHost(host), options);
 }
+
+/** Outbound-facing name for {@link isInternalIpAddress}. */
+export const isBlockedIpAddress = isInternalIpAddress;

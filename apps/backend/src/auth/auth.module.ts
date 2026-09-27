@@ -2,7 +2,8 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ProxyAwareThrottlerGuard } from './proxy-aware-throttler.guard';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
 import { ApiKeyAuthGuard } from './api-key-auth.guard';
@@ -31,11 +32,11 @@ import { UserModule } from '../user/user.module';
     PasswordService,
     TokenService,
     UnverifiedSignupCleanupService,
-    // Order matters: ThrottlerGuard first (rate limit before any work), then
+    // Order matters: ProxyAwareThrottlerGuard first (rate limit before any work), then
     // JWT (sets req.user), then API-key (screen routes), then roles.
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: ProxyAwareThrottlerGuard,
     },
     {
       provide: APP_GUARD,

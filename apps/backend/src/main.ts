@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import * as cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
@@ -33,6 +34,21 @@ async function bootstrap() {
 
   await runMigrations(config.getOrThrow<string>('DATABASE_URL'));
 
+  // Security headers on every API response. This matters beyond the SPA: the
+  // container publishes the backend port, so the API is reachable without the
+  // Caddy headers in front of it.
+  app.use(
+    helmet({
+      // The API returns JSON, media files and HLS playlists, never HTML pages,
+      // so a page-oriented CSP buys nothing. Kept minimal and explicit instead.
+      contentSecurityPolicy: {
+        directives: { 'default-src': ["'none'"], 'frame-ancestors': ["'none'"] },
+      },
+      // The player and the admin SPA are separate origins and legitimately load
+      // media from the API, which helmet's same-origin default would block.
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
   app.use(cookieParser());
   // The admin SPA (PUBLIC_BASE_URL) sends credentialed cookies; the player app
   // (PLAYER_BASE_URL) is a separate origin that calls the public pairing routes
