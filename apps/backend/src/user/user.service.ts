@@ -20,6 +20,7 @@ import {
   type Organisation,
 } from '../db/schema';
 import { OrganisationRole } from './organisation-role.enum';
+import { hashToken } from '../auth/token-hash.util';
 
 /** Postgres unique-violation SQLSTATE. */
 const PG_UNIQUE_VIOLATION = '23505';
@@ -97,7 +98,7 @@ export class UserService {
             name: input.name,
             passwordHash: input.passwordHash,
             emailVerified: false,
-            emailVerificationToken: input.verificationToken,
+            emailVerificationToken: hashToken(input.verificationToken),
             emailVerificationTokenExpiresAt: input.verificationTokenExpiresAt,
           })
           .returning();
@@ -231,7 +232,7 @@ export class UserService {
     const [user] = await this.db
       .select()
       .from(users)
-      .where(eq(users.passwordResetToken, token))
+      .where(eq(users.passwordResetToken, hashToken(token)))
       .limit(1);
     return user ?? null;
   }
@@ -239,7 +240,7 @@ export class UserService {
   async setPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<void> {
     await this.db
       .update(users)
-      .set({ passwordResetToken: token, passwordResetTokenExpiresAt: expiresAt })
+      .set({ passwordResetToken: hashToken(token), passwordResetTokenExpiresAt: expiresAt })
       .where(eq(users.id, userId));
   }
 
@@ -275,7 +276,10 @@ export class UserService {
   async setEmailVerificationToken(userId: string, token: string, expiresAt: Date): Promise<void> {
     await this.db
       .update(users)
-      .set({ emailVerificationToken: token, emailVerificationTokenExpiresAt: expiresAt })
+      .set({
+        emailVerificationToken: hashToken(token),
+        emailVerificationTokenExpiresAt: expiresAt,
+      })
       .where(eq(users.id, userId));
   }
 
@@ -283,7 +287,7 @@ export class UserService {
     const [user] = await this.db
       .select()
       .from(users)
-      .where(eq(users.emailVerificationToken, token))
+      .where(eq(users.emailVerificationToken, hashToken(token)))
       .limit(1);
     return user ?? null;
   }
@@ -459,7 +463,7 @@ export class UserService {
       .update(users)
       .set({
         pendingEmail: pendingEmail.toLowerCase(),
-        emailChangeToken: token,
+        emailChangeToken: hashToken(token),
         emailChangeTokenExpiresAt: expiresAt,
       })
       .where(eq(users.id, userId));
@@ -469,7 +473,7 @@ export class UserService {
     const [user] = await this.db
       .select()
       .from(users)
-      .where(eq(users.emailChangeToken, token))
+      .where(eq(users.emailChangeToken, hashToken(token)))
       .limit(1);
     return user ?? null;
   }

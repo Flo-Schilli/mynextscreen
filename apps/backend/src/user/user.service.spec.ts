@@ -7,6 +7,7 @@ import { users, organisations, userOrganisationMemberships, type Organisation } 
 import { OrganisationRole } from './organisation-role.enum';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
+import { hashToken } from '../auth/token-hash.util';
 
 describe('UserService', () => {
   let service: UserService;
@@ -331,7 +332,9 @@ describe('UserService', () => {
       const user = await service.createUserWithOrganisation(baseInput);
 
       expect(user.emailVerified).toBe(false);
-      expect(user.emailVerificationToken).toBe('verify-tok');
+      // Stored as a fingerprint, never as the value that went out by email.
+      expect(user.emailVerificationToken).toBe(hashToken('verify-tok'));
+      expect(user.emailVerificationToken).not.toBe('verify-tok');
       expect(user.passwordHash).toBe('hash');
 
       const [org] = await db
@@ -643,6 +646,59 @@ describe('UserService', () => {
       expect(memberView?.memberships).toEqual([
         { organisationId: org.id, organisationName: 'Org X', role: OrganisationRole.Editor },
       ]);
+    });
+  });
+
+  describe('account tokens are stored hashed (D12)', () => {
+    async function seedUser() {
+      const [user] = await db
+        .insert(users)
+        .values({ email: `tokens-${Math.random()}@example.com` })
+        .returning();
+      return user;
+    }
+
+    it('finds a user by reset token without ever storing the token itself', async () => {
+      const user = await seedUser();
+      const expiresAt = new Date(Date.now() + 60_000);
+
+      await service.setPasswordResetToken(user.id, 'plain-reset-token', expiresAt);
+
+      const [row] = await db.select().from(users).where(eq(users.id, user.id));
+      expect(row.passwordResetToken).toBe(hashToken('plain-reset-token'));
+      expect(row.passwordResetToken).not.toContain('plain-reset-token');
+
+      // The plaintext still resolves — only the stored form changed.
+      const found = await service.findByPasswordResetToken('plain-reset-token');
+      expect(found?.id).toBe(user.id);
+    });
+
+    it('does not resolve a user from the hash itself', async () => {
+      const user = await seedUser();
+      await service.setPasswordResetToken(
+        user.id,
+        'plain-reset-token',
+        new Date(Date.now() + 60_000),
+      );
+
+      // Someone who read the database column cannot replay it as a token.
+      const found = await service.findByPasswordResetToken(hashToken('plain-reset-token'));
+      expect(found ?? null).toBeNull();
+    });
+
+    it('stores the email-change token hashed too', async () => {
+      const user = await seedUser();
+
+      await service.setPendingEmail(
+        user.id,
+        'new@example.com',
+        'plain-change-token',
+        new Date(Date.now() + 60_000),
+      );
+
+      const [row] = await db.select().from(users).where(eq(users.id, user.id));
+      expect(row.emailChangeToken).toBe(hashToken('plain-change-token'));
+      expect((await service.findByEmailChangeToken('plain-change-token'))?.id).toBe(user.id);
     });
   });
 });
