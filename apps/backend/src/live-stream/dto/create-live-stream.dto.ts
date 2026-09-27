@@ -11,6 +11,7 @@ export class CreateLiveStreamDto {
   name!: string;
 
   @IsNotEmpty()
+  @MaxLength(2048)
   @IsSafeOutboundUrl(
     { schemes: LIVE_STREAM_SCHEMES },
     {

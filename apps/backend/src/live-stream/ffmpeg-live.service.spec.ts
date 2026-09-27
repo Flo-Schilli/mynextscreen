@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventEmitter } from 'events';
 import { FfmpegLiveService, LIVE_STREAM_PROCESS_EXITED, PRESET_MAP } from './ffmpeg-live.service';
 import type { LiveStream } from '../db/schema';
+import { ServiceUnavailableException } from '@nestjs/common';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
 import { TranscodingPreset } from './transcoding-preset.enum';
@@ -62,7 +63,12 @@ function createMockProcess(): EventEmitter & {
     pid: number;
   };
   proc.stderr = new EventEmitter();
-  proc.kill = jest.fn();
+  // A real FFmpeg exits on SIGTERM; mirroring that keeps stop() from waiting
+  // out its escalation timer in every test.
+  proc.kill = jest.fn(() => {
+    setImmediate(() => proc.emit('exit', 0, 'SIGTERM'));
+    return true;
+  });
   proc.pid = 12345;
   return proc;
 }
@@ -144,9 +150,11 @@ describe('FfmpegLiveService', () => {
 
       const args = mockSpawn.mock.calls[0][1] as string[];
       expect(args[0]).toBe('-protocol_whitelist');
-      expect(args[1]).toBe('file,rtp,udp');
-      expect(args[2]).toBe('-i');
-      expect(args[3]).toBe('rtp://239.0.0.1:5004');
+      // `file` is deliberately absent — an SDP/RTP source has no use for it.
+      expect(args[1]).toBe('rtp,udp');
+      expect(args.slice(2, 4)).toEqual(['-rw_timeout', '30000000']);
+      expect(args[4]).toBe('-i');
+      expect(args[5]).toBe('rtp://239.0.0.1:5004');
     });
 
     it('should be idempotent — does not spawn a second process for the same stream', async () => {
@@ -248,6 +256,10 @@ describe('FfmpegLiveService', () => {
       const args = service.buildArgs(stream, outputPath);
 
       expect(args).toEqual([
+        '-protocol_whitelist',
+        'rtmp,tcp',
+        '-rw_timeout',
+        '30000000',
         '-i',
         'rtmp://example.com/live/stream1',
         '-vf',
@@ -290,9 +302,11 @@ describe('FfmpegLiveService', () => {
       const args = service.buildArgs(stream, outputPath);
 
       expect(args[0]).toBe('-protocol_whitelist');
-      expect(args[1]).toBe('file,rtp,udp');
-      expect(args[2]).toBe('-i');
-      expect(args[3]).toBe('rtp://239.0.0.1:5004');
+      // `file` is deliberately absent — an SDP/RTP source has no use for it.
+      expect(args[1]).toBe('rtp,udp');
+      expect(args.slice(2, 4)).toEqual(['-rw_timeout', '30000000']);
+      expect(args[4]).toBe('-i');
+      expect(args[5]).toBe('rtp://239.0.0.1:5004');
       expect(args).toContain('-f');
       expect(args).toContain('hls');
     });
@@ -534,7 +548,7 @@ describe('FfmpegLiveService', () => {
 
       const callArgs = mockExecFile.mock.calls[0][1] as string[];
       expect(callArgs[0]).toBe('-protocol_whitelist');
-      expect(callArgs[1]).toBe('file,rtp,udp');
+      expect(callArgs[1]).toBe('rtp,udp');
     });
 
     it('should propagate errors from ffprobe', async () => {
@@ -635,6 +649,54 @@ describe('FfmpegLiveService', () => {
 
       expect(result.compatible).toBe(false);
       expect(result.warnings).toHaveLength(3);
+    });
+  });
+
+  describe('process lifecycle', () => {
+    it('terminates every running process on shutdown', async () => {
+      const first = createMockProcess();
+      const second = createMockProcess();
+      mockSpawn.mockReturnValueOnce(first as never).mockReturnValueOnce(second as never);
+
+      await service.start(createStream({ id: 'stream-a' }));
+      await service.start(createStream({ id: 'stream-b' }));
+
+      await service.onModuleDestroy();
+
+      expect(first.kill).toHaveBeenCalledWith('SIGTERM');
+      expect(second.kill).toHaveBeenCalledWith('SIGTERM');
+      expect(service.isRunning('stream-a')).toBe(false);
+      expect(service.isRunning('stream-b')).toBe(false);
+    });
+
+    it('escalates to SIGKILL when the process ignores SIGTERM', async () => {
+      jest.useFakeTimers();
+      const stubborn = createMockProcess();
+      stubborn.kill = jest.fn(); // never exits
+      mockSpawn.mockReturnValue(stubborn as never);
+      await service.start(createStream({ id: 'stream-hung' }));
+
+      const stopped = service.stop('stream-hung');
+      await jest.advanceTimersByTimeAsync(5_000);
+      expect(stubborn.kill).toHaveBeenCalledWith('SIGKILL');
+
+      await jest.advanceTimersByTimeAsync(2_000);
+      await stopped;
+      jest.useRealTimers();
+
+      expect(service.isRunning('stream-hung')).toBe(false);
+    });
+
+    it('refuses to start more streams than the configured cap', async () => {
+      mockSpawn.mockImplementation(() => createMockProcess() as never);
+
+      for (let index = 0; index < 4; index += 1) {
+        await service.start(createStream({ id: `stream-${index}` }));
+      }
+
+      await expect(service.start(createStream({ id: 'stream-over' }))).rejects.toThrow(
+        ServiceUnavailableException,
+      );
     });
   });
 });

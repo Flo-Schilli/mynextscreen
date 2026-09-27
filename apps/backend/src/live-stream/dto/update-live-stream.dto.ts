@@ -12,6 +12,7 @@ export class UpdateLiveStreamDto {
   name?: string;
 
   @IsOptional()
+  @MaxLength(2048)
   @IsSafeOutboundUrl(
     { schemes: LIVE_STREAM_SCHEMES },
     {
