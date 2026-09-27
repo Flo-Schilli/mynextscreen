@@ -5,6 +5,11 @@ import { DRIZZLE } from '../db/database.constants';
 import { organisations, organisationNotificationConfigs, type Organisation } from '../db/schema';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
+import { ConfigService } from '@nestjs/config';
+import { SecretCipher } from '../common/secret-cipher.service';
+
+/** 32 bytes, base64 — the shape SECRETS_ENCRYPTION_KEY must have. */
+const TEST_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64');
 
 describe('OrgNotificationConfigService', () => {
   let service: OrgNotificationConfigService;
@@ -22,7 +27,12 @@ describe('OrgNotificationConfigService', () => {
   beforeEach(async () => {
     await truncateAll();
     const module: TestingModule = await Test.createTestingModule({
-      providers: [OrgNotificationConfigService, { provide: DRIZZLE, useValue: db }],
+      providers: [
+        OrgNotificationConfigService,
+        { provide: DRIZZLE, useValue: db },
+        SecretCipher,
+        { provide: ConfigService, useValue: { get: () => TEST_ENCRYPTION_KEY } },
+      ],
     }).compile();
     service = module.get<OrgNotificationConfigService>(OrgNotificationConfigService);
 
@@ -101,8 +111,26 @@ describe('OrgNotificationConfigService', () => {
 
       await service.upsert(org.id, { smtpPassword: 'new-secret' });
 
+      // Stored encrypted, handed back in plaintext: a database dump must not
+      // carry the tenant's mail credentials (B7).
       const persisted = await readConfig();
-      expect(persisted.smtpPassword).toBe('new-secret');
+      expect(persisted.smtpPassword).not.toBe('new-secret');
+      expect(persisted.smtpPassword?.startsWith('enc:v1:')).toBe(true);
+      expect((await service.getForOrg(org.id))?.smtpPassword).toBe('new-secret');
+    });
+
+    it('still reads a row written before the encryption key existed', async () => {
+      await seedConfig();
+      await db
+        .update(organisationNotificationConfigs)
+        .set({ smtpPassword: 'legacy-plaintext' })
+        .where(eq(organisationNotificationConfigs.organisationId, org.id));
+
+      expect((await service.getForOrg(org.id))?.smtpPassword).toBe('legacy-plaintext');
+
+      // …and it is encrypted the next time the row is written.
+      await service.upsert(org.id, { smtpPassword: 'rotated' });
+      expect((await readConfig()).smtpPassword?.startsWith('enc:v1:')).toBe(true);
     });
 
     it('should preserve existing ntfy token when blank token is provided', async () => {

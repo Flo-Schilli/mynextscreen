@@ -2,6 +2,7 @@ import { Injectable, Inject } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
+import { SecretCipher } from '../common/secret-cipher.service';
 import {
   organisationNotificationConfigs,
   type AlertRules,
@@ -23,7 +24,23 @@ export interface OrgNotificationConfigData {
 
 @Injectable()
 export class OrgNotificationConfigService {
-  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
+  constructor(
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
+    private readonly cipher: SecretCipher,
+  ) {}
+
+  /**
+   * Callers always see plaintext credentials; the ciphertext never leaves this
+   * service. Rows written before an encryption key was configured decrypt to
+   * themselves and are re-encrypted on their next write.
+   */
+  private decryptSecrets(config: OrganisationNotificationConfig): OrganisationNotificationConfig {
+    return {
+      ...config,
+      smtpPassword: this.cipher.decrypt(config.smtpPassword) ?? null,
+      ntfyToken: this.cipher.decrypt(config.ntfyToken) ?? null,
+    };
+  }
 
   async getForOrg(organisationId: string): Promise<OrganisationNotificationConfig | null> {
     const [config] = await this.db
@@ -31,7 +48,7 @@ export class OrgNotificationConfigService {
       .from(organisationNotificationConfigs)
       .where(eq(organisationNotificationConfigs.organisationId, organisationId))
       .limit(1);
-    return config ?? null;
+    return config ? this.decryptSecrets(config) : null;
   }
 
   async upsert(
@@ -47,14 +64,14 @@ export class OrgNotificationConfigService {
       if (config.smtpPort !== undefined) updates.smtpPort = config.smtpPort;
       if (config.smtpUser !== undefined) updates.smtpUser = config.smtpUser;
       if (config.smtpPassword !== undefined && config.smtpPassword !== '') {
-        updates.smtpPassword = config.smtpPassword;
+        updates.smtpPassword = this.cipher.encrypt(config.smtpPassword) ?? null;
       }
       if (config.smtpFrom !== undefined) updates.smtpFrom = config.smtpFrom;
       if (config.smtpSecure !== undefined) updates.smtpSecure = config.smtpSecure;
       if (config.ntfyUrl !== undefined) updates.ntfyUrl = config.ntfyUrl;
       if (config.ntfyTopic !== undefined) updates.ntfyTopic = config.ntfyTopic;
       if (config.ntfyToken !== undefined && config.ntfyToken !== '') {
-        updates.ntfyToken = config.ntfyToken;
+        updates.ntfyToken = this.cipher.encrypt(config.ntfyToken) ?? null;
       }
       if (config.alertRules !== undefined) updates.alertRules = config.alertRules;
       // Nothing to change (e.g. only a blank secret was sent): skip the write.
@@ -68,7 +85,7 @@ export class OrgNotificationConfigService {
         .set(updates)
         .where(eq(organisationNotificationConfigs.id, existing.id))
         .returning();
-      return saved;
+      return this.decryptSecrets(saved);
     }
 
     const [saved] = await this.db
@@ -78,16 +95,16 @@ export class OrgNotificationConfigService {
         smtpHost: config.smtpHost ?? null,
         smtpPort: config.smtpPort ?? null,
         smtpUser: config.smtpUser ?? null,
-        smtpPassword: config.smtpPassword || null,
+        smtpPassword: this.cipher.encrypt(config.smtpPassword) || null,
         smtpFrom: config.smtpFrom ?? null,
         smtpSecure: config.smtpSecure ?? false,
         ntfyUrl: config.ntfyUrl ?? null,
         ntfyTopic: config.ntfyTopic ?? null,
-        ntfyToken: config.ntfyToken || null,
+        ntfyToken: this.cipher.encrypt(config.ntfyToken) || null,
         // Omit when not provided so the column default (DEFAULT_ALERT_RULES) applies.
         ...(config.alertRules !== undefined ? { alertRules: config.alertRules } : {}),
       })
       .returning();
-    return saved;
+    return this.decryptSecrets(saved);
   }
 }
