@@ -170,6 +170,13 @@ export const screens = pgTable(
     resolution: text().notNull(),
     location: text().notNull(),
     apiKeyHash: text().notNull(),
+    /**
+     * SHA-256 of the API key, for an indexed single-row lookup. Nullable
+     * because it cannot be derived from the bcrypt hash of a key issued before
+     * this column existed; such rows are filled in on their next successful
+     * authentication, when the plaintext key is in hand.
+     */
+    apiKeyFingerprint: text(),
     lastHeartbeat: timestamp({ withTimezone: true }),
     isOnline: boolean().notNull().default(false),
     groupId: uuid().references(() => screenGroups.id, { onDelete: 'set null' }),
@@ -181,7 +188,10 @@ export const screens = pgTable(
     showDisconnectButton: boolean().notNull().default(true),
     ...timestamps,
   },
-  (t) => [index('IDX_screens_api_key_hash').on(t.apiKeyHash)],
+  (t) => [
+    index('IDX_screens_api_key_hash').on(t.apiKeyHash),
+    uniqueIndex('UQ_screens_api_key_fingerprint').on(t.apiKeyFingerprint),
+  ],
 );
 
 // ── screen pairings (6-digit device-flow) ─────────────────────────────────────

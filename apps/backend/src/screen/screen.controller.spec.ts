@@ -23,6 +23,7 @@ describe('ScreenController', () => {
     resolution: '1920x1080',
     location: 'Stage Left',
     apiKeyHash: '$2b$10$hashedvalue',
+    apiKeyFingerprint: null,
     lastHeartbeat: null,
     isOnline: false,
     createdAt: new Date(),

@@ -22,6 +22,7 @@ describe('ScreenScheduler', () => {
     resolution: '1920x1080',
     location: 'Test',
     apiKeyHash: '$2b$10$hash',
+    apiKeyFingerprint: null,
     lastHeartbeat: new Date(Date.now() - 300_000),
     isOnline: true,
     createdAt: new Date(),

@@ -45,6 +45,7 @@ describe('Playlist Transition Integration', () => {
       resolution: '1920x1080',
       location: 'Lobby',
       apiKeyHash: '$2b$10$hashed',
+      apiKeyFingerprint: null,
       lastHeartbeat: null,
       isOnline: true,
       createdAt: new Date(),
@@ -94,6 +95,7 @@ describe('Playlist Transition Integration', () => {
         resolution: '1920x1080',
         location: 'Lobby',
         apiKeyHash: '$2b$10$hashed',
+        apiKeyFingerprint: null,
         isOnline: true,
       })
       .returning();
