@@ -51,14 +51,30 @@ function loadPlayer(playerUrl, serverUrl, apiKey) {
     const iframe = document.getElementById('contentFrame');
     const loadingMessage = document.getElementById('loadingMessage');
 
+    // The player URL comes from local settings; refuse anything but http(s) so a
+    // tampered setting cannot turn the shell into a loader for arbitrary schemes.
+    var playerOrigin;
+    try {
+        var parsed = new URL(playerUrl);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+            throw new Error('unsupported scheme ' + parsed.protocol);
+        }
+        playerOrigin = parsed.origin;
+    } catch (error) {
+        loadingMessage.textContent = 'Invalid player URL. Open settings and correct it.';
+        return;
+    }
+
     iframe.src = playerUrl;
 
     iframe.onload = function() {
+        // Targeted at the player's own origin: with '*' the long-lived screen API
+        // key would be readable by whatever page happened to answer the load.
         iframe.contentWindow.postMessage({
             type: 'signage-connect',
             serverUrl: serverUrl,
             apiKey: apiKey
-        }, '*');
+        }, playerOrigin);
 
         loadingMessage.style.display = 'none';
         iframe.style.display = 'block';

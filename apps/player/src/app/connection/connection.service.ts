@@ -59,12 +59,49 @@ type PairingStatusResponse =
 /** Result of a single poll, normalised for the dialog. */
 export type PollPairingResult = 'pending' | 'claimed' | 'expired';
 
+/**
+ * Origins allowed to hand credentials to the player. Same-origin always counts;
+ * `'null'` is the opaque origin of the webOS shell (`file://`). Deployments that
+ * do not use that shell pin the list by setting `window.__SIGNAGE_TRUSTED_ORIGINS__`
+ * to a comma-separated list before the bundle loads.
+ */
+export function trustedConnectOrigins(): readonly string[] {
+  const configured = (window as { __SIGNAGE_TRUSTED_ORIGINS__?: unknown })
+    .__SIGNAGE_TRUSTED_ORIGINS__;
+  if (typeof configured === 'string' && configured.trim() !== '') {
+    return configured
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter((origin) => origin !== '');
+  }
+  return [window.location.origin, 'null'];
+}
+
 @Injectable({ providedIn: 'root' })
 export class ConnectionService implements OnDestroy {
   private readonly http = inject(HttpClient);
+  /**
+   * Accepts a `signage-connect` handoff only from a sender we have reason to
+   * trust. Without this, any page that iframes the player can pair the physical
+   * display to a screen of its own choosing — the player is deliberately
+   * frameable for the LG webOS shell, so framing is not itself a signal.
+   *
+   * Three conditions, none of which alone is sufficient:
+   * - the origin is allow-listed (same-origin by default; `'null'` covers the
+   *   webOS shell, which is served from `file://` and therefore has an opaque
+   *   origin; operators can pin the list via `window.__SIGNAGE_TRUSTED_ORIGINS__`);
+   * - the message comes from the embedding window, not from a random frame;
+   * - the player is not connected yet, so a paired display can never be
+   *   re-paired by a message.
+   */
   private readonly onMessage = (event: MessageEvent): void => {
     const data = event.data;
     if (data == null || typeof data !== 'object' || data.type !== 'signage-connect') {
+      return;
+    }
+
+    if (!this.isTrustedConnectSender(event)) {
+      console.warn(`Ignored signage-connect from untrusted origin ${event.origin}`);
       return;
     }
 
@@ -75,6 +112,17 @@ export class ConnectionService implements OnDestroy {
 
     this.connect(serverUrl, apiKey);
   };
+
+  private isTrustedConnectSender(event: MessageEvent): boolean {
+    if (this._connected()) {
+      return false;
+    }
+    const isFramed = window.parent !== window;
+    if (!isFramed || event.source !== window.parent) {
+      return false;
+    }
+    return trustedConnectOrigins().includes(event.origin);
+  }
 
   constructor() {
     window.addEventListener('message', this.onMessage);
