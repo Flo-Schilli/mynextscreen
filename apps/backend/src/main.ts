@@ -61,6 +61,13 @@ async function bootstrap() {
   const allowedOrigins = [publicBaseUrl, playerBaseUrl].filter(
     (origin): origin is string => !!origin,
   );
+  // Fail closed in production: reflecting any origin together with
+  // `credentials: true` means every site can call the API with the user's
+  // cookies. In development neither base URL is usually set, so reflection
+  // stays available there.
+  if (allowedOrigins.length === 0 && config.get<string>('NODE_ENV') === 'production') {
+    throw new Error('PUBLIC_BASE_URL (and PLAYER_BASE_URL, if used) must be set in production');
+  }
   app.enableCors({
     origin: allowedOrigins.length ? allowedOrigins : true,
     credentials: true,

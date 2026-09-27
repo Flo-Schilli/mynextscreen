@@ -6,6 +6,8 @@ export class RegisterDto {
 
   @IsString()
   @MinLength(8)
+  // bcrypt only reads the first 72 bytes; longer input is pure hashing cost.
+  @MaxLength(72)
   password!: string;
 
   @IsOptional()

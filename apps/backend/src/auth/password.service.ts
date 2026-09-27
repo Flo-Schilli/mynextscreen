@@ -8,6 +8,12 @@ const BCRYPT_COST = 12;
  * backend dependency (screen API-key auth), avoiding a second native addon that
  * could break the rootless-Podman/musl image.
  */
+/**
+ * A real bcrypt hash of a value nobody can present, used purely to spend the
+ * same CPU time on a missing account as on a wrong password.
+ */
+const DUMMY_HASH = '$2b$12$C6UzMDM.H6dfI/f/IKcEe.O/6Ttk7hVe1x1M2qFOBfkKnWQKfMHKq';
+
 @Injectable()
 export class PasswordService {
   private readonly logger = new Logger(PasswordService.name);
@@ -23,6 +29,10 @@ export class PasswordService {
    */
   async verify(hash: string | null | undefined, plain: string): Promise<boolean> {
     if (!hash) {
+      // Compare against a fixed hash anyway: returning early made an unknown
+      // account (or an invitee without a password) answer measurably faster
+      // than a wrong password, which enumerates accounts over the login route.
+      await bcrypt.compare(plain, DUMMY_HASH);
       return false;
     }
     try {

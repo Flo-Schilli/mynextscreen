@@ -32,6 +32,11 @@ export interface AccessClaims {
  * refresh tokens in Redis with per-family tracking, atomic rotation and
  * reuse-detection. Direct port of the immich-upload-portal reference.
  */
+/** Pinned JWT parameters; verification rejects anything that deviates. */
+const ACCESS_TOKEN_ALGORITHM = 'HS256' as const;
+const ACCESS_TOKEN_ISSUER = 'signage-server';
+const ACCESS_TOKEN_AUDIENCE = 'signage-api';
+
 @Injectable()
 export class TokenService {
   private readonly logger = new Logger(TokenService.name);
@@ -53,7 +58,13 @@ export class TokenService {
     const jti = randomUUID();
     const token = await this.jwt.signAsync(
       { sub: userId, email: claims.email, isSuperAdmin: claims.isSuperAdmin, jti },
-      { secret: this.accessSecret, expiresIn: this.accessTtlSeconds },
+      {
+        secret: this.accessSecret,
+        expiresIn: this.accessTtlSeconds,
+        algorithm: ACCESS_TOKEN_ALGORITHM,
+        issuer: ACCESS_TOKEN_ISSUER,
+        audience: ACCESS_TOKEN_AUDIENCE,
+      },
     );
     return {
       token,
@@ -63,8 +74,14 @@ export class TokenService {
   }
 
   async verifyAccessToken(token: string): Promise<AccessTokenPayload> {
+    // Pinned explicitly: without `algorithms` the verifier accepts whatever the
+    // token header claims, and without issuer/audience a token minted for some
+    // other service that happens to share the secret would be accepted here.
     const payload = await this.jwt.verifyAsync<AccessTokenPayload>(token, {
       secret: this.accessSecret,
+      algorithms: [ACCESS_TOKEN_ALGORITHM],
+      issuer: ACCESS_TOKEN_ISSUER,
+      audience: ACCESS_TOKEN_AUDIENCE,
     });
     return {
       sub: payload.sub,
