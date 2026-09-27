@@ -27,9 +27,10 @@ import {
   AuditContentEvent,
 } from '../audit-log/audit.events';
 import { CONTENT_DURATION_RESOLVED, ContentDurationResolvedEvent } from './content.event';
+import { DetectedMediaType, SUPPORTED_MEDIA_TYPES, detectMediaType } from './media-type.util';
 
-const IMAGE_MIME_PREFIX = 'image/';
-const VIDEO_MIME_PREFIX = 'video/';
+/** 100 MB. Shared with the Multer limit so both layers cut off at the same size. */
+export const DEFAULT_MAX_FILE_SIZE_BYTES = 104_857_600;
 
 @Injectable()
 export class ContentService {
@@ -48,7 +49,7 @@ export class ContentService {
     this.mediaBasePath = this.configService.get<string>('MEDIA_BASE_PATH', './media');
     this.maxFileSizeBytes = this.configService.get<number>(
       'MAX_FILE_SIZE_BYTES',
-      104857600, // 100 MB default
+      DEFAULT_MAX_FILE_SIZE_BYTES,
     );
     const ffmpegPath = this.configService.get<string>('FFMPEG_PATH', 'ffmpeg');
     this.ffprobePath = ffmpegPath.replace(/ffmpeg/, 'ffprobe');
@@ -59,14 +60,12 @@ export class ContentService {
     file: Express.Multer.File,
     dto: UploadContentDto,
   ): Promise<Content> {
-    this.validateFile(file);
+    const detectedType = this.validateFile(file);
 
     // Check storage limit
     await this.storageService.checkOriginalLimit(organisationId, file.size);
 
-    const type = file.mimetype.startsWith(IMAGE_MIME_PREFIX)
-      ? ContentType.Image
-      : ContentType.Video;
+    const type = detectedType.kind === 'image' ? ContentType.Image : ContentType.Video;
     const ext = path.extname(file.originalname).replace('.', '') || 'bin';
 
     // Create content record first to get the ID
@@ -79,7 +78,7 @@ export class ContentService {
         tags: dto.tags ?? [],
         type,
         originalFilename: file.originalname,
-        originalMimeType: file.mimetype,
+        originalMimeType: detectedType.mime,
         originalSizeBytes: file.size,
         transcodedSizeBytes: null,
         transcodingStatus: TranscodingStatus.Pending,
@@ -241,7 +240,7 @@ export class ContentService {
   }
 
   async reUpload(organisationId: string, id: string, file: Express.Multer.File): Promise<Content> {
-    this.validateFile(file);
+    const detectedType = this.validateFile(file);
 
     const content = await this.findOne(organisationId, id);
 
@@ -293,14 +292,12 @@ export class ContentService {
     }
 
     // Update content record
-    const type = file.mimetype.startsWith(IMAGE_MIME_PREFIX)
-      ? ContentType.Image
-      : ContentType.Video;
+    const type = detectedType.kind === 'image' ? ContentType.Image : ContentType.Video;
     const [saved] = await this.db
       .update(contents)
       .set({
         originalFilename: file.originalname,
-        originalMimeType: file.mimetype,
+        originalMimeType: detectedType.mime,
         originalSizeBytes: file.size,
         type,
         transcodedSizeBytes: null,
@@ -564,7 +561,12 @@ export class ContentService {
     return found;
   }
 
-  private validateFile(file: Express.Multer.File): void {
+  /**
+   * Validates an upload and returns the type derived from its bytes. The
+   * client-supplied MIME type is never trusted: it used to be stored and echoed
+   * back on download, which made `image/svg+xml` a stored-XSS vector.
+   */
+  private validateFile(file: Express.Multer.File): DetectedMediaType {
     if (!file) {
       throw new BadRequestException('No file provided');
     }
@@ -575,14 +577,13 @@ export class ContentService {
       );
     }
 
-    if (
-      !file.mimetype.startsWith(IMAGE_MIME_PREFIX) &&
-      !file.mimetype.startsWith(VIDEO_MIME_PREFIX)
-    ) {
+    const detected = file.buffer ? detectMediaType(file.buffer) : null;
+    if (!detected) {
       throw new BadRequestException(
-        `Unsupported file type "${file.mimetype}". Only image/* and video/* MIME types are allowed`,
+        `Unsupported file type. Allowed formats: ${SUPPORTED_MEDIA_TYPES.join(', ')}`,
       );
     }
+    return detected;
   }
 
   private async unlinkSafe(filePath: string): Promise<void> {

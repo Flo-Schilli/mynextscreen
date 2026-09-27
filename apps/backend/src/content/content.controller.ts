@@ -20,6 +20,7 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ContentService } from './content.service';
+import { isSupportedMediaType } from './media-type.util';
 import { UploadContentDto } from './dto/upload-content.dto';
 import { UpdateContentDto } from './dto/update-content.dto';
 import { BulkDeleteContentDto } from './dto/bulk-delete-content.dto';
@@ -168,7 +169,17 @@ export class ContentController {
     if (!fs.existsSync(absPath)) {
       throw new NotFoundException('Original file not found');
     }
-    res.setHeader('Content-Type', content.originalMimeType);
+    // Never echo the stored MIME type back unchecked: older records may still
+    // carry a client-supplied value such as image/svg+xml, which the browser
+    // would execute from this origin. Known media types render inline, anything
+    // else is handed over as an opaque download.
+    const isKnownType = isSupportedMediaType(content.originalMimeType);
+    res.setHeader(
+      'Content-Type',
+      isKnownType ? content.originalMimeType : 'application/octet-stream',
+    );
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', isKnownType ? 'inline' : 'attachment');
     res.sendFile(absPath);
   }
 
@@ -191,6 +202,7 @@ export class ContentController {
       webp: 'image/webp',
     };
     res.setHeader('Content-Type', mimeMap[transcodedExt] || 'application/octet-stream');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.sendFile(absPath);
   }
 
@@ -210,6 +222,7 @@ export class ContentController {
       throw new NotFoundException('Thumbnail not found');
     }
     res.setHeader('Content-Type', 'image/webp');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.sendFile(absPath);
   }
