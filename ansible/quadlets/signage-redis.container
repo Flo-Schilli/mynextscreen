@@ -7,6 +7,10 @@ ContainerName=signage-redis
 Image=docker.io/library/redis:7-alpine
 Pull=newer
 Network=signage.network
+NoNewPrivileges=true
+DropCapability=ALL
+AddCapability=SETGID
+AddCapability=SETUID
 Volume=signage-redis-data:/data:Z
 
 [Service]

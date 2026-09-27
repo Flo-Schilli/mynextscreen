@@ -7,6 +7,10 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json nx.json tsconfig.base.json ./
+# The lockfile is maintained with the npm version pinned in package.json;
+# node:22-alpine ships npm 10, which cannot install it (`npm ci` fails with
+# "Missing: ... from lock file").
+RUN npm i -g npm@11.6.2
 RUN npm ci
 
 COPY apps/player apps/player
@@ -15,7 +19,14 @@ COPY libs libs
 RUN npx nx build player --configuration=production
 
 # Stage 2: Production runtime
-FROM nginx:alpine
+# Unprivileged variant: runs as UID 101 and listens on 8080, so the container
+# does not need root just to serve static files.
+FROM nginxinc/nginx-unprivileged:1.29-alpine
+
+# The base image already switches to UID 101; the build steps below need to
+# write into /etc/nginx and /usr/share/nginx, so they run as root and the
+# runtime user is restored before the entrypoint.
+USER root
 
 # Build metadata (passed by CI / images:build) -> OCI labels + version.json
 ARG APP_VERSION=0.0.0-dev
@@ -36,9 +47,11 @@ RUN printf '{"version":"%s","commit":"%s","builtAt":"%s"}\n' \
       "${APP_VERSION}" "${GIT_COMMIT}" "${BUILD_DATE}" \
       > /usr/share/nginx/html/version.json
 
-EXPOSE 80
+USER 101
+
+EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget -q -O /dev/null http://127.0.0.1/ || exit 1
+  CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

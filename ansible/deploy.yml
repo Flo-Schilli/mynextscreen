@@ -93,7 +93,9 @@
         state: directory
         owner: "{{ service_user }}"
         group: "{{ service_user }}"
-        mode: "0755"
+        # Backups hold the full database — password hashes, API keys and the
+        # per-org SMTP credentials — so they are owner-only, unlike the rest.
+        mode: "{{ '0700' if item.endswith('/backups') else '0755' }}"
       loop: "{{ app_dirs }}"
 
     - name: Create Quadlet directory
@@ -131,11 +133,24 @@
         cmd: restorecon -Rv /var/log/caddy/
       changed_when: true
 
+    # Built in a root-owned private directory rather than in /tmp: compiling a
+    # policy module from a world-readable file inside a world-writable directory
+    # invites a symlink race on hosts with other local accounts.
+    - name: Create SELinux policy build directory
+      ansible.builtin.file:
+        path: /var/lib/signage-selinux
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
     - name: Copy Caddy SELinux policy source
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/templates/caddy_log.te"
-        dest: /tmp/caddy_log.te
-        mode: "0644"
+        dest: /var/lib/signage-selinux/caddy_log.te
+        owner: root
+        group: root
+        mode: "0600"
 
     - name: Check if Caddy log SELinux module is already loaded
       ansible.builtin.command:
@@ -145,9 +160,10 @@
 
     - name: Compile and install Caddy SELinux policy module
       ansible.builtin.shell: |
-        checkmodule -M -m -o /tmp/caddy_log.mod /tmp/caddy_log.te
-        semodule_package -o /tmp/caddy_log.pp -m /tmp/caddy_log.mod
-        semodule -i /tmp/caddy_log.pp
+        cd /var/lib/signage-selinux
+        checkmodule -M -m -o caddy_log.mod caddy_log.te
+        semodule_package -o caddy_log.pp -m caddy_log.mod
+        semodule -i caddy_log.pp
       when: "'caddy_log' not in semodule_list.stdout"
 
     # ─── Database backup ──────────────────────────────────────
@@ -165,6 +181,16 @@
         executable: /bin/bash
       when: pg_running.rc == 0
       changed_when: true
+
+    - name: Restrict database dump permissions
+      ansible.builtin.file:
+        path: "{{ service_user_home }}/app/backups"
+        state: directory
+        recurse: true
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
+        mode: u=rwX,g=,o=
+      when: pg_running.rc == 0
 
     # ─── Quadlet files and env ────────────────────────────────
     - name: Copy static Quadlet files

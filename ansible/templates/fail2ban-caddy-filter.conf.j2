@@ -1,6 +1,8 @@
 # Fail2ban filter for Caddy JSON access logs
-# Matches 401 and 403 responses
+# Matches 401 (failed authentication) only. 403 is the routine answer to an
+# authenticated user touching another tenant's resource, so banning on it
+# would lock out legitimate users over a mis-click.
 
 [Definition]
-failregex = ^\{.*"request":\{.*"client_ip":"<HOST>".*"status":40[13].*\}$
+failregex = ^\{.*"request":\{.*"client_ip":"<HOST>".*"status":401.*\}$
 ignoreregex =

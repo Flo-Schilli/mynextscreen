@@ -7,7 +7,13 @@ Image={{ image_registry }}/player:{{ signage_image_tag }}
 AutoUpdate=registry
 Pull=newer
 Network=signage.network
-PublishPort=50003:80
+NoNewPrivileges=true
+DropCapability=ALL
+AddCapability=SETGID
+AddCapability=SETUID
+# Loopback only: Caddy is the sole public entry point. A 0.0.0.0 port
+# would bypass TLS, the security headers and fail2ban.
+PublishPort=127.0.0.1:50003:8080
 
 [Service]
 Restart=always

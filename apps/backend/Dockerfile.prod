@@ -7,6 +7,10 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json nx.json tsconfig.base.json ./
+# The lockfile is maintained with the npm version pinned in package.json;
+# node:22-alpine ships npm 10, which cannot install it (`npm ci` fails with
+# "Missing: ... from lock file").
+RUN npm i -g npm@11.6.2
 RUN npm ci
 
 COPY apps/backend apps/backend
@@ -26,6 +30,7 @@ WORKDIR /app
 
 # Production deps resolved against the single root lockfile
 COPY package.json package-lock.json ./
+RUN npm i -g npm@11.6.2
 RUN npm ci --omit=dev
 
 # Compiled output incl. db/migrations/*.sql (run automatically on boot)
