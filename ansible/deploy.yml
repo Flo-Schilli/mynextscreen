@@ -13,6 +13,7 @@
 #   signage_image_tag:  GHCR tag to deploy (default: latest; pin e.g. "1.2.3")
 #   ghcr_username:      GHCR user for `podman login` (default: image owner)
 #   ghcr_token:         GHCR PAT (read:packages). Omit if packages are public.
+#   vault_signage_postgres_password: Postgres password (vault it; no default)
 
 - name: Deploy to server
   hosts: servers
@@ -24,8 +25,8 @@
     image_registry: "ghcr.io/flo-schilli/digital-signage"
     signage_image_tag: latest
     ghcr_username: flo-schilli
-    # Override via Ansible Vault or --extra-vars in production.
-    signage_postgres_password: "{{ vault_signage_postgres_password | default('signage') }}"
+    # Fail-closed: must be provided via Ansible Vault or --extra-vars.
+    signage_postgres_password: "{{ vault_signage_postgres_password | mandatory }}"
     app_dirs:
       - "{{ service_user_home }}/app"
       - "{{ service_user_home }}/app/data"
