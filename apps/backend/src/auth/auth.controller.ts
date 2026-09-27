@@ -78,6 +78,15 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
+  /**
+   * Not enumeration-safe, deliberately: a duplicate email answers 409 while a
+   * fresh one answers 204, so this route tells an anonymous caller whether an
+   * address has an account — unlike forgot-password, which always answers 204.
+   * Hiding it would mean accepting the signup, sending "you already have an
+   * account" by email and leaving the caller unable to distinguish a typo from
+   * a duplicate. The rate limit below is what bounds the enumeration; revisit
+   * this if signup is ever opened to an untrusted audience at scale.
+   */
   async register(@Body() dto: RegisterDto): Promise<void> {
     if (!this.isSignupEnabled()) {
       throw new ForbiddenException('Self-signup is disabled');
