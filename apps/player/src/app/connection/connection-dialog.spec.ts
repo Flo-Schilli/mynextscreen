@@ -12,6 +12,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ConnectionDialogComponent } from './connection-dialog';
+import { ConnectionService } from './connection.service';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -140,6 +141,132 @@ describe('ConnectionDialogComponent (pairing)', () => {
     expect(errorEl).not.toBeNull();
     const retryBtn = fixture.nativeElement.querySelector('[data-testid="retry-pairing"]');
     expect(retryBtn).not.toBeNull();
+  });
+
+  it('pairs against a server URL handed over by the shell', async () => {
+    // The shell loads the player in an iframe and posts the real server URL,
+    // which can arrive after the dialog already asked its guessed one for a
+    // code. The code on the display has to belong to the server being polled.
+    fixture.detectChanges();
+    await flushStartPairing('111111');
+    fixture.detectChanges();
+
+    const connection = TestBed.inject(ConnectionService);
+    connection['useServerUrl']('https://api.example.com');
+    fixture.detectChanges();
+    await Promise.resolve();
+
+    const req = httpMock.expectOne('https://api.example.com/api/screens/pairing');
+    req.flush({
+      pairingId: 'pair-2',
+      code: '222222',
+      expiresAt: '2030-01-01T00:00:00.000Z',
+      pairingSecret: 'secret-2',
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="pairing-code"]').textContent.trim(),
+    ).toBe('222 222');
+    expect(component.serverUrl).toBe('https://api.example.com');
+
+    component['stopPolling']();
+  });
+
+  it('lets the newer request win when both are in flight at once', async () => {
+    // The real race: the shell hands over its URL while the guessed one is
+    // still unanswered, and the guessed server answers last. Its code must
+    // never reach the display, because nothing is polling that server.
+    fixture.detectChanges(); // ngOnInit → pairing against the guessed URL
+    const guessed = httpMock.expectOne(`${SERVER}/api/screens/pairing`);
+
+    const connection = TestBed.inject(ConnectionService);
+    connection['useServerUrl']('https://handed.example.com');
+    fixture.detectChanges();
+    const handed = httpMock.expectOne('https://handed.example.com/api/screens/pairing');
+
+    // Newer answers first…
+    handed.flush({
+      pairingId: 'handed-1',
+      code: '555555',
+      expiresAt: '2030-01-01T00:00:00.000Z',
+      pairingSecret: 'handed-secret',
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // …the superseded one only afterwards, and is discarded.
+    guessed.flush({
+      pairingId: 'guessed-1',
+      code: '999999',
+      expiresAt: '2030-01-01T00:00:00.000Z',
+      pairingSecret: 'guessed-secret',
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="pairing-code"]').textContent.trim(),
+    ).toBe('555 555');
+    expect(localStorage.getItem('signage_pairing_id')).toBe('handed-1');
+    expect(localStorage.getItem('signage_server_url')).toBe('https://handed.example.com');
+
+    component['stopPolling']();
+  });
+
+  it('keeps a valid code on screen when the superseded request fails', async () => {
+    // The guessed URL is a guess, so failing is its normal outcome. Its error
+    // must not appear above a code that is perfectly good.
+    fixture.detectChanges();
+    const guessed = httpMock.expectOne(`${SERVER}/api/screens/pairing`);
+
+    const connection = TestBed.inject(ConnectionService);
+    connection['useServerUrl']('https://handed.example.com');
+    fixture.detectChanges();
+    httpMock.expectOne('https://handed.example.com/api/screens/pairing').flush({
+      pairingId: 'handed-2',
+      code: '777777',
+      expiresAt: '2030-01-01T00:00:00.000Z',
+      pairingSecret: 'handed-secret',
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    guessed.error(new ProgressEvent('error'));
+    await Promise.resolve();
+    await Promise.resolve();
+    fixture.detectChanges();
+
+    expect(connection.error()).toBe('');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="pairing-code"]').textContent.trim(),
+    ).toBe('777 777');
+
+    component['stopPolling']();
+  });
+
+  it('starts from the stored server URL instead of guessing from the hostname', async () => {
+    // Written by an earlier pairing or by the shell handoff. Guessing
+    // `api.<hostname>` would send the screen to a server that may not exist.
+    localStorage.setItem('signage_server_url', 'https://stored.example.com');
+
+    const scoped = TestBed.createComponent(ConnectionDialogComponent);
+    scoped.detectChanges();
+
+    httpMock.expectOne('https://stored.example.com/api/screens/pairing').flush({
+      pairingId: 'pair-3',
+      code: '333333',
+      expiresAt: '2030-01-01T00:00:00.000Z',
+      pairingSecret: 'secret-3',
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    scoped.componentInstance['stopPolling']();
+    scoped.destroy();
   });
 
   it('toggles the advanced server-url field', async () => {

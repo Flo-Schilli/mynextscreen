@@ -46,6 +46,11 @@ const AUTO_HIDE_MS = 5_000;
             <span>{{ groupInfo() }}</span>
           </div>
         }
+        @if (showDisconnect()) {
+          <button type="button" class="disconnect" (click)="onDisconnect()">
+            Disconnect this screen
+          </button>
+        }
       </div>
     }
   `,
@@ -92,6 +97,26 @@ const AUTO_HIDE_MS = 5_000;
         color: var(--color-offline);
       }
 
+      .disconnect {
+        /* The panel itself is click-through; this is the one thing in it that
+           is meant to be aimed at. */
+        pointer-events: auto;
+        margin-top: 0.5rem;
+        padding: 0.375rem 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 0.375rem;
+        background: rgb(0 0 0 / 0.4);
+        color: var(--text-muted);
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .disconnect:hover,
+      .disconnect:focus-visible {
+        border-color: rgb(239 68 68 / 0.5);
+        color: rgb(248 113 113);
+      }
+
       .stream-healthy {
         color: var(--color-online);
       }
@@ -115,6 +140,8 @@ export class StatusOverlayComponent implements OnInit, OnDestroy {
   private autoHideTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly visible = this._visible.asReadonly();
+  /** Server-side per-screen toggle; absent on an older server means shown. */
+  readonly showDisconnect = this.playerService.showDisconnectButton;
 
   readonly screenName = computed(() => this.playerService.screen()?.name ?? '—');
   readonly screenId = computed(() => this.connectionService.screenId() || '—');
@@ -214,13 +241,22 @@ export class StatusOverlayComponent implements OnInit, OnDestroy {
     this.clearAutoHide();
   }
 
+  /** Ends the session and sends the screen back to pairing. */
+  onDisconnect(): void {
+    this.connectionService.disconnect();
+  }
+
+  /**
+   * Opens and closes the panel.
+   *
+   * Only the informational flash on start auto-hides. Once someone asks for the
+   * panel it stays: it carries the disconnect action, and five seconds is not
+   * enough to find and hit a button with a TV remote.
+   */
   private toggle(): void {
     const isVisible = !this._visible();
     this._visible.set(isVisible);
     this.clearAutoHide();
-    if (isVisible) {
-      this.scheduleAutoHide();
-    }
   }
 
   private scheduleAutoHide(): void {

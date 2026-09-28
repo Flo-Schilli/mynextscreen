@@ -8,6 +8,23 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
   </head>
   <body>
+    <script>
+      /*
+       * Origins allowed to hand this player its server URL over postMessage.
+       *
+       * Leave it commented out and the player trusts its own origin plus the
+       * opaque origin 'null' — which the LG webOS shell needs, because it is
+       * served from file:// and has no real origin.
+       *
+       * If no webOS shell is used, uncomment the line and name the origins that
+       * may embed this player. Trusting 'null' means trusting any page that
+       * frames the player through a sandbox="allow-scripts" document, because
+       * that page gets an opaque origin too and an opaque origin proves nothing.
+       *
+       * Example: window.__SIGNAGE_TRUSTED_ORIGINS__ = 'https://player.example.com';
+       */
+      // window.__SIGNAGE_TRUSTED_ORIGINS__ = '';
+    </script>
     <app-root></app-root>
   </body>
 </html>

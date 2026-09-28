@@ -1,31 +1,55 @@
 /**
  * Digital Signage LG WebOS Application
- * Thin shell that loads the web player in an iframe and authenticates via postMessage.
+ *
+ * Thin shell around the web player: it holds the two URLs that a TV cannot
+ * guess, loads the player in an iframe and hands the server URL over.
+ *
+ * It holds no credential. A screen enrols itself by showing a six-digit code
+ * that an operator types into the dashboard, so there is no key for anyone to
+ * enter here — and nothing on the device worth stealing from the settings
+ * overlay, which the remote can open at any time.
  */
 
 const STORAGE_KEYS = {
     serverUrl: 'server_url',
-    apiKey: 'api_key',
     playerUrl: 'player_url'
 };
 
+/** Written by versions up to 0.9.x. Removed on sight; see purgeLegacyApiKey. */
+const LEGACY_API_KEY = 'api_key';
+
 /**
  * Initialize the application.
- * All three values (serverUrl, apiKey, playerUrl) must be present in localStorage.
- * If any is missing, the settings overlay is opened so the user can configure them.
- * The playerUrl is fetched automatically from the backend on first save — no fallback.
+ * Both values (serverUrl, playerUrl) must be present in localStorage. If either
+ * is missing, the settings overlay opens so the user can configure them.
+ * The playerUrl is fetched automatically from the backend on first save.
  */
 function initApp() {
+    purgeLegacyApiKey();
+
     const serverUrl = localStorage.getItem(STORAGE_KEYS.serverUrl);
-    const apiKey = localStorage.getItem(STORAGE_KEYS.apiKey);
     const playerUrl = localStorage.getItem(STORAGE_KEYS.playerUrl);
 
-    if (!serverUrl || !apiKey || !playerUrl) {
+    if (!serverUrl || !playerUrl) {
         openSettings();
         return;
     }
 
-    loadPlayer(playerUrl, serverUrl, apiKey);
+    loadPlayer(playerUrl, serverUrl);
+}
+
+/**
+ * Drops the screen API key left behind by an earlier version.
+ *
+ * It is dead weight: the player runs on a rotating session token, and the key
+ * would only ever have opened the enrolment route. Leaving it on the TV keeps
+ * a long-lived credential in a storage area that the settings overlay, and
+ * anyone with the remote, can reach.
+ */
+function purgeLegacyApiKey() {
+    if (localStorage.getItem(LEGACY_API_KEY) !== null) {
+        localStorage.removeItem(LEGACY_API_KEY);
+    }
 }
 
 function openSettings() {
@@ -45,9 +69,9 @@ function openSettings() {
 }
 
 /**
- * Load the web player in the iframe and send credentials via postMessage.
+ * Load the web player in the iframe and hand it the server URL via postMessage.
  */
-function loadPlayer(playerUrl, serverUrl, apiKey) {
+function loadPlayer(playerUrl, serverUrl) {
     const iframe = document.getElementById('contentFrame');
     const loadingMessage = document.getElementById('loadingMessage');
 
@@ -68,12 +92,12 @@ function loadPlayer(playerUrl, serverUrl, apiKey) {
     iframe.src = playerUrl;
 
     iframe.onload = function() {
-        // Targeted at the player's own origin: with '*' the long-lived screen API
-        // key would be readable by whatever page happened to answer the load.
+        // Targeted at the player's own origin rather than '*': the message says
+        // which server this display belongs to, and a page that happened to
+        // answer the load has no business learning that.
         iframe.contentWindow.postMessage({
             type: 'signage-connect',
-            serverUrl: serverUrl,
-            apiKey: apiKey
+            serverUrl: serverUrl
         }, playerOrigin);
 
         loadingMessage.style.display = 'none';

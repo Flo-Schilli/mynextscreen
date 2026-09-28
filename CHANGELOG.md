@@ -4,6 +4,52 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## Unreleased
+
+### Changed — the webOS shell stops asking for an API key
+
+0.10.0 left the key field in the shell's settings overlay and kept the key on
+the TV, on the argument that the shell's storage survives an app update of the
+player iframe. That argument no longer holds: the dashboard stopped handing out
+keys at all, so there is nothing for an operator to type into that field. A
+screen is enrolled by the six-digit code it shows on the display.
+
+- The settings overlay asks for the **Server URL** and an optional Player URL,
+  and explains that the code on screen is what enrols the display.
+- The key written by 0.9.x is **deleted from the TV** on the first start.
+- The handoff message carries only `serverUrl`. The player takes it, persists it
+  and pairs against it — which also fixes the case where the player guessed
+  `api.<its own hostname>` and got it wrong.
+- **The handoff can no longer enrol a display.** An `apiKey` in the message is
+  ignored. It used to be honoured for shells from 0.9.x, which also meant any
+  sender past the trust check could enrol a display with a key it invented.
+- **A handoff is accepted only from the top-level embedding window.** The shell
+  is one; a page faking the shell's opaque origin by framing through a
+  `sandbox="allow-scripts"` document is not. Deployments without the webOS shell
+  should drop the opaque origin entirely — `window.__SIGNAGE_TRUSTED_ORIGINS__`
+  in the player's `index.html`, which now documents itself.
+
+### Changed — disconnect moves into the info panel
+
+It was a button pinned to the top-right corner of the content at all times, on a
+device whose entire purpose is to show content. It now sits in the info panel
+(the **i** key), next to the screen, playlist and status it belongs with. The
+per-screen `showDisconnectButton` toggle still governs it.
+
+The panel no longer auto-hides once it has been opened deliberately; only the
+informational flash on start does. Five seconds is not enough to find and hit a
+button with a TV remote.
+
+### Required operator actions
+
+1. **Reinstall the webOS app on every TV that runs the 0.9.x shell.** Its handoff
+   can no longer enrol a display. Screens that are already paired keep running on
+   their session and are not affected; a screen that has to enrol again with an
+   old shell will sit on a pairing code until the app is updated.
+
+A screen whose storage is cleared shows a code again; enrol it with **Repair**
+on the existing screen, which keeps its name, playlists and schedules.
+
 ## 0.10.0
 
 The screen API key stops being a permanent credential, and the backend container

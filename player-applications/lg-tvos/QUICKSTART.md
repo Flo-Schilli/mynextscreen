@@ -69,19 +69,27 @@ ares-launch --device mytv com.digitalsignage.webos
 On first launch, the settings overlay opens automatically:
 
 1. Enter the **Server URL** (e.g. `https://signage.example.com`)
-2. Enter the **API Key** for this screen
-3. Leave **Player URL** empty (unless you have a separate development player)
-4. Press **Save & Reload**
+2. Leave **Player URL** empty (unless you have a separate development player)
+3. Press **Save & Reload**
 
-The app will reload, load the web player in an iframe, and send the credentials via `postMessage`. The player auto-connects and starts displaying content.
+There is no API key to enter. The app reloads, loads the web player in an iframe and hands it the server URL; the player then shows a **six-digit pairing code** on the TV.
 
-## 8. Verify It Works
+## 8. Pair the Screen
+
+In the dashboard, go to **Screens → Add a screen**, fill in name, resolution and
+location, and enter the code from the TV. The code is valid for a few minutes and
+can be redeemed once.
+
+The display starts playing as soon as the code is claimed. If the code expires,
+the player requests a new one by itself.
+
+## 9. Verify It Works
 
 The application should:
 1. Show "Loading Digital Signage..." briefly
 2. Load the web player in fullscreen
-3. Auto-connect to the server (no connection dialog)
-4. Start displaying assigned content
+3. Show a pairing code, then start playing once it is claimed
+4. Come back on its own after a server restart, without anyone touching the TV
 
 To re-open settings at any time, press the **Settings** or **Blue** button on the remote.
 
@@ -114,10 +122,14 @@ This opens Chrome DevTools for debugging.
 - Ensure the server does not send `X-Frame-Options: DENY`
 - Check browser console for CORS errors
 
-### "Player loads but doesn't connect"
-- Verify the API Key is correct
-- Check the server is running and reachable
-- Open DevTools (`ares-inspect`) and check for postMessage errors in the console
+### "Player shows a code but nothing happens"
+- The code must be entered in the dashboard under **Add a screen** (or **Repair** for an existing screen)
+- Check the server is running and reachable from the TV
+- Open DevTools (`ares-inspect`) and look for the handoff being rejected — the player logs `Ignored signage-connect from untrusted origin …`
+
+### "The screen was working and now asks to be paired again"
+- Its session is gone: the app was reinstalled, or the TV's storage was cleared
+- Use **Repair** on the existing screen and enter the new code; name, playlists and schedules are kept
 
 ## Updating the Application
 
@@ -171,10 +183,11 @@ Before deploying to production:
 
 1. Package the application
 2. Deploy to one test TV
-3. Enter Server URL and API Key in settings
-4. Verify the player loads and connects automatically
+3. Enter the Server URL in settings
+4. Pair the screen with the code shown on the TV
 5. Verify content displays correctly
-6. Roll out to all TVs
+6. Restart the backend once and confirm the screen recovers on its own
+7. Roll out to all TVs
 
 ## Support
 
