@@ -68,7 +68,13 @@ Copy `.env.example` to `.env` and configure the values below.
 
 ### Authentication (Required)
 
-Signage Server uses **internal authentication** (email + password). Passwords are hashed with bcrypt; login issues a short-lived JWT **access token** (HTTP-only cookie) plus a **refresh token** stored in Redis. There is no external identity provider and no self-registration — super-admins are seeded from configuration on boot and provision everyone else.
+Signage Server uses **internal authentication** (email + password). Passwords are hashed with bcrypt; login issues a short-lived JWT **access token** (HTTP-only cookie) plus a **refresh token** stored in Redis. There is no external identity provider.
+
+Accounts come into existence in three ways:
+
+- **The first super-admin** is created through a one-time setup screen on first run — there is no env-based seeding (see below).
+- **Self-signup** (`SIGNUP_ENABLED`, on by default) creates a user together with their own organisation, where they become org admin. The email must be verified before login works; unverified signups are deleted again after `SIGNUP_UNVERIFIED_TTL_HOURS`. Set `SIGNUP_ENABLED=false` for a closed instance.
+- **Invitation** by an org admin or the super-admin, which mails a set-password link.
 
 #### Auth Environment Variables
 
@@ -82,6 +88,9 @@ Signage Server uses **internal authentication** (email + password). Passwords ar
 | `PUBLIC_BASE_URL`              | Admin SPA base URL — used to build set-password/reset links and to lock down CORS | **Yes in production** (CORS fails closed without it) |
 | `SECRETS_ENCRYPTION_KEY`       | Encrypts per-org SMTP passwords and ntfy tokens at rest (`openssl rand -base64 32`). Unset: plaintext, with a boot warning | No       |
 | `OUTBOUND_ALLOWED_HOSTS`       | Comma-separated hosts allowed past the SSRF guard (internal ntfy/SMTP relay) | No       |
+| `SIGNUP_ENABLED`               | Public self-registration. `false` rejects `POST /api/auth/register` with 403 | No (`true`) |
+| `SIGNUP_UNVERIFIED_TTL_HOURS`  | Hours a never-verified signup survives before the cleanup cron deletes it and its organisation | No (`24`) |
+| `SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES` / `_TRANSCODED_BYTES` | Storage limits granted to a self-created organisation; a super-admin can raise them later | No (5 GiB each) |
 
 **First super-admin (first-run setup):** there is no env-based seeding. On a fresh deployment — while no user exists yet — opening the app routes you to a one-time setup screen where you create the initial super-admin account; you are logged in immediately and can then provision organisations. Once any user exists the setup screen is closed and normal login applies.
 
