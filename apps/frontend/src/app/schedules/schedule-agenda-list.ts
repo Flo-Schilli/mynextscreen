@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 import { ScheduleEntry } from './schedule.model';
 import { CalendarBlock } from './schedule-calendar.service';
 import { BtnComponent, IconComponent } from '../ui';
+import { UI_LOCALE } from '../shared/locale';
 
 /**
  * Presentational mobile agenda for a single day. Renders the day's schedule
@@ -127,7 +128,7 @@ export class ScheduleAgendaList {
   }
 
   formatTime(date: Date): string {
-    return date.toLocaleTimeString(undefined, {
+    return date.toLocaleTimeString(UI_LOCALE, {
       timeZone: this.orgTimeZone(),
       hour: '2-digit',
       minute: '2-digit',

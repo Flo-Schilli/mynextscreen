@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { StorageInfo } from './content.model';
+import { UI_LOCALE } from '../shared/locale';
 
 /**
  * Pure presentation helpers for content sizes, dates and storage-bar
@@ -17,7 +18,7 @@ export class ContentFormatService {
   }
 
   formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString(undefined, {
+    return new Date(dateStr).toLocaleDateString(UI_LOCALE, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

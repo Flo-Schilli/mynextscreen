@@ -8,6 +8,7 @@ import {
 } from './schedule-calendar.service';
 import { CardComponent, CardHeadComponent, IconComponent } from '../ui';
 import { ScheduleAgendaList } from './schedule-agenda-list';
+import { UI_LOCALE } from '../shared/locale';
 
 export interface CreateSlot {
   start: Date;
@@ -379,7 +380,7 @@ export class ScheduleCalendarGrid {
   readonly mobileDayLabel = computed<string>(() => {
     const day = this.mobileDay();
     if (!day) return '';
-    return day.toLocaleDateString(undefined, {
+    return day.toLocaleDateString(UI_LOCALE, {
       timeZone: this.orgTimeZone(),
       weekday: 'long',
       month: 'long',
@@ -477,7 +478,7 @@ export class ScheduleCalendarGrid {
   }
 
   formatDayHeader(day: Date): string {
-    return day.toLocaleDateString(undefined, {
+    return day.toLocaleDateString(UI_LOCALE, {
       timeZone: this.orgTimeZone(),
       weekday: 'short',
       month: 'short',
@@ -486,7 +487,7 @@ export class ScheduleCalendarGrid {
   }
 
   formatBlockTime(date: Date): string {
-    return date.toLocaleTimeString(undefined, {
+    return date.toLocaleTimeString(UI_LOCALE, {
       timeZone: this.orgTimeZone(),
       hour: '2-digit',
       minute: '2-digit',

@@ -37,6 +37,7 @@ import {
   RingComponent,
   StatusDotComponent,
 } from '../ui';
+import { UI_LOCALE } from '../shared/locale';
 
 interface OnboardingStep {
   key: 'screen' | 'content' | 'playlist' | 'schedule';
@@ -765,7 +766,7 @@ export class Dashboard implements OnInit, OnDestroy {
     const start = new Date(this.timelineStart);
     for (let i = 0; i <= 24; i += 3) {
       const h = new Date(start.getTime() + i * 60 * 60 * 1000);
-      hours.push(h.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      hours.push(h.toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit' }));
     }
     return hours;
   });
@@ -803,11 +804,11 @@ export class Dashboard implements OnInit, OnDestroy {
           colour: entry.colour || '#3b82f6',
           startPercent,
           widthPercent,
-          startTime: new Date(entryStart).toLocaleTimeString([], {
+          startTime: new Date(entryStart).toLocaleTimeString(UI_LOCALE, {
             hour: '2-digit',
             minute: '2-digit',
           }),
-          endTime: new Date(entryEnd).toLocaleTimeString([], {
+          endTime: new Date(entryEnd).toLocaleTimeString(UI_LOCALE, {
             hour: '2-digit',
             minute: '2-digit',
           }),

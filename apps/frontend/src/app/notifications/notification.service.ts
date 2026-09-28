@@ -1,22 +1,41 @@
-import { Injectable, inject, signal, OnDestroy } from '@angular/core';
+import { Injectable, effect, inject, signal, OnDestroy } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Subscription } from 'rxjs';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { Notification, UnreadCountResponse } from './notification.model';
+import { OrganisationStateService } from '../shell/organisation-state.service';
 
 @Injectable({ providedIn: 'root' })
 export class NotificationService implements OnDestroy {
   private http = inject(HttpClient);
   private socketService = inject(DashboardSseService);
+  private orgState = inject(OrganisationStateService);
   private socketSub: Subscription | null = null;
 
   readonly unreadCount = signal(0);
   readonly notifications = signal<Notification[]>([]);
   readonly loading = signal(false);
 
-  /** Fetch unread count from the API and subscribe to real-time updates. */
+  constructor() {
+    // Notifications are per user *and* organisation, so the request needs the
+    // X-Organisation-Id header the auth interceptor only attaches once an
+    // organisation is selected. The bell mounts before the memberships have
+    // loaded, so fetching on init sent a header-less request that the backend
+    // rightly answered with 400. Following the signal also means the badge
+    // refreshes when someone switches organisation, which it did not before.
+    effect(() => {
+      const orgId = this.orgState.selectedOrgId();
+      if (!orgId) {
+        this.unreadCount.set(0);
+        this.notifications.set([]);
+        return;
+      }
+      this.fetchUnreadCount();
+    });
+  }
+
+  /** Subscribe to real-time updates; the count follows the selected org. */
   init(): void {
-    this.fetchUnreadCount();
     this.subscribeToSocket();
   }
 

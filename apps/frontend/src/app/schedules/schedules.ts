@@ -33,6 +33,7 @@ import { ScheduleCalendarGrid } from './schedule-calendar-grid';
 import { ScheduleFormModal, ScheduleFormResult, PRESET_COLOURS } from './schedule-form-modal';
 import { ToastService } from '../shared/toast/toast.service';
 import { PageHeaderComponent, OverlayComponent, ModalComponent } from '../ui';
+import { UI_LOCALE } from '../shared/locale';
 
 const HOUR_HEIGHT = 60;
 
@@ -313,7 +314,7 @@ export class Schedules implements OnInit, OnDestroy {
   get currentRangeLabel(): string {
     const opts: Intl.DateTimeFormatOptions = { timeZone: this.orgTimeZone };
     if (this.viewMode === 'day') {
-      return this.currentDate.toLocaleDateString(undefined, {
+      return this.currentDate.toLocaleDateString(UI_LOCALE, {
         ...opts,
         weekday: 'long',
         month: 'long',
@@ -325,12 +326,12 @@ export class Schedules implements OnInit, OnDestroy {
       const days = this.visibleDays;
       const first = days[0];
       const last = days[6];
-      const fmtStart = first.toLocaleDateString(undefined, {
+      const fmtStart = first.toLocaleDateString(UI_LOCALE, {
         ...opts,
         month: 'short',
         day: 'numeric',
       });
-      const fmtEnd = last.toLocaleDateString(undefined, {
+      const fmtEnd = last.toLocaleDateString(UI_LOCALE, {
         ...opts,
         month: 'short',
         day: 'numeric',
@@ -338,7 +339,7 @@ export class Schedules implements OnInit, OnDestroy {
       });
       return `${fmtStart} - ${fmtEnd}`;
     }
-    return this.currentDate.toLocaleDateString(undefined, {
+    return this.currentDate.toLocaleDateString(UI_LOCALE, {
       ...opts,
       month: 'long',
       year: 'numeric',
@@ -1028,7 +1029,7 @@ export class Schedules implements OnInit, OnDestroy {
   }
 
   formatSidePanelDate(date: Date): string {
-    return date.toLocaleDateString(undefined, {
+    return date.toLocaleDateString(UI_LOCALE, {
       timeZone: this.orgTimeZone,
       weekday: 'long',
       month: 'long',
