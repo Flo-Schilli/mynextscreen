@@ -231,11 +231,17 @@ jobs:
           sbom: true
           provenance: mode=max
 
+      # The filename is the digest with its `sha256:` prefix stripped: artifact
+      # paths may not contain a colon, and the prefix is added back when the
+      # manifest is assembled. App and architecture are already in the artifact
+      # name, so the file itself only has to carry the digest.
       - name: Record digest
         if: github.event_name != 'pull_request'
         run: |
+          set -euo pipefail
           mkdir -p /tmp/digests
-          touch "/tmp/digests/${{ matrix.app }}-${{ matrix.arch }}-${{ steps.push.outputs.digest }}"
+          digest='${{ steps.push.outputs.digest }}'
+          touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload digest
         if: github.event_name != 'pull_request'
@@ -302,8 +308,8 @@ jobs:
         working-directory: /tmp/digests
         run: |
           set -euo pipefail
-          # The filenames carry app, arch and digest; only the digest is needed.
-          sources=$(for f in *; do echo "${{ steps.meta.outputs.image }}@${f##*-}"; done)
+          # Each filename is a bare digest; the `sha256:` prefix goes back on here.
+          sources=$(for f in *; do echo "${{ steps.meta.outputs.image }}@sha256:${f}"; done)
           echo "Joining:"; echo "$sources"
           # shellcheck disable=SC2046
           docker buildx imagetools create \
