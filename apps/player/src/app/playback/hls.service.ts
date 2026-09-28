@@ -1,4 +1,5 @@
 import { inject, Injectable, NgZone, OnDestroy } from '@angular/core';
+import { ScreenSessionService } from '../connection/screen-session.service';
 import Hls, { ErrorData, Events } from 'hls.js';
 import { ConnectionService } from '../connection/connection.service';
 import { PlaybackStateService } from './playback-state.service';
@@ -6,6 +7,7 @@ import { PlaybackStateService } from './playback-state.service';
 @Injectable({ providedIn: 'root' })
 export class HlsService implements OnDestroy {
   private readonly connection = inject(ConnectionService);
+  private readonly session = inject(ScreenSessionService);
   private readonly playbackState = inject(PlaybackStateService);
   private readonly zone = inject(NgZone);
 
@@ -31,7 +33,10 @@ export class HlsService implements OnDestroy {
           // credential frozen into this closure would keep being sent long
           // after it stopped being valid — hls.js would then retry with the
           // dead value forever.
-          xhr.setRequestHeader('Authorization', `Bearer ${this.connection.apiKey()}`);
+          xhr.setRequestHeader(
+            'Authorization',
+            `Bearer ${this.session.token() || this.connection.apiKey()}`,
+          );
         },
       });
 
