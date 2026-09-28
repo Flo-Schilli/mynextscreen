@@ -1,29 +1,43 @@
 # Digital Signage - LG WebOS Application
 
-LG WebOS application that acts as a thin shell, loading the web player in a fullscreen iframe and authenticating it via `postMessage`.
+LG WebOS application that acts as a thin shell, loading the web player in a fullscreen iframe and telling it which server it belongs to.
 
 ## Features
 
-- **Settings UI**: Configure Server URL, API Key, and optional Player URL directly on the TV
-- **Secure Authentication**: Credentials are sent to the web player via `postMessage` (never in the URL)
-- **Automatic Connection**: The web player auto-connects when it receives credentials from the LG shell
+- **Settings UI**: Configure Server URL and an optional Player URL directly on the TV
+- **No credential on the device**: The screen enrols itself with a pairing code, so there is nothing to type in and nothing to steal from the settings overlay
+- **Self-healing**: The player runs on a rotating session token and renews it on its own
 - **Compatible**: Works with LG WebOS 2024 and newer
 
 ## How It Works
 
 The LG app is a deployment vehicle for the existing web player, not a separate player implementation.
 
-1. **First Launch**: The settings overlay opens automatically, prompting for Server URL and API Key
-2. **iframe Loading**: The app loads the web player at `{Server URL}/player/` (or a custom Player URL) in a fullscreen iframe
-3. **postMessage Authentication**: After the iframe loads, the app sends credentials via `postMessage`:
+1. **First Launch**: The settings overlay opens automatically, prompting for the Server URL
+2. **iframe Loading**: The app loads the web player at the Player URL (fetched from `{Server URL}/api/config`, or set by hand) in a fullscreen iframe
+3. **Handoff**: After the iframe loads, the app posts the server URL to the player's own origin:
    ```javascript
    iframe.contentWindow.postMessage({
      type: 'signage-connect',
-     serverUrl: '...',
-     apiKey: '...'
-   }, '*');
+     serverUrl: '...'
+   }, playerOrigin);
    ```
-4. **Auto-Connect**: The web player's `ConnectionService` receives the message and calls `connect(serverUrl, apiKey)`, bypassing the connection dialog
+4. **Pairing**: The player shows a six-digit code on the TV. Enter it in the dashboard under **Add a screen**; the screen is enrolled and starts playing.
+
+### Why there is no API key field any more
+
+Up to 0.9.x the operator pasted a screen API key into this overlay. That key was
+long-lived, never expired, and sat in the TV's `localStorage` where anyone with
+the remote could open the settings and read it back.
+
+From 0.10.0 a screen is enrolled by a six-digit code that is valid for minutes
+and can only be redeemed once. What the screen keeps afterwards is a rotating
+refresh token inside the player, not a credential in the shell. There is no API
+key to enter here because the dashboard no longer hands one out.
+
+A shell that still carries a key from an earlier version keeps working — the key
+still opens the enrolment route — but the key is deleted from the TV on the
+first start of this version.
 
 ## Settings
 
@@ -32,10 +46,16 @@ Settings are configured on-device via the settings overlay (press the **Settings
 | Field | Required | Description |
 |-------|----------|-------------|
 | **Server URL** | Yes | The URL of your signage server (e.g. `https://signage.example.com`) |
-| **API Key** | Yes | The API key for this screen |
-| **Player URL** | No | Override the player URL. Leave empty to use `{Server URL}/player/`. Only set for development (e.g. `http://localhost:4200`). |
+| **Player URL** | No | Override the player URL. Leave empty to fetch it from `{Server URL}/api/config`. Set it for development (e.g. `http://localhost:4300`). |
 
-Values are stored in `localStorage` with keys: `server_url`, `api_key`, `player_url`.
+Values are stored in `localStorage` with keys: `server_url`, `player_url`.
+
+## Re-pairing a screen
+
+A screen that lost its session — the app was reinstalled, or the TV's storage was
+cleared — shows a pairing code again. In the dashboard, open the screen and use
+**Repair**, then enter the code. The screen keeps its name, playlists and
+schedules; only its credential is replaced.
 
 ## Quick Start
 
@@ -97,7 +117,7 @@ ares-inspect --device YOUR_TV_NAME --app com.digitalsignage.webos --open
 
 ### Development Setup (Split Server/Player)
 
-If you run the Angular web player on a separate dev server (e.g. `ng serve` on port 4200), set the **Player URL** in the LG app settings to point to that dev server. The Server URL should still point to the backend API.
+If you run the Angular web player on a separate dev server (`nx serve player`, port 4300), set the **Player URL** in the LG app settings to point to that dev server. The Server URL should still point to the backend API (port 3000).
 
 ## Requirements
 

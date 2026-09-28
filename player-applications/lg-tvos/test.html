@@ -86,6 +86,16 @@
 <body>
     <h1>Digital Signage - postMessage Test</h1>
     <p>This page simulates the LG app's postMessage flow for testing in a browser.</p>
+    <p>
+        Open it from <code>file://</code>. The player only accepts a handoff from
+        its own origin or from an opaque one (<code>'null'</code>), which is what
+        the webOS shell has &mdash; serving this page over http from another port
+        gets the message ignored, exactly as it should be.
+    </p>
+    <p>
+        The player pairs itself, so there is no key to send: after the handoff it
+        shows a six-digit code to enter in the dashboard.
+    </p>
 
     <div class="info-box">
         <h2>1. Configuration</h2>
@@ -94,12 +104,8 @@
             <input type="url" id="testServerUrl" placeholder="http://localhost:3000" value="http://localhost:3000">
         </div>
         <div class="form-group">
-            <label for="testApiKey">API Key:</label>
-            <input type="password" id="testApiKey" placeholder="test-api-key">
-        </div>
-        <div class="form-group">
             <label for="testPlayerUrl">Player URL (iframe src):</label>
-            <input type="url" id="testPlayerUrl" placeholder="http://localhost:4200" value="http://localhost:4200">
+            <input type="url" id="testPlayerUrl" placeholder="http://localhost:4300" value="http://localhost:4300">
         </div>
     </div>
 
@@ -147,10 +153,9 @@
 
         function sendPostMessage() {
             var serverUrl = document.getElementById('testServerUrl').value.trim();
-            var apiKey = document.getElementById('testApiKey').value.trim();
 
-            if (!serverUrl || !apiKey) {
-                addLog('ERROR: Server URL and API Key are required', 'log-error');
+            if (!serverUrl) {
+                addLog('ERROR: Server URL is required', 'log-error');
                 return;
             }
 
@@ -162,8 +167,7 @@
 
             var message = {
                 type: 'signage-connect',
-                serverUrl: serverUrl,
-                apiKey: apiKey
+                serverUrl: serverUrl
             };
 
             iframe.contentWindow.postMessage(message, '*');

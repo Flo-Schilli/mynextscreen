@@ -4,6 +4,42 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## Unreleased
+
+### Changed — the webOS shell stops asking for an API key
+
+0.10.0 left the key field in the shell's settings overlay and kept the key on
+the TV, on the argument that the shell's storage survives an app update of the
+player iframe. That argument no longer holds: the dashboard stopped handing out
+keys at all, so there is nothing for an operator to type into that field. A
+screen is enrolled by the six-digit code it shows on the display.
+
+- The settings overlay asks for the **Server URL** and an optional Player URL,
+  and explains that the code on screen is what enrols the display.
+- The key written by 0.9.x is **deleted from the TV** on the first start.
+- The handoff message carries only `serverUrl`. The player takes it, persists it
+  and pairs against it — which also fixes the case where the player guessed
+  `api.<its own hostname>` and got it wrong.
+- A shell that has not been updated keeps working: a handoff that still carries
+  a key is still honoured, because the key still opens the enrolment route.
+
+### Changed — disconnect moves into the info panel
+
+It was a button pinned to the top-right corner of the content at all times, on a
+device whose entire purpose is to show content. It now sits in the info panel
+(the **i** key), next to the screen, playlist and status it belongs with. The
+per-screen `showDisconnectButton` toggle still governs it.
+
+The panel no longer auto-hides once it has been opened deliberately; only the
+informational flash on start does. Five seconds is not enough to find and hit a
+button with a TV remote.
+
+### Required operator actions
+
+None. Screens that are already paired are untouched — they run on their session.
+A screen whose storage is cleared shows a code again; enrol it with **Repair**
+on the existing screen, which keeps its name, playlists and schedules.
+
 ## 0.10.0
 
 The screen API key stops being a permanent credential, and the backend container

@@ -1,9 +1,9 @@
-import { inject, Injectable, signal, computed, OnDestroy } from '@angular/core';
+import { inject, Injectable, signal, OnDestroy } from '@angular/core';
 import { ScreenSessionService } from './screen-session.service';
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
-const STORAGE_KEY_URL = 'signage_server_url';
+export const STORAGE_KEY_URL = 'signage_server_url';
 const STORAGE_KEY_API_KEY = 'signage_api_key';
 const STORAGE_KEY_SCREEN_ID = 'signage_screen_id';
 const STORAGE_KEY_ORG_ID = 'signage_org_id';
@@ -108,12 +108,45 @@ export class ConnectionService implements OnDestroy {
     }
 
     const { serverUrl, apiKey } = data;
-    if (typeof serverUrl !== 'string' || !serverUrl || typeof apiKey !== 'string' || !apiKey) {
+    if (typeof serverUrl !== 'string' || !serverUrl) {
       return;
     }
 
-    this.connect(serverUrl, apiKey);
+    // A key is no longer part of the handoff: the shell has no way to obtain
+    // one, because a screen is enrolled by typing the code shown here into the
+    // dashboard. Shells that still carry a key from an earlier version keep
+    // working — the key still opens the enrolment route.
+    if (typeof apiKey === 'string' && apiKey !== '') {
+      this.connect(serverUrl, apiKey);
+      return;
+    }
+
+    this.useServerUrl(serverUrl);
   };
+
+  /**
+   * Takes the server URL handed over by an embedder and points pairing at it.
+   *
+   * The dialog derives a URL from its own hostname, which is a guess that only
+   * holds for the `player.*`/`api.*` convention. The shell knows the real one,
+   * so it wins — and it is persisted, so the next start needs no handoff at all.
+   *
+   * Note what this trusts: {@link isTrustedConnectSender} is the whole boundary.
+   * Whoever clears it can send an unpaired display to a server of their choice,
+   * which can then answer its own pairing poll and own the display. That is not
+   * new — the key-carrying branch above already granted the equivalent — but it
+   * is the reason that check, not the absence of a credential, is what keeps a
+   * display safe.
+   */
+  private useServerUrl(serverUrl: string): void {
+    const normalizedUrl = serverUrl.replace(/\/+$/, '');
+    if (normalizedUrl === this._serverUrl()) {
+      return;
+    }
+    this._serverUrl.set(normalizedUrl);
+    localStorage.setItem(STORAGE_KEY_URL, normalizedUrl);
+    this._handedServerUrl.set(normalizedUrl);
+  }
 
   private isTrustedConnectSender(event: MessageEvent): boolean {
     if (this._connected()) {
@@ -145,9 +178,14 @@ export class ConnectionService implements OnDestroy {
   private readonly _pairingCode = signal('');
   private readonly _pairingExpiresAt = signal('');
   private readonly _reconnecting = signal(false);
+  /** Last server URL handed over by an embedder; '' when none ever was. */
+  private readonly _handedServerUrl = signal('');
 
   /** Timer for the saved-credentials auto-reconnect loop (see {@link tryAutoConnect}). */
   private autoReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Id of the newest pairing request; older ones are not allowed to commit. */
+  private pairingRequestSeq = 0;
 
   readonly connected = this._connected.asReadonly();
   readonly serverUrl = this._serverUrl.asReadonly();
@@ -160,12 +198,8 @@ export class ConnectionService implements OnDestroy {
   readonly pairingExpiresAt = this._pairingExpiresAt.asReadonly();
   /** True while a saved-credentials reconnect attempt is pending after a failed auto-connect. */
   readonly reconnecting = this._reconnecting.asReadonly();
-
-  readonly hasSavedSettings = computed(() => {
-    const url = localStorage.getItem(STORAGE_KEY_URL);
-    const key = localStorage.getItem(STORAGE_KEY_API_KEY);
-    return !!url && !!key;
-  });
+  /** Server URL handed over by an embedder, for the dialog to pair against. */
+  readonly handedServerUrl = this._handedServerUrl.asReadonly();
 
   async tryAutoConnect(): Promise<boolean> {
     const serverUrl = localStorage.getItem(STORAGE_KEY_URL);
@@ -273,16 +307,28 @@ export class ConnectionService implements OnDestroy {
    * Begins a device-flow pairing: asks the backend for a fresh 6-digit code,
    * persists the returned pairing id + secret (so a reload mid-pairing can
    * resume polling), and exposes the code/expiry via signals for the dialog.
+   *
+   * Returns `null` when a newer request has been started in the meantime. Two
+   * requests are genuinely in flight whenever an embedder hands over the real
+   * server URL while the dialog is still asking the one it guessed, and the
+   * slower answer must not commit: it would put its code on the display, its
+   * pairing id in storage and possibly its error on screen, none of which
+   * belong to the server actually being polled.
    */
-  async startPairing(serverUrl: string): Promise<{ code: string; expiresAt: string }> {
+  async startPairing(serverUrl: string): Promise<{ code: string; expiresAt: string } | null> {
     this._error.set('');
 
     const normalizedUrl = serverUrl.replace(/\/+$/, '');
+    const request = ++this.pairingRequestSeq;
 
     try {
       const res = await firstValueFrom(
         this.http.post<StartPairingResponse>(`${normalizedUrl}/api/screens/pairing`, null),
       );
+
+      if (request !== this.pairingRequestSeq) {
+        return null;
+      }
 
       this._serverUrl.set(normalizedUrl);
       this._pairingCode.set(res.code);
@@ -294,6 +340,9 @@ export class ConnectionService implements OnDestroy {
 
       return { code: res.code, expiresAt: res.expiresAt };
     } catch {
+      if (request !== this.pairingRequestSeq) {
+        return null;
+      }
       this._error.set('Could not reach the server. Check the URL and try again.');
       throw new Error('Failed to start pairing');
     }

@@ -7,7 +7,7 @@ Diese Anleitung beschreibt die Installation der Digital-Signage-App auf einem LG
 - LG webOS TV (2020 oder neuer)
 - Node.js auf dem Computer installiert
 - Developer Mode auf dem TV aktiviert (siehe unten)
-- Laufender Signage Server und ein **API Key** für diesen Screen (im Admin-UI anlegen)
+- Laufender Signage Server und Zugang zum Admin-UI (zum Koppeln des Screens)
 
 ---
 
@@ -87,11 +87,21 @@ ares-launch --device mytv com.cbf.webos
 Beim ersten Start öffnet sich automatisch das Einstellungs-Overlay:
 
 1. **Server URL** eingeben (z. B. `https://signage.example.com`)
-2. **API Key** für diesen Screen eingeben
-3. **Player URL** leer lassen (wird automatisch ermittelt)
-4. **Speichern & Neu laden** klicken
+2. **Player URL** leer lassen (wird automatisch ermittelt)
+3. **Speichern & Neu laden** klicken
 
-Die App lädt den Web-Player und verbindet sich automatisch mit dem Server.
+Einen API Key gibt es nicht mehr. Die App lädt den Web-Player, der daraufhin einen
+**sechsstelligen Kopplungscode** auf dem Bildschirm anzeigt.
+
+---
+
+## 8. Screen koppeln
+
+Im Admin-UI **Screens → Screen hinzufügen** öffnen, Name, Auflösung und Standort
+ausfüllen und den Code vom Fernseher eintragen. Der Code gilt wenige Minuten und
+ist einmal einlösbar; läuft er ab, fordert der Player selbstständig einen neuen an.
+
+Sobald der Code eingelöst ist, startet die Wiedergabe.
 
 ---
 
@@ -113,9 +123,14 @@ Jederzeit die **Einstellungen**- oder **Blaue** Taste auf der Fernbedienung drü
 - Sicherstellen, dass der Server `player.ds.example.com` unter `PLAYER_BASE_URL` konfiguriert hat
 - Server darf kein `X-Frame-Options: DENY` senden
 
-### „Player verbindet nicht"
-- API Key in den Screen-Einstellungen des Admin-UI prüfen
+### „Player zeigt einen Code, es passiert aber nichts"
+- Der Code muss im Admin-UI unter **Screen hinzufügen** eingetragen werden (bei einem bestehenden Screen: **Reparieren**)
+- Server vom TV aus erreichbar? Server URL inkl. `https://` prüfen
 - DevTools öffnen: `ares-inspect --device mytv --app com.cbf.webos --open`
+
+### „Screen lief und fragt plötzlich wieder nach Kopplung"
+- Die Session ist weg: App neu installiert oder TV-Speicher geleert
+- Im Admin-UI beim bestehenden Screen **Reparieren** wählen und den neuen Code eintragen — Name, Playlists und Zeitpläne bleiben erhalten
 
 ### App aktualisieren
 

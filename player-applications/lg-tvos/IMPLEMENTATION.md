@@ -2,7 +2,7 @@
 
 ## Overview
 
-The LG WebOS application is a thin shell that loads the existing Angular web player in a fullscreen iframe and authenticates it via `postMessage`. The LG app is a deployment vehicle, not a separate player implementation.
+The LG WebOS application is a thin shell that loads the existing Angular web player in a fullscreen iframe and tells it which server it belongs to. The LG app is a deployment vehicle, not a separate player implementation.
 
 ## Architecture
 
@@ -17,7 +17,7 @@ The LG WebOS application is a thin shell that loads the existing Angular web pla
 │  │  3. Load web player in iframe         │  │
 │  │  4. On iframe load → postMessage      │  │
 │  │     { type: 'signage-connect',        │  │
-│  │       serverUrl, apiKey }             │  │
+│  │       serverUrl }                     │  │
 │  │                                       │  │
 │  │  ┌─────────────────────────────────┐  │  │
 │  │  │  iframe (fullscreen)            │  │  │
@@ -26,48 +26,65 @@ The LG WebOS application is a thin shell that loads the existing Angular web pla
 │  │  │  │  ConnectionService        │  │  │  │
 │  │  │  │  ← listens for            │  │  │  │
 │  │  │  │    'signage-connect'      │  │  │  │
-│  │  │  │  → calls connect()        │  │  │  │
+│  │  │  │  → pairs with a 6-digit   │  │  │  │
+│  │  │  │    code on screen         │  │  │  │
 │  │  │  └───────────────────────────┘  │  │  │
 │  │  └─────────────────────────────────┘  │  │
 │  └───────────────────────────────────────┘  │
 └─────────────────────────────────────────────┘
 ```
 
-## Authentication Flow — postMessage
+## Enrolment Flow — pairing code
 
-The LG app authenticates the embedded web player using `window.postMessage`. This avoids putting credentials in the iframe URL.
+The shell holds no credential. A screen enrols itself: the player asks the
+backend for a six-digit code, shows it on the TV, and polls until an operator
+claims it in the dashboard. The claim delivers a screen API key to the player,
+which immediately exchanges it for a session and then drops it — so no
+long-lived credential ever rests on the device.
 
 ### Sequence
 
-1. User enters **Server URL** and **API Key** in the LG app settings overlay (stored in `localStorage`)
-2. `initApp()` reads settings from `localStorage`
-3. Player URL is resolved: `localStorage.player_url || serverUrl + '/player/'`
+1. User enters the **Server URL** in the LG app settings overlay (stored in `localStorage`)
+2. `initApp()` reads the settings and deletes any `api_key` written by an earlier version
+3. Player URL is resolved: `localStorage.player_url`, else fetched once from `{serverUrl}/api/config` when the settings are saved
 4. The iframe `src` is set to the player URL (no query parameters)
 5. On iframe `load`, the app sends:
    ```javascript
    iframe.contentWindow.postMessage({
      type: 'signage-connect',
-     serverUrl: serverUrl,
-     apiKey: apiKey
-   }, '*');
+     serverUrl: serverUrl
+   }, playerOrigin);
    ```
 6. The web player's `ConnectionService` has a `window.addEventListener('message', ...)` listener
-7. The listener filters for `event.data.type === 'signage-connect'`
-8. It extracts `serverUrl` and `apiKey` from `event.data` and calls `this.connect(serverUrl, apiKey)`
-9. `connected()` becomes `true`, the connection dialog disappears, and content plays
+7. The listener accepts the message only from the embedding window, on an allow-listed origin, and only while the player is unpaired
+8. Without an `apiKey` the player takes the server URL, persists it and points pairing at it; the dialog requests a fresh code from that server
+9. The operator enters the code in the dashboard → the player receives its key, exchanges it for a session, and content plays
+
+### Backwards compatibility
+
+A shell from 0.9.x still sends an `apiKey`. The player still honours that: with a
+non-empty key it calls `connect(serverUrl, apiKey)`, which exchanges the key on
+the enrolment route. Nothing has to be updated in lockstep.
 
 ### Fallback: Direct Browser Access
 
 When the web player is opened directly in a browser (not in an iframe):
 - No `postMessage` is sent
-- `tryAutoConnect()` checks `localStorage` for previously saved credentials
-- If none exist, the connection dialog appears for manual input
+- `tryAutoConnect()` resumes from a stored refresh token (plus screen and org id)
+- If there is nothing to resume, the pairing dialog appears and shows a code
 - The `postMessage` listener remains active but simply never receives a message
 
 ### Security Considerations
 
-- **`'*'` as target origin**: Acceptable because the LG app controls the iframe `src` and the player validates message shape (not origin). The player only acts on messages with `type: 'signage-connect'` and valid data.
-- **No credentials in URL**: The iframe URL contains no query parameters. Credentials are only transmitted via `postMessage`, which does not appear in browser history or server logs.
+- **Targeted origin**: The message goes to the player's own origin, never `'*'`.
+  It names the server this display belongs to, which a page that happened to
+  answer the load has no business learning.
+- **Origin allow-list on the receiving end**: The player accepts a handoff only
+  from `window.parent`, only from its own origin or the opaque `'null'` origin of
+  the `file://`-hosted shell, and only while it is not yet paired. A paired
+  display cannot be re-pointed by a message.
+- **Nothing to steal on the device**: The settings overlay is reachable from the
+  remote at any time. It holds two URLs and no credential.
 
 ## Key Files
 
@@ -83,8 +100,9 @@ When the web player is opened directly in a browser (not in an iframe):
 
 | File | Purpose |
 |------|---------|
-| `player/src/app/connection/connection.service.ts` | `ConnectionService` — has `postMessage` listener, `connect()`, `tryAutoConnect()` |
-| `player/src/app/app.ts` | `App.ngOnInit()` calls `tryAutoConnect()`, shows connection dialog if not connected |
+| `apps/player/src/app/connection/connection.service.ts` | `ConnectionService` — `postMessage` listener, `startPairing()`/`pollPairing()`, `connect()`, `tryAutoConnect()` |
+| `apps/player/src/app/connection/connection-dialog.ts` | Shows the pairing code and polls for the claim |
+| `apps/player/src/app/connection/screen-session.service.ts` | Holds the session; rotates the refresh token |
 
 ## Settings Storage
 
@@ -93,15 +111,25 @@ Values are stored in `localStorage`:
 | Key | Required | Description |
 |-----|----------|-------------|
 | `server_url` | Yes | Signage server URL |
-| `api_key` | Yes | API key for this screen |
-| `player_url` | No | Override player URL (development only) |
+| `player_url` | Yes | Player URL; fetched from `{server_url}/api/config` on save, or entered by hand |
+
+`api_key` was written by versions up to 0.9.x. It is deleted on the first start
+of 0.10.0 or later.
 
 ## Error Handling
 
-- **Missing settings**: If `server_url` or `api_key` are absent, the settings overlay opens automatically
+- **Missing settings**: If `server_url` or `player_url` are absent, the settings overlay opens automatically
+- **Invalid player URL**: Anything but `http:`/`https:` is refused, so a tampered setting cannot turn the shell into a loader for arbitrary schemes
 - **iframe load failure**: An error message is displayed ("Error loading content. Please check your connection.")
-- **Invalid postMessage**: The web player ignores messages with missing or incorrect `type`, `serverUrl`, or `apiKey`
+- **Invalid postMessage**: The web player ignores messages with a missing or non-string `serverUrl`, a wrong `type`, an untrusted sender, or any message at all once it is paired
 
 ## Timing Note
 
-The LG app sends `postMessage` on iframe `load`. The web player's `tryAutoConnect()` runs on `ngOnInit`. There is a brief window where the connection dialog may flash before the `postMessage` arrives and `connect()` succeeds. This is cosmetic and acceptable.
+The LG app sends `postMessage` on iframe `load`, while the player's `ngOnInit`
+has already started pairing against the server URL it guessed from its own
+hostname. So the handoff regularly arrives after a code is on screen.
+
+That is handled rather than tolerated: the player only replaces the URL when it
+actually differs, then requests a new code, and a generation counter discards
+the answer of the request that lost the race. Without the counter the slower of
+the two servers could put a code on the display that nobody is polling.

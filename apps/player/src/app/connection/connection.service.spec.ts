@@ -101,9 +101,7 @@ describe('ConnectionService signage-connect handoff', () => {
 
   it.each([
     [{ type: 'signage-connect', apiKey: 'key-123' }],
-    [{ type: 'signage-connect', serverUrl: 'https://example.com' }],
     [{ type: 'signage-connect', serverUrl: '', apiKey: 'key-123' }],
-    [{ type: 'signage-connect', serverUrl: 'https://example.com', apiKey: '' }],
     [{ type: 'signage-connect', serverUrl: 123, apiKey: 'key' }],
     [{ type: 'other-message', serverUrl: 'https://example.com', apiKey: 'key' }],
     [null],
@@ -111,6 +109,46 @@ describe('ConnectionService signage-connect handoff', () => {
   ])('ignores the malformed payload %j', (data) => {
     dispatchConnect({ data });
     expect(connectSpy).not.toHaveBeenCalled();
+    expect(service.handedServerUrl()).toBe('');
+  });
+
+  describe('without a key (the shell has none to give)', () => {
+    it.each([
+      [{ type: 'signage-connect', serverUrl: 'https://example.com/' }],
+      [{ type: 'signage-connect', serverUrl: 'https://example.com', apiKey: '' }],
+    ])('takes the server URL from %j and leaves enrolment to pairing', (data) => {
+      dispatchConnect({ data });
+
+      // No enrolment: a shell from 0.10 onwards carries no credential, so the
+      // screen shows a pairing code instead of connecting on its own.
+      expect(connectSpy).not.toHaveBeenCalled();
+      expect(service.handedServerUrl()).toBe('https://example.com');
+      expect(service.serverUrl()).toBe('https://example.com');
+      // Persisted, so the next start pairs against the right server with no
+      // handoff at all.
+      expect(localStorage.getItem('signage_server_url')).toBe('https://example.com');
+    });
+
+    it('still accepts a key from a shell that has not been updated yet', () => {
+      dispatchConnect({
+        data: { type: 'signage-connect', serverUrl: 'https://example.com', apiKey: 'key-123' },
+      });
+
+      expect(connectSpy).toHaveBeenCalledWith('https://example.com', 'key-123');
+      expect(service.handedServerUrl()).toBe('');
+    });
+
+    it('ignores a repeated handoff of the URL it already has', () => {
+      const data = { type: 'signage-connect', serverUrl: 'https://example.com' };
+      dispatchConnect({ data });
+      localStorage.removeItem('signage_server_url');
+
+      dispatchConnect({ data });
+
+      // Unchanged URL ⇒ no second write, so the dialog is not told to throw
+      // away a code it just put on the display.
+      expect(localStorage.getItem('signage_server_url')).toBeNull();
+    });
   });
 });
 

@@ -1,6 +1,15 @@
-import { Component, DestroyRef, OnInit, computed, inject, output, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  OnInit,
+  computed,
+  effect,
+  inject,
+  output,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ConnectionService } from './connection.service';
+import { ConnectionService, STORAGE_KEY_URL } from './connection.service';
 
 const POLL_INTERVAL_MS = 3_000;
 
@@ -311,6 +320,26 @@ export class ConnectionDialogComponent implements OnInit {
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 
+  /**
+   * An embedder (the LG webOS shell) may hand over the real server URL after
+   * the dialog has already started pairing against its guessed one. Take it and
+   * ask for a code from the right server instead of leaving a dead code on the
+   * display.
+   */
+  private readonly handoff = effect(() => {
+    const handed = this.connectionService.handedServerUrl();
+    if (!handed || handed === this.serverUrl) {
+      return;
+    }
+    // Someone editing the field in Advanced outranks the embedder: taking the
+    // handoff here would wipe what they are in the middle of typing.
+    if (this.showAdvanced()) {
+      return;
+    }
+    this.serverUrl = handed;
+    void this.beginPairing();
+  });
+
   readonly groupedCode = computed(() => {
     const code = this.connectionService.pairingCode();
     if (code.length === 6) {
@@ -335,10 +364,18 @@ export class ConnectionDialogComponent implements OnInit {
     const url = this.serverUrl.trim();
     if (!url) return;
 
+    let started: { code: string; expiresAt: string } | null;
     try {
-      await this.connectionService.startPairing(url);
+      started = await this.connectionService.startPairing(url);
     } catch {
       return; // error signal already set by the service
+    }
+
+    // null ⇒ a newer request (typically a server URL handed over by the shell
+    // while this one was in flight) has taken over. Polling here would watch a
+    // server whose code is not the one on the display.
+    if (started === null) {
+      return;
     }
 
     this.startPolling(url);
@@ -372,6 +409,14 @@ export class ConnectionDialogComponent implements OnInit {
   }
 
   private getDefaultServerUrl(): string {
+    // A URL that was used before beats any guess: it was either typed in
+    // Advanced or handed over by the shell, and both are better informed than
+    // the hostname convention below.
+    const stored = localStorage.getItem(STORAGE_KEY_URL);
+    if (stored) {
+      return stored;
+    }
+
     const hostname = window.location.hostname;
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return 'http://localhost:3000';
