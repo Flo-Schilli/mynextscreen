@@ -2,8 +2,9 @@
  * Tests for ConnectionService.
  *
  * Two parts:
- * 1. Pure-function tests for the postMessage listener (kept from before) — they
- *    mirror the service's onMessage filter without Angular DI.
+ * 1. The signage-connect handoff, exercised against the real listener (the
+ *    previous version mirrored the filter in the spec, so it could not catch a
+ *    change in the service itself).
  * 2. TestBed-backed tests for the pairing device-flow (startPairing / pollPairing)
  *    using HttpClientTesting to mock the backend.
  */
@@ -20,91 +21,83 @@ try {
   // already initialized by test-setup
 }
 
-type ConnectFn = (serverUrl: string, apiKey: string) => void;
+describe('ConnectionService signage-connect handoff', () => {
+  let service: ConnectionService;
+  let connectSpy: ReturnType<typeof vi.spyOn>;
+  const parentWindow = { name: 'shell-parent' } as unknown as Window;
 
-function createPostMessageHandler(connectFn: ConnectFn): (event: { data: unknown }) => void {
-  return (event: { data: unknown }): void => {
-    const data = event.data;
-    if (
-      data == null ||
-      typeof data !== 'object' ||
-      (data as Record<string, unknown>).type !== 'signage-connect'
-    ) {
-      return;
-    }
-
-    const { serverUrl, apiKey } = data as Record<string, unknown>;
-    if (typeof serverUrl !== 'string' || !serverUrl || typeof apiKey !== 'string' || !apiKey) {
-      return;
-    }
-
-    connectFn(serverUrl, apiKey);
-  };
-}
-
-describe('ConnectionService postMessage listener', () => {
-  let connectFn: ReturnType<typeof vi.fn>;
-  let handler: (event: { data: unknown }) => void;
+  function dispatchConnect(overrides: { origin?: string; source?: unknown; data?: unknown }): void {
+    const event = new MessageEvent('message', {
+      data:
+        'data' in overrides
+          ? overrides.data
+          : { type: 'signage-connect', serverUrl: 'https://example.com', apiKey: 'key-123' },
+      origin: overrides.origin ?? window.location.origin,
+    });
+    Object.defineProperty(event, 'source', {
+      value: 'source' in overrides ? overrides.source : parentWindow,
+      configurable: true,
+    });
+    window.dispatchEvent(event);
+  }
 
   beforeEach(() => {
-    connectFn = vi.fn();
-    handler = createPostMessageHandler(connectFn);
-  });
-
-  it('should call connect when receiving a valid signage-connect message', () => {
-    handler({
-      data: { type: 'signage-connect', serverUrl: 'https://example.com', apiKey: 'key-123' },
+    localStorage.clear();
+    sessionStorage.clear();
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
     });
-
-    expect(connectFn).toHaveBeenCalledWith('https://example.com', 'key-123');
-    expect(connectFn).toHaveBeenCalledTimes(1);
+    service = TestBed.inject(ConnectionService);
+    connectSpy = vi.spyOn(service, 'connect').mockResolvedValue(true);
+    // The webOS shell embeds the player, so the trusted case is a framed one.
+    Object.defineProperty(window, 'parent', { value: parentWindow, configurable: true });
   });
 
-  it('should ignore messages with wrong type', () => {
-    handler({ data: { type: 'other-event', serverUrl: 'https://x.com', apiKey: 'k' } });
-    expect(connectFn).not.toHaveBeenCalled();
+  afterEach(() => {
+    Object.defineProperty(window, 'parent', { value: window, configurable: true });
+    TestBed.inject(HttpTestingController).verify();
+    localStorage.clear();
+    sessionStorage.clear();
   });
 
-  it('should ignore messages with no type', () => {
-    handler({ data: { serverUrl: 'https://x.com', apiKey: 'k' } });
-    expect(connectFn).not.toHaveBeenCalled();
+  it('accepts the handoff from the embedding window on a trusted origin', () => {
+    dispatchConnect({});
+    expect(connectSpy).toHaveBeenCalledWith('https://example.com', 'key-123');
   });
 
-  it('should ignore messages with missing serverUrl', () => {
-    handler({ data: { type: 'signage-connect', apiKey: 'key-123' } });
-    expect(connectFn).not.toHaveBeenCalled();
+  it('accepts the opaque origin of the webOS file:// shell', () => {
+    dispatchConnect({ origin: 'null' });
+    expect(connectSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('should ignore messages with missing apiKey', () => {
-    handler({ data: { type: 'signage-connect', serverUrl: 'https://example.com' } });
-    expect(connectFn).not.toHaveBeenCalled();
+  it('ignores a handoff from a foreign origin', () => {
+    dispatchConnect({ origin: 'https://evil.example' });
+    expect(connectSpy).not.toHaveBeenCalled();
   });
 
-  it('should ignore messages with empty serverUrl', () => {
-    handler({ data: { type: 'signage-connect', serverUrl: '', apiKey: 'key-123' } });
-    expect(connectFn).not.toHaveBeenCalled();
+  it('ignores a handoff that does not come from the embedding window', () => {
+    dispatchConnect({ source: { other: true } });
+    expect(connectSpy).not.toHaveBeenCalled();
   });
 
-  it('should ignore messages with empty apiKey', () => {
-    handler({ data: { type: 'signage-connect', serverUrl: 'https://example.com', apiKey: '' } });
-    expect(connectFn).not.toHaveBeenCalled();
+  it('ignores a handoff when the player is not framed at all', () => {
+    Object.defineProperty(window, 'parent', { value: window, configurable: true });
+    dispatchConnect({ source: window });
+    expect(connectSpy).not.toHaveBeenCalled();
   });
 
-  it('should ignore non-object messages', () => {
-    handler({ data: 'plain string' });
-    handler({ data: 42 });
-    handler({ data: null });
-    expect(connectFn).not.toHaveBeenCalled();
-  });
-
-  it('should ignore messages where serverUrl is not a string', () => {
-    handler({ data: { type: 'signage-connect', serverUrl: 123, apiKey: 'key' } });
-    expect(connectFn).not.toHaveBeenCalled();
-  });
-
-  it('should ignore messages where apiKey is not a string', () => {
-    handler({ data: { type: 'signage-connect', serverUrl: 'https://x.com', apiKey: true } });
-    expect(connectFn).not.toHaveBeenCalled();
+  it.each([
+    [{ type: 'signage-connect', apiKey: 'key-123' }],
+    [{ type: 'signage-connect', serverUrl: 'https://example.com' }],
+    [{ type: 'signage-connect', serverUrl: '', apiKey: 'key-123' }],
+    [{ type: 'signage-connect', serverUrl: 'https://example.com', apiKey: '' }],
+    [{ type: 'signage-connect', serverUrl: 123, apiKey: 'key' }],
+    [{ type: 'other-message', serverUrl: 'https://example.com', apiKey: 'key' }],
+    [null],
+    ['a string'],
+  ])('ignores the malformed payload %j', (data) => {
+    dispatchConnect({ data });
+    expect(connectSpy).not.toHaveBeenCalled();
   });
 });
 

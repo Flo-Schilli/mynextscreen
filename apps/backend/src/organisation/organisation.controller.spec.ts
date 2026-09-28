@@ -118,4 +118,67 @@ describe('OrganisationController', () => {
       expect(service.remove).toHaveBeenCalledWith(mockOrganisation.id);
     });
   });
+
+  describe('super-admin member routes', () => {
+    /**
+     * These routes return rows joined with the full user record. Asserting on
+     * key absence rather than on a shape keeps a future schema addition from
+     * silently re-exposing a secret.
+     */
+    const membershipRow = {
+      id: 'm1',
+      userId: 'u1',
+      organisationId: 'org-1',
+      role: 'org_admin',
+      createdAt: new Date(),
+      user: {
+        id: 'u1',
+        email: 'member@example.com',
+        name: 'Member',
+        passwordHash: '$2b$12$hash',
+        passwordResetToken: 'reset-token',
+        passwordResetTokenExpiresAt: new Date(),
+        emailVerified: true,
+        emailVerificationToken: 'verify-token',
+        emailVerificationTokenExpiresAt: new Date(),
+        pendingEmail: 'new@example.com',
+        emailChangeToken: 'change-token',
+        emailChangeTokenExpiresAt: new Date(),
+        isSuperAdmin: false,
+        gravatarEnabled: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    };
+
+    const SECRET_KEYS = [
+      'passwordHash',
+      'passwordResetToken',
+      'emailVerificationToken',
+      'emailChangeToken',
+      'pendingEmail',
+    ];
+
+    it('does not leak user secrets when listing members', async () => {
+      mockMembershipService.listMembers.mockResolvedValue([membershipRow]);
+
+      const [member] = await controller.listMembers('org-1');
+
+      expect(JSON.stringify(member)).not.toContain('$2b$12$hash');
+      for (const key of SECRET_KEYS) {
+        expect(member.user).not.toHaveProperty(key);
+      }
+    });
+
+    it('does not leak a fresh reset token when adding a member', async () => {
+      mockMembershipService.addMember.mockResolvedValue(membershipRow);
+
+      const member = await controller.addMember('org-1', {
+        email: 'member@example.com',
+        role: 'org_admin',
+      } as never);
+
+      expect(JSON.stringify(member)).not.toContain('reset-token');
+    });
+  });
 });

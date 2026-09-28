@@ -1,8 +1,15 @@
 import { Controller, Get, Param, Res } from '@nestjs/common';
 import { Response } from 'express';
+import { UserScoped } from '../auth/user-scoped.decorator';
 import { PlayerAppsService, PlayerAppMeta } from './player-apps.service';
 
+/**
+ * Player app downloads and setup guides. The payload is repo-owned static
+ * content (see PLAYER_APP_DEFS), identical for every tenant, so these routes
+ * are authenticated but carry no organisation scope.
+ */
 @Controller('player-apps')
+@UserScoped()
 export class PlayerAppsController {
   constructor(private readonly playerAppsService: PlayerAppsService) {}
 

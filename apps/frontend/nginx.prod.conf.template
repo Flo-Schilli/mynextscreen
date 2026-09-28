@@ -1,5 +1,5 @@
 server {
-    listen 80;
+    listen 8080;
     server_name _;
 
     root /usr/share/nginx/html;
@@ -10,7 +10,14 @@ server {
         proxy_pass http://${BACKEND_UPSTREAM};
         proxy_http_version 1.1;
         proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
+        # Keep Caddy's client IP instead of overwriting it with nginx's own
+        # address — the backend rate limiter keys on this header, and on this
+        # path the request has already passed through Caddy.
+        set $client_real_ip $remote_addr;
+        if ($http_x_real_ip) {
+            set $client_real_ip $http_x_real_ip;
+        }
+        proxy_set_header X-Real-IP $client_real_ip;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Connection "";          # keep-alive to upstream
@@ -19,7 +26,7 @@ server {
         proxy_cache off;
         proxy_read_timeout 1h;                   # long-lived SSE connections
         # Large uploads (/api/content/upload)
-        client_max_body_size 0;                  # unlimited; matches MAX_FILE_SIZE_BYTES
+        client_max_body_size ${MAX_UPLOAD_SIZE}; # keep >= backend MAX_FILE_SIZE_BYTES
         proxy_request_buffering off;
     }
 

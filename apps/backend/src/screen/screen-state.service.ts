@@ -238,21 +238,17 @@ export class ScreenStateService implements OnModuleDestroy {
 
     const keepalive$ = interval(30_000).pipe(
       takeUntil(close),
-      map(
-        (): MessageEvent => ({
-          data: '',
-          type: 'keepalive',
-        }),
-      ),
+      map((): MessageEvent => ({
+        data: '',
+        type: 'keepalive',
+      })),
     );
 
     const events$ = events.pipe(
-      map(
-        (event): MessageEvent => ({
-          data: this.protocolAdapter.renderEvent(event),
-          type: 'state-change',
-        }),
-      ),
+      map((event): MessageEvent => ({
+        data: this.protocolAdapter.renderEvent(event),
+        type: 'state-change',
+      })),
     );
 
     return merge(events$, keepalive$).pipe(

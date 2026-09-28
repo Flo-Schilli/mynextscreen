@@ -246,6 +246,32 @@ export class ScheduleService {
     );
   }
 
+  /**
+   * Organisation-scoped entry point for the API.
+   *
+   * `getCurrentPlaylist` below is also called internally for a screen the server
+   * has already resolved (screen state, schedule boundaries, group protocol), so
+   * it deliberately takes no tenant. That made the HTTP route which called it
+   * directly readable across tenants — anyone with a screen UUID could read any
+   * organisation's current playlist. The tenant check therefore lives here.
+   */
+  async getCurrentPlaylistScoped(
+    organisationId: string,
+    screenId: string,
+  ): Promise<CurrentPlaylistResult> {
+    const [screen] = await this.db
+      .select({ id: screens.id })
+      .from(screens)
+      .where(and(eq(screens.id, screenId), eq(screens.organisationId, organisationId)))
+      .limit(1);
+
+    if (!screen) {
+      throw new NotFoundException('Screen not found');
+    }
+
+    return this.getCurrentPlaylist(screenId);
+  }
+
   async getCurrentPlaylist(screenId: string): Promise<CurrentPlaylistResult> {
     const now = new Date();
 

@@ -26,6 +26,14 @@ jest.mock('./ffprobe-duration.util', () => ({
   ffprobeDuration: (...args: unknown[]) => mockFfprobeDuration(...args),
 }));
 
+/** Real magic bytes — uploads are typed from the content, not from the header. */
+const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00]);
+const MP4_BYTES = Buffer.concat([
+  Buffer.from([0x00, 0x00, 0x00, 0x18]),
+  Buffer.from('ftypisom', 'latin1'),
+  Buffer.alloc(8),
+]);
+
 function createMockFile(overrides: Partial<Express.Multer.File> = {}): Express.Multer.File {
   return {
     fieldname: 'file',
@@ -33,7 +41,7 @@ function createMockFile(overrides: Partial<Express.Multer.File> = {}): Express.M
     encoding: '7bit',
     mimetype: 'image/png',
     size: 1024,
-    buffer: Buffer.from('fake-content'),
+    buffer: PNG_BYTES,
     stream: null as unknown as Express.Multer.File['stream'],
     destination: '',
     filename: '',
@@ -63,6 +71,7 @@ describe('ContentService', () => {
 
     storageService = {
       checkOriginalLimit: jest.fn().mockResolvedValue(undefined),
+      reserveOriginalUsage: jest.fn().mockResolvedValue(undefined),
       checkTranscodedLimit: jest.fn().mockResolvedValue(undefined),
       addOriginalUsage: jest.fn().mockResolvedValue(undefined),
       subtractOriginalUsage: jest.fn().mockResolvedValue(undefined),
@@ -152,9 +161,13 @@ describe('ContentService', () => {
       );
     });
 
-    it('should detect video type from mimetype', async () => {
+    it('should detect video type from the file content', async () => {
       const org = await seedOrg();
-      const file = createMockFile({ originalname: 'clip.mp4', mimetype: 'video/mp4' });
+      const file = createMockFile({
+        originalname: 'clip.mp4',
+        mimetype: 'video/mp4',
+        buffer: MP4_BYTES,
+      });
 
       const result = await service.upload(org.id, file, { title: 'Test Video' });
 
@@ -168,12 +181,12 @@ describe('ContentService', () => {
 
       await service.upload(org.id, file, { title: 'Test' });
 
-      expect(storageService.addOriginalUsage).toHaveBeenCalledWith(org.id, 5000);
+      expect(storageService.reserveOriginalUsage).toHaveBeenCalledWith(org.id, 5000);
     });
 
     it('should reject upload when storage limit would be exceeded', async () => {
       const org = await seedOrg();
-      storageService.checkOriginalLimit.mockRejectedValue(
+      storageService.reserveOriginalUsage.mockRejectedValue(
         new BadRequestException('Upload would exceed organisation original storage limit'),
       );
       const file = createMockFile({ size: 1000 });
@@ -190,13 +203,43 @@ describe('ContentService', () => {
       await expect(service.upload(org.id, file, { title: 'Big file' })).resolves.toBeDefined();
     });
 
-    it('should reject unsupported MIME types', async () => {
+    it('should reject unsupported file content', async () => {
       const org = await seedOrg();
-      const file = createMockFile({ mimetype: 'application/pdf' });
+      const file = createMockFile({ mimetype: 'application/pdf', buffer: Buffer.from('%PDF-1.7') });
 
       await expect(service.upload(org.id, file, { title: 'PDF' })).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    it('should reject an SVG even though it claims to be an image', async () => {
+      const org = await seedOrg();
+      const file = createMockFile({
+        originalname: 'logo.svg',
+        mimetype: 'image/svg+xml',
+        buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script/></svg>'),
+      });
+
+      await expect(service.upload(org.id, file, { title: 'Logo' })).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should store the detected type, not the claimed one', async () => {
+      const org = await seedOrg();
+      // Video bytes uploaded with an image header — the bytes must win, or the
+      // stored MIME type becomes whatever the client felt like sending.
+      const file = createMockFile({
+        originalname: 'sneaky.png',
+        mimetype: 'image/png',
+        buffer: MP4_BYTES,
+      });
+
+      const result = await service.upload(org.id, file, { title: 'Sneaky' });
+
+      const [row] = await db.select().from(contents).where(eq(contents.id, result.id));
+      expect(row.originalMimeType).toBe('video/mp4');
+      expect(row.type).toBe(ContentType.Video);
     });
 
     it('should reject files exceeding max file size', async () => {
@@ -336,9 +379,9 @@ describe('ContentService', () => {
       expect(result.transcodingStatus).toBe(TranscodingStatus.Pending);
       expect(result.transcodedSizeBytes).toBeNull();
       expect(result.transcodingError).toBeNull();
-      // sizeDelta = 3000 - 2000 = 1000 (positive)
-      expect(storageService.checkOriginalLimit).toHaveBeenCalledWith(org.id, 1000);
-      expect(storageService.addOriginalUsage).toHaveBeenCalledWith(org.id, 1000);
+      // sizeDelta = 3000 - 2000 = 1000 (positive) — reserved, not booked twice
+      expect(storageService.reserveOriginalUsage).toHaveBeenCalledWith(org.id, 1000);
+      expect(storageService.addOriginalUsage).not.toHaveBeenCalled();
       expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith(org.id, 1000);
       expect(queue.add).toHaveBeenCalledWith(
         'transcode',
@@ -354,7 +397,7 @@ describe('ContentService', () => {
         transcodedSizeBytes: null,
         type: ContentType.Image,
       });
-      storageService.checkOriginalLimit.mockRejectedValue(
+      storageService.reserveOriginalUsage.mockRejectedValue(
         new BadRequestException('Upload would exceed organisation original storage limit'),
       );
 

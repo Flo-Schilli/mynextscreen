@@ -18,7 +18,7 @@ services:
       - FFMPEG_VIDEO_PRESET=slow
       - FFMPEG_VIDEO_MAXRATE=8M
       - FFMPEG_VIDEO_BUFSIZE=16M
-      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-dev-insecure-secret-change-me}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-dev-insecure-secret-change-me-before-production}
       - JWT_ACCESS_TTL=${JWT_ACCESS_TTL:-15m}
       - JWT_REFRESH_TTL=${JWT_REFRESH_TTL:-30d}
       - COOKIE_SECURE=${COOKIE_SECURE:-false}
@@ -60,20 +60,24 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      # Loopback only: an unauthenticated Redis on 0.0.0.0 is reachable from
+      # the whole network, and it holds the refresh tokens.
+      - "127.0.0.1:6379:6379"
 
   mailpit:
     image: axllent/mailpit
     ports:
-      - "1025:1025" # SMTP ingest
-      - "8025:8025" # web UI
+      # Loopback only: an open relay and every captured mail otherwise.
+      - "127.0.0.1:1025:1025" # SMTP ingest
+      - "127.0.0.1:8025:8025" # web UI
     environment:
       - MP_MAX_MESSAGES=500
 
   postgres:
     image: postgres:16-alpine
     ports:
-      - "5432:5432"
+      # Loopback only: the dev database has the default password.
+      - "127.0.0.1:5432:5432"
     environment:
       - POSTGRES_USER=signage
       - POSTGRES_PASSWORD=signage

@@ -7,6 +7,7 @@ import { users, organisations, userOrganisationMemberships, type Organisation } 
 import { OrganisationRole } from './organisation-role.enum';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
+import { hashToken } from '../auth/token-hash.util';
 
 describe('UserService', () => {
   let service: UserService;
@@ -331,7 +332,9 @@ describe('UserService', () => {
       const user = await service.createUserWithOrganisation(baseInput);
 
       expect(user.emailVerified).toBe(false);
-      expect(user.emailVerificationToken).toBe('verify-tok');
+      // Stored as a fingerprint, never as the value that went out by email.
+      expect(user.emailVerificationToken).toBe(hashToken('verify-tok'));
+      expect(user.emailVerificationToken).not.toBe('verify-tok');
       expect(user.passwordHash).toBe('hash');
 
       const [org] = await db
@@ -574,9 +577,11 @@ describe('UserService', () => {
       });
 
       it('serialises concurrent deletes so the last super-admin survives (TOCTOU)', async () => {
-        // Two super-admins, deleted in parallel. The FOR UPDATE row lock + in-tx
-        // re-count must let at most one through, leaving >= 1 super-admin. A
-        // non-atomic check would let both pass and leave zero.
+        // Two super-admins, deleted in parallel. Exactly one must get through:
+        // the guard locks every super-admin row, so whichever transaction runs
+        // second waits, re-reads the set and refuses. The assertion is exact,
+        // not ">= 1" — under a correct guard the interleaving cannot change the
+        // outcome, and a range would have hidden the race this used to have.
         const [sa1] = await db
           .insert(users)
           .values({ email: 'race-1@example.com', isSuperAdmin: true })
@@ -591,10 +596,33 @@ describe('UserService', () => {
           service.deleteUser(sa2.id, { guardLastSuperAdmin: true }),
         ]);
 
-        const rejected = results.filter((r) => r.status === 'rejected');
-        expect(rejected.length).toBeGreaterThanOrEqual(1);
-        // Whatever the interleaving, the system never drops to zero super-admins.
-        expect(await service.countSuperAdmins()).toBeGreaterThanOrEqual(1);
+        expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+        expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+        expect(await service.countSuperAdmins()).toBe(1);
+      });
+
+      it('does not over-block: concurrent deletes that leave one survivor all succeed', async () => {
+        // Three super-admins, two deleted in parallel. The set lock serialises
+        // them, but neither is the last one, so both must go through — a guard
+        // that simply refused every concurrent delete would also pass the test
+        // above.
+        const [sa1] = await db
+          .insert(users)
+          .values({ email: 'trio-1@example.com', isSuperAdmin: true })
+          .returning();
+        const [sa2] = await db
+          .insert(users)
+          .values({ email: 'trio-2@example.com', isSuperAdmin: true })
+          .returning();
+        await db.insert(users).values({ email: 'trio-3@example.com', isSuperAdmin: true });
+
+        const results = await Promise.allSettled([
+          service.deleteUser(sa1.id, { guardLastSuperAdmin: true }),
+          service.deleteUser(sa2.id, { guardLastSuperAdmin: true }),
+        ]);
+
+        expect(results.filter((r) => r.status === 'rejected')).toHaveLength(0);
+        expect(await service.countSuperAdmins()).toBe(1);
       });
     });
   });
@@ -643,6 +671,59 @@ describe('UserService', () => {
       expect(memberView?.memberships).toEqual([
         { organisationId: org.id, organisationName: 'Org X', role: OrganisationRole.Editor },
       ]);
+    });
+  });
+
+  describe('account tokens are stored hashed (D12)', () => {
+    async function seedUser() {
+      const [user] = await db
+        .insert(users)
+        .values({ email: `tokens-${Math.random()}@example.com` })
+        .returning();
+      return user;
+    }
+
+    it('finds a user by reset token without ever storing the token itself', async () => {
+      const user = await seedUser();
+      const expiresAt = new Date(Date.now() + 60_000);
+
+      await service.setPasswordResetToken(user.id, 'plain-reset-token', expiresAt);
+
+      const [row] = await db.select().from(users).where(eq(users.id, user.id));
+      expect(row.passwordResetToken).toBe(hashToken('plain-reset-token'));
+      expect(row.passwordResetToken).not.toContain('plain-reset-token');
+
+      // The plaintext still resolves — only the stored form changed.
+      const found = await service.findByPasswordResetToken('plain-reset-token');
+      expect(found?.id).toBe(user.id);
+    });
+
+    it('does not resolve a user from the hash itself', async () => {
+      const user = await seedUser();
+      await service.setPasswordResetToken(
+        user.id,
+        'plain-reset-token',
+        new Date(Date.now() + 60_000),
+      );
+
+      // Someone who read the database column cannot replay it as a token.
+      const found = await service.findByPasswordResetToken(hashToken('plain-reset-token'));
+      expect(found ?? null).toBeNull();
+    });
+
+    it('stores the email-change token hashed too', async () => {
+      const user = await seedUser();
+
+      await service.setPendingEmail(
+        user.id,
+        'new@example.com',
+        'plain-change-token',
+        new Date(Date.now() + 60_000),
+      );
+
+      const [row] = await db.select().from(users).where(eq(users.id, user.id));
+      expect(row.emailChangeToken).toBe(hashToken('plain-change-token'));
+      expect((await service.findByEmailChangeToken('plain-change-token'))?.id).toBe(user.id);
     });
   });
 });

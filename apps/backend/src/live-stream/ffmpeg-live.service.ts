@@ -1,4 +1,10 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { spawn, execFile, ChildProcess } from 'child_process';
@@ -8,6 +14,7 @@ import * as path from 'path';
 import type { LiveStream } from '../db/schema';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { TranscodingPreset } from './transcoding-preset.enum';
+import { getNumberConfig } from '../config/numeric-config.util';
 
 const execFileAsync = promisify(execFile);
 
@@ -68,14 +75,52 @@ export class LiveStreamProcessExitedEvent {
   ) {}
 }
 
+/** Grace period before escalating SIGTERM to SIGKILL, and before giving up. */
+const SIGTERM_GRACE_MS = 5_000;
+const SIGKILL_GRACE_MS = 2_000;
+
+/**
+ * Cap on concurrently running encoders. Each libx264 process can saturate a
+ * core, so without a cap a handful of streams takes the host down — and any
+ * org admin can start one.
+ */
+const DEFAULT_MAX_CONCURRENT_STREAMS = 4;
+
+/** FFmpeg wants microseconds: 30s without data on the input aborts the run. */
+const INPUT_RW_TIMEOUT_US = 30_000_000;
+
+/**
+ * Explicit protocol allow-list per source protocol. Without it the demuxer's
+ * defaults decide what a remote playlist may pull in — an attacker-hosted
+ * .m3u8 can reference secondary URIs, and whether that turns into a local file
+ * read depends on the FFmpeg build, which is not pinned here. `file` is
+ * deliberately absent from the RTP list: an SDP source has no use for it.
+ */
+function protocolWhitelistFor(sourceUrl: string, protocol: LiveStreamProtocol): string {
+  if (protocol === LiveStreamProtocol.Rtp) {
+    return 'rtp,udp';
+  }
+  const scheme = sourceUrl.split(':', 1)[0].toLowerCase();
+  switch (scheme) {
+    case 'rtsp':
+      return 'rtsp,rtp,udp,tcp';
+    case 'http':
+    case 'https':
+      return 'http,https,tcp,tls,crypto';
+    default:
+      return 'rtmp,tcp';
+  }
+}
+
 @Injectable()
-export class FfmpegLiveService implements OnModuleInit {
+export class FfmpegLiveService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(FfmpegLiveService.name);
   private readonly processes = new Map<string, ChildProcess>();
   private readonly stoppedIds = new Set<string>();
   private readonly ffmpegPath: string;
   private readonly ffprobePath: string;
   private readonly hlsOutputDir: string;
+  private readonly maxConcurrentStreams: number;
 
   constructor(
     private readonly configService: ConfigService,
@@ -84,6 +129,11 @@ export class FfmpegLiveService implements OnModuleInit {
     this.ffmpegPath = this.configService.get<string>('FFMPEG_PATH', 'ffmpeg');
     this.ffprobePath = this.configService.get<string>('FFPROBE_PATH', 'ffprobe');
     this.hlsOutputDir = this.configService.get<string>('HLS_OUTPUT_DIR', '/tmp/signage-hls');
+    this.maxConcurrentStreams = getNumberConfig(
+      this.configService,
+      'MAX_CONCURRENT_LIVE_STREAMS',
+      DEFAULT_MAX_CONCURRENT_STREAMS,
+    );
   }
 
   onModuleInit(): void {
@@ -106,9 +156,30 @@ export class FfmpegLiveService implements OnModuleInit {
     }
   }
 
+  /**
+   * Node does not kill child processes on exit, so every running FFmpeg would
+   * outlive an API restart as an orphan while the database still reported the
+   * stream as active. StreamHealthService already does this; this service did
+   * not.
+   */
+  async onModuleDestroy(): Promise<void> {
+    const running = [...this.processes.keys()];
+    if (running.length === 0) {
+      return;
+    }
+    this.logger.log(`Shutting down: terminating ${running.length} FFmpeg process(es)`);
+    await Promise.all(running.map((streamId) => this.stop(streamId)));
+  }
+
   async start(stream: LiveStream): Promise<void> {
     if (this.processes.has(stream.id)) {
       return; // already running — idempotent
+    }
+
+    if (this.processes.size >= this.maxConcurrentStreams) {
+      throw new ServiceUnavailableException(
+        `Too many live streams running (limit ${this.maxConcurrentStreams}). Stop one and try again.`,
+      );
     }
 
     const outputDir = path.join(this.hlsOutputDir, stream.id);
@@ -157,11 +228,18 @@ export class FfmpegLiveService implements OnModuleInit {
     this.processes.set(stream.id, proc);
   }
 
+  /**
+   * SIGTERM, then SIGKILL if the process ignores it, and only then remove the
+   * output directory — the previous version dropped the map entry immediately
+   * and deleted the directory while FFmpeg might still be writing to it, so a
+   * hung process became an untracked leak that `isRunning()` reported as gone.
+   */
   async stop(streamId: string): Promise<void> {
     const proc = this.processes.get(streamId);
     if (proc) {
       this.stoppedIds.add(streamId);
       proc.kill('SIGTERM');
+      await this.waitForExit(proc, streamId);
       this.processes.delete(streamId);
     }
 
@@ -174,6 +252,36 @@ export class FfmpegLiveService implements OnModuleInit {
     }
   }
 
+  /** Resolves once the process is gone, escalating to SIGKILL after a grace period. */
+  private waitForExit(proc: ChildProcess, streamId: string): Promise<void> {
+    // `?? null` on purpose: an unknown state counts as "still running", so the
+    // caller waits rather than deleting the directory under a live process.
+    if ((proc.exitCode ?? null) !== null || (proc.signalCode ?? null) !== null) {
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      const kill = setTimeout(() => {
+        this.logger.warn(`[stream:${streamId}] FFmpeg ignored SIGTERM — sending SIGKILL`);
+        proc.kill('SIGKILL');
+      }, SIGTERM_GRACE_MS);
+      const giveUp = setTimeout(() => {
+        this.logger.error(`[stream:${streamId}] FFmpeg did not exit after SIGKILL`);
+        cleanup();
+        resolve();
+      }, SIGTERM_GRACE_MS + SIGKILL_GRACE_MS);
+
+      const cleanup = (): void => {
+        clearTimeout(kill);
+        clearTimeout(giveUp);
+      };
+
+      proc.once('exit', () => {
+        cleanup();
+        resolve();
+      });
+    });
+  }
+
   isRunning(streamId: string): boolean {
     return this.processes.has(streamId);
   }
@@ -183,11 +291,7 @@ export class FfmpegLiveService implements OnModuleInit {
   }
 
   async probeSourceStream(sourceUrl: string, protocol: LiveStreamProtocol): Promise<ProbeResult> {
-    const args: string[] = [];
-
-    if (protocol === LiveStreamProtocol.Rtp) {
-      args.push('-protocol_whitelist', 'file,rtp,udp');
-    }
+    const args: string[] = ['-protocol_whitelist', protocolWhitelistFor(sourceUrl, protocol)];
 
     args.push('-v', 'quiet', '-print_format', 'json', '-show_streams', sourceUrl);
 
@@ -240,11 +344,14 @@ export class FfmpegLiveService implements OnModuleInit {
   }
 
   buildArgs(stream: LiveStream, outputPath: string): string[] {
-    const args: string[] = [];
+    const args: string[] = [
+      '-protocol_whitelist',
+      protocolWhitelistFor(stream.sourceUrl, stream.protocol),
+    ];
 
-    if (stream.protocol === LiveStreamProtocol.Rtp) {
-      args.push('-protocol_whitelist', 'file,rtp,udp');
-    }
+    // A source that accepts the connection and then goes quiet would otherwise
+    // hold an encoder forever.
+    args.push('-rw_timeout', String(INPUT_RW_TIMEOUT_US));
 
     args.push('-i', stream.sourceUrl);
 

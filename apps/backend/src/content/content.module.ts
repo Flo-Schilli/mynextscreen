@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
-import { ContentService } from './content.service';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { getNumberConfig } from '../config/numeric-config.util';
+import { MulterModule } from '@nestjs/platform-express';
+import { ContentService, DEFAULT_MAX_FILE_SIZE_BYTES } from './content.service';
 import { ContentController } from './content.controller';
 import { TranscodingProcessor } from './transcoding.processor';
 import { ThumbnailBackfillService } from './thumbnail-backfill.service';
@@ -17,6 +20,19 @@ import { OrganisationModule } from '../organisation/organisation.module';
           delay: 5000,
         },
       },
+    }),
+    // Enforced while the body is being read, so an oversized upload is aborted
+    // instead of being buffered in full and rejected afterwards. The service
+    // check stays as the second layer, and nginx caps it as the first.
+    MulterModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        limits: {
+          fileSize: getNumberConfig(config, 'MAX_FILE_SIZE_BYTES', DEFAULT_MAX_FILE_SIZE_BYTES),
+          files: 1,
+        },
+      }),
     }),
     OrganisationModule,
   ],

@@ -2,7 +2,8 @@ import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ApiKeyAuthGuard } from './api-key-auth.guard';
 import { IS_SCREEN_AUTH_KEY } from './screen-auth.decorator';
-import { hashApiKey } from '../screen/api-key.util';
+import { eq } from 'drizzle-orm';
+import { hashApiKey, sha256hex } from '../screen/api-key.util';
 import { organisations, screens } from '../db/schema';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
@@ -31,7 +32,10 @@ describe('ApiKeyAuthGuard', () => {
   });
 
   /** Seed an organisation and a screen carrying the given api-key hash. */
-  async function seedScreen(apiKeyHash: string): Promise<{ screenId: string; orgId: string }> {
+  async function seedScreen(
+    apiKeyHash: string,
+    apiKeyFingerprint: string | null = null,
+  ): Promise<{ screenId: string; orgId: string }> {
     const [org] = await db
       .insert(organisations)
       .values({ name: `Org ${Math.random()}`, timeZone: 'UTC' })
@@ -44,6 +48,7 @@ describe('ApiKeyAuthGuard', () => {
         resolution: '1920x1080',
         location: 'Entrance',
         apiKeyHash,
+        apiKeyFingerprint,
       })
       .returning();
     return { screenId: screen.id, orgId: org.id };
@@ -148,6 +153,45 @@ describe('ApiKeyAuthGuard', () => {
       const request = context.switchToHttp().getRequest();
       expect(request.screenId).toBe(screenId);
       expect(request.organisationId).toBe(orgId);
+    });
+  });
+
+  describe('fingerprint lookup', () => {
+    it('authenticates a screen through its indexed fingerprint', async () => {
+      const { screenId } = await seedScreen(validKeyHash, sha256hex(VALID_API_KEY));
+      const context = createMockContext({ authorization: `Bearer ${VALID_API_KEY}` });
+
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(context.switchToHttp().getRequest().screenId).toBe(screenId);
+    });
+
+    it('still rejects a key whose fingerprint collides but whose hash does not', async () => {
+      // The bcrypt check runs on the row the fingerprint found, so a row
+      // carrying someone else's fingerprint cannot be used to log in.
+      await seedScreen(await hashApiKey('a-different-key'), sha256hex(VALID_API_KEY));
+      const context = createMockContext({ authorization: `Bearer ${VALID_API_KEY}` });
+
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('authenticates a legacy screen and backfills its fingerprint', async () => {
+      const { screenId } = await seedScreen(validKeyHash, null);
+      const context = createMockContext({ authorization: `Bearer ${VALID_API_KEY}` });
+
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+
+      const [row] = await db.select().from(screens).where(eq(screens.id, screenId));
+      expect(row.apiKeyFingerprint).toBe(sha256hex(VALID_API_KEY));
+    });
+
+    it('does not touch legacy rows when the key is wrong', async () => {
+      const { screenId } = await seedScreen(validKeyHash, null);
+      const context = createMockContext({ authorization: 'Bearer wrong-key' });
+
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+
+      const [row] = await db.select().from(screens).where(eq(screens.id, screenId));
+      expect(row.apiKeyFingerprint).toBeNull();
     });
   });
 });

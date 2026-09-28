@@ -1,6 +1,15 @@
 import 'reflect-metadata';
 import { plainToInstance, Transform, Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  MinLength,
+  validateSync,
+} from 'class-validator';
 
 const FIVE_GIB = 5 * 1024 * 1024 * 1024;
 
@@ -16,6 +25,17 @@ const FIVE_GIB = 5 * 1024 * 1024 * 1024;
  * out of the box; production overrides them via ENV.
  */
 export class EnvironmentVariables {
+  /**
+   * Signing secret for the access JWT. Validated here rather than only at its
+   * getOrThrow call site so a too-short value fails at boot: HS256 keyed by a
+   * handful of characters is brute-forceable offline from one captured token.
+   */
+  @IsString()
+  @MinLength(32, {
+    message: 'JWT_ACCESS_SECRET must be at least 32 characters (openssl rand -base64 48)',
+  })
+  JWT_ACCESS_SECRET!: string;
+
   // ── Platform mailer (account/system emails; per-org SMTP stays separate) ────
 
   /** SMTP host. Defaults to localhost / the Mailpit service in dev. */

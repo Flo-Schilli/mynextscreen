@@ -1,0 +1,69 @@
+# Keeps the lockfile from drifting behind its own ranges again: the 2026-09-27
+# audit found several already-fixed advisories open purely because npm update
+# had not been run in a while.
+version: 2
+updates:
+  # One entry, because the monorepo has exactly one package.json and one
+  # lockfile at the root.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # Grouped so a framework bump arrives as one reviewable PR instead of a
+    # dozen that cannot be merged independently anyway.
+    groups:
+      angular:
+        patterns:
+          - '@angular*'
+          - 'angular-eslint'
+          - '@analogjs/*'
+      nestjs:
+        patterns:
+          - '@nestjs/*'
+          - '@nest-lab/*'
+      nx:
+        patterns:
+          - 'nx'
+          - '@nx/*'
+      types:
+        patterns:
+          - '@types/*'
+      remaining:
+        patterns:
+          - '*'
+        exclude-patterns:
+          - '@angular*'
+          - 'angular-eslint'
+          - '@analogjs/*'
+          - '@nestjs/*'
+          - '@nest-lab/*'
+          - 'nx'
+          - '@nx/*'
+          - '@types/*'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: /apps/backend
+    schedule:
+      interval: weekly
+      day: monday
+
+  - package-ecosystem: docker
+    directory: /apps/frontend
+    schedule:
+      interval: weekly
+      day: monday
+
+  - package-ecosystem: docker
+    directory: /apps/player
+    schedule:
+      interval: weekly
+      day: monday

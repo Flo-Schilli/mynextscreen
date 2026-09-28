@@ -8,7 +8,13 @@ Image={{ image_registry }}/frontend:{{ signage_image_tag }}
 AutoUpdate=registry
 Pull=newer
 Network=signage.network
-PublishPort=50001:80
+# Loopback only: Caddy is the sole public entry point. A 0.0.0.0 port
+# would bypass TLS, the security headers and fail2ban.
+PublishPort=127.0.0.1:50001:8080
+NoNewPrivileges=true
+DropCapability=ALL
+AddCapability=SETGID
+AddCapability=SETUID
 EnvironmentFile=%h/.config/containers/systemd/.env.signage
 Environment=BACKEND_UPSTREAM=signage-backend:3000
 

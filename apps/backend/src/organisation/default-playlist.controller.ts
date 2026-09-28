@@ -1,11 +1,13 @@
 import { Controller, Patch, Param, Body, ParseUUIDPipe } from '@nestjs/common';
 import { Roles } from '../auth/roles.decorator';
+import { OrgFromParam } from '../auth/org-from-param.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { OrganisationService } from './organisation.service';
 import { SetDefaultPlaylistDto } from './dto';
 import type { Organisation } from '../db/schema';
 
 @Controller('organisations/:orgId/default-playlist')
+@OrgFromParam('orgId')
 export class DefaultPlaylistController {
   constructor(private readonly organisationService: OrganisationService) {}
 

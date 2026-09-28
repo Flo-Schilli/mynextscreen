@@ -77,21 +77,17 @@ export class DashboardSseService implements OnModuleDestroy {
 
     const keepalive$ = interval(30_000).pipe(
       takeUntil(close),
-      map(
-        (): MessageEvent => ({
-          data: '',
-          type: 'keepalive',
-        }),
-      ),
+      map((): MessageEvent => ({
+        data: '',
+        type: 'keepalive',
+      })),
     );
 
     const events$ = events.pipe(
-      map(
-        (payload): MessageEvent => ({
-          data: payload,
-          type: 'state-change',
-        }),
-      ),
+      map((payload): MessageEvent => ({
+        data: payload,
+        type: 'state-change',
+      })),
     );
 
     return merge(events$, keepalive$).pipe(

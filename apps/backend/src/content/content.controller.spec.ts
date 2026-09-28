@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import * as path from 'node:path';
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { ContentController } from './content.controller';
@@ -161,6 +164,64 @@ describe('ContentController — CRUD endpoints', () => {
   });
 
   describe('serveOriginal', () => {
+    /**
+     * The original file is stored as uploaded, so the response headers are the
+     * last line of defence: a record written before magic-byte validation
+     * existed can still carry image/svg+xml, which must never be sent back as
+     * such — it would execute in the victim's session on the API origin.
+     */
+    async function serveFromDisk(originalMimeType: string): Promise<{
+      headers: Record<string, string>;
+    }> {
+      const mediaRoot = await mkdtemp(path.join(tmpdir(), 'signage-serve-'));
+      const dir = path.join(mediaRoot, orgId, 'originals');
+      await mkdir(dir, { recursive: true });
+      await writeFile(path.join(dir, `${contentId}.svg`), '<svg/>');
+
+      service.findOne.mockResolvedValue({
+        ...mockContent,
+        originalFilename: 'logo.svg',
+        originalMimeType,
+      });
+      controller = new ContentController(
+        service as unknown as ContentService,
+        {
+          get: jest.fn(() => mediaRoot),
+        } as unknown as ConfigService,
+      );
+
+      const headers: Record<string, string> = {};
+      const res = {
+        setHeader: jest.fn((key: string, value: string) => {
+          headers[key] = value;
+        }),
+        sendFile: jest.fn(),
+      };
+
+      await controller.serveOriginal(
+        orgId,
+        contentId,
+        res as unknown as import('express').Response,
+      );
+      return { headers };
+    }
+
+    it('never reflects a stored image/svg+xml back to the browser', async () => {
+      const { headers } = await serveFromDisk('image/svg+xml');
+
+      expect(headers['Content-Type']).toBe('application/octet-stream');
+      expect(headers['Content-Disposition']).toBe('attachment');
+      expect(headers['X-Content-Type-Options']).toBe('nosniff');
+    });
+
+    it('serves a known media type inline so previews keep working', async () => {
+      const { headers } = await serveFromDisk('image/png');
+
+      expect(headers['Content-Type']).toBe('image/png');
+      expect(headers['Content-Disposition']).toBe('inline');
+      expect(headers['X-Content-Type-Options']).toBe('nosniff');
+    });
+
     it('should throw NotFoundException when file does not exist on disk', async () => {
       service.findOne.mockResolvedValue({
         ...mockContent,

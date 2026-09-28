@@ -54,4 +54,32 @@ describe('CreateLiveStreamDto', () => {
     expect(errors.length).toBeGreaterThan(0);
     expect(errors.some((e) => e.property === 'audioEnabled')).toBe(true);
   });
+
+  describe('sourceUrl (SSRF)', () => {
+    it.each([
+      'http://127.0.0.1:6379/',
+      'http://169.254.169.254/latest/meta-data/',
+      'rtmp://10.0.0.5/live',
+      'rtsp://localhost/stream',
+    ])('rejects the internal target %s', async (sourceUrl) => {
+      const errors = await validate(createDto({ sourceUrl }));
+      expect(errors.map((error) => error.property)).toContain('sourceUrl');
+    });
+
+    it.each(['file:///etc/passwd', 'concat:/etc/passwd'])(
+      'keeps rejecting the disallowed scheme %s',
+      async (sourceUrl) => {
+        const errors = await validate(createDto({ sourceUrl }));
+        expect(errors.map((error) => error.property)).toContain('sourceUrl');
+      },
+    );
+
+    it.each(['rtmp://example.com/live/key', 'https://cdn.example.com/stream.m3u8'])(
+      'accepts the public source %s',
+      async (sourceUrl) => {
+        const errors = await validate(createDto({ sourceUrl }));
+        expect(errors).toHaveLength(0);
+      },
+    );
+  });
 });

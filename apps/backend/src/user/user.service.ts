@@ -5,7 +5,7 @@ import {
   Inject,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, eq, inArray, lt } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 
@@ -20,6 +20,7 @@ import {
   type Organisation,
 } from '../db/schema';
 import { OrganisationRole } from './organisation-role.enum';
+import { hashToken } from '../auth/token-hash.util';
 
 /** Postgres unique-violation SQLSTATE. */
 const PG_UNIQUE_VIOLATION = '23505';
@@ -97,7 +98,7 @@ export class UserService {
             name: input.name,
             passwordHash: input.passwordHash,
             emailVerified: false,
-            emailVerificationToken: input.verificationToken,
+            emailVerificationToken: hashToken(input.verificationToken),
             emailVerificationTokenExpiresAt: input.verificationTokenExpiresAt,
           })
           .returning();
@@ -231,7 +232,7 @@ export class UserService {
     const [user] = await this.db
       .select()
       .from(users)
-      .where(eq(users.passwordResetToken, token))
+      .where(eq(users.passwordResetToken, hashToken(token)))
       .limit(1);
     return user ?? null;
   }
@@ -239,7 +240,7 @@ export class UserService {
   async setPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<void> {
     await this.db
       .update(users)
-      .set({ passwordResetToken: token, passwordResetTokenExpiresAt: expiresAt })
+      .set({ passwordResetToken: hashToken(token), passwordResetTokenExpiresAt: expiresAt })
       .where(eq(users.id, userId));
   }
 
@@ -275,7 +276,10 @@ export class UserService {
   async setEmailVerificationToken(userId: string, token: string, expiresAt: Date): Promise<void> {
     await this.db
       .update(users)
-      .set({ emailVerificationToken: token, emailVerificationTokenExpiresAt: expiresAt })
+      .set({
+        emailVerificationToken: hashToken(token),
+        emailVerificationTokenExpiresAt: expiresAt,
+      })
       .where(eq(users.id, userId));
   }
 
@@ -283,7 +287,7 @@ export class UserService {
     const [user] = await this.db
       .select()
       .from(users)
-      .where(eq(users.emailVerificationToken, token))
+      .where(eq(users.emailVerificationToken, hashToken(token)))
       .limit(1);
     return user ?? null;
   }
@@ -370,12 +374,16 @@ export class UserService {
    * the caller can remove their media directories outside the transaction.
    *
    * When `guardLastSuperAdmin` is set, the last-super-admin lockout check runs
-   * INSIDE the transaction: the target row is locked with `SELECT … FOR UPDATE`
-   * and, if it is a super-admin, the super-admin count is re-read under that lock
-   * before the delete. This closes the TOCTOU window where two concurrent deletes
-   * of two different super-admins could each pass a separate pre-check and leave
-   * the system with zero super-admins — the row lock serialises them so the
-   * second transaction observes the first's effect and throws.
+   * INSIDE the transaction, and it locks **every super-admin row**, not just the
+   * target one. Locking only the target does not serialise anything here: two
+   * concurrent deletes of two *different* super-admins take locks on different
+   * rows, never block each other, both read a count of 2 and both commit —
+   * leaving zero super-admins. Locking the whole set makes the second
+   * transaction wait for the first, re-read the set afterwards and refuse.
+   *
+   * The lock is taken in a deterministic order (`ORDER BY id`) so two callers
+   * cannot acquire the same rows in opposite orders and deadlock. The cheap,
+   * unlocked pre-read keeps ordinary user deletions from contending for it.
    */
   async deleteUser(
     userId: string,
@@ -383,20 +391,29 @@ export class UserService {
   ): Promise<string[]> {
     return this.db.transaction(async (tx) => {
       if (options.guardLastSuperAdmin) {
-        // Lock the target row so a concurrent delete of another super-admin
-        // serialises behind us and re-reads an up-to-date count.
+        // Cheap, unlocked pre-read: deleting an ordinary user must not queue
+        // behind every super-admin row.
         const [target] = await tx
           .select({ isSuperAdmin: users.isSuperAdmin })
           .from(users)
           .where(eq(users.id, userId))
-          .limit(1)
-          .for('update');
+          .limit(1);
+
         if (target?.isSuperAdmin) {
-          const [{ count }] = await tx
-            .select({ count: sql<number>`count(*)::int` })
+          // Lock the whole set, in id order. A concurrent delete of another
+          // super-admin now blocks here and re-reads the set once we commit.
+          const superAdmins = await tx
+            .select({ id: users.id })
             .from(users)
-            .where(eq(users.isSuperAdmin, true));
-          if (count <= 1) {
+            .where(eq(users.isSuperAdmin, true))
+            .orderBy(users.id)
+            .for('update');
+
+          // Re-derived under the lock: the target may have been deleted by the
+          // transaction we just waited for, in which case there is nothing to
+          // guard and nothing to delete.
+          const targetStillSuperAdmin = superAdmins.some((row) => row.id === userId);
+          if (targetStillSuperAdmin && superAdmins.length <= 1) {
             throw new ForbiddenException('Cannot delete the last super-admin');
           }
         }
@@ -459,7 +476,7 @@ export class UserService {
       .update(users)
       .set({
         pendingEmail: pendingEmail.toLowerCase(),
-        emailChangeToken: token,
+        emailChangeToken: hashToken(token),
         emailChangeTokenExpiresAt: expiresAt,
       })
       .where(eq(users.id, userId));
@@ -469,7 +486,7 @@ export class UserService {
     const [user] = await this.db
       .select()
       .from(users)
-      .where(eq(users.emailChangeToken, token))
+      .where(eq(users.emailChangeToken, hashToken(token)))
       .limit(1);
     return user ?? null;
   }

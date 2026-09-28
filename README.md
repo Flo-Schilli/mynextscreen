@@ -68,18 +68,29 @@ Copy `.env.example` to `.env` and configure the values below.
 
 ### Authentication (Required)
 
-Signage Server uses **internal authentication** (email + password). Passwords are hashed with bcrypt; login issues a short-lived JWT **access token** (HTTP-only cookie) plus a **refresh token** stored in Redis. There is no external identity provider and no self-registration — super-admins are seeded from configuration on boot and provision everyone else.
+Signage Server uses **internal authentication** (email + password). Passwords are hashed with bcrypt; login issues a short-lived JWT **access token** (HTTP-only cookie) plus a **refresh token** stored in Redis. There is no external identity provider.
+
+Accounts come into existence in three ways:
+
+- **The first super-admin** is created through a one-time setup screen on first run — there is no env-based seeding (see below).
+- **Self-signup** (`SIGNUP_ENABLED`, on by default) creates a user together with their own organisation, where they become org admin. The email must be verified before login works; unverified signups are deleted again after `SIGNUP_UNVERIFIED_TTL_HOURS`. Set `SIGNUP_ENABLED=false` for a closed instance.
+- **Invitation** by an org admin or the super-admin, which mails a set-password link.
 
 #### Auth Environment Variables
 
 | Variable                       | Description                                                              | Required |
 | ------------------------------ | ------------------------------------------------------------------------ | -------- |
-| `JWT_ACCESS_SECRET`            | Secret used to sign JWT access tokens. Generate with `openssl rand -base64 48` | **Yes**  |
+| `JWT_ACCESS_SECRET`            | Secret used to sign JWT access tokens. Generate with `openssl rand -base64 48`. Minimum 32 characters — the backend refuses to start below that | **Yes**  |
 | `JWT_ACCESS_TTL`               | Access-token lifetime (e.g. `15m`)                                       | No (`15m`) |
 | `JWT_REFRESH_TTL`              | Refresh-token lifetime (e.g. `30d`)                                      | No (`30d`) |
 | `COOKIE_SECURE`                | Force `Secure` cookies (defaults to `true` only when `NODE_ENV=production`) | No       |
 | `COOKIE_SAMESITE`              | Cookie `SameSite` policy: `strict` (default) \| `lax` \| `none`          | No       |
-| `PUBLIC_BASE_URL`              | Admin SPA base URL — used to build set-password/reset links and to lock down CORS | No       |
+| `PUBLIC_BASE_URL`              | Admin SPA base URL — used to build set-password/reset links and to lock down CORS | **Yes in production** (CORS fails closed without it) |
+| `SECRETS_ENCRYPTION_KEY`       | Encrypts per-org SMTP passwords and ntfy tokens at rest (`openssl rand -base64 32`). Unset: plaintext, with a boot warning | No       |
+| `OUTBOUND_ALLOWED_HOSTS`       | Comma-separated hosts allowed past the SSRF guard (internal ntfy/SMTP relay) | No       |
+| `SIGNUP_ENABLED`               | Public self-registration. `false` rejects `POST /api/auth/register` with 403 | No (`true`) |
+| `SIGNUP_UNVERIFIED_TTL_HOURS`  | Hours a never-verified signup survives before the cleanup cron deletes it and its organisation | No (`24`) |
+| `SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES` / `_TRANSCODED_BYTES` | Storage limits granted to a self-created organisation; a super-admin can raise them later | No (5 GiB each) |
 
 **First super-admin (first-run setup):** there is no env-based seeding. On a fresh deployment — while no user exists yet — opening the app routes you to a one-time setup screen where you create the initial super-admin account; you are logged in immediately and can then provision organisations. Once any user exists the setup screen is closed and normal login applies.
 
@@ -112,12 +123,33 @@ MEDIA_BASE_PATH=./media
 # FFMPEG_VIDEO_CRF=18
 
 # Internal auth (REQUIRED) — generate with: openssl rand -base64 48
-JWT_ACCESS_SECRET=change-me-in-production
+# Minimum 32 characters; the backend refuses to start with anything shorter.
+JWT_ACCESS_SECRET=change-me-in-production-min-32-characters
 JWT_ACCESS_TTL=15m
 JWT_REFRESH_TTL=30d
 
+# Public base URL of the admin SPA. REQUIRED in production — CORS fails closed
+# without it rather than reflecting any origin.
+PUBLIC_BASE_URL=https://app.example.com
+
+# Encrypts per-org SMTP passwords and ntfy tokens at rest (openssl rand -base64 32).
+# Unset: stored in plaintext, with a warning at boot.
+# SECRETS_ENCRYPTION_KEY=
+
+# Hosts allowed past the SSRF guard, comma-separated. Needed only for an
+# internal ntfy or SMTP relay on a private address.
+# OUTBOUND_ALLOWED_HOSTS=ntfy.lan,192.168.1.50
+
+# Cap on simultaneous FFmpeg live encoders (each can saturate a core).
+# MAX_CONCURRENT_LIVE_STREAMS=4
+
 # Super-admin: no env seeding — create the first one via the UI on first run.
 ```
+
+> Upgrading an existing deployment? [CHANGELOG.md](CHANGELOG.md) lists the
+> operator actions each release requires; the current unreleased set contains
+> several that will stop a deployment that ignores them. Security reporting:
+> [SECURITY.md](SECURITY.md).
 
 ## Docker Setup
 

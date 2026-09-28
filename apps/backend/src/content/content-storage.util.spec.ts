@@ -1,4 +1,11 @@
-import { getOriginalPath, getTranscodedPath } from './content-storage.util';
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import {
+  getOriginalPath,
+  getTranscodedPath,
+  removeOrganisationMedia,
+} from './content-storage.util';
 import * as path from 'path';
 
 describe('content-storage.util', () => {
@@ -27,6 +34,37 @@ describe('content-storage.util', () => {
     it('should handle mp4 target extension', () => {
       const result = getTranscodedPath(basePath, organisationId, contentId, 'mp4');
       expect(result).toBe(path.join(basePath, organisationId, 'transcoded', `${contentId}.mp4`));
+    });
+  });
+
+  describe('removeOrganisationMedia', () => {
+    it('removes the org directory and the legacy slices outside it', async () => {
+      const base = await mkdtemp(path.join(tmpdir(), 'signage-media-'));
+      const orgId = '11111111-1111-1111-1111-111111111111';
+
+      await mkdir(path.join(base, orgId, 'originals'), { recursive: true });
+      await writeFile(path.join(base, orgId, 'originals', 'a.png'), 'x');
+      const legacySlice = path.join(base, 'slices', 'group-1', 'screen-1', 'c.mp4');
+      await mkdir(path.dirname(legacySlice), { recursive: true });
+      await writeFile(legacySlice, 'x');
+
+      await removeOrganisationMedia(base, orgId, [legacySlice]);
+
+      expect(existsSync(path.join(base, orgId))).toBe(false);
+      expect(existsSync(legacySlice)).toBe(false);
+    });
+
+    it('ignores a path outside the media root', async () => {
+      const base = await mkdtemp(path.join(tmpdir(), 'signage-media-'));
+      const outsider = path.join(await mkdtemp(path.join(tmpdir(), 'signage-other-')), 'keep.txt');
+      await writeFile(outsider, 'keep');
+
+      await removeOrganisationMedia(base, '11111111-1111-1111-1111-111111111111', [
+        outsider,
+        path.join(base, '..', 'escape.txt'),
+      ]);
+
+      expect(existsSync(outsider)).toBe(true);
     });
   });
 });

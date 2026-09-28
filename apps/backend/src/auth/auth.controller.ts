@@ -38,6 +38,7 @@ import { AuthService } from './auth.service';
 import { REFRESH_COOKIE, clearAuthCookies, setAccessCookie, setRefreshCookie } from './cookies';
 import { AuthenticatedRequest } from './jwt-auth.guard';
 import { Public } from './public.decorator';
+import { UserScoped } from './user-scoped.decorator';
 import { ChangeEmailDto } from './dto/change-email.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ConfirmEmailChangeDto } from './dto/confirm-email-change.dto';
@@ -77,6 +78,15 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
+  /**
+   * Not enumeration-safe, deliberately: a duplicate email answers 409 while a
+   * fresh one answers 204, so this route tells an anonymous caller whether an
+   * address has an account — unlike forgot-password, which always answers 204.
+   * Hiding it would mean accepting the signup, sending "you already have an
+   * account" by email and leaving the caller unable to distinguish a typo from
+   * a duplicate. The rate limit below is what bounds the enumeration; revisit
+   * this if signup is ever opened to an untrusted audience at scale.
+   */
   async register(@Body() dto: RegisterDto): Promise<void> {
     if (!this.isSignupEnabled()) {
       throw new ForbiddenException('Self-signup is disabled');
@@ -256,12 +266,22 @@ export class AuthController {
   }
 
   @Post('change-password')
+  @UserScoped()
   @HttpCode(HttpStatus.NO_CONTENT)
   async changePassword(
     @Req() req: AuthenticatedRequest,
+    @Res({ passthrough: true }) res: Response,
     @Body() dto: ChangePasswordDto,
   ): Promise<void> {
-    await this.auth.changePassword(req.user.userId, dto.currentPassword, dto.newPassword);
+    // changePassword revokes every session, including this one — write the fresh
+    // pair back so the acting device stays logged in and only the others drop out.
+    const session = await this.auth.changePassword(
+      req.user.userId,
+      dto.currentPassword,
+      dto.newPassword,
+    );
+    setAccessCookie(res, this.config, session.accessToken.token, session.accessToken.expiresAt);
+    setRefreshCookie(res, this.config, session.refreshToken.token, session.refreshToken.expiresAt);
     this.events.emit(AUTH_PASSWORD_CHANGED, new AuthPasswordChangedEvent(req.user.email));
     this.events.emit(
       AUDIT_AUTH_PASSWORD_CHANGED,
@@ -270,6 +290,7 @@ export class AuthController {
   }
 
   @Post('change-email')
+  @UserScoped()
   @HttpCode(HttpStatus.NO_CONTENT)
   async changeEmail(@Req() req: AuthenticatedRequest, @Body() dto: ChangeEmailDto): Promise<void> {
     const change = await this.auth.changeEmail(req.user.userId, dto.newEmail, dto.currentPassword);
@@ -302,6 +323,7 @@ export class AuthController {
   }
 
   @Post('delete-account')
+  @UserScoped()
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteAccount(
     @Req() req: AuthenticatedRequest,
@@ -313,6 +335,7 @@ export class AuthController {
   }
 
   @Get('me')
+  @UserScoped()
   async getMe(@Req() req: AuthenticatedRequest): Promise<AuthenticatedUserView> {
     // Read from the DB rather than echoing the JWT payload: the access token is
     // long-lived and carries the email/role from issue time, so after an

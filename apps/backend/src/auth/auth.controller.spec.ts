@@ -216,8 +216,12 @@ describe('AuthController', () => {
   describe('changePassword', () => {
     it('changes the password then emits a password-changed notice', async () => {
       const req = { user: { userId: 'u1', email: 'user@example.com', isSuperAdmin: false } };
+      auth.changePassword.mockResolvedValue({
+        accessToken: issuedAccess,
+        refreshToken: issuedRefresh,
+      });
 
-      await controller.changePassword(req as never, {
+      await controller.changePassword(req as never, res as unknown as Response, {
         currentPassword: 'old',
         newPassword: 'newsecret',
       });
@@ -231,6 +235,21 @@ describe('AuthController', () => {
         AUDIT_AUTH_PASSWORD_CHANGED,
         expect.objectContaining({ userId: 'u1', details: { email: 'user@example.com' } }),
       );
+    });
+
+    it('re-issues the caller\u2019s cookies so only the other sessions are logged out', async () => {
+      const req = { user: { userId: 'u1', email: 'user@example.com', isSuperAdmin: false } };
+      auth.changePassword.mockResolvedValue({
+        accessToken: issuedAccess,
+        refreshToken: issuedRefresh,
+      });
+
+      await controller.changePassword(req as never, res as unknown as Response, {
+        currentPassword: 'old',
+        newPassword: 'newsecret',
+      });
+
+      expect(res.cookie).toHaveBeenCalledTimes(2);
     });
   });
 

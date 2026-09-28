@@ -3,6 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { of, throwError } from 'rxjs';
 import { OrgNotificationConfigController } from './org-notification-config.controller';
 import { OrgNotificationConfigService } from './org-notification-config.service';
+import { OutboundGuard } from '../common/outbound-guard.service';
 import type { OrganisationNotificationConfig } from '../db/schema';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 
@@ -46,6 +47,8 @@ describe('OrgNotificationConfigController', () => {
     user: { userId: 'user-1', email: 'admin@example.com' },
   } as unknown as AuthenticatedRequest;
 
+  let outbound: { assertUrl: jest.Mock; assertHost: jest.Mock };
+
   beforeEach(() => {
     configService = {
       getForOrg: jest.fn(),
@@ -58,9 +61,15 @@ describe('OrgNotificationConfigController', () => {
 
     mockSendMail.mockReset();
 
+    outbound = {
+      assertUrl: jest.fn().mockResolvedValue(new URL('https://ntfy.example.com')),
+      assertHost: jest.fn().mockResolvedValue(undefined),
+    };
+
     controller = new OrgNotificationConfigController(
       configService as unknown as OrgNotificationConfigService,
       httpService as unknown as HttpService,
+      outbound as unknown as OutboundGuard,
     );
   });
 
@@ -165,6 +174,25 @@ describe('OrgNotificationConfigController', () => {
 
       await expect(controller.testEmail(orgId, mockReq)).rejects.toThrow(
         UnprocessableEntityException,
+      );
+    });
+
+    it('refuses to dial a host that resolves internally', async () => {
+      configService.getForOrg.mockResolvedValue(mockConfig);
+      outbound.assertHost.mockRejectedValue(new Error('Host points at a private address'));
+
+      await expect(controller.testEmail(orgId, mockReq)).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+      expect(mockSendMail).not.toHaveBeenCalled();
+    });
+
+    it('never leaks the underlying error — the message must not be an oracle', async () => {
+      configService.getForOrg.mockResolvedValue(mockConfig);
+      mockSendMail.mockRejectedValue(new Error('connect ECONNREFUSED 10.0.0.5:6379'));
+
+      await expect(controller.testEmail(orgId, mockReq)).rejects.toThrow(
+        'Failed to send the test email. Check the SMTP settings and try again.',
       );
     });
   });

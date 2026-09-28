@@ -241,7 +241,9 @@ describe('OrganisationService', () => {
 
       await service.remove(org.id);
 
-      expect(removeOrganisationMediaMock).toHaveBeenCalledWith('/tmp/media', org.id);
+      // The third argument carries slice files stored outside {base}/{orgId}
+      // by the pre-org-scoped path scheme.
+      expect(removeOrganisationMediaMock).toHaveBeenCalledWith('/tmp/media', org.id, []);
     });
 
     it('still commits the deletion when media cleanup fails', async () => {

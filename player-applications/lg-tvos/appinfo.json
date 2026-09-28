@@ -1,6 +1,6 @@
 {
   "id": "com.cbf.webos",
-  "version": "0.8.4",
+  "version": "0.9.0",
   "vendor": "Digital Signage",
   "type": "web",
   "main": "index.html",

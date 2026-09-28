@@ -8,7 +8,7 @@ import { playlistItems, screens, type Screen } from '../db/schema';
 import type { ContentType } from '../content/content-type.enum';
 import { CreateScreenDto } from './dto/create-screen.dto';
 import { UpdateScreenDto } from './dto/update-screen.dto';
-import { generateApiKey, hashApiKey } from './api-key.util';
+import { generateApiKey, hashApiKey, sha256hex } from './api-key.util';
 import { ScreenPairingService } from './screen-pairing.service';
 import { ScheduleService } from '../schedule';
 import { ScreenStatusEvent, SCREEN_STATUS_CHANGED } from './screen-status.event';
@@ -95,12 +95,14 @@ export class ScreenService extends OrganisationScopedService<Screen> {
 
     const apiKey = generateApiKey();
     const apiKeyHash = await hashApiKey(apiKey);
+    const apiKeyFingerprint = sha256hex(apiKey);
 
     const screen = await this.create(organisationId, {
       name: dto.name,
       resolution: dto.resolution,
       location: dto.location,
       apiKeyHash,
+      apiKeyFingerprint,
     });
 
     await this.pairingService.markClaimed(pairing.id, screen.id, organisationId, apiKey);
@@ -181,9 +183,10 @@ export class ScreenService extends OrganisationScopedService<Screen> {
 
     const apiKey = generateApiKey();
     const apiKeyHash = await hashApiKey(apiKey);
+    const apiKeyFingerprint = sha256hex(apiKey);
     const [saved] = await this.db
       .update(screens)
-      .set({ apiKeyHash })
+      .set({ apiKeyHash, apiKeyFingerprint })
       .where(and(eq(screens.id, id), eq(screens.organisationId, organisationId)))
       .returning();
 

@@ -197,8 +197,12 @@ export class SliceContentProcessor extends WorkerHost {
 
           // Determine output path and extension
           const outputExt = content.type === ContentType.Video ? 'mp4' : 'webp';
+          // Inside {base}/{orgId} like every other media file: outside it, the
+          // slices were invisible to the storage quota and survived deletion of
+          // the organisation they belonged to.
           const outputPath = path.join(
             this.mediaBasePath,
+            organisationId,
             'slices',
             groupId,
             screen.id,
