@@ -506,12 +506,17 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
   onMediaError(event?: Event): void {
     const target = event?.target as HTMLVideoElement | HTMLImageElement | null;
-    const src = target?.getAttribute('src') ?? 'unknown';
     const error = (target as HTMLVideoElement)?.error;
+    // The URL is deliberately not logged: it carries the signed grant, and this
+    // line used to print the screen's API key to the console verbatim.
     console.error(
-      `[Playback] Media error for ${src}`,
+      '[Playback] Media error',
       error ? `code=${error.code} message=${error.message}` : 'no details',
     );
+    // A media URL can fail because its grant has aged out — the state carries
+    // fresh ones, so refetch rather than skipping items one by one until the
+    // whole playlist has been walked off.
+    void this.playerService.fetchState().catch(() => undefined);
     // Skip broken items — advance after a short delay
     setTimeout(() => {
       if (!this.destroyed) this.advance();
@@ -533,11 +538,14 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
   // ── Media URL ──
 
+  /**
+   * The server hands out media URLs that already carry their own signed grant,
+   * so nothing is appended here. Appending the API key — as this used to do —
+   * put a long-lived credential into the DOM, the Referer chain and every
+   * access log, for every frame the screen ever showed.
+   */
   private buildMediaUrl(url: string): string {
-    const serverUrl = this.connectionService.serverUrl();
-    const apiKey = this.connectionService.apiKey();
-    const separator = url.includes('?') ? '&' : '?';
-    return `${serverUrl}${url}${separator}token=${apiKey}`;
+    return `${this.connectionService.serverUrl()}${url}`;
   }
 
   // ── Deterministic clock anchoring ──

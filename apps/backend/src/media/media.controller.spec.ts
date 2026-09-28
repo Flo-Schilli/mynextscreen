@@ -88,10 +88,7 @@ describe('MediaController', () => {
 
       expect(mediaService.getTranscodedFile).toHaveBeenCalledWith(orgId, contentId);
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'video/mp4');
-      expect(res.setHeader).toHaveBeenCalledWith(
-        'Cache-Control',
-        'public, max-age=86400, immutable',
-      );
+      expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'public, max-age=86400');
       expect(res.sendFile).toHaveBeenCalledWith(
         `/data/media/${orgId}/transcoded/${contentId}.mp4`,
         { root: '/' },
@@ -154,10 +151,7 @@ describe('MediaController', () => {
 
       expect(mediaService.getSlicedFile).toHaveBeenCalledWith(groupId, screenId, contentId);
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'video/mp4');
-      expect(res.setHeader).toHaveBeenCalledWith(
-        'Cache-Control',
-        'public, max-age=86400, immutable',
-      );
+      expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'public, max-age=86400');
       expect(res.sendFile).toHaveBeenCalledWith(
         `/data/media/slices/${groupId}/${screenId}/${contentId}.mp4`,
         { root: '/' },

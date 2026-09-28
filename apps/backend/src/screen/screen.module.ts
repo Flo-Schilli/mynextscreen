@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CommonModule } from '../common/common.module';
 import { ScreenService } from './screen.service';
 import { ScreenStateService } from './screen-state.service';
 import { ScreenController } from './screen.controller';
@@ -12,7 +13,7 @@ import { PlaylistChangeBridgeService } from './playlist-change-bridge.service';
 import { ScheduleEntryModule } from '../schedule';
 
 @Module({
-  imports: [ScreenProtocolModule, ScheduleEntryModule],
+  imports: [CommonModule, ScreenProtocolModule, ScheduleEntryModule],
   controllers: [ScreenController, ScreenPairingController],
   providers: [
     ScreenService,

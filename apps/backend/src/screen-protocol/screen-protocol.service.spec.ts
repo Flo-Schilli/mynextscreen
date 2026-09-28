@@ -20,6 +20,8 @@ import {
 import { ContentType } from '../content/content-type.enum';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
+import type { ConfigService } from '@nestjs/config';
+import { MediaUrlSigner } from '../common/media-url-signer.service';
 
 describe('ScreenProtocolService', () => {
   let service: ScreenProtocolService;
@@ -76,6 +78,12 @@ describe('ScreenProtocolService', () => {
         { provide: DRIZZLE, useValue: db },
         { provide: ScreenStateService, useValue: screenStateService },
         { provide: ScheduleService, useValue: scheduleService },
+        {
+          provide: MediaUrlSigner,
+          useValue: new MediaUrlSigner({
+            getOrThrow: () => 'x'.repeat(48),
+          } as unknown as ConfigService),
+        },
         // EventEmitter2 is not a direct dep but harmless to provide.
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
@@ -320,7 +328,9 @@ describe('ScreenProtocolService', () => {
             expect.objectContaining({
               type: ScreenEventType.GroupPlay,
               payload: expect.objectContaining({
-                contentUrl: `/api/media/slices/${gid}/${screen.id}/${contentItemId}`,
+                contentUrl: expect.stringContaining(
+                  `/api/media/slices/${gid}/${screen.id}/${contentItemId}?s=`,
+                ),
                 contentType: 'video',
                 groupId: gid,
                 syncToken: expect.any(String),

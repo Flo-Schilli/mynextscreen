@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
+import { MediaUrlSigner } from '../common/media-url-signer.service';
 import { ScreenProtocolAdapter } from './screen-protocol-adapter.interface';
 import { ScreenState, PlaylistItem } from './screen-state.model';
 import { ScreenEvent } from './screen-event.model';
 
 @Injectable()
 export class JsonProtocolAdapter implements ScreenProtocolAdapter {
+  constructor(private readonly mediaUrlSigner: MediaUrlSigner) {}
+
   renderState(state: ScreenState): Record<string, unknown> {
     return {
       screen: state.screen,
@@ -14,7 +17,7 @@ export class JsonProtocolAdapter implements ScreenProtocolAdapter {
             id: state.currentPlaylist.id,
             name: state.currentPlaylist.name,
             items: state.currentPlaylist.items.map((item) =>
-              this.renderPlaylistItem(item, state.screen.organisationId),
+              this.renderPlaylistItem(item, state.screen.organisationId, state.screen.id),
             ),
           }
         : null,
@@ -30,7 +33,7 @@ export class JsonProtocolAdapter implements ScreenProtocolAdapter {
             id: state.fallbackPlaylist.id,
             name: state.fallbackPlaylist.name,
             items: state.fallbackPlaylist.items.map((item) =>
-              this.renderPlaylistItem(item, state.screen.organisationId),
+              this.renderPlaylistItem(item, state.screen.organisationId, state.screen.id),
             ),
           }
         : null,
@@ -61,8 +64,15 @@ export class JsonProtocolAdapter implements ScreenProtocolAdapter {
     };
   }
 
-  private renderPlaylistItem(item: PlaylistItem, organisationId: string): Record<string, unknown> {
-    const url = item.contentUrl || `/api/media/${organisationId}/${item.contentId}`;
+  private renderPlaylistItem(
+    item: PlaylistItem,
+    organisationId: string,
+    screenId: string,
+  ): Record<string, unknown> {
+    const path = item.contentUrl || `/api/media/${organisationId}/${item.contentId}`;
+    // Signed here, where the URL leaves the server: the player uses it verbatim
+    // and never has to attach a credential of its own.
+    const url = this.mediaUrlSigner.sign(screenId, path);
     return {
       url,
       duration: item.duration,

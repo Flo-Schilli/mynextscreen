@@ -2,16 +2,22 @@ import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ApiKeyAuthGuard } from './api-key-auth.guard';
 import { IS_SCREEN_AUTH_KEY } from './screen-auth.decorator';
+import { IS_SIGNED_MEDIA_KEY } from './signed-media.decorator';
 import { eq } from 'drizzle-orm';
 import { hashApiKey, sha256hex } from '../screen/api-key.util';
 import { organisations, screens } from '../db/schema';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
+import type { ConfigService } from '@nestjs/config';
+import { MediaUrlSigner } from '../common/media-url-signer.service';
+
+const TEST_SECRET = 'x'.repeat(48);
 
 describe('ApiKeyAuthGuard', () => {
   let guard: ApiKeyAuthGuard;
   let reflector: Reflector;
   let db: DrizzleDB;
+  let signer: MediaUrlSigner;
 
   const VALID_API_KEY = 'test-api-key-1234567890abcdef';
   let validKeyHash: string;
@@ -28,7 +34,8 @@ describe('ApiKeyAuthGuard', () => {
   beforeEach(async () => {
     await truncateAll();
     reflector = new Reflector();
-    guard = new ApiKeyAuthGuard(reflector, db);
+    signer = new MediaUrlSigner({ getOrThrow: () => TEST_SECRET } as unknown as ConfigService);
+    guard = new ApiKeyAuthGuard(reflector, db, signer);
   });
 
   /** Seed an organisation and a screen carrying the given api-key hash. */
@@ -57,9 +64,14 @@ describe('ApiKeyAuthGuard', () => {
   function createMockContext(
     headers: Record<string, string> = {},
     isScreenAuth = true,
+    options: { path?: string; query?: Record<string, string>; signedMedia?: boolean } = {},
   ): ExecutionContext {
+    const path = options.path ?? '/api/screens/me';
+    const query = options.query ?? {};
     const request = {
       headers,
+      path,
+      query,
       screenId: undefined as string | undefined,
       organisationId: undefined as string | undefined,
     };
@@ -72,6 +84,7 @@ describe('ApiKeyAuthGuard', () => {
 
     jest.spyOn(reflector, 'getAllAndOverride').mockImplementation((key) => {
       if (key === IS_SCREEN_AUTH_KEY) return isScreenAuth;
+      if (key === IS_SIGNED_MEDIA_KEY) return options.signedMedia === true;
       return false;
     });
 
@@ -192,6 +205,75 @@ describe('ApiKeyAuthGuard', () => {
 
       const [row] = await db.select().from(screens).where(eq(screens.id, screenId));
       expect(row.apiKeyFingerprint).toBeNull();
+    });
+  });
+
+  describe('signed media URLs', () => {
+    const MEDIA_PATH = '/api/media/org-1/content-1';
+
+    function signedQuery(screenId: string, path = MEDIA_PATH): Record<string, string> {
+      const url = signer.sign(screenId, path);
+      const params = new URLSearchParams(url.slice(url.indexOf('?') + 1));
+      return { s: params.get('s') ?? '', sig: params.get('sig') ?? '' };
+    }
+
+    it('authenticates a screen from a valid signature, without any credential', async () => {
+      const { screenId, orgId } = await seedScreen(validKeyHash, sha256hex(VALID_API_KEY));
+      const context = createMockContext({}, true, {
+        path: MEDIA_PATH,
+        query: signedQuery(screenId),
+        signedMedia: true,
+      });
+
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      const request = context.switchToHttp().getRequest();
+      expect(request.screenId).toBe(screenId);
+      expect(request.organisationId).toBe(orgId);
+    });
+
+    it('ignores unknown query parameters — an un-migrated player still works', async () => {
+      // The rollout depends on this: a player from before the change appends
+      // `&token=<apiKey>` to the signed URL it was given.
+      const { screenId } = await seedScreen(validKeyHash, sha256hex(VALID_API_KEY));
+      const context = createMockContext({}, true, {
+        path: MEDIA_PATH,
+        query: { ...signedQuery(screenId), token: VALID_API_KEY, cacheBust: '42' },
+        signedMedia: true,
+      });
+
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+    });
+
+    it('rejects a signature minted for a different path', async () => {
+      const { screenId } = await seedScreen(validKeyHash, sha256hex(VALID_API_KEY));
+      const context = createMockContext({}, true, {
+        path: MEDIA_PATH,
+        query: signedQuery(screenId, '/api/media/org-1/another-content'),
+        signedMedia: true,
+      });
+
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('rejects a signature for a screen that no longer exists', async () => {
+      const context = createMockContext({}, true, {
+        path: MEDIA_PATH,
+        query: signedQuery('11111111-1111-1111-1111-111111111111'),
+        signedMedia: true,
+      });
+
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('does not accept a signature on a route that is not media', async () => {
+      const { screenId } = await seedScreen(validKeyHash, sha256hex(VALID_API_KEY));
+      const context = createMockContext({}, true, {
+        path: MEDIA_PATH,
+        query: signedQuery(screenId),
+        signedMedia: false,
+      });
+
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });
   });
 });

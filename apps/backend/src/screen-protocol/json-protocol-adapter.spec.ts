@@ -9,9 +9,14 @@ import {
 } from './screen-state.model';
 import { ScreenEvent } from './screen-event.model';
 import { ScreenEventType } from './screen-event-type.enum';
+import type { ConfigService } from '@nestjs/config';
+import { MediaUrlSigner } from '../common/media-url-signer.service';
+
+const TEST_SECRET = 'x'.repeat(48);
 
 describe('JsonProtocolAdapter', () => {
   let adapter: JsonProtocolAdapter;
+  let signer: MediaUrlSigner;
 
   const screenInfo: ScreenInfo = {
     id: '550e8400-e29b-41d4-a716-446655440000',
@@ -80,7 +85,8 @@ describe('JsonProtocolAdapter', () => {
   };
 
   beforeEach(() => {
-    adapter = new JsonProtocolAdapter();
+    signer = new MediaUrlSigner({ getOrThrow: () => TEST_SECRET } as unknown as ConfigService);
+    adapter = new JsonProtocolAdapter(signer);
   });
 
   describe('renderState', () => {
@@ -101,14 +107,18 @@ describe('JsonProtocolAdapter', () => {
         name: playlist.name,
         items: [
           {
-            url: `/api/media/${screenInfo.organisationId}/${playlistItem.contentId}`,
+            url: expect.stringContaining(
+              `/api/media/${screenInfo.organisationId}/${playlistItem.contentId}?s=`,
+            ),
             duration: 30,
             type: 'video',
             transition: 'fade',
             transitionDurationMs: 500,
           },
           {
-            url: `/api/media/${screenInfo.organisationId}/${playlistItemImage.contentId}`,
+            url: expect.stringContaining(
+              `/api/media/${screenInfo.organisationId}/${playlistItemImage.contentId}?s=`,
+            ),
             duration: 10,
             type: 'image',
             transition: 'slide-left',
@@ -130,7 +140,9 @@ describe('JsonProtocolAdapter', () => {
         name: fallbackPlaylist.name,
         items: [
           {
-            url: `/api/media/${screenInfo.organisationId}/${playlistItem.contentId}`,
+            url: expect.stringContaining(
+              `/api/media/${screenInfo.organisationId}/${playlistItem.contentId}?s=`,
+            ),
             duration: 30,
             type: 'video',
             transition: 'fade',
@@ -152,11 +164,11 @@ describe('JsonProtocolAdapter', () => {
       const rendered = result.currentPlaylist as Record<string, unknown>;
       const items = rendered.items as Array<Record<string, unknown>>;
 
-      expect(items[0].url).toBe(
-        `/api/media/${screenInfo.organisationId}/${playlistItem.contentId}`,
+      expect(items[0].url).toContain(
+        `/api/media/${screenInfo.organisationId}/${playlistItem.contentId}?s=`,
       );
-      expect(items[1].url).toBe(
-        `/api/media/${screenInfo.organisationId}/${playlistItemImage.contentId}`,
+      expect(items[1].url).toContain(
+        `/api/media/${screenInfo.organisationId}/${playlistItemImage.contentId}?s=`,
       );
     });
 
@@ -227,7 +239,11 @@ describe('JsonProtocolAdapter', () => {
       const rendered = result.currentPlaylist as Record<string, unknown>;
       const items = rendered.items as Array<Record<string, unknown>>;
 
-      expect(items[0].url).toBe('/api/media/slices/group-1/screen-1/content-1');
+      // Signed, not raw: the player uses this URL verbatim in an <img>/<video>
+      // src, so it must carry a grant and never a credential.
+      expect(items[0].url).toContain('/api/media/slices/group-1/screen-1/content-1?s=');
+      expect(items[0].url).toContain('&sig=');
+      expect(items[0].url).not.toContain('token');
     });
 
     it('should include recurrenceRule in schedule entries when present', () => {

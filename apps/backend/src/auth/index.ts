@@ -5,6 +5,7 @@ export { SuperAdminGuard } from './super-admin.guard';
 export { Roles, ROLES_KEY } from './roles.decorator';
 export { RolesGuard } from './roles.guard';
 export { ScreenAuth, IS_SCREEN_AUTH_KEY } from './screen-auth.decorator';
+export { SignedMediaUrl, IS_SIGNED_MEDIA_KEY } from './signed-media.decorator';
 export { UserScoped, IS_USER_SCOPED_KEY } from './user-scoped.decorator';
 export { OrgFromParam, ORG_PARAM_KEY } from './org-from-param.decorator';
 export { ApiKeyAuthGuard, ScreenAuthenticatedRequest } from './api-key-auth.guard';

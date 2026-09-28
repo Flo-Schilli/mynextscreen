@@ -16,8 +16,9 @@ export class HlsService implements OnDestroy {
     this.destroy();
 
     const serverUrl = this.connection.serverUrl();
-    const apiKey = this.connection.apiKey();
-    const hlsUrl = `${serverUrl}/api/live-streams/${streamId}/hls/index.m3u8?token=${apiKey}`;
+    // No credential in the URL: hls.js can set a header on every request it
+    // makes, for the manifest as well as for the segments.
+    const hlsUrl = `${serverUrl}/api/live-streams/${streamId}/hls/index.m3u8`;
 
     if (Hls.isSupported()) {
       const hls = new Hls({
@@ -26,7 +27,11 @@ export class HlsService implements OnDestroy {
         manifestLoadingMaxRetry: 10,
         manifestLoadingRetryDelay: 2000,
         xhrSetup: (xhr: XMLHttpRequest) => {
-          xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`);
+          // Read per request, never captured: a stream runs for hours, and a
+          // credential frozen into this closure would keep being sent long
+          // after it stopped being valid — hls.js would then retry with the
+          // dead value forever.
+          xhr.setRequestHeader('Authorization', `Bearer ${this.connection.apiKey()}`);
         },
       });
 
@@ -65,17 +70,15 @@ export class HlsService implements OnDestroy {
 
       hls.loadSource(hlsUrl);
       hls.attachMedia(video);
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native HLS support (Safari)
+    } else {
+      // There used to be a native-HLS branch for Safari here. It could not work:
+      // the segment URIs in the FFmpeg-generated manifest are relative and carry
+      // no credential, while the segment route requires screen auth, and a
+      // <video> element cannot set headers. It only ever loaded the manifest —
+      // and it was the sole reason the API key had to travel in the URL.
       this.videoElement = video;
-      video.src = hlsUrl;
-      video.addEventListener('loadedmetadata', () => {
-        this.zone.run(() => this.playbackState.setStreamHealth('healthy'));
-        video.play().catch(() => undefined);
-      });
-      video.addEventListener('error', () => {
-        this.zone.run(() => this.playbackState.setStreamHealth('stopped'));
-      });
+      this.zone.run(() => this.playbackState.setStreamHealth('stopped'));
+      console.error('[HLS] hls.js is not supported in this browser — live stream unavailable');
     }
   }
 
