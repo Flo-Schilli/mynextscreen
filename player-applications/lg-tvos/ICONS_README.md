@@ -1,30 +1,35 @@
 # Icons
 
-For the LG WebOS application to work properly, you need to provide two PNG icon files:
+`icon.svg` is the source. The two PNGs the webOS packager needs are generated
+from it:
 
-1. **icon.png** - 80x80 pixels
-2. **largeIcon.png** - 130x130 pixels
+| File | Size | Used for |
+| --- | --- | --- |
+| `icon.png` | 80×80 | launcher tile |
+| `largeIcon.png` | 130×130 | launcher tile, larger layouts |
 
-## Creating Icons
+`largeIcon.svg` is the same drawing at a different `width`/`height`; both share
+one `viewBox`, so editing `icon.svg` and re-deriving is enough.
 
-You can use the provided SVG files (icon.svg and largeIcon.svg) to generate PNG files:
+## Regenerate after editing
 
-### Using Inkscape:
 ```bash
-inkscape icon.svg --export-filename=icon.png --export-width=80 --export-height=80
-inkscape largeIcon.svg --export-filename=largeIcon.png --export-width=130 --export-height=130
-```
-
-### Using rsvg-convert:
-```bash
+sed 's|width="80" height="80">|width="130" height="130">|' icon.svg > largeIcon.svg
 rsvg-convert -w 80 -h 80 icon.svg -o icon.png
 rsvg-convert -w 130 -h 130 largeIcon.svg -o largeIcon.png
 ```
 
-### Using ImageMagick:
+With ImageMagick instead of `rsvg-convert`:
+
 ```bash
-convert -background none -resize 80x80 icon.svg icon.png
-convert -background none -resize 130x130 largeIcon.svg largeIcon.png
+magick -background none icon.svg -resize 80x80 icon.png
+magick -background none largeIcon.svg -resize 130x130 largeIcon.png
 ```
 
-Alternatively, you can create your own icon images using any image editor.
+## Why it is flat
+
+An LG launcher draws this at 80 px on a screen people look at from across a
+room. The detailed brand illustration (`apps/frontend/public/mynextscreen-icon.png`)
+is unreadable at that size — try it at 32 px and nothing survives. This icon is
+two rectangles and a gradient, which is all that reads: two screens for the
+name, teal-to-amber for the brand.
