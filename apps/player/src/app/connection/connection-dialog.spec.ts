@@ -90,8 +90,14 @@ describe('ConnectionDialogComponent (pairing)', () => {
       screenId: 'screen-1',
       organisationId: 'org-1',
     });
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    // The claim is followed by the session exchange: the delivered key opens
+    // that one route and nothing else, so the screen is only connected once a
+    // session exists.
+    for (const request of httpMock.match((req) => req.url.includes('/api/screens/session'))) {
+      request.flush({ accessToken: 'access-token', refreshToken: 'refresh-token', expiresIn: 900 });
+    }
+    await vi.advanceTimersByTimeAsync(0);
 
     expect(connectedSpy).toHaveBeenCalledTimes(1);
 
