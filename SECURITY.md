@@ -5,21 +5,25 @@
 Only the latest release receives fixes. The project is deployed from `main`
 via GHCR images, so the newest tag is what is expected to be running.
 
-| Version         | Supported |
-| --------------- | --------- |
-| latest release  | yes       |
-| anything older  | no        |
+| Version        | Supported |
+| -------------- | --------- |
+| latest release | yes       |
+| anything older | no        |
 
 ## Reporting a vulnerability
 
-Report privately through GitHub: open
-**[Security → Report a vulnerability](https://github.com/Flo-Schilli/digital-signage/security/advisories/new)**
-on this repository. That creates a private advisory visible only to the
-maintainers, and it keeps the report, the fix and the disclosure in one place.
+**While this repository is private**, open an issue here: only collaborators
+can see it, so the report stays private by construction.
 
-Please do not open a public issue for a vulnerability, and do not include
-working exploit code in the first report — a description of the affected route
-or component, the preconditions, and the impact is enough to start.
+**Once this repository is public**, use GitHub's private vulnerability
+reporting instead — Security → "Report a vulnerability" — and do not open a
+public issue. That route has to be switched on first (Settings → Security →
+Private vulnerability reporting); it is unavailable on private repositories,
+which is why it is not the primary channel here yet.
+
+Either way, please do not include working exploit code in the first report — a
+description of the affected route or component, the preconditions, and the
+impact is enough to start.
 
 What helps most:
 
