@@ -27,6 +27,7 @@ import {
 } from '../db/schema';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
+import { OutboundGuard } from '../common/outbound-guard.service';
 
 describe('LiveStreamService', () => {
   let service: LiveStreamService;
@@ -78,7 +79,10 @@ describe('LiveStreamService', () => {
     return screen.id;
   }
 
+  let outbound: { assertUrl: jest.Mock };
+
   beforeEach(async () => {
+    outbound = { assertUrl: jest.fn().mockResolvedValue(new URL('rtmp://example.com/live')) };
     await truncateAll();
 
     const [org] = await db
@@ -107,6 +111,7 @@ describe('LiveStreamService', () => {
         { provide: FfmpegLiveService, useValue: ffmpegLiveService },
         { provide: ScreenGroupService, useValue: screenGroupService },
         { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: OutboundGuard, useValue: outbound },
       ],
     }).compile();
 

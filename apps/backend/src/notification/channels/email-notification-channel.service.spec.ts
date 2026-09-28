@@ -18,6 +18,7 @@ jest.mock('./smtp-email-provider', () => ({
 }));
 
 import { SmtpEmailProvider } from './smtp-email-provider';
+import { OutboundGuard } from '../../common/outbound-guard.service';
 
 describe('EmailNotificationChannel', () => {
   let channel: EmailNotificationChannel;
@@ -50,7 +51,10 @@ describe('EmailNotificationChannel', () => {
     await closeTestDb();
   });
 
+  let outbound: { assertHost: jest.Mock };
+
   beforeEach(async () => {
+    outbound = { assertHost: jest.fn().mockResolvedValue(undefined) };
     await truncateAll();
     jest.clearAllMocks();
     mockSendMail.mockResolvedValue(undefined);
@@ -61,6 +65,7 @@ describe('EmailNotificationChannel', () => {
         EmailNotificationChannel,
         { provide: DRIZZLE, useValue: db },
         { provide: OrgNotificationConfigService, useValue: { getForOrg } },
+        { provide: OutboundGuard, useValue: outbound },
       ],
     }).compile();
     channel = module.get<EmailNotificationChannel>(EmailNotificationChannel);
@@ -132,5 +137,16 @@ describe('EmailNotificationChannel', () => {
     mockSendMail.mockRejectedValue(new Error('SMTP error'));
 
     await expect(channel.send(user.id, org.id, payload)).rejects.toThrow('SMTP error');
+  });
+
+  it('does not send to an SMTP host that resolves internally', async () => {
+    // The DTO only sees the string; a hostname pointing into the private ranges
+    // is visible here and nowhere else.
+    getForOrg.mockResolvedValue({ smtpHost: 'mail.internal', smtpPort: 25, smtpSecure: false });
+    outbound.assertHost.mockRejectedValue(new Error('Host resolves to a private address'));
+
+    await channel.send(user.id, org.id, payload);
+
+    expect(mockSendMail).not.toHaveBeenCalled();
   });
 });
