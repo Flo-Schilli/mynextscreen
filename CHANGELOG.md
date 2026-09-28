@@ -20,8 +20,14 @@ screen is enrolled by the six-digit code it shows on the display.
 - The handoff message carries only `serverUrl`. The player takes it, persists it
   and pairs against it — which also fixes the case where the player guessed
   `api.<its own hostname>` and got it wrong.
-- A shell that has not been updated keeps working: a handoff that still carries
-  a key is still honoured, because the key still opens the enrolment route.
+- **The handoff can no longer enrol a display.** An `apiKey` in the message is
+  ignored. It used to be honoured for shells from 0.9.x, which also meant any
+  sender past the trust check could enrol a display with a key it invented.
+- **A handoff is accepted only from the top-level embedding window.** The shell
+  is one; a page faking the shell's opaque origin by framing through a
+  `sandbox="allow-scripts"` document is not. Deployments without the webOS shell
+  should drop the opaque origin entirely — `window.__SIGNAGE_TRUSTED_ORIGINS__`
+  in the player's `index.html`, which now documents itself.
 
 ### Changed — disconnect moves into the info panel
 
@@ -36,7 +42,11 @@ button with a TV remote.
 
 ### Required operator actions
 
-None. Screens that are already paired are untouched — they run on their session.
+1. **Reinstall the webOS app on every TV that runs the 0.9.x shell.** Its handoff
+   can no longer enrol a display. Screens that are already paired keep running on
+   their session and are not affected; a screen that has to enrol again with an
+   old shell will sit on a pairing code until the app is updated.
+
 A screen whose storage is cleared shows a code again; enrol it with **Repair**
 on the existing screen, which keeps its name, playlists and schedules.
 

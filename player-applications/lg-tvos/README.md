@@ -35,9 +35,10 @@ and can only be redeemed once. What the screen keeps afterwards is a rotating
 refresh token inside the player, not a credential in the shell. There is no API
 key to enter here because the dashboard no longer hands one out.
 
-A shell that still carries a key from an earlier version keeps working — the key
-still opens the enrolment route — but the key is deleted from the TV on the
-first start of this version.
+A shell from 0.9.x has to be updated: the player ignores an `apiKey` in the
+handoff, so such a shell no longer enrols its display. Install this version and
+pair the screen once with the code it shows. The old key is deleted from the TV
+on the first start.
 
 ## Settings
 

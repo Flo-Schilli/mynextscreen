@@ -44,7 +44,7 @@ describe('ConnectionService signage-connect handoff', () => {
       data:
         'data' in overrides
           ? overrides.data
-          : { type: 'signage-connect', serverUrl: 'https://example.com', apiKey: 'key-123' },
+          : { type: 'signage-connect', serverUrl: 'https://example.com' },
       origin: overrides.origin ?? window.location.origin,
     });
     Object.defineProperty(event, 'source', {
@@ -62,12 +62,15 @@ describe('ConnectionService signage-connect handoff', () => {
     });
     service = TestBed.inject(ConnectionService);
     connectSpy = vi.spyOn(service, 'connect').mockResolvedValue(true);
-    // The webOS shell embeds the player, so the trusted case is a framed one.
+    // The webOS shell embeds the player, so the trusted case is a framed one —
+    // and the shell is the top-level document, so parent and top are the same.
     Object.defineProperty(window, 'parent', { value: parentWindow, configurable: true });
+    Object.defineProperty(window, 'top', { value: parentWindow, configurable: true });
   });
 
   afterEach(() => {
     Object.defineProperty(window, 'parent', { value: window, configurable: true });
+    Object.defineProperty(window, 'top', { value: window, configurable: true });
     TestBed.inject(HttpTestingController).verify();
     localStorage.clear();
     sessionStorage.clear();
@@ -75,28 +78,40 @@ describe('ConnectionService signage-connect handoff', () => {
 
   it('accepts the handoff from the embedding window on a trusted origin', () => {
     dispatchConnect({});
-    expect(connectSpy).toHaveBeenCalledWith('https://example.com', 'key-123');
+    expect(service.handedServerUrl()).toBe('https://example.com');
   });
 
   it('accepts the opaque origin of the webOS file:// shell', () => {
     dispatchConnect({ origin: 'null' });
-    expect(connectSpy).toHaveBeenCalledTimes(1);
+    expect(service.handedServerUrl()).toBe('https://example.com');
   });
 
   it('ignores a handoff from a foreign origin', () => {
     dispatchConnect({ origin: 'https://evil.example' });
-    expect(connectSpy).not.toHaveBeenCalled();
+    expect(service.handedServerUrl()).toBe('');
   });
 
   it('ignores a handoff that does not come from the embedding window', () => {
     dispatchConnect({ source: { other: true } });
-    expect(connectSpy).not.toHaveBeenCalled();
+    expect(service.handedServerUrl()).toBe('');
   });
 
   it('ignores a handoff when the player is not framed at all', () => {
     Object.defineProperty(window, 'parent', { value: window, configurable: true });
+    Object.defineProperty(window, 'top', { value: window, configurable: true });
     dispatchConnect({ source: window });
-    expect(connectSpy).not.toHaveBeenCalled();
+    expect(service.handedServerUrl()).toBe('');
+  });
+
+  it('ignores a handoff from a frame that is not the top-level document', () => {
+    // How an ordinary page fakes the shell's opaque origin: frame the player
+    // through a sandbox="allow-scripts" document, which gets origin 'null'.
+    // Its parent is then not the top window, and the shell's is.
+    Object.defineProperty(window, 'top', { value: { outer: true }, configurable: true });
+
+    dispatchConnect({ origin: 'null' });
+
+    expect(service.handedServerUrl()).toBe('');
   });
 
   it.each([
@@ -108,19 +123,18 @@ describe('ConnectionService signage-connect handoff', () => {
     ['a string'],
   ])('ignores the malformed payload %j', (data) => {
     dispatchConnect({ data });
-    expect(connectSpy).not.toHaveBeenCalled();
     expect(service.handedServerUrl()).toBe('');
   });
 
-  describe('without a key (the shell has none to give)', () => {
+  describe('the handoff carries a URL and nothing else', () => {
     it.each([
       [{ type: 'signage-connect', serverUrl: 'https://example.com/' }],
       [{ type: 'signage-connect', serverUrl: 'https://example.com', apiKey: '' }],
     ])('takes the server URL from %j and leaves enrolment to pairing', (data) => {
       dispatchConnect({ data });
 
-      // No enrolment: a shell from 0.10 onwards carries no credential, so the
-      // screen shows a pairing code instead of connecting on its own.
+      // No enrolment: the screen shows a pairing code instead of connecting on
+      // its own.
       expect(connectSpy).not.toHaveBeenCalled();
       expect(service.handedServerUrl()).toBe('https://example.com');
       expect(service.serverUrl()).toBe('https://example.com');
@@ -129,13 +143,15 @@ describe('ConnectionService signage-connect handoff', () => {
       expect(localStorage.getItem('signage_server_url')).toBe('https://example.com');
     });
 
-    it('still accepts a key from a shell that has not been updated yet', () => {
+    it('ignores an apiKey in the message instead of enrolling with it', () => {
+      // A handoff could once enrol the display with a key, which meant any
+      // sender past the trust check could enrol it with a string they invented.
       dispatchConnect({
         data: { type: 'signage-connect', serverUrl: 'https://example.com', apiKey: 'key-123' },
       });
 
-      expect(connectSpy).toHaveBeenCalledWith('https://example.com', 'key-123');
-      expect(service.handedServerUrl()).toBe('');
+      expect(connectSpy).not.toHaveBeenCalled();
+      expect(service.handedServerUrl()).toBe('https://example.com');
     });
 
     it('ignores a repeated handoff of the URL it already has', () => {

@@ -61,10 +61,17 @@ type PairingStatusResponse =
 export type PollPairingResult = 'pending' | 'claimed' | 'expired';
 
 /**
- * Origins allowed to hand credentials to the player. Same-origin always counts;
- * `'null'` is the opaque origin of the webOS shell (`file://`). Deployments that
- * do not use that shell pin the list by setting `window.__SIGNAGE_TRUSTED_ORIGINS__`
- * to a comma-separated list before the bundle loads.
+ * Origins allowed to hand the server URL to the player.
+ *
+ * Same-origin always counts. `'null'` is the opaque origin of the webOS shell,
+ * which is served from `file://` and therefore has no real origin — and that is
+ * the weak part of the list, because an opaque origin proves nothing: a page can
+ * obtain one for itself by framing through a `sandbox="allow-scripts"` document.
+ *
+ * A deployment without the webOS shell should therefore drop it, by setting
+ * `window.__SIGNAGE_TRUSTED_ORIGINS__` to a comma-separated list before the
+ * bundle loads (see `index.html`). With `'null'` gone, the whole class of
+ * handoffs from a hostile embedder is gone with it.
  */
 export function trustedConnectOrigins(): readonly string[] {
   const configured = (window as { __SIGNAGE_TRUSTED_ORIGINS__?: unknown })
@@ -88,11 +95,16 @@ export class ConnectionService implements OnDestroy {
    * display to a screen of its own choosing — the player is deliberately
    * frameable for the LG webOS shell, so framing is not itself a signal.
    *
-   * Three conditions, none of which alone is sufficient:
+   * Four conditions, none of which alone is sufficient:
    * - the origin is allow-listed (same-origin by default; `'null'` covers the
    *   webOS shell, which is served from `file://` and therefore has an opaque
    *   origin; operators can pin the list via `window.__SIGNAGE_TRUSTED_ORIGINS__`);
    * - the message comes from the embedding window, not from a random frame;
+   * - that window is the top-level document, which is what the shell is. This
+   *   costs the shell nothing and blocks the cheapest way to fake an opaque
+   *   origin — framing the player through a nested `sandbox="allow-scripts"`
+   *   document. It does not block a sandboxed *top-level* page, so it raises the
+   *   bar rather than closing the door; dropping `'null'` is what closes it;
    * - the player is not connected yet, so a paired display can never be
    *   re-paired by a message.
    */
@@ -107,20 +119,16 @@ export class ConnectionService implements OnDestroy {
       return;
     }
 
-    const { serverUrl, apiKey } = data;
+    const { serverUrl } = data;
     if (typeof serverUrl !== 'string' || !serverUrl) {
       return;
     }
 
-    // A key is no longer part of the handoff: the shell has no way to obtain
-    // one, because a screen is enrolled by typing the code shown here into the
-    // dashboard. Shells that still carry a key from an earlier version keep
-    // working — the key still opens the enrolment route.
-    if (typeof apiKey === 'string' && apiKey !== '') {
-      this.connect(serverUrl, apiKey);
-      return;
-    }
-
+    // Only the server URL is taken. An `apiKey` in the message is ignored: a
+    // handoff used to be able to enrol the display with one, which meant any
+    // sender past the trust check could enrol it with a string they invented.
+    // Enrolment now happens one way only — the code on the display, claimed in
+    // the dashboard.
     this.useServerUrl(serverUrl);
   };
 
@@ -154,6 +162,9 @@ export class ConnectionService implements OnDestroy {
     }
     const isFramed = window.parent !== window;
     if (!isFramed || event.source !== window.parent) {
+      return false;
+    }
+    if (window.parent !== window.top) {
       return false;
     }
     return trustedConnectOrigins().includes(event.origin);

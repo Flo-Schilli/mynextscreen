@@ -60,11 +60,15 @@ long-lived credential ever rests on the device.
 8. Without an `apiKey` the player takes the server URL, persists it and points pairing at it; the dialog requests a fresh code from that server
 9. The operator enters the code in the dashboard → the player receives its key, exchanges it for a session, and content plays
 
-### Backwards compatibility
+### The shell has to be updated
 
-A shell from 0.9.x still sends an `apiKey`. The player still honours that: with a
-non-empty key it calls `connect(serverUrl, apiKey)`, which exchanges the key on
-the enrolment route. Nothing has to be updated in lockstep.
+A shell from 0.9.x still sends an `apiKey`. The player **ignores it** and takes
+only the `serverUrl`, so such a shell no longer enrols its display — the display
+shows a pairing code instead and has to be claimed in the dashboard once.
+
+The branch existed so old and new could run side by side. It also meant that any
+sender past the trust check could enrol a display with a key it made up, so it
+went as soon as nothing needed it.
 
 ### Fallback: Direct Browser Access
 
@@ -80,9 +84,17 @@ When the web player is opened directly in a browser (not in an iframe):
   It names the server this display belongs to, which a page that happened to
   answer the load has no business learning.
 - **Origin allow-list on the receiving end**: The player accepts a handoff only
-  from `window.parent`, only from its own origin or the opaque `'null'` origin of
-  the `file://`-hosted shell, and only while it is not yet paired. A paired
-  display cannot be re-pointed by a message.
+  from `window.parent`, only when that parent is the top-level document, only
+  from its own origin or the opaque `'null'` origin of the `file://`-hosted
+  shell, and only while it is not yet paired. A paired display cannot be
+  re-pointed by a message.
+- **`'null'` proves nothing on its own**: any page can obtain an opaque origin by
+  framing through a `sandbox="allow-scripts"` document. Requiring the sender to
+  be the top-level window blocks that nesting; a deployment without this shell
+  should drop `'null'` outright via `window.__SIGNAGE_TRUSTED_ORIGINS__` in the
+  player's `index.html`.
+- **The handoff cannot enrol**: it carries a URL. Enrolment happens only through
+  a pairing code that an operator claims in the dashboard.
 - **Nothing to steal on the device**: The settings overlay is reachable from the
   remote at any time. It holds two URLs and no credential.
 
