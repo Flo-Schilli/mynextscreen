@@ -10,6 +10,7 @@ import { CreateScreenDto } from './dto/create-screen.dto';
 import { UpdateScreenDto } from './dto/update-screen.dto';
 import { generateApiKey, hashApiKey, sha256hex } from './api-key.util';
 import { ScreenPairingService } from './screen-pairing.service';
+import { ScreenSessionService } from './screen-session.service';
 import { ScheduleService } from '../schedule';
 import { ScreenStatusEvent, SCREEN_STATUS_CHANGED } from './screen-status.event';
 import {
@@ -66,6 +67,7 @@ export class ScreenService extends OrganisationScopedService<Screen> {
     private readonly eventEmitter: EventEmitter2,
     private readonly pairingService: ScreenPairingService,
     private readonly scheduleService: ScheduleService,
+    private readonly sessionService: ScreenSessionService,
   ) {
     super(db, screens, 'Screen');
   }
@@ -189,6 +191,10 @@ export class ScreenService extends OrganisationScopedService<Screen> {
       .set({ apiKeyHash, apiKeyFingerprint })
       .where(and(eq(screens.id, id), eq(screens.organisationId, organisationId)))
       .returning();
+
+    // The old key is gone, so every session it produced must go with it —
+    // otherwise re-pairing a screen leaves the previous holder connected.
+    await this.sessionService.revokeForScreen(id);
 
     await this.pairingService.markClaimed(pairing.id, id, organisationId, apiKey);
 

@@ -13,6 +13,8 @@ import {
 } from '../audit-log/audit.events';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
+import { ScreenSessionService } from './screen-session.service';
+import { TokenService } from '../auth/token.service';
 
 const MISSING_ID = '00000000-0000-0000-0000-000000000000';
 
@@ -37,6 +39,18 @@ describe('ScreenService — bulk operations', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ScreenService,
+        ScreenSessionService,
+        {
+          provide: TokenService,
+          useValue: {
+            issueScreenAccessToken: jest.fn().mockResolvedValue({
+              token: 'access',
+              jti: 'jti',
+              expiresAt: new Date(),
+            }),
+            accessTokenTtlSeconds: 900,
+          },
+        },
         ScreenPairingService,
         { provide: DRIZZLE, useValue: db },
         { provide: EventEmitter2, useValue: { emit } },

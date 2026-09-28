@@ -3,6 +3,7 @@ import { ScreenController } from './screen.controller';
 import { ScreenService } from './screen.service';
 import { ScreenStateService } from './screen-state.service';
 import { AuthenticatedRequest } from '../auth';
+import { ScreenSessionService } from './screen-session.service';
 
 describe('ScreenController — bulk endpoints', () => {
   let controller: ScreenController;
@@ -18,6 +19,8 @@ describe('ScreenController — bulk endpoints', () => {
   const mockReq = {
     user: { userId, email: 'test@example.com' },
   } as unknown as AuthenticatedRequest;
+
+  let sessionService: Record<string, jest.Mock>;
 
   beforeEach(async () => {
     service = {
@@ -36,11 +39,18 @@ describe('ScreenController — bulk endpoints', () => {
       subscribe: jest.fn(),
     };
 
+    sessionService = {
+      createSession: jest.fn(),
+      refresh: jest.fn(),
+      revokeForScreen: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ScreenController],
       providers: [
         { provide: ScreenService, useValue: service },
         { provide: ScreenStateService, useValue: screenStateService },
+        { provide: ScreenSessionService, useValue: sessionService },
       ],
     }).compile();
 

@@ -31,6 +31,8 @@ import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 import * as apiKeyUtil from './api-key.util';
 import { sha256hex } from './api-key.util';
+import { ScreenSessionService } from './screen-session.service';
+import { TokenService } from '../auth/token.service';
 
 jest.mock('./api-key.util', () => {
   const actual = jest.requireActual('./api-key.util');
@@ -64,6 +66,18 @@ describe('ScreenService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ScreenService,
+        ScreenSessionService,
+        {
+          provide: TokenService,
+          useValue: {
+            issueScreenAccessToken: jest.fn().mockResolvedValue({
+              token: 'access',
+              jti: 'jti',
+              expiresAt: new Date(),
+            }),
+            accessTokenTtlSeconds: 900,
+          },
+        },
         ScreenPairingService,
         { provide: DRIZZLE, useValue: db },
         { provide: EventEmitter2, useValue: { emit } },

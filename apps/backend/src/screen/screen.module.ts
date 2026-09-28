@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { CommonModule } from '../common/common.module';
+import { AuthModule } from '../auth/auth.module';
 import { ScreenService } from './screen.service';
+import { ScreenSessionService } from './screen-session.service';
 import { ScreenStateService } from './screen-state.service';
 import { ScreenController } from './screen.controller';
 import { ScreenPairingController } from './screen-pairing.controller';
@@ -13,9 +15,10 @@ import { PlaylistChangeBridgeService } from './playlist-change-bridge.service';
 import { ScheduleEntryModule } from '../schedule';
 
 @Module({
-  imports: [CommonModule, ScreenProtocolModule, ScheduleEntryModule],
+  imports: [CommonModule, AuthModule, ScreenProtocolModule, ScheduleEntryModule],
   controllers: [ScreenController, ScreenPairingController],
   providers: [
+    ScreenSessionService,
     ScreenService,
     ScreenPairingService,
     ScreenStateService,
@@ -24,6 +27,6 @@ import { ScheduleEntryModule } from '../schedule';
     ScreenScheduler,
     ScreenProtocolService,
   ],
-  exports: [ScreenService, ScreenStateService, ScreenProtocolService],
+  exports: [ScreenSessionService, ScreenService, ScreenStateService, ScreenProtocolService],
 })
 export class ScreenModule {}

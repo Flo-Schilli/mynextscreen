@@ -14,6 +14,7 @@ import type { DrizzleDB } from '../db/drizzle.types';
 import { eq, isNull } from 'drizzle-orm';
 import { screens } from '../db/schema';
 import { sha256hex, verifyApiKey } from '../screen/api-key.util';
+import { TokenService } from './token.service';
 
 export interface ScreenAuthenticatedRequest extends Request {
   screenId: string;
@@ -32,6 +33,7 @@ export class ApiKeyAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly mediaUrlSigner: MediaUrlSigner,
+    private readonly tokens: TokenService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -56,6 +58,12 @@ export class ApiKeyAuthGuard implements CanActivate {
       throw new UnauthorizedException('Missing API key');
     }
 
+    // A screen session token is the normal credential; the API key below is the
+    // enrolment credential and stays accepted until every player has migrated.
+    if (await this.authenticateByScreenToken(request, token)) {
+      return true;
+    }
+
     const screen = await this.findScreenByApiKey(token);
     if (!screen) {
       throw new UnauthorizedException('Invalid API key');
@@ -64,6 +72,25 @@ export class ApiKeyAuthGuard implements CanActivate {
     request.screenId = screen.id;
     request.organisationId = screen.organisationId;
     return true;
+  }
+
+  /**
+   * Verifies a screen access token. Its audience differs from a user token's,
+   * so a user token can never authenticate a screen here and vice versa — the
+   * separation is in the pinned verification, not in a check further down.
+   */
+  private async authenticateByScreenToken(
+    request: { screenId?: string; organisationId?: string },
+    token: string,
+  ): Promise<boolean> {
+    try {
+      const payload = await this.tokens.verifyScreenAccessToken(token);
+      request.screenId = payload.sub;
+      request.organisationId = payload.org;
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private allowsSignedMediaUrl(context: ExecutionContext): boolean {

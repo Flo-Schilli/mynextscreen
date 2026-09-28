@@ -17,6 +17,18 @@ export interface AccessTokenPayload {
   jti: string;
 }
 
+/**
+ * Claims of a screen access token. A screen is not a user: it has no email and
+ * no super-admin flag, and it carries its organisation so the guard needs
+ * neither a database round trip nor a bcrypt comparison per request.
+ */
+export interface ScreenTokenPayload {
+  sub: string;
+  org: string;
+  typ: 'screen';
+  jti: string;
+}
+
 export interface RotateSuccess {
   status: 'ok';
   userId: string;

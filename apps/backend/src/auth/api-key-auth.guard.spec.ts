@@ -10,6 +10,8 @@ import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 import type { ConfigService } from '@nestjs/config';
 import { MediaUrlSigner } from '../common/media-url-signer.service';
+import { JwtService } from '@nestjs/jwt';
+import { TokenService } from './token.service';
 
 const TEST_SECRET = 'x'.repeat(48);
 
@@ -18,6 +20,7 @@ describe('ApiKeyAuthGuard', () => {
   let reflector: Reflector;
   let db: DrizzleDB;
   let signer: MediaUrlSigner;
+  let tokenService: TokenService;
 
   const VALID_API_KEY = 'test-api-key-1234567890abcdef';
   let validKeyHash: string;
@@ -35,7 +38,16 @@ describe('ApiKeyAuthGuard', () => {
     await truncateAll();
     reflector = new Reflector();
     signer = new MediaUrlSigner({ getOrThrow: () => TEST_SECRET } as unknown as ConfigService);
-    guard = new ApiKeyAuthGuard(reflector, db, signer);
+    // Real TokenService so the audience separation is exercised, not stubbed.
+    tokenService = new TokenService(
+      new JwtService({}),
+      {
+        get: (_key: string, fallback?: unknown) => fallback,
+        getOrThrow: () => TEST_SECRET,
+      } as unknown as ConfigService,
+      { get: jest.fn(), set: jest.fn(), del: jest.fn() } as never,
+    );
+    guard = new ApiKeyAuthGuard(reflector, db, signer, tokenService);
   });
 
   /** Seed an organisation and a screen carrying the given api-key hash. */
@@ -272,6 +284,52 @@ describe('ApiKeyAuthGuard', () => {
         query: signedQuery(screenId),
         signedMedia: false,
       });
+
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('screen session tokens', () => {
+    it('authenticates a screen from its access token, with no database lookup of the key', async () => {
+      const { screenId, orgId } = await seedScreen(validKeyHash, sha256hex(VALID_API_KEY));
+      const { token } = await tokenService.issueScreenAccessToken(screenId, orgId);
+      const context = createMockContext({ authorization: `Bearer ${token}` });
+
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      const request = context.switchToHttp().getRequest();
+      expect(request.screenId).toBe(screenId);
+      expect(request.organisationId).toBe(orgId);
+    });
+
+    it('refuses a user access token — the audience makes them different kinds', async () => {
+      // Same secret and issuer: without the separate audience this would
+      // authenticate as a screen whose id happens to be a user id.
+      const { token } = await tokenService.issueAccessToken(
+        '11111111-1111-1111-1111-111111111111',
+        {
+          email: 'user@example.com',
+          isSuperAdmin: true,
+        },
+      );
+      const context = createMockContext({ authorization: `Bearer ${token}` });
+
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('refuses a screen token whose signature was made with another secret', async () => {
+      const foreign = new TokenService(
+        new JwtService({}),
+        {
+          get: (_key: string, fallback?: unknown) => fallback,
+          getOrThrow: () => 'y'.repeat(48),
+        } as unknown as ConfigService,
+        { get: jest.fn(), set: jest.fn(), del: jest.fn() } as never,
+      );
+      const { token } = await foreign.issueScreenAccessToken(
+        '11111111-1111-1111-1111-111111111111',
+        '22222222-2222-2222-2222-222222222222',
+      );
+      const context = createMockContext({ authorization: `Bearer ${token}` });
 
       await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });

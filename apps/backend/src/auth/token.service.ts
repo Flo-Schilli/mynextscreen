@@ -10,6 +10,7 @@ import type {
   IssuedAccessToken,
   IssuedRefreshToken,
   RotateResult,
+  ScreenTokenPayload,
 } from './token.types';
 import { parseTtlToSeconds } from './ttl.util';
 
@@ -36,6 +37,16 @@ export interface AccessClaims {
 const ACCESS_TOKEN_ALGORITHM = 'HS256' as const;
 const ACCESS_TOKEN_ISSUER = 'signage-server';
 const ACCESS_TOKEN_AUDIENCE = 'signage-api';
+/**
+ * Screens get their own audience. Both token kinds are signed with the same
+ * secret and issuer, so without this a screen token would satisfy the user
+ * guard with `sub` set to a screen id. The audience is already pinned on
+ * verification, which makes the separation structural rather than a check
+ * someone can forget to write.
+ */
+export const SCREEN_TOKEN_AUDIENCE = 'signage-screen';
+/** Marks the token kind inside the payload, as a second, explicit layer. */
+export const SCREEN_TOKEN_TYPE = 'screen' as const;
 
 @Injectable()
 export class TokenService {
@@ -89,6 +100,48 @@ export class TokenService {
       isSuperAdmin: payload.isSuperAdmin === true,
       jti: payload.jti,
     };
+  }
+
+  /** Access token for a screen. Short-lived; the session is what persists. */
+  async issueScreenAccessToken(
+    screenId: string,
+    organisationId: string,
+  ): Promise<IssuedAccessToken> {
+    const jti = randomUUID();
+    const token = await this.jwt.signAsync(
+      { sub: screenId, org: organisationId, typ: SCREEN_TOKEN_TYPE, jti },
+      {
+        secret: this.accessSecret,
+        expiresIn: this.accessTtlSeconds,
+        algorithm: ACCESS_TOKEN_ALGORITHM,
+        issuer: ACCESS_TOKEN_ISSUER,
+        audience: SCREEN_TOKEN_AUDIENCE,
+      },
+    );
+    return {
+      token,
+      jti,
+      expiresAt: new Date(Date.now() + this.accessTtlSeconds * 1000),
+    };
+  }
+
+  /** Counterpart to {@link issueScreenAccessToken}; a user token cannot pass. */
+  async verifyScreenAccessToken(token: string): Promise<ScreenTokenPayload> {
+    const payload = await this.jwt.verifyAsync<ScreenTokenPayload>(token, {
+      secret: this.accessSecret,
+      algorithms: [ACCESS_TOKEN_ALGORITHM],
+      issuer: ACCESS_TOKEN_ISSUER,
+      audience: SCREEN_TOKEN_AUDIENCE,
+    });
+    if (payload.typ !== SCREEN_TOKEN_TYPE) {
+      throw new Error('Not a screen token');
+    }
+    return { sub: payload.sub, org: payload.org, typ: SCREEN_TOKEN_TYPE, jti: payload.jti };
+  }
+
+  /** Seconds an access token stays valid; handed to clients, never an instant. */
+  get accessTokenTtlSeconds(): number {
+    return this.accessTtlSeconds;
   }
 
   async issueInitialRefreshToken(userId: string): Promise<IssuedRefreshToken> {

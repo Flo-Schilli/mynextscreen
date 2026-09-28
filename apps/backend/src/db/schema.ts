@@ -196,6 +196,46 @@ export const screens = pgTable(
 
 // ── screen pairings (6-digit device-flow) ─────────────────────────────────────
 
+/**
+ * Rotating refresh tokens for screen sessions.
+ *
+ * Deliberately in Postgres rather than Redis: a screen that rotated inside a
+ * lost snapshot window would present a token the server has never seen, and —
+ * once the API key is gone from the device — that is a physical visit per
+ * display. The FK also gives revocation-on-delete for free.
+ *
+ * A row is never updated in place on rotation: it is marked consumed and a
+ * successor is inserted in the same family. The consumed row is what lets a
+ * replay be told apart from the legitimate race of several parallel refreshes.
+ */
+export const screenSessions = pgTable(
+  'screen_sessions',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    screenId: uuid()
+      .notNull()
+      .references(() => screens.id, { onDelete: 'cascade' }),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    /** Groups every rotation of one enrolment, so a whole line can be revoked. */
+    familyId: uuid().notNull(),
+    /** SHA-256 hex of the refresh token; the raw value is never stored. */
+    tokenHash: text().notNull(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    /** Set when this token was exchanged; the row then acts as the tombstone. */
+    consumedAt: timestamp({ withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('UQ_screen_sessions_token_hash').on(t.tokenHash),
+    index('IDX_screen_sessions_family').on(t.familyId),
+    index('IDX_screen_sessions_screen').on(t.screenId),
+  ],
+);
+
 export const screenPairings = pgTable(
   'screen_pairings',
   {

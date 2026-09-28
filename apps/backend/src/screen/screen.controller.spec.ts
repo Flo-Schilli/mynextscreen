@@ -5,6 +5,7 @@ import { ScreenService } from './screen.service';
 import { ScreenStateService } from './screen-state.service';
 import type { Screen } from '../db/schema';
 import { ScreenAuthenticatedRequest, AuthenticatedRequest } from '../auth';
+import { ScreenSessionService } from './screen-session.service';
 
 describe('ScreenController', () => {
   let controller: ScreenController;
@@ -35,6 +36,8 @@ describe('ScreenController', () => {
     showDisconnectButton: true,
   };
 
+  let sessionService: Record<string, jest.Mock>;
+
   beforeEach(async () => {
     service = {
       createScreen: jest.fn(),
@@ -52,11 +55,18 @@ describe('ScreenController', () => {
       subscribe: jest.fn(),
     };
 
+    sessionService = {
+      createSession: jest.fn(),
+      refresh: jest.fn(),
+      revokeForScreen: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ScreenController],
       providers: [
         { provide: ScreenService, useValue: service },
         { provide: ScreenStateService, useValue: stateService },
+        { provide: ScreenSessionService, useValue: sessionService },
       ],
     }).compile();
 
@@ -195,6 +205,49 @@ describe('ScreenController', () => {
 
       expect(controller.events(req, screenId)).toBe('stream');
       expect(stateService.subscribe).toHaveBeenCalledWith(screenId);
+    });
+  });
+
+  describe('screen sessions', () => {
+    const tokens = {
+      accessToken: { token: 'access-jwt', jti: 'jti', expiresAt: new Date() },
+      refreshToken: 'refresh-token',
+      expiresIn: 900,
+    };
+
+    it('exchanges the enrolment credential for a session', async () => {
+      sessionService.createSession.mockResolvedValue(tokens);
+      const req = { screenId: 'screen-1', organisationId: 'org-1' };
+
+      const result = await controller.createSession(req as never);
+
+      expect(sessionService.createSession).toHaveBeenCalledWith('screen-1', 'org-1');
+      // expiresIn is a duration, not an instant: a TV clock may be days off.
+      expect(result).toEqual({
+        accessToken: 'access-jwt',
+        refreshToken: 'refresh-token',
+        expiresIn: 900,
+      });
+    });
+
+    it('rotates a refresh token', async () => {
+      sessionService.refresh.mockResolvedValue({ status: 'ok', screenId: 'screen-1', tokens });
+
+      const result = await controller.refreshSession({ refreshToken: 'old' });
+
+      expect(sessionService.refresh).toHaveBeenCalledWith('old');
+      expect(result.refreshToken).toBe('refresh-token');
+    });
+
+    it.each([
+      ['unknown', { status: 'unknown' }],
+      ['replayed', { status: 'replayed', screenId: 'screen-1', familyId: 'family-1' }],
+    ])('answers a %s refresh token identically, so it cannot be probed', async (_label, result) => {
+      sessionService.refresh.mockResolvedValue(result);
+
+      await expect(controller.refreshSession({ refreshToken: 'x' })).rejects.toThrow(
+        'Invalid refresh token',
+      );
     });
   });
 });
