@@ -1,17 +1,19 @@
+# Copy to hosts.ini and fill in your own values. hosts.ini is git-ignored so a
+# real inventory never ends up in the repository.
 [local]
 localhost ansible_connection=local
 
 [servers]
-# Replace with your server hostname or IP
+# Replace with your server hostname or IP, or an alias from your ~/.ssh/config.
 # Example: signage.example.com ansible_user=signage
-contabo
+your-server
 
 [servers:vars]
 ansible_become=true
 ansible_become_method=sudo
 # Required: The domain name for the signage server
 # Example: domain_name=signage.example.com
-domain_name=signage.schillis.ch
+domain_name=signage.example.com
 # Required: strong random secret for signing access JWTs. DO NOT commit a real
 # value — set via Ansible Vault or --extra-vars (openssl rand -base64 48).
 # jwt_access_secret="{{ vault_jwt_access_secret }}"
