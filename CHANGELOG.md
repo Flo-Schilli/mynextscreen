@@ -4,7 +4,10 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
-## Unreleased
+## 0.11.0
+
+The release that made the repository public: one name, no borrowed marks, and
+documentation that matches the code.
 
 ### Changed — the project is called myNextScreen
 
@@ -31,6 +34,45 @@ still has them.
 Corrected: README, ARCHITECTURE and VISION still described screens as
 authenticating with a long-lived API key issued by an org admin. That stopped
 being true in 0.10.0.
+
+### Changed — the launcher icon, the favicon and the idle screen are our own
+
+The webOS launcher icon was a third-party logo, and `default-screen.png` — what
+a display shows when nothing is scheduled — was a band's. Permission to use a
+mark is not permission to ship it to everyone who installs the software, and
+AGPL passes on rights to the code, not to a bundled image. All three are now one
+drawing, optically sized per use: 80 px for the launcher, 16 px for the tab, and
+full screen with the wordmark for an idle display, which also now says it is
+idle rather than leaving a bystander to guess it is broken.
+
+Both web apps ship a favicon that survives 16 px. The player referenced one that
+never existed and served a 404.
+
+### Fixed — two things a staged demo made visible
+
+- **Dates followed the browser locale, the rest of the UI did not.** Nothing
+  here is translated, so `toLocaleDateString()` without a locale localised
+  nothing; it mixed languages, rendering "Montag, 28. September" inside a panel
+  headed "Schedules". Fifteen call sites now share one locale constant.
+- **The unread-notification count fetched before it knew which organisation it
+  was counting for**, so the request went out without `X-Organisation-Id` and
+  the backend answered 400 — on every page load, in every browser console. It
+  now follows the selected organisation, and re-reads when someone switches,
+  which it never did before.
+
+### Documentation
+
+The README is a page for someone deciding whether to look at this at all:
+screenshots of the running system, three commands to start it. Everything an
+operator needs moved into `docs/` (installation, configuration, screens).
+ARCHITECTURE and VISION were corrected against the code — both still described
+an email provider, a screen registration flow and a local content cache that do
+not exist.
+
+### CI
+
+`actions/checkout` and `actions/setup-node` moved to v7, pinned by SHA with the
+exact tag written beside each one.
 
 ### Required operator actions
 
