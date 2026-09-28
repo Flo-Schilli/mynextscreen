@@ -63,3 +63,6 @@ coverage/
 
 # Real Ansible inventory (hostnames, domains). Copy hosts.ini.example instead.
 ansible/hosts.ini
+
+# Local demo media for screenshots — the source files, not the results.
+dummy-data/

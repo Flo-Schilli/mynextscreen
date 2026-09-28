@@ -2,11 +2,12 @@ import { TestBed, getTestBed } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
-import { provideZonelessChangeDetection } from '@angular/core';
+import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { Subject } from 'rxjs';
 import { NotificationService } from './notification.service';
 import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
 import { Notification } from './notification.model';
+import { OrganisationStateService } from '../shell/organisation-state.service';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -18,9 +19,11 @@ describe('NotificationService', () => {
   let service: NotificationService;
   let httpMock: HttpTestingController;
   let notificationNew$: Subject<DashboardEvent>;
+  let selectedOrgId: ReturnType<typeof signal<string | null>>;
 
   beforeEach(() => {
     notificationNew$ = new Subject<DashboardEvent>();
+    selectedOrgId = signal<string | null>('org-1');
 
     TestBed.configureTestingModule({
       providers: [
@@ -32,12 +35,22 @@ describe('NotificationService', () => {
           provide: DashboardSseService,
           useValue: { notificationNew$ },
         },
+        {
+          provide: OrganisationStateService,
+          useValue: { selectedOrgId },
+        },
       ],
     });
 
     service = TestBed.inject(NotificationService);
     httpMock = TestBed.inject(HttpTestingController);
   });
+
+  /** The org effect fires on the first read; flush its request. */
+  function flushOrgFetch(count = 0): void {
+    TestBed.tick();
+    httpMock.expectOne('/api/notifications/unread-count').flush({ count });
+  }
 
   afterEach(() => {
     httpMock.verify();
@@ -46,6 +59,48 @@ describe('NotificationService', () => {
 
   it('should be created', () => {
     expect(service).toBeTruthy();
+    flushOrgFetch();
+  });
+
+  describe('organisation scope', () => {
+    it('fetches the count once an organisation is selected', () => {
+      TestBed.tick();
+
+      // The badge used to fetch from init(), which the bell calls before the
+      // memberships have loaded — the request went out without the
+      // X-Organisation-Id header and came back 400.
+      httpMock.expectOne('/api/notifications/unread-count').flush({ count: 3 });
+      expect(service.unreadCount()).toBe(3);
+    });
+
+    it('asks for nothing while no organisation is selected', () => {
+      selectedOrgId.set(null);
+      TestBed.tick();
+
+      httpMock.expectNone('/api/notifications/unread-count');
+      expect(service.unreadCount()).toBe(0);
+    });
+
+    it('re-reads the count when the organisation changes', () => {
+      flushOrgFetch(3);
+
+      selectedOrgId.set('org-2');
+      TestBed.tick();
+
+      httpMock.expectOne('/api/notifications/unread-count').flush({ count: 7 });
+      expect(service.unreadCount()).toBe(7);
+    });
+
+    it('clears what it holds when the organisation goes away', () => {
+      flushOrgFetch(3);
+
+      selectedOrgId.set(null);
+      TestBed.tick();
+
+      // Otherwise a logout would leave the previous tenant's badge on screen.
+      expect(service.unreadCount()).toBe(0);
+      expect(service.notifications()).toEqual([]);
+    });
   });
 
   describe('fetchUnreadCount', () => {
@@ -186,9 +241,8 @@ describe('NotificationService', () => {
 
   describe('Socket.IO notification.new', () => {
     it('should prepend new notification and increment unread count on init', () => {
+      flushOrgFetch(1);
       service.init();
-      const initReq = httpMock.expectOne('/api/notifications/unread-count');
-      initReq.flush({ count: 1 });
 
       const newNotification: Notification = {
         id: '99',
@@ -213,9 +267,8 @@ describe('NotificationService', () => {
     });
 
     it('should cap notifications list at 50 items', () => {
+      flushOrgFetch(0);
       service.init();
-      const initReq = httpMock.expectOne('/api/notifications/unread-count');
-      initReq.flush({ count: 0 });
 
       const existing = Array.from({ length: 50 }, (_, i) => ({
         id: String(i),

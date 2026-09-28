@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { ScheduleEntry } from './schedule.model';
 import { ScheduleRecurrenceService } from './schedule-recurrence.service';
+import { UI_LOCALE } from '../shared/locale';
 
 export type ScheduleViewMode = 'day' | 'week' | 'month';
 
@@ -283,7 +284,7 @@ export class ScheduleCalendarService {
   }
 
   private formatTimeInTz(date: Date, orgTimeZone: string): string {
-    return date.toLocaleTimeString(undefined, {
+    return date.toLocaleTimeString(UI_LOCALE, {
       timeZone: orgTimeZone,
       hour: '2-digit',
       minute: '2-digit',

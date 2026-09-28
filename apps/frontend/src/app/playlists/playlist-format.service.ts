@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { PlaylistItem } from './playlist.model';
+import { UI_LOCALE } from '../shared/locale';
 
 /**
  * Pure formatting and duration helpers for the playlists feature. Extracted
@@ -26,6 +27,6 @@ export class PlaylistFormatService {
   }
 
   formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString();
+    return new Date(dateStr).toLocaleDateString(UI_LOCALE);
   }
 }

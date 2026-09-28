@@ -6,7 +6,8 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 
 ### Organisations
 
-- Provisioned by a **super-admin** — no self-registration
+- Created two ways: a **super-admin** provisions one, or someone signs up and gets their own with themselves as Org Admin. Self-signup is a feature flag (`SIGNUP_ENABLED`); a closed instance turns it off and provisions by hand
+- A self-created organisation starts with default storage limits and cannot be used until the address is verified; never-verified sign-ups and their orphaned organisation are deleted again after a day
 - Each organisation is fully isolated: own screens, content, playlists, schedules, and users
 - An organisation maps to a single venue (or logical unit)
 - Each organisation has a configurable **default/fallback playlist** shown when no playlist is scheduled
@@ -26,17 +27,18 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 
 ### Screens
 
-- Registered manually by an Org Admin with:
+- A screen enrols itself: the player shows a **six-digit pairing code**, and an Org Admin claims it while adding the screen with
   - Name / label
   - Resolution or aspect ratio
   - Physical location description (e.g. "Main Hall Entrance Left")
-- A screen enrols itself: the player shows a **six-digit pairing code**, an admin claims it when adding the screen, and the credential handed back is exchanged once for a session. Nothing long-lived stays on the display.
+- The credential handed back is exchanged once for a session. Nothing long-lived stays on the display, and nobody ever copies a key around.
 - Screens authenticate every request with a **short-lived access token**, renewed through a rotating refresh token. Losing a screen means re-pairing it, not rotating a key that never expires.
 - Screens communicate via a **protocol abstraction layer** (JSON over HTTP + SSE is the first implementation; architecture allows adding more, e.g. SMIL)
   - On startup, the screen **pulls** its full state from the server
   - Afterwards, the server **pushes** updates in real time via SSE
 - Each screen sends a **heartbeat** to report online/offline status
-- Screens **cache content locally** — if the server connection drops, playback continues from cache
+- Media URLs are signed rather than credentialed and stay stable for at least a day, so ordinary HTTP caching keeps a display playing through a short outage
+- A screen that cannot reach the server keeps retrying with its own credentials instead of demanding attention; it recovers by itself when the server comes back
 
 ### Screen Groups
 
@@ -81,8 +83,8 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 ### Live Streams
 
 - A live stream is a separate mode, **not** part of a playlist
-- Admin or Editor provides a stream URL (e.g. RTP — exact protocol to be defined)
-- The server performs **live transcoding** and distributes to the target screen(s)
+- Admin or Editor provides a stream URL; the source is checked before use, so it cannot be pointed at the server's own network
+- The server ingests it with **FFmpeg**, transcodes to **HLS**, and serves the segments to the target screen(s)
 - Activating a live stream on a screen overrides the current playlist/schedule
 - When the stream source stops, the screen **automatically falls back** to the scheduled playlist
 
@@ -103,8 +105,8 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 - The system tracks screen online/offline status via heartbeat
 - Three notification channels:
   - **In-app** — badge/alert in the dashboard
-  - **Email** — via external email service (e.g. SendGrid, SES)
-  - **ntfy** — configurable URL and token per organisation
+  - **Email** — SMTP, configured per organisation. Account mail (verification, invitations, password resets) goes through the instance's own mail settings instead, so a broken organisation config can never lock someone out of their account
+  - **ntfy** — configurable URL and token per organisation, stored encrypted when the instance has an encryption key
 - Each user configures which channels they receive notifications on
 
 ## Admin Panel
@@ -158,12 +160,16 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 - **Status at a glance** — screen health and schedule state visible without drilling down
 - **Bulk actions** — multi-select on screens, content, and playlists for assign/delete/tag operations
 - **Real-time updates** — dashboard and screen status update live via push (no manual refresh)
-- **Responsive** — fully usable on tablet for on-site management; mobile for monitoring only
+- **Responsive** — usable down to phone width for on-site work, with the schedule calendar falling back to a list where a grid would not fit
 
 ## Tech Stack
 
 - **Frontend:** Angular 21, Tailwind CSS v4, PostCSS
 - **Backend:** NestJS, Drizzle ORM, PostgreSQL
 - **Authentication:** internal email + password — JWT access cookie + Redis refresh tokens (users), pairing code + rotating session tokens (screens)
-- **Storage:** Filesystem for transcoded and original media
+- **Storage:** Filesystem for transcoded and original media; PostgreSQL for everything relational, including screen sessions
 - **Screen protocol:** JSON over HTTP + SSE (protocol abstraction layer; extensible to additional protocols such as SMIL)
+
+> **Status.** Everything above is built, with one exception: the protocol
+> abstraction exists and has exactly one implementation, the JSON adapter. SMIL
+> is what the abstraction was designed for, not something that ships today.
