@@ -108,8 +108,10 @@ them.
   (`3cf4933`).
 - CI gates on `npm audit --omit=dev --audit-level=high` and a Trivy image scan
   that runs before the push, publishes an SBOM and provenance, and pins every
-  action to a commit SHA. Dependabot, CodeQL and `SECURITY.md` added
-  (`11bfbdc`).
+  action to a commit SHA. Dependabot and `SECURITY.md` added (`11bfbdc`). A
+  CodeQL workflow is in place but stays skipped: code scanning needs GitHub
+  Advanced Security on a private repository, so it activates by itself if this
+  repository is made public.
 - Fonts are self-hosted. They were loaded from Google and blocked by the
   production CSP, so the UI had been falling back to system fonts (`3cf4933`).
 - Dev compose binds Postgres, Redis and Mailpit to `127.0.0.1` (`ec91148`).
