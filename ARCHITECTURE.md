@@ -8,7 +8,7 @@ A multi-tenant digital signage platform built with **NestJS** (backend), **Angul
 
 The repository is an **Nx integrated monorepo** with a single root `package.json` and `package-lock.json` (one install, one dependency set, the canonical version). Configuration lives in `nx.json` (targets, caching, `production` named-inputs) and `tsconfig.base.json` (TS path mappings).
 
-- **Projects** — `apps/backend` (NestJS), `apps/frontend` and `apps/player` (Angular 21), and `libs/shared-types` (shared TypeScript types consumed via the `@signage/shared-types` path alias). Apps carry **no** own `package.json`; each declares its targets in `project.json` (build/serve/test/typecheck/lint/format, plus `db-*` drizzle-kit targets on backend).
+- **Projects** — `apps/backend` (NestJS), `apps/frontend` and `apps/player` (Angular 21), and `libs/shared-types` (shared TypeScript types consumed via the `@mynextscreen/shared-types` path alias). Apps carry **no** own `package.json`; each declares its targets in `project.json` (build/serve/test/typecheck/lint/format, plus `db-*` drizzle-kit targets on backend).
 - **Test runners** — mixed: backend uses **Jest** (enforces the coverage gate), frontend uses **Vitest** via `ng test`, player uses **Vitest** via `vitest run`.
 - **Build outputs** — backend → `dist/apps/backend` (`main.js`); frontend/player → `dist/apps/{frontend,player}/browser`.
 - **CI** (`.github/workflows/ci.yml`) — one `lint-test-build` job installs at the root, then runs `nx affected -t lint typecheck test build` on PRs (only projects touched by the diff, base resolved via `nrwl/nx-set-shas`) and `nx run-many` on `main`/tags (full graph). A separate `docker` job builds the three prod images from the **repo-root context** (`apps/<app>/Dockerfile.prod`) and pushes to GHCR on `main`/tags only.
@@ -39,33 +39,34 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
 
 ### Key Modules
 
-| Module | Responsibility |
-|---|---|
-| **AuthModule** | Internal email+password auth (bcrypt), JWT access cookie + Redis refresh tokens, screen enrolment and session tokens, guards for role-based access |
-| **OrganisationModule** | CRUD for organisations, storage limit enforcement, default playlist config, time zone |
-| **UserModule** | User-org membership, role assignment, notification preferences |
-| **ScreenModule** | Pairing and re-pairing, screen sessions (rotating refresh tokens), heartbeat tracking, online/offline status |
-| **ScreenGroupModule** | Group management, mirror/split mode config, grid layout for video walls |
-| **ContentModule** | Upload handling, metadata CRUD, storage tracking, triggers transcoding jobs |
-| **TranscodingModule** | BullMQ workers: video → H.264 MP4, image → WebP (JPEG fallback), storage accounting |
-| **PlaylistModule** | Playlist CRUD, ordered items with per-item duration |
-| **ScheduleModule** | Calendar-based schedule CRUD, recurring rules (RRULE/iCal standard), conflict detection (no overlaps), fallback resolution |
-| **LiveStreamModule** | Stream URL management, FFmpeg process lifecycle, override/fallback logic |
-| **ScreenProtocolModule** | Protocol abstraction layer; JSON adapter (first), renders screen state for pull + SSE push |
-| **NotificationModule** | Notification hub: in-app, email (abstract interface), ntfy; per-user channel preferences |
-| **AuditLogModule** | Records all significant actions with timestamp, user, organisation, action, affected resource |
-| **SearchModule** | Global search across screens, content, and playlists within the current organisation |
-| **DashboardSseModule** | SSE-based real-time dashboard updates (screen status, transcoding progress, schedule changes, notifications) |
+| Module                   | Responsibility                                                                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **AuthModule**           | Internal email+password auth (bcrypt), JWT access cookie + Redis refresh tokens, screen enrolment and session tokens, guards for role-based access |
+| **OrganisationModule**   | CRUD for organisations, storage limit enforcement, default playlist config, time zone                                                              |
+| **UserModule**           | User-org membership, role assignment, notification preferences                                                                                     |
+| **ScreenModule**         | Pairing and re-pairing, screen sessions (rotating refresh tokens), heartbeat tracking, online/offline status                                       |
+| **ScreenGroupModule**    | Group management, mirror/split mode config, grid layout for video walls                                                                            |
+| **ContentModule**        | Upload handling, metadata CRUD, storage tracking, triggers transcoding jobs                                                                        |
+| **TranscodingModule**    | BullMQ workers: video → H.264 MP4, image → WebP (JPEG fallback), storage accounting                                                                |
+| **PlaylistModule**       | Playlist CRUD, ordered items with per-item duration                                                                                                |
+| **ScheduleModule**       | Calendar-based schedule CRUD, recurring rules (RRULE/iCal standard), conflict detection (no overlaps), fallback resolution                         |
+| **LiveStreamModule**     | Stream URL management, FFmpeg process lifecycle, override/fallback logic                                                                           |
+| **ScreenProtocolModule** | Protocol abstraction layer; JSON adapter (first), renders screen state for pull + SSE push                                                         |
+| **NotificationModule**   | Notification hub: in-app, email (abstract interface), ntfy; per-user channel preferences                                                           |
+| **AuditLogModule**       | Records all significant actions with timestamp, user, organisation, action, affected resource                                                      |
+| **SearchModule**         | Global search across screens, content, and playlists within the current organisation                                                               |
+| **DashboardSseModule**   | SSE-based real-time dashboard updates (screen status, transcoding progress, schedule changes, notifications)                                       |
 
 ## Data & Persistence
 
 - **PostgreSQL** (via Drizzle ORM) — all relational data: organisations, users, memberships, screens, groups, content metadata, playlists, schedules, audit log, notifications
 - **Filesystem** — media storage in a configurable base path:
   ```
-  /data/media/{organisationId}/originals/{contentId}.{ext}
-  /data/media/{organisationId}/transcoded/{contentId}.{ext}
+  {MEDIA_BASE_PATH}/{organisationId}/originals/{contentId}.{ext}
+  {MEDIA_BASE_PATH}/{organisationId}/transcoded/{contentId}.{ext}
   ```
-- **Redis** — BullMQ job queue for transcoding jobs plus auth refresh-token storage; no other application data stored in Redis
+- **Redis** — BullMQ job queue for transcoding jobs plus _user_ refresh tokens; no other application data
+- **Screen sessions live in PostgreSQL**, not Redis, and deliberately so: Redis runs without `appendonly`, and a lost snapshot window would leave every screen that rotated inside it holding a token the server has never seen. With no credential left on the device, that is a visit per display
 - **Storage tracking** — per-organisation byte counters for originals and transcoded files, checked on upload against configurable limits
 
 ## Screen Communication
@@ -88,7 +89,13 @@ interface ScreenProtocolAdapter {
 
 1. **Startup pull** — screen sends `GET /api/screens/{id}/state` with its session token → receives full state (current playlist, schedule, signed content URLs)
 2. **SSE push** — screen opens `GET /api/screens/{id}/events` (SSE endpoint) → receives real-time updates (schedule change, live stream override, content update)
-3. **Heartbeat** — screen sends `POST /api/screens/{id}/heartbeat` at a configurable interval; server marks screen offline if no heartbeat within timeout threshold
+3. **Heartbeat** — screen sends `POST /api/screens/{id}/heartbeat` at a configurable interval, reporting its player version; the server marks a screen offline when no heartbeat arrives within the timeout
+
+Media is fetched with a **signed URL** rather than a credential: an HMAC over
+screen id and path, keyed from `JWT_ACCESS_SECRET`, bucketed to a day with a
+per-screen offset. The URL therefore stays byte-stable for at least 24 hours and
+ordinary HTTP caching keeps working. Only the path is signed, so unknown query
+parameters cannot invalidate it.
 
 ### Screen Groups & Sync
 
@@ -120,8 +127,10 @@ interface ScreenProtocolAdapter {
 - **NotificationHub** — central service that receives events (screen offline, transcoding complete, etc.) and fans out to configured channels
 - **Channels:**
   - **In-app** — stored in DB, delivered to dashboard via SSE
-  - **Email** — abstract `EmailProvider` interface (implementation injected at startup; e.g. SendGrid, SES, SMTP)
-  - **ntfy** — HTTP POST to configurable URL with auth token, per organisation
+  - **Email** — SMTP through nodemailer, behind an `EmailProvider` interface. Two separate paths: organisation notifications use the organisation's own SMTP settings, while account mail (verification, invitations, resets, address changes) goes through the environment-configured platform mailer
+  - **ntfy** — HTTP POST to a configurable URL with an auth token, per organisation
+- **Outbound targets are guarded** — an organisation configures its own ntfy URL, SMTP host and live-stream source, so each is checked against its resolved address and refused if it points at loopback, private, link-local or CGNAT space unless listed in `OUTBOUND_ALLOWED_HOSTS`
+- **Credentials at rest** — per-organisation SMTP passwords and ntfy tokens are encrypted with AES-256-GCM when `SECRETS_ENCRYPTION_KEY` is set; without it they are stored in plaintext and the backend says so at boot
 - **User preferences** — each user toggles channels independently; hub checks preferences before dispatching
 - **Organisation config** — ntfy URL/token and email provider settings stored per organisation
 
@@ -129,7 +138,7 @@ interface ScreenProtocolAdapter {
 
 - Every significant action produces an `AuditEntry`:
   - `timestamp`, `userId`, `organisationId`, `action` (enum), `resourceType`, `resourceId`, `details` (JSON)
-- Recorded via a NestJS interceptor or explicit service calls
+- Emitted as application events and written by `AuditListener` (`@OnEvent`), so recording an action never blocks the request that caused it
 - Queryable by Org Admins (scoped to their org) and super-admin (global)
 - Filterable by action type, user, resource, and date range
 
@@ -141,7 +150,7 @@ interface ScreenProtocolAdapter {
 - **Global search** — searches across screens, content, and playlists within the current organisation
 - **Component structure** mirrors backend modules: screens, content, playlists, schedules, live streams, settings
 - **Calendar component** for schedule management (day/week/month views, drag-and-drop playlist blocks, RRULE-based recurring schedules)
-- **Responsive** — full functionality on tablet, monitoring-only on mobile
+- **Responsive** — the layout adapts down to tablet and phone widths; the calendar grid falls back to a list below the `md` breakpoint
 
 ## Deployment
 
@@ -156,11 +165,10 @@ interface ScreenProtocolAdapter {
   - `postgres-data` — PostgreSQL data directory
   - `media-data` — original and transcoded media files
 - **Configuration** — key environment variables:
-  - `DATABASE_URL` — PostgreSQL connection string
-  - `MEDIA_BASE_PATH` — media storage root
-  - `REDIS_URL` — Redis connection string
-  - `JWT_ACCESS_SECRET` — secret for signing JWT access tokens (**required**)
-  - `FFMPEG_PATH` — path to FFmpeg binary (default: system PATH)
+  `DATABASE_URL`, `REDIS_URL`, `MEDIA_BASE_PATH`, `JWT_ACCESS_SECRET` (required,
+  minimum 32 characters) and `PUBLIC_BASE_URL` (required in production, CORS
+  fails closed without it). The full reference is
+  [docs/configuration.md](docs/configuration.md).
 
 The first system super-admin is **not** seeded from config. On a fresh deployment
 (no user yet) the public endpoints `GET /api/auth/setup-status` and `POST /api/auth/setup`
