@@ -20,6 +20,7 @@ import {
 } from '../db/schema';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
+import { OutboundGuard } from '../common/outbound-guard.service';
 
 describe('LiveStreamService – activateStream', () => {
   let service: LiveStreamService;
@@ -71,7 +72,10 @@ describe('LiveStreamService – activateStream', () => {
     return screen.id;
   }
 
+  let outbound: { assertUrl: jest.Mock };
+
   beforeEach(async () => {
+    outbound = { assertUrl: jest.fn().mockResolvedValue(new URL('rtmp://example.com/live')) };
     await truncateAll();
 
     const [org] = await db
@@ -104,6 +108,7 @@ describe('LiveStreamService – activateStream', () => {
         { provide: FfmpegLiveService, useValue: ffmpegLiveService },
         { provide: ScreenGroupService, useValue: screenGroupService },
         { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: OutboundGuard, useValue: outbound },
       ],
     }).compile();
 
@@ -292,6 +297,19 @@ describe('LiveStreamService – activateStream', () => {
           }),
         }),
       );
+    });
+  });
+
+  describe('source address check', () => {
+    it('refuses to start a stream whose source resolves internally', async () => {
+      const stream = await seedStream();
+      outbound.assertUrl.mockRejectedValue(new Error('Host resolves to a private address'));
+
+      await expect(
+        service.activateStream(orgId, stream.id, { targetScreenIds: [screenId1] }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(ffmpegLiveService.start).not.toHaveBeenCalled();
     });
   });
 });
