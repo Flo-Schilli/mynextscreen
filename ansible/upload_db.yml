@@ -1,20 +1,20 @@
 ---
-# Signage Server — Upload Database Restore
+# myNextScreen — Upload Database Restore
 # Usage: ansible-playbook -i hosts.ini upload_db.yml -K
 #
 # Restores a local PostgreSQL dump (pg_dump custom format) to the server,
 # replacing the existing database. The backend is stopped during the restore.
 #
-# Place the dump file at: ansible/signage.dump
+# Place the dump file at: ansible/mynextscreen.dump
 
 - name: Upload database to server
   hosts: servers
   become: true
   vars:
-    service_user: signage
+    service_user: mynextscreen
     service_user_home: "/home/{{ service_user }}"
-    local_dump: "{{ playbook_dir }}/signage.dump"
-    remote_dump: "/tmp/signage_restore.dump"
+    local_dump: "{{ playbook_dir }}/mynextscreen.dump"
+    remote_dump: "/tmp/mynextscreen_restore.dump"
 
   tasks:
     - name: Check if local dump file exists
@@ -26,7 +26,7 @@
 
     - name: Fail if local dump file is missing
       ansible.builtin.fail:
-        msg: "Local dump not found at {{ local_dump }}. Place the dump file at ansible/signage.dump"
+        msg: "Local dump not found at {{ local_dump }}. Place the dump file at ansible/mynextscreen.dump"
       when: not local_dump_file.stat.exists
 
     - name: Get service user UID
@@ -41,7 +41,7 @@
 
     - name: Stop backend service
       ansible.builtin.command:
-        cmd: systemctl --user stop signage-backend
+        cmd: systemctl --user stop mynextscreen-backend
       become: true
       become_user: "{{ service_user }}"
       environment:
@@ -58,15 +58,15 @@
 
     - name: Drop and recreate the database (clean restore)
       ansible.builtin.shell: >-
-        podman exec signage-postgres psql -U signage -d postgres -c
-        "DROP DATABASE IF EXISTS signage WITH (FORCE); CREATE DATABASE signage;"
+        podman exec mynextscreen-postgres psql -U mynextscreen -d postgres -c
+        "DROP DATABASE IF EXISTS mynextscreen WITH (FORCE); CREATE DATABASE mynextscreen;"
       args:
         executable: /bin/bash
       changed_when: true
 
     - name: Restore dump (pg_restore)
       ansible.builtin.shell: >-
-        podman exec -i signage-postgres pg_restore -U signage -d signage --no-owner < "{{ remote_dump }}"
+        podman exec -i mynextscreen-postgres pg_restore -U mynextscreen -d mynextscreen --no-owner < "{{ remote_dump }}"
       args:
         executable: /bin/bash
       changed_when: true
@@ -78,7 +78,7 @@
 
     - name: Start backend service
       ansible.builtin.command:
-        cmd: systemctl --user start signage-backend
+        cmd: systemctl --user start mynextscreen-backend
       become: true
       become_user: "{{ service_user }}"
       environment:

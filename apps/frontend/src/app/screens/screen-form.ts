@@ -132,7 +132,12 @@ type ScreenFormMode = 'create' | 'edit';
               <circle cx="3.5" cy="20.5" r="0.8" fill="currentColor" stroke="none" />
             </svg>
             <p class="hint-text">
-              Open <strong>{{ playerUrl() }}</strong> on your display — it shows a 6-digit code.
+              @if (playerUrl()) {
+                Open <strong>{{ playerUrl() }}</strong> on your display — it shows a 6-digit code.
+              } @else {
+                Open the player on your display — it shows a 6-digit code. Set
+                <strong>PLAYER_BASE_URL</strong> on the server to show its address here.
+              }
             </p>
           </div>
         }
@@ -681,7 +686,7 @@ export class ScreenForm implements OnInit {
   readonly mode = input.required<ScreenFormMode>();
   readonly screen = input<Screen>();
   /** Player URL shown in the create-mode pairing hint (env-driven). */
-  readonly playerUrl = input<string>('screen.mynextscreen.app');
+  readonly playerUrl = input<string>('');
   readonly saving = input<boolean>(false);
   readonly error = input<string>('');
   readonly repairing = input<boolean>(false);

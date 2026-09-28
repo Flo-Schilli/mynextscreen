@@ -1,16 +1,16 @@
 {
-  "name": "signage-server",
+  "name": "mynextscreen",
   "version": "0.10.1",
   "description": "Multi-tenant digital signage platform",
   "license": "AGPL-3.0-or-later",
   "author": "Florian Schillhammer",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Flo-Schilli/digital-signage.git"
+    "url": "git+https://github.com/Flo-Schilli/mynextscreen.git"
   },
-  "homepage": "https://github.com/Flo-Schilli/digital-signage",
+  "homepage": "https://github.com/Flo-Schilli/mynextscreen",
   "bugs": {
-    "url": "https://github.com/Flo-Schilli/digital-signage/issues"
+    "url": "https://github.com/Flo-Schilli/mynextscreen/issues"
   },
   "private": true,
   "engines": {

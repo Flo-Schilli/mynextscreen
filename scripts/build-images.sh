@@ -6,7 +6,7 @@ set -euo pipefail
 APP_VERSION="${APP_VERSION:-0.0.0-dev}"
 GIT_COMMIT="${GIT_COMMIT:-unknown}"
 BUILD_DATE="${BUILD_DATE:-unknown}"
-REGISTRY="${REGISTRY:-ghcr.io/flo-schilli/digital-signage}"
+REGISTRY="${REGISTRY:-ghcr.io/flo-schilli/mynextscreen}"
 # Container engine: docker by default, override with ENGINE=podman
 ENGINE="${ENGINE:-docker}"
 

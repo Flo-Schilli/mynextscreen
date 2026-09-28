@@ -1,4 +1,4 @@
-# Signage Server
+# myNextScreen
 
 A **multi-tenant digital signage platform** for concert venues. Organisations manage screens (TVs) distributed across their venue, upload and transcode images and videos into a shared content library, build playlists, schedule them across screens, and stream live video — all controlled from an Angular web dashboard. Screens communicate via a **protocol abstraction layer** (JSON over HTTP + SSE as the first implementation), designed to support additional protocols such as SMIL in the future.
 
@@ -30,8 +30,8 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
   - Name / label
   - Resolution or aspect ratio
   - Physical location description (e.g. "Main Hall Entrance Left")
-- On registration, the system generates an **API key** (shown once, can be regenerated)
-- Screens authenticate all requests using their API key
+- A screen enrols itself: the player shows a **six-digit pairing code**, an admin claims it when adding the screen, and the credential handed back is exchanged once for a session. Nothing long-lived stays on the display.
+- Screens authenticate every request with a **short-lived access token**, renewed through a rotating refresh token. Losing a screen means re-pairing it, not rotating a key that never expires.
 - Screens communicate via a **protocol abstraction layer** (JSON over HTTP + SSE is the first implementation; architecture allows adding more, e.g. SMIL)
   - On startup, the screen **pulls** its full state from the server
   - Afterwards, the server **pushes** updates in real time via SSE
@@ -93,7 +93,7 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
   - Playlist creation, modification, and deletion
   - Schedule changes
   - Live stream activation and deactivation
-  - Screen registration, API key regeneration, and status changes
+  - Screen pairing, re-pairing, and status changes
   - User role changes and invitations
 - Each entry records: timestamp, user, organisation, action, and affected resource
 - Viewable by Org Admins within their organisation; super-admin sees all
@@ -123,7 +123,7 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
   - Upcoming schedule timeline (next 24h)
   - Recent activity feed (uploads, schedule changes, screen events)
 - **Screens** — list/grid view of all registered screens
-  - Detail view: live preview thumbnail (if supported), status, heartbeat history, assigned group, current playlist, API key management (regenerate)
+  - Detail view: live preview thumbnail (if supported), status, heartbeat history, assigned group, current playlist, re-pairing
   - Register new screen form
 - **Screen Groups** — list of groups with mode indicator (mirror / split)
   - Visual grid editor for split mode: drag screens onto a grid layout, assign row/column positions
@@ -164,6 +164,6 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 
 - **Frontend:** Angular 21, Tailwind CSS v4, PostCSS
 - **Backend:** NestJS, Drizzle ORM, PostgreSQL
-- **Authentication:** internal email + password — JWT access cookie + Redis refresh tokens (users), API keys (screens)
+- **Authentication:** internal email + password — JWT access cookie + Redis refresh tokens (users), pairing code + rotating session tokens (screens)
 - **Storage:** Filesystem for transcoded and original media
 - **Screen protocol:** JSON over HTTP + SSE (protocol abstraction layer; extensible to additional protocols such as SMIL)

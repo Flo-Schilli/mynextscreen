@@ -1,7 +1,7 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 
-const STORAGE_KEY = 'signage_selected_org_id';
+const STORAGE_KEY = 'mynextscreen_selected_org_id';
 
 export interface OrgMembership {
   id: string;

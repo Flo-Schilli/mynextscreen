@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core
 import { VersionService } from './version.service';
 
 /** Where users can obtain the source of the running instance (AGPL-3.0 §13). */
-export const SOURCE_URL = 'https://github.com/Flo-Schilli/digital-signage';
+export const SOURCE_URL = 'https://github.com/Flo-Schilli/mynextscreen';
 
 /**
  * Badge showing the running app version (e.g. `v0.2.1`) from

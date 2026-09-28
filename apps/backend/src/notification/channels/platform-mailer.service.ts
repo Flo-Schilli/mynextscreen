@@ -74,8 +74,8 @@ export class PlatformMailerService {
     const url = this.buildUrl('/verify-email', token);
     await this.send(
       to,
-      'Verify your email for Signage Server',
-      `Welcome to Signage Server! Confirm your email address to activate your account and ` +
+      'Verify your email for myNextScreen',
+      `Welcome to myNextScreen! Confirm your email address to activate your account and ` +
         `organisation:\n\n${url}\n\nThis link expires in 24 hours. If you did not sign up, ignore this email.`,
     );
   }
@@ -84,8 +84,8 @@ export class PlatformMailerService {
     const url = this.buildUrl('/set-password', token);
     await this.send(
       to,
-      'You have been invited to Signage Server',
-      `An administrator has invited you to Signage Server. Set your password to activate your ` +
+      'You have been invited to myNextScreen',
+      `An administrator has invited you to myNextScreen. Set your password to activate your ` +
         `account:\n\n${url}\n\nThis link expires in 24 hours.`,
     );
   }
@@ -105,7 +105,7 @@ export class PlatformMailerService {
     await this.send(
       to,
       'Confirm your new email address',
-      `Confirm this address to finish changing the email on your Signage Server ` +
+      `Confirm this address to finish changing the email on your myNextScreen ` +
         `account:\n\n${url}\n\nThis link expires in 24 hours. If you did not request this, ignore this email.`,
     );
   }
@@ -113,7 +113,7 @@ export class PlatformMailerService {
   async sendOldAddressChangeNotice(to: string, newEmail: string): Promise<void> {
     await this.send(
       to,
-      'Your Signage Server email is being changed',
+      'Your myNextScreen email is being changed',
       `A request was made to change the email on your account to ${newEmail}. The change only ` +
         `takes effect once the new address is confirmed. If you did not request this, reset your ` +
         `password immediately and contact your administrator.`,
@@ -123,8 +123,8 @@ export class PlatformMailerService {
   async sendPasswordChangedNotice(to: string): Promise<void> {
     await this.send(
       to,
-      'Your Signage Server password was changed',
-      `This is a confirmation that the password for your Signage Server account was just ` +
+      'Your myNextScreen password was changed',
+      `This is a confirmation that the password for your myNextScreen account was just ` +
         `changed. If this wasn't you, reset your password immediately and contact your administrator.`,
     );
   }

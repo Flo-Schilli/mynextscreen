@@ -478,7 +478,7 @@ describe('FfmpegLiveService', () => {
   describe('getHlsOutputDir', () => {
     it('should return the correct output directory path', () => {
       const dir = service.getHlsOutputDir('stream-123');
-      expect(dir).toBe('/tmp/signage-hls/stream-123');
+      expect(dir).toBe('/tmp/mynextscreen-hls/stream-123');
     });
   });
 

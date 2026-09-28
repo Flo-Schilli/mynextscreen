@@ -11,7 +11,7 @@ try {
   // already initialized
 }
 
-const STORAGE_KEY = 'signage_selected_org_id';
+const STORAGE_KEY = 'mynextscreen_selected_org_id';
 const PROFILE_URL = '/api/me/profile';
 const MEMBERSHIPS_URL = '/api/me/memberships';
 

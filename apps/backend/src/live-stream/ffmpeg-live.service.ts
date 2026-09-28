@@ -128,7 +128,7 @@ export class FfmpegLiveService implements OnModuleInit, OnModuleDestroy {
   ) {
     this.ffmpegPath = this.configService.get<string>('FFMPEG_PATH', 'ffmpeg');
     this.ffprobePath = this.configService.get<string>('FFPROBE_PATH', 'ffprobe');
-    this.hlsOutputDir = this.configService.get<string>('HLS_OUTPUT_DIR', '/tmp/signage-hls');
+    this.hlsOutputDir = this.configService.get<string>('HLS_OUTPUT_DIR', '/tmp/mynextscreen-hls');
     this.maxConcurrentStreams = getNumberConfig(
       this.configService,
       'MAX_CONCURRENT_LIVE_STREAMS',

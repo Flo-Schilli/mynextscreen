@@ -10,7 +10,7 @@
     "noFallthroughCasesInSwitch": true,
     "target": "ES2022",
     "paths": {
-      "@signage/shared-types": ["libs/shared-types/src/index.ts"]
+      "@mynextscreen/shared-types": ["libs/shared-types/src/index.ts"]
     }
   }
 }

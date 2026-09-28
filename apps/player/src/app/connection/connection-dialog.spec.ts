@@ -211,8 +211,8 @@ describe('ConnectionDialogComponent (pairing)', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="pairing-code"]').textContent.trim(),
     ).toBe('555 555');
-    expect(localStorage.getItem('signage_pairing_id')).toBe('handed-1');
-    expect(localStorage.getItem('signage_server_url')).toBe('https://handed.example.com');
+    expect(localStorage.getItem('mynextscreen_pairing_id')).toBe('handed-1');
+    expect(localStorage.getItem('mynextscreen_server_url')).toBe('https://handed.example.com');
 
     component['stopPolling']();
   });
@@ -251,7 +251,7 @@ describe('ConnectionDialogComponent (pairing)', () => {
   it('starts from the stored server URL instead of guessing from the hostname', async () => {
     // Written by an earlier pairing or by the shell handoff. Guessing
     // `api.<hostname>` would send the screen to a server that may not exist.
-    localStorage.setItem('signage_server_url', 'https://stored.example.com');
+    localStorage.setItem('mynextscreen_server_url', 'https://stored.example.com');
 
     const scoped = TestBed.createComponent(ConnectionDialogComponent);
     scoped.detectChanges();

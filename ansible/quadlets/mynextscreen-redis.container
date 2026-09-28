@@ -1,17 +1,17 @@
 [Unit]
 Description=Signage Redis
-After=signage-network.service
+After=mynextscreen-network.service
 
 [Container]
-ContainerName=signage-redis
+ContainerName=mynextscreen-redis
 Image=docker.io/library/redis:7-alpine
 Pull=newer
-Network=signage.network
+Network=mynextscreen.network
 NoNewPrivileges=true
 DropCapability=ALL
 AddCapability=SETGID
 AddCapability=SETUID
-Volume=signage-redis-data:/data:Z
+Volume=mynextscreen-redis-data:/data:Z
 
 [Service]
 Restart=always

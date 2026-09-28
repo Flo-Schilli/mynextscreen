@@ -1,6 +1,6 @@
-# CLAUDE.md — Signage Server (Multi-Tenant Digital Signage Platform)
+# CLAUDE.md — myNextScreen (Multi-Tenant Digital Signage Platform)
 
-> **Signage Server** — Multi-Tenant Digital-Signage-Plattform für Konzert-Venues.
+> **myNextScreen** — Multi-Tenant Digital-Signage-Plattform für Konzert-Venues.
 > Quelle der Wahrheit für Produkt/Features ist `VISION.md`, für die technische
 > Architektur `ARCHITECTURE.md`. Bei Widersprüchen gewinnt der **tatsächliche Code**
 > (siehe Hinweise unten). Diese Datei fasst zusammen, was beim Arbeiten am Repo
@@ -99,7 +99,7 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
 - **Echtzeit:** **SSE** (Dashboard-Updates + Screen-Pushes).
 - **Runtime:** Node.js 22. **Package-Manager: npm** (npm@11.6.2, kein pnpm/yarn).
 - **Deployment:** Docker Compose (dev) · Ansible + rootless Podman Quadlets + Caddy
-  (prod, `ansible/`). Repo-Remote: GitHub (`github.com/Flo-Schilli/digital-signage`).
+  (prod, `ansible/`). Repo-Remote: GitHub (`github.com/Flo-Schilli/mynextscreen`).
 
 ## Project Structure
 
@@ -288,7 +288,7 @@ format:check / lint typecheck build / test` auf **PRs** bzw. `nx run-many`
 
 ## Deployment (Prod) — GHCR-Pull-Modell
 
-- **CI baut + published** die Images nach **GHCR** (`ghcr.io/flo-schilli/digital-signage/{backend,frontend,player}`).
+- **CI baut + published** die Images nach **GHCR** (`ghcr.io/flo-schilli/mynextscreen/{backend,frontend,player}`).
 - **Ansible** (`ansible/deploy.yml`) baut nichts lokal mehr — es `podman login`t
   (falls `ghcr_token` gesetzt) und **zieht** die Images. App-Quadlets sind Templates
   (`ansible/templates/signage-*.container.j2`) mit `AutoUpdate=registry` + `Pull=newer`;

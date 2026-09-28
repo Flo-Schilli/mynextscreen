@@ -9,7 +9,7 @@ try {
   // already initialized
 }
 
-const STORAGE_KEY = 'signage_theme';
+const STORAGE_KEY = 'mynextscreen_theme';
 
 function createService(): ThemeService {
   // Service is instantiated lazily on inject, so localStorage must already be set.
@@ -156,7 +156,7 @@ describe('ThemeService', () => {
       TestBed.flushEffects();
       expect(service.accent()).toBe('teal');
       expect(document.documentElement.dataset['accent']).toBe('teal');
-      expect(localStorage.getItem('signage_accent')).toBe('teal');
+      expect(localStorage.getItem('mynextscreen_accent')).toBe('teal');
     });
   });
 
@@ -173,7 +173,7 @@ describe('ThemeService', () => {
       TestBed.flushEffects();
       expect(service.density()).toBe('compact');
       expect(document.documentElement.dataset['density']).toBe('compact');
-      expect(localStorage.getItem('signage_density')).toBe('compact');
+      expect(localStorage.getItem('mynextscreen_density')).toBe('compact');
     });
   });
 });

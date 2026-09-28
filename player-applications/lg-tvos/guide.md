@@ -7,7 +7,7 @@ Diese Anleitung beschreibt die Installation der Digital-Signage-App auf einem LG
 - LG webOS TV (2020 oder neuer)
 - Node.js auf dem Computer installiert
 - Developer Mode auf dem TV aktiviert (siehe unten)
-- Laufender Signage Server und Zugang zum Admin-UI (zum Koppeln des Screens)
+- Laufender myNextScreen und Zugang zum Admin-UI (zum Koppeln des Screens)
 
 ---
 
@@ -69,7 +69,7 @@ Eingaben im Dialog:
 Lade die `.ipk`-Datei herunter (Button oben) und führe aus:
 
 ```bash
-ares-install --device mytv com.cbf.webos_1.0.0_all.ipk
+ares-install --device mytv com.mynextscreen.webos_1.0.0_all.ipk
 ```
 
 ---
@@ -77,7 +77,7 @@ ares-install --device mytv com.cbf.webos_1.0.0_all.ipk
 ## 6. App starten
 
 ```bash
-ares-launch --device mytv com.cbf.webos
+ares-launch --device mytv com.mynextscreen.webos
 ```
 
 ---
@@ -126,7 +126,7 @@ Jederzeit die **Einstellungen**- oder **Blaue** Taste auf der Fernbedienung drü
 ### „Player zeigt einen Code, es passiert aber nichts"
 - Der Code muss im Admin-UI unter **Screen hinzufügen** eingetragen werden (bei einem bestehenden Screen: **Reparieren**)
 - Server vom TV aus erreichbar? Server URL inkl. `https://` prüfen
-- DevTools öffnen: `ares-inspect --device mytv --app com.cbf.webos --open`
+- DevTools öffnen: `ares-inspect --device mytv --app com.mynextscreen.webos --open`
 
 ### „Screen lief und fragt plötzlich wieder nach Kopplung"
 - Die Session ist weg: App neu installiert oder TV-Speicher geleert
@@ -135,6 +135,6 @@ Jederzeit die **Einstellungen**- oder **Blaue** Taste auf der Fernbedienung drü
 ### App aktualisieren
 
 ```bash
-ares-install --device mytv com.cbf.webos_1.0.0_all.ipk
-ares-launch --device mytv com.cbf.webos
+ares-install --device mytv com.mynextscreen.webos_1.0.0_all.ipk
+ares-launch --device mytv com.mynextscreen.webos
 ```

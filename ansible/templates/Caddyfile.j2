@@ -1,4 +1,4 @@
-# Signage Server — Caddy Reverse Proxy Configuration
+# myNextScreen — Caddy Reverse Proxy Configuration
 # Managed by Ansible — do not edit manually
 
 # ─── Frontend (Admin Panel) ─────────────────────────────────
@@ -29,7 +29,7 @@ app.{{ domain_name }} {
 	}
 
 	log {
-		output file /var/log/caddy/app.signage.access.log {
+		output file /var/log/caddy/app.mynextscreen.access.log {
 			roll_size 50MiB
 			roll_keep 5
 		}
@@ -65,7 +65,7 @@ player.{{ domain_name }} {
 	}
 
 	log {
-		output file /var/log/caddy/player.signage.access.log {
+		output file /var/log/caddy/player.mynextscreen.access.log {
 			roll_size 50MiB
 			roll_keep 5
 		}
@@ -117,7 +117,7 @@ api.{{ domain_name }} {
 	}
 
 	log {
-		output file /var/log/caddy/api.signage.access.log {
+		output file /var/log/caddy/api.mynextscreen.access.log {
 			roll_size 50MiB
 			roll_keep 5
 		}

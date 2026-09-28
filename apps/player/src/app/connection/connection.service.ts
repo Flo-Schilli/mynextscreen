@@ -3,17 +3,17 @@ import { ScreenSessionService } from './screen-session.service';
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
-export const STORAGE_KEY_URL = 'signage_server_url';
-const STORAGE_KEY_API_KEY = 'signage_api_key';
-const STORAGE_KEY_SCREEN_ID = 'signage_screen_id';
-const STORAGE_KEY_ORG_ID = 'signage_org_id';
-const STORAGE_KEY_PAIRING_ID = 'signage_pairing_id';
+export const STORAGE_KEY_URL = 'mynextscreen_server_url';
+const STORAGE_KEY_API_KEY = 'mynextscreen_api_key';
+const STORAGE_KEY_SCREEN_ID = 'mynextscreen_screen_id';
+const STORAGE_KEY_ORG_ID = 'mynextscreen_org_id';
+const STORAGE_KEY_PAIRING_ID = 'mynextscreen_pairing_id';
 /**
  * The 256-bit pairing secret is held in `sessionStorage` (not `localStorage`):
  * it survives an F5 reload mid-pairing but is cleared when the tab/app closes
  * and is not shared across tabs, limiting its exposure window.
  */
-const STORAGE_KEY_PAIRING_SECRET = 'signage_pairing_secret';
+const STORAGE_KEY_PAIRING_SECRET = 'mynextscreen_pairing_secret';
 
 /**
  * Delay between automatic reconnect attempts when a previously-paired screen
@@ -90,7 +90,7 @@ export class ConnectionService implements OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly session = inject(ScreenSessionService);
   /**
-   * Accepts a `signage-connect` handoff only from a sender we have reason to
+   * Accepts a `mynextscreen-connect` handoff only from a sender we have reason to
    * trust. Without this, any page that iframes the player can pair the physical
    * display to a screen of its own choosing — the player is deliberately
    * frameable for the LG webOS shell, so framing is not itself a signal.
@@ -110,12 +110,12 @@ export class ConnectionService implements OnDestroy {
    */
   private readonly onMessage = (event: MessageEvent): void => {
     const data = event.data;
-    if (data == null || typeof data !== 'object' || data.type !== 'signage-connect') {
+    if (data == null || typeof data !== 'object' || data.type !== 'mynextscreen-connect') {
       return;
     }
 
     if (!this.isTrustedConnectSender(event)) {
-      console.warn(`Ignored signage-connect from untrusted origin ${event.origin}`);
+      console.warn(`Ignored mynextscreen-connect from untrusted origin ${event.origin}`);
       return;
     }
 

@@ -6,20 +6,18 @@ interface PublicConfig {
   playerUrl: string;
 }
 
-/** Shown until /api/config resolves (and if it fails). */
-const DEFAULT_PLAYER_URL = 'screen.mynextscreen.app';
-
 /**
  * Reads the backend's public, env-driven instance config (`GET /api/config`)
  * once at startup and exposes it as signals. Currently just the player URL
- * shown in the add-screen pairing hint. A failed fetch leaves the dev-friendly
- * default in place, so the UI always has something to render.
+ * shown in the add-screen pairing hint. It stays empty when the backend does
+ * not know one, and the hint then says so instead of naming a host this
+ * instance has nothing to do with.
  */
 @Injectable({ providedIn: 'root' })
 export class PublicConfigService {
   private readonly http = inject(HttpClient);
 
-  readonly playerUrl = signal<string>(DEFAULT_PLAYER_URL);
+  readonly playerUrl = signal<string>('');
 
   constructor() {
     void this.load();

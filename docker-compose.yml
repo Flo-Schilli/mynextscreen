@@ -10,7 +10,7 @@ services:
       - ./test-data/media:/app/media
       - ./player-applications:/app/apps/backend/player-applications:ro
     environment:
-      - DATABASE_URL=postgres://signage:signage@postgres:5432/signage
+      - DATABASE_URL=postgres://mynextscreen:mynextscreen@postgres:5432/mynextscreen
       - REDIS_URL=redis://redis:6379
       - MEDIA_BASE_PATH=/app/media
       - MAX_FILE_SIZE_BYTES=1073741824
@@ -30,7 +30,7 @@ services:
       - SMTP_HOST=${SMTP_HOST:-mailpit}
       - SMTP_PORT=${SMTP_PORT:-1025}
       - SMTP_SECURE=${SMTP_SECURE:-false}
-      - SMTP_FROM=${SMTP_FROM:-Signage Server <noreply@signage.local>}
+      - SMTP_FROM=${SMTP_FROM:-myNextScreen <noreply@mynextscreen.local>}
       - SIGNUP_ENABLED=${SIGNUP_ENABLED:-true}
     depends_on:
       - redis
@@ -79,11 +79,11 @@ services:
       # Loopback only: the dev database has the default password.
       - "127.0.0.1:5432:5432"
     environment:
-      - POSTGRES_USER=signage
-      - POSTGRES_PASSWORD=signage
-      - POSTGRES_DB=signage
+      - POSTGRES_USER=mynextscreen
+      - POSTGRES_PASSWORD=mynextscreen
+      - POSTGRES_DB=mynextscreen
     volumes:
-      - signage-postgres-data:/var/lib/postgresql/data
+      - mynextscreen-postgres-data:/var/lib/postgresql/data
 
 volumes:
-  signage-postgres-data:
+  mynextscreen-postgres-data:

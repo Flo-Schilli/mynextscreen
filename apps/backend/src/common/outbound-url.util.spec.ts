@@ -165,7 +165,7 @@ describe('assertOutboundHostAllowed', () => {
 
   it('rejects a host resolving into the container network', async () => {
     lookup.mockResolvedValue([{ address: '172.18.0.2', family: 4 }]);
-    await expect(assertOutboundHostAllowed('signage-postgres', { lookup })).rejects.toThrow(
+    await expect(assertOutboundHostAllowed('mynextscreen-postgres', { lookup })).rejects.toThrow(
       BlockedOutboundUrlError,
     );
   });

@@ -2,7 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
-const STORAGE_KEY_REFRESH_TOKEN = 'signage_refresh_token';
+const STORAGE_KEY_REFRESH_TOKEN = 'mynextscreen_refresh_token';
 
 interface SessionResponse {
   accessToken: string;

@@ -29,7 +29,7 @@ function makeConfig(overrides: Partial<OrgNotificationConfigFull> = {}): OrgNoti
     smtpFrom: 'no-reply@example.com',
     smtpSecure: true,
     ntfyUrl: 'https://ntfy.sh',
-    ntfyTopic: 'signage',
+    ntfyTopic: 'mynextscreen',
     ntfyToken: 'tk_123',
     alertRules: {
       offline: true,

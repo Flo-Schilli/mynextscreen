@@ -2,9 +2,6 @@ import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Public } from '../auth';
 
-/** Shown in the admin "Add a screen" modal when PLAYER_BASE_URL is unset. */
-const DEFAULT_PLAYER_URL = 'screen.mynextscreen.app';
-
 export interface PublicConfig {
   /** Human-facing URL where displays open the player to pair (env PLAYER_BASE_URL). */
   playerUrl: string;
@@ -22,7 +19,10 @@ export class PublicConfigController {
   @Public()
   @Get()
   getConfig(): PublicConfig {
-    const playerUrl = this.config.get<string>('PLAYER_BASE_URL');
-    return { playerUrl: playerUrl?.trim() ? playerUrl : DEFAULT_PLAYER_URL };
+    // Empty when unset, never a host this instance does not own: the admin
+    // hint tells operators which URL to open on the display, and naming
+    // someone else's deployment there would send screens to a stranger.
+    const playerUrl = this.config.get<string>('PLAYER_BASE_URL')?.trim();
+    return { playerUrl: playerUrl ?? '' };
   }
 }

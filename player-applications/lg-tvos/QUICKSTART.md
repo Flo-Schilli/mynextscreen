@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-This is a quick reference for deploying the LG WebOS Digital Signage application.
+This is a quick reference for deploying the myNextScreen LG webOS application.
 
 ## Prerequisites
 
@@ -50,18 +50,18 @@ From the `player-applications/lg-tvos` directory:
 ares-package . --outdir ./build
 ```
 
-This creates: `build/com.digitalsignage.webos_1.0.0_all.ipk`
+This creates: `build/com.mynextscreen.webos_1.0.0_all.ipk`
 
 ## 5. Install on TV
 
 ```bash
-ares-install --device mytv ./build/com.digitalsignage.webos_1.0.0_all.ipk
+ares-install --device mytv ./build/com.mynextscreen.webos_1.0.0_all.ipk
 ```
 
 ## 6. Launch the Application
 
 ```bash
-ares-launch --device mytv com.digitalsignage.webos
+ares-launch --device mytv com.mynextscreen.webos
 ```
 
 ## 7. Configure on the TV
@@ -86,7 +86,7 @@ the player requests a new one by itself.
 ## 9. Verify It Works
 
 The application should:
-1. Show "Loading Digital Signage..." briefly
+1. Show "Loading myNextScreen…" briefly
 2. Load the web player in fullscreen
 3. Show a pairing code, then start playing once it is claimed
 4. Come back on its own after a server restart, without anyone touching the TV
@@ -98,7 +98,7 @@ To re-open settings at any time, press the **Settings** or **Blue** button on th
 View console logs:
 
 ```bash
-ares-inspect --device mytv --app com.digitalsignage.webos --open
+ares-inspect --device mytv --app com.mynextscreen.webos --open
 ```
 
 This opens Chrome DevTools for debugging.
@@ -140,10 +140,10 @@ After making changes:
 ares-package . --outdir ./build
 
 # 2. Re-install (overwrites previous version)
-ares-install --device mytv ./build/com.digitalsignage.webos_1.0.0_all.ipk
+ares-install --device mytv ./build/com.mynextscreen.webos_1.0.0_all.ipk
 
 # 3. Re-launch
-ares-launch --device mytv com.digitalsignage.webos
+ares-launch --device mytv com.mynextscreen.webos
 ```
 
 ## Customization
@@ -197,4 +197,4 @@ For detailed information, see:
 
 ---
 
-**That's it! Your LG WebOS Digital Signage application is ready to use.**
+**That's it! Your myNextScreen LG webOS application is ready to use.**

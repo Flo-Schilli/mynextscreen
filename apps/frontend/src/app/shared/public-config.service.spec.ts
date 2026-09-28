@@ -15,9 +15,9 @@ describe('PublicConfigService', () => {
 
   afterEach(() => httpMock.verify());
 
-  it('starts with the default player URL and adopts the fetched value', async () => {
+  it('starts empty and adopts the fetched value', async () => {
     const service = TestBed.inject(PublicConfigService); // constructor fires the load
-    expect(service.playerUrl()).toBe('screen.mynextscreen.app');
+    expect(service.playerUrl()).toBe('');
 
     httpMock.expectOne('/api/config').flush({ playerUrl: 'https://player.example.com' });
     await new Promise((r) => setTimeout(r));
@@ -25,12 +25,12 @@ describe('PublicConfigService', () => {
     expect(service.playerUrl()).toBe('https://player.example.com');
   });
 
-  it('keeps the default when the request fails', async () => {
+  it('stays empty when the request fails', async () => {
     const service = TestBed.inject(PublicConfigService);
 
     httpMock.expectOne('/api/config').flush('nope', { status: 500, statusText: 'Error' });
     await new Promise((r) => setTimeout(r));
 
-    expect(service.playerUrl()).toBe('screen.mynextscreen.app');
+    expect(service.playerUrl()).toBe('');
   });
 });

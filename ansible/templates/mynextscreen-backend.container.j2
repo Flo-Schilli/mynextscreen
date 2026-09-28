@@ -1,14 +1,14 @@
 [Unit]
 Description=Signage Backend
-After=signage-redis.service signage-postgres.service
-Requires=signage-postgres.service
+After=mynextscreen-redis.service mynextscreen-postgres.service
+Requires=mynextscreen-postgres.service
 
 [Container]
-ContainerName=signage-backend
-Image={{ image_registry }}/backend:{{ signage_image_tag }}
+ContainerName=mynextscreen-backend
+Image={{ image_registry }}/backend:{{ mynextscreen_image_tag }}
 AutoUpdate=registry
 Pull=newer
-Network=signage.network
+Network=mynextscreen.network
 # Loopback only: Caddy is the sole public entry point. A 0.0.0.0 port
 # would bypass TLS, the security headers and fail2ban.
 PublishPort=127.0.0.1:50002:3000
@@ -22,8 +22,8 @@ AddCapability=SETUID
 # Without this the uid lands in the subuid range and every upload, transcode and
 # slice fails.
 UserNS=keep-id:uid=1000,gid=1000
-EnvironmentFile=%h/.config/containers/systemd/.env.signage
-Environment=REDIS_URL=redis://signage-redis:6379
+EnvironmentFile=%h/.config/containers/systemd/.env.mynextscreen
+Environment=REDIS_URL=redis://mynextscreen-redis:6379
 Volume=%h/app/media:/app/media:Z
 HealthCmd=node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 HealthInterval=30s

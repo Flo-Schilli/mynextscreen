@@ -63,7 +63,7 @@ export class EnvironmentVariables {
   /** From address for all outbound account mail. */
   @IsString()
   @IsOptional()
-  SMTP_FROM = 'Signage Server <noreply@signage.local>';
+  SMTP_FROM = 'myNextScreen <noreply@mynextscreen.local>';
 
   /**
    * Use TLS from the start (port 465). Set false for STARTTLS / plain
