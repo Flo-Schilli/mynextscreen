@@ -162,29 +162,73 @@ describe('Playlist Transition Integration', () => {
   }
 
   /**
-   * Advance fake timers and drain the DB I/O the fired callbacks trigger. The
-   * boundary callback issues several sequential awaited queries, so we interleave
-   * real-IO flushes with small timer nudges a few times to let the whole chain
-   * settle.
+   * Upper bound for {@link drainUntil}. Only reached when the awaited condition
+   * never becomes true — a healthy round takes microseconds, so this is a
+   * failure budget, not a delay.
    */
-  async function advanceAndDrain(ms: number): Promise<void> {
+  const MAX_DRAIN_ROUNDS = 200;
+
+  /**
+   * Drain real DB I/O and fake-timer microtasks until `condition` holds.
+   *
+   * The boundary callback issues several sequential awaited queries, and how
+   * many event-loop turns that chain needs depends on how fast Postgres answers
+   * — which is exactly what differs between a laptop and a loaded CI runner.
+   * Draining a *fixed* number of rounds therefore passed locally and failed
+   * intermittently on CI. Waiting for the observable outcome instead makes the
+   * test independent of that timing: it returns as soon as the effect is there,
+   * and fails with a description rather than an opaque `0 >= 1`.
+   */
+  async function drainUntil(condition: () => boolean, description: string): Promise<void> {
+    for (let round = 0; round < MAX_DRAIN_ROUNDS; round += 1) {
+      if (condition()) return;
+      await flushRealIo(2);
+      await jest.advanceTimersByTimeAsync(0);
+    }
+    if (condition()) return;
+    throw new Error(
+      `Timed out after ${MAX_DRAIN_ROUNDS} drain rounds waiting for ${description}. ` +
+        'Either the effect never happened, or the chain producing it now needs more than ' +
+        'the budgeted event-loop turns.',
+    );
+  }
+
+  /** Advance fake timers, then wait for the effect the advance is supposed to cause. */
+  async function advanceUntil(
+    ms: number,
+    condition: () => boolean,
+    description: string,
+  ): Promise<void> {
     await jest.advanceTimersByTimeAsync(ms);
-    for (let i = 0; i < 4; i++) {
+    await drainUntil(condition, description);
+  }
+
+  /**
+   * For the negative cases, where the assertion is that *nothing* happens and
+   * there is consequently no condition to wait for: advance, then drain a fixed
+   * and deliberately generous number of rounds.
+   */
+  async function advanceAndSettle(ms: number): Promise<void> {
+    await jest.advanceTimersByTimeAsync(ms);
+    for (let i = 0; i < 8; i += 1) {
       await flushRealIo();
       await jest.advanceTimersByTimeAsync(0);
     }
+  }
+
+  /** True once at least one SSE state-change reached the subscriber. */
+  function sawStateChange(events: { type?: string }[]): boolean {
+    return events.some((event) => event.type === 'state-change');
   }
 
   /** Block (via real IO) until the boundary service has a timer for the screen. */
   async function waitUntilRegistered(): Promise<void> {
     const map = (scheduleBoundaryService as unknown as { tracked: Map<string, { timer: unknown }> })
       .tracked;
-    for (let i = 0; i < 50; i++) {
+    await drainUntil(() => {
       const entry = map.get(screenId);
-      if (entry && entry.timer != null) return;
-      await flushRealIo(2);
-      await jest.advanceTimersByTimeAsync(0);
-    }
+      return entry != null && entry.timer != null;
+    }, `the boundary service to register a timer for screen ${screenId}`);
   }
 
   async function seedEntry(startOffsetMs: number, endOffsetMs: number): Promise<void> {
@@ -216,7 +260,11 @@ describe('Playlist Transition Integration', () => {
         isDefault: false,
       });
 
-      await advanceAndDrain(6000);
+      await advanceUntil(
+        6000,
+        () => sawStateChange(receivedEvents),
+        'the schedule_update SSE event after the boundary was crossed',
+      );
 
       sub.unsubscribe();
 
@@ -253,7 +301,11 @@ describe('Playlist Transition Integration', () => {
         isDefault: true,
       });
 
-      await advanceAndDrain(4000);
+      await advanceUntil(
+        4000,
+        () => sawStateChange(receivedEvents),
+        'the schedule_update SSE event after the entry ended',
+      );
 
       sub.unsubscribe();
 
@@ -285,7 +337,10 @@ describe('Playlist Transition Integration', () => {
         PLAYLIST_UPDATED,
         new PlaylistUpdatedEvent(scheduledPlaylistId, orgId),
       );
-      await flushRealIo();
+      await drainUntil(
+        () => sawStateChange(receivedEvents),
+        'the playlist_update SSE event for the scheduled playlist',
+      );
 
       sub.unsubscribe();
 
@@ -315,7 +370,10 @@ describe('Playlist Transition Integration', () => {
         PLAYLIST_UPDATED,
         new PlaylistUpdatedEvent(defaultPlaylistId, orgId),
       );
-      await flushRealIo();
+      await drainUntil(
+        () => sawStateChange(receivedEvents),
+        'the playlist_update SSE event for the default playlist',
+      );
 
       sub.unsubscribe();
 
@@ -349,7 +407,7 @@ describe('Playlist Transition Integration', () => {
       });
 
       // Advance past boundary — must not throw
-      await advanceAndDrain(10000);
+      await advanceAndSettle(10000);
 
       // No events pushed to the (disconnected) screen.
       expect(protocolAdapter.renderEvent).not.toHaveBeenCalledWith(
