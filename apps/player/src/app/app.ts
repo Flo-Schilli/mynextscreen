@@ -1,20 +1,16 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { ConnectionService } from './connection/connection.service';
 import { ConnectionDialogComponent } from './connection/connection-dialog';
-import { DisconnectOverlayComponent } from './connection/disconnect-overlay';
 import { PlaybackComponent } from './playback/playback.component';
 import { PlayerService } from './player/player.service';
 
 @Component({
   selector: 'app-root',
-  imports: [ConnectionDialogComponent, DisconnectOverlayComponent, PlaybackComponent],
+  imports: [ConnectionDialogComponent, PlaybackComponent],
   template: `
     @if (!connectionService.connected()) {
       <app-connection-dialog />
     } @else {
-      @if (playerService.showDisconnectButton()) {
-        <app-disconnect-overlay />
-      }
       <app-playback />
     }
   `,
