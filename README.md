@@ -1,341 +1,120 @@
+<div align="center">
+
+<img src="docs/img/logo.svg" alt="" width="84" />
+
 # myNextScreen
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+**Multi-tenant digital signage for venues.** Pair a display in seconds, build
+playlists, schedule them across the house, and push live video — from one
+dashboard.
 
-A **multi-tenant digital signage platform** for concert venues. Organisations manage screens (TVs) distributed across their venue, upload and transcode images and videos into a shared content library, build playlists, schedule them across screens, and stream live video — all controlled from an Angular web dashboard.
+[![Latest tag](https://img.shields.io/github/v/tag/Flo-Schilli/mynextscreen?label=version&color=2dd4bf)](https://github.com/Flo-Schilli/mynextscreen/tags)
+[![CI](https://github.com/Flo-Schilli/mynextscreen/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Flo-Schilli/mynextscreen/actions/workflows/ci.yml)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-6d6cf6.svg)](LICENSE)
 
-## Features
+</div>
 
-- **Multi-tenant** — fully isolated organisations with separate screens, content, playlists, and users
-- **Role-based access** — Org Admin, Editor, and Viewer roles per organisation; system-level super-admin
-- **Content library** — upload images and videos with automatic transcoding (H.264 MP4, WebP)
-- **Playlists** — build ordered playlists from content library items
-- **Scheduling** — calendar-based scheduling with recurring rules (iCal RRULE)
-- **Screen groups** — mirror and split modes for video walls
-- **Live streaming** — ingest live streams via FFmpeg, serve HLS to screens
-- **Real-time updates** — SSE-powered dashboard with live screen status
-- **Notifications** — in-app, email (SMTP), and ntfy push notifications
-- **Audit log** — full audit trail of all user and system actions
-- **Screen protocol abstraction** — JSON adapter (first implementation), extensible to additional protocols (e.g. SMIL)
+![The dashboard: every screen, its status and what it is showing right now](docs/img/dashboard.png)
 
-## Tech Stack
+---
 
-| Layer          | Technology                                                                                       |
-| -------------- | ------------------------------------------------------------------------------------------------ |
-| Frontend       | Angular 21, Tailwind CSS v4                                                                      |
-| Backend        | NestJS 11, Drizzle ORM                                                                           |
-| Database       | PostgreSQL 16                                                                                    |
-| Job Queue      | BullMQ + Redis                                                                                   |
-| Authentication | Internal email + password — JWT access cookie + Redis refresh tokens (users), pairing code + rotating session (screens) |
-| Real-time      | Server-Sent Events (SSE)                                                                         |
-| Media          | FFmpeg (transcoding + HLS)                                                                       |
-| Runtime        | Node.js 22                                                                                       |
-| Monorepo       | Nx (single root `package.json`)                                                                  |
+## What it does
 
-## Prerequisites
+A venue has screens in the foyer, over the bar, backstage. Someone has to decide
+what each of them shows, and when. That is this.
 
-- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+- **Screens pair themselves.** A display shows a six-digit code, an admin types
+  it into the dashboard, and the screen is enrolled. No key to copy, nothing
+  long-lived left on the device.
+- **Content is uploaded once and transcoded automatically** — video to H.264
+  MP4, images to WebP with a JPEG fallback. Originals are kept.
+- **Playlists and a calendar.** Drag blocks onto a week or month, repeat them
+  with an iCal rule, and leave the gaps to a fallback playlist.
+- **Video walls.** Put screens in a group and the server slices one image across
+  their viewports, or mirrors it frame-synchronously.
+- **Live streams** ingest through FFmpeg, go out as HLS, override the schedule
+  while they run, and hand back to it when they stop.
+- **Every organisation is sealed off** from every other one: its own screens,
+  content, playlists, users and roles, enforced server-side on every query.
+- Plus an audit trail, notifications by in-app, email or ntfy, and real-time
+  status over SSE.
 
-For local development without Docker:
+## See it
 
-- Node.js 22+
-- PostgreSQL 16+
-- Redis 7+
-- FFmpeg installed and available on `PATH`
+<table>
+<tr>
+<td width="50%"><img src="docs/img/screens.png" alt="Screens" /><br /><sub><b>Screens</b> — status, location and current playlist at a glance</sub></td>
+<td width="50%"><img src="docs/img/schedules.png" alt="Schedules" /><br /><sub><b>Schedules</b> — a month of programming per screen or group</sub></td>
+</tr>
+<tr>
+<td><img src="docs/img/content-library.png" alt="Content library" /><br /><sub><b>Content library</b> — uploads, transcoding status, tags</sub></td>
+<td><img src="docs/img/playlists.png" alt="Playlists" /><br /><sub><b>Playlists</b> — ordered items with per-image durations</sub></td>
+</tr>
+<tr>
+<td><img src="docs/img/screen-groups.png" alt="Screen groups" /><br /><sub><b>Screen groups</b> — a 2×1 video wall in split mode</sub></td>
+<td><img src="docs/img/player-pairing.png" alt="Pairing" /><br /><sub><b>The player</b> — what a new display shows until it is claimed</sub></td>
+</tr>
+</table>
 
-## Quick Start
+![A paired display playing its playlist](docs/img/player-playing.jpg)
+
+## Try it
+
+Docker and Compose are all you need. No `.env` required — the compose file
+carries working defaults, including a development JWT secret.
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/Flo-Schilli/mynextscreen.git
 cd mynextscreen
-
-# 2. Create your environment file
-cp .env.example .env
-
-# 3. Configure environment variables (see section below)
-#    At minimum, set JWT_ACCESS_SECRET
-
-# 4. Start all services (backend, frontend, player, redis, postgres)
 npm run dev
 ```
 
-The application will be available at:
-
-- **Frontend:** http://localhost:4200
-- **Player:** http://localhost:4300
-- **Backend API:** http://localhost:3000
-
-## Environment Variables
-
-Copy `.env.example` to `.env` and configure the values below.
-
-### Authentication (Required)
-
-myNextScreen uses **internal authentication** (email + password). Passwords are hashed with bcrypt; login issues a short-lived JWT **access token** (HTTP-only cookie) plus a **refresh token** stored in Redis. There is no external identity provider.
-
-Accounts come into existence in three ways:
-
-- **The first super-admin** is created through a one-time setup screen on first run — there is no env-based seeding (see below).
-- **Self-signup** (`SIGNUP_ENABLED`, on by default) creates a user together with their own organisation, where they become org admin. The email must be verified before login works; unverified signups are deleted again after `SIGNUP_UNVERIFIED_TTL_HOURS`. Set `SIGNUP_ENABLED=false` for a closed instance.
-- **Invitation** by an org admin or the super-admin, which mails a set-password link.
-
-#### Auth Environment Variables
-
-| Variable                                                      | Description                                                                                                                                     | Required                                             |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `JWT_ACCESS_SECRET`                                           | Secret used to sign JWT access tokens. Generate with `openssl rand -base64 48`. Minimum 32 characters — the backend refuses to start below that | **Yes**                                              |
-| `JWT_ACCESS_TTL`                                              | Access-token lifetime (e.g. `15m`)                                                                                                              | No (`15m`)                                           |
-| `JWT_REFRESH_TTL`                                             | Refresh-token lifetime (e.g. `30d`)                                                                                                             | No (`30d`)                                           |
-| `COOKIE_SECURE`                                               | Force `Secure` cookies (defaults to `true` only when `NODE_ENV=production`)                                                                     | No                                                   |
-| `COOKIE_SAMESITE`                                             | Cookie `SameSite` policy: `strict` (default) \| `lax` \| `none`                                                                                 | No                                                   |
-| `PUBLIC_BASE_URL`                                             | Admin SPA base URL — used to build set-password/reset links and to lock down CORS                                                               | **Yes in production** (CORS fails closed without it) |
-| `SECRETS_ENCRYPTION_KEY`                                      | Encrypts per-org SMTP passwords and ntfy tokens at rest (`openssl rand -base64 32`). Unset: plaintext, with a boot warning                      | No                                                   |
-| `OUTBOUND_ALLOWED_HOSTS`                                      | Comma-separated hosts allowed past the SSRF guard (internal ntfy/SMTP relay)                                                                    | No                                                   |
-| `SIGNUP_ENABLED`                                              | Public self-registration. `false` rejects `POST /api/auth/register` with 403                                                                    | No (`true`)                                          |
-| `SIGNUP_UNVERIFIED_TTL_HOURS`                                 | Hours a never-verified signup survives before the cleanup cron deletes it and its organisation                                                  | No (`24`)                                            |
-| `SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES` / `_TRANSCODED_BYTES` | Storage limits granted to a self-created organisation; a super-admin can raise them later                                                       | No (5 GiB each)                                      |
-
-**First super-admin (first-run setup):** there is no env-based seeding. On a fresh deployment — while no user exists yet — opening the app routes you to a one-time setup screen where you create the initial super-admin account; you are logged in immediately and can then provision organisations. Once any user exists the setup screen is closed and normal login applies.
-
-### All Environment Variables
-
-| Variable                                                 | Description                                       | Default                  | Required |
-| -------------------------------------------------------- | ------------------------------------------------- | ------------------------ | -------- |
-| `DATABASE_URL`                                           | PostgreSQL connection string                      | —                        | **Yes**  |
-| `REDIS_URL`                                              | Redis connection string (BullMQ + refresh tokens) | `redis://localhost:6379` | No       |
-| `MEDIA_BASE_PATH`                                        | Base path for uploaded and transcoded media       | `./media`                | No       |
-| `MAX_FILE_SIZE_BYTES`                                    | Upload size limit                                 | —                        | No       |
-| `FFMPEG_PATH`                                            | Path to FFmpeg binary                             | `ffmpeg` (system PATH)   | No       |
-| `FFMPEG_VIDEO_CRF` / `_PRESET` / `_MAXRATE` / `_BUFSIZE` | Video transcoding quality                         | see `.env.example`       | No       |
-| `JWT_ACCESS_SECRET`                                      | Secret for signing JWT access tokens              | —                        | **Yes**  |
-
-### Example `.env`
-
-```env
-# Database (PostgreSQL)
-DATABASE_URL=postgres://signage:signage@localhost:5432/signage
-
-# Redis
-REDIS_URL=redis://localhost:6379
-
-# Media storage
-MEDIA_BASE_PATH=./media
-
-# FFmpeg
-# FFMPEG_PATH=/usr/bin/ffmpeg
-# FFMPEG_VIDEO_CRF=18
-
-# Internal auth (REQUIRED) — generate with: openssl rand -base64 48
-# Minimum 32 characters; the backend refuses to start with anything shorter.
-JWT_ACCESS_SECRET=change-me-in-production-min-32-characters
-JWT_ACCESS_TTL=15m
-JWT_REFRESH_TTL=30d
-
-# Public base URL of the admin SPA. REQUIRED in production — CORS fails closed
-# without it rather than reflecting any origin.
-PUBLIC_BASE_URL=https://app.example.com
-
-# Encrypts per-org SMTP passwords and ntfy tokens at rest (openssl rand -base64 32).
-# Unset: stored in plaintext, with a warning at boot.
-# SECRETS_ENCRYPTION_KEY=
-
-# Hosts allowed past the SSRF guard, comma-separated. Needed only for an
-# internal ntfy or SMTP relay on a private address.
-# OUTBOUND_ALLOWED_HOSTS=ntfy.lan,192.168.1.50
-
-# Cap on simultaneous FFmpeg live encoders (each can saturate a core).
-# MAX_CONCURRENT_LIVE_STREAMS=4
-
-# Super-admin: no env seeding — create the first one via the UI on first run.
-```
-
-> Upgrading an existing deployment? [CHANGELOG.md](CHANGELOG.md) lists the
-> operator actions each release requires; the current unreleased set contains
-> several that will stop a deployment that ignores them. Security reporting:
-> [SECURITY.md](SECURITY.md).
-
-## Docker Setup
-
-### Development (Docker Compose)
-
-The default `docker-compose.yml` spins up five services with hot-reload enabled:
-
-| Service    | Port | Description                                |
-| ---------- | ---- | ------------------------------------------ |
-| `frontend` | 4200 | Angular dev server with proxy to backend   |
-| `player`   | 4300 | Angular player app                         |
-| `backend`  | 3000 | NestJS in watch mode                       |
-| `redis`    | 6379 | Redis 7 (Alpine) — BullMQ + refresh tokens |
-| `postgres` | 5432 | PostgreSQL 16 (Alpine)                     |
-
-```bash
-# Start all services with hot-reload
-npm run dev
-
-# Or equivalently
-docker compose up --build
-```
-
-Source code is mounted as volumes, so changes to `apps/backend/src/`, `apps/frontend/src/`, and `apps/player/src/` are picked up automatically. The compose file sets sensible dev defaults for all env vars (including `DATABASE_URL` and a dev `JWT_ACCESS_SECRET`), so it runs out of the box.
-
-Persistent data is stored in Docker volumes:
-
-- `signage-postgres-data` — PostgreSQL data directory
-- `media-data` — uploaded and transcoded media files
-
-### Passing Environment Variables to Docker
-
-The compose file already wires backend env vars for dev. To override (e.g. a real `JWT_ACCESS_SECRET`), use one of:
-
-**Option 1: Inline with `docker compose`**
-
-```bash
-JWT_ACCESS_SECRET=$(openssl rand -base64 48) \
-docker compose up --build
-```
-
-**Option 2: Using `env_file` in docker-compose.yml**
-
-Add to the backend service:
-
-```yaml
-services:
-  backend:
-    env_file:
-      - .env
-```
-
-> **Note:** Several compose vars use `${VAR:-default}` substitution (e.g. `JWT_ACCESS_SECRET`, `COOKIE_SECURE`), so values exported in your shell or `.env` override the dev defaults automatically.
-
-### Production Deployment
-
-Production does **not** use this compose file. CI builds the three app images (`apps/<app>/Dockerfile.prod`) and publishes them to **GHCR**; **Ansible** (`ansible/deploy.yml`) pulls them and runs them as rootless **Podman** Quadlets behind **Caddy** (the single public reverse proxy, with SSE pass-through). PostgreSQL and Redis are provisioned alongside. See `ansible/` for the full deployment. At minimum, production requires a strong `JWT_ACCESS_SECRET`, a `DATABASE_URL` pointing at PostgreSQL, and FFmpeg in the backend image (already included).
-
-## Local Development (Without Docker)
-
-This is an **Nx monorepo** — there is a single root `package.json`, so install once at the root (no per-app `npm install`). PostgreSQL, Redis, and FFmpeg must be reachable.
-
-```bash
-# 1. Install all dependencies (root only)
-npm ci
-
-# 2. Configure environment
-cp .env.example .env   # set JWT_ACCESS_SECRET + DATABASE_URL
-
-# 3. Apply the database schema
-npx nx run backend:db-migrate
-
-# 4. Start the apps (separate terminals)
-npx nx serve backend     # NestJS watch mode → :3000
-npx nx serve frontend    # Angular dev server → :4200
-npx nx serve player      # Angular dev server → :4300
-```
-
-### Database Migrations (Drizzle)
-
-Run from the repo root via Nx (delegates to `drizzle-kit`, cwd `apps/backend`):
-
-```bash
-# Generate a migration from schema changes (src/db/)
-npx nx run backend:db-generate
-
-# Apply pending migrations
-npx nx run backend:db-migrate
-
-# Push schema directly (dev only — never in prod)
-npx nx run backend:db-push
-
-# Open Drizzle Studio
-npx nx run backend:db-studio
-```
-
-## Available Scripts
-
-### Root (fan out across all projects via `nx run-many`)
-
-| Script                 | Command                                               |
-| ---------------------- | ----------------------------------------------------- |
-| `npm run dev`          | Start all services via Docker Compose                 |
-| `npm run lint`         | Lint backend + frontend + player + shared-types       |
-| `npm run test`         | Run all tests (backend Jest · frontend/player Vitest) |
-| `npm run typecheck`    | TypeScript type checking across all projects          |
-| `npm run format:check` | Prettier check across all projects                    |
-
-### Per project (via Nx)
-
-```bash
-npx nx build  <app>       # backend → dist/apps/backend · frontend/player → dist/apps/<app>/browser
-npx nx serve  <app>       # backend: nest start --watch · frontend/player: ng/vite dev server
-npx nx test   <app>       # backend: jest --coverage (gate) · frontend/player: Vitest
-npx nx lint <app> / typecheck <app> / format:check <app>
-
-# Only projects affected by the current diff (how CI runs on PRs):
-npx nx affected -t lint typecheck test build
-```
-
-## Project Structure
-
-```
-mynextscreen/
-├── apps/
-│   ├── backend/              # NestJS API server
-│   │   ├── project.json      # Nx targets: build/serve/test/… + db-* (drizzle-kit)
-│   │   └── src/
-│   │       ├── auth/         # Internal email+password auth, screen sessions, role guards
-│   │       ├── organisation/ # Multi-tenant org management
-│   │       ├── user/         # User-org membership and roles
-│   │       ├── screen/       # Screen registration and management
-│   │       ├── screen-group/ # Screen grouping (mirror/split modes)
-│   │       ├── content/      # Content library and transcoding pipeline
-│   │       ├── playlist/     # Playlist CRUD
-│   │       ├── schedule/     # Calendar scheduling with RRULE support
-│   │       ├── live-stream/  # Live stream management (FFmpeg + HLS)
-│   │       ├── screen-protocol/ # Protocol abstraction (JSON adapter; SMIL planned)
-│   │       ├── notification/ # In-app, email, ntfy notifications
-│   │       ├── audit-log/    # Audit trail
-│   │       ├── dashboard/    # SSE service for real-time updates
-│   │       ├── media/        # Filesystem media management
-│   │       ├── search/       # Global search
-│   │       └── db/           # Drizzle schema + migrations/ (generated SQL)
-│   ├── frontend/             # Angular 21 admin SPA (src/app/<domain>, shell/, shared/)
-│   └── player/               # Angular 21 player app (connection/, playback/, player/)
-├── libs/
-│   └── shared-types/         # Shared TypeScript types (@signage/shared-types)
-├── nx.json                   # Nx targets, named inputs, caching
-├── tsconfig.base.json        # TS path mappings
-├── package.json              # Single source of truth: version + all deps
-├── docker-compose.yml        # Dev orchestration (backend/frontend/player/redis/postgres)
-├── ansible/                  # Production deployment (Podman Quadlets + Caddy)
-├── .env.example              # Environment variables template
-├── ARCHITECTURE.md           # Technical architecture documentation
-└── VISION.md                 # Product vision and feature details
-```
-
-## Authentication Flow
-
-1. User opens the frontend and signs in with **email + password** on the built-in login screen
-2. The backend verifies the bcrypt password hash, then issues a short-lived JWT **access token** as an HTTP-only cookie and stores a **refresh token** in Redis
-3. The browser sends the access cookie automatically with each API request; the backend validates it with `JWT_ACCESS_SECRET` and refreshes via the refresh token when it expires
-4. Org/role scope is resolved server-side per request from the user's memberships — every query is scoped by `organisationId`
-5. Screens enrol themselves: the player shows a **six-digit pairing code**, an admin claims it in the dashboard, and the screen exchanges the credential it receives for a **short-lived access token plus a rotating refresh token**. No long-lived key is left on the display.
+|                |                                  |
+| -------------- | -------------------------------- |
+| Dashboard      | http://localhost:4200            |
+| Player         | http://localhost:4300            |
+| API            | http://localhost:3000/api/health |
+| Mail (Mailpit) | http://localhost:8025            |
+
+Open the dashboard. Nothing exists yet, so the first thing it shows you is the
+one-time setup that creates the initial super-admin — there is no seeded
+password anywhere. Then open the player in a second tab, read its six-digit
+code, and add a screen with it.
+
+Full walkthrough, production deployment and configuration: **[docs/](docs/)**.
+
+## Documentation
+
+|                                        |                                                                           |
+| -------------------------------------- | ------------------------------------------------------------------------- |
+| [Installation](docs/installation.md)   | Development stack, production deployment, database migrations             |
+| [Configuration](docs/configuration.md) | Every environment variable, and which ones a production instance must set |
+| [Screens](docs/screens.md)             | Pairing, re-pairing, video walls, and the LG webOS app                    |
+| [Architecture](ARCHITECTURE.md)        | How the parts fit together                                                |
+| [Changelog](CHANGELOG.md)              | Releases, and the operator actions each one requires                      |
+
+## Stack
+
+| Layer     | Technology                                                                 |
+| --------- | -------------------------------------------------------------------------- |
+| Dashboard | Angular 21 (standalone, signals), Tailwind CSS v4                          |
+| Player    | Angular 21, hls.js                                                         |
+| Backend   | NestJS 11, Drizzle ORM                                                     |
+| Database  | PostgreSQL 16                                                              |
+| Jobs      | BullMQ + Redis                                                             |
+| Users     | Email + password, JWT access cookie, refresh tokens in Redis               |
+| Screens   | Pairing code, short-lived access token, rotating refresh token in Postgres |
+| Real-time | Server-Sent Events                                                         |
+| Media     | FFmpeg (transcoding and HLS)                                               |
+| Runtime   | Node.js 22, Nx monorepo                                                    |
 
 ## Contributing
 
 Bug reports and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
-Contributions require accepting the [CLA](CLA.md), which keeps your copyright with
-you while allowing the project to also be offered under a commercial licence.
-Security issues go through [SECURITY.md](SECURITY.md), never a public issue.
+Contributors sign a [CLA](CLA.md). Security reports: [SECURITY.md](SECURITY.md).
 
 ## License
 
-**GNU Affero General Public License v3.0 or later** — see [LICENSE](LICENSE).
-
-In practice: you may run, study, modify and share this, including commercially.
-If you modify it and let other people use it **over a network**, you have to make
-your modified source available to those users (AGPL section 13). The running
-admin interface links to the source for exactly that reason.
-
-If those terms do not work for you, a commercial licence is possible — open an
-issue to ask. That option exists because the maintainer holds the rights to all
-contributions through the CLA.
+[AGPL-3.0-or-later](LICENSE). You may run, modify and redistribute this
+software. If you offer it to others over a network, section 13 requires you to
+offer them the complete source of your version as well.
