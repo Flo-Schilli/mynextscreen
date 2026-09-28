@@ -1,0 +1,69 @@
+<!--
+  Idle screen: what a display shows when nothing is scheduled for it.
+
+  Source for public/default-screen.png, which is what the player actually loads.
+  The wordmark is rendered to pixels here so a TV does not have to own the font;
+  shipping the SVG would leave the name in whatever the television happens to
+  have installed. Regenerate with:
+
+    rsvg-convert -w 2560 -h 1440 brand/default-screen.svg -o public/default-screen.png
+
+  Drawn on transparency: the player centres it on black, so a background of its
+  own would only show up as a slightly wrong rectangle on screens that are not
+  16:9.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <linearGradient id="screenFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22d3ee" />
+      <stop offset="0.55" stop-color="#2dd4bf" />
+      <stop offset="1" stop-color="#f59e0b" />
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(496 177) scale(3.6)">
+    <!-- the next screen, behind -->
+    <rect
+      x="30"
+      y="13"
+      width="38"
+      height="27"
+      rx="4"
+      fill="none"
+      stroke="#2dd4bf"
+      stroke-width="3.5"
+      opacity="0.45"
+    />
+    <!-- this screen, in front -->
+    <rect x="12" y="25" width="45" height="32" rx="5" fill="url(#screenFill)" />
+    <rect x="31" y="57" width="7" height="5" fill="url(#screenFill)" />
+    <rect x="23" y="62" width="23" height="4.5" rx="2.25" fill="url(#screenFill)" />
+  </g>
+
+  <text
+    x="640"
+    y="490"
+    text-anchor="middle"
+    font-family="Noto Sans, Liberation Sans, sans-serif"
+    font-size="52"
+    letter-spacing="-1"
+  >
+    <tspan fill="#e6e8ee" font-weight="400">my</tspan><tspan
+      fill="url(#screenFill)"
+      font-weight="700"
+      >NextScreen</tspan
+    >
+  </text>
+
+  <text
+    x="640"
+    y="537"
+    text-anchor="middle"
+    font-family="Noto Sans, Liberation Sans, sans-serif"
+    font-size="21"
+    fill="#6b7280"
+    letter-spacing="3"
+  >
+    NOTHING SCHEDULED
+  </text>
+</svg>
