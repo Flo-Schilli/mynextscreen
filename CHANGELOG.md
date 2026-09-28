@@ -4,25 +4,60 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
-## [Unreleased]
+## 0.10.0
 
-### Required operator action
+The screen API key stops being a permanent credential, and the backend container
+stops running as root. Eight commits; `v0.9.0..v0.10.0` for the full list.
 
-**The backend container now runs as a non-root user.** The quadlet template adds
-`UserNS=keep-id:uid=1000,gid=1000`, which maps that user back to the account the
-rootless container runs under so the media bind mount stays writable. A
-hand-written unit file that pins the backend image without this line will fail
-every upload, transcode and slice with a permission error. `CHOWN` and
-`DAC_OVERRIDE` are dropped from its capabilities — they were only needed by root.
+### Required operator actions
+
+1. **Add `UserNS=keep-id:uid=1000,gid=1000` to the backend unit.** The image now
+   runs as a non-root user, and under rootless podman a plain non-root uid lands
+   in the subuid range and cannot write the media bind mount. The shipped quadlet
+   template has the line; a hand-written unit without it fails every upload,
+   transcode and slice with a permission error. `CHOWN` and `DAC_OVERRIDE` are
+   dropped from its capabilities.
+2. **Screens re-enrol themselves, but only if they can reach the new session
+   route.** The API key is now accepted on `POST /screens/session` and nowhere
+   else. A player from before 0.10.0 cannot authenticate at all against a
+   0.10.0 backend — deploy both together.
+
+### Changed — the screen API key is now an enrolment credential
+
+Previously it was issued once at pairing, never renewed, had no expiry and no
+revocation, and travelled on every request. It sat in the player's localStorage,
+in the webOS shell's storage — shown in cleartext in a settings overlay
+reachable from the remote — and as `?token=` in every media URL, which put it in
+the DOM, the `Referer` chain and every access log line.
+
+- **Media URLs carry a signed grant** instead of a credential: HMAC over screen
+  id and path, key derived from `JWT_ACCESS_SECRET`. Bucketed to a day with a
+  per-screen offset so the URL stays byte-stable and `max-age=86400` keeps
+  working; only the path is signed.
+- **Screens hold a session**: a 15-minute access token with its own JWT
+  audience, plus a rotating refresh token in Postgres (not Redis — a lost
+  snapshot would strand the fleet). A 60-second grace window makes concurrent
+  refreshes from the player's five independent consumers legitimate rather than
+  a replay; a real replay is refused and logged without revoking the family.
+- **The player keeps no key on disk** once a session exists, renews on a 401
+  rather than on a clock a TV cannot be trusted with, and jitters its SSE
+  reconnect so a fleet does not come back in lockstep.
+- **The heartbeat reports the player build**, shown in the admin screen detail.
+- The webOS key field is a password input and is never pre-filled; empty means
+  "keep the stored key". The shell still holds the key on purpose — its storage
+  is what survives an app update of the player iframe.
+- `?token=` is gone as an authentication mechanism.
 
 ### Fixed
 
-- The backend container no longer runs as root. FFmpeg parses user-uploaded
-  media in it, so a parser bug was root inside the container; the two nginx
-  images moved to an unprivileged user in 0.9.0, the backend did not.
-- The screen API key now opens exactly one route (`POST /screens/session`); the
-  `?token=` query fallback is gone, media URLs carry a signed grant instead, and
-  the player keeps no key on disk once a session exists.
+- The backend container runs as a non-root user. FFmpeg parses user-uploaded
+  media in it, so a parser bug was root inside the container.
+- SSRF: the per-org SMTP send path and live-stream start now run the resolved
+  address check that until then only the test endpoints did.
+- The screen API key is redacted from the Caddy and nginx access logs.
+- Two player bugs surfaced by the above: hls.js froze the credential in a
+  closure at attach time, and the Safari native-HLS branch could never have
+  worked.
 
 ## 0.9.0
 
