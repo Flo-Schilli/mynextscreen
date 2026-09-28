@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read # coverage gate is enforced in apps/backend/jest.config.ts; no PR-comment action
+      pull-requests: read # gitleaks lists the PR's commits to scan only its diff
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -36,6 +37,20 @@ jobs:
 
       - name: Check version sync
         run: node scripts/sync-versions.mjs --check
+
+      # Scans the diff of this push/PR, not the whole history — the history was
+      # audited once before the repository went public. Catches a credential
+      # before it is committed to a repository anyone can clone. No licence key:
+      # gitleaks-action is free for personal accounts and only charges for
+      # organisation-owned repositories.
+      - name: Scan for committed secrets
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # A finding fails the step, which is the signal. Writing it into a PR
+          # review comment would need a write-scoped token and would reproduce
+          # the secret in the timeline of a public repository.
+          GITLEAKS_ENABLE_COMMENTS: false
 
       # Deliberately limited to production dependencies: the build toolchain
       # (Nx, Angular CLI, Vite, webpack-dev-server) carries advisories that never

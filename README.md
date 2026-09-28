@@ -1,5 +1,7 @@
 # Signage Server
 
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+
 A **multi-tenant digital signage platform** for concert venues. Organisations manage screens (TVs) distributed across their venue, upload and transcode images and videos into a shared content library, build playlists, schedule them across screens, and stream live video — all controlled from an Angular web dashboard.
 
 ## Features
@@ -18,23 +20,24 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 
 ## Tech Stack
 
-| Layer          | Technology                              |
-| -------------- | --------------------------------------- |
-| Frontend       | Angular 21, Tailwind CSS v4             |
-| Backend        | NestJS 11, Drizzle ORM                  |
-| Database       | PostgreSQL 16                           |
-| Job Queue      | BullMQ + Redis                          |
+| Layer          | Technology                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------------ |
+| Frontend       | Angular 21, Tailwind CSS v4                                                                      |
+| Backend        | NestJS 11, Drizzle ORM                                                                           |
+| Database       | PostgreSQL 16                                                                                    |
+| Job Queue      | BullMQ + Redis                                                                                   |
 | Authentication | Internal email + password — JWT access cookie + Redis refresh tokens (users), API keys (screens) |
-| Real-time      | Server-Sent Events (SSE)                |
-| Media          | FFmpeg (transcoding + HLS)              |
-| Runtime        | Node.js 22                              |
-| Monorepo       | Nx (single root `package.json`)         |
+| Real-time      | Server-Sent Events (SSE)                                                                         |
+| Media          | FFmpeg (transcoding + HLS)                                                                       |
+| Runtime        | Node.js 22                                                                                       |
+| Monorepo       | Nx (single root `package.json`)                                                                  |
 
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose
 
 For local development without Docker:
+
 - Node.js 22+
 - PostgreSQL 16+
 - Redis 7+
@@ -58,6 +61,7 @@ npm run dev
 ```
 
 The application will be available at:
+
 - **Frontend:** http://localhost:4200
 - **Player:** http://localhost:4300
 - **Backend API:** http://localhost:3000
@@ -78,33 +82,33 @@ Accounts come into existence in three ways:
 
 #### Auth Environment Variables
 
-| Variable                       | Description                                                              | Required |
-| ------------------------------ | ------------------------------------------------------------------------ | -------- |
-| `JWT_ACCESS_SECRET`            | Secret used to sign JWT access tokens. Generate with `openssl rand -base64 48`. Minimum 32 characters — the backend refuses to start below that | **Yes**  |
-| `JWT_ACCESS_TTL`               | Access-token lifetime (e.g. `15m`)                                       | No (`15m`) |
-| `JWT_REFRESH_TTL`              | Refresh-token lifetime (e.g. `30d`)                                      | No (`30d`) |
-| `COOKIE_SECURE`                | Force `Secure` cookies (defaults to `true` only when `NODE_ENV=production`) | No       |
-| `COOKIE_SAMESITE`              | Cookie `SameSite` policy: `strict` (default) \| `lax` \| `none`          | No       |
-| `PUBLIC_BASE_URL`              | Admin SPA base URL — used to build set-password/reset links and to lock down CORS | **Yes in production** (CORS fails closed without it) |
-| `SECRETS_ENCRYPTION_KEY`       | Encrypts per-org SMTP passwords and ntfy tokens at rest (`openssl rand -base64 32`). Unset: plaintext, with a boot warning | No       |
-| `OUTBOUND_ALLOWED_HOSTS`       | Comma-separated hosts allowed past the SSRF guard (internal ntfy/SMTP relay) | No       |
-| `SIGNUP_ENABLED`               | Public self-registration. `false` rejects `POST /api/auth/register` with 403 | No (`true`) |
-| `SIGNUP_UNVERIFIED_TTL_HOURS`  | Hours a never-verified signup survives before the cleanup cron deletes it and its organisation | No (`24`) |
-| `SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES` / `_TRANSCODED_BYTES` | Storage limits granted to a self-created organisation; a super-admin can raise them later | No (5 GiB each) |
+| Variable                                                      | Description                                                                                                                                     | Required                                             |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `JWT_ACCESS_SECRET`                                           | Secret used to sign JWT access tokens. Generate with `openssl rand -base64 48`. Minimum 32 characters — the backend refuses to start below that | **Yes**                                              |
+| `JWT_ACCESS_TTL`                                              | Access-token lifetime (e.g. `15m`)                                                                                                              | No (`15m`)                                           |
+| `JWT_REFRESH_TTL`                                             | Refresh-token lifetime (e.g. `30d`)                                                                                                             | No (`30d`)                                           |
+| `COOKIE_SECURE`                                               | Force `Secure` cookies (defaults to `true` only when `NODE_ENV=production`)                                                                     | No                                                   |
+| `COOKIE_SAMESITE`                                             | Cookie `SameSite` policy: `strict` (default) \| `lax` \| `none`                                                                                 | No                                                   |
+| `PUBLIC_BASE_URL`                                             | Admin SPA base URL — used to build set-password/reset links and to lock down CORS                                                               | **Yes in production** (CORS fails closed without it) |
+| `SECRETS_ENCRYPTION_KEY`                                      | Encrypts per-org SMTP passwords and ntfy tokens at rest (`openssl rand -base64 32`). Unset: plaintext, with a boot warning                      | No                                                   |
+| `OUTBOUND_ALLOWED_HOSTS`                                      | Comma-separated hosts allowed past the SSRF guard (internal ntfy/SMTP relay)                                                                    | No                                                   |
+| `SIGNUP_ENABLED`                                              | Public self-registration. `false` rejects `POST /api/auth/register` with 403                                                                    | No (`true`)                                          |
+| `SIGNUP_UNVERIFIED_TTL_HOURS`                                 | Hours a never-verified signup survives before the cleanup cron deletes it and its organisation                                                  | No (`24`)                                            |
+| `SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES` / `_TRANSCODED_BYTES` | Storage limits granted to a self-created organisation; a super-admin can raise them later                                                       | No (5 GiB each)                                      |
 
 **First super-admin (first-run setup):** there is no env-based seeding. On a fresh deployment — while no user exists yet — opening the app routes you to a one-time setup screen where you create the initial super-admin account; you are logged in immediately and can then provision organisations. Once any user exists the setup screen is closed and normal login applies.
 
 ### All Environment Variables
 
-| Variable              | Description                                   | Default                | Required |
-| --------------------- | --------------------------------------------- | ---------------------- | -------- |
-| `DATABASE_URL`        | PostgreSQL connection string                  | —                      | **Yes**  |
-| `REDIS_URL`           | Redis connection string (BullMQ + refresh tokens) | `redis://localhost:6379` | No   |
-| `MEDIA_BASE_PATH`     | Base path for uploaded and transcoded media    | `./media`              | No       |
-| `MAX_FILE_SIZE_BYTES` | Upload size limit                             | —                      | No       |
-| `FFMPEG_PATH`         | Path to FFmpeg binary                         | `ffmpeg` (system PATH) | No       |
-| `FFMPEG_VIDEO_CRF` / `_PRESET` / `_MAXRATE` / `_BUFSIZE` | Video transcoding quality   | see `.env.example`     | No       |
-| `JWT_ACCESS_SECRET`   | Secret for signing JWT access tokens          | —                      | **Yes**  |
+| Variable                                                 | Description                                       | Default                  | Required |
+| -------------------------------------------------------- | ------------------------------------------------- | ------------------------ | -------- |
+| `DATABASE_URL`                                           | PostgreSQL connection string                      | —                        | **Yes**  |
+| `REDIS_URL`                                              | Redis connection string (BullMQ + refresh tokens) | `redis://localhost:6379` | No       |
+| `MEDIA_BASE_PATH`                                        | Base path for uploaded and transcoded media       | `./media`                | No       |
+| `MAX_FILE_SIZE_BYTES`                                    | Upload size limit                                 | —                        | No       |
+| `FFMPEG_PATH`                                            | Path to FFmpeg binary                             | `ffmpeg` (system PATH)   | No       |
+| `FFMPEG_VIDEO_CRF` / `_PRESET` / `_MAXRATE` / `_BUFSIZE` | Video transcoding quality                         | see `.env.example`       | No       |
+| `JWT_ACCESS_SECRET`                                      | Secret for signing JWT access tokens              | —                        | **Yes**  |
 
 ### Example `.env`
 
@@ -157,13 +161,13 @@ PUBLIC_BASE_URL=https://app.example.com
 
 The default `docker-compose.yml` spins up five services with hot-reload enabled:
 
-| Service    | Port | Description                            |
-| ---------- | ---- | -------------------------------------- |
-| `frontend` | 4200 | Angular dev server with proxy to backend |
-| `player`   | 4300 | Angular player app                     |
-| `backend`  | 3000 | NestJS in watch mode                   |
+| Service    | Port | Description                                |
+| ---------- | ---- | ------------------------------------------ |
+| `frontend` | 4200 | Angular dev server with proxy to backend   |
+| `player`   | 4300 | Angular player app                         |
+| `backend`  | 3000 | NestJS in watch mode                       |
 | `redis`    | 6379 | Redis 7 (Alpine) — BullMQ + refresh tokens |
-| `postgres` | 5432 | PostgreSQL 16 (Alpine)                 |
+| `postgres` | 5432 | PostgreSQL 16 (Alpine)                     |
 
 ```bash
 # Start all services with hot-reload
@@ -176,6 +180,7 @@ docker compose up --build
 Source code is mounted as volumes, so changes to `apps/backend/src/`, `apps/frontend/src/`, and `apps/player/src/` are picked up automatically. The compose file sets sensible dev defaults for all env vars (including `DATABASE_URL` and a dev `JWT_ACCESS_SECRET`), so it runs out of the box.
 
 Persistent data is stored in Docker volumes:
+
 - `signage-postgres-data` — PostgreSQL data directory
 - `media-data` — uploaded and transcoded media files
 
@@ -249,13 +254,13 @@ npx nx run backend:db-studio
 
 ### Root (fan out across all projects via `nx run-many`)
 
-| Script              | Command                                            |
-| ------------------- | -------------------------------------------------- |
-| `npm run dev`       | Start all services via Docker Compose              |
-| `npm run lint`      | Lint backend + frontend + player + shared-types    |
-| `npm run test`      | Run all tests (backend Jest · frontend/player Vitest) |
-| `npm run typecheck` | TypeScript type checking across all projects       |
-| `npm run format:check` | Prettier check across all projects              |
+| Script                 | Command                                               |
+| ---------------------- | ----------------------------------------------------- |
+| `npm run dev`          | Start all services via Docker Compose                 |
+| `npm run lint`         | Lint backend + frontend + player + shared-types       |
+| `npm run test`         | Run all tests (backend Jest · frontend/player Vitest) |
+| `npm run typecheck`    | TypeScript type checking across all projects          |
+| `npm run format:check` | Prettier check across all projects                    |
 
 ### Per project (via Nx)
 
@@ -315,6 +320,22 @@ digital-signage/
 4. Org/role scope is resolved server-side per request from the user's memberships — every query is scoped by `organisationId`
 5. Screens authenticate separately using API keys issued by Org Admins
 
+## Contributing
+
+Bug reports and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions require accepting the [CLA](CLA.md), which keeps your copyright with
+you while allowing the project to also be offered under a commercial licence.
+Security issues go through [SECURITY.md](SECURITY.md), never a public issue.
+
 ## License
 
-Private — All rights reserved.
+**GNU Affero General Public License v3.0 or later** — see [LICENSE](LICENSE).
+
+In practice: you may run, study, modify and share this, including commercially.
+If you modify it and let other people use it **over a network**, you have to make
+your modified source available to those users (AGPL section 13). The running
+admin interface links to the source for exactly that reason.
+
+If those terms do not work for you, a commercial licence is possible — open an
+issue to ask. That option exists because the maintainer holds the rights to all
+contributions through the CLA.

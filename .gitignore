@@ -60,3 +60,6 @@ Thumbs.db
 
 # Coverage
 coverage/
+
+# Real Ansible inventory (hostnames, domains). Copy hosts.ini.example instead.
+ansible/hosts.ini

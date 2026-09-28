@@ -1,0 +1,10 @@
+# Findings reviewed before this repository was made public, both benign.
+# Listed by fingerprint so a full-history scan stays clean and the decision
+# is recorded rather than re-made from memory each time.
+#
+# 1. hanko_api_host — the hostname of a Hanko project, not a credential. That
+#    provider was replaced by internal authentication; nothing references it.
+# 2. VALID_API_KEY in a spec — the literal 'test-api-key-1234567890abcdef'.
+
+c6483a7c21294bec72ddcb19e345d84b06dcef68:ansible/hosts.ini:generic-api-key:17
+86ef3b32d194282aa7fcfc9162dffec5fbf4e398:backend/src/auth/api-key-auth.guard.spec.ts:generic-api-key:14

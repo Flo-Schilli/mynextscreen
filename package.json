@@ -2,6 +2,16 @@
   "name": "signage-server",
   "version": "0.10.0",
   "description": "Multi-tenant digital signage platform",
+  "license": "AGPL-3.0-or-later",
+  "author": "Florian Schillhammer",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Flo-Schilli/digital-signage.git"
+  },
+  "homepage": "https://github.com/Flo-Schilli/digital-signage",
+  "bugs": {
+    "url": "https://github.com/Flo-Schilli/digital-signage/issues"
+  },
   "private": true,
   "engines": {
     "node": "22.x",
