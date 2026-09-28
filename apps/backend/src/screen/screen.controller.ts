@@ -9,20 +9,26 @@ import {
   Sse,
   ParseUUIDPipe,
   ForbiddenException,
+  HttpCode,
+  HttpStatus,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Observable } from 'rxjs';
 import { ScreenService, type ScreenWithPlaylist } from './screen.service';
 import { ScreenStateService } from './screen-state.service';
+import { ScreenSessionService, type ScreenSessionTokens } from './screen-session.service';
 import {
   CreateScreenDto,
   RepairScreenDto,
   UpdateScreenDto,
   BulkDeleteScreensDto,
   BulkAssignGroupDto,
+  RefreshScreenSessionDto,
+  HeartbeatDto,
 } from './dto';
 import { Roles } from '../auth/roles.decorator';
-import { ScreenAuth, ScreenAuthenticatedRequest, AuthenticatedRequest } from '../auth';
+import { ScreenAuth, ScreenAuthenticatedRequest, AuthenticatedRequest, Public } from '../auth';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import type { Screen } from '../db/schema';
@@ -34,11 +40,27 @@ interface MessageEvent {
   retry?: number;
 }
 
+/** Wire shape of a screen session. `expiresIn` is seconds, never an instant. */
+interface ScreenSessionResponse {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
+
+function toSessionResponse(session: ScreenSessionTokens): ScreenSessionResponse {
+  return {
+    accessToken: session.accessToken.token,
+    refreshToken: session.refreshToken,
+    expiresIn: session.expiresIn,
+  };
+}
+
 @Controller('screens')
 export class ScreenController {
   constructor(
     private readonly screenService: ScreenService,
     private readonly screenStateService: ScreenStateService,
+    private readonly screenSessionService: ScreenSessionService,
   ) {}
 
   @Post()
@@ -58,6 +80,41 @@ export class ScreenController {
   @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   findAll(@CurrentOrganisation() organisationId: string): Promise<ScreenWithPlaylist[]> {
     return this.screenService.findAllWithPlaylist(organisationId);
+  }
+
+  /**
+   * Exchanges the enrolment credential for a session. This is the route the API
+   * key exists for; every other screen route is meant to be reached with the
+   * short-lived access token it hands out.
+   *
+   * Throttled harder than the rest: it is the only screen route that still runs
+   * bcrypt, so it is also the only one worth flooding.
+   */
+  @Post('session')
+  @ScreenAuth()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  async createSession(@Req() req: ScreenAuthenticatedRequest): Promise<ScreenSessionResponse> {
+    const session = await this.screenSessionService.createSession(req.screenId, req.organisationId);
+    return toSessionResponse(session);
+  }
+
+  /**
+   * Rotates the refresh token. Public because the access token it replaces has
+   * expired by definition — the refresh token in the body is the credential.
+   */
+  @Post('session/refresh')
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  async refreshSession(@Body() dto: RefreshScreenSessionDto): Promise<ScreenSessionResponse> {
+    const result = await this.screenSessionService.refresh(dto.refreshToken);
+    if (result.status !== 'ok') {
+      // Deliberately the same answer for "unknown" and "replayed": the caller
+      // must not learn which of the two it hit.
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    return toSessionResponse(result.tokens);
   }
 
   @Get('me')
@@ -167,9 +224,10 @@ export class ScreenController {
   heartbeat(
     @Req() req: ScreenAuthenticatedRequest,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: HeartbeatDto,
   ): Promise<Screen> {
     this.assertOwnScreen(req, id);
-    return this.screenService.recordHeartbeat(req.organisationId, id);
+    return this.screenService.recordHeartbeat(req.organisationId, id, dto?.playerVersion);
   }
 
   /**

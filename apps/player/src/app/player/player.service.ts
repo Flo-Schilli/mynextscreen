@@ -1,7 +1,9 @@
 import { inject, Injectable, signal, computed, NgZone, OnDestroy } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { ConnectionService } from '../connection/connection.service';
+import { ScreenSessionService } from '../connection/screen-session.service';
+import { PlayerVersionService } from './player-version.service';
 import { TimeSyncService } from './time-sync.service';
 import {
   ScreenStateResponse,
@@ -26,6 +28,8 @@ const SSE_MAX_RETRY_MS = 30_000;
 export class PlayerService implements OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly connection = inject(ConnectionService);
+  private readonly session = inject(ScreenSessionService);
+  private readonly playerVersion = inject(PlayerVersionService);
   private readonly timeSync = inject(TimeSyncService);
   private readonly zone = inject(NgZone);
 
@@ -112,10 +116,12 @@ export class PlayerService implements OnDestroy {
   }
 
   async fetchState(): Promise<ScreenStateResponse> {
-    const state = await firstValueFrom(
-      this.http.get<ScreenStateResponse>(
-        `${this.connection.serverUrl()}/api/screens/${this.connection.screenId()}/state`,
-        { headers: this.authHeaders() },
+    const state = await this.withSessionRetry(() =>
+      firstValueFrom(
+        this.http.get<ScreenStateResponse>(
+          `${this.connection.serverUrl()}/api/screens/${this.connection.screenId()}/state`,
+          { headers: this.authHeaders() },
+        ),
       ),
     );
 
@@ -182,11 +188,15 @@ export class PlayerService implements OnDestroy {
   }
 
   private sendHeartbeat(): void {
-    firstValueFrom(
-      this.http.post(
-        `${this.connection.serverUrl()}/api/screens/${this.connection.screenId()}/heartbeat`,
-        null,
-        { headers: this.authHeaders() },
+    void this.withSessionRetry(() =>
+      firstValueFrom(
+        this.http.post(
+          `${this.connection.serverUrl()}/api/screens/${this.connection.screenId()}/heartbeat`,
+          // Reported so an operator can see which screens still run an old
+          // build; the server only stores it when it is present.
+          { playerVersion: this.playerVersion.version() ?? undefined },
+          { headers: this.authHeaders() },
+        ),
       ),
     ).catch(() => undefined);
   }
@@ -210,12 +220,17 @@ export class PlayerService implements OnDestroy {
     try {
       const response = await fetch(url, {
         headers: {
-          Authorization: `Bearer ${this.connection.apiKey()}`,
+          Authorization: `Bearer ${this.bearer()}`,
           Accept: 'text/event-stream',
         },
         signal: controller.signal,
       });
 
+      if (response.status === 401 || response.status === 403) {
+        // The stream is authorised once, at subscribe: a rejected credential
+        // here means renew before retrying, not back off forever.
+        await this.session.refresh(this.connection.serverUrl(), this.connection.apiKey());
+      }
       if (!response.ok || !response.body) {
         throw new Error(`SSE connection failed: ${response.status}`);
       }
@@ -311,10 +326,16 @@ export class PlayerService implements OnDestroy {
       }
     });
 
-    this.sseRetryTimeout = setTimeout(() => {
-      this.sseRetryDelay = Math.min(this.sseRetryDelay * 2, SSE_MAX_RETRY_MS);
-      this.connectSse();
-    }, this.sseRetryDelay);
+    // Jittered: without it every screen in an installation reconnects in the
+    // same instant after a backend restart, and they all refresh at once too.
+    const jitter = 0.5 + Math.random();
+    this.sseRetryTimeout = setTimeout(
+      () => {
+        this.sseRetryDelay = Math.min(this.sseRetryDelay * 2, SSE_MAX_RETRY_MS);
+        this.connectSse();
+      },
+      Math.round(this.sseRetryDelay * jitter),
+    );
   }
 
   private disconnectSse(): void {
@@ -330,8 +351,40 @@ export class PlayerService implements OnDestroy {
   }
 
   private authHeaders(): HttpHeaders {
-    return new HttpHeaders({
-      Authorization: `Bearer ${this.connection.apiKey()}`,
-    });
+    return new HttpHeaders({ Authorization: `Bearer ${this.bearer()}` });
+  }
+
+  /**
+   * The session token once there is one, the enrolment credential until then.
+   * Keeping the fallback means a player that starts before its first exchange —
+   * or after the session was dropped — still reaches the server instead of
+   * needing someone in front of the screen.
+   */
+  private bearer(): string {
+    return this.session.token() || this.connection.apiKey();
+  }
+
+  /**
+   * Runs a request and, on a rejected credential, renews the session once and
+   * retries. 401 is the primary trigger by design: a TV clock cannot be trusted
+   * to decide when a token has expired.
+   */
+  private async withSessionRetry<T>(run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (error: unknown) {
+      const status = error instanceof HttpErrorResponse ? error.status : 0;
+      if (status !== 401 && status !== 403) {
+        throw error;
+      }
+      const renewed = await this.session.refresh(
+        this.connection.serverUrl(),
+        this.connection.apiKey(),
+      );
+      if (!renewed) {
+        throw error;
+      }
+      return run();
+    }
   }
 }

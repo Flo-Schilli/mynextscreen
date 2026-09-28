@@ -10,6 +10,7 @@ import { CreateScreenDto } from './dto/create-screen.dto';
 import { UpdateScreenDto } from './dto/update-screen.dto';
 import { generateApiKey, hashApiKey, sha256hex } from './api-key.util';
 import { ScreenPairingService } from './screen-pairing.service';
+import { ScreenSessionService } from './screen-session.service';
 import { ScheduleService } from '../schedule';
 import { ScreenStatusEvent, SCREEN_STATUS_CHANGED } from './screen-status.event';
 import {
@@ -66,6 +67,7 @@ export class ScreenService extends OrganisationScopedService<Screen> {
     private readonly eventEmitter: EventEmitter2,
     private readonly pairingService: ScreenPairingService,
     private readonly scheduleService: ScheduleService,
+    private readonly sessionService: ScreenSessionService,
   ) {
     super(db, screens, 'Screen');
   }
@@ -190,6 +192,10 @@ export class ScreenService extends OrganisationScopedService<Screen> {
       .where(and(eq(screens.id, id), eq(screens.organisationId, organisationId)))
       .returning();
 
+    // The old key is gone, so every session it produced must go with it —
+    // otherwise re-pairing a screen leaves the previous holder connected.
+    await this.sessionService.revokeForScreen(id);
+
     await this.pairingService.markClaimed(pairing.id, id, organisationId, apiKey);
 
     this.eventEmitter.emit(
@@ -253,12 +259,22 @@ export class ScreenService extends OrganisationScopedService<Screen> {
    * Record a heartbeat for a screen, marking it as online.
    * Emits a status change event if the screen was previously offline.
    */
-  async recordHeartbeat(organisationId: string, id: string): Promise<Screen> {
+  async recordHeartbeat(
+    organisationId: string,
+    id: string,
+    playerVersion?: string,
+  ): Promise<Screen> {
     const screen = await this.findOne(organisationId, id);
     const wasOffline = !screen.isOnline;
     const [saved] = await this.db
       .update(screens)
-      .set({ lastHeartbeat: new Date(), isOnline: true })
+      .set({
+        lastHeartbeat: new Date(),
+        isOnline: true,
+        // Only written when reported: a player that sends nothing is an
+        // un-migrated one, and must not erase a version recorded earlier.
+        ...(playerVersion ? { playerVersion } : {}),
+      })
       .where(and(eq(screens.id, id), eq(screens.organisationId, organisationId)))
       .returning();
 

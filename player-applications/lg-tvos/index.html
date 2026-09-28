@@ -130,8 +130,8 @@
         </div>
         <div class="form-group">
             <label for="apiKey">API Key:</label>
-            <input type="text" id="apiKey" placeholder="your-api-key">
-            <div class="settings-hint">Required. The API key for this screen.</div>
+            <input type="password" id="apiKey" placeholder="your-api-key">
+            <div class="settings-hint" id="apiKeyHint">Required. The API key for this screen.</div>
         </div>
         <div class="form-group">
             <label for="playerUrl">Player URL:</label>
@@ -154,7 +154,14 @@
         overlay.style.display = show ? 'flex' : 'none';
         if (show) {
             document.getElementById('serverUrl').value = localStorage.getItem('server_url') || '';
-            document.getElementById('apiKey').value = localStorage.getItem('api_key') || '';
+            // Never put the stored key back on screen: this overlay is reachable
+            // from the remote at any time, and the key is a long-lived
+            // credential for the whole screen. An empty field means "keep it".
+            var storedKey = localStorage.getItem('api_key') || '';
+            document.getElementById('apiKey').value = '';
+            document.getElementById('apiKeyHint').textContent = storedKey
+                ? 'A key is stored. Leave empty to keep it, or enter a new one to replace it.'
+                : 'Required. The API key for this screen.';
             document.getElementById('playerUrl').value = localStorage.getItem('player_url') || '';
             document.getElementById('settingsError').textContent = '';
             document.getElementById('serverUrl').focus();
@@ -186,7 +193,10 @@
             return;
         }
 
-        if (!apiKey) {
+        // Empty means "keep the stored key" — retyping 43 characters on a
+        // remote just to change the server URL is not a reasonable ask.
+        var storedApiKey = localStorage.getItem('api_key') || '';
+        if (!apiKey && !storedApiKey) {
             errorEl.textContent = 'API Key is required.';
             apiKeyInput.focus();
             return;
@@ -224,7 +234,7 @@
         }
 
         localStorage.setItem('server_url', serverUrl);
-        localStorage.setItem('api_key', apiKey);
+        localStorage.setItem('api_key', apiKey || storedApiKey);
         localStorage.setItem('player_url', playerUrl);
 
         location.reload();

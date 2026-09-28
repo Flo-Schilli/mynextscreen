@@ -46,6 +46,7 @@ describe('Playlist Transition Integration', () => {
       location: 'Lobby',
       apiKeyHash: '$2b$10$hashed',
       apiKeyFingerprint: null,
+      playerVersion: null,
       lastHeartbeat: null,
       isOnline: true,
       createdAt: new Date(),
@@ -96,6 +97,7 @@ describe('Playlist Transition Integration', () => {
         location: 'Lobby',
         apiKeyHash: '$2b$10$hashed',
         apiKeyFingerprint: null,
+        playerVersion: null,
         isOnline: true,
       })
       .returning();

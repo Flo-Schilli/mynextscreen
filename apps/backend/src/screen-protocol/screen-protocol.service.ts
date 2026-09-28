@@ -21,6 +21,7 @@ import {
   ScreenStateChangeEvent,
 } from '../screen/screen-state.event';
 import { ScheduleService } from '../schedule/schedule.service';
+import { MediaUrlSigner } from '../common/media-url-signer.service';
 
 type GroupWithScreens = ScreenGroup & { screens: Screen[] };
 
@@ -32,6 +33,7 @@ export class ScreenProtocolService {
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly screenStateService: ScreenStateService,
     private readonly scheduleService: ScheduleService,
+    private readonly mediaUrlSigner: MediaUrlSigner,
   ) {}
 
   @OnEvent(GROUP_SCHEDULE_CHANGED)
@@ -267,7 +269,10 @@ export class ScreenProtocolService {
         this.screenStateService.pushEvent(
           screen.id,
           new ScreenEvent(ScreenEventType.GroupPlay, {
-            contentUrl: `/api/media/slices/${group.id}/${screen.id}/${contentItemId}`,
+            contentUrl: this.mediaUrlSigner.sign(
+              screen.id,
+              `/api/media/slices/${group.id}/${screen.id}/${contentItemId}`,
+            ),
             contentItemId,
             contentType,
             groupId: group.id,

@@ -1,4 +1,5 @@
 import { inject, Injectable, signal, computed, OnDestroy } from '@angular/core';
+import { ScreenSessionService } from './screen-session.service';
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
@@ -80,6 +81,7 @@ export function trustedConnectOrigins(): readonly string[] {
 @Injectable({ providedIn: 'root' })
 export class ConnectionService implements OnDestroy {
   private readonly http = inject(HttpClient);
+  private readonly session = inject(ScreenSessionService);
   /**
    * Accepts a `signage-connect` handoff only from a sender we have reason to
    * trust. Without this, any page that iframes the player can pair the physical
@@ -182,6 +184,12 @@ export class ConnectionService implements OnDestroy {
 
     try {
       await this.verifyConnection(serverUrl, apiKey, screenId);
+      // The API key has done its job: from here the screen talks with a
+      // short-lived session token and only falls back to the key if renewing
+      // ever fails. Deliberately not awaited — a slow or failing session route
+      // must not keep a screen from coming online, and every request falls back
+      // to the key until the exchange lands.
+      void this.session.establish(this._serverUrl(), this._apiKey());
       this._connected.set(true);
       this.stopAutoReconnect();
       return true;
@@ -236,6 +244,12 @@ export class ConnectionService implements OnDestroy {
       this._apiKey.set(apiKey);
       this._screenId.set(identity.screenId);
       this._organisationId.set(identity.organisationId);
+      // The API key has done its job: from here the screen talks with a
+      // short-lived session token and only falls back to the key if renewing
+      // ever fails. Deliberately not awaited — a slow or failing session route
+      // must not keep a screen from coming online, and every request falls back
+      // to the key until the exchange lands.
+      void this.session.establish(this._serverUrl(), this._apiKey());
       this._connected.set(true);
       this.stopAutoReconnect();
 
@@ -316,6 +330,12 @@ export class ConnectionService implements OnDestroy {
         this._apiKey.set(res.apiKey);
         this._screenId.set(res.screenId);
         this._organisationId.set(res.organisationId);
+        // The API key has done its job: from here the screen talks with a
+        // short-lived session token and only falls back to the key if renewing
+        // ever fails. Deliberately not awaited — a slow or failing session route
+        // must not keep a screen from coming online, and every request falls back
+        // to the key until the exchange lands.
+        void this.session.establish(this._serverUrl(), this._apiKey());
         this._connected.set(true);
         this._error.set('');
         this.stopAutoReconnect();
@@ -350,6 +370,7 @@ export class ConnectionService implements OnDestroy {
   }
 
   disconnect(): void {
+    this.session.clear();
     this.stopAutoReconnect();
     this._connected.set(false);
     this._serverUrl.set('');

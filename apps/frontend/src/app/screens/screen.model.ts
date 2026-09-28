@@ -6,6 +6,11 @@ export interface Screen {
   location: string;
   isOnline: boolean;
   lastHeartbeat: string | null;
+  /**
+   * Reported by the player on its heartbeat. Optional: absent from an older
+   * backend, null when a screen has never reported one — both mean "unknown".
+   */
+  playerVersion?: string | null;
   groupId: string | null;
   gridRow: number | null;
   gridColumn: number | null;

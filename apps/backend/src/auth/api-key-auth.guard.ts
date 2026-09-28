@@ -7,11 +7,14 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { IS_SCREEN_AUTH_KEY } from './screen-auth.decorator';
+import { IS_SIGNED_MEDIA_KEY } from './signed-media.decorator';
+import { MediaUrlSigner, SCREEN_PARAM, SIGNATURE_PARAM } from '../common/media-url-signer.service';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { eq, isNull } from 'drizzle-orm';
 import { screens } from '../db/schema';
 import { sha256hex, verifyApiKey } from '../screen/api-key.util';
+import { TokenService } from './token.service';
 
 export interface ScreenAuthenticatedRequest extends Request {
   screenId: string;
@@ -29,6 +32,8 @@ export class ApiKeyAuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
+    private readonly mediaUrlSigner: MediaUrlSigner,
+    private readonly tokens: TokenService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -41,14 +46,90 @@ export class ApiKeyAuthGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
+
+    // A signed URL is the preferred credential on media routes: it carries no
+    // secret, is scoped to one screen and one path, and expires on its own.
+    if (this.allowsSignedMediaUrl(context) && (await this.authenticateBySignature(request))) {
+      return true;
+    }
+
     const token = this.extractToken(request);
     if (!token) {
       throw new UnauthorizedException('Missing API key');
     }
 
+    // A screen session token is the normal credential; the API key below is the
+    // enrolment credential and stays accepted until every player has migrated.
+    if (await this.authenticateByScreenToken(request, token)) {
+      return true;
+    }
+
     const screen = await this.findScreenByApiKey(token);
     if (!screen) {
       throw new UnauthorizedException('Invalid API key');
+    }
+
+    request.screenId = screen.id;
+    request.organisationId = screen.organisationId;
+    return true;
+  }
+
+  /**
+   * Verifies a screen access token. Its audience differs from a user token's,
+   * so a user token can never authenticate a screen here and vice versa — the
+   * separation is in the pinned verification, not in a check further down.
+   */
+  private async authenticateByScreenToken(
+    request: { screenId?: string; organisationId?: string },
+    token: string,
+  ): Promise<boolean> {
+    try {
+      const payload = await this.tokens.verifyScreenAccessToken(token);
+      request.screenId = payload.sub;
+      request.organisationId = payload.org;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private allowsSignedMediaUrl(context: ExecutionContext): boolean {
+    return (
+      this.reflector.getAllAndOverride<boolean>(IS_SIGNED_MEDIA_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]) === true
+    );
+  }
+
+  /**
+   * Verifies a signed media URL and, on success, resolves the screen's current
+   * organisation from the database rather than from the URL — so a screen moved
+   * between organisations does not keep the old scope for the life of the
+   * signature.
+   */
+  private async authenticateBySignature(request: {
+    path?: string;
+    query?: Record<string, string>;
+    screenId?: string;
+    organisationId?: string;
+  }): Promise<boolean> {
+    const signature = request.query?.[SIGNATURE_PARAM];
+    const screenId = request.query?.[SCREEN_PARAM];
+    if (!signature || !screenId || !request.path) {
+      return false;
+    }
+    if (!this.mediaUrlSigner.verify(screenId, request.path, signature)) {
+      return false;
+    }
+
+    const [screen] = await this.db
+      .select({ id: screens.id, organisationId: screens.organisationId })
+      .from(screens)
+      .where(eq(screens.id, screenId))
+      .limit(1);
+    if (!screen) {
+      return false;
     }
 
     request.screenId = screen.id;

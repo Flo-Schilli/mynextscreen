@@ -21,6 +21,17 @@ try {
   // already initialized by test-setup
 }
 
+/**
+ * The screen exchanges its API key for a session as soon as it connects, so
+ * every connect path now issues one extra request. Answering it here keeps the
+ * assertions about the connect itself unchanged.
+ */
+function flushSessionExchange(httpMock: HttpTestingController): void {
+  for (const request of httpMock.match((req) => req.url.endsWith('/api/screens/session'))) {
+    request.flush({ accessToken: 'access-token', refreshToken: 'refresh-token', expiresIn: 900 });
+  }
+}
+
 describe('ConnectionService signage-connect handoff', () => {
   let service: ConnectionService;
   let connectSpy: ReturnType<typeof vi.spyOn>;
@@ -118,6 +129,8 @@ describe('ConnectionService pairing flow', () => {
   });
 
   afterEach(() => {
+    flushSessionExchange(httpMock);
+    flushSessionExchange(httpMock);
     httpMock.verify();
     localStorage.clear();
     sessionStorage.clear();
@@ -209,6 +222,8 @@ describe('ConnectionService pairing flow', () => {
         organisationId: 'org-1',
       });
 
+      await Promise.resolve();
+      flushSessionExchange(httpMock);
       await expect(promise).resolves.toBe('claimed');
       expect(service.connected()).toBe(true);
       expect(service.apiKey()).toBe('api-key-1');
@@ -288,6 +303,7 @@ describe('ConnectionService auto-reconnect', () => {
   });
 
   afterEach(() => {
+    flushSessionExchange(httpMock);
     httpMock.verify();
     vi.useRealTimers();
     localStorage.clear();

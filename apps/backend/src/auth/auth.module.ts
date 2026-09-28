@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CommonModule } from '../common/common.module';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
@@ -18,6 +19,7 @@ import { UserModule } from '../user/user.module';
 
 @Module({
   imports: [
+    CommonModule,
     UserModule,
     // Redis-backed rather than in-memory: an in-process counter resets on every
     // deploy and restart, which hands an attacker a fresh budget each time, and

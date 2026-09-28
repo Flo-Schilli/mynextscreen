@@ -31,6 +31,8 @@ import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 import * as apiKeyUtil from './api-key.util';
 import { sha256hex } from './api-key.util';
+import { ScreenSessionService } from './screen-session.service';
+import { TokenService } from '../auth/token.service';
 
 jest.mock('./api-key.util', () => {
   const actual = jest.requireActual('./api-key.util');
@@ -64,6 +66,18 @@ describe('ScreenService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ScreenService,
+        ScreenSessionService,
+        {
+          provide: TokenService,
+          useValue: {
+            issueScreenAccessToken: jest.fn().mockResolvedValue({
+              token: 'access',
+              jti: 'jti',
+              expiresAt: new Date(),
+            }),
+            accessTokenTtlSeconds: 900,
+          },
+        },
         ScreenPairingService,
         { provide: DRIZZLE, useValue: db },
         { provide: EventEmitter2, useValue: { emit } },
@@ -608,6 +622,37 @@ describe('ScreenService', () => {
       const result = await service.detectOfflineScreens(120_000);
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('recordHeartbeat — player version telemetry', () => {
+    it('records the version a player reports', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+
+      const saved = await service.recordHeartbeat(org.id, screen.id, '0.9.1');
+
+      expect(saved.playerVersion).toBe('0.9.1');
+      expect(saved.isOnline).toBe(true);
+    });
+
+    it('does not erase a known version when an old player reports none', async () => {
+      // This is what the rollout is gated on: "no version" must mean "never
+      // reported", not "the last heartbeat happened to omit it".
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      await service.recordHeartbeat(org.id, screen.id, '0.9.1');
+
+      const saved = await service.recordHeartbeat(org.id, screen.id);
+
+      expect(saved.playerVersion).toBe('0.9.1');
+    });
+
+    it('leaves it null for a screen that has never reported one', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+
+      expect((await service.recordHeartbeat(org.id, screen.id)).playerVersion).toBeNull();
     });
   });
 });

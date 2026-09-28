@@ -17,6 +17,7 @@ import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { screens } from '../db/schema';
 import { MediaService } from './media.service';
+import { SignedMediaUrl } from '../auth/signed-media.decorator';
 
 @Controller('media')
 export class MediaController {
@@ -27,7 +28,8 @@ export class MediaController {
 
   @Get(':organisationId/:contentId')
   @ScreenAuth()
-  @Header('Cache-Control', 'public, max-age=86400, immutable')
+  @SignedMediaUrl()
+  @Header('Cache-Control', 'public, max-age=86400')
   async serveMedia(
     @Req() req: ScreenAuthenticatedRequest,
     @Param('organisationId', ParseUUIDPipe) organisationId: string,
@@ -44,13 +46,14 @@ export class MediaController {
     );
 
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
     res.sendFile(filePath, { root: '/' });
   }
 
   @Get('slices/:groupId/:screenId/:contentId')
   @ScreenAuth()
-  @Header('Cache-Control', 'public, max-age=86400, immutable')
+  @SignedMediaUrl()
+  @Header('Cache-Control', 'public, max-age=86400')
   async serveSlicedMedia(
     @Req() req: ScreenAuthenticatedRequest,
     @Param('groupId', ParseUUIDPipe) groupId: string,
@@ -91,7 +94,7 @@ export class MediaController {
     );
 
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
     res.sendFile(filePath, { root: '/' });
   }
 }
