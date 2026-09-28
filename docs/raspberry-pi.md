@@ -58,34 +58,40 @@ already transcodes to H.264 for exactly this reason.
 
 ## A Pi as the server
 
-Possible, and people do it. Two things decide whether it is right for you.
+Possible, and people do it. The images are built for it; what decides whether
+it is a good idea is what you ask it to encode.
 
-### The published images are amd64 only
+### The images are built for the Pi
 
-CI builds on a standard GitHub runner and publishes a single architecture:
+Every image is published as a multi-architecture manifest covering `linux/amd64`
+and `linux/arm64`, each built natively rather than emulated. `podman pull`
+resolves the right one on its own, so nothing about the installation differs
+from any other host:
 
+```bash
+podman pull ghcr.io/flo-schilli/mynextscreen/backend:0.11.0
 ```
-linux/amd64
+
+Check what a tag actually contains:
+
+```bash
+podman manifest inspect ghcr.io/flo-schilli/mynextscreen/backend:0.11.0
 ```
 
-A Pi is `linux/arm64`, so `podman pull ghcr.io/flo-schilli/mynextscreen/backend`
-will not give you something that runs. **Build the images on the Pi instead** —
-the Dockerfiles are architecture-independent, and every base image (Node,
-PostgreSQL, Redis, nginx) publishes arm64.
+A 32-bit OS is the one thing that will not work — the images are `arm64`, not
+`armhf`. `uname -m` must say `aarch64`.
+
+Building on the Pi yourself still works if you want to, and is the path for a
+fork that does not publish images:
 
 ```bash
 git clone https://github.com/Flo-Schilli/mynextscreen.git
 cd mynextscreen
-npm run images:build          # builds all three for the architecture you are on
+npm run images:build
 ```
 
-Expect the first build to take a while on a Pi — it installs the full dependency
-set and compiles two Angular applications. Subsequent builds reuse the layer
-cache. If that is too slow, build on a faster arm64 machine (an Apple Silicon
-Mac, an arm64 cloud instance) and push to your own registry.
-
-For development rather than production, `npm run dev` works unchanged: the
-compose file names no architecture, and every image it pulls has an arm64 build.
+Expect that to take a while: it installs the full dependency set and compiles
+two Angular applications.
 
 ### Transcoding is CPU work, and the Pi 5 made it harder
 
@@ -129,16 +135,12 @@ a GPU and keep the Pis as displays.
 
 ### Setup
 
-Everything in [installation.md](installation.md) applies unchanged, with two
-additions:
+Everything in [installation.md](installation.md) applies unchanged — including
+the Ansible playbook, which is written for rootless Podman and pulls the same
+images. There is no Pi-specific branch to follow.
 
-1. Build the images locally, as above, instead of pulling them.
-2. Point `signage_image_tag` — or your compose file — at the images you built.
-
-The Ansible playbook is written for rootless Podman and works on Raspberry Pi OS
-once Podman is installed, but it is set up to pull from GHCR. If you use it,
-change `image_registry` in `ansible/deploy.yml` to your own registry, or deploy
-with compose instead.
+For development, `npm run dev` works as it does anywhere: the compose file names
+no architecture and every image it pulls has an arm64 build.
 
 ### Backups matter more here
 
