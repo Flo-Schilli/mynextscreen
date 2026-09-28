@@ -8,7 +8,7 @@ import { AppSidebar, NavItem } from './app-sidebar';
 import { AppTopbar } from './app-topbar';
 import { OrgSwitchModal } from './org-switch-modal';
 
-const SIDEBAR_KEY = 'signage_sidebar_collapsed';
+const SIDEBAR_KEY = 'mynextscreen_sidebar_collapsed';
 
 /**
  * Smart container for the app shell — Phase 2 reskin.

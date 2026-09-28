@@ -2,7 +2,7 @@
  * Tests for ConnectionService.
  *
  * Two parts:
- * 1. The signage-connect handoff, exercised against the real listener (the
+ * 1. The mynextscreen-connect handoff, exercised against the real listener (the
  *    previous version mirrored the filter in the spec, so it could not catch a
  *    change in the service itself).
  * 2. TestBed-backed tests for the pairing device-flow (startPairing / pollPairing)
@@ -34,7 +34,7 @@ function flushSessionExchange(httpMock: HttpTestingController): void {
   }
 }
 
-describe('ConnectionService signage-connect handoff', () => {
+describe('ConnectionService mynextscreen-connect handoff', () => {
   let service: ConnectionService;
   let connectSpy: ReturnType<typeof vi.spyOn>;
   const parentWindow = { name: 'shell-parent' } as unknown as Window;
@@ -44,7 +44,7 @@ describe('ConnectionService signage-connect handoff', () => {
       data:
         'data' in overrides
           ? overrides.data
-          : { type: 'signage-connect', serverUrl: 'https://example.com' },
+          : { type: 'mynextscreen-connect', serverUrl: 'https://example.com' },
       origin: overrides.origin ?? window.location.origin,
     });
     Object.defineProperty(event, 'source', {
@@ -115,9 +115,9 @@ describe('ConnectionService signage-connect handoff', () => {
   });
 
   it.each([
-    [{ type: 'signage-connect', apiKey: 'key-123' }],
-    [{ type: 'signage-connect', serverUrl: '', apiKey: 'key-123' }],
-    [{ type: 'signage-connect', serverUrl: 123, apiKey: 'key' }],
+    [{ type: 'mynextscreen-connect', apiKey: 'key-123' }],
+    [{ type: 'mynextscreen-connect', serverUrl: '', apiKey: 'key-123' }],
+    [{ type: 'mynextscreen-connect', serverUrl: 123, apiKey: 'key' }],
     [{ type: 'other-message', serverUrl: 'https://example.com', apiKey: 'key' }],
     [null],
     ['a string'],
@@ -128,8 +128,8 @@ describe('ConnectionService signage-connect handoff', () => {
 
   describe('the handoff carries a URL and nothing else', () => {
     it.each([
-      [{ type: 'signage-connect', serverUrl: 'https://example.com/' }],
-      [{ type: 'signage-connect', serverUrl: 'https://example.com', apiKey: '' }],
+      [{ type: 'mynextscreen-connect', serverUrl: 'https://example.com/' }],
+      [{ type: 'mynextscreen-connect', serverUrl: 'https://example.com', apiKey: '' }],
     ])('takes the server URL from %j and leaves enrolment to pairing', (data) => {
       dispatchConnect({ data });
 
@@ -140,14 +140,14 @@ describe('ConnectionService signage-connect handoff', () => {
       expect(service.serverUrl()).toBe('https://example.com');
       // Persisted, so the next start pairs against the right server with no
       // handoff at all.
-      expect(localStorage.getItem('signage_server_url')).toBe('https://example.com');
+      expect(localStorage.getItem('mynextscreen_server_url')).toBe('https://example.com');
     });
 
     it('ignores an apiKey in the message instead of enrolling with it', () => {
       // A handoff could once enrol the display with a key, which meant any
       // sender past the trust check could enrol it with a string they invented.
       dispatchConnect({
-        data: { type: 'signage-connect', serverUrl: 'https://example.com', apiKey: 'key-123' },
+        data: { type: 'mynextscreen-connect', serverUrl: 'https://example.com', apiKey: 'key-123' },
       });
 
       expect(connectSpy).not.toHaveBeenCalled();
@@ -155,15 +155,15 @@ describe('ConnectionService signage-connect handoff', () => {
     });
 
     it('ignores a repeated handoff of the URL it already has', () => {
-      const data = { type: 'signage-connect', serverUrl: 'https://example.com' };
+      const data = { type: 'mynextscreen-connect', serverUrl: 'https://example.com' };
       dispatchConnect({ data });
-      localStorage.removeItem('signage_server_url');
+      localStorage.removeItem('mynextscreen_server_url');
 
       dispatchConnect({ data });
 
       // Unchanged URL ⇒ no second write, so the dialog is not told to throw
       // away a code it just put on the display.
-      expect(localStorage.getItem('signage_server_url')).toBeNull();
+      expect(localStorage.getItem('mynextscreen_server_url')).toBeNull();
     });
   });
 });
@@ -222,11 +222,11 @@ describe('ConnectionService pairing flow', () => {
       });
       await promise;
 
-      expect(localStorage.getItem('signage_pairing_id')).toBe('pair-1');
-      expect(localStorage.getItem('signage_server_url')).toBe(SERVER);
+      expect(localStorage.getItem('mynextscreen_pairing_id')).toBe('pair-1');
+      expect(localStorage.getItem('mynextscreen_server_url')).toBe(SERVER);
       // the 256-bit secret lives in sessionStorage (tab-scoped, not in localStorage)
-      expect(sessionStorage.getItem('signage_pairing_secret')).toBe('secret-xyz');
-      expect(localStorage.getItem('signage_pairing_secret')).toBeNull();
+      expect(sessionStorage.getItem('mynextscreen_pairing_secret')).toBe('secret-xyz');
+      expect(localStorage.getItem('mynextscreen_pairing_secret')).toBeNull();
     });
 
     it('normalizes a trailing slash in the server URL', async () => {
@@ -254,8 +254,8 @@ describe('ConnectionService pairing flow', () => {
 
   describe('pollPairing', () => {
     beforeEach(() => {
-      localStorage.setItem('signage_pairing_id', 'pair-1');
-      sessionStorage.setItem('signage_pairing_secret', 'secret-xyz');
+      localStorage.setItem('mynextscreen_pairing_id', 'pair-1');
+      sessionStorage.setItem('mynextscreen_pairing_secret', 'secret-xyz');
     });
 
     it('returns "pending" while the pairing is unclaimed', async () => {
@@ -289,13 +289,13 @@ describe('ConnectionService pairing flow', () => {
       // The enrolment credential is deliberately NOT persisted once a session
       // exists: the rotating refresh token is what resumes the screen, and a
       // permanent key on a device in a public space is what this work removes.
-      expect(localStorage.getItem('signage_api_key')).toBeNull();
-      expect(localStorage.getItem('signage_refresh_token')).toBe('refresh-token');
-      expect(localStorage.getItem('signage_screen_id')).toBe('screen-1');
-      expect(localStorage.getItem('signage_org_id')).toBe('org-1');
+      expect(localStorage.getItem('mynextscreen_api_key')).toBeNull();
+      expect(localStorage.getItem('mynextscreen_refresh_token')).toBe('refresh-token');
+      expect(localStorage.getItem('mynextscreen_screen_id')).toBe('screen-1');
+      expect(localStorage.getItem('mynextscreen_org_id')).toBe('org-1');
       // pairing keys cleared after claim
-      expect(localStorage.getItem('signage_pairing_id')).toBeNull();
-      expect(sessionStorage.getItem('signage_pairing_secret')).toBeNull();
+      expect(localStorage.getItem('mynextscreen_pairing_id')).toBeNull();
+      expect(sessionStorage.getItem('mynextscreen_pairing_secret')).toBeNull();
     });
 
     it('returns "expired" and clears pairing keys on 410 Gone', async () => {
@@ -305,8 +305,8 @@ describe('ConnectionService pairing flow', () => {
         .flush('gone', { status: 410, statusText: 'Gone' });
 
       await expect(promise).resolves.toBe('expired');
-      expect(localStorage.getItem('signage_pairing_id')).toBeNull();
-      expect(sessionStorage.getItem('signage_pairing_secret')).toBeNull();
+      expect(localStorage.getItem('mynextscreen_pairing_id')).toBeNull();
+      expect(sessionStorage.getItem('mynextscreen_pairing_secret')).toBeNull();
     });
 
     it('returns "expired" on 404 (unknown id / wrong secret)', async () => {
@@ -328,8 +328,8 @@ describe('ConnectionService pairing flow', () => {
     });
 
     it('returns "expired" without an HTTP call when pairing keys are missing', async () => {
-      localStorage.removeItem('signage_pairing_id');
-      sessionStorage.removeItem('signage_pairing_secret');
+      localStorage.removeItem('mynextscreen_pairing_id');
+      sessionStorage.removeItem('mynextscreen_pairing_secret');
 
       await expect(service.pollPairing(SERVER)).resolves.toBe('expired');
       httpMock.expectNone(`${SERVER}/api/screens/pairing/pair-1/status`);
@@ -345,10 +345,10 @@ describe('ConnectionService auto-reconnect', () => {
   const STATE_URL = `${SERVER}/api/screens/screen-1/state`;
 
   function seedSavedSettings(): void {
-    localStorage.setItem('signage_server_url', SERVER);
-    localStorage.setItem('signage_api_key', 'api-key-1');
-    localStorage.setItem('signage_screen_id', 'screen-1');
-    localStorage.setItem('signage_org_id', 'org-1');
+    localStorage.setItem('mynextscreen_server_url', SERVER);
+    localStorage.setItem('mynextscreen_api_key', 'api-key-1');
+    localStorage.setItem('mynextscreen_screen_id', 'screen-1');
+    localStorage.setItem('mynextscreen_org_id', 'org-1');
   }
 
   beforeEach(() => {

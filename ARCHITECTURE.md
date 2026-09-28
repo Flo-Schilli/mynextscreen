@@ -18,13 +18,13 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
 - **REST API** over HTTP, JSON request/response bodies
 - **Authentication:**
   - **Users** — internal email + password (bcrypt). Login issues a short-lived JWT access token (HTTP-only cookie) plus a refresh token stored in Redis; JWT claims carry `userId` and `role`. Org/role scope is resolved server-side per request from memberships.
-  - **Screens** — API key per screen, passed via `Authorization` header
+  - **Screens** — enrolled by a six-digit pairing code claimed in the dashboard. The credential handed over is exchanged once for a short-lived access token (its own JWT audience, `mynextscreen-screen`) plus a rotating refresh token held in Postgres; both travel in the `Authorization` header. Media URLs carry an HMAC signature instead of a credential.
 - **Authorisation** — NestJS guards enforce role-based access per organisation:
   - Super-admin: system-level operations (provision orgs, view global audit log)
   - Org Admin: full control within their organisation
   - Editor: content, playlists, schedules, live streams
   - Viewer: read-only
-- **Multi-tenancy** — every query is scoped by `organisationId`, extracted from the JWT or API key; no cross-tenant data access is possible at the service layer
+- **Multi-tenancy** — every query is scoped by `organisationId`, extracted from the user or screen token; no cross-tenant data access is possible at the service layer
 - **Entity IDs** — UUIDs for all entities
 
 ## Backend
@@ -41,10 +41,10 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
 
 | Module | Responsibility |
 |---|---|
-| **AuthModule** | Internal email+password auth (bcrypt), JWT access cookie + Redis refresh tokens, API key validation, guards for role-based access |
+| **AuthModule** | Internal email+password auth (bcrypt), JWT access cookie + Redis refresh tokens, screen enrolment and session tokens, guards for role-based access |
 | **OrganisationModule** | CRUD for organisations, storage limit enforcement, default playlist config, time zone |
 | **UserModule** | User-org membership, role assignment, notification preferences |
-| **ScreenModule** | Screen registration, API key generation/regeneration, heartbeat tracking, online/offline status |
+| **ScreenModule** | Pairing and re-pairing, screen sessions (rotating refresh tokens), heartbeat tracking, online/offline status |
 | **ScreenGroupModule** | Group management, mirror/split mode config, grid layout for video walls |
 | **ContentModule** | Upload handling, metadata CRUD, storage tracking, triggers transcoding jobs |
 | **TranscodingModule** | BullMQ workers: video → H.264 MP4, image → WebP (JPEG fallback), storage accounting |
@@ -86,7 +86,7 @@ interface ScreenProtocolAdapter {
 
 ### Communication Flow
 
-1. **Startup pull** — screen sends `GET /api/screens/{id}/state` with API key → receives full state (current playlist, schedule, content URLs)
+1. **Startup pull** — screen sends `GET /api/screens/{id}/state` with its session token → receives full state (current playlist, schedule, signed content URLs)
 2. **SSE push** — screen opens `GET /api/screens/{id}/events` (SSE endpoint) → receives real-time updates (schedule change, live stream override, content update)
 3. **Heartbeat** — screen sends `POST /api/screens/{id}/heartbeat` at a configurable interval; server marks screen offline if no heartbeat within timeout threshold
 

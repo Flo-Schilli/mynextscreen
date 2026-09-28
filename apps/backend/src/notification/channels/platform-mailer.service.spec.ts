@@ -25,7 +25,7 @@ describe('PlatformMailerService', () => {
     SMTP_USER: '',
     SMTP_PASSWORD: '',
     SMTP_SECURE: false,
-    SMTP_FROM: 'Signage <noreply@signage.local>',
+    SMTP_FROM: 'Signage <noreply@mynextscreen.local>',
     PUBLIC_BASE_URL: 'https://app.example.com/',
   };
 
@@ -53,7 +53,7 @@ describe('PlatformMailerService', () => {
 
     expect(mockSendMail).toHaveBeenCalledTimes(1);
     const sent = mockSendMail.mock.calls[0][0];
-    expect(sent.from).toBe('Signage <noreply@signage.local>');
+    expect(sent.from).toBe('Signage <noreply@mynextscreen.local>');
     expect(sent.to).toBe('new@example.com');
     expect(sent.subject).toMatch(/verify/i);
     // base URL trailing slash collapsed + token URI-encoded

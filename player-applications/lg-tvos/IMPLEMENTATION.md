@@ -10,7 +10,7 @@ The LG WebOS application is a thin shell that loads the existing Angular web pla
 ┌─────────────────────────────────────────────┐
 │              LG WebOS TV                    │
 │  ┌───────────────────────────────────────┐  │
-│  │   Digital Signage App (index.html)    │  │
+│  │   myNextScreen App (index.html)     │  │
 │  │                                       │  │
 │  │  1. Check localStorage for settings   │  │
 │  │  2. If missing → show settings UI     │  │

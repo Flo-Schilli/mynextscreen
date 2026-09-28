@@ -8,4 +8,4 @@ import * as path from 'path';
  * testcontainers — loading it runs `readFile` at module-init time, which
  * collides with specs that `jest.mock('fs/promises')` (TDZ on the mock const).
  */
-export const TEST_PG_URI_FILE = path.join(os.tmpdir(), 'signage-test-pg-uri');
+export const TEST_PG_URI_FILE = path.join(os.tmpdir(), 'mynextscreen-test-pg-uri');

@@ -173,7 +173,7 @@ describe('ContentController — CRUD endpoints', () => {
     async function serveFromDisk(originalMimeType: string): Promise<{
       headers: Record<string, string>;
     }> {
-      const mediaRoot = await mkdtemp(path.join(tmpdir(), 'signage-serve-'));
+      const mediaRoot = await mkdtemp(path.join(tmpdir(), 'mynextscreen-serve-'));
       const dir = path.join(mediaRoot, orgId, 'originals');
       await mkdir(dir, { recursive: true });
       await writeFile(path.join(dir, `${contentId}.svg`), '<svg/>');

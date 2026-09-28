@@ -1,4 +1,4 @@
-# Signage Server
+# myNextScreen
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
@@ -26,7 +26,7 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 | Backend        | NestJS 11, Drizzle ORM                                                                           |
 | Database       | PostgreSQL 16                                                                                    |
 | Job Queue      | BullMQ + Redis                                                                                   |
-| Authentication | Internal email + password — JWT access cookie + Redis refresh tokens (users), API keys (screens) |
+| Authentication | Internal email + password — JWT access cookie + Redis refresh tokens (users), pairing code + rotating session (screens) |
 | Real-time      | Server-Sent Events (SSE)                                                                         |
 | Media          | FFmpeg (transcoding + HLS)                                                                       |
 | Runtime        | Node.js 22                                                                                       |
@@ -47,8 +47,8 @@ For local development without Docker:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/Flo-Schilli/digital-signage.git
-cd digital-signage
+git clone https://github.com/Flo-Schilli/mynextscreen.git
+cd mynextscreen
 
 # 2. Create your environment file
 cp .env.example .env
@@ -72,7 +72,7 @@ Copy `.env.example` to `.env` and configure the values below.
 
 ### Authentication (Required)
 
-Signage Server uses **internal authentication** (email + password). Passwords are hashed with bcrypt; login issues a short-lived JWT **access token** (HTTP-only cookie) plus a **refresh token** stored in Redis. There is no external identity provider.
+myNextScreen uses **internal authentication** (email + password). Passwords are hashed with bcrypt; login issues a short-lived JWT **access token** (HTTP-only cookie) plus a **refresh token** stored in Redis. There is no external identity provider.
 
 Accounts come into existence in three ways:
 
@@ -277,12 +277,12 @@ npx nx affected -t lint typecheck test build
 ## Project Structure
 
 ```
-digital-signage/
+mynextscreen/
 ├── apps/
 │   ├── backend/              # NestJS API server
 │   │   ├── project.json      # Nx targets: build/serve/test/… + db-* (drizzle-kit)
 │   │   └── src/
-│   │       ├── auth/         # Internal email+password auth, API key auth, role guards
+│   │       ├── auth/         # Internal email+password auth, screen sessions, role guards
 │   │       ├── organisation/ # Multi-tenant org management
 │   │       ├── user/         # User-org membership and roles
 │   │       ├── screen/       # Screen registration and management
@@ -318,7 +318,7 @@ digital-signage/
 2. The backend verifies the bcrypt password hash, then issues a short-lived JWT **access token** as an HTTP-only cookie and stores a **refresh token** in Redis
 3. The browser sends the access cookie automatically with each API request; the backend validates it with `JWT_ACCESS_SECRET` and refreshes via the refresh token when it expires
 4. Org/role scope is resolved server-side per request from the user's memberships — every query is scoped by `organisationId`
-5. Screens authenticate separately using API keys issued by Org Admins
+5. Screens enrol themselves: the player shows a **six-digit pairing code**, an admin claims it in the dashboard, and the screen exchanges the credential it receives for a **short-lived access token plus a rotating refresh token**. No long-lived key is left on the display.
 
 ## Contributing
 

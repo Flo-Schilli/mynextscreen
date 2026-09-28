@@ -4,6 +4,53 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## Unreleased
+
+### Changed — the project is called myNextScreen
+
+The admin interface has said so for months; everything else still said "Signage
+Server", and the webOS app called itself "Digital Signage" with the application
+id `com.cbf.webos`. Four names for one product, none of which matched the logo
+in the sidebar. They are now one.
+
+Renamed: the product name in emails, `SMTP_FROM`, the package, the Nx path
+mapping (`@mynextscreen/shared-types`), browser-storage keys, the postMessage
+handoff type, the JWT issuer and audiences, container and unit names, the podman
+network, the Caddy access log, the fail2ban jail, the database role and
+database, the service user, and the repository itself
+(`Flo-Schilli/mynextscreen`), which moves the GHCR image paths with it.
+
+Dropped: `screen.mynextscreen.app` as the built-in default player URL. An
+instance that has no `PLAYER_BASE_URL` now says so in the add-screen hint
+instead of naming a deployment it has nothing to do with.
+
+Deleted: `docs/`, 54 files of planning and design-handoff material that
+documented how the software came to be rather than how to use it. The history
+still has them.
+
+Corrected: README, ARCHITECTURE and VISION still described screens as
+authenticating with a long-lived API key issued by an org admin. That stopped
+being true in 0.10.0.
+
+### Required operator actions
+
+This release renames deployment identity. A running instance does not migrate
+itself — plan a rebuild rather than an upgrade.
+
+1. **Pull from the new image path.** `ghcr.io/flo-schilli/mynextscreen/{backend,frontend,player}`.
+   The old path keeps its existing tags and receives nothing further.
+2. **The database role, the database and the service user are now `mynextscreen`.**
+   Back up first (`ansible/download_db.yml` against the old host), then restore
+   into the new instance.
+3. **Quadlet units, the podman network and the env files are renamed.** Remove
+   the `signage-*` units before deploying, or the host runs both sets.
+4. **Everyone is logged out once.** The JWT issuer and audiences changed, so
+   existing access tokens are refused. Users simply log in again.
+5. **Every screen re-pairs, and every webOS TV needs the new app.** The
+   application id changed, which makes it a new app to the TV: the old one stays
+   installed and the new one starts empty. Browser-storage keys changed too, so
+   a paired display starts over.
+
 ## 0.10.1
 
 ### Changed — the webOS shell stops asking for an API key

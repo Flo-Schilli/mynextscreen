@@ -1,35 +1,35 @@
 ---
-# Signage Server — Download Database Backup
+# myNextScreen — Download Database Backup
 # Usage: ansible-playbook -i hosts.ini download_db.yml -K
 #
 # Dumps the PostgreSQL database from the server (pg_dump custom format) and
 # fetches it to a timestamped local backup.
-# Output: ansible/backups/signage_YYYYMMDD_HHMMSS.dump
+# Output: ansible/backups/mynextscreen_YYYYMMDD_HHMMSS.dump
 
 - name: Download database from server
   hosts: servers
   become: true
   vars:
-    service_user: signage
+    service_user: mynextscreen
     service_user_home: "/home/{{ service_user }}"
     backup_dir: "{{ playbook_dir }}/backups"
-    remote_dump: "/tmp/signage_download.dump"
+    remote_dump: "/tmp/mynextscreen_download.dump"
 
   tasks:
     - name: Verify PostgreSQL container is running
-      ansible.builtin.command: podman container exists signage-postgres
+      ansible.builtin.command: podman container exists mynextscreen-postgres
       register: pg_running
       changed_when: false
       failed_when: false
 
     - name: Fail if PostgreSQL container is not running
       ansible.builtin.fail:
-        msg: "signage-postgres container is not running on the server"
+        msg: "mynextscreen-postgres container is not running on the server"
       when: pg_running.rc != 0
 
     - name: Dump database (pg_dump custom format)
       ansible.builtin.shell: >-
-        podman exec signage-postgres pg_dump -U signage -d signage -Fc > "{{ remote_dump }}"
+        podman exec mynextscreen-postgres pg_dump -U mynextscreen -d mynextscreen -Fc > "{{ remote_dump }}"
       args:
         executable: /bin/bash
       changed_when: true
@@ -49,7 +49,7 @@
     - name: Fetch dump to local backup
       ansible.builtin.fetch:
         src: "{{ remote_dump }}"
-        dest: "{{ backup_dir }}/signage_{{ backup_timestamp }}.dump"
+        dest: "{{ backup_dir }}/mynextscreen_{{ backup_timestamp }}.dump"
         flat: true
 
     - name: Remove remote temp dump
@@ -59,4 +59,4 @@
 
     - name: Report backup location
       ansible.builtin.debug:
-        msg: "Database saved to {{ backup_dir }}/signage_{{ backup_timestamp }}.dump"
+        msg: "Database saved to {{ backup_dir }}/mynextscreen_{{ backup_timestamp }}.dump"

@@ -113,7 +113,7 @@ describe('Screens', () => {
         // (which would trip httpMock.verify()).
         {
           provide: PublicConfigService,
-          useValue: { playerUrl: () => 'screen.mynextscreen.app', load: () => Promise.resolve() },
+          useValue: { playerUrl: () => 'player.example.com', load: () => Promise.resolve() },
         },
       ],
     });

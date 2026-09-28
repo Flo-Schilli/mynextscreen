@@ -19,7 +19,7 @@ try {
   // already initialized
 }
 
-const SIDEBAR_KEY = 'signage_sidebar_collapsed';
+const SIDEBAR_KEY = 'mynextscreen_sidebar_collapsed';
 
 // Stub children: keep the same selectors + the inputs/outputs the container binds.
 @Component({ selector: 'app-sidebar', template: '' })

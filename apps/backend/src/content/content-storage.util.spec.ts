@@ -39,7 +39,7 @@ describe('content-storage.util', () => {
 
   describe('removeOrganisationMedia', () => {
     it('removes the org directory and the legacy slices outside it', async () => {
-      const base = await mkdtemp(path.join(tmpdir(), 'signage-media-'));
+      const base = await mkdtemp(path.join(tmpdir(), 'mynextscreen-media-'));
       const orgId = '11111111-1111-1111-1111-111111111111';
 
       await mkdir(path.join(base, orgId, 'originals'), { recursive: true });
@@ -55,8 +55,11 @@ describe('content-storage.util', () => {
     });
 
     it('ignores a path outside the media root', async () => {
-      const base = await mkdtemp(path.join(tmpdir(), 'signage-media-'));
-      const outsider = path.join(await mkdtemp(path.join(tmpdir(), 'signage-other-')), 'keep.txt');
+      const base = await mkdtemp(path.join(tmpdir(), 'mynextscreen-media-'));
+      const outsider = path.join(
+        await mkdtemp(path.join(tmpdir(), 'mynextscreen-other-')),
+        'keep.txt',
+      );
       await writeFile(outsider, 'keep');
 
       await removeOrganisationMedia(base, '11111111-1111-1111-1111-111111111111', [

@@ -5,20 +5,20 @@ localhost ansible_connection=local
 
 [servers]
 # Replace with your server hostname or IP, or an alias from your ~/.ssh/config.
-# Example: signage.example.com ansible_user=signage
+# Example: mynextscreen.example.com ansible_user=mynextscreen
 your-server
 
 [servers:vars]
 ansible_become=true
 ansible_become_method=sudo
-# Required: The domain name for the signage server
-# Example: domain_name=signage.example.com
-domain_name=signage.example.com
+# Required: The domain name for the myNextScreen server
+# Example: domain_name=mynextscreen.example.com
+domain_name=mynextscreen.example.com
 # Required: strong random secret for signing access JWTs. DO NOT commit a real
 # value — set via Ansible Vault or --extra-vars (openssl rand -base64 48).
 # jwt_access_secret="{{ vault_jwt_access_secret }}"
 # Required: Postgres password. No default — the deploy fails without it.
-# vault_signage_postgres_password="{{ vault_signage_postgres_password }}"
+# vault_mynextscreen_postgres_password="{{ vault_mynextscreen_postgres_password }}"
 # The first super-admin is created via the UI first-run setup after deploy
 # (no env seeding) — open the app while no user exists yet.
 caddy_site_prefix=70

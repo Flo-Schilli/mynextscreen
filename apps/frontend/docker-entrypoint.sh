@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-: "${BACKEND_UPSTREAM:=signage-backend:3000}"; export BACKEND_UPSTREAM
+: "${BACKEND_UPSTREAM:=mynextscreen-backend:3000}"; export BACKEND_UPSTREAM
 # Upload cap for /api/content/upload. Keep at or above the backend's
 # MAX_FILE_SIZE_BYTES (default 100 MB) — nginx is the outermost of the three
 # layers that enforce it.

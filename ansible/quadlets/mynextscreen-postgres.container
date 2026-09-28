@@ -1,12 +1,12 @@
 [Unit]
 Description=Signage PostgreSQL
-After=signage-network.service
+After=mynextscreen-network.service
 
 [Container]
-ContainerName=signage-postgres
+ContainerName=mynextscreen-postgres
 Image=docker.io/library/postgres:16-alpine
 Pull=newer
-Network=signage.network
+Network=mynextscreen.network
 NoNewPrivileges=true
 DropCapability=ALL
 AddCapability=CHOWN
@@ -14,9 +14,9 @@ AddCapability=DAC_READ_SEARCH
 AddCapability=FOWNER
 AddCapability=SETGID
 AddCapability=SETUID
-EnvironmentFile=%h/.config/containers/systemd/.env.signage-postgres
-Volume=signage-postgres-data:/var/lib/postgresql/data:Z
-HealthCmd=pg_isready -U signage -d signage
+EnvironmentFile=%h/.config/containers/systemd/.env.mynextscreen-postgres
+Volume=mynextscreen-postgres-data:/var/lib/postgresql/data:Z
+HealthCmd=pg_isready -U mynextscreen -d mynextscreen
 HealthInterval=30s
 HealthTimeout=5s
 HealthRetries=3

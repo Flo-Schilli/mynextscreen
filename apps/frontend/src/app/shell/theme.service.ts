@@ -4,9 +4,9 @@ export type Theme = 'dark' | 'light';
 export type Accent = 'indigo' | 'teal' | 'amber' | 'blue';
 export type Density = 'compact' | 'regular' | 'comfy';
 
-const STORAGE_KEY = 'signage_theme';
-const ACCENT_KEY = 'signage_accent';
-const DENSITY_KEY = 'signage_density';
+const STORAGE_KEY = 'mynextscreen_theme';
+const ACCENT_KEY = 'mynextscreen_accent';
+const DENSITY_KEY = 'mynextscreen_density';
 
 function readTheme(): Theme {
   const stored = localStorage.getItem(STORAGE_KEY);

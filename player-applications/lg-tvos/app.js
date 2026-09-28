@@ -1,5 +1,5 @@
 /**
- * Digital Signage LG WebOS Application
+ * myNextScreen — LG webOS Application
  *
  * Thin shell around the web player: it holds the two URLs that a TV cannot
  * guess, loads the player in an iframe and hands the server URL over.
@@ -96,7 +96,7 @@ function loadPlayer(playerUrl, serverUrl) {
         // which server this display belongs to, and a page that happened to
         // answer the load has no business learning that.
         iframe.contentWindow.postMessage({
-            type: 'signage-connect',
+            type: 'mynextscreen-connect',
             serverUrl: serverUrl
         }, playerOrigin);
 

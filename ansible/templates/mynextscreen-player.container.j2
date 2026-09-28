@@ -2,11 +2,11 @@
 Description=Signage Player
 
 [Container]
-ContainerName=signage-player
-Image={{ image_registry }}/player:{{ signage_image_tag }}
+ContainerName=mynextscreen-player
+Image={{ image_registry }}/player:{{ mynextscreen_image_tag }}
 AutoUpdate=registry
 Pull=newer
-Network=signage.network
+Network=mynextscreen.network
 NoNewPrivileges=true
 DropCapability=ALL
 AddCapability=SETGID

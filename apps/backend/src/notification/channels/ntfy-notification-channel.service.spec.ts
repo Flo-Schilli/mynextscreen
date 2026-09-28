@@ -23,7 +23,7 @@ describe('NtfyNotificationChannel', () => {
 
   const mockOrgConfig: Partial<OrganisationNotificationConfig> = {
     ntfyUrl: 'https://ntfy.example.com',
-    ntfyTopic: 'signage-alerts',
+    ntfyTopic: 'mynextscreen-alerts',
     ntfyToken: 'tk_secret123',
   };
 
@@ -53,7 +53,7 @@ describe('NtfyNotificationChannel', () => {
 
     expect(orgConfigService.getForOrg).toHaveBeenCalledWith(orgId);
     expect(httpService.post).toHaveBeenCalledWith(
-      'https://ntfy.example.com/signage-alerts',
+      'https://ntfy.example.com/mynextscreen-alerts',
       'Screen "Main Hall" has gone offline',
       {
         headers: {
@@ -74,7 +74,7 @@ describe('NtfyNotificationChannel', () => {
     await channel.send(orgId, payload);
 
     expect(httpService.post).toHaveBeenCalledWith(
-      'https://ntfy.example.com/signage-alerts',
+      'https://ntfy.example.com/mynextscreen-alerts',
       payload.message,
       {
         headers: {
@@ -94,7 +94,7 @@ describe('NtfyNotificationChannel', () => {
     await channel.send(orgId, payload);
 
     expect(httpService.post).toHaveBeenCalledWith(
-      'https://ntfy.example.com/signage-alerts',
+      'https://ntfy.example.com/mynextscreen-alerts',
       payload.message,
       expect.any(Object),
     );

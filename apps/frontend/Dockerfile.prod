@@ -1,5 +1,5 @@
 # Build context = repo root (Nx monorepo: one root package.json + lockfile).
-# Build:  docker build -f apps/frontend/Dockerfile.prod -t signage-frontend .
+# Build:  docker build -f apps/frontend/Dockerfile.prod -t mynextscreen-frontend .
 
 # Stage 1: Build
 FROM node:22-alpine AS builder
@@ -38,11 +38,11 @@ RUN apk add --no-cache gettext
 ARG APP_VERSION=0.0.0-dev
 ARG GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
-LABEL org.opencontainers.image.title="signage-frontend" \
+LABEL org.opencontainers.image.title="mynextscreen-frontend" \
       org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.revision="${GIT_COMMIT}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.source="https://github.com/Flo-Schilli/digital-signage"
+      org.opencontainers.image.source="https://github.com/Flo-Schilli/mynextscreen"
 
 # nginx template (envsubst BACKEND_UPSTREAM at runtime) + entrypoint
 COPY apps/frontend/nginx.prod.conf.template /etc/nginx/templates/default.conf.template

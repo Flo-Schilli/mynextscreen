@@ -184,7 +184,7 @@ jobs:
           context: .
           file: ./apps/${{ matrix.app }}/Dockerfile.prod
           load: true
-          tags: signage-${{ matrix.app }}:scan
+          tags: mynextscreen-${{ matrix.app }}:scan
           build-args: |
             APP_VERSION=${{ steps.meta.outputs.app_version }}
             GIT_COMMIT=${{ steps.meta.outputs.short_sha }}
@@ -198,7 +198,7 @@ jobs:
       - name: Scan image for known vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: signage-${{ matrix.app }}:scan
+          image-ref: mynextscreen-${{ matrix.app }}:scan
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: '1'

@@ -1,4 +1,4 @@
-# Digital Signage - LG WebOS Application
+# myNextScreen — LG webOS Application
 
 LG WebOS application that acts as a thin shell, loading the web player in a fullscreen iframe and telling it which server it belongs to.
 
@@ -113,7 +113,7 @@ Edit `appinfo.json` to match your TV's resolution:
 View console logs when running on LG TV:
 
 ```bash
-ares-inspect --device YOUR_TV_NAME --app com.digitalsignage.webos --open
+ares-inspect --device YOUR_TV_NAME --app com.mynextscreen.webos --open
 ```
 
 ### Development Setup (Split Server/Player)

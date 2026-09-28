@@ -31,11 +31,11 @@ describe('UpdateOrgNotificationConfigDto', () => {
     });
 
     it('accepts a container hostname — only the resolved address can reveal it', async () => {
-      // Syntax alone cannot tell "signage-postgres" from a public host. The
+      // Syntax alone cannot tell "mynextscreen-postgres" from a public host. The
       // block happens in OutboundGuard right before the request, once DNS has
       // answered; see outbound-url.util.spec.ts.
       expect(
-        await failingProperties(createDto({ ntfyUrl: 'http://signage-postgres:5432' })),
+        await failingProperties(createDto({ ntfyUrl: 'http://mynextscreen-postgres:5432' })),
       ).toEqual([]);
     });
 
@@ -46,7 +46,9 @@ describe('UpdateOrgNotificationConfigDto', () => {
 
   describe('ntfyTopic (path traversal)', () => {
     it('accepts a plain topic', async () => {
-      expect(await failingProperties(createDto({ ntfyTopic: 'signage-alerts_1' }))).toEqual([]);
+      expect(await failingProperties(createDto({ ntfyTopic: 'mynextscreen-alerts_1' }))).toEqual(
+        [],
+      );
     });
 
     it.each(['../../admin', 'a/b', 'topic?x=1', 'with space', 'a'.repeat(65)])(

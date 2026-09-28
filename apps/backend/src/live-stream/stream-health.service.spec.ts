@@ -62,7 +62,7 @@ describe('StreamHealthService', () => {
 
     ffmpegLiveService = {
       isRunning: jest.fn(),
-      getHlsOutputDir: jest.fn().mockReturnValue('/tmp/signage-hls/stream'),
+      getHlsOutputDir: jest.fn().mockReturnValue('/tmp/mynextscreen-hls/stream'),
     };
 
     eventEmitter = { emit: jest.fn() };
@@ -289,7 +289,7 @@ describe('StreamHealthService', () => {
     it('should return all health states', async () => {
       await seedStream({ name: 'Camera 2' });
       ffmpegLiveService.isRunning.mockReturnValue(true);
-      ffmpegLiveService.getHlsOutputDir.mockReturnValue('/tmp/signage-hls/test');
+      ffmpegLiveService.getHlsOutputDir.mockReturnValue('/tmp/mynextscreen-hls/test');
       setupFreshSegments();
 
       await service.runHealthChecks();

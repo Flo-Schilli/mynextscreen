@@ -35,8 +35,8 @@ export interface AccessClaims {
  */
 /** Pinned JWT parameters; verification rejects anything that deviates. */
 const ACCESS_TOKEN_ALGORITHM = 'HS256' as const;
-const ACCESS_TOKEN_ISSUER = 'signage-server';
-const ACCESS_TOKEN_AUDIENCE = 'signage-api';
+const ACCESS_TOKEN_ISSUER = 'mynextscreen';
+const ACCESS_TOKEN_AUDIENCE = 'mynextscreen-api';
 /**
  * Screens get their own audience. Both token kinds are signed with the same
  * secret and issuer, so without this a screen token would satisfy the user
@@ -44,7 +44,7 @@ const ACCESS_TOKEN_AUDIENCE = 'signage-api';
  * verification, which makes the separation structural rather than a check
  * someone can forget to write.
  */
-export const SCREEN_TOKEN_AUDIENCE = 'signage-screen';
+export const SCREEN_TOKEN_AUDIENCE = 'mynextscreen-screen';
 /** Marks the token kind inside the payload, as a second, explicit layer. */
 export const SCREEN_TOKEN_TYPE = 'screen' as const;
 

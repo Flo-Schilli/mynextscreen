@@ -50,7 +50,7 @@ describe('NotificationHub', () => {
     smtpFrom: 'no-reply@example.com',
     smtpSecure: false,
     ntfyUrl: 'https://ntfy.sh',
-    ntfyTopic: 'signage',
+    ntfyTopic: 'mynextscreen',
     ntfyToken: 'token-123',
   });
 
