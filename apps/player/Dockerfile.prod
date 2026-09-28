@@ -28,6 +28,10 @@ FROM nginxinc/nginx-unprivileged:1.29-alpine
 # runtime user is restored before the entrypoint.
 USER root
 
+# Pull the current Alpine package set: the base image tag is rebuilt less often
+# than its packages are fixed, and the CI image scan gates on exactly these.
+RUN apk upgrade --no-cache
+
 # Build metadata (passed by CI / images:build) -> OCI labels + version.json
 ARG APP_VERSION=0.0.0-dev
 ARG GIT_COMMIT=unknown
