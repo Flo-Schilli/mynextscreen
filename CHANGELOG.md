@@ -4,10 +4,10 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
-## [Unreleased]
+## 0.9.0
 
 Security and dependency hardening across the whole stack, from a full audit of
-0.8.4. 24 commits; the ones worth naming are referenced below.
+0.8.4. 27 commits; the ones worth naming are referenced below.
 
 ### Required operator actions
 
