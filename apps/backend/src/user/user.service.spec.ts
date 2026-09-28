@@ -577,9 +577,11 @@ describe('UserService', () => {
       });
 
       it('serialises concurrent deletes so the last super-admin survives (TOCTOU)', async () => {
-        // Two super-admins, deleted in parallel. The FOR UPDATE row lock + in-tx
-        // re-count must let at most one through, leaving >= 1 super-admin. A
-        // non-atomic check would let both pass and leave zero.
+        // Two super-admins, deleted in parallel. Exactly one must get through:
+        // the guard locks every super-admin row, so whichever transaction runs
+        // second waits, re-reads the set and refuses. The assertion is exact,
+        // not ">= 1" — under a correct guard the interleaving cannot change the
+        // outcome, and a range would have hidden the race this used to have.
         const [sa1] = await db
           .insert(users)
           .values({ email: 'race-1@example.com', isSuperAdmin: true })
@@ -594,10 +596,33 @@ describe('UserService', () => {
           service.deleteUser(sa2.id, { guardLastSuperAdmin: true }),
         ]);
 
-        const rejected = results.filter((r) => r.status === 'rejected');
-        expect(rejected.length).toBeGreaterThanOrEqual(1);
-        // Whatever the interleaving, the system never drops to zero super-admins.
-        expect(await service.countSuperAdmins()).toBeGreaterThanOrEqual(1);
+        expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+        expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+        expect(await service.countSuperAdmins()).toBe(1);
+      });
+
+      it('does not over-block: concurrent deletes that leave one survivor all succeed', async () => {
+        // Three super-admins, two deleted in parallel. The set lock serialises
+        // them, but neither is the last one, so both must go through — a guard
+        // that simply refused every concurrent delete would also pass the test
+        // above.
+        const [sa1] = await db
+          .insert(users)
+          .values({ email: 'trio-1@example.com', isSuperAdmin: true })
+          .returning();
+        const [sa2] = await db
+          .insert(users)
+          .values({ email: 'trio-2@example.com', isSuperAdmin: true })
+          .returning();
+        await db.insert(users).values({ email: 'trio-3@example.com', isSuperAdmin: true });
+
+        const results = await Promise.allSettled([
+          service.deleteUser(sa1.id, { guardLastSuperAdmin: true }),
+          service.deleteUser(sa2.id, { guardLastSuperAdmin: true }),
+        ]);
+
+        expect(results.filter((r) => r.status === 'rejected')).toHaveLength(0);
+        expect(await service.countSuperAdmins()).toBe(1);
       });
     });
   });
