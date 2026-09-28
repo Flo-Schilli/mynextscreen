@@ -38,6 +38,8 @@ import {
   AUDIT_LIVE_STREAM_FAILED,
   AuditLiveStreamEvent,
 } from '../audit-log/audit.events';
+import { OutboundGuard } from '../common/outbound-guard.service';
+import { LIVE_STREAM_SCHEMES } from './live-stream-schemes';
 
 export interface ActivateStreamResult {
   stream: LiveStream;
@@ -51,6 +53,7 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
   constructor(
     @Inject(DRIZZLE) db: DrizzleDB,
     private readonly ffmpegLiveService: FfmpegLiveService,
+    private readonly outbound: OutboundGuard,
     private readonly screenGroupService: ScreenGroupService,
     private readonly eventEmitter: EventEmitter2,
   ) {
@@ -208,6 +211,13 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
         `The following screen IDs do not belong to this organisation or do not exist: ${missing.join(', ')}`,
       );
     }
+
+    // Checked against the resolved addresses, and deliberately outside the try
+    // below: the DTO only sees the string, so a hostname that resolves into the
+    // private ranges (or started doing so after it was saved) would otherwise be
+    // dialled by FFmpeg — and a blocked target is a bad request, not a failing
+    // encoder.
+    await this.assertSourceReachable(stream.sourceUrl);
 
     // Start FFmpeg (idempotent — reuses if already running)
     try {
@@ -397,5 +407,21 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
         exitCode: event.exitCode,
       }),
     );
+  }
+
+  /**
+   * Refuses a source whose resolved addresses are internal. Runs immediately
+   * before FFmpeg is spawned rather than only at save time: DNS can point
+   * somewhere else by now, and a stream saved before the validation existed has
+   * never been checked at all.
+   */
+  private async assertSourceReachable(sourceUrl: string): Promise<void> {
+    try {
+      await this.outbound.assertUrl(sourceUrl, { schemes: LIVE_STREAM_SCHEMES });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Refused to start stream for ${sourceUrl}: ${reason}`);
+      throw new BadRequestException('The stream source is not an allowed target.');
+    }
   }
 }

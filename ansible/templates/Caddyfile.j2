@@ -33,7 +33,19 @@ app.{{ domain_name }} {
 			roll_size 50MiB
 			roll_keep 5
 		}
-		format json
+		# The screen API key is accepted as a `token` query parameter, because a
+		# browser cannot attach an Authorization header to <img>/<video> src.
+		# Without this filter every media request writes a long-lived screen
+		# credential into the access log in clear text — and fail2ban reads
+		# these files too.
+		format filter {
+			wrap json
+			fields {
+				request>uri query {
+					replace token REDACTED
+				}
+			}
+		}
 	}
 }
 
@@ -57,7 +69,19 @@ player.{{ domain_name }} {
 			roll_size 50MiB
 			roll_keep 5
 		}
-		format json
+		# The screen API key is accepted as a `token` query parameter, because a
+		# browser cannot attach an Authorization header to <img>/<video> src.
+		# Without this filter every media request writes a long-lived screen
+		# credential into the access log in clear text — and fail2ban reads
+		# these files too.
+		format filter {
+			wrap json
+			fields {
+				request>uri query {
+					replace token REDACTED
+				}
+			}
+		}
 	}
 }
 
@@ -97,6 +121,18 @@ api.{{ domain_name }} {
 			roll_size 50MiB
 			roll_keep 5
 		}
-		format json
+		# The screen API key is accepted as a `token` query parameter, because a
+		# browser cannot attach an Authorization header to <img>/<video> src.
+		# Without this filter every media request writes a long-lived screen
+		# credential into the access log in clear text — and fail2ban reads
+		# these files too.
+		format filter {
+			wrap json
+			fields {
+				request>uri query {
+					replace token REDACTED
+				}
+			}
+		}
 	}
 }
