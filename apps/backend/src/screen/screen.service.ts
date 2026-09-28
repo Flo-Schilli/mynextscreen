@@ -259,12 +259,22 @@ export class ScreenService extends OrganisationScopedService<Screen> {
    * Record a heartbeat for a screen, marking it as online.
    * Emits a status change event if the screen was previously offline.
    */
-  async recordHeartbeat(organisationId: string, id: string): Promise<Screen> {
+  async recordHeartbeat(
+    organisationId: string,
+    id: string,
+    playerVersion?: string,
+  ): Promise<Screen> {
     const screen = await this.findOne(organisationId, id);
     const wasOffline = !screen.isOnline;
     const [saved] = await this.db
       .update(screens)
-      .set({ lastHeartbeat: new Date(), isOnline: true })
+      .set({
+        lastHeartbeat: new Date(),
+        isOnline: true,
+        // Only written when reported: a player that sends nothing is an
+        // un-migrated one, and must not erase a version recorded earlier.
+        ...(playerVersion ? { playerVersion } : {}),
+      })
       .where(and(eq(screens.id, id), eq(screens.organisationId, organisationId)))
       .returning();
 

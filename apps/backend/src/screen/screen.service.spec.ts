@@ -624,4 +624,35 @@ describe('ScreenService', () => {
       expect(result).toEqual([]);
     });
   });
+
+  describe('recordHeartbeat — player version telemetry', () => {
+    it('records the version a player reports', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+
+      const saved = await service.recordHeartbeat(org.id, screen.id, '0.9.1');
+
+      expect(saved.playerVersion).toBe('0.9.1');
+      expect(saved.isOnline).toBe(true);
+    });
+
+    it('does not erase a known version when an old player reports none', async () => {
+      // This is what the rollout is gated on: "no version" must mean "never
+      // reported", not "the last heartbeat happened to omit it".
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      await service.recordHeartbeat(org.id, screen.id, '0.9.1');
+
+      const saved = await service.recordHeartbeat(org.id, screen.id);
+
+      expect(saved.playerVersion).toBe('0.9.1');
+    });
+
+    it('leaves it null for a screen that has never reported one', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+
+      expect((await service.recordHeartbeat(org.id, screen.id)).playerVersion).toBeNull();
+    });
+  });
 });

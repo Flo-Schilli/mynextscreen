@@ -178,6 +178,12 @@ export const screens = pgTable(
      */
     apiKeyFingerprint: text(),
     lastHeartbeat: timestamp({ withTimezone: true }),
+    /**
+     * Version the player reported on its last heartbeat. Null means it has not
+     * reported one yet — which is exactly how an un-migrated player looks, and
+     * that is what the rollout of the screen-session work is gated on.
+     */
+    playerVersion: text(),
     isOnline: boolean().notNull().default(false),
     groupId: uuid().references(() => screenGroups.id, { onDelete: 'set null' }),
     gridRow: integer(),

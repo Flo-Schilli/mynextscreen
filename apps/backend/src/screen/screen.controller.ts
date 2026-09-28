@@ -25,6 +25,7 @@ import {
   BulkDeleteScreensDto,
   BulkAssignGroupDto,
   RefreshScreenSessionDto,
+  HeartbeatDto,
 } from './dto';
 import { Roles } from '../auth/roles.decorator';
 import { ScreenAuth, ScreenAuthenticatedRequest, AuthenticatedRequest, Public } from '../auth';
@@ -223,9 +224,10 @@ export class ScreenController {
   heartbeat(
     @Req() req: ScreenAuthenticatedRequest,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: HeartbeatDto,
   ): Promise<Screen> {
     this.assertOwnScreen(req, id);
-    return this.screenService.recordHeartbeat(req.organisationId, id);
+    return this.screenService.recordHeartbeat(req.organisationId, id, dto?.playerVersion);
   }
 
   /**

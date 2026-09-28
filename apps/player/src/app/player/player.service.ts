@@ -3,6 +3,7 @@ import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http
 import { firstValueFrom } from 'rxjs';
 import { ConnectionService } from '../connection/connection.service';
 import { ScreenSessionService } from '../connection/screen-session.service';
+import { PlayerVersionService } from './player-version.service';
 import { TimeSyncService } from './time-sync.service';
 import {
   ScreenStateResponse,
@@ -28,6 +29,7 @@ export class PlayerService implements OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly connection = inject(ConnectionService);
   private readonly session = inject(ScreenSessionService);
+  private readonly playerVersion = inject(PlayerVersionService);
   private readonly timeSync = inject(TimeSyncService);
   private readonly zone = inject(NgZone);
 
@@ -190,7 +192,9 @@ export class PlayerService implements OnDestroy {
       firstValueFrom(
         this.http.post(
           `${this.connection.serverUrl()}/api/screens/${this.connection.screenId()}/heartbeat`,
-          null,
+          // Reported so an operator can see which screens still run an old
+          // build; the server only stores it when it is present.
+          { playerVersion: this.playerVersion.version() ?? undefined },
           { headers: this.authHeaders() },
         ),
       ),

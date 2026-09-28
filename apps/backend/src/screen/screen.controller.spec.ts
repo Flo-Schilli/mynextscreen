@@ -25,6 +25,7 @@ describe('ScreenController', () => {
     location: 'Stage Left',
     apiKeyHash: '$2b$10$hashedvalue',
     apiKeyFingerprint: null,
+    playerVersion: null,
     lastHeartbeat: null,
     isOnline: false,
     createdAt: new Date(),
@@ -164,9 +165,9 @@ describe('ScreenController', () => {
         organisationId: orgId,
       } as unknown as ScreenAuthenticatedRequest;
 
-      const result = await controller.heartbeat(req, screenId);
+      const result = await controller.heartbeat(req, screenId, {});
 
-      expect(service.recordHeartbeat).toHaveBeenCalledWith(orgId, screenId);
+      expect(service.recordHeartbeat).toHaveBeenCalledWith(orgId, screenId, undefined);
       expect(result.isOnline).toBe(true);
       expect(result.lastHeartbeat).toBeInstanceOf(Date);
     });
@@ -195,8 +196,17 @@ describe('ScreenController', () => {
       expect(stateService.subscribe).not.toHaveBeenCalled();
     });
 
+    it('passes the reported player version through', async () => {
+      service.recordHeartbeat.mockResolvedValue({} as never);
+      const req = { screenId, organisationId: orgId } as unknown as ScreenAuthenticatedRequest;
+
+      await controller.heartbeat(req, screenId, { playerVersion: '0.9.1' });
+
+      expect(service.recordHeartbeat).toHaveBeenCalledWith(orgId, screenId, '0.9.1');
+    });
+
     it('heartbeat throws and does not record anything', () => {
-      expect(() => controller.heartbeat(req, otherScreenId)).toThrow(ForbiddenException);
+      expect(() => controller.heartbeat(req, otherScreenId, {})).toThrow(ForbiddenException);
       expect(service.recordHeartbeat).not.toHaveBeenCalled();
     });
 

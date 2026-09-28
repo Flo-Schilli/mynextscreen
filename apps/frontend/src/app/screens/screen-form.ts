@@ -276,6 +276,10 @@ type ScreenFormMode = 'create' | 'edit';
                 }}</span>
               </div>
               <div class="info-item">
+                <span class="info-label">Player version</span>
+                <span class="info-value">{{ s.playerVersion ?? 'Not reported' }}</span>
+              </div>
+              <div class="info-item">
                 <span class="info-label">Registered</span>
                 <span class="info-value">{{ s.createdAt | date: 'mediumDate' }}</span>
               </div>
