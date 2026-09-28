@@ -14,10 +14,14 @@ Network=signage.network
 PublishPort=127.0.0.1:50002:3000
 NoNewPrivileges=true
 DropCapability=ALL
-AddCapability=CHOWN
-AddCapability=DAC_OVERRIDE
 AddCapability=SETGID
 AddCapability=SETUID
+# The image runs as `node` (uid 1000). Map that uid back to the account this
+# rootless container runs under, so the media bind mount below — owned by
+# {{ service_user }} on the host — stays writable without chowning anything.
+# Without this the uid lands in the subuid range and every upload, transcode and
+# slice fails.
+UserNS=keep-id:uid=1000,gid=1000
 EnvironmentFile=%h/.config/containers/systemd/.env.signage
 Environment=REDIS_URL=redis://signage-redis:6379
 Volume=%h/app/media:/app/media:Z

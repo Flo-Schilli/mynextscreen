@@ -43,10 +43,10 @@ RUN npm i -g npm@11.6.2 \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 # Compiled output incl. db/migrations/*.sql (run automatically on boot)
-COPY --from=builder /app/dist/apps/backend ./dist/apps/backend
+COPY --from=builder --chown=node:node /app/dist/apps/backend ./dist/apps/backend
 
 # Player-app guides (Markdown) and pre-built binaries (IPK)
-COPY player-applications ./player-applications
+COPY --chown=node:node player-applications ./player-applications
 
 # Build metadata (passed by CI / images:build) -> runtime ENV + OCI labels
 ARG APP_VERSION=0.0.0-dev
@@ -60,6 +60,14 @@ LABEL org.opencontainers.image.title="signage-backend" \
       org.opencontainers.image.revision="${GIT_COMMIT}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.source="https://github.com/Flo-Schilli/digital-signage"
+
+# Drop root. FFmpeg parses user-uploaded media in this container, so a parser
+# bug would otherwise be root — the same reason the two nginx images moved to an
+# unprivileged user. `node` (uid 1000) ships with the base image; /tmp, where the
+# HLS segments go, is world-writable, and the media bind mount is made writable
+# by mapping this uid back to the host account in the quadlet
+# (`UserNS=keep-id:uid=1000,gid=1000`).
+USER node
 
 EXPOSE 3000
 
