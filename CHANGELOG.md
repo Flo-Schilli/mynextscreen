@@ -4,6 +4,26 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## [Unreleased]
+
+### Required operator action
+
+**The backend container now runs as a non-root user.** The quadlet template adds
+`UserNS=keep-id:uid=1000,gid=1000`, which maps that user back to the account the
+rootless container runs under so the media bind mount stays writable. A
+hand-written unit file that pins the backend image without this line will fail
+every upload, transcode and slice with a permission error. `CHOWN` and
+`DAC_OVERRIDE` are dropped from its capabilities — they were only needed by root.
+
+### Fixed
+
+- The backend container no longer runs as root. FFmpeg parses user-uploaded
+  media in it, so a parser bug was root inside the container; the two nginx
+  images moved to an unprivileged user in 0.9.0, the backend did not.
+- The screen API key now opens exactly one route (`POST /screens/session`); the
+  `?token=` query fallback is gone, media URLs carry a signed grant instead, and
+  the player keeps no key on disk once a session exists.
+
 ## 0.9.0
 
 Security and dependency hardening across the whole stack, from a full audit of
