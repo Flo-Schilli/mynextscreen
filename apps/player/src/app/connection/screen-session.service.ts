@@ -45,6 +45,11 @@ export class ScreenSessionService {
     return this._accessToken() !== '';
   }
 
+  /** True when a session can be resumed without the enrolment credential. */
+  hasStoredRefreshToken(): boolean {
+    return (localStorage.getItem(STORAGE_KEY_REFRESH_TOKEN) ?? '') !== '';
+  }
+
   /** Exchanges the enrolment credential for a session. */
   async establish(serverUrl: string, apiKey: string): Promise<boolean> {
     try {

@@ -8,6 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { IS_SCREEN_AUTH_KEY } from './screen-auth.decorator';
 import { IS_SIGNED_MEDIA_KEY } from './signed-media.decorator';
+import { IS_ENROLMENT_AUTH_KEY } from './enrolment-auth.decorator';
 import { MediaUrlSigner, SCREEN_PARAM, SIGNATURE_PARAM } from '../common/media-url-signer.service';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
@@ -58,10 +59,16 @@ export class ApiKeyAuthGuard implements CanActivate {
       throw new UnauthorizedException('Missing API key');
     }
 
-    // A screen session token is the normal credential; the API key below is the
-    // enrolment credential and stays accepted until every player has migrated.
+    // A screen session token is the normal credential.
     if (await this.authenticateByScreenToken(request, token)) {
       return true;
+    }
+
+    // The API key is only a credential on the enrolment route. Accepting it
+    // everywhere is what made it long-lived in practice: it travelled on every
+    // request, so anything that saw one request saw a permanent key.
+    if (!this.allowsEnrolmentKey(context)) {
+      throw new UnauthorizedException('Invalid screen session');
     }
 
     const screen = await this.findScreenByApiKey(token);
@@ -91,6 +98,15 @@ export class ApiKeyAuthGuard implements CanActivate {
     } catch {
       return false;
     }
+  }
+
+  private allowsEnrolmentKey(context: ExecutionContext): boolean {
+    return (
+      this.reflector.getAllAndOverride<boolean>(IS_ENROLMENT_AUTH_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]) === true
+    );
   }
 
   private allowsSignedMediaUrl(context: ExecutionContext): boolean {
@@ -149,12 +165,10 @@ export class ApiKeyAuthGuard implements CanActivate {
       }
     }
 
-    // Fallback: token query param (for media URLs in img/video src)
-    const queryToken = request.query?.['token'];
-    if (queryToken) {
-      return queryToken;
-    }
-
+    // No query-parameter fallback. It existed because a browser cannot put a
+    // header on an <img>/<video> src; signed media URLs cover that now, and a
+    // credential in a URL ends up in the DOM, the Referer chain and every
+    // access log.
     return null;
   }
 

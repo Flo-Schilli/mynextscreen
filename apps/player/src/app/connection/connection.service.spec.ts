@@ -27,7 +27,9 @@ try {
  * assertions about the connect itself unchanged.
  */
 function flushSessionExchange(httpMock: HttpTestingController): void {
-  for (const request of httpMock.match((req) => req.url.endsWith('/api/screens/session'))) {
+  // Either endpoint: with a stored refresh token the player rotates, without
+  // one it exchanges the key.
+  for (const request of httpMock.match((req) => req.url.includes('/api/screens/session'))) {
     request.flush({ accessToken: 'access-token', refreshToken: 'refresh-token', expiresIn: 900 });
   }
 }
@@ -230,7 +232,11 @@ describe('ConnectionService pairing flow', () => {
       expect(service.screenId()).toBe('screen-1');
       expect(service.organisationId()).toBe('org-1');
 
-      expect(localStorage.getItem('signage_api_key')).toBe('api-key-1');
+      // The enrolment credential is deliberately NOT persisted once a session
+      // exists: the rotating refresh token is what resumes the screen, and a
+      // permanent key on a device in a public space is what this work removes.
+      expect(localStorage.getItem('signage_api_key')).toBeNull();
+      expect(localStorage.getItem('signage_refresh_token')).toBe('refresh-token');
       expect(localStorage.getItem('signage_screen_id')).toBe('screen-1');
       expect(localStorage.getItem('signage_org_id')).toBe('org-1');
       // pairing keys cleared after claim
@@ -316,10 +322,27 @@ describe('ConnectionService auto-reconnect', () => {
     for (let i = 0; i < 5; i++) await Promise.resolve();
   };
 
+  /**
+   * Auto-connect now resumes a session before it touches any screen route: the
+   * API key only opens the exchange. Answer that request, then the state probe.
+   */
+  const answerSessionExchange = async (status: 'ok' | 'fail' = 'ok'): Promise<void> => {
+    await flushMicrotasks();
+    for (const request of httpMock.match((req) => req.url.includes('/api/screens/session'))) {
+      if (status === 'ok') {
+        request.flush({ accessToken: 'access-token', refreshToken: 'refresh-1', expiresIn: 900 });
+      } else {
+        request.flush('nope', { status: 401, statusText: 'Unauthorized' });
+      }
+    }
+    await flushMicrotasks();
+  };
+
   it('schedules a retry and reconnects after 60s when the backend was unreachable', async () => {
     seedSavedSettings();
 
     const first = service.tryAutoConnect();
+    await answerSessionExchange();
     // status 0 ⇒ network error ⇒ treated as unreachable
     httpMock.expectOne(STATE_URL).error(new ProgressEvent('error'));
     await expect(first).resolves.toBe(false);
@@ -333,7 +356,7 @@ describe('ConnectionService auto-reconnect', () => {
 
     // At 60s the retry runs; this time the server is back.
     vi.advanceTimersByTime(1_000);
-    await flushMicrotasks();
+    await answerSessionExchange();
     httpMock.expectOne(STATE_URL).flush({});
     await flushMicrotasks();
 
@@ -345,6 +368,7 @@ describe('ConnectionService auto-reconnect', () => {
     seedSavedSettings();
 
     const promise = service.tryAutoConnect();
+    await answerSessionExchange();
     httpMock.expectOne(STATE_URL).flush('nope', { status: 401, statusText: 'Unauthorized' });
     await expect(promise).resolves.toBe(false);
 
@@ -364,6 +388,7 @@ describe('ConnectionService auto-reconnect', () => {
     seedSavedSettings();
 
     const promise = service.tryAutoConnect();
+    await answerSessionExchange();
     httpMock.expectOne(STATE_URL).error(new ProgressEvent('error'));
     await expect(promise).resolves.toBe(false);
     expect(service.reconnecting()).toBe(true);

@@ -28,7 +28,13 @@ import {
   HeartbeatDto,
 } from './dto';
 import { Roles } from '../auth/roles.decorator';
-import { ScreenAuth, ScreenAuthenticatedRequest, AuthenticatedRequest, Public } from '../auth';
+import {
+  ScreenAuth,
+  ScreenAuthenticatedRequest,
+  AuthenticatedRequest,
+  Public,
+  EnrolmentAuth,
+} from '../auth';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import type { Screen } from '../db/schema';
@@ -92,6 +98,7 @@ export class ScreenController {
    */
   @Post('session')
   @ScreenAuth()
+  @EnrolmentAuth()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   async createSession(@Req() req: ScreenAuthenticatedRequest): Promise<ScreenSessionResponse> {

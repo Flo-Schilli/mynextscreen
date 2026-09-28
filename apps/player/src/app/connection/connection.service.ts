@@ -169,11 +169,16 @@ export class ConnectionService implements OnDestroy {
 
   async tryAutoConnect(): Promise<boolean> {
     const serverUrl = localStorage.getItem(STORAGE_KEY_URL);
-    const apiKey = localStorage.getItem(STORAGE_KEY_API_KEY);
+    const apiKey = localStorage.getItem(STORAGE_KEY_API_KEY) ?? '';
     const screenId = localStorage.getItem(STORAGE_KEY_SCREEN_ID);
     const organisationId = localStorage.getItem(STORAGE_KEY_ORG_ID);
 
-    if (!serverUrl || !apiKey || !screenId || !organisationId) {
+    // The API key is no longer required to be on disk: a stored refresh token
+    // is enough to resume, and after the first exchange the key is removed.
+    if (!serverUrl || !screenId || !organisationId) {
+      return false;
+    }
+    if (!apiKey && !this.session.hasStoredRefreshToken()) {
       return false;
     }
 
@@ -183,13 +188,12 @@ export class ConnectionService implements OnDestroy {
     this._organisationId.set(organisationId);
 
     try {
-      await this.verifyConnection(serverUrl, apiKey, screenId);
-      // The API key has done its job: from here the screen talks with a
-      // short-lived session token and only falls back to the key if renewing
-      // ever fails. Deliberately not awaited — a slow or failing session route
-      // must not keep a screen from coming online, and every request falls back
-      // to the key until the exchange lands.
-      void this.session.establish(this._serverUrl(), this._apiKey());
+      // A session now has to exist before anything else: the API key is only a
+      // credential on the enrolment route. `refresh` rotates the stored token
+      // and falls back to exchanging the key, so it covers both cases.
+      await this.session.refresh(serverUrl, apiKey);
+      await this.verifyConnection(serverUrl, this.session.token(), screenId);
+      this.forgetStoredApiKey();
       this._connected.set(true);
       this.stopAutoReconnect();
       return true;
@@ -236,27 +240,24 @@ export class ConnectionService implements OnDestroy {
     const normalizedUrl = serverUrl.replace(/\/+$/, '');
 
     try {
-      const identity = await this.identify(normalizedUrl, apiKey);
+      // The exchange is the credential check now: the API key opens exactly one
+      // route, so everything after this point runs on the session token.
+      await this.session.establish(normalizedUrl, apiKey);
+      const identity = await this.identify(normalizedUrl, this.session.token());
 
-      await this.verifyConnection(normalizedUrl, apiKey, identity.screenId);
+      await this.verifyConnection(normalizedUrl, this.session.token(), identity.screenId);
 
       this._serverUrl.set(normalizedUrl);
       this._apiKey.set(apiKey);
       this._screenId.set(identity.screenId);
       this._organisationId.set(identity.organisationId);
-      // The API key has done its job: from here the screen talks with a
-      // short-lived session token and only falls back to the key if renewing
-      // ever fails. Deliberately not awaited — a slow or failing session route
-      // must not keep a screen from coming online, and every request falls back
-      // to the key until the exchange lands.
-      void this.session.establish(this._serverUrl(), this._apiKey());
       this._connected.set(true);
       this.stopAutoReconnect();
 
       localStorage.setItem(STORAGE_KEY_URL, normalizedUrl);
-      localStorage.setItem(STORAGE_KEY_API_KEY, apiKey);
       localStorage.setItem(STORAGE_KEY_SCREEN_ID, identity.screenId);
       localStorage.setItem(STORAGE_KEY_ORG_ID, identity.organisationId);
+      this.persistApiKeyUnlessSessionEstablished(apiKey);
 
       return true;
     } catch (err: unknown) {
@@ -330,20 +331,18 @@ export class ConnectionService implements OnDestroy {
         this._apiKey.set(res.apiKey);
         this._screenId.set(res.screenId);
         this._organisationId.set(res.organisationId);
-        // The API key has done its job: from here the screen talks with a
-        // short-lived session token and only falls back to the key if renewing
-        // ever fails. Deliberately not awaited — a slow or failing session route
-        // must not keep a screen from coming online, and every request falls back
-        // to the key until the exchange lands.
-        void this.session.establish(this._serverUrl(), this._apiKey());
+        // Exchange right away: from here the screen runs on a session token.
+        await this.session.establish(normalizedUrl, res.apiKey);
         this._connected.set(true);
         this._error.set('');
         this.stopAutoReconnect();
 
         localStorage.setItem(STORAGE_KEY_URL, normalizedUrl);
-        localStorage.setItem(STORAGE_KEY_API_KEY, res.apiKey);
         localStorage.setItem(STORAGE_KEY_SCREEN_ID, res.screenId);
         localStorage.setItem(STORAGE_KEY_ORG_ID, res.organisationId);
+        // The key is written only if the exchange did not work, so the screen
+        // can try again after a restart. On success it stays out of storage.
+        this.persistApiKeyUnlessSessionEstablished(res.apiKey);
 
         this.clearPairing();
         return 'claimed';
@@ -385,6 +384,29 @@ export class ConnectionService implements OnDestroy {
     localStorage.removeItem(STORAGE_KEY_ORG_ID);
 
     this.clearPairing();
+  }
+
+  /**
+   * Keeps the enrolment credential out of storage once a session exists.
+   *
+   * The rotating refresh token is what resumes a screen from now on. The key is
+   * only written when the exchange failed, so a screen that could not get a
+   * session yet can still retry after a restart instead of needing someone to
+   * re-pair it in person.
+   */
+  private persistApiKeyUnlessSessionEstablished(apiKey: string): void {
+    if (this.session.hasSession()) {
+      localStorage.removeItem(STORAGE_KEY_API_KEY);
+    } else {
+      localStorage.setItem(STORAGE_KEY_API_KEY, apiKey);
+    }
+  }
+
+  /** Drops a key left over from an earlier version once a session is running. */
+  private forgetStoredApiKey(): void {
+    if (this.session.hasSession()) {
+      localStorage.removeItem(STORAGE_KEY_API_KEY);
+    }
   }
 
   private async identify(

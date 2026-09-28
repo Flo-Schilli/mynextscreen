@@ -355,13 +355,12 @@ export class PlayerService implements OnDestroy {
   }
 
   /**
-   * The session token once there is one, the enrolment credential until then.
-   * Keeping the fallback means a player that starts before its first exchange —
-   * or after the session was dropped — still reaches the server instead of
-   * needing someone in front of the screen.
+   * Only the session token. The API key no longer authenticates anything but
+   * the exchange itself, so sending it here would just be a 401 with a
+   * credential attached.
    */
   private bearer(): string {
-    return this.session.token() || this.connection.apiKey();
+    return this.session.token();
   }
 
   /**

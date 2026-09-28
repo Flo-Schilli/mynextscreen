@@ -33,10 +33,7 @@ export class HlsService implements OnDestroy {
           // credential frozen into this closure would keep being sent long
           // after it stopped being valid — hls.js would then retry with the
           // dead value forever.
-          xhr.setRequestHeader(
-            'Authorization',
-            `Bearer ${this.session.token() || this.connection.apiKey()}`,
-          );
+          xhr.setRequestHeader('Authorization', `Bearer ${this.session.token()}`);
         },
       });
 

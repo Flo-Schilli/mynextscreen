@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { ApiKeyAuthGuard } from './api-key-auth.guard';
 import { IS_SCREEN_AUTH_KEY } from './screen-auth.decorator';
 import { IS_SIGNED_MEDIA_KEY } from './signed-media.decorator';
+import { IS_ENROLMENT_AUTH_KEY } from './enrolment-auth.decorator';
 import { eq } from 'drizzle-orm';
 import { hashApiKey, sha256hex } from '../screen/api-key.util';
 import { organisations, screens } from '../db/schema';
@@ -76,7 +77,12 @@ describe('ApiKeyAuthGuard', () => {
   function createMockContext(
     headers: Record<string, string> = {},
     isScreenAuth = true,
-    options: { path?: string; query?: Record<string, string>; signedMedia?: boolean } = {},
+    options: {
+      path?: string;
+      query?: Record<string, string>;
+      signedMedia?: boolean;
+      enrolment?: boolean;
+    } = {},
   ): ExecutionContext {
     const path = options.path ?? '/api/screens/me';
     const query = options.query ?? {};
@@ -97,6 +103,7 @@ describe('ApiKeyAuthGuard', () => {
     jest.spyOn(reflector, 'getAllAndOverride').mockImplementation((key) => {
       if (key === IS_SCREEN_AUTH_KEY) return isScreenAuth;
       if (key === IS_SIGNED_MEDIA_KEY) return options.signedMedia === true;
+      if (key === IS_ENROLMENT_AUTH_KEY) return options.enrolment !== false;
       return false;
     });
 
@@ -330,6 +337,40 @@ describe('ApiKeyAuthGuard', () => {
         '22222222-2222-2222-2222-222222222222',
       );
       const context = createMockContext({ authorization: `Bearer ${token}` });
+
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('the API key is an enrolment credential only', () => {
+    it('is refused on a normal screen route', async () => {
+      await seedScreen(validKeyHash, sha256hex(VALID_API_KEY));
+      const context = createMockContext({ authorization: `Bearer ${VALID_API_KEY}` }, true, {
+        enrolment: false,
+      });
+
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('is accepted on the enrolment route', async () => {
+      const { screenId } = await seedScreen(validKeyHash, sha256hex(VALID_API_KEY));
+      const context = createMockContext({ authorization: `Bearer ${VALID_API_KEY}` }, true, {
+        enrolment: true,
+      });
+
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(context.switchToHttp().getRequest().screenId).toBe(screenId);
+    });
+
+    it('no longer accepts a credential in the query string at all', async () => {
+      // This is what put a permanent key into the DOM, the Referer chain and
+      // every access log line. Signed media URLs replace it.
+      await seedScreen(validKeyHash, sha256hex(VALID_API_KEY));
+      const context = createMockContext({}, true, {
+        path: '/api/media/org-1/content-1',
+        query: { token: VALID_API_KEY },
+        signedMedia: true,
+      });
 
       await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });
