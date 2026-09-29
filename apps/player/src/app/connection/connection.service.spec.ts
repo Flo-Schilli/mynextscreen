@@ -454,3 +454,160 @@ describe('ConnectionService auto-reconnect', () => {
     httpMock.expectNone(STATE_URL);
   });
 });
+
+/**
+ * The shell's unpair message. It is the only way a plain TV remote reaches the
+ * disconnect at all, so the checks around it are the whole protection: who may
+ * send it, and whether the screen's own `showDisconnectButton` flag allows it.
+ */
+describe('ConnectionService mynextscreen-disconnect', () => {
+  let service: ConnectionService;
+  let httpMock: HttpTestingController;
+  let parentPostMessage: ReturnType<typeof vi.fn>;
+  let parentWindow: Window;
+
+  const SERVER = 'http://localhost:3000';
+
+  function dispatch(type: string, options: { origin?: string; source?: unknown } = {}): void {
+    const event = new MessageEvent('message', {
+      data: { type, serverUrl: 'https://elsewhere.example' },
+      origin: options.origin ?? window.location.origin,
+    });
+    Object.defineProperty(event, 'source', {
+      value: 'source' in options ? options.source : parentWindow,
+      configurable: true,
+    });
+    window.dispatchEvent(event);
+  }
+
+  /** Brings the service into the paired state a real disconnect acts on. */
+  async function pairScreen(): Promise<void> {
+    localStorage.setItem('mynextscreen_pairing_id', 'pair-1');
+    sessionStorage.setItem('mynextscreen_pairing_secret', 'secret-xyz');
+
+    const promise = service.pollPairing(SERVER);
+    httpMock.expectOne(`${SERVER}/api/screens/pairing/pair-1/status`).flush({
+      status: 'claimed',
+      apiKey: 'api-key-1',
+      screenId: 'screen-1',
+      organisationId: 'org-1',
+    });
+    await Promise.resolve();
+    flushSessionExchange(httpMock);
+    await promise;
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    service = TestBed.inject(ConnectionService);
+    httpMock = TestBed.inject(HttpTestingController);
+
+    parentPostMessage = vi.fn();
+    parentWindow = { name: 'shell-parent', postMessage: parentPostMessage } as unknown as Window;
+    Object.defineProperty(window, 'parent', { value: parentWindow, configurable: true });
+    Object.defineProperty(window, 'top', { value: parentWindow, configurable: true });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, 'parent', { value: window, configurable: true });
+    Object.defineProperty(window, 'top', { value: window, configurable: true });
+    flushSessionExchange(httpMock);
+    httpMock.verify();
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it('unpairs a paired screen and clears its credentials', async () => {
+    await pairScreen();
+
+    dispatch('mynextscreen-disconnect');
+
+    expect(service.connected()).toBe(false);
+    expect(service.screenId()).toBe('');
+    expect(localStorage.getItem('mynextscreen_server_url')).toBeNull();
+    expect(localStorage.getItem('mynextscreen_screen_id')).toBeNull();
+    expect(localStorage.getItem('mynextscreen_org_id')).toBeNull();
+    expect(localStorage.getItem('mynextscreen_refresh_token')).toBeNull();
+  });
+
+  it('confirms the unpair to the shell so the overlay can close', async () => {
+    await pairScreen();
+
+    dispatch('mynextscreen-disconnect');
+
+    expect(parentPostMessage).toHaveBeenCalledWith(
+      { type: 'mynextscreen-disconnect-result', ok: true, reason: undefined },
+      window.location.origin,
+    );
+  });
+
+  it("answers the webOS shell's opaque origin at '*', which is what postMessage allows", async () => {
+    await pairScreen();
+
+    dispatch('mynextscreen-disconnect', { origin: 'null' });
+
+    expect(service.connected()).toBe(false);
+    expect(parentPostMessage).toHaveBeenCalledWith(expect.objectContaining({ ok: true }), '*');
+  });
+
+  it('refuses when the screen has the disconnect switched off in the dashboard', async () => {
+    await pairScreen();
+    service.setDisconnectAllowed(false);
+
+    dispatch('mynextscreen-disconnect');
+
+    // Still paired: the shell is not a way around a locked-down screen.
+    expect(service.connected()).toBe(true);
+    expect(localStorage.getItem('mynextscreen_screen_id')).toBe('screen-1');
+    expect(parentPostMessage).toHaveBeenCalledWith(
+      { type: 'mynextscreen-disconnect-result', ok: false, reason: 'disabled' },
+      window.location.origin,
+    );
+  });
+
+  it('reports back when there is nothing paired to disconnect', () => {
+    dispatch('mynextscreen-disconnect');
+
+    expect(parentPostMessage).toHaveBeenCalledWith(
+      { type: 'mynextscreen-disconnect-result', ok: false, reason: 'not-paired' },
+      window.location.origin,
+    );
+  });
+
+  it.each([
+    ['a foreign origin', { origin: 'https://evil.example' }],
+    ['a window that is not the embedder', { source: { other: true } }],
+  ])('ignores an unpair from %s, without answering it', async (_label, options) => {
+    await pairScreen();
+
+    dispatch('mynextscreen-disconnect', options);
+
+    expect(service.connected()).toBe(true);
+    expect(parentPostMessage).not.toHaveBeenCalled();
+  });
+
+  it('ignores an unpair from a frame that is not the top-level document', async () => {
+    await pairScreen();
+    Object.defineProperty(window, 'top', { value: { outer: true }, configurable: true });
+
+    dispatch('mynextscreen-disconnect', { origin: 'null' });
+
+    expect(service.connected()).toBe(true);
+    expect(parentPostMessage).not.toHaveBeenCalled();
+  });
+
+  it('still refuses a connect handoff while paired, unlike the unpair', async () => {
+    await pairScreen();
+
+    // The asymmetry is deliberate: a paired display may be reset by the shell,
+    // but never silently re-pointed at another server.
+    dispatch('mynextscreen-connect');
+
+    expect(service.handedServerUrl()).toBe('');
+    expect(service.serverUrl()).toBe(SERVER);
+  });
+});

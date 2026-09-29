@@ -69,8 +69,11 @@ ares-install --device mytv ./build/com.mynextscreen.webos_*.ipk
 ares-launch --device mytv com.mynextscreen.webos
 ```
 
-Press **Settings** or the blue button on the remote to open the overlay. Details,
-including how the handoff is secured, are in that directory's `README.md`.
+Press **Settings** or the blue button on the remote to open the overlay. Besides
+the URLs it holds **Disconnect screen**, which unpairs the display from the
+remote — two presses, and only if the screen's `showDisconnectButton` toggle
+allows it. Details, including how the handoff is secured, are in that
+directory's `README.md`.
 
 ## Status and heartbeats
 
