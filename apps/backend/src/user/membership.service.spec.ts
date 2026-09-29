@@ -113,7 +113,7 @@ describe('MembershipService', () => {
       await service.addMember(org.id, 'invitee@example.com', OrganisationRole.Viewer);
 
       const [, event] = emit.mock.calls.find(([name]) => name === AUTH_USER_INVITED) ?? [];
-      const rawToken: string = event.setPasswordToken;
+      const rawToken: string = event.activationToken;
       const [createdUser] = await db
         .select()
         .from(users)
