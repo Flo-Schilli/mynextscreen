@@ -95,6 +95,10 @@ To re-open settings at any time, press the **Settings** or **Blue** button on th
 remote. The overlay also holds **Disconnect screen**, which unpairs the display
 and sends it back to a pairing code — press it twice to confirm.
 
+The arrow keys move the highlight between the fields and the buttons. **OK**
+opens the on-screen keyboard on a field or presses a button, **Back** closes the
+keyboard again.
+
 ## Debugging
 
 View console logs:

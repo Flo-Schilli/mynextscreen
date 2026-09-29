@@ -126,6 +126,30 @@
             /* Sits apart from Cancel/Save so it is not hit on the way to them. */
             margin-right: auto;
         }
+
+        /*
+         * The remote has no pointer to follow, so the current control has to be
+         * obvious from across the room — thicker and further out than a desktop
+         * ring, and the same on fields and buttons.
+         */
+        .settings-box .nav-selected,
+        .settings-box input:focus,
+        .settings-box button:focus {
+            outline: 4px solid #1b4f8a;
+            outline-offset: 3px;
+        }
+
+        /* A focused field is one the on-screen keyboard is typing into. */
+        .settings-box input:focus {
+            border-color: #1b4f8a;
+            background: #fffbe6;
+        }
+
+        .settings-keys {
+            font-size: 14px;
+            color: #666;
+            margin: 8px 0 0;
+        }
     </style>
 </head>
 <body>
@@ -140,6 +164,10 @@
             This screen pairs itself. After saving, a six-digit code appears on
             the display &mdash; enter it in your dashboard under &ldquo;Add a
             screen&rdquo;. There is no key to type in here.
+        </p>
+        <p class="settings-keys">
+            Arrow keys move, <strong>OK</strong> opens the keyboard on a field or
+            presses a button, <strong>Back</strong> closes the keyboard.
         </p>
         <div class="form-group">
             <label for="serverUrl">Server URL:</label>
@@ -164,6 +192,8 @@
 
 <script src="webOSTVjs-1.2.4/webOSTV.js"></script>
 <script src="app.js"></script>
+<script src="remote-nav.js"></script>
+<script src="keep-awake.js"></script>
 <script>
     /** Seconds the Disconnect button stays armed after the first press. */
     var DISCONNECT_CONFIRM_MS = 5000;
@@ -175,12 +205,18 @@
         var overlay = document.getElementById('settingsOverlay');
         overlay.style.display = show ? 'flex' : 'none';
         disarmDisconnect();
-        if (show) {
-            document.getElementById('serverUrl').value = localStorage.getItem('server_url') || '';
-            document.getElementById('playerUrl').value = localStorage.getItem('player_url') || '';
-            document.getElementById('settingsError').textContent = '';
-            document.getElementById('serverUrl').focus();
+
+        if (!show) {
+            window.remoteNav.reset();
+            return;
         }
+
+        document.getElementById('serverUrl').value = localStorage.getItem('server_url') || '';
+        document.getElementById('playerUrl').value = localStorage.getItem('player_url') || '';
+        document.getElementById('settingsError').textContent = '';
+        // Highlight only — focusing the field here would open the on-screen
+        // keyboard before the operator has asked for it.
+        window.remoteNav.selectFirst();
     }
     window.toggleSettings = toggleSettings;
 
@@ -245,7 +281,7 @@
 
         if (!serverUrl) {
             errorEl.textContent = 'Server URL is required.';
-            serverUrlInput.focus();
+            window.remoteNav.select(serverUrlInput);
             return;
         }
 
@@ -253,7 +289,7 @@
             new URL(serverUrl);
         } catch (e) {
             errorEl.textContent = 'Server URL must be a valid URL (including http:// or https://).';
-            serverUrlInput.focus();
+            window.remoteNav.select(serverUrlInput);
             return;
         }
 
@@ -262,7 +298,7 @@
                 new URL(playerUrlOverride);
             } catch (e) {
                 errorEl.textContent = 'Player URL must be a valid URL (including http:// or https://).';
-                playerUrlInput.focus();
+                window.remoteNav.select(playerUrlInput);
                 return;
             }
         }
@@ -283,7 +319,7 @@
                 errorEl.textContent = '';
             } catch (e) {
                 errorEl.textContent = 'Could not fetch player URL from server. Please enter it manually.';
-                playerUrlInput.focus();
+                window.remoteNav.select(playerUrlInput);
                 return;
             }
         }

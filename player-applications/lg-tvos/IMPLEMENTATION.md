@@ -106,6 +106,8 @@ When the web player is opened directly in a browser (not in an iframe):
 |------|---------|
 | `index.html` | Main HTML: iframe, settings overlay, settings JS logic, remote key listener |
 | `app.js` | Core logic: `initApp()` checks settings, `loadPlayer()` sets iframe src and sends postMessage |
+| `remote-nav.js` | Remote navigation in the settings overlay: arrow keys move a highlight, OK focuses a field (opening the keyboard) or presses a button, Back gives the keyboard up |
+| `keep-awake.js` | Vetoes the TV's screen saver over `com.webos.service.tvpower`, for as long as the app is on screen |
 | `appinfo.json` | WebOS application metadata and permissions |
 
 ### Web Player (separate project)

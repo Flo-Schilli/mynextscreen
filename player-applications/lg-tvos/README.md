@@ -52,6 +52,53 @@ Settings are configured on-device via the settings overlay (press the **Settings
 
 Values are stored in `localStorage` with keys: `server_url`, `player_url`.
 
+### Driving the overlay from the remote
+
+| Key | Does |
+|-----|------|
+| Arrow keys | Move the highlight — up/down between the fields and the button row, left/right between the buttons |
+| **OK** | Opens the on-screen keyboard on the highlighted field, or presses the highlighted button |
+| **Back** | Closes the keyboard and leaves the highlight where it was; with no keyboard up, closes the overlay |
+
+The highlight is deliberately not the browser focus. webOS pops the on-screen
+keyboard open the moment a text field takes the focus, and that keyboard then
+takes the arrow keys for itself — navigating by focus would trap the remote in
+the first field. So nothing is focused until **OK** asks for it.
+
+## The screen saver
+
+A signage display must never blank, and webOS gives a web app no switch for
+that: since webOS 6 the screen saver cannot be turned off in the TV settings
+either. It starts whenever nothing is playing back full screen — which is
+exactly what a playlist of images, or the pairing code, looks like to the TV.
+
+`keep-awake.js` uses the veto the power service does offer. It subscribes to
+
+```
+luna://com.webos.service.tvpower/power/registerScreenSaverRequest
+```
+
+and answers every announced start with `ack: false` on
+`power/responseScreenSaverRequest`, echoing the timestamp it was given. The TV
+asks again at each idle timeout, so the subscription stays open for the life of
+the app. Kodi and RetroArch hold the screen the same way; the methods are not
+in LG's public API reference.
+
+The veto only holds while the app is on screen. Once it is in the background
+the announcement is acknowledged instead, so a TV someone is watching still
+behaves like a TV.
+
+If a display still blanks, read the log — a power service that refuses the
+subscription is reported there:
+
+```bash
+ares-inspect --device mytv --app com.mynextscreen.webos --open
+```
+
+Note that the screen saver is not the TV's only timer. **Auto power off** and
+**sleep timer** (Settings -> General) switch the set off regardless of what any
+app asks for, and have to be disabled on the TV itself.
+
 ### Disconnecting a screen
 
 The same overlay has a **Disconnect screen** button. It unpairs the display: the
