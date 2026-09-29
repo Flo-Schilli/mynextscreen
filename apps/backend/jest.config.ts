@@ -35,6 +35,10 @@ const config: Config = {
   testEnvironment: 'node',
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
+    // marked ships ESM only; the compiled backend reaches it through Node's
+    // require(esm), which Jest's CJS runtime does not implement. Its own UMD
+    // build is the same library in a form Jest can load.
+    '^marked$': '<rootDir>/../../../node_modules/marked/lib/marked.umd.js',
   },
 };
 
