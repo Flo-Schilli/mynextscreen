@@ -4,7 +4,7 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
-## Unreleased
+## 0.12.0
 
 ### Added — unpairing a screen from the remote
 
