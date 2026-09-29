@@ -4,6 +4,53 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.13.0
+
+### Fixed — the settings overlay could not be crossed with a TV remote
+
+Entering a server URL on an LG screen needed a Magic Remote pointer. The arrow
+keys did nothing: webOS runs a plain web app without spatial navigation, so they
+arrive as ordinary keydown events, and a browser only ever moves focus with Tab
+— which no remote has.
+
+Moving the focus was not the fix either. On webOS a text field that takes the
+focus pops the on-screen keyboard open, and that keyboard then takes the arrow
+keys for itself, so every attempt to step to the next control reopened the
+keyboard and the remote ended up toggling between the two fields.
+
+The overlay now moves a selection that is not the focus. Arrow keys walk a
+highlight over the fields and the buttons, **OK** opens the keyboard on the
+highlighted field or presses the highlighted button, **Back** gives the keyboard
+up again and leaves the highlight where it was. Nothing is focused until OK asks
+for it, so the keyboard only ever appears on request — including when the
+overlay opens, which used to focus the Server URL field straight away.
+
+### Added — LG screens no longer fall into the TV's screen saver
+
+Displays blanked after a few idle minutes. webOS gives a web app no switch for
+the screen saver, and since webOS 6 it cannot be turned off in the TV settings
+either; it starts whenever nothing is playing back full screen, which is exactly
+what a playlist of images, or a pairing code, looks like to the TV.
+
+The app now takes the veto the power service does offer: it subscribes to
+`com.webos.service.tvpower/power/registerScreenSaverRequest` and answers every
+announced start with `ack: false`, the way Kodi and RetroArch hold the screen.
+Sent to the background it acknowledges instead, so a TV that someone is watching
+still behaves like a TV.
+
+**Operator action:** LG screens do not update themselves. Rebuild the package
+(`ares-package player-applications/lg-tvos --outdir ./build`) and install it on
+each screen with `ares-install`; pairing survives, the two URLs stay in place.
+
+After installing, confirm the veto took: `ares-inspect --device <tv> --app
+com.mynextscreen.webos --open` reports `[keep-awake] the power service refused
+the subscription` if the TV denied it. `com.webos.service.tvpower` has no public
+ACG, so a screen outside developer mode may refuse the call.
+
+The screen saver is not the TV's only timer. **Auto power off** and the **sleep
+timer** under Settings → General switch the set off no matter what an app asks
+for, and have to be disabled on the TV itself.
+
 ## 0.12.1
 
 ### Fixed — invitation links were dead the moment they were sent
