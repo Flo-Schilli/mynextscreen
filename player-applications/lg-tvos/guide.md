@@ -110,17 +110,29 @@ im Standby aus), für das Aufwecken zusätzlich **Über Netzwerk einschalten**
 ### Developer-Mode-Session verlängern
 
 Ohne Verlängerung läuft die Dev-Mode-Session ab und der TV entfernt die per
-Developer Mode installierten Apps. `--extend-devmode` startet die Dev-Mode-App
-mit `params.extend` — derselbe Weg, den der „Extend Session Time"-Button auf dem
-TV nimmt — und holt danach die Signage-App zurück in den Vordergrund:
+Developer Mode installierten Apps. Verlängert wird sie über den öffentlichen
+Luna-Bus — derselbe Weg, den der „Extend Session Time"-Button auf dem TV nimmt:
 
 ```bash
-node player-applications/lg-tvos/tools/launch-tv.mjs --host 192.168.1.50 --extend-devmode
+player-applications/lg-tvos/tools/extend-devmode.sh <ssh-host> [<ssh-host>…]
 ```
 
-Kein SSH, kein Session-Token, kein Zugriff auf `/var/luna/preferences/devmode_enabled`
-nötig — auf neueren Firmwares läuft die SSH-Session in einer Jail und kommt an
-diese Datei ohnehin nicht heran.
+Das Script ruft auf jedem TV Folgendes auf:
+
+```sh
+luna-send-pub -n 1 luna://com.webos.applicationManager/launch \
+  '{"id":"com.palmdts.devmode","subscribe":false,"params":{"extend":true}}'
+```
+
+`luna-send-pub` steht auch dem gejailten `prisoner` zur Verfügung, es braucht also
+weder Root noch den Session-Token aus `/var/luna/preferences/devmode_enabled` —
+an den kommt die SSH-Session auf neueren Firmwares ohnehin nicht heran.
+
+> Die Restzeit-Anzeige auf dem TV zieht mit Minuten Verzögerung nach. Eine
+> unveränderte Zahl direkt nach dem Aufruf ist kein Fehlschlag.
+>
+> Derselbe Aufruf über **SSAP** wird zwar mit `returnValue: true` quittiert,
+> verlängert aber nicht — die Parameter erreichen die App nicht.
 
 > Der oft zitierte `GET https://developer.lge.com/secure/ResetDevModeSession.dev?sessionToken=…`
 > setzt **nur LGs Backend-Zähler** zurück. Der lokale Timer des TV läuft davon

@@ -16,10 +16,11 @@ node launch-tv.mjs --host 192.168.1.50
 # keep it in the foreground (autostart replacement)
 node launch-tv.mjs --host 192.168.1.50 --watch
 
-# extend the Developer Mode session, then bring the app back
-node launch-tv.mjs --host 192.168.1.50 --extend-devmode
-
 node launch-tv.mjs --help
+
+# extend the Developer Mode session (SSH, not SSAP — see below)
+./extend-devmode.sh my-tv
+./extend-devmode.sh tv-1 tv-2 tv-3
 ```
 
 | Option | Env | Default | Meaning |
@@ -29,7 +30,6 @@ node launch-tv.mjs --help
 | `--app <id>` | `TV_APP_ID` | `com.mynextscreen.webos` | App to launch |
 | `--key-file <path>` | `TV_KEY_FILE` | `tools/.lgtv-key` | Where the client key is stored |
 | `--watch` | — | off | Stay connected, relaunch on foreground change |
-| `--extend-devmode` | — | off | Extend the Developer Mode session first |
 | `--strict-tls` | — | off | Verify the TV certificate (fails on self-signed) |
 
 ## SSAP basics
@@ -100,20 +100,16 @@ hours; that number is stale but still circulates.
 
 ### What extends it
 
-Launching the Developer Mode app with `params.extend`. That is what the
-*Extend Session Time* button on the TV does, and what `--extend-devmode` sends:
-
-```
-ssap://com.webos.applicationManager/launch
-{"id":"com.palmdts.devmode","params":{"extend":true}}
-```
-
-The same call over the public Luna bus, from an SSH session on the TV:
+Launching the Developer Mode app with `params.extend` over the **public Luna
+bus**. That is what the *Extend Session Time* button on the TV does:
 
 ```sh
 luna-send-pub -n 1 luna://com.webos.applicationManager/launch \
   '{"id":"com.palmdts.devmode","subscribe":false,"params":{"extend":true}}'
 ```
+
+`luna-send-pub` is available to the jailed `prisoner` user, so this needs neither
+root nor the session token. `extend-devmode.sh` wraps it for one or more TVs.
 
 If the app is already running, a `launch` is a relaunch and the parameters may be
 ignored. Close it first if nothing happens:
@@ -121,10 +117,22 @@ ignored. Close it first if nothing happens:
 ```sh
 luna-send-pub -n 1 luna://com.webos.applicationManager/close '{"id":"com.palmdts.devmode"}'
 sleep 2
-luna-send-pub -n 1 luna://com.webos.applicationManager/launch '{"id":"com.palmdts.devmode","params":{"extend":true}}'
 ```
 
 ### What does not extend it
+
+The same call over **SSAP**:
+
+```
+ssap://com.webos.applicationManager/launch
+{"id":"com.palmdts.devmode","params":{"extend":true}}
+```
+
+The TV acknowledges it with `returnValue: true` and the Developer Mode app opens,
+but the parameters never reach the app and the session is not extended. Verified
+on a real TV — do not rebuild this into `launch-tv.mjs`.
+
+The HTTP endpoint:
 
 ```
 GET https://developer.lge.com/secure/ResetDevModeSession.dev?sessionToken=<token>

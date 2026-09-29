@@ -35,14 +35,9 @@ const REQUEST_TIMEOUT_MS = 10_000;
 const PAIRING_TIMEOUT_MS = 60_000;
 const RECONNECT_DELAY_MS = 5_000;
 const RELAUNCH_COOLDOWN_MS = 15_000;
-const EXTEND_SETTLE_MS = 3_000;
 
 const FOREGROUND_URI = 'ssap://com.webos.applicationManager/getForegroundAppInfo';
 const LAUNCH_URI = 'ssap://system.launcher/launch';
-const APP_LAUNCH_URI = 'ssap://com.webos.applicationManager/launch';
-
-/** Die Developer-Mode-App. Mit `params.extend` verlaengert sie ihre Session selbst. */
-const DEVMODE_APP_ID = 'com.palmdts.devmode';
 
 /** Nur was das Skript wirklich braucht — Launch plus Vordergrund-Status lesen. */
 const PERMISSIONS = ['LAUNCH', 'LAUNCH_WEBAPP', 'READ_APP_STATUS', 'READ_RUNNING_APPS', 'READ_INSTALLED_APPS'];
@@ -58,14 +53,15 @@ Optionen:
   --app <id>         App-ID                           (env TV_APP_ID, default ${DEFAULT_APP_ID})
   --key-file <pfad>  Ablage des client-key            (env TV_KEY_FILE, default tools/.lgtv-key)
   --watch            Verbindung halten und die App bei Wechsel neu starten
-  --extend-devmode   Developer-Mode-Session verlaengern, danach normal weiter
   --strict-tls       Zertifikat des TV pruefen (schlaegt bei self-signed fehl)
   -h, --help         Diese Hilfe
 
 Beispiele:
   node launch-tv.mjs --host 192.168.1.50
   TV_HOST=192.168.1.50 node launch-tv.mjs --watch
-  node launch-tv.mjs --host 192.168.1.50 --extend-devmode
+
+Die Developer-Mode-Session verlaengert dieses Skript nicht — SSAP reicht die
+noetigen Launch-Parameter nicht an die App durch. Dafuer: ./extend-devmode.sh
 `.trimStart();
 
 function parseArgs(argv) {
@@ -75,7 +71,6 @@ function parseArgs(argv) {
     appId: process.env.TV_APP_ID ?? DEFAULT_APP_ID,
     keyFile: process.env.TV_KEY_FILE ?? DEFAULT_KEY_FILE,
     watch: false,
-    extendDevMode: false,
     strictTls: false,
     help: false,
   };
@@ -106,9 +101,6 @@ function parseArgs(argv) {
         break;
       case '--watch':
         options.watch = true;
-        break;
-      case '--extend-devmode':
-        options.extendDevMode = true;
         break;
       case '--strict-tls':
         options.strictTls = true;
@@ -338,26 +330,8 @@ async function openSession(options) {
   return { client, socket };
 }
 
-/**
- * Verlaengert die Developer-Mode-Session ueber denselben Weg wie der
- * "Extend Session Time"-Button auf dem TV: die Dev-Mode-App wird mit
- * `params.extend` gestartet und verlaengert sich selbst.
- *
- * Der reine HTTP-Call auf ResetDevModeSession.dev setzt nur LGs Backend-Zaehler
- * zurueck, nicht den lokalen Timer des TV — deshalb dieser Weg.
- *
- * Die Dev-Mode-App kommt dabei in den Vordergrund. Der anschliessende Launch der
- * Signage-App holt den Screen zurueck.
- */
-async function extendDevMode(client) {
-  await client.request(APP_LAUNCH_URI, { id: DEVMODE_APP_ID, params: { extend: true } });
-  console.log('[ssap] Developer-Mode-Session verlaengert — Restzeit in der App auf dem TV pruefen');
-  await new Promise((resolveDelay) => setTimeout(resolveDelay, EXTEND_SETTLE_MS));
-}
-
 async function launchOnce(options) {
   const { client } = await openSession(options);
-  if (options.extendDevMode) await extendDevMode(client);
   await client.request(LAUNCH_URI, { id: options.appId });
   console.log(`[ssap] ${options.appId} gestartet`);
   client.close();
@@ -373,7 +347,6 @@ async function watch(options) {
 
   const runSession = async () => {
     const { client, socket } = await openSession(options);
-    if (options.extendDevMode) await extendDevMode(client);
 
     await new Promise((resolveSession) => {
       socket.addEventListener('close', () => {
