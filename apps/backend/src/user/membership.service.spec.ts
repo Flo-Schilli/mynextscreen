@@ -3,6 +3,8 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { and, eq } from 'drizzle-orm';
 import { MembershipService } from './membership.service';
+import { UserService } from './user.service';
+import { hashToken } from '../auth/token-hash.util';
 import { DRIZZLE } from '../db/database.constants';
 import { users, organisations, userOrganisationMemberships, type Organisation } from '../db/schema';
 import { OrganisationRole } from './organisation-role.enum';
@@ -12,6 +14,7 @@ import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('MembershipService', () => {
   let service: MembershipService;
+  let userService: UserService;
   let db: DrizzleDB;
   let emit: jest.Mock;
 
@@ -29,11 +32,13 @@ describe('MembershipService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MembershipService,
+        UserService,
         { provide: DRIZZLE, useValue: db },
         { provide: EventEmitter2, useValue: { emit } },
       ],
     }).compile();
     service = module.get<MembershipService>(MembershipService);
+    userService = module.get<UserService>(UserService);
   });
 
   async function seedOrg(name = `Org ${Math.random()}`): Promise<Organisation> {
@@ -100,6 +105,27 @@ describe('MembershipService', () => {
       // A fresh invitee gets a set-password token and the invite event.
       expect(createdUser.passwordResetToken).not.toBeNull();
       expect(emit).toHaveBeenCalledWith(AUTH_USER_INVITED, expect.anything());
+    });
+
+    it('should store the invite token hashed so the emailed raw token redeems', async () => {
+      const org = await seedOrg();
+
+      await service.addMember(org.id, 'invitee@example.com', OrganisationRole.Viewer);
+
+      const [, event] = emit.mock.calls.find(([name]) => name === AUTH_USER_INVITED) ?? [];
+      const rawToken: string = event.activationToken;
+      const [createdUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, 'invitee@example.com'));
+      // The mailed token must never sit in the row in plaintext...
+      expect(createdUser.passwordResetToken).toBe(hashToken(rawToken));
+      expect(createdUser.passwordResetToken).not.toBe(rawToken);
+      // ...and the raw token from the email must resolve the invitee, which is
+      // what /auth/set-password does before accepting the new password.
+      const found = await userService.findByPasswordResetToken(rawToken);
+      expect(found?.id).toBe(createdUser.id);
+      expect(createdUser.passwordResetTokenExpiresAt?.getTime()).toBeGreaterThan(Date.now());
     });
 
     it('should throw ConflictException if user is already a member', async () => {

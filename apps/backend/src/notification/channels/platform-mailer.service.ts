@@ -49,7 +49,7 @@ export class PlatformMailerService {
 
   @OnEvent(AUTH_USER_INVITED)
   async handleUserInvited(event: AuthUserInvitedEvent): Promise<void> {
-    await this.sendInvite(event.email, event.setPasswordToken);
+    await this.sendInvite(event.email, event.activationToken);
   }
 
   @OnEvent(AUTH_PASSWORD_RESET_REQUESTED)

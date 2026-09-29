@@ -87,15 +87,16 @@ export class AuditUserEvent {
 
 /**
  * Emitted when a freshly-provisioned invitee (no password yet) is added to an
- * org. Carries the set-password token so the platform mailer can email an
- * activation link. Not an audit event — consumed by the platform mailer.
+ * org. Carries the single-use activation token (CSPRNG, never a password) so
+ * the platform mailer can email a set-password link. Not an audit event —
+ * consumed by the platform mailer.
  */
 export const AUTH_USER_INVITED = 'auth.user.invited';
 
 export class AuthUserInvitedEvent {
   constructor(
     public readonly email: string,
-    public readonly setPasswordToken: string,
+    public readonly activationToken: string,
   ) {}
 }
 

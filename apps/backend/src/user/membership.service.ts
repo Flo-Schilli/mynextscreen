@@ -17,6 +17,7 @@ import {
   type UserOrganisationMembership,
 } from '../db/schema';
 import { OrganisationRole } from './organisation-role.enum';
+import { UserService } from './user.service';
 import {
   AUDIT_USER_INVITED,
   AUDIT_USER_ROLE_CHANGED,
@@ -34,6 +35,7 @@ type MembershipWithUser = UserOrganisationMembership & { user: User };
 export class MembershipService {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
+    private readonly users: UserService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -88,15 +90,15 @@ export class MembershipService {
 
     // For brand-new invitees, issue a set-password token and let the auth layer
     // email the activation link (decoupled via event to avoid a circular dep).
+    // Persisting goes through UserService so the token is stored as its hash —
+    // the same one-way fingerprint the redemption lookup compares against.
     if (isNewInvitee) {
       const token = randomBytes(32).toString('base64url');
-      await this.db
-        .update(users)
-        .set({
-          passwordResetToken: token,
-          passwordResetTokenExpiresAt: new Date(Date.now() + SET_PASSWORD_TOKEN_TTL_MS),
-        })
-        .where(eq(users.id, user.id));
+      await this.users.setPasswordResetToken(
+        user.id,
+        token,
+        new Date(Date.now() + SET_PASSWORD_TOKEN_TTL_MS),
+      );
       this.eventEmitter.emit(AUTH_USER_INVITED, new AuthUserInvitedEvent(user.email, token));
     }
 
