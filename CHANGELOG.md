@@ -4,6 +4,39 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## Unreleased
+
+### Added — unpairing a screen from the remote
+
+The disconnect existed but no TV could reach it. It lives in the player's info
+panel, which opens with the **i** key, and a TV remote has no **i**. Nor could a
+plain remote have pressed the button: nothing in the player takes focus, so
+there was no way to move to it without a Magic Remote pointer.
+
+The webOS shell now owns the entry point. Its settings overlay — **Settings** or
+the **Blue** button, the same key that has always opened it — has a **Disconnect
+screen** button, and the shell asks the player to unpair over the same
+`postMessage` channel it already uses to hand over the server URL.
+
+- The button takes **two presses**: the first arms it for five seconds. Unpairing
+  cannot be undone from the remote; the screen has to be claimed again with a new
+  code.
+- The per-screen **`showDisconnectButton`** toggle governs this too. A screen
+  with the disconnect switched off in the dashboard refuses the request, and the
+  overlay says so instead of failing silently.
+- The unpair request passes the same sender checks as the server-URL handoff
+  (allow-listed origin, the embedding window, and that window being the
+  top-level document). The one deliberate difference: a handoff is refused once
+  a display is paired, an unpair is not — the shell may reset a display, never
+  silently re-point it at another server.
+- The player answers with the outcome, so the overlay can distinguish a
+  successful unpair from a locked screen, an unpaired one, or a player that
+  never answered.
+
+**Operator action:** none for the backend. To use it on a TV, repackage and
+reinstall the webOS app (`player-applications/lg-tvos/`); older shells keep
+working and simply have no disconnect button.
+
 ## 0.11.1
 
 ### Fixed — the webOS app could not be downloaded

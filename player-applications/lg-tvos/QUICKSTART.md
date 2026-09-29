@@ -91,7 +91,9 @@ The application should:
 3. Show a pairing code, then start playing once it is claimed
 4. Come back on its own after a server restart, without anyone touching the TV
 
-To re-open settings at any time, press the **Settings** or **Blue** button on the remote.
+To re-open settings at any time, press the **Settings** or **Blue** button on the
+remote. The overlay also holds **Disconnect screen**, which unpairs the display
+and sends it back to a pairing code — press it twice to confirm.
 
 ## Debugging
 

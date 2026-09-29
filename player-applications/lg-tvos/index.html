@@ -120,6 +120,12 @@
         button.secondary {
             background: #666;
         }
+
+        button.danger {
+            background: #b00020;
+            /* Sits apart from Cancel/Save so it is not hit on the way to them. */
+            margin-right: auto;
+        }
     </style>
 </head>
 <body>
@@ -147,6 +153,9 @@
         </div>
         <div id="settingsError" class="settings-error" role="alert"></div>
         <div class="button-group">
+            <button class="danger" id="disconnectButton" onclick="requestDisconnect()">
+                Disconnect screen
+            </button>
             <button class="secondary" onclick="toggleSettings(false)">Cancel</button>
             <button onclick="saveSettings()">Save &amp; Reload</button>
         </div>
@@ -156,9 +165,16 @@
 <script src="webOSTVjs-1.2.4/webOSTV.js"></script>
 <script src="app.js"></script>
 <script>
+    /** Seconds the Disconnect button stays armed after the first press. */
+    var DISCONNECT_CONFIRM_MS = 5000;
+
+    var disconnectArmed = false;
+    var disconnectTimer = null;
+
     function toggleSettings(show) {
         var overlay = document.getElementById('settingsOverlay');
         overlay.style.display = show ? 'flex' : 'none';
+        disarmDisconnect();
         if (show) {
             document.getElementById('serverUrl').value = localStorage.getItem('server_url') || '';
             document.getElementById('playerUrl').value = localStorage.getItem('player_url') || '';
@@ -167,6 +183,57 @@
         }
     }
     window.toggleSettings = toggleSettings;
+
+    function disarmDisconnect() {
+        disconnectArmed = false;
+        if (disconnectTimer !== null) {
+            clearTimeout(disconnectTimer);
+            disconnectTimer = null;
+        }
+        document.getElementById('disconnectButton').textContent = 'Disconnect screen';
+    }
+
+    /**
+     * Unpairs the display, on the second press.
+     *
+     * Two presses because this is the one action here that cannot be undone
+     * from the remote: the screen has to be claimed again in the dashboard,
+     * with a new code. The first press only arms the button, and it disarms
+     * itself after DISCONNECT_CONFIRM_MS.
+     */
+    async function requestDisconnect() {
+        var button = document.getElementById('disconnectButton');
+        var errorEl = document.getElementById('settingsError');
+
+        if (!disconnectArmed) {
+            disconnectArmed = true;
+            button.textContent = 'Press again to confirm';
+            errorEl.textContent = 'This screen will need a new pairing code.';
+            disconnectTimer = setTimeout(disarmDisconnect, DISCONNECT_CONFIRM_MS);
+            return;
+        }
+
+        disarmDisconnect();
+        errorEl.textContent = 'Disconnecting…';
+
+        var result = await window.requestPlayerDisconnect();
+
+        if (result.ok) {
+            toggleSettings(false);
+            return;
+        }
+
+        if (result.reason === 'disabled') {
+            errorEl.textContent =
+                'Disconnect is switched off for this screen in the dashboard.';
+        } else if (result.reason === 'not-paired') {
+            errorEl.textContent = 'This screen is not paired yet.';
+        } else if (result.reason === 'no-player') {
+            errorEl.textContent = 'No player is loaded — check the URLs above.';
+        } else {
+            errorEl.textContent = 'The player did not answer. Try again.';
+        }
+    }
 
     async function saveSettings() {
         var serverUrlInput = document.getElementById('serverUrl');

@@ -221,8 +221,8 @@ type ScreenFormMode = 'create' | 'edit';
                 />
                 <mns-toggle-row
                   icon="Power"
-                  label="Show “Disconnect”"
-                  desc="Display the disconnect button in the player corner."
+                  label="Allow “Disconnect”"
+                  desc="Offer it in the player’s info panel and the webOS settings overlay."
                   [(checked)]="showDisconnectButton"
                 />
               </div>

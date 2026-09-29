@@ -97,7 +97,7 @@ export class PlayerService implements OnDestroy {
     this.disconnectSse();
     this.timeSync.stop();
     this._status.set('disconnected');
-    this._screen.set(null);
+    this.applyScreen(null);
     this._currentPlaylist.set(null);
     this._fallbackPlaylist.set(null);
     this._epoch.set(0);
@@ -130,13 +130,26 @@ export class PlayerService implements OnDestroy {
   }
 
   applyState(state: ScreenStateResponse): void {
-    this._screen.set(state.screen);
+    this.applyScreen(state.screen);
     this._currentPlaylist.set(state.currentPlaylist);
     this._fallbackPlaylist.set(state.fallbackPlaylist);
     this._scheduleEntries.set(state.schedule);
     this._activeLiveStream.set(state.liveStream);
     this._groupInfo.set(state.group);
     this._epoch.set(state.epoch ?? 0);
+  }
+
+  /**
+   * Stores the screen and pushes its `showDisconnectButton` flag down to
+   * {@link ConnectionService}, which enforces it on the shell's unpair message
+   * but cannot read it from here: this service already depends on it, so the
+   * other direction would close a cycle. Done on the same line as the state
+   * write rather than in an `effect`, so the policy is never a render behind
+   * the screen it belongs to.
+   */
+  private applyScreen(screen: ScreenInfo | null): void {
+    this._screen.set(screen);
+    this.connection.setDisconnectAllowed(this.showDisconnectButton());
   }
 
   handleEvent(event: ScreenEvent): void {

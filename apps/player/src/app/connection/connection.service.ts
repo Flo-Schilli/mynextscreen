@@ -90,30 +90,29 @@ export class ConnectionService implements OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly session = inject(ScreenSessionService);
   /**
-   * Accepts a `mynextscreen-connect` handoff only from a sender we have reason to
-   * trust. Without this, any page that iframes the player can pair the physical
-   * display to a screen of its own choosing — the player is deliberately
-   * frameable for the LG webOS shell, so framing is not itself a signal.
+   * Handles the two messages an embedder (the LG webOS shell) may send:
+   * `mynextscreen-connect`, which hands over the server URL, and
+   * `mynextscreen-disconnect`, which unpairs the display.
    *
-   * Four conditions, none of which alone is sufficient:
-   * - the origin is allow-listed (same-origin by default; `'null'` covers the
-   *   webOS shell, which is served from `file://` and therefore has an opaque
-   *   origin; operators can pin the list via `window.__SIGNAGE_TRUSTED_ORIGINS__`);
-   * - the message comes from the embedding window, not from a random frame;
-   * - that window is the top-level document, which is what the shell is. This
-   *   costs the shell nothing and blocks the cheapest way to fake an opaque
-   *   origin — framing the player through a nested `sandbox="allow-scripts"`
-   *   document. It does not block a sandboxed *top-level* page, so it raises the
-   *   bar rather than closing the door; dropping `'null'` is what closes it;
-   * - the player is not connected yet, so a paired display can never be
-   *   re-paired by a message.
+   * Both go through {@link isTrustedEmbedder}, which is the whole boundary.
+   * Without it, any page that iframes the player could point the physical
+   * display at a server of its choosing or reset it — and the player is
+   * deliberately frameable for the shell, so framing is not itself a signal.
    */
   private readonly onMessage = (event: MessageEvent): void => {
     const data = event.data;
-    if (data == null || typeof data !== 'object' || data.type !== 'mynextscreen-connect') {
+    if (data == null || typeof data !== 'object') {
       return;
     }
 
+    if (data.type === 'mynextscreen-connect') {
+      this.onConnectMessage(event, data);
+    } else if (data.type === 'mynextscreen-disconnect') {
+      this.onDisconnectMessage(event);
+    }
+  };
+
+  private onConnectMessage(event: MessageEvent, data: { serverUrl?: unknown }): void {
     if (!this.isTrustedConnectSender(event)) {
       console.warn(`Ignored mynextscreen-connect from untrusted origin ${event.origin}`);
       return;
@@ -130,7 +129,55 @@ export class ConnectionService implements OnDestroy {
     // Enrolment now happens one way only — the code on the display, claimed in
     // the dashboard.
     this.useServerUrl(serverUrl);
-  };
+  }
+
+  /**
+   * Unpairs the display at the request of the embedding shell.
+   *
+   * This is how a TV reaches the disconnect at all. The in-player button needs
+   * a focus and a pointer that a plain remote does not have, so the shell owns
+   * the entry point (a key on the remote plus its settings overlay), the player
+   * owns the credentials, and this message is the seam between them.
+   *
+   * The per-screen `showDisconnectButton` flag governs it exactly as it governs
+   * that button — otherwise the shell would be a way around a screen an
+   * operator deliberately locked down.
+   */
+  private onDisconnectMessage(event: MessageEvent): void {
+    if (!this.isTrustedEmbedder(event)) {
+      console.warn(`Ignored mynextscreen-disconnect from untrusted origin ${event.origin}`);
+      return;
+    }
+    if (!this._connected()) {
+      this.replyToEmbedder(event, false, 'not-paired');
+      return;
+    }
+    if (!this._disconnectAllowed()) {
+      this.replyToEmbedder(event, false, 'disabled');
+      return;
+    }
+    this.disconnect();
+    this.replyToEmbedder(event, true);
+  }
+
+  /**
+   * Answers the shell so it can tell whoever holds the remote what happened.
+   * A refusal is otherwise silent, and on a TV a silent button reads as broken.
+   *
+   * The shell's origin is opaque (`'null'`), which `postMessage` cannot target,
+   * so the reply has to go to `'*'`. What it carries is a boolean and a reason
+   * — nothing a listener could not have read off the screen anyway.
+   */
+  private replyToEmbedder(event: MessageEvent, ok: boolean, reason?: string): void {
+    const source = event.source as Window | null;
+    if (!source) {
+      return;
+    }
+    source.postMessage(
+      { type: 'mynextscreen-disconnect-result', ok, reason },
+      event.origin === 'null' ? '*' : event.origin,
+    );
+  }
 
   /**
    * Takes the server URL handed over by an embedder and points pairing at it.
@@ -156,10 +203,21 @@ export class ConnectionService implements OnDestroy {
     this._handedServerUrl.set(normalizedUrl);
   }
 
-  private isTrustedConnectSender(event: MessageEvent): boolean {
-    if (this._connected()) {
-      return false;
-    }
+  /**
+   * Whether a message really comes from the shell that embeds the player.
+   *
+   * Three conditions, none of which alone is sufficient:
+   * - the origin is allow-listed (same-origin by default; `'null'` covers the
+   *   webOS shell, which is served from `file://` and therefore has an opaque
+   *   origin; operators can pin the list via `window.__SIGNAGE_TRUSTED_ORIGINS__`);
+   * - the message comes from the embedding window, not from a random frame;
+   * - that window is the top-level document, which is what the shell is. This
+   *   costs the shell nothing and blocks the cheapest way to fake an opaque
+   *   origin — framing the player through a nested `sandbox="allow-scripts"`
+   *   document. It does not block a sandboxed *top-level* page, so it raises the
+   *   bar rather than closing the door; dropping `'null'` is what closes it.
+   */
+  private isTrustedEmbedder(event: MessageEvent): boolean {
     const isFramed = window.parent !== window;
     if (!isFramed || event.source !== window.parent) {
       return false;
@@ -168,6 +226,17 @@ export class ConnectionService implements OnDestroy {
       return false;
     }
     return trustedConnectOrigins().includes(event.origin);
+  }
+
+  /**
+   * As {@link isTrustedEmbedder}, plus: the player is not connected yet, so a
+   * paired display can never be re-pointed at another server by a message.
+   */
+  private isTrustedConnectSender(event: MessageEvent): boolean {
+    if (this._connected()) {
+      return false;
+    }
+    return this.isTrustedEmbedder(event);
   }
 
   constructor() {
@@ -191,6 +260,14 @@ export class ConnectionService implements OnDestroy {
   private readonly _reconnecting = signal(false);
   /** Last server URL handed over by an embedder; '' when none ever was. */
   private readonly _handedServerUrl = signal('');
+  /**
+   * Mirror of the screen's `showDisconnectButton` flag, pushed here by
+   * `PlayerService` whenever screen state arrives. This service cannot read it
+   * itself — `PlayerService` already depends on it, so injecting it back would
+   * close a cycle. Defaults to allowed, which is what an absent flag (older
+   * server) means everywhere else.
+   */
+  private readonly _disconnectAllowed = signal(true);
 
   /** Timer for the saved-credentials auto-reconnect loop (see {@link tryAutoConnect}). */
   private autoReconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -426,6 +503,11 @@ export class ConnectionService implements OnDestroy {
     this._pairingExpiresAt.set('');
     localStorage.removeItem(STORAGE_KEY_PAIRING_ID);
     sessionStorage.removeItem(STORAGE_KEY_PAIRING_SECRET);
+  }
+
+  /** Applies the screen's `showDisconnectButton` flag; see {@link _disconnectAllowed}. */
+  setDisconnectAllowed(allowed: boolean): void {
+    this._disconnectAllowed.set(allowed);
   }
 
   disconnect(): void {

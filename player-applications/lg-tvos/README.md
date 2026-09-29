@@ -5,6 +5,7 @@ LG WebOS application that acts as a thin shell, loading the web player in a full
 ## Features
 
 - **Settings UI**: Configure Server URL and an optional Player URL directly on the TV
+- **Disconnect**: Unpair the display from the remote, without a keyboard or a pointer
 - **No credential on the device**: The screen enrols itself with a pairing code, so there is nothing to type in and nothing to steal from the settings overlay
 - **Self-healing**: The player runs on a rotating session token and renews it on its own
 - **Compatible**: Works with LG WebOS 2024 and newer
@@ -50,6 +51,30 @@ Settings are configured on-device via the settings overlay (press the **Settings
 | **Player URL** | No | Override the player URL. Leave empty to fetch it from `{Server URL}/api/config`. Set it for development (e.g. `http://localhost:4300`). |
 
 Values are stored in `localStorage` with keys: `server_url`, `player_url`.
+
+### Disconnecting a screen
+
+The same overlay has a **Disconnect screen** button. It unpairs the display: the
+player drops its session, its refresh token and its screen id, and shows a new
+pairing code.
+
+Press it **twice** — the first press arms it for five seconds. This is the one
+action here that cannot be undone from the remote, because the screen has to be
+claimed again in the dashboard.
+
+The shell cannot do this itself. The credentials live in the player's own
+origin, so the shell only sends a `mynextscreen-disconnect` message, and the
+player decides:
+
+- it accepts it only from the top-level embedding window on an allow-listed
+  origin, the same check the server-URL handoff passes;
+- it refuses when the screen has **`showDisconnectButton`** switched off in the
+  dashboard, so the shell is not a way around a screen an operator locked down;
+- it answers with the outcome, which is what the overlay reports back.
+
+Unlike the server-URL handoff, an unpair is accepted while the display is
+paired. The shell may reset a display; it may never silently re-point a paired
+one at another server.
 
 ## Re-pairing a screen
 

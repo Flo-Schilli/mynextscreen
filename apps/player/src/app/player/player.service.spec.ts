@@ -1,3 +1,9 @@
+import { TestBed, getTestBed } from '@angular/core/testing';
+import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { PlayerService } from './player.service';
+import { ConnectionService } from '../connection/connection.service';
 import {
   ScreenStateResponse,
   ScreenEvent,
@@ -5,6 +11,14 @@ import {
   LiveStream,
   ScreenInfo,
 } from './player.models';
+
+// As in connection.service.spec.ts: the setup file's init does not reach this
+// spec, so initialise defensively and swallow the double-init.
+try {
+  getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
+} catch {
+  // already initialized by test-setup
+}
 
 /**
  * Pure-function tests for state parsing and SSE event handling logic.
@@ -491,5 +505,74 @@ describe('Event Handling Logic', () => {
       data: {},
     });
     expect(state.refetchTriggered).toBe(false);
+  });
+});
+
+/**
+ * The screen's `showDisconnectButton` flag has to reach ConnectionService,
+ * which enforces it on the shell's unpair message but cannot read it itself
+ * (PlayerService already depends on it, so the other direction is a cycle).
+ */
+describe('PlayerService disconnect policy', () => {
+  let service: PlayerService;
+  let connection: ConnectionService;
+  let setDisconnectAllowed: ReturnType<typeof vi.spyOn>;
+
+  const screen: ScreenInfo = {
+    id: 'screen-1',
+    name: 'Lobby Screen',
+    organisationId: 'org-1',
+    resolution: '1920x1080',
+    location: 'Lobby',
+    groupId: null,
+    gridRow: null,
+    gridColumn: null,
+  };
+
+  function stateWith(overrides: Partial<ScreenInfo>): ScreenStateResponse {
+    return {
+      screen: { ...screen, ...overrides },
+      currentPlaylist: null,
+      schedule: [],
+      fallbackPlaylist: null,
+      liveStream: null,
+      group: null,
+      epoch: 0,
+    };
+  }
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    service = TestBed.inject(PlayerService);
+    connection = TestBed.inject(ConnectionService);
+    setDisconnectAllowed = vi.spyOn(connection, 'setDisconnectAllowed');
+  });
+
+  it('forbids the unpair when the screen has the button switched off', () => {
+    service.applyState(stateWith({ showDisconnectButton: false }));
+
+    expect(setDisconnectAllowed).toHaveBeenLastCalledWith(false);
+  });
+
+  it('allows it when the flag is on', () => {
+    service.applyState(stateWith({ showDisconnectButton: true }));
+
+    expect(setDisconnectAllowed).toHaveBeenLastCalledWith(true);
+  });
+
+  it('allows it when the server does not send the flag at all', () => {
+    service.applyState(stateWith({}));
+
+    expect(setDisconnectAllowed).toHaveBeenLastCalledWith(true);
+  });
+
+  it('drops a screen-off policy again when the player disconnects', () => {
+    service.applyState(stateWith({ showDisconnectButton: false }));
+
+    service.disconnect();
+
+    expect(setDisconnectAllowed).toHaveBeenLastCalledWith(true);
   });
 });

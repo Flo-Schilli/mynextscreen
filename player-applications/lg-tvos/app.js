@@ -18,6 +18,15 @@ const STORAGE_KEYS = {
 /** Written by versions up to 0.9.x. Removed on sight; see purgeLegacyApiKey. */
 const LEGACY_API_KEY = 'api_key';
 
+/** How long to wait for the player's answer to an unpair request. */
+const DISCONNECT_ACK_TIMEOUT_MS = 3000;
+
+/**
+ * Origin of the player currently in the iframe, or null while none is loaded.
+ * Kept so the settings overlay can address the player and recognise its reply.
+ */
+let playerFrameOrigin = null;
+
 /**
  * Initialize the application.
  * Both values (serverUrl, playerUrl) must be present in localStorage. If either
@@ -92,6 +101,8 @@ function loadPlayer(playerUrl, serverUrl) {
     iframe.src = playerUrl;
 
     iframe.onload = function() {
+        playerFrameOrigin = playerOrigin;
+
         // Targeted at the player's own origin rather than '*': the message says
         // which server this display belongs to, and a page that happened to
         // answer the load has no business learning that.
@@ -108,6 +119,61 @@ function loadPlayer(playerUrl, serverUrl) {
         loadingMessage.textContent = 'Error loading content. Please check your connection.';
     };
 }
+
+/**
+ * Asks the player to unpair this display, and reports what it answered.
+ *
+ * The shell cannot do this itself: the session and the refresh token live in
+ * the player's own origin, out of reach from here. It only sends the request —
+ * the player checks the sender and the screen's own policy before acting, and
+ * a screen whose disconnect is switched off in the dashboard says no.
+ *
+ * Resolves to `{ ok, reason }`; `reason` is 'no-player', 'not-paired',
+ * 'disabled' or 'timeout' when `ok` is false.
+ */
+function requestPlayerDisconnect() {
+    const iframe = document.getElementById('contentFrame');
+
+    if (!playerFrameOrigin || !iframe || !iframe.contentWindow) {
+        return Promise.resolve({ ok: false, reason: 'no-player' });
+    }
+
+    return new Promise(function(resolve) {
+        let timer = null;
+
+        function finish(result) {
+            window.removeEventListener('message', onResult);
+            if (timer !== null) {
+                clearTimeout(timer);
+            }
+            resolve(result);
+        }
+
+        function onResult(event) {
+            const data = event.data;
+            if (data == null || typeof data !== 'object') {
+                return;
+            }
+            if (data.type !== 'mynextscreen-disconnect-result') {
+                return;
+            }
+            // Only the player we loaded may answer for it.
+            if (event.origin !== playerFrameOrigin || event.source !== iframe.contentWindow) {
+                return;
+            }
+            finish({ ok: data.ok === true, reason: data.reason });
+        }
+
+        window.addEventListener('message', onResult);
+        timer = setTimeout(function() {
+            finish({ ok: false, reason: 'timeout' });
+        }, DISCONNECT_ACK_TIMEOUT_MS);
+
+        iframe.contentWindow.postMessage({ type: 'mynextscreen-disconnect' }, playerFrameOrigin);
+    });
+}
+
+window.requestPlayerDisconnect = requestPlayerDisconnect;
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
