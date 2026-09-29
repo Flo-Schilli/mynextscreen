@@ -4,6 +4,29 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.12.1
+
+### Fixed — invitation links were dead the moment they were sent
+
+An invited user who clicked the link in their email got "Invalid or expired
+token", however fresh the link was. Inviting someone wrote the set-password
+token into the user row in **plaintext**, while redeeming it looks the token up
+by its SHA-256 fingerprint, the way every other mailed token in the codebase is
+stored. The two never matched, so `POST /api/auth/set-password` answered 404 for
+every invite.
+
+There was no way around it either: an invitee starts unverified, and
+forgot-password deliberately no-ops for unverified accounts, so the account
+could not be activated at all.
+
+Inviting now persists the token through `UserService.setPasswordResetToken()`,
+the single writer that hashes. A regression test redeems the raw token from the
+emitted invite event and fails against the old code.
+
+**Operator action:** anyone invited before this release must be **invited again**
+— their stored token is a plaintext value that the fixed lookup will not match.
+Remove the pending member and add them back; the new invite email works.
+
 ## 0.12.0
 
 ### Added — unpairing a screen from the remote
