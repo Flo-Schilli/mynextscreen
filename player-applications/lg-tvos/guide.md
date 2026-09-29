@@ -80,6 +80,56 @@ ares-install --device mytv com.mynextscreen.webos_1.0.0_all.ipk
 ares-launch --device mytv com.mynextscreen.webos
 ```
 
+### Fernstart ohne Developer Mode (SSAP)
+
+TVs kennen keinen Autostart — nur Signage-Displays. Ersatz: die App von außen
+per SSAP starten, LGs WebSocket-Fernsteuerung auf Port 3000 (`ws`) bzw. 3001
+(`wss`, self-signed Zertifikat). Das Hilfsskript braucht keine npm-Pakete,
+Node 22 bringt alles mit:
+
+```bash
+node player-applications/lg-tvos/tools/launch-tv.mjs --host 192.168.1.50
+```
+
+Beim ersten Lauf erscheint ein Pairing-Prompt auf dem TV. Nach der Bestätigung
+liegt der `client-key` in `tools/.lgtv-key` (gitignored, Modus 600) und weitere
+Starts laufen ohne Prompt.
+
+Dauerbetrieb: `--watch` hält die Verbindung, beobachtet die Vordergrund-App und
+startet die Signage-App neu, sobald etwas anderes läuft — als systemd-Service
+auf dem Backend-Host der praktische Autostart-Ersatz.
+
+```bash
+node player-applications/lg-tvos/tools/launch-tv.mjs --host 192.168.1.50 --watch
+```
+
+Voraussetzungen auf dem TV: **Quick Start+** aktiv (sonst ist der Netzwerk-Stack
+im Standby aus), für das Aufwecken zusätzlich **Über Netzwerk einschalten**
+(Wake-on-LAN, vorher ein Magic Packet senden). `--help` listet alle Optionen.
+
+### Developer-Mode-Session verlängern
+
+Ohne Verlängerung läuft die Dev-Mode-Session ab und der TV entfernt die per
+Developer Mode installierten Apps. `--extend-devmode` startet die Dev-Mode-App
+mit `params.extend` — derselbe Weg, den der „Extend Session Time"-Button auf dem
+TV nimmt — und holt danach die Signage-App zurück in den Vordergrund:
+
+```bash
+node player-applications/lg-tvos/tools/launch-tv.mjs --host 192.168.1.50 --extend-devmode
+```
+
+Kein SSH, kein Session-Token, kein Zugriff auf `/var/luna/preferences/devmode_enabled`
+nötig — auf neueren Firmwares läuft die SSH-Session in einer Jail und kommt an
+diese Datei ohnehin nicht heran.
+
+> Der oft zitierte `GET https://developer.lge.com/secure/ResetDevModeSession.dev?sessionToken=…`
+> setzt **nur LGs Backend-Zähler** zurück. Der lokale Timer des TV läuft davon
+> unbeeindruckt weiter — siehe
+> [webosbrew/dev-manager-desktop#256](https://github.com/webosbrew/dev-manager-desktop/issues/256).
+
+Ausführlich — SSAP, Wake-on-LAN, Dev-Mode-Session und die SSH-Stolperfallen:
+[`tools/README.md`](tools/README.md).
+
 ---
 
 ## 7. App konfigurieren
