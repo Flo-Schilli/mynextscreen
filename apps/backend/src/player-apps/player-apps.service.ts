@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { marked } from 'marked';
@@ -9,6 +9,11 @@ export interface PlayerAppMeta {
   downloadAvailable: boolean;
 }
 
+interface AppInfo {
+  id: string;
+  version: string;
+}
+
 interface PlayerAppDefinition {
   slug: string;
   name: string;
@@ -16,30 +21,27 @@ interface PlayerAppDefinition {
   version: string;
 }
 
-function readAppVersion(slug: string, appsBasePath: string): string {
-  const appinfoPath = path.join(appsBasePath, slug, 'appinfo.json');
-  try {
-    const raw = fs.readFileSync(appinfoPath, 'utf-8');
-    return (JSON.parse(raw) as { version?: string }).version ?? '0.0.0';
-  } catch {
-    return '0.0.0';
-  }
-}
-
-const PLAYER_APP_DEFS: Omit<PlayerAppDefinition, 'version'>[] = [
-  { slug: 'lg-tvos', name: 'LG webOS', appId: 'com.cbf.webos' },
+/**
+ * Repo-owned catalogue of native player apps. Only the display name is declared
+ * here — id and version are read from the app's own `appinfo.json`, which is
+ * also what `ares-package` names the IPK after. A second, hardcoded copy of the
+ * id is how the download silently disappeared when the project was renamed.
+ */
+const PLAYER_APP_DEFS: Pick<PlayerAppDefinition, 'slug' | 'name'>[] = [
+  { slug: 'lg-tvos', name: 'LG webOS' },
 ];
 
 @Injectable()
 export class PlayerAppsService {
+  private readonly logger = new Logger(PlayerAppsService.name);
   private readonly appsBasePath = path.join(process.cwd(), 'player-applications');
   private readonly playerApps: PlayerAppDefinition[];
 
   constructor() {
-    this.playerApps = PLAYER_APP_DEFS.map((def) => ({
-      ...def,
-      version: readAppVersion(def.slug, this.appsBasePath),
-    }));
+    this.playerApps = PLAYER_APP_DEFS.map((def) => {
+      const appInfo = this.readAppInfo(def.slug);
+      return { ...def, appId: appInfo?.id ?? '', version: appInfo?.version ?? '0.0.0' };
+    });
   }
 
   listApps(): PlayerAppMeta[] {
@@ -77,6 +79,26 @@ export class PlayerAppsService {
     return this.binaryFilename(app);
   }
 
+  /**
+   * Reads id + version from the app manifest. A missing or malformed manifest
+   * only costs the download (and is logged) — the guide stays reachable.
+   */
+  private readAppInfo(slug: string): AppInfo | null {
+    const appinfoPath = path.join(this.appsBasePath, slug, 'appinfo.json');
+
+    try {
+      const parsed = JSON.parse(fs.readFileSync(appinfoPath, 'utf-8')) as Partial<AppInfo>;
+      if (!parsed.id || !parsed.version) {
+        this.logger.warn(`${appinfoPath} is missing "id" or "version" — download disabled`);
+        return null;
+      }
+      return { id: parsed.id, version: parsed.version };
+    } catch (error) {
+      this.logger.warn(`Cannot read ${appinfoPath} — download disabled: ${String(error)}`);
+      return null;
+    }
+  }
+
   private findApp(slug: string): PlayerAppDefinition {
     const app = this.playerApps.find((a) => a.slug === slug);
     if (!app) throw new NotFoundException(`Player app "${slug}" not found`);
@@ -88,6 +110,8 @@ export class PlayerAppsService {
   }
 
   private binaryExists(app: PlayerAppDefinition): boolean {
+    if (!app.appId) return false;
+
     const binPath = path.join(this.appsBasePath, app.slug, 'dist', this.binaryFilename(app));
     return fs.existsSync(binPath);
   }

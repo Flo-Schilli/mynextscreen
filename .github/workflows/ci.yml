@@ -153,10 +153,12 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       # Build and package the LG webOS player app (.ipk) so it can be served
-      # from the backend image. amd64 only: the artefact is architecture
-      # independent and building it twice would only duplicate it.
+      # from the backend image. The artefact itself is architecture independent,
+      # but it is baked into the image (COPY player-applications), so it has to
+      # be built for every backend image — skipping arm64 shipped a Pi backend
+      # with no download at all.
       - name: Build LG TVOS IPK
-        if: matrix.app == 'backend' && matrix.arch == 'amd64'
+        if: matrix.app == 'backend'
         run: |
           npm install -g @webos-tools/cli@3.2.6
           mkdir -p player-applications/lg-tvos/dist

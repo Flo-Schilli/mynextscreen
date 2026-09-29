@@ -4,6 +4,33 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.11.1
+
+### Fixed — the webOS app could not be downloaded
+
+The LG webOS `.ipk` had no download button in the screens help panel, on any
+installation. Renaming the project in 0.11.0 changed the application id in
+`player-applications/lg-tvos/appinfo.json` to `com.mynextscreen.webos`, and
+`ares-package` names the package after it. The backend kept a second, hardcoded
+copy of the old id and looked for `com.cbf.webos_0.11.0_all.ipk`, a file CI
+never produced, so it reported the download as unavailable and the button never
+rendered. The id and version are now read from the manifest — the same file the
+packaged name comes from — and cannot drift apart again. A manifest that is
+missing or malformed now only costs the download, is logged, and leaves the
+setup guide reachable.
+
+Second cause, for arm64 hosts only: the arm64 backend image contained no `.ipk`
+at all. The package is architecture independent, but it is baked into the image,
+and CI built it for the amd64 job alone when the arm64 images were introduced.
+Both backend images now carry it.
+
+The module had no tests, which is why a rename could remove a feature unnoticed.
+It now has sixteen, including one that fails if the packaged id and the id the
+backend expects ever diverge again.
+
+**Operator action:** pull the new backend image. Nothing else changes; no
+migration, no configuration.
+
 ## 0.11.0
 
 The release that made the repository public: one name, no borrowed marks, and
