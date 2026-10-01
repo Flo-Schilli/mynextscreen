@@ -40,6 +40,17 @@ export enum AuditAction {
   ContentBulkAddedToPlaylist = 'content.bulk_added_to_playlist',
   PlaylistBulkDeleted = 'playlist.bulk_deleted',
   PlaylistBulkScreenAssigned = 'playlist.bulk_screen_assigned',
+  // Site agents (on-premise service that remote-controls the displays)
+  SiteAgentCreated = 'site_agent.created',
+  SiteAgentUpdated = 'site_agent.updated',
+  SiteAgentDeleted = 'site_agent.deleted',
+  SiteAgentEnrolled = 'site_agent.enrolled',
+  SiteAgentRevoked = 'site_agent.revoked',
+  SiteAgentOnline = 'site_agent.online',
+  SiteAgentOffline = 'site_agent.offline',
+  ScreenRemoteControlUpdated = 'screen.remote_control_updated',
+  ScreenRemoteCommand = 'screen.remote_command',
+  ScreenRemoteOnboarded = 'screen.remote_onboarded',
   // Auth / account (instance-level — organisationId is null for self-signup/setup)
   UserRegistered = 'auth.user_registered',
   EmailVerified = 'auth.email_verified',

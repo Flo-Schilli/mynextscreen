@@ -31,6 +31,18 @@ import {
   AUDIT_SCREEN_BULK_GROUP_ASSIGNED,
   AUDIT_SCREEN_PAIRING_FAILED,
   AuditScreenEvent,
+  AUDIT_SITE_AGENT_CREATED,
+  AUDIT_SITE_AGENT_UPDATED,
+  AUDIT_SITE_AGENT_DELETED,
+  AUDIT_SITE_AGENT_ENROLLED,
+  AUDIT_SITE_AGENT_REVOKED,
+  AUDIT_SITE_AGENT_ONLINE,
+  AUDIT_SITE_AGENT_OFFLINE,
+  AuditSiteAgentEvent,
+  AUDIT_SCREEN_REMOTE_CONTROL_UPDATED,
+  AUDIT_SCREEN_REMOTE_COMMAND,
+  AUDIT_SCREEN_REMOTE_ONBOARDED,
+  AuditScreenRemoteEvent,
   AUDIT_USER_INVITED,
   AUDIT_USER_ROLE_CHANGED,
   AUDIT_USER_REMOVED,
@@ -678,6 +690,80 @@ export class AuditListener {
   }
 
   // ── Helper ───────────────────────────────────────────────────────────────
+
+  // ── Site agents ────────────────────────────────────────────────────────────
+
+  @OnEvent(AUDIT_SITE_AGENT_CREATED, { async: true })
+  handleSiteAgentCreated(event: AuditSiteAgentEvent): void {
+    this.recordSiteAgent(AuditAction.SiteAgentCreated, event);
+  }
+
+  @OnEvent(AUDIT_SITE_AGENT_UPDATED, { async: true })
+  handleSiteAgentUpdated(event: AuditSiteAgentEvent): void {
+    this.recordSiteAgent(AuditAction.SiteAgentUpdated, event);
+  }
+
+  @OnEvent(AUDIT_SITE_AGENT_DELETED, { async: true })
+  handleSiteAgentDeleted(event: AuditSiteAgentEvent): void {
+    this.recordSiteAgent(AuditAction.SiteAgentDeleted, event);
+  }
+
+  @OnEvent(AUDIT_SITE_AGENT_ENROLLED, { async: true })
+  handleSiteAgentEnrolled(event: AuditSiteAgentEvent): void {
+    this.recordSiteAgent(AuditAction.SiteAgentEnrolled, event);
+  }
+
+  @OnEvent(AUDIT_SITE_AGENT_REVOKED, { async: true })
+  handleSiteAgentRevoked(event: AuditSiteAgentEvent): void {
+    this.recordSiteAgent(AuditAction.SiteAgentRevoked, event);
+  }
+
+  @OnEvent(AUDIT_SITE_AGENT_ONLINE, { async: true })
+  handleSiteAgentOnline(event: AuditSiteAgentEvent): void {
+    this.recordSiteAgent(AuditAction.SiteAgentOnline, event);
+  }
+
+  @OnEvent(AUDIT_SITE_AGENT_OFFLINE, { async: true })
+  handleSiteAgentOffline(event: AuditSiteAgentEvent): void {
+    this.recordSiteAgent(AuditAction.SiteAgentOffline, event);
+  }
+
+  @OnEvent(AUDIT_SCREEN_REMOTE_CONTROL_UPDATED, { async: true })
+  handleScreenRemoteControlUpdated(event: AuditScreenRemoteEvent): void {
+    this.recordScreenRemote(AuditAction.ScreenRemoteControlUpdated, event);
+  }
+
+  @OnEvent(AUDIT_SCREEN_REMOTE_COMMAND, { async: true })
+  handleScreenRemoteCommand(event: AuditScreenRemoteEvent): void {
+    this.recordScreenRemote(AuditAction.ScreenRemoteCommand, event);
+  }
+
+  @OnEvent(AUDIT_SCREEN_REMOTE_ONBOARDED, { async: true })
+  handleScreenRemoteOnboarded(event: AuditScreenRemoteEvent): void {
+    this.recordScreenRemote(AuditAction.ScreenRemoteOnboarded, event);
+  }
+
+  private recordSiteAgent(action: AuditAction, event: AuditSiteAgentEvent): void {
+    this.record(
+      action,
+      'site_agent',
+      event.agentId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  private recordScreenRemote(action: AuditAction, event: AuditScreenRemoteEvent): void {
+    this.record(
+      action,
+      'screen',
+      event.screenId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
 
   private record(
     action: AuditAction,
