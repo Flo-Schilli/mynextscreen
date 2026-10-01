@@ -59,11 +59,14 @@ import {
         (closed)="closed.emit()"
       >
         <div class="space-y-5">
-          <mns-sfield label="Site agent" hint="Which venue agent looks after this display">
+          <mns-sfield
+            label="Site agent"
+            hint="Which venue agent looks after this display. To take it out, use Remove on its row."
+          >
             <mns-select
               [options]="agentOptions()"
               [(value)]="agentId"
-              placeholder="Not managed by an agent"
+              placeholder="Pick an agent"
             />
           </mns-sfield>
 
@@ -189,12 +192,14 @@ export class ScreenRemoteSettings implements OnInit {
     this.wakeLeadTimeMinutes.set(String(remote.wakeLeadTimeMinutes));
     this.wakeOnUnreachableEnabled.set(remote.wakeOnUnreachableEnabled);
 
+    // No "none" option on purpose. Picking it would save `agentId: null`,
+    // which detaches the screen but keeps its address, passphrase and
+    // onboarding progress — the half-removal that makes the next agent inherit
+    // a previous installation's values. Taking a screen out is the Remove
+    // action on its row, which forgets all of it.
     this.service.getAll().subscribe({
       next: (agents: SiteAgentListItem[]) =>
-        this.agentOptions.set([
-          { value: '', label: 'Not managed by an agent' },
-          ...agents.map((agent) => ({ value: agent.id, label: agent.name })),
-        ]),
+        this.agentOptions.set(agents.map((agent) => ({ value: agent.id, label: agent.name }))),
       error: () => this.toast.error('Could not load the site agents'),
     });
   }
@@ -214,7 +219,9 @@ export class ScreenRemoteSettings implements OnInit {
 
   protected save(): void {
     const payload: UpdateScreenRemoteControlRequest = {
-      agentId: this.agentId() || null,
+      // Never null: the form has no way to clear it, and a null here would
+      // be the half-removal the Remove action exists to avoid.
+      ...(this.agentId() ? { agentId: this.agentId() } : {}),
       localIp: this.localIp().trim() || null,
       macAddress: this.macAddress().trim() || null,
       autoLaunchEnabled: this.autoLaunchEnabled(),

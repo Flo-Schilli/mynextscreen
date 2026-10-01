@@ -154,6 +154,9 @@ interface ManagedScreen {
                   >
                     Settings
                   </mns-btn>
+                  <mns-btn size="sm" variant="outline" icon="Trash" (mnsClick)="removeScreen(item)">
+                    Remove
+                  </mns-btn>
                 </div>
               </div>
 

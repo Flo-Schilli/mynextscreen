@@ -92,8 +92,11 @@ describe('UpdateScreenRemoteControlDto', () => {
       expect(await errorsFor({ agentId: '660e8400-e29b-41d4-a716-446655440000' })).toEqual([]);
     });
 
-    it('accepts null to detach the screen', async () => {
-      expect(await errorsFor({ agentId: null })).toEqual([]);
+    // Detaching used to be a null here, which kept the address, the passphrase
+    // and the onboarding progress. Taking a screen out is its own endpoint now,
+    // so there is no half-removal to validate.
+    it('rejects null, which used to mean "detach and keep everything"', async () => {
+      expect(await errorsFor({ agentId: null as unknown as string })).toEqual(['agentId']);
     });
 
     it('rejects a non-uuid', async () => {

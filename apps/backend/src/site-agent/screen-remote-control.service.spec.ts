@@ -202,12 +202,15 @@ describe('ScreenRemoteControlService', () => {
       expect(config.agentId).toBe(agentId);
     });
 
-    it('detaches the screen when agentId is null', async () => {
+    // Detaching through an update is gone: it left the address, the passphrase
+    // and the onboarding progress for the next agent to inherit. `remove` is
+    // the way out, and it is covered on its own below.
+    it('keeps the agent when an update does not name one', async () => {
       await service.upsert(orgId, screenId, { agentId }, userId);
 
-      const config = await service.upsert(orgId, screenId, { agentId: null }, userId);
+      const config = await service.upsert(orgId, screenId, { localIp: '10.0.0.9' }, userId);
 
-      expect(config.agentId).toBeNull();
+      expect(config.agentId).toBe(agentId);
     });
 
     it('refuses an agent from another organisation', async () => {

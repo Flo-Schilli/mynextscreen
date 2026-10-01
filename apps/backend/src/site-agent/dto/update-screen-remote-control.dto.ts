@@ -28,11 +28,20 @@ export const DEVMODE_INTERVAL_MIN_DAYS = 1;
 export const DEVMODE_INTERVAL_MAX_DAYS = 40;
 
 export class UpdateScreenRemoteControlDto {
-  /** Null detaches the screen from its agent; it then behaves as before. */
-  @IsOptional()
-  @ValidateIf((_, value) => value !== null)
+  /**
+   * Which agent looks after this screen.
+   *
+   * No longer nullable. A null here used to detach the screen while keeping its
+   * address, passphrase and onboarding progress, so the next agent inherited a
+   * previous installation's values instead of the operator being walked through
+   * the set in front of them. Taking a screen out is
+   * `DELETE /api/screens/:id/remote-control`, which forgets all of it.
+   */
+  // Deliberately not `@IsOptional()`: that skips validation for null as well as
+  // undefined, so a null would sail through and still half-remove the screen.
+  @ValidateIf((_, value) => value !== undefined)
   @IsUUID()
-  agentId?: string | null;
+  agentId?: string;
 
   /**
    * Address on the venue LAN. Not checked against `OutboundGuard`: the server
