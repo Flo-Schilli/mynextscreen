@@ -39,6 +39,8 @@ function makeScreen(overrides: Partial<ScreenListItem> = {}): ScreenListItem {
     createdAt: '2026-06-01T08:00:00.000Z',
     updatedAt: '2026-06-01T08:00:00.000Z',
     currentPlaylistName: null,
+    agentId: null,
+    reachability: null,
     currentPlaylistThumbnail: null,
     ...overrides,
   };

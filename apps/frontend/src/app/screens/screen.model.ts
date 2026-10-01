@@ -37,6 +37,13 @@ export interface PlaylistThumbnailRef {
 export interface ScreenListItem extends Screen {
   currentPlaylistName: string | null;
   currentPlaylistThumbnail: PlaylistThumbnailRef | null;
+  /**
+   * Which site agent looks after this screen, and what it last saw on the
+   * network. Null for a screen no agent manages — which is most of them, and
+   * for which the tile falls back to what the heartbeat alone can say.
+   */
+  agentId: string | null;
+  reachability: 'unknown' | 'reachable' | 'unreachable' | null;
 }
 
 export interface CreateScreenRequest {

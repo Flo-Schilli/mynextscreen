@@ -66,6 +66,8 @@ describe('ScreenService', () => {
       ...makeScreen(),
       currentPlaylistName: null,
       currentPlaylistThumbnail: null,
+      agentId: null,
+      reachability: null,
       ...overrides,
     };
   }

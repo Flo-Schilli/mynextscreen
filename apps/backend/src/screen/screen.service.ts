@@ -4,7 +4,8 @@ import { and, asc, eq, inArray, lt } from 'drizzle-orm';
 import { OrganisationScopedService } from '../organisation/organisation-scope.service';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
-import { playlistItems, screens, type Screen } from '../db/schema';
+import { playlistItems, screenRemoteControls, screens, type Screen } from '../db/schema';
+import type { ScreenReachability } from '../site-agent/screen-reachability.enum';
 import type { ContentType } from '../content/content-type.enum';
 import { CreateScreenDto } from './dto/create-screen.dto';
 import { UpdateScreenDto } from './dto/update-screen.dto';
@@ -58,6 +59,13 @@ export type PlaylistThumbnailRef = {
 export type ScreenWithPlaylist = Screen & {
   currentPlaylistName: string | null;
   currentPlaylistThumbnail: PlaylistThumbnailRef | null;
+  /**
+   * Which site agent looks after this screen, and what it last saw. Carried on
+   * the list so the screen cards can show the combined state without a request
+   * per card; null for a screen no agent manages, which is most of them.
+   */
+  agentId: string | null;
+  reachability: ScreenReachability | null;
 };
 
 @Injectable()
@@ -213,23 +221,42 @@ export class ScreenService extends OrganisationScopedService<Screen> {
    */
   async findAllWithPlaylist(organisationId: string): Promise<ScreenWithPlaylist[]> {
     const all = await this.findAll(organisationId);
+
+    // One query for the whole list rather than one per card.
+    const remotes = await this.db
+      .select({
+        screenId: screenRemoteControls.screenId,
+        agentId: screenRemoteControls.agentId,
+        reachability: screenRemoteControls.reachability,
+      })
+      .from(screenRemoteControls)
+      .where(eq(screenRemoteControls.organisationId, organisationId));
+    const remoteByScreen = new Map(remotes.map((r) => [r.screenId, r]));
+
     return Promise.all(
       all.map(async (screen) => {
+        const remote = remoteByScreen.get(screen.id);
+        const base = {
+          ...screen,
+          agentId: remote?.agentId ?? null,
+          reachability: remote?.agentId ? remote.reachability : null,
+        };
+
         if (!screen.isOnline) {
-          return { ...screen, currentPlaylistName: null, currentPlaylistThumbnail: null };
+          return { ...base, currentPlaylistName: null, currentPlaylistThumbnail: null };
         }
         try {
           const { playlist } = await this.scheduleService.getCurrentPlaylist(screen.id);
           if (!playlist) {
-            return { ...screen, currentPlaylistName: null, currentPlaylistThumbnail: null };
+            return { ...base, currentPlaylistName: null, currentPlaylistThumbnail: null };
           }
           return {
-            ...screen,
+            ...base,
             currentPlaylistName: playlist.name,
             currentPlaylistThumbnail: await this.loadFirstItemThumbnail(playlist.id),
           };
         } catch {
-          return { ...screen, currentPlaylistName: null, currentPlaylistThumbnail: null };
+          return { ...base, currentPlaylistName: null, currentPlaylistThumbnail: null };
         }
       }),
     );

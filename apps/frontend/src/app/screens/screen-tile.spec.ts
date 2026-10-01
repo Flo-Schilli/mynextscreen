@@ -1,6 +1,7 @@
 import { TestBed, getTestBed, ComponentFixture } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
+import { provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { ScreenTile, resolutionLabel } from './screen-tile';
 import { ScreenListItem } from './screen.model';
@@ -27,6 +28,8 @@ function makeScreen(overrides: Partial<ScreenListItem> = {}): ScreenListItem {
     createdAt: '2026-06-01T00:00:00Z',
     updatedAt: '2026-06-01T00:00:00Z',
     currentPlaylistName: null,
+    agentId: null,
+    reachability: null,
     currentPlaylistThumbnail: null,
     ...overrides,
   };
@@ -63,6 +66,9 @@ describe('ScreenTile', () => {
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
+        // The tile links to the site agent that looks after the screen, so it
+        // needs a router even in tests that never navigate.
+        provideRouter([]),
         { provide: ContentService, useValue: { getStaticThumbnailUrl } },
       ],
     });
@@ -89,6 +95,81 @@ describe('ScreenTile', () => {
     const badge = fixture.debugElement.query(By.css('.status-badge')).nativeElement as HTMLElement;
     expect(badge.classList).toContain('offline');
     expect(badge.textContent?.trim()).toContain('Offline');
+  });
+
+  // The two states an agent makes visible. Without one, both of these look
+  // like plain "Offline", which is exactly what the tile used to show.
+  it('says the app is not running when the agent reached the TV', async () => {
+    await setUp(
+      makeScreen({
+        isOnline: false,
+        lastHeartbeat: '2026-06-01T09:00:00.000Z',
+        agentId: 'agent-1',
+        reachability: 'reachable',
+      }),
+    );
+
+    const badge = fixture.debugElement.query(By.css('.status-badge')).nativeElement as HTMLElement;
+    expect(badge.classList).toContain('app-not-running');
+    expect(badge.textContent?.trim()).toContain('App not running');
+  });
+
+  it('says there was no answer when the agent could not reach the TV', async () => {
+    await setUp(makeScreen({ isOnline: false, agentId: 'agent-1', reachability: 'unreachable' }));
+
+    const badge = fixture.debugElement.query(By.css('.status-badge')).nativeElement as HTMLElement;
+    expect(badge.classList).toContain('tv-unreachable');
+    expect(badge.textContent?.trim()).toContain('No answer');
+  });
+
+  // A playing screen is playing, whatever the last probe happened to say.
+  it('reports online even when the last probe is stale', async () => {
+    await setUp(makeScreen({ isOnline: true, agentId: 'agent-1', reachability: 'unreachable' }));
+
+    const badge = fixture.debugElement.query(By.css('.status-badge')).nativeElement as HTMLElement;
+    expect(badge.classList).toContain('online');
+  });
+
+  it('falls back to Offline for a screen no agent manages', async () => {
+    await setUp(
+      makeScreen({
+        isOnline: false,
+        lastHeartbeat: '2026-06-01T09:00:00.000Z',
+        agentId: null,
+        reachability: null,
+      }),
+    );
+
+    const badge = fixture.debugElement.query(By.css('.status-badge')).nativeElement as HTMLElement;
+    expect(badge.classList).toContain('offline');
+  });
+
+  describe('the site agent shortcut', () => {
+    it('is absent for a screen no agent manages', async () => {
+      await setUp(makeScreen({ agentId: null }));
+
+      expect(fixture.debugElement.query(By.css('.agent-link'))).toBeNull();
+    });
+
+    it('links to the agent that looks after the screen', async () => {
+      await setUp(makeScreen({ agentId: 'agent-1' }));
+
+      const link = fixture.debugElement.query(By.css('.agent-link'))
+        .nativeElement as HTMLAnchorElement;
+      expect(link.getAttribute('href')).toBe('/site-agents/agent-1');
+    });
+
+    // The whole tile is a button that opens the screen; without stopping the
+    // event, following the link would also fire that.
+    it('does not open the screen when followed', async () => {
+      await setUp(makeScreen({ agentId: 'agent-1' }));
+      const opened = vi.fn();
+      fixture.componentInstance.open.subscribe(opened);
+
+      fixture.debugElement.query(By.css('.agent-link')).nativeElement.click();
+
+      expect(opened).not.toHaveBeenCalled();
+    });
   });
 
   it('shows the Never status badge when never seen', async () => {
