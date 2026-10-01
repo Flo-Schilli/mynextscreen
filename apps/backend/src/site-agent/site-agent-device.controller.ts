@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -12,6 +13,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SiteAgentEnrolmentService } from './site-agent-enrolment.service';
 import { SiteAgentSessionService, type SiteAgentSessionTokens } from './site-agent-session.service';
 import { SiteAgentService } from './site-agent.service';
+import { SiteAgentConfigService } from './site-agent-config.service';
+import type { AgentConfig } from './agent-config.types';
 import { AgentHeartbeatDto, EnrolAgentDto, RefreshAgentSessionDto } from './dto';
 import { AgentAuth } from '../auth/agent-auth.decorator';
 import type { AgentAuthenticatedRequest } from '../auth/agent-auth.guard';
@@ -48,6 +51,7 @@ export class SiteAgentDeviceController {
     private readonly enrolments: SiteAgentEnrolmentService,
     private readonly sessions: SiteAgentSessionService,
     private readonly siteAgentService: SiteAgentService,
+    private readonly configService: SiteAgentConfigService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -88,6 +92,20 @@ export class SiteAgentDeviceController {
       throw new UnauthorizedException('Invalid refresh token');
     }
     return toSessionResponse(result.tokens);
+  }
+
+  /**
+   * Everything the agent needs: its screens, their addresses, the Developer
+   * Mode passphrases and when playback is next due.
+   *
+   * The agent caches this to disk and keeps working from the cache when the
+   * server is unreachable — a venue must not go dark because the uplink is.
+   */
+  @Get('me/config')
+  @AgentAuth()
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  config(@Req() req: AgentAuthenticatedRequest): Promise<AgentConfig> {
+    return this.configService.buildAgentConfig(req.agentId);
   }
 
   @Post('me/heartbeat')

@@ -2,6 +2,7 @@ export type { Screen } from '../db/schema';
 export { ScreenModule } from './screen.module';
 export { ScreenService } from './screen.service';
 export { ScreenStateService } from './screen-state.service';
+export { ScheduleBoundaryService } from './schedule-boundary.service';
 export { ScreenController } from './screen.controller';
 export { ScreenScheduler } from './screen.scheduler';
 export { ScreenStatusEvent, SCREEN_STATUS_CHANGED } from './screen-status.event';

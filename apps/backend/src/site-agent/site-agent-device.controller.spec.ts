@@ -6,6 +6,7 @@ import { SiteAgentDeviceController } from './site-agent-device.controller';
 import { SiteAgentEnrolmentService } from './site-agent-enrolment.service';
 import { SiteAgentSessionService } from './site-agent-session.service';
 import { SiteAgentService } from './site-agent.service';
+import { SiteAgentConfigService } from './site-agent-config.service';
 import { IS_AGENT_AUTH_KEY } from '../auth/agent-auth.decorator';
 import { IS_PUBLIC_KEY } from '../auth/public.decorator';
 import { ROLES_KEY } from '../auth/roles.decorator';
@@ -17,6 +18,7 @@ describe('SiteAgentDeviceController', () => {
   let enrolments: Record<string, jest.Mock>;
   let sessions: Record<string, jest.Mock>;
   let siteAgentService: Record<string, jest.Mock>;
+  let configService: Record<string, jest.Mock>;
   let emitter: { emit: jest.Mock };
 
   const agentId = '660e8400-e29b-41d4-a716-446655440000';
@@ -33,6 +35,7 @@ describe('SiteAgentDeviceController', () => {
     enrolments = { redeem: jest.fn() };
     sessions = { refresh: jest.fn() };
     siteAgentService = { recordHeartbeat: jest.fn() };
+    configService = { buildAgentConfig: jest.fn() };
     emitter = { emit: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -41,6 +44,7 @@ describe('SiteAgentDeviceController', () => {
         { provide: SiteAgentEnrolmentService, useValue: enrolments },
         { provide: SiteAgentSessionService, useValue: sessions },
         { provide: SiteAgentService, useValue: siteAgentService },
+        { provide: SiteAgentConfigService, useValue: configService },
         { provide: EventEmitter2, useValue: emitter },
       ],
     }).compile();
@@ -59,16 +63,16 @@ describe('SiteAgentDeviceController', () => {
       expect(isPublic).toBe(true);
     });
 
-    it('marks heartbeat as agent-authenticated', () => {
+    it.each(['heartbeat', 'config'] as const)('marks %s as agent-authenticated', (method) => {
       expect(
-        reflector.get<boolean>(IS_AGENT_AUTH_KEY, SiteAgentDeviceController.prototype.heartbeat),
+        reflector.get<boolean>(IS_AGENT_AUTH_KEY, SiteAgentDeviceController.prototype[method]),
       ).toBe(true);
     });
 
     // An agent has no membership, so a @Roles() here would make the route
     // permanently unreachable rather than more secure.
     it('declares no roles on any route', () => {
-      for (const method of ['enrol', 'refreshSession', 'heartbeat'] as const) {
+      for (const method of ['enrol', 'refreshSession', 'heartbeat', 'config'] as const) {
         expect(
           reflector.get<string[]>(ROLES_KEY, SiteAgentDeviceController.prototype[method]),
         ).toBeUndefined();
@@ -137,6 +141,31 @@ describe('SiteAgentDeviceController', () => {
       const replayed = await controller.refreshSession({ refreshToken: 'b' }).catch((e) => e);
 
       expect(unknown.message).toBe(replayed.message);
+    });
+  });
+
+  describe('config', () => {
+    it('builds the config for the agent named by the token', async () => {
+      configService.buildAgentConfig.mockResolvedValue({ agentId, screens: [] });
+
+      await controller.config(agentReq);
+
+      expect(configService.buildAgentConfig).toHaveBeenCalledWith(agentId);
+    });
+
+    // The agent id is never read from a query parameter or the body: an agent
+    // must not be able to fetch another venue's addresses and passphrases.
+    it('ignores any agent id the caller tries to supply', async () => {
+      configService.buildAgentConfig.mockResolvedValue({ agentId, screens: [] });
+      const spoofed = {
+        ...agentReq,
+        query: { agentId: 'someone-else' },
+        body: { agentId: 'someone-else' },
+      } as unknown as AgentAuthenticatedRequest;
+
+      await controller.config(spoofed);
+
+      expect(configService.buildAgentConfig).toHaveBeenCalledWith(agentId);
     });
   });
 
