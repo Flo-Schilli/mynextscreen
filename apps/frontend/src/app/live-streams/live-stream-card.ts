@@ -237,13 +237,13 @@ import { LiveStreamMonitor } from './live-stream-monitor';
       background: var(--surface-2);
     }
     .menu-item.danger {
-      color: var(--offline);
+      color: var(--color-offline);
     }
     .menu-icon {
       color: var(--text-muted);
     }
     .menu-icon.online {
-      color: var(--online);
+      color: var(--color-online);
     }
     .menu-sep {
       height: 1px;
@@ -262,7 +262,7 @@ import { LiveStreamMonitor } from './live-stream-monitor';
       gap: 6px;
       font-size: 12px;
       font-weight: 600;
-      color: var(--offline);
+      color: var(--color-offline);
     }
     .footer {
       display: flex;

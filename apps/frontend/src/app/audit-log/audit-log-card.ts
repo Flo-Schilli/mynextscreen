@@ -136,7 +136,7 @@ import type { IconName } from '../ui';
     .card-action-badge[data-category='group'] mns-badge span,
     .card-action-badge[data-category='email'] mns-badge span {
       background: var(--info-dim);
-      color: var(--info);
+      color: var(--color-info);
     }
     .card-action-badge[data-category='playlist'] mns-badge span,
     .card-action-badge[data-category='schedule'] mns-badge span,
@@ -146,16 +146,16 @@ import type { IconName } from '../ui';
     }
     .card-action-badge[data-category='screen'] mns-badge span {
       background: var(--warn-dim);
-      color: var(--warn);
+      color: var(--color-warn);
     }
     .card-action-badge[data-category='user'] mns-badge span {
       background: var(--offline-dim);
-      color: var(--offline);
+      color: var(--color-offline);
     }
     .card-action-badge[data-category='organisation'] mns-badge span,
     .card-action-badge[data-category='live_stream'] mns-badge span {
       background: var(--online-dim);
-      color: var(--online);
+      color: var(--color-online);
     }
 
     @media (prefers-reduced-motion: reduce) {

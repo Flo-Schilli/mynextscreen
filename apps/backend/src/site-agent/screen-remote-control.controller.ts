@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -50,6 +51,25 @@ export class ScreenRemoteControlController {
   ): Promise<ScreenRemoteControlDto> {
     const saved = await this.service.upsert(organisationId, screenId, dto, req.user.userId);
     return toDashboardDto(saved);
+  }
+
+  /**
+   * Forgets everything configured for this screen.
+   *
+   * A hard delete, not an unassign: the address, the passphrase and the
+   * onboarding progress go with it, so giving the screen to an agent again
+   * walks the operator through the set in front of them instead of silently
+   * reusing what was true of a different installation.
+   */
+  @Delete(':id/remote-control')
+  @Roles(OrganisationRole.OrgAdmin)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) screenId: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<void> {
+    return this.service.remove(organisationId, screenId, req.user.userId);
   }
 
   /**

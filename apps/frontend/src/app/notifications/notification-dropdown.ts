@@ -225,13 +225,13 @@ export class NotificationDropdown implements OnInit {
   getEventColor(eventType: NotificationEventType): string {
     switch (eventType) {
       case 'screen.offline':
-        return 'var(--offline)';
+        return 'var(--color-offline)';
       case 'screen.online':
-        return 'var(--online)';
+        return 'var(--color-online)';
       case 'transcoding.complete':
         return 'var(--accent)';
       case 'transcoding.failed':
-        return 'var(--warn)';
+        return 'var(--color-warn)';
       default:
         return 'currentColor';
     }

@@ -40,6 +40,7 @@ import {
   AUDIT_SITE_AGENT_OFFLINE,
   AuditSiteAgentEvent,
   AUDIT_SCREEN_REMOTE_CONTROL_UPDATED,
+  AUDIT_SCREEN_REMOTE_CONTROL_REMOVED,
   AUDIT_SCREEN_REMOTE_COMMAND,
   AUDIT_SCREEN_REMOTE_ONBOARDED,
   AuditScreenRemoteEvent,
@@ -731,6 +732,11 @@ export class AuditListener {
   @OnEvent(AUDIT_SCREEN_REMOTE_CONTROL_UPDATED, { async: true })
   handleScreenRemoteControlUpdated(event: AuditScreenRemoteEvent): void {
     this.recordScreenRemote(AuditAction.ScreenRemoteControlUpdated, event);
+  }
+
+  @OnEvent(AUDIT_SCREEN_REMOTE_CONTROL_REMOVED, { async: true })
+  handleScreenRemoteControlRemoved(event: AuditScreenRemoteEvent): void {
+    this.recordScreenRemote(AuditAction.ScreenRemoteControlRemoved, event);
   }
 
   @OnEvent(AUDIT_SCREEN_REMOTE_COMMAND, { async: true })

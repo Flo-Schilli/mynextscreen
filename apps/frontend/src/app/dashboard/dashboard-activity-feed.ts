@@ -18,9 +18,9 @@ const CATEGORY_BG: Record<ActivityEntry['category'], string> = {
 };
 
 const CATEGORY_COLOR: Record<ActivityEntry['category'], string> = {
-  screen: 'var(--online)',
+  screen: 'var(--color-online)',
   schedule: 'var(--accent)',
-  transcoding: 'var(--info)',
+  transcoding: 'var(--color-info)',
   info: 'var(--text-muted)',
 };
 

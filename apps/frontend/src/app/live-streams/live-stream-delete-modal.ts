@@ -42,10 +42,10 @@ import { LiveStream } from './live-stream.model';
   styles: `
     .error {
       font-size: 0.8125rem;
-      color: var(--offline);
+      color: var(--color-offline);
       padding: 0.625rem 0.875rem;
       border-radius: var(--r-md, 8px);
-      border: 1px solid color-mix(in srgb, var(--offline) 30%, var(--border));
+      border: 1px solid color-mix(in srgb, var(--color-offline) 30%, var(--border));
       background: var(--offline-dim);
       margin: 0;
     }

@@ -389,7 +389,7 @@ type TableRow =
     /* ── action badge tones via data-category ── */
     .action-badge[data-category='content'] mns-badge span {
       background: var(--info-dim);
-      color: var(--info);
+      color: var(--color-info);
     }
     .action-badge[data-category='playlist'] mns-badge span {
       background: var(--accent-soft);
@@ -401,23 +401,23 @@ type TableRow =
     }
     .action-badge[data-category='screen'] mns-badge span {
       background: var(--warn-dim);
-      color: var(--warn);
+      color: var(--color-warn);
     }
     .action-badge[data-category='group'] mns-badge span {
       background: var(--info-dim);
-      color: var(--info);
+      color: var(--color-info);
     }
     .action-badge[data-category='user'] mns-badge span {
       background: var(--offline-dim);
-      color: var(--offline);
+      color: var(--color-offline);
     }
     .action-badge[data-category='organisation'] mns-badge span {
       background: var(--online-dim);
-      color: var(--online);
+      color: var(--color-online);
     }
     .action-badge[data-category='live_stream'] mns-badge span {
       background: var(--online-dim);
-      color: var(--online);
+      color: var(--color-online);
     }
     .action-badge[data-category='auth'] mns-badge span {
       background: var(--accent-soft);
@@ -425,7 +425,7 @@ type TableRow =
     }
     .action-badge[data-category='email'] mns-badge span {
       background: var(--info-dim);
-      color: var(--info);
+      color: var(--color-info);
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -490,7 +490,7 @@ export class AuditLogTable {
     const tone = actionMeta(action).tone;
     if (tone === 'neutral') return 'var(--text-muted)';
     if (tone === 'accent') return 'var(--accent)';
-    if (tone === 'warning') return 'var(--warn)';
+    if (tone === 'warning') return 'var(--color-warn)';
     return `var(--${tone})`;
   }
 

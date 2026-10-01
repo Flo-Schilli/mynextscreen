@@ -297,11 +297,13 @@ describe('NotificationDropdown', () => {
 
   describe('getEventColor', () => {
     it('returns the offline token for screen.offline', () => {
-      expect(fixture.componentInstance.getEventColor('screen.offline')).toBe('var(--offline)');
+      expect(fixture.componentInstance.getEventColor('screen.offline')).toBe(
+        'var(--color-offline)',
+      );
     });
 
     it('returns the online token for screen.online', () => {
-      expect(fixture.componentInstance.getEventColor('screen.online')).toBe('var(--online)');
+      expect(fixture.componentInstance.getEventColor('screen.online')).toBe('var(--color-online)');
     });
 
     it('returns the accent token for transcoding.complete', () => {
@@ -309,7 +311,9 @@ describe('NotificationDropdown', () => {
     });
 
     it('returns the warn token for transcoding.failed', () => {
-      expect(fixture.componentInstance.getEventColor('transcoding.failed')).toBe('var(--warn)');
+      expect(fixture.componentInstance.getEventColor('transcoding.failed')).toBe(
+        'var(--color-warn)',
+      );
     });
 
     it('returns currentColor for an unknown event type', () => {

@@ -90,6 +90,7 @@ export class AuditSiteAgentEvent {
 }
 
 export const AUDIT_SCREEN_REMOTE_CONTROL_UPDATED = 'audit.screen.remote_control_updated';
+export const AUDIT_SCREEN_REMOTE_CONTROL_REMOVED = 'audit.screen.remote_control_removed';
 export const AUDIT_SCREEN_REMOTE_COMMAND = 'audit.screen.remote_command';
 export const AUDIT_SCREEN_REMOTE_ONBOARDED = 'audit.screen.remote_onboarded';
 

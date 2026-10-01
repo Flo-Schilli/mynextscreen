@@ -4,6 +4,49 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.14.1
+
+### Fixed — a display could not actually be given to an agent
+
+0.14.0 shipped the agent and the wizard that connects a TV to it, but nothing in
+the dashboard created the row that ties the two together. An agent's page showed
+an empty list and there was no way to fill it. Each display now has a remote
+control setting reachable from its own tile and from the agent, and that is what
+assigns it.
+
+### Fixed — a display or an agent could not be taken back out
+
+The only way to detach a display was to clear the agent in a dropdown, which
+left its address, its passphrase and its onboarding progress behind — so the
+next agent inherited a previous installation's values and the wizard started
+half-done against a set it had never seen. Removing a display is now an explicit
+**Remove** on its row, and it forgets all of it: connecting the same TV again
+starts at step one with nothing filled in.
+
+An agent can be deleted outright. Its displays are released the same way, so
+nothing is left pointing at a service that no longer exists. Both actions, and
+revoking an agent's access, ask first in a modal that says what will happen.
+
+### Changed — the onboarding wizard is a stepper
+
+It was a list of instructions with a Check button, and every value it asked for
+had to be typed somewhere else. Connecting a display meant walking between two
+dialogs while standing in front of a television. The steps are now a menu down
+the left with their state on them, and each step carries the fields it needs, so
+saving and checking is one action.
+
+Steps ahead of the furthest one reached cannot be clicked; ones already passed
+can, so a wrong IP is corrected in place. The four Developer Mode steps are
+marked optional and can be skipped together: they exist only so the agent can
+keep the session from expiring, and an installation that does not want that
+needs none of them.
+
+### Fixed — status colours on the agent pages were not rendering
+
+Twenty-five components referred to colour tokens that do not exist in the
+stylesheet, so online, offline and warning states fell back to inherited text
+colour. They now use the tokens the design system actually defines.
+
 ## 0.14.0
 
 ### Added — a service in the venue that looks after the displays

@@ -1,10 +1,17 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Screen, ScreenListItem } from './screen.model';
 import { IconComponent } from '../ui';
 import { ContentService } from '../content/content.service';
 
-type TileStatus = 'online' | 'offline' | 'never';
+/**
+ * `app-not-running` and `tv-unreachable` only exist for a screen a site agent
+ * looks after. They are the reason the player is not reporting, which the
+ * heartbeat alone cannot give — without an agent both of them look like
+ * `offline`, which is exactly what this used to show for all three.
+ */
+type TileStatus = 'online' | 'app-not-running' | 'tv-unreachable' | 'offline' | 'never';
 
 /** Maps a `WIDTHxHEIGHT` resolution string to a short label for the corner badge. */
 export function resolutionLabel(resolution: string): string {
@@ -32,7 +39,7 @@ export function resolutionLabel(resolution: string): string {
   selector: 'app-screen-tile',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, DatePipe],
+  imports: [IconComponent, DatePipe, RouterLink],
   template: `
     <div
       class="screen-card"
@@ -44,7 +51,7 @@ export function resolutionLabel(resolution: string): string {
       (keydown.space)="open.emit(screen())"
     >
       <!-- Thumbnail band with status overlay -->
-      <div class="thumb-band" [class.dim]="status() === 'offline' || status() === 'never'">
+      <div class="thumb-band" [class.dim]="status() !== 'online'">
         @if (thumbnailUrl(); as src) {
           <img [src]="src" alt="" class="thumb-img" loading="lazy" />
           @if (isVideoThumbnail()) {
@@ -64,6 +71,19 @@ export function resolutionLabel(resolution: string): string {
 
         <!-- Top-right resolution badge -->
         <span class="res-badge">{{ resLabel() }}</span>
+
+        <!-- Remote control, for a screen a site agent looks after -->
+        @if (agentId(); as agent) {
+          <a
+            class="agent-link"
+            [routerLink]="['/site-agents', agent]"
+            title="Site agent"
+            aria-label="Open the site agent that looks after this screen"
+            (click)="$event.stopPropagation()"
+          >
+            <mns-icon name="Cast" [size]="14" />
+          </a>
+        }
 
         <!-- Top-right delete action -->
         @if (showActions()) {
@@ -192,10 +212,39 @@ export function resolutionLabel(resolution: string): string {
       backdrop-filter: blur(6px);
     }
     .status-badge.online {
-      color: var(--online);
+      color: var(--color-online);
+    }
+    .agent-link {
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      color: #fff;
+      background: rgba(8, 11, 18, 0.6);
+      backdrop-filter: blur(6px);
+      transition: background 120ms;
+    }
+    .agent-link:hover {
+      background: rgba(8, 11, 18, 0.85);
+    }
+    .status-badge.app-not-running {
+      color: var(--color-warn);
+    }
+    .status-badge.tv-unreachable {
+      color: var(--color-offline);
+    }
+    .status-dot.app-not-running {
+      background: var(--color-warn);
+    }
+    .status-dot.tv-unreachable {
+      background: var(--color-offline);
     }
     .status-badge.offline {
-      color: var(--offline);
+      color: var(--color-offline);
     }
     .status-badge.never {
       color: var(--text-muted);
@@ -207,11 +256,11 @@ export function resolutionLabel(resolution: string): string {
       flex-shrink: 0;
     }
     .status-dot.online {
-      background: var(--online);
+      background: var(--color-online);
       box-shadow: 0 0 0 3px var(--online-dim);
     }
     .status-dot.offline {
-      background: var(--offline);
+      background: var(--color-offline);
       box-shadow: 0 0 0 3px var(--offline-dim);
     }
     .status-dot.never {
@@ -370,6 +419,11 @@ export class ScreenTile {
   protected readonly status = computed<TileStatus>(() => {
     const s = this.screen();
     if (s.isOnline) return 'online';
+
+    const reachability = 'reachability' in s ? s.reachability : null;
+    if (reachability === 'reachable') return 'app-not-running';
+    if (reachability === 'unreachable') return 'tv-unreachable';
+
     return s.lastHeartbeat ? 'offline' : 'never';
   });
 
@@ -377,11 +431,21 @@ export class ScreenTile {
     switch (this.status()) {
       case 'online':
         return 'Online';
+      case 'app-not-running':
+        return 'App not running';
+      case 'tv-unreachable':
+        return 'No answer';
       case 'offline':
         return 'Offline';
       default:
         return 'Never';
     }
+  });
+
+  /** The agent that looks after this screen, for the remote-control shortcut. */
+  protected readonly agentId = computed<string | null>(() => {
+    const s = this.screen();
+    return 'agentId' in s ? s.agentId : null;
   });
 
   protected readonly resLabel = computed<string>(() => resolutionLabel(this.screen().resolution));

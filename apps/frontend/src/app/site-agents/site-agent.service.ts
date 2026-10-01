@@ -53,6 +53,15 @@ export class SiteAgentService {
     return this.http.get<ScreenRemoteControl>(`/api/screens/${screenId}/remote-control`);
   }
 
+  /**
+   * Forgets a screen's remote-control settings entirely — address, passphrase
+   * and onboarding progress included — so adding it to an agent again starts
+   * from scratch rather than reusing a previous installation's values.
+   */
+  removeRemoteControl(screenId: string): Observable<void> {
+    return this.http.delete<void>(`/api/screens/${screenId}/remote-control`);
+  }
+
   updateRemoteControl(
     screenId: string,
     dto: UpdateScreenRemoteControlRequest,

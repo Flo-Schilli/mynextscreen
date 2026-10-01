@@ -1,10 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ConfigService } from '@nestjs/config';
 import { eq } from 'drizzle-orm';
 import { SiteAgentService } from './site-agent.service';
 import { SiteAgentEnrolmentService } from './site-agent-enrolment.service';
 import { SiteAgentSessionService } from './site-agent-session.service';
+import { ScreenRemoteControlService } from './screen-remote-control.service';
+import { SecretCipher } from '../common/secret-cipher.service';
 import { SITE_AGENT_STATUS_CHANGED } from './site-agent-status.event';
 import {
   AUDIT_SITE_AGENT_CREATED,
@@ -62,9 +65,12 @@ describe('SiteAgentService', () => {
         SiteAgentService,
         SiteAgentEnrolmentService,
         SiteAgentSessionService,
+        ScreenRemoteControlService,
+        SecretCipher,
         { provide: DRIZZLE, useValue: db },
         { provide: TokenService, useValue: tokens },
         { provide: EventEmitter2, useValue: emitter },
+        { provide: ConfigService, useValue: { get: jest.fn(() => undefined) } },
       ],
     }).compile();
     service = module.get(SiteAgentService);
@@ -215,21 +221,60 @@ describe('SiteAgentService', () => {
   });
 
   describe('removeAgent', () => {
-    it('unassigns its screens rather than deleting them', async () => {
+    // The foreign key alone would only null `agent_id`, leaving the address,
+    // the passphrase and a completed onboarding behind for the next agent to
+    // inherit. A screen whose agent is gone has to start from nothing.
+    it('clears the settings of every screen it looked after', async () => {
       const agent = await makeAgent();
       const screen = await makeScreenWithAgent(agent.id);
 
       await service.removeAgent(orgId, agent.id, userId);
 
-      const [remote] = await db
+      const rows = await db
         .select()
         .from(screenRemoteControls)
         .where(eq(screenRemoteControls.screenId, screen.id));
-      expect(remote).toBeDefined();
-      expect(remote.agentId).toBeNull();
+      expect(rows).toHaveLength(0);
+    });
+
+    it('leaves the screens themselves alone', async () => {
+      const agent = await makeAgent();
+      const screen = await makeScreenWithAgent(agent.id);
+
+      await service.removeAgent(orgId, agent.id, userId);
+
+      const rows = await db.select().from(screens).where(eq(screens.id, screen.id));
+      expect(rows).toHaveLength(1);
+    });
+
+    it('does not touch another agent screens', async () => {
+      const mine = await makeAgent(orgId, 'Mine');
+      const theirs = await makeAgent(orgId, 'Theirs');
+      await makeScreenWithAgent(mine.id);
+      const kept = await makeScreenWithAgent(theirs.id);
+
+      await service.removeAgent(orgId, mine.id, userId);
+
+      const rows = await db
+        .select()
+        .from(screenRemoteControls)
+        .where(eq(screenRemoteControls.screenId, kept.id));
+      expect(rows).toHaveLength(1);
+    });
+
+    it('audits how many screens it cleared', async () => {
+      const agent = await makeAgent();
+      await makeScreenWithAgent(agent.id);
+      await makeScreenWithAgent(agent.id);
+
+      await service.removeAgent(orgId, agent.id, userId);
+
       expect(emitter.emit).toHaveBeenCalledWith(
         AUDIT_SITE_AGENT_DELETED,
-        expect.objectContaining({ agentId: agent.id }),
+        expect.objectContaining({
+          agentId: agent.id,
+          details: expect.objectContaining({ clearedScreens: 2 }),
+        }),
       );
     });
   });

@@ -101,7 +101,7 @@ export interface LoadData {
       <path
         [attr.d]="ramLine()"
         fill="none"
-        stroke="var(--info)"
+        stroke="var(--color-info)"
         stroke-width="2.4"
         stroke-linejoin="round"
         stroke-linecap="round"
@@ -113,7 +113,7 @@ export interface LoadData {
         [attr.cx]="xPos(lastIdx())"
         [attr.cy]="yPos(load().ramNow)"
         r="4.5"
-        fill="var(--info)"
+        fill="var(--color-info)"
         stroke="var(--surface)"
         stroke-width="2.5"
       />

@@ -18,6 +18,7 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { ToastService } from '../shared/toast/toast.service';
 import { ScreenRemoteSettings } from './screen-remote-settings';
 import { ScreenOnboardingWizard } from './screen-onboarding-wizard';
+import { SiteAgentConfirmModal } from './site-agent-confirm-modal';
 import type { RemoteCommandType, ScreenRemoteControl, SiteAgent } from './site-agent.model';
 import type { ScreenListItem } from '../screens/screen.model';
 import {
@@ -26,7 +27,10 @@ import {
   CardComponent,
   EmptyComponent,
   IconComponent,
+  ModalComponent,
+  OverlayComponent,
   PageHeaderComponent,
+  SelectComponent,
   StatusDotComponent,
 } from '../ui';
 
@@ -48,10 +52,14 @@ interface ManagedScreen {
     CardComponent,
     EmptyComponent,
     IconComponent,
+    ModalComponent,
+    OverlayComponent,
     PageHeaderComponent,
+    SelectComponent,
     StatusDotComponent,
     ScreenRemoteSettings,
     ScreenOnboardingWizard,
+    SiteAgentConfirmModal,
   ],
   template: `
     @if (agent(); as agent) {
@@ -75,8 +83,12 @@ interface ManagedScreen {
               }}
             </div>
           </div>
+          <mns-btn icon="Plus" [disabled]="unassigned().length === 0" (mnsClick)="openAssign()">
+            Add a display
+          </mns-btn>
           <mns-btn variant="outline" icon="Refresh" (mnsClick)="reissue()">New token</mns-btn>
           <mns-btn variant="outline" icon="Logout" (mnsClick)="revoke()">Revoke access</mns-btn>
+          <mns-btn variant="outline" icon="Trash" (mnsClick)="remove()">Delete agent</mns-btn>
         </div>
 
         @if (token(); as raw) {
@@ -105,11 +117,7 @@ interface ManagedScreen {
       <h2 class="mt-8 mb-3 text-[15px] font-bold">Displays ({{ managed().length }})</h2>
 
       @if (managed().length === 0) {
-        <mns-empty
-          icon="Screens"
-          title="No displays assigned"
-          desc="Open a screen's remote control settings and pick this agent to have it looked after."
-        />
+        <mns-empty icon="Screens" title="No displays assigned" [desc]="emptyDesc()" />
       } @else {
         <div class="space-y-3">
           @for (item of managed(); track item.screen.id) {
@@ -148,6 +156,9 @@ interface ManagedScreen {
                   >
                     Settings
                   </mns-btn>
+                  <mns-btn size="sm" variant="outline" icon="Trash" (mnsClick)="removeScreen(item)">
+                    Remove
+                  </mns-btn>
                 </div>
               </div>
 
@@ -170,6 +181,80 @@ interface ManagedScreen {
             </mns-card>
           }
         </div>
+      }
+
+      @if (assignOpen()) {
+        <mns-overlay (closed)="closeAssign()">
+          <mns-modal title="Add a display" icon="Screens" (closed)="closeAssign()">
+            <div class="space-y-4">
+              <p class="text-[13px] text-muted">
+                The agent will start probing it straight away. Its address and developer-mode
+                passphrase are set afterwards, in the display's settings.
+              </p>
+              <mns-select
+                [options]="unassignedOptions()"
+                [(value)]="assigning"
+                placeholder="Pick a display"
+              />
+              <div class="flex justify-end gap-2">
+                <mns-btn variant="outline" (mnsClick)="closeAssign()">Cancel</mns-btn>
+                <mns-btn [disabled]="!assigning()" (mnsClick)="assign()">Add</mns-btn>
+              </div>
+            </div>
+          </mns-modal>
+        </mns-overlay>
+      }
+
+      @if (removingScreen(); as item) {
+        <app-site-agent-confirm-modal
+          title="Remove display"
+          confirmLabel="Remove"
+          busyLabel="Removing…"
+          [busy]="busy()"
+          [error]="confirmError()"
+          (confirmed)="doRemoveScreen(item)"
+          (dismiss)="closeConfirm()"
+        >
+          Remove <strong class="text-text">{{ item.screen.name }}</strong> from this agent? Its
+          address, developer-mode passphrase and setup progress are forgotten, so adding it again
+          starts the setup from the beginning.
+        </app-site-agent-confirm-modal>
+      }
+
+      @if (confirmingDelete()) {
+        <app-site-agent-confirm-modal
+          title="Delete agent"
+          confirmLabel="Delete"
+          busyLabel="Deleting…"
+          [busy]="busy()"
+          [error]="confirmError()"
+          (confirmed)="doRemove()"
+          (dismiss)="closeConfirm()"
+        >
+          Delete <strong class="text-text">{{ agent.name }}</strong
+          >?
+          @if (managed().length > 0) {
+            The {{ managed().length }} display(s) it looks after are released and their setup is
+            forgotten.
+          }
+          This cannot be undone.
+        </app-site-agent-confirm-modal>
+      }
+
+      @if (confirmingRevoke()) {
+        <app-site-agent-confirm-modal
+          title="Revoke access"
+          confirmLabel="Revoke"
+          busyLabel="Revoking…"
+          icon="Logout"
+          [busy]="busy()"
+          [error]="confirmError()"
+          (confirmed)="doRevoke()"
+          (dismiss)="closeConfirm()"
+        >
+          End every session of this agent? It stops working immediately and needs a new enrolment
+          token to come back. Its displays and their settings are left alone.
+        </app-site-agent-confirm-modal>
       }
 
       @if (settingsFor(); as item) {
@@ -208,7 +293,16 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
   protected readonly agent = signal<SiteAgent | null>(null);
   protected readonly managed = signal<ManagedScreen[]>([]);
   protected readonly token = signal<string | null>(null);
+  protected readonly unassigned = signal<ScreenListItem[]>([]);
+  protected readonly assignOpen = signal(false);
+  protected readonly assigning = signal('');
   protected readonly settingsFor = signal<ManagedScreen | null>(null);
+  /** The screen whose removal is being confirmed, if any. */
+  protected readonly removingScreen = signal<ManagedScreen | null>(null);
+  protected readonly confirmingDelete = signal(false);
+  protected readonly confirmingRevoke = signal(false);
+  protected readonly busy = signal(false);
+  protected readonly confirmError = signal('');
   protected readonly wizardFor = signal<ManagedScreen | null>(null);
 
   private readonly agentId = computed(() => this.route.snapshot.paramMap.get('id') ?? '');
@@ -284,12 +378,18 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
         ),
       )
       .subscribe({
-        next: (items) =>
-          this.managed.set(
-            (items as (ManagedScreen | null)[]).filter(
-              (item): item is ManagedScreen => item !== null && item.remote.agentId === id,
-            ),
-          ),
+        next: (items) => {
+          const pairs = (items as (ManagedScreen | null)[]).filter(
+            (item): item is ManagedScreen => item !== null,
+          );
+          this.managed.set(pairs.filter((item) => item.remote.agentId === id));
+          // Everything an agent could still be given. A screen already looked
+          // after elsewhere is not offered: moving it is a change to make on
+          // that agent, where its settings are.
+          this.unassigned.set(
+            pairs.filter((item) => item.remote.agentId === null).map((item) => item.screen),
+          );
+        },
         error: () => this.toast.error('Could not load the displays'),
       });
   }
@@ -341,6 +441,37 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
     });
   }
 
+  protected emptyDesc(): string {
+    return this.unassigned().length > 0
+      ? "Use 'Add a display' above to have this agent look after one."
+      : 'Every display is already looked after by an agent.';
+  }
+
+  protected unassignedOptions(): { value: string; label: string }[] {
+    return this.unassigned().map((screen) => ({ value: screen.id, label: screen.name }));
+  }
+
+  protected openAssign(): void {
+    this.assigning.set('');
+    this.assignOpen.set(true);
+  }
+
+  protected closeAssign(): void {
+    this.assignOpen.set(false);
+  }
+
+  protected assign(): void {
+    const screenId = this.assigning();
+    this.service.updateRemoteControl(screenId, { agentId: this.agentId() }).subscribe({
+      next: () => {
+        this.closeAssign();
+        this.toast.success('Added to this agent');
+        this.load();
+      },
+      error: () => this.toast.error('Could not add that display'),
+    });
+  }
+
   protected openSettings(item: ManagedScreen): void {
     this.settingsFor.set(item);
   }
@@ -374,16 +505,78 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Takes a display away from this agent and forgets everything configured for
+   * it. The modal spells that out, because the cost of the action is that the
+   * setup has to be walked again.
+   */
+  protected removeScreen(item: ManagedScreen): void {
+    this.confirmError.set('');
+    this.removingScreen.set(item);
+  }
+
+  protected doRemoveScreen(item: ManagedScreen): void {
+    this.busy.set(true);
+    this.service.removeRemoteControl(item.screen.id).subscribe({
+      next: () => {
+        this.busy.set(false);
+        this.closeConfirm();
+        this.toast.success('Removed from this agent');
+        this.load();
+      },
+      error: () => {
+        this.busy.set(false);
+        this.confirmError.set('Could not remove that display.');
+      },
+    });
+  }
+
+  protected remove(): void {
+    this.confirmError.set('');
+    this.confirmingDelete.set(true);
+  }
+
+  protected doRemove(): void {
+    this.busy.set(true);
+    this.service.remove(this.agentId()).subscribe({
+      next: () => {
+        this.busy.set(false);
+        this.closeConfirm();
+        this.toast.success('Agent deleted');
+        void this.router.navigate(['/site-agents']);
+      },
+      error: () => {
+        this.busy.set(false);
+        this.confirmError.set('Could not delete this agent.');
+      },
+    });
+  }
+
   protected revoke(): void {
-    if (!confirm('Revoke this agent’s access? It will need a new token to come back.')) {
-      return;
-    }
+    this.confirmError.set('');
+    this.confirmingRevoke.set(true);
+  }
+
+  protected doRevoke(): void {
+    this.busy.set(true);
     this.service.revoke(this.agentId()).subscribe({
       next: () => {
+        this.busy.set(false);
+        this.closeConfirm();
         this.toast.success('Access revoked');
         this.load();
       },
-      error: () => this.toast.error('Could not revoke access'),
+      error: () => {
+        this.busy.set(false);
+        this.confirmError.set('Could not revoke access.');
+      },
     });
+  }
+
+  protected closeConfirm(): void {
+    this.removingScreen.set(null);
+    this.confirmingDelete.set(false);
+    this.confirmingRevoke.set(false);
+    this.confirmError.set('');
   }
 }

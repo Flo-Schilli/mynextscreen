@@ -124,10 +124,10 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
     }
     .error {
       font-size: 0.875rem;
-      color: var(--offline);
+      color: var(--color-offline);
       padding: 0.75rem 1rem;
       border-radius: var(--r-lg, 10px);
-      border: 1px solid color-mix(in srgb, var(--offline) 30%, var(--border));
+      border: 1px solid color-mix(in srgb, var(--color-offline) 30%, var(--border));
       background: var(--offline-dim);
       margin-bottom: 1rem;
     }

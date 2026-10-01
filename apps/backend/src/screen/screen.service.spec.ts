@@ -12,11 +12,14 @@ import {
   playlistItems,
   playlists,
   screenPairings,
+  screenRemoteControls,
   screens,
+  siteAgents,
   type Organisation,
   type Screen,
 } from '../db/schema';
 import { ContentType } from '../content/content-type.enum';
+import { ScreenReachability } from '../site-agent/screen-reachability.enum';
 import { SCREEN_STATUS_CHANGED } from './screen-status.event';
 import { SCREEN_SETTINGS_CHANGED, SCREEN_REFRESH_REQUESTED } from './screen-state.event';
 import {
@@ -275,6 +278,76 @@ describe('ScreenService', () => {
       const org = await seedOrg();
       const result = await service.findAll(org.id);
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('findAllWithPlaylist — site agent fields', () => {
+    async function assignToAgent(
+      orgId: string,
+      screenId: string,
+      reachability = ScreenReachability.Reachable,
+    ): Promise<string> {
+      const [agent] = await db
+        .insert(siteAgents)
+        .values({ organisationId: orgId, name: 'Venue North' })
+        .returning();
+      await db
+        .insert(screenRemoteControls)
+        .values({ screenId, organisationId: orgId, agentId: agent.id, reachability });
+      return agent.id;
+    }
+
+    // Most screens have no agent, and the tile has to fall back to what the
+    // heartbeat alone can say.
+    it('reports null for a screen no agent manages', async () => {
+      const org = await seedOrg();
+      await seedScreen(org.id, { isOnline: true });
+
+      const [result] = await service.findAllWithPlaylist(org.id);
+
+      expect(result.agentId).toBeNull();
+      expect(result.reachability).toBeNull();
+    });
+
+    it('carries the agent and what it last saw', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id, { isOnline: false });
+      const agentId = await assignToAgent(org.id, screen.id, ScreenReachability.Unreachable);
+
+      const [result] = await service.findAllWithPlaylist(org.id);
+
+      expect(result.agentId).toBe(agentId);
+      expect(result.reachability).toBe(ScreenReachability.Unreachable);
+    });
+
+    // A row can outlive its agent: deleting one sets `agent_id` to null rather
+    // than removing the settings. Reporting its last reachability then would
+    // claim knowledge nobody has any more.
+    it('drops the reachability when the row has no agent', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id, { isOnline: false });
+      await db.insert(screenRemoteControls).values({
+        screenId: screen.id,
+        organisationId: org.id,
+        agentId: null,
+        reachability: ScreenReachability.Reachable,
+      });
+
+      const [result] = await service.findAllWithPlaylist(org.id);
+
+      expect(result.agentId).toBeNull();
+      expect(result.reachability).toBeNull();
+    });
+
+    it('still resolves the playlist alongside', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id, { isOnline: true });
+      await assignToAgent(org.id, screen.id);
+
+      const [result] = await service.findAllWithPlaylist(org.id);
+
+      expect(result.agentId).toEqual(expect.any(String));
+      expect(result).toHaveProperty('currentPlaylistName');
     });
   });
 

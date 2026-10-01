@@ -529,7 +529,7 @@ type ScreenFormMode = 'create' | 'edit';
     /* Error */
     .error {
       font-size: 13px;
-      color: var(--offline);
+      color: var(--color-offline);
       margin: 0;
     }
 
@@ -616,11 +616,11 @@ type ScreenFormMode = 'create' | 'edit';
     }
     .status-badge.online {
       background: var(--online-dim);
-      color: var(--online);
+      color: var(--color-online);
     }
     .status-badge.offline {
       background: var(--offline-dim);
-      color: var(--offline);
+      color: var(--color-offline);
     }
 
     .repair-block {

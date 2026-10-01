@@ -49,6 +49,7 @@ export enum AuditAction {
   SiteAgentOnline = 'site_agent.online',
   SiteAgentOffline = 'site_agent.offline',
   ScreenRemoteControlUpdated = 'screen.remote_control_updated',
+  ScreenRemoteControlRemoved = 'screen.remote_control_removed',
   ScreenRemoteCommand = 'screen.remote_command',
   ScreenRemoteOnboarded = 'screen.remote_onboarded',
   // Auth / account (instance-level — organisationId is null for self-signup/setup)

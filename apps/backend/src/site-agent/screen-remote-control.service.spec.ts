@@ -5,7 +5,11 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { eq } from 'drizzle-orm';
 import { ScreenRemoteControlService } from './screen-remote-control.service';
 import { SecretCipher } from '../common/secret-cipher.service';
-import { AUDIT_SCREEN_REMOTE_CONTROL_UPDATED } from '../audit-log/audit.events';
+import { SCREEN_REMOTE_CONFIG_CHANGED } from './screen-onboarding.event';
+import {
+  AUDIT_SCREEN_REMOTE_CONTROL_REMOVED,
+  AUDIT_SCREEN_REMOTE_CONTROL_UPDATED,
+} from '../audit-log/audit.events';
 import { DRIZZLE } from '../db/database.constants';
 import { organisations, screenRemoteControls, screens, siteAgents } from '../db/schema';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
@@ -198,12 +202,15 @@ describe('ScreenRemoteControlService', () => {
       expect(config.agentId).toBe(agentId);
     });
 
-    it('detaches the screen when agentId is null', async () => {
+    // Detaching through an update is gone: it left the address, the passphrase
+    // and the onboarding progress for the next agent to inherit. `remove` is
+    // the way out, and it is covered on its own below.
+    it('keeps the agent when an update does not name one', async () => {
       await service.upsert(orgId, screenId, { agentId }, userId);
 
-      const config = await service.upsert(orgId, screenId, { agentId: null }, userId);
+      const config = await service.upsert(orgId, screenId, { localIp: '10.0.0.9' }, userId);
 
-      expect(config.agentId).toBeNull();
+      expect(config.agentId).toBe(agentId);
     });
 
     it('refuses an agent from another organisation', async () => {
@@ -291,6 +298,141 @@ describe('ScreenRemoteControlService', () => {
       await expect(service.upsert(orgId, screenId, { macAddress: null }, userId)).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  describe('remove', () => {
+    async function configureFully(): Promise<void> {
+      await service.upsert(
+        orgId,
+        screenId,
+        {
+          agentId,
+          localIp: '192.168.1.50',
+          macAddress: 'AA:BB:CC:DD:EE:FF',
+          devmodePassphrase: 'AEBC72',
+        },
+        userId,
+      );
+      await db
+        .update(screenRemoteControls)
+        .set({ onboardingStep: 8, onboardingCompletedAt: new Date() })
+        .where(eq(screenRemoteControls.screenId, screenId));
+    }
+
+    // The whole point: what is left behind must not be reusable, or handing
+    // the screen to an agent again would skip the set standing in front of the
+    // operator and run on values from a different installation.
+    it('puts the screen back to how it looked before it was ever configured', async () => {
+      await configureFully();
+
+      await service.remove(orgId, screenId, userId);
+
+      const after = await service.getForScreen(orgId, screenId);
+      expect(after.agentId).toBeNull();
+      expect(after.localIp).toBeNull();
+      expect(after.macAddress).toBeNull();
+      expect(after.devmodePassphrase).toBeNull();
+      expect(after.onboardingStep).toBe(1);
+      expect(after.onboardingCompletedAt).toBeNull();
+    });
+
+    it('leaves no row behind at all', async () => {
+      await configureFully();
+
+      await service.remove(orgId, screenId, userId);
+
+      const rows = await db
+        .select()
+        .from(screenRemoteControls)
+        .where(eq(screenRemoteControls.screenId, screenId));
+      expect(rows).toHaveLength(0);
+    });
+
+    it('tells the agent that lost the screen to re-pull', async () => {
+      await configureFully();
+      emitter.emit.mockClear();
+
+      await service.remove(orgId, screenId, userId);
+
+      const call = emitter.emit.mock.calls.find(([name]) => name === SCREEN_REMOTE_CONFIG_CHANGED);
+      expect(call?.[1].agentIds).toEqual([agentId]);
+    });
+
+    it('audits the removal without leaking the passphrase', async () => {
+      await configureFully();
+
+      await service.remove(orgId, screenId, userId);
+
+      const call = emitter.emit.mock.calls.find(
+        ([name]) => name === AUDIT_SCREEN_REMOTE_CONTROL_REMOVED,
+      );
+      expect(call?.[1]).toMatchObject({ screenId, userId });
+      expect(JSON.stringify(call?.[1])).not.toContain('AEBC72');
+    });
+
+    it('is a no-op for a screen that was never configured', async () => {
+      await expect(service.remove(orgId, screenId, userId)).resolves.toBeUndefined();
+    });
+
+    it('refuses a screen from another organisation', async () => {
+      const [foreign] = await db
+        .insert(screens)
+        .values({
+          organisationId: otherOrgId,
+          name: 'Theirs',
+          resolution: '1920x1080',
+          location: 'Elsewhere',
+          apiKeyHash: 'hash',
+        })
+        .returning();
+
+      await expect(service.remove(orgId, foreign.id, userId)).rejects.toThrow(NotFoundException);
+    });
+
+    // Re-adding has to start the operator at step one, not where the previous
+    // installation happened to leave off.
+    it('starts onboarding over when the screen is added again', async () => {
+      await configureFully();
+      await service.remove(orgId, screenId, userId);
+
+      await service.upsert(orgId, screenId, { agentId }, userId);
+
+      const after = await service.getForScreen(orgId, screenId);
+      expect(after.onboardingStep).toBe(1);
+      expect(after.localIp).toBeNull();
+      expect(after.devmodePassphrase).toBeNull();
+    });
+  });
+
+  describe('removeForAgent', () => {
+    it('clears every screen of that agent and reports the count', async () => {
+      const [second] = await db
+        .insert(screens)
+        .values({
+          organisationId: orgId,
+          name: 'Foyer right',
+          resolution: '1920x1080',
+          location: 'Foyer',
+          apiKeyHash: 'hash',
+        })
+        .returning();
+      await service.upsert(orgId, screenId, { agentId }, userId);
+      await service.upsert(orgId, second.id, { agentId }, userId);
+
+      expect(await service.removeForAgent(agentId)).toBe(2);
+      expect(await db.select().from(screenRemoteControls)).toHaveLength(0);
+    });
+
+    it('leaves another agent screens alone', async () => {
+      const [other] = await db
+        .insert(siteAgents)
+        .values({ organisationId: orgId, name: 'Venue South' })
+        .returning();
+      await service.upsert(orgId, screenId, { agentId: other.id }, userId);
+
+      expect(await service.removeForAgent(agentId)).toBe(0);
+      expect(await db.select().from(screenRemoteControls)).toHaveLength(1);
     });
   });
 
