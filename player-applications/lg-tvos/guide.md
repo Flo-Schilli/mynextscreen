@@ -80,6 +80,79 @@ ares-install --device mytv com.mynextscreen.webos_1.0.0_all.ipk
 ares-launch --device mytv com.mynextscreen.webos
 ```
 
+### Fernstart ohne Developer Mode (SSAP)
+
+TVs kennen keinen Autostart — nur Signage-Displays. Im laufenden Betrieb
+übernimmt das der **Site Agent**: ein Dienst im Netz des Venues, der die
+Displays prüft, die App startet, den TV vor einem Schedule weckt und die
+Developer-Mode-Session am Leben hält. Das ist der Weg, den eine Installation
+nehmen sollte — siehe [docs/site-agent.md](../../docs/site-agent.md).
+
+Die Skripte unten bleiben für den Einzelfall: einen TV von Hand anstoßen, wenn
+der Agent ihn nicht erreicht, oder bevor überhaupt ein Agent eingerichtet ist.
+Sie starten die App von außen per SSAP, LGs WebSocket-Fernsteuerung auf Port
+3000 (`ws`) bzw. 3001 (`wss`, self-signed Zertifikat). Sie brauchen keine
+npm-Pakete, Node 22 bringt alles mit:
+
+```bash
+node player-applications/lg-tvos/tools/launch-tv.mjs --host 192.168.1.50
+```
+
+Beim ersten Lauf erscheint ein Pairing-Prompt auf dem TV. Nach der Bestätigung
+liegt der `client-key` in `tools/.lgtv-key` (gitignored, Modus 600) und weitere
+Starts laufen ohne Prompt.
+
+`--watch` hält die Verbindung und startet die Signage-App neu, sobald etwas
+anderes in den Vordergrund kommt — nützlich, um einem einzelnen TV beim
+Einrichten zuzusehen. Für den Dauerbetrieb ist der Site Agent gedacht: er macht
+dasselbe für alle Displays eines Hauses, läuft dort statt auf dem Server und
+meldet zurück, was er vorgefunden hat.
+
+```bash
+node player-applications/lg-tvos/tools/launch-tv.mjs --host 192.168.1.50 --watch
+```
+
+Voraussetzungen auf dem TV: **Quick Start+** aktiv (sonst ist der Netzwerk-Stack
+im Standby aus), für das Aufwecken zusätzlich **Über Netzwerk einschalten**
+(Wake-on-LAN, vorher ein Magic Packet senden). `--help` listet alle Optionen.
+
+### Developer-Mode-Session verlängern
+
+Ohne Verlängerung läuft die Dev-Mode-Session ab und der TV entfernt die per
+Developer Mode installierten Apps. Auch das übernimmt der Site Agent, sobald
+ein Display ihm zugewiesen ist — und zwar nur, während der TV an ist, weil es
+anders nicht geht. Von Hand geht es über den öffentlichen Luna-Bus, denselben
+Weg, den der „Extend Session Time"-Button auf dem TV nimmt:
+
+```bash
+player-applications/lg-tvos/tools/extend-devmode.sh <ssh-host> [<ssh-host>…]
+```
+
+Das Script ruft auf jedem TV Folgendes auf:
+
+```sh
+luna-send-pub -n 1 luna://com.webos.applicationManager/launch \
+  '{"id":"com.palmdts.devmode","subscribe":false,"params":{"extend":true}}'
+```
+
+`luna-send-pub` steht auch dem gejailten `prisoner` zur Verfügung, es braucht also
+weder Root noch den Session-Token aus `/var/luna/preferences/devmode_enabled` —
+an den kommt die SSH-Session auf neueren Firmwares ohnehin nicht heran.
+
+> Die Restzeit-Anzeige auf dem TV zieht mit Minuten Verzögerung nach. Eine
+> unveränderte Zahl direkt nach dem Aufruf ist kein Fehlschlag.
+>
+> Derselbe Aufruf über **SSAP** wird zwar mit `returnValue: true` quittiert,
+> verlängert aber nicht — die Parameter erreichen die App nicht.
+
+> Der oft zitierte `GET https://developer.lge.com/secure/ResetDevModeSession.dev?sessionToken=…`
+> setzt **nur LGs Backend-Zähler** zurück. Der lokale Timer des TV läuft davon
+> unbeeindruckt weiter — siehe
+> [webosbrew/dev-manager-desktop#256](https://github.com/webosbrew/dev-manager-desktop/issues/256).
+
+Ausführlich — SSAP, Wake-on-LAN, Dev-Mode-Session und die SSH-Stolperfallen:
+[`tools/README.md`](tools/README.md).
+
 ---
 
 ## 7. App konfigurieren
