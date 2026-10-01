@@ -92,6 +92,17 @@ describe('SelectComponent', () => {
     expect(menu.closest('.cdk-overlay-container')).toBeTruthy();
   });
 
+  it('opens the menu as wide as the field', () => {
+    setUp(40);
+    const trigger = fixture.nativeElement.querySelector('button[aria-haspopup]') as HTMLElement;
+    // jsdom lays nothing out, so the trigger has to claim a width of its own.
+    trigger.getBoundingClientRect = () => ({ width: 480, height: 36 }) as DOMRect;
+
+    openDropdown();
+
+    expect((el('.cdk-overlay-pane') as HTMLElement).style.width).toBe('480px');
+  });
+
   it('filters on what is typed, ignoring case', () => {
     setUp(40);
     openDropdown();

@@ -137,6 +137,7 @@ const MENU_POSITIONS: ConnectedPosition[] = [
   host: {
     style: 'display:contents',
     '(document:keydown.escape)': 'closeIfOpen()',
+    '(window:resize)': 'onResize()',
   },
 })
 export class SelectComponent {
@@ -181,7 +182,6 @@ export class SelectComponent {
     effect(() => {
       if (this.open()) {
         openLayer(this.layer);
-        this.triggerWidth.set(this.trigger().nativeElement.offsetWidth);
       } else {
         closeLayer(this.layer);
       }
@@ -200,6 +200,10 @@ export class SelectComponent {
 
   toggleOpen(): void {
     this.query.set('');
+    // Measured before opening, not in an effect afterwards: the overlay reads
+    // its width as it attaches, and a width that arrives a tick later leaves
+    // the menu at its content width for good.
+    if (!this.open()) this.measureTrigger();
     this.open.update((v) => !v);
   }
 
@@ -230,6 +234,15 @@ export class SelectComponent {
     e.preventDefault();
     const first = this.filtered()[0];
     if (first) this.select(first.value);
+  }
+
+  /** The overlay follows the trigger on resize, but it does not re-measure it. */
+  protected onResize(): void {
+    if (this.open()) this.measureTrigger();
+  }
+
+  private measureTrigger(): void {
+    this.triggerWidth.set(this.trigger().nativeElement.getBoundingClientRect().width);
   }
 
   /** The trigger's own click is handled by the button; closing here too would reopen it. */
