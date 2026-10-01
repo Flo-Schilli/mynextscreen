@@ -18,6 +18,7 @@ import {
 } from './screen-group.model';
 import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
 import { ScreenService } from '../screens/screen.service';
+import { wallResolution } from './wall-resolution';
 import { Screen } from '../screens/screen.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
@@ -105,6 +106,9 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
                 <mns-badge tone="neutral" icon="Screens"
                   >{{ assignedCount() }} screen{{ assignedCount() === 1 ? '' : 's' }}</mns-badge
                 >
+                @if (wallResolution(); as resolution) {
+                  <mns-badge tone="neutral" icon="Screens">{{ resolution }}</mns-badge>
+                }
               </div>
             </div>
             <mns-btn variant="danger" size="sm" icon="Trash" (mnsClick)="onDelete()"
@@ -413,12 +417,20 @@ export class ScreenGroupDetail implements OnInit {
     return cells;
   });
 
+  /** The whole group as one picture — the wall's size in split mode. */
+  readonly wallResolution = computed(() => {
+    const g = this.group();
+    return g ? wallResolution(g) : null;
+  });
+
   readonly previewSub = computed(() => {
     const g = this.group();
     if (!g) return '';
+    const resolution = this.wallResolution();
+    const suffix = resolution ? ` · ${resolution}` : '';
     return g.mode === 'split'
-      ? `Video wall · ${g.gridColumns ?? 1} columns × ${g.gridRows ?? 1} rows`
-      : `Mirrored to ${this.assignedCount()} screen${this.assignedCount() === 1 ? '' : 's'}`;
+      ? `Video wall · ${g.gridColumns ?? 1} columns × ${g.gridRows ?? 1} rows${suffix}`
+      : `Mirrored to ${this.assignedCount()} screen${this.assignedCount() === 1 ? '' : 's'}${suffix}`;
   });
 
   ngOnInit(): void {

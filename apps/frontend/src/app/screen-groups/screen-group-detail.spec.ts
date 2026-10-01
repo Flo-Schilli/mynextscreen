@@ -23,6 +23,7 @@ function makeAssigned(overrides: Partial<ScreenGroupScreen> = {}): ScreenGroupSc
     id: 's1',
     name: 'Screen One',
     location: 'Lobby',
+    resolution: '1920x1080',
     isOnline: false,
     groupId: 'g1',
     gridRow: 0,
