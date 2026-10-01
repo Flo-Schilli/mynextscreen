@@ -12,6 +12,27 @@ the app is not running_. Those are different problems with different fixes.
 
 The agent is never in the media path. If it is down, playback carries on.
 
+![A site agent and the displays it looks after](img/site-agent-detail.png)
+
+What that page is showing, top to bottom: the agent itself, connected, with the
+version it reported. Then every display assigned to it, and the combined state
+the agent makes possible — two playing, one whose **TV is on with no app
+running** (the agent will start it), and one that **does not answer at all**,
+still half-way through setup because its key server is switched off.
+
+`isOnline` on a screen still means only "the player checked in". Everything that
+tells you _why_ it did not is what the agent adds.
+
+---
+
+## One agent per venue
+
+![The site agents of an organisation](img/site-agents.png)
+
+An organisation can have as many as it has networks. Each display belongs to at
+most one of them, and a display with no agent behaves exactly as it did before
+this existed.
+
 ---
 
 ## Install

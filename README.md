@@ -34,6 +34,11 @@ what each of them shows, and when. That is this.
   their viewports, or mirrors it frame-synchronously.
 - **Live streams** ingest through FFmpeg, go out as HLS, override the schedule
   while they run, and hand back to it when they stop.
+- **A site agent looks after the displays from inside the venue.** LG sets have
+  no autostart and their developer mode expires; an agent on the local network
+  starts the app, wakes a screen before its schedule and keeps that session
+  alive. It also tells _the TV is off_ apart from _the TV is on and the app is
+  not running_, which the heartbeat alone cannot.
 - **Every organisation is sealed off** from every other one: its own screens,
   content, playlists, users and roles, enforced server-side on every query.
 - Plus an audit trail, notifications by in-app, email or ntfy, and real-time
@@ -55,6 +60,12 @@ what each of them shows, and when. That is this.
 <td><img src="docs/img/player-pairing.png" alt="Pairing" /><br /><sub><b>The player</b> — what a new display shows until it is claimed</sub></td>
 </tr>
 </table>
+
+![A site agent and the displays it looks after](docs/img/site-agent-detail.png)
+
+<sub><b>Site agents</b> — one per venue. Here: two displays playing, one whose TV
+is on with no app running, and one that does not answer at all and is still
+half-way through setup.</sub>
 
 ![A paired display playing its playlist](docs/img/player-playing.jpg)
 
@@ -85,28 +96,30 @@ Full walkthrough, production deployment and configuration: **[docs/](docs/)**.
 
 ## Documentation
 
-|                                        |                                                                           |
-| -------------------------------------- | ------------------------------------------------------------------------- |
-| [Installation](docs/installation.md)   | Development stack, production deployment, database migrations             |
-| [Configuration](docs/configuration.md) | Every environment variable, and which ones a production instance must set |
-| [Screens](docs/screens.md)             | Pairing, re-pairing, video walls, and the LG webOS app                    |
-| [Architecture](ARCHITECTURE.md)        | How the parts fit together                                                |
-| [Changelog](CHANGELOG.md)              | Releases, and the operator actions each one requires                      |
+|                                        |                                                                            |
+| -------------------------------------- | -------------------------------------------------------------------------- |
+| [Installation](docs/installation.md)   | Development stack, production deployment, database migrations              |
+| [Configuration](docs/configuration.md) | Every environment variable, and which ones a production instance must set  |
+| [Screens](docs/screens.md)             | Pairing, re-pairing, video walls, and the LG webOS app                     |
+| [Site Agent](docs/site-agent.md)       | The on-premise service that starts, wakes and maintains a venue's displays |
+| [Architecture](ARCHITECTURE.md)        | How the parts fit together                                                 |
+| [Changelog](CHANGELOG.md)              | Releases, and the operator actions each one requires                       |
 
 ## Stack
 
-| Layer     | Technology                                                                 |
-| --------- | -------------------------------------------------------------------------- |
-| Dashboard | Angular 21 (standalone, signals), Tailwind CSS v4                          |
-| Player    | Angular 21, hls.js                                                         |
-| Backend   | NestJS 11, Drizzle ORM                                                     |
-| Database  | PostgreSQL 16                                                              |
-| Jobs      | BullMQ + Redis                                                             |
-| Users     | Email + password, JWT access cookie, refresh tokens in Redis               |
-| Screens   | Pairing code, short-lived access token, rotating refresh token in Postgres |
-| Real-time | Server-Sent Events                                                         |
-| Media     | FFmpeg (transcoding and HLS)                                               |
-| Runtime   | Node.js 22, Nx monorepo                                                    |
+| Layer      | Technology                                                                 |
+| ---------- | -------------------------------------------------------------------------- |
+| Dashboard  | Angular 21 (standalone, signals), Tailwind CSS v4                          |
+| Player     | Angular 21, hls.js                                                         |
+| Site agent | NestJS 11, `ws` (SSAP), `ssh2` (Luna over SSH), Wake-on-LAN                |
+| Backend    | NestJS 11, Drizzle ORM                                                     |
+| Database   | PostgreSQL 16                                                              |
+| Jobs       | BullMQ + Redis                                                             |
+| Users      | Email + password, JWT access cookie, refresh tokens in Redis               |
+| Screens    | Pairing code, short-lived access token, rotating refresh token in Postgres |
+| Real-time  | Server-Sent Events                                                         |
+| Media      | FFmpeg (transcoding and HLS)                                               |
+| Runtime    | Node.js 22, Nx monorepo                                                    |
 
 ## Contributing
 
