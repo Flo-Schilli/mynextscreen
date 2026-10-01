@@ -1,5 +1,5 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+
 import { OrganisationService } from './organisation.service';
 import { Organisation, OrgMember, OrgMemberRole } from './organisation.model';
 import { OrgForm, OrganisationFormPayload } from './org-form';
@@ -19,6 +19,7 @@ import {
   EmptyComponent,
 } from '../../ui';
 import { formatBytes } from '../../shared/format-bytes';
+import { AdminTabsComponent } from '../admin-tabs.component';
 
 /**
  * Smart container for the (super-admin) organisations feature. Owns data
@@ -31,8 +32,7 @@ import { formatBytes } from '../../shared/format-bytes';
   selector: 'app-organisations',
   standalone: true,
   imports: [
-    RouterLink,
-    RouterLinkActive,
+    AdminTabsComponent,
     OrgForm,
     OrgTable,
     OrgMemberList,
@@ -72,19 +72,7 @@ import { formatBytes } from '../../shared/format-bytes';
       </div>
 
       <!-- tab bar -->
-      <div class="flex gap-1 border-b border-border mb-[var(--gap)] overflow-x-auto">
-        @for (tab of tabs; track tab.route) {
-          <a
-            [routerLink]="tab.route"
-            class="flex items-center gap-2 px-[14px] py-3 -mb-px text-[14px] font-semibold whitespace-nowrap border-b-2 border-transparent text-muted hover:text-default transition-colors no-underline"
-            routerLinkActive="border-accent text-default"
-            [routerLinkActiveOptions]="{ exact: true }"
-          >
-            <mns-icon [name]="tab.icon" [size]="16" />
-            {{ tab.label }}
-          </a>
-        }
-      </div>
+      <app-admin-tabs />
 
       <!-- ── Organisation Detail + Members ── -->
       @if (selectedOrg) {
@@ -230,13 +218,6 @@ export class Organisations implements OnInit {
   private toast = inject(ToastService);
 
   protected readonly formatBytes = formatBytes;
-
-  readonly tabs = [
-    { label: 'Dashboard', route: '/admin/dashboard', icon: 'Dashboard' as const },
-    { label: 'Organisations', route: '/admin/organisations', icon: 'Building' as const },
-    { label: 'Users', route: '/admin/users', icon: 'User' as const },
-    { label: 'Audit Log', route: '/admin/audit-log', icon: 'Audit' as const },
-  ];
 
   // Org list state
   organisations: Organisation[] = [];
