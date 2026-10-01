@@ -105,239 +105,241 @@ type ScreenFormMode = 'create' | 'edit';
           </button>
         </div>
 
-        <!-- Hint banner (create only) -->
-        @if (mode() === 'create') {
-          <div class="hint-banner">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="hint-icon"
-              aria-hidden="true"
-            >
-              <path
-                d="M3 16.5a4.5 4.5 0 0 1 4.5 4.5M3 12a9 9 0 0 1 9 9M3 7.5h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-5"
-              />
-              <circle cx="3.5" cy="20.5" r="0.8" fill="currentColor" stroke="none" />
-            </svg>
-            <p class="hint-text">
-              @if (playerUrl()) {
-                Open <strong>{{ playerUrl() }}</strong> on your display — it shows a 6-digit code.
-              } @else {
-                Open the player on your display — it shows a 6-digit code. Set
-                <strong>PLAYER_BASE_URL</strong> on the server to show its address here.
-              }
-            </p>
-          </div>
-        }
-
-        <!-- Form -->
-        <form (ngSubmit)="onSubmit()" class="panel-form">
-          <div class="form-row">
-            <!-- Name -->
-            <div class="form-group">
-              <label class="field-label" for="screenName">Screen name</label>
-              <input
-                id="screenName"
-                type="text"
-                [(ngModel)]="name"
-                name="screenName"
-                required
-                placeholder="e.g. Lobby — Main Wall"
-                class="field-input"
-              />
-            </div>
-
-            <!-- Location -->
-            <div class="form-group">
-              <label class="field-label" for="screenLocation">Location</label>
-              <input
-                id="screenLocation"
-                type="text"
-                [(ngModel)]="location"
-                name="screenLocation"
-                required
-                placeholder="HQ · Ground Floor"
-                class="field-input"
-              />
-            </div>
-          </div>
-
-          <!-- Resolution -->
-          <div class="form-group">
-            <label class="field-label" for="screenResolution">Display resolution</label>
-            <select
-              id="screenResolution"
-              [(ngModel)]="resolution"
-              name="screenResolution"
-              required
-              class="field-input field-select"
-            >
-              <option value="1920x1080">1920 × 1080 · Full HD</option>
-              <option value="3840x2160">3840 × 2160 · 4K UHD</option>
-              <option value="1280x720">1280 × 720 · HD</option>
-              <option value="2560x1440">2560 × 1440 · QHD</option>
-              <option value="1080x1920">1080 × 1920 · Full HD Portrait</option>
-              <option value="custom">Custom resolution…</option>
-            </select>
-          </div>
-
-          @if (resolution === 'custom') {
-            <div class="form-group">
-              <label class="field-label" for="screenCustomRes">Custom resolution</label>
-              <input
-                id="screenCustomRes"
-                type="text"
-                [(ngModel)]="customResolution"
-                name="screenCustomResolution"
-                required
-                placeholder="e.g. 1920x1200"
-                class="field-input mono"
-              />
-            </div>
-          }
-
-          <!-- Player options (edit only) -->
-          @if (mode() === 'edit') {
-            <div class="form-group">
-              <span class="field-label">Player options</span>
-              <div class="toggle-card">
-                <mns-toggle-row
-                  icon="Video"
-                  label="Show “Click to unmute”"
-                  desc="Display the unmute overlay on videos with sound."
-                  [(checked)]="showUnmuteButton"
-                />
-                <mns-toggle-row
-                  icon="Power"
-                  label="Allow “Disconnect”"
-                  desc="Offer it in the player’s info panel and the webOS settings overlay."
-                  [(checked)]="showDisconnectButton"
-                />
-              </div>
-            </div>
-          }
-
-          <!-- Pairing code (create only) -->
+        <div class="panel-body">
+          <!-- Hint banner (create only) -->
           @if (mode() === 'create') {
-            <div class="form-group">
-              <label class="field-label" for="screenPairingCode">Pairing code</label>
-              <input
-                id="screenPairingCode"
-                type="text"
-                inputmode="numeric"
-                autocomplete="off"
-                maxlength="6"
-                [(ngModel)]="pairingCode"
-                name="screenPairingCode"
-                required
-                placeholder="6-digit code from the display"
-                class="field-input mono pairing-input"
-              />
-            </div>
-          }
-
-          @if (localError() || error()) {
-            <p class="error">{{ localError() || error() }}</p>
-          }
-
-          <div class="form-actions">
-            <button type="button" class="btn-cancel" (click)="dismiss.emit()">Cancel</button>
-            <button type="submit" class="btn-submit" [disabled]="saving()">
-              {{ submitLabel() }}
-            </button>
-          </div>
-        </form>
-
-        <!-- Read-only info + re-pair (edit only) -->
-        @if (mode() === 'edit' && screen(); as s) {
-          <div class="info-section">
-            <div class="info-grid">
-              <div class="info-item">
-                <span class="info-label">Status</span>
-                <span
-                  class="status-badge"
-                  [class.online]="s.isOnline"
-                  [class.offline]="!s.isOnline"
-                >
-                  {{ s.isOnline ? 'Online' : 'Offline' }}
-                </span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Last seen</span>
-                <span class="info-value">{{
-                  s.lastHeartbeat ? (s.lastHeartbeat | date: 'medium') : 'Never'
-                }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Player version</span>
-                <span class="info-value">{{ s.playerVersion ?? 'Not reported' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Registered</span>
-                <span class="info-value">{{ s.createdAt | date: 'mediumDate' }}</span>
-              </div>
-            </div>
-
-            <div class="repair-block">
-              <h3 class="repair-title">Refresh player</h3>
-              <p class="repair-hint">
-                Reload the display's player remotely (like pressing F5). Useful after changing
-                settings or if the screen looks stuck.
-              </p>
-              <div class="repair-row">
-                <button
-                  type="button"
-                  class="btn-repair"
-                  (click)="refresh.emit()"
-                  [disabled]="refreshing() || !s.isOnline"
-                >
-                  {{ refreshing() ? 'Refreshing…' : 'Refresh player' }}
-                </button>
-                @if (!s.isOnline) {
-                  <span class="repair-hint">Screen is offline.</span>
+            <div class="hint-banner">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="hint-icon"
+                aria-hidden="true"
+              >
+                <path
+                  d="M3 16.5a4.5 4.5 0 0 1 4.5 4.5M3 12a9 9 0 0 1 9 9M3 7.5h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-5"
+                />
+                <circle cx="3.5" cy="20.5" r="0.8" fill="currentColor" stroke="none" />
+              </svg>
+              <p class="hint-text">
+                @if (playerUrl()) {
+                  Open <strong>{{ playerUrl() }}</strong> on your display — it shows a 6-digit code.
+                } @else {
+                  Open the player on your display — it shows a 6-digit code. Set
+                  <strong>PLAYER_BASE_URL</strong> on the server to show its address here.
                 }
+              </p>
+            </div>
+          }
+
+          <!-- Form -->
+          <form (ngSubmit)="onSubmit()" class="panel-form">
+            <div class="form-row">
+              <!-- Name -->
+              <div class="form-group">
+                <label class="field-label" for="screenName">Screen name</label>
+                <input
+                  id="screenName"
+                  type="text"
+                  [(ngModel)]="name"
+                  name="screenName"
+                  required
+                  placeholder="e.g. Lobby — Main Wall"
+                  class="field-input"
+                />
+              </div>
+
+              <!-- Location -->
+              <div class="form-group">
+                <label class="field-label" for="screenLocation">Location</label>
+                <input
+                  id="screenLocation"
+                  type="text"
+                  [(ngModel)]="location"
+                  name="screenLocation"
+                  required
+                  placeholder="HQ · Ground Floor"
+                  class="field-input"
+                />
               </div>
             </div>
 
-            <div class="repair-block">
-              <h3 class="repair-title">Re-pair display</h3>
-              <p class="repair-hint">
-                Reconnecting a display? Open it to show a fresh 6-digit code, then enter it here to
-                issue a new key. The current key is invalidated immediately.
-              </p>
-              <div class="repair-row">
+            <!-- Resolution -->
+            <div class="form-group">
+              <label class="field-label" for="screenResolution">Display resolution</label>
+              <select
+                id="screenResolution"
+                [(ngModel)]="resolution"
+                name="screenResolution"
+                required
+                class="field-input field-select"
+              >
+                <option value="1920x1080">1920 × 1080 · Full HD</option>
+                <option value="3840x2160">3840 × 2160 · 4K UHD</option>
+                <option value="1280x720">1280 × 720 · HD</option>
+                <option value="2560x1440">2560 × 1440 · QHD</option>
+                <option value="1080x1920">1080 × 1920 · Full HD Portrait</option>
+                <option value="custom">Custom resolution…</option>
+              </select>
+            </div>
+
+            @if (resolution === 'custom') {
+              <div class="form-group">
+                <label class="field-label" for="screenCustomRes">Custom resolution</label>
                 <input
-                  id="repairPairingCode"
+                  id="screenCustomRes"
+                  type="text"
+                  [(ngModel)]="customResolution"
+                  name="screenCustomResolution"
+                  required
+                  placeholder="e.g. 1920x1200"
+                  class="field-input mono"
+                />
+              </div>
+            }
+
+            <!-- Player options (edit only) -->
+            @if (mode() === 'edit') {
+              <div class="form-group">
+                <span class="field-label">Player options</span>
+                <div class="toggle-card">
+                  <mns-toggle-row
+                    icon="Video"
+                    label="Show “Click to unmute”"
+                    desc="Display the unmute overlay on videos with sound."
+                    [(checked)]="showUnmuteButton"
+                  />
+                  <mns-toggle-row
+                    icon="Power"
+                    label="Allow “Disconnect”"
+                    desc="Offer it in the player’s info panel and the webOS settings overlay."
+                    [(checked)]="showDisconnectButton"
+                  />
+                </div>
+              </div>
+            }
+
+            <!-- Pairing code (create only) -->
+            @if (mode() === 'create') {
+              <div class="form-group">
+                <label class="field-label" for="screenPairingCode">Pairing code</label>
+                <input
+                  id="screenPairingCode"
                   type="text"
                   inputmode="numeric"
                   autocomplete="off"
                   maxlength="6"
-                  [(ngModel)]="repairCode"
-                  name="repairPairingCode"
-                  placeholder="6-digit code"
-                  class="field-input mono pairing-input repair-input"
+                  [(ngModel)]="pairingCode"
+                  name="screenPairingCode"
+                  required
+                  placeholder="6-digit code from the display"
+                  class="field-input mono pairing-input"
                 />
-                <button
-                  type="button"
-                  class="btn-repair"
-                  (click)="onRepair()"
-                  [disabled]="repairing()"
-                >
-                  {{ repairing() ? 'Re-pairing…' : 'Re-pair' }}
-                </button>
               </div>
-              @if (repairError()) {
-                <p class="error">{{ repairError() }}</p>
-              }
+            }
+
+            @if (localError() || error()) {
+              <p class="error">{{ localError() || error() }}</p>
+            }
+
+            <div class="form-actions">
+              <button type="button" class="btn-cancel" (click)="dismiss.emit()">Cancel</button>
+              <button type="submit" class="btn-submit" [disabled]="saving()">
+                {{ submitLabel() }}
+              </button>
             </div>
-          </div>
-        }
+          </form>
+
+          <!-- Read-only info + re-pair (edit only) -->
+          @if (mode() === 'edit' && screen(); as s) {
+            <div class="info-section">
+              <div class="info-grid">
+                <div class="info-item">
+                  <span class="info-label">Status</span>
+                  <span
+                    class="status-badge"
+                    [class.online]="s.isOnline"
+                    [class.offline]="!s.isOnline"
+                  >
+                    {{ s.isOnline ? 'Online' : 'Offline' }}
+                  </span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Last seen</span>
+                  <span class="info-value">{{
+                    s.lastHeartbeat ? (s.lastHeartbeat | date: 'medium') : 'Never'
+                  }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Player version</span>
+                  <span class="info-value">{{ s.playerVersion ?? 'Not reported' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Registered</span>
+                  <span class="info-value">{{ s.createdAt | date: 'mediumDate' }}</span>
+                </div>
+              </div>
+
+              <div class="repair-block">
+                <h3 class="repair-title">Refresh player</h3>
+                <p class="repair-hint">
+                  Reload the display's player remotely (like pressing F5). Useful after changing
+                  settings or if the screen looks stuck.
+                </p>
+                <div class="repair-row">
+                  <button
+                    type="button"
+                    class="btn-repair"
+                    (click)="refresh.emit()"
+                    [disabled]="refreshing() || !s.isOnline"
+                  >
+                    {{ refreshing() ? 'Refreshing…' : 'Refresh player' }}
+                  </button>
+                  @if (!s.isOnline) {
+                    <span class="repair-hint">Screen is offline.</span>
+                  }
+                </div>
+              </div>
+
+              <div class="repair-block">
+                <h3 class="repair-title">Re-pair display</h3>
+                <p class="repair-hint">
+                  Reconnecting a display? Open it to show a fresh 6-digit code, then enter it here
+                  to issue a new key. The current key is invalidated immediately.
+                </p>
+                <div class="repair-row">
+                  <input
+                    id="repairPairingCode"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    maxlength="6"
+                    [(ngModel)]="repairCode"
+                    name="repairPairingCode"
+                    placeholder="6-digit code"
+                    class="field-input mono pairing-input repair-input"
+                  />
+                  <button
+                    type="button"
+                    class="btn-repair"
+                    (click)="onRepair()"
+                    [disabled]="repairing()"
+                  >
+                    {{ repairing() ? 'Re-pairing…' : 'Re-pair' }}
+                  </button>
+                </div>
+                @if (repairError()) {
+                  <p class="error">{{ repairError() }}</p>
+                }
+              </div>
+            </div>
+          }
+        </div>
       </div>
     </div>
   `,
@@ -362,10 +364,12 @@ type ScreenFormMode = 'create' | 'edit';
 
     /* Panel */
     .pairing-panel {
+      display: flex;
+      flex-direction: column;
       width: 100%;
       max-width: 520px;
       max-height: calc(100vh - 2rem);
-      overflow-y: auto;
+      overflow: hidden;
       background: var(--surface);
       border: 1px solid var(--border-strong);
       border-radius: var(--r-xl, 16px);
@@ -379,12 +383,20 @@ type ScreenFormMode = 'create' | 'edit';
     }
 
     /* Header */
+    /* The header stays put while the rest scrolls, so the title and the close
+       button stay reachable however long the form gets. */
     .panel-header {
       display: flex;
+      flex-shrink: 0;
       align-items: center;
       gap: 13px;
       padding: 20px 24px;
       border-bottom: 1px solid var(--border);
+    }
+    .panel-body {
+      min-height: 0;
+      flex: 1;
+      overflow-y: auto;
     }
     .panel-icon {
       display: grid;
