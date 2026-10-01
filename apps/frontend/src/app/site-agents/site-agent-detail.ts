@@ -119,7 +119,7 @@ interface ManagedScreen {
       @if (managed().length === 0) {
         <mns-empty icon="Screens" title="No displays assigned" [desc]="emptyDesc()" />
       } @else {
-        <div class="space-y-3">
+        <div class="flex flex-col gap-3">
           @for (item of managed(); track item.screen.id) {
             <mns-card>
               <div class="flex flex-wrap items-start gap-3">
@@ -186,7 +186,7 @@ interface ManagedScreen {
       @if (assignOpen()) {
         <mns-overlay (closed)="closeAssign()">
           <mns-modal title="Add a display" icon="Screens" (closed)="closeAssign()">
-            <div class="space-y-4">
+            <div class="flex flex-col gap-4">
               <p class="text-[13px] text-muted">
                 The agent will start probing it straight away. Its address and developer-mode
                 passphrase are set afterwards, in the display's settings.
