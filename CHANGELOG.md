@@ -41,6 +41,73 @@ marked optional and can be skipped together: they exist only so the agent can
 keep the session from expiring, and an installation that does not want that
 needs none of them.
 
+### Added — a screen group says what it measures as one picture
+
+A video wall of two 1920×1080 displays is a 3840×1080 canvas, and that is the
+number you need when you pick content for it. The group card now reads
+"2 screens · 3840 × 1080", and the group's own page carries it beside the mode
+and the screen count.
+
+Split mode adds the columns' widths and the rows' heights, so portrait walls and
+mixed screen sizes come out right; a cell with nothing in it yet counts as the
+largest screen the group has, because that is what the wall becomes once it is
+filled. Mirror mode has nothing to add up, so it reports the resolution its
+screens share and says nothing when they disagree.
+
+### Changed — the edit-screen dialog fits on a laptop
+
+Editing a display stacked the form, what the display reports and two maintenance
+sections in one 520px column, which meant scrolling before you could see what
+the Save button was attached to. The two kinds of content are side by side now,
+in an 880px dialog that needs no scrolling at 1280×800 and up.
+
+And when a dialog does have to scroll, only its body does: the title and the
+close button stay where they are. Every other dialog in the app already worked
+that way.
+
+### Changed — the same control everywhere it is the same thing
+
+**Going back out of a detail view** was four different controls across five
+pages, three of them hand-rolled from raw classes and labelled four different
+ways. They are all the site agent's outline button now.
+
+**A dropdown with more than eight options** scrolls and gets a filter box,
+focused as it opens, that takes Enter to pick the first match. The time-zone
+picker rendered some 400 entries in one unbounded list, which no amount of
+scrolling made usable.
+
+**Creating or editing an organisation** is a modal rather than a view that took
+over the page, hiding the list it was started from.
+
+**The instance-admin tab bar** was four copies of the same markup. It is one
+component, like the settings tabs, and it no longer shows a scrollbar on a strip
+that has nothing to scroll.
+
+### Fixed — things that looked right in the markup and did nothing
+
+**A dropdown opened inside a modal was cut off after the first option.** A modal
+panel clips its overflow and, because it carries an entry animation on
+`transform`, is the containing block for anything positioned inside it — fixed
+positioning included. The menu now opens in an overlay outside that subtree, at
+the width of its field.
+
+**Escape closed nothing.** The handler sat on the backdrop, which is never
+focused when a dialog opens, so the keypress landed on `<body>` and was lost.
+It is caught on the document now, and only the innermost open layer acts — a
+dropdown over a confirmation over a form closes one at a time.
+
+**The close button was a plus sign rotated 45 degrees.** It reads as an X at
+16px and nowhere else; the icon set has a real one now.
+
+**Gaps that the markup asked for never appeared** — on the agent pages, between
+a screen group's cards, and on the settings and admin pages. Card and form
+components put `display: contents` on their host, which leaves no box for a
+margin to sit on, and the `block` that was supposed to undo that could not win:
+Tailwind's utilities are layered and an Angular component's styles are not.
+
+**The active instance-admin tab was not marked**, and the sidebar entry went
+dark the moment you opened any settings or admin tab other than the first.
+
 ### Fixed — status colours on the agent pages were not rendering
 
 Twenty-five components referred to colour tokens that do not exist in the
