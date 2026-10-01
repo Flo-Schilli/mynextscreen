@@ -22,10 +22,10 @@ import { formatBytes } from '../../shared/format-bytes';
 
 /**
  * Smart container for the (super-admin) organisations feature. Owns data
- * loading, the org/detail/form view orchestration and all HTTP calls
- * (create/edit org, list/add/update-role/remove members). Presentation is
- * delegated to the form, list table, member list and the add/remove member
- * modals; the detail header and org-info tags stay inline.
+ * loading, the list/detail view orchestration and all HTTP calls (create/edit
+ * org, list/add/update-role/remove members). Presentation is delegated to the
+ * org form, list table, member list and the add/remove member modals; the
+ * detail header and org-info tags stay inline.
  */
 @Component({
   selector: 'app-organisations',
@@ -64,7 +64,7 @@ import { formatBytes } from '../../shared/format-bytes';
             </div>
           </div>
         </div>
-        @if (!showForm && !selectedOrg) {
+        @if (!selectedOrg) {
           <mns-btn variant="primary" size="md" icon="Plus" (click)="openCreateForm()">
             New Organisation
           </mns-btn>
@@ -86,19 +86,8 @@ import { formatBytes } from '../../shared/format-bytes';
         }
       </div>
 
-      <!-- ── Create / Edit Form ── -->
-      @if (showForm) {
-        <app-org-form
-          [org]="editingOrg"
-          [submitting]="submitting"
-          [error]="formError"
-          (save)="submitForm($event)"
-          (dismiss)="cancelForm()"
-        />
-      }
-
       <!-- ── Organisation Detail + Members ── -->
-      @if (selectedOrg && !showForm) {
+      @if (selectedOrg) {
         <div class="flex items-center gap-3 mb-4 flex-wrap">
           <button
             class="inline-flex items-center gap-[7px] px-[13px] py-2 rounded-[10px] text-[13.5px] font-semibold border border-border-strong bg-surface text-muted hover:text-default transition-colors"
@@ -164,7 +153,7 @@ import { formatBytes } from '../../shared/format-bytes';
       }
 
       <!-- ── Organisations List ── -->
-      @if (!selectedOrg && !showForm) {
+      @if (!selectedOrg) {
         @if (loadError) {
           <p class="text-offline text-sm">{{ loadError }}</p>
         }
@@ -189,6 +178,17 @@ import { formatBytes } from '../../shared/format-bytes';
             </mns-btn>
           </mns-empty>
         }
+      }
+
+      <!-- ── Create / Edit Org Modal ── -->
+      @if (showForm) {
+        <app-org-form
+          [org]="editingOrg"
+          [submitting]="submitting"
+          [error]="formError"
+          (save)="submitForm($event)"
+          (dismiss)="cancelForm()"
+        />
       }
 
       <!-- ── Add Member Modal ── -->

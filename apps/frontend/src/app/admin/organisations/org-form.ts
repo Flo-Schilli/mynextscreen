@@ -2,8 +2,8 @@ import { ChangeDetectionStrategy, Component, input, output, signal, OnInit } fro
 import { Organisation } from './organisation.model';
 import { IANA_TIME_ZONES } from './timezones';
 import {
-  CardComponent,
-  CardHeadComponent,
+  OverlayComponent,
+  ModalComponent,
   BtnComponent,
   SFieldComponent,
   SInputComponent,
@@ -21,9 +21,9 @@ export interface OrganisationFormPayload {
 const TIME_ZONE_OPTIONS: SelectOption[] = IANA_TIME_ZONES.map((tz) => ({ value: tz, label: tz }));
 
 /**
- * Create/edit organisation form card. Seeds its field state once from the
- * optional `org` input on open (null = create; the parent recreates the
- * component via `@if`), validates locally and emits a resolved
+ * Create/edit organisation modal. Seeds its field state once from the optional
+ * `org` input on open (null = create; the parent recreates the component via
+ * `@if`), validates locally and emits a resolved
  * {@link OrganisationFormPayload} (storage converted MB → bytes). The parent
  * performs the HTTP request and feeds `submitting`/`error` back in.
  */
@@ -32,53 +32,56 @@ const TIME_ZONE_OPTIONS: SelectOption[] = IANA_TIME_ZONES.map((tz) => ({ value: 
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CardComponent,
-    CardHeadComponent,
+    OverlayComponent,
+    ModalComponent,
     BtnComponent,
     SFieldComponent,
     SInputComponent,
     SelectComponent,
   ],
   template: `
-    <mns-card class="mb-8 block max-w-[40rem]">
-      <mns-card-head
+    <mns-overlay (closed)="dismiss.emit()">
+      <mns-modal
         [title]="org() ? 'Edit Organisation' : 'Create Organisation'"
         icon="Building"
-      />
-      <div class="flex flex-col gap-4">
-        <mns-sfield label="Name">
-          <mns-sinput placeholder="Organisation name" [(value)]="name" />
-        </mns-sfield>
-
-        <mns-sfield label="Time Zone">
-          <mns-select
-            [options]="timeZoneOptions"
-            placeholder="Select a time zone"
-            [(value)]="timeZone"
-          />
-        </mns-sfield>
-
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <mns-sfield label="Original Storage Limit">
-            <mns-sinput type="number" [mono]="true" suffix="MB" [(value)]="storageOriginalMB" />
+        [widthPx]="560"
+        (closed)="dismiss.emit()"
+      >
+        <div class="flex flex-col gap-4">
+          <mns-sfield label="Name">
+            <mns-sinput placeholder="Organisation name" [(value)]="name" />
           </mns-sfield>
-          <mns-sfield label="Transcoded Storage Limit">
-            <mns-sinput type="number" [mono]="true" suffix="MB" [(value)]="storageTranscodedMB" />
+
+          <mns-sfield label="Time Zone">
+            <mns-select
+              [options]="timeZoneOptions"
+              placeholder="Select a time zone"
+              [(value)]="timeZone"
+            />
           </mns-sfield>
+
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <mns-sfield label="Original Storage Limit">
+              <mns-sinput type="number" [mono]="true" suffix="MB" [(value)]="storageOriginalMB" />
+            </mns-sfield>
+            <mns-sfield label="Transcoded Storage Limit">
+              <mns-sinput type="number" [mono]="true" suffix="MB" [(value)]="storageTranscodedMB" />
+            </mns-sfield>
+          </div>
+
+          @if (localError() || error()) {
+            <p class="error text-offline text-sm">{{ localError() || error() }}</p>
+          }
         </div>
 
-        @if (localError() || error()) {
-          <p class="error text-offline text-sm">{{ localError() || error() }}</p>
-        }
-
-        <div class="flex justify-end gap-2 mt-1">
+        <div slot="footer" class="flex justify-end gap-2 px-6 pb-5 pt-1">
           <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
           <mns-btn variant="primary" [disabled]="submitting()" (mnsClick)="onSubmit()">
             {{ org() ? 'Save Changes' : 'Create' }}
           </mns-btn>
         </div>
-      </div>
-    </mns-card>
+      </mns-modal>
+    </mns-overlay>
   `,
 })
 export class OrgForm implements OnInit {
