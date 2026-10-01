@@ -1,12 +1,22 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink } from '@angular/router';
+import { filter, map } from 'rxjs/operators';
 import { IconComponent, IconName } from '../ui/icon.component';
 
 export interface NavItem {
   label: string;
   route: string;
   icon: IconName;
+  /**
+   * Section this entry stands for, when that is wider than where it links.
+   * Settings links to its first tab but owns every `/settings` route, and an
+   * entry that goes dark the moment a second tab is opened is worse than none.
+   */
+  section?: string;
 }
+
+const ADMIN_SECTION = '/admin';
 
 /**
  * Presentational app sidebar — Phase 2 reskin.
@@ -19,7 +29,7 @@ export interface NavItem {
   selector: 'app-sidebar',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, RouterLinkActive, IconComponent],
+  imports: [RouterLink, IconComponent],
   template: `
     <aside class="sidebar" [class.collapsed]="collapsed()" [class.mobile-open]="mobileOpen()">
       <!-- ── Header ── -->
@@ -69,8 +79,7 @@ export interface NavItem {
           <a
             class="nav-item"
             [routerLink]="item.route"
-            routerLinkActive="active"
-            [routerLinkActiveOptions]="{ exact: item.route === '/dashboard' }"
+            [class.active]="isActive(item.section ?? item.route)"
             (click)="closeMobile.emit()"
             [attr.title]="collapsed() ? item.label : null"
           >
@@ -89,7 +98,7 @@ export interface NavItem {
           <a
             class="nav-item admin-nav-item"
             routerLink="/admin/dashboard"
-            routerLinkActive="active"
+            [class.active]="isActive(adminSection)"
             (click)="closeMobile.emit()"
             [attr.title]="collapsed() ? 'Instance Admin' : null"
           >
@@ -345,6 +354,25 @@ export interface NavItem {
   `,
 })
 export class AppSidebar {
+  private readonly router = inject(Router);
+
+  /**
+   * `routerLinkActive` can only ever match the link's own target, so an entry
+   * pointing at a landing tab went inactive on every other tab of its section.
+   * The current path is compared against the section instead.
+   */
+  private readonly path = toSignal(
+    this.router.events.pipe(
+      filter((event) => event instanceof NavigationEnd),
+      map(() => this.router.url),
+    ),
+    { initialValue: this.router.url },
+  );
+
+  private readonly currentPath = computed(() => this.path().split(/[?#]/)[0]);
+
+  protected readonly adminSection = ADMIN_SECTION;
+
   readonly collapsed = input.required<boolean>();
   readonly mobileOpen = input.required<boolean>();
   readonly navItems = input.required<NavItem[]>();
@@ -353,4 +381,10 @@ export class AppSidebar {
   readonly toggleCollapse = output<void>();
   readonly closeMobile = output<void>();
   readonly logout = output<void>();
+
+  /** Matches on whole segments, so `/audit-log` never lights up on `/audit-log-x`. */
+  protected isActive(section: string): boolean {
+    const path = this.currentPath();
+    return path === section || path.startsWith(`${section}/`);
+  }
 }

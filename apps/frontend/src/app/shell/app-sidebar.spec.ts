@@ -3,7 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideZonelessChangeDetection } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { vi } from 'vitest';
 import { AppSidebar, NavItem } from './app-sidebar';
@@ -31,6 +31,7 @@ async function createFixture(
     mobileOpen?: boolean;
     navItems?: NavItem[];
     isSuperAdmin?: boolean;
+    url?: string;
   } = {},
 ): Promise<ComponentFixture<AppSidebar>> {
   await TestBed.configureTestingModule({
@@ -42,6 +43,10 @@ async function createFixture(
       provideRouter([{ path: '**', children: [] }]),
     ],
   }).compileComponents();
+
+  if (overrides.url) {
+    await TestBed.inject(Router).navigateByUrl(overrides.url);
+  }
 
   const fixture = TestBed.createComponent(AppSidebar);
   fixture.componentRef.setInput('collapsed', overrides.collapsed ?? false);
@@ -58,6 +63,70 @@ describe('AppSidebar', () => {
     while (createdFixtures.length) {
       createdFixtures.pop()?.destroy();
     }
+  });
+
+  describe('active section', () => {
+    const SECTION_ITEMS: NavItem[] = [
+      { label: 'Dashboard', route: '/dashboard', icon: 'Dashboard' },
+      { label: 'Audit Log', route: '/audit-log', icon: 'Audit' },
+      { label: 'Settings', route: '/settings/users', icon: 'Settings', section: '/settings' },
+    ];
+
+    /** The labels of the active nav items, Instance Admin aside — it is asserted on its own. */
+    const activeLabels = (fixture: ComponentFixture<AppSidebar>): string[] =>
+      fixture.debugElement
+        .queryAll(By.css('.sidebar-nav a.nav-item.active:not(.admin-nav-item)'))
+        .map((el) => (el.nativeElement as HTMLElement).textContent!.trim());
+
+    const adminIsActive = (fixture: ComponentFixture<AppSidebar>): boolean =>
+      (
+        fixture.debugElement.query(By.css('.admin-nav-item')).nativeElement as HTMLElement
+      ).classList.contains('active');
+
+    it('keeps Settings active on a tab it does not link to', async () => {
+      // routerLinkActive can only match the link's own target, so the entry used
+      // to go dark the moment a second settings tab was opened.
+      const fixture = await createFixture({
+        navItems: SECTION_ITEMS,
+        url: '/settings/org/storage',
+      });
+
+      expect(activeLabels(fixture)).toEqual(['Settings']);
+    });
+
+    it('keeps Instance Admin active across its tabs', async () => {
+      const fixture = await createFixture({
+        navItems: SECTION_ITEMS,
+        isSuperAdmin: true,
+        url: '/admin/organisations',
+      });
+
+      expect(adminIsActive(fixture)).toBe(true);
+      expect(activeLabels(fixture)).toEqual([]);
+    });
+
+    it('matches on whole segments, not on a shared prefix', async () => {
+      const fixture = await createFixture({
+        navItems: SECTION_ITEMS,
+        isSuperAdmin: true,
+        url: '/admin/audit-log',
+      });
+
+      // The org-level Audit Log entry is /audit-log and must stay dark here.
+      expect(activeLabels(fixture)).toEqual([]);
+      expect(adminIsActive(fixture)).toBe(true);
+    });
+
+    it('marks the entry whose own route is open', async () => {
+      const fixture = await createFixture({
+        navItems: SECTION_ITEMS,
+        isSuperAdmin: true,
+        url: '/dashboard',
+      });
+
+      expect(activeLabels(fixture)).toEqual(['Dashboard']);
+      expect(adminIsActive(fixture)).toBe(false);
+    });
   });
 
   describe('navigation rendering', () => {

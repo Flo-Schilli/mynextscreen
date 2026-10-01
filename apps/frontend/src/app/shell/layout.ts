@@ -186,7 +186,7 @@ export class Layout implements OnInit {
     { label: 'Schedules', route: '/schedules', icon: 'Schedules' },
     { label: 'Live Streams', route: '/live-streams', icon: 'Stream' },
     { label: 'Audit Log', route: '/audit-log', icon: 'Audit' },
-    { label: 'Settings', route: '/settings/users', icon: 'Settings' },
+    { label: 'Settings', route: '/settings/users', icon: 'Settings', section: '/settings' },
   ];
 
   ngOnInit(): void {
