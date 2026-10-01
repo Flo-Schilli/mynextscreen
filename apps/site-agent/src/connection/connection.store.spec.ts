@@ -45,6 +45,41 @@ describe('ConnectionStore', () => {
     });
   });
 
+  describe('the stored server address', () => {
+    // Checked on the way in rather than at the first request, so a file that
+    // has been edited into something the agent should not dial fails at
+    // startup, where it is visible in the log.
+    it('refuses a tampered address when loading', async () => {
+      await store.save(connection);
+      await writeFile(
+        connectionFilePath(stateDir),
+        JSON.stringify({ ...connection, serverUrl: 'file:///etc/passwd' }),
+        'utf8',
+      );
+
+      await expect(new ConnectionStore(connectionFilePath(stateDir)).load()).rejects.toThrow(
+        /must be http or https/,
+      );
+    });
+
+    it('stores the canonical form, so what is written is what load accepts', async () => {
+      await store.save({ ...connection, serverUrl: 'https://signage.example.com///' });
+
+      const raw = JSON.parse(await readFile(connectionFilePath(stateDir), 'utf8'));
+      expect(raw.serverUrl).toBe('https://signage.example.com');
+    });
+
+    // Otherwise they would sit in the state file in the clear and be sent on
+    // every request the agent ever makes.
+    it('drops credentials an operator pasted into the address', async () => {
+      await store.save({ ...connection, serverUrl: 'https://user:secret@signage.example.com' });
+
+      const raw = await readFile(connectionFilePath(stateDir), 'utf8');
+      expect(raw).not.toContain('secret');
+      expect((await store.load())?.serverUrl).toBe('https://signage.example.com');
+    });
+  });
+
   describe('save', () => {
     it('creates the state directory', async () => {
       const nested = new ConnectionStore(join(stateDir, 'deep', 'connection.json'));

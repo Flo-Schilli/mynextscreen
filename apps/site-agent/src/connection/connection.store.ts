@@ -1,6 +1,7 @@
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
+import { normaliseBaseUrl } from './server-url';
 
 /** Owner-only. The directory holds one tenant's credential and every TV key. */
 const SECRET_MODE = 0o600;
@@ -35,29 +36,36 @@ export class ConnectionStore {
     }
     try {
       const raw = await readFile(this.filePath, 'utf8');
-      this.cached = JSON.parse(raw) as StoredConnection;
+      const parsed = JSON.parse(raw) as StoredConnection;
+      // Checked on the way in, not on first use. A file that has been edited
+      // into something the agent should not dial is worth refusing at startup,
+      // where it is visible in the log, rather than at whatever request
+      // happens to come first.
+      this.cached = { ...parsed, serverUrl: normaliseBaseUrl(parsed.serverUrl) };
       return this.cached;
     } catch (error) {
       if (isNotFound(error)) {
         return null;
       }
-      // A corrupt file must not look like "never enrolled": that would send the
-      // agent back to the setup screen and silently discard a working session.
+      // A corrupt or tampered file must not look like "never enrolled": that
+      // would send the agent back to the setup screen and silently discard a
+      // working session.
       this.logger.error(`Connection state at ${this.filePath} is unreadable: ${describe(error)}`);
       throw error;
     }
   }
 
   async save(connection: StoredConnection): Promise<void> {
+    const canonical = { ...connection, serverUrl: normaliseBaseUrl(connection.serverUrl) };
     await mkdir(dirname(this.filePath), { recursive: true, mode: DIR_MODE });
-    await writeFile(this.filePath, JSON.stringify(connection, null, 2), {
+    await writeFile(this.filePath, JSON.stringify(canonical, null, 2), {
       encoding: 'utf8',
       mode: SECRET_MODE,
     });
     // writeFile only applies the mode when it creates the file, so an existing
     // one keeps whatever permissions it had.
     await chmod(this.filePath, SECRET_MODE);
-    this.cached = connection;
+    this.cached = canonical;
   }
 
   /** Rotation writes the successor token; everything else stays. */

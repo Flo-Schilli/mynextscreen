@@ -6,6 +6,7 @@ import type {
   AgentSessionMessage,
 } from '../protocol/server-protocol';
 import { ConnectionStore, type StoredConnection } from './connection.store';
+import { normaliseBaseUrl } from './server-url';
 
 /** Raised when the server says the session is gone and refreshing did not help. */
 export class SessionRejectedError extends Error {
@@ -206,45 +207,4 @@ export class ServerClient {
     }
     return connection;
   }
-}
-
-/**
- * Normalises the server address the operator typed in, and refuses anything
- * that is not a plain http(s) origin.
- *
- * Three things at once. Trailing slashes would produce `//api/...`, which some
- * proxies reject. Any other scheme — `file:`, `data:` — must not reach `fetch`,
- * because this value comes from the setup page and from the persisted state
- * file, neither of which is a trusted source once the machine is out of our
- * hands. And embedded credentials are dropped rather than silently sent on
- * every request.
- *
- * Parsing rather than trimming also removes the backtracking `/\/+$/` this
- * used to do, which was quadratic on a pathological input.
- */
-export function normaliseBaseUrl(url: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    throw new Error(`Not a valid server address: ${url}`);
-  }
-
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error(`Server address must be http or https, not ${parsed.protocol}`);
-  }
-
-  parsed.username = '';
-  parsed.password = '';
-  parsed.search = '';
-  parsed.hash = '';
-
-  // `new URL('https://x')` normalises the pathname to '/', and a pasted address
-  // may end in several. Trimmed with a loop rather than `/\/+$/`, which is the
-  // quadratic pattern this function was flagged for in the first place.
-  let path = parsed.pathname;
-  while (path.endsWith('/')) {
-    path = path.slice(0, -1);
-  }
-  return `${parsed.origin}${path}`;
 }
