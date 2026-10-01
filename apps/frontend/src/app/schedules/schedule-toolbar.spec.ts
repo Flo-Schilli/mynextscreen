@@ -136,8 +136,10 @@ describe('ScheduleToolbar', () => {
       trigger.click();
       fixture.detectChanges();
       await fixture.whenStable();
-      const options = fixture.nativeElement.querySelectorAll(
-        '#targetSelect [role="option"]',
+      // The open menu lives in the CDK overlay container on <body>, so that a
+      // modal or a card cannot clip it.
+      const options = document.querySelectorAll(
+        '.cdk-overlay-container [role="option"]',
       ) as NodeListOf<HTMLButtonElement>;
       options[1].click();
       fixture.detectChanges();

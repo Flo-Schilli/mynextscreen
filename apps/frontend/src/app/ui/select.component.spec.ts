@@ -23,14 +23,16 @@ describe('SelectComponent', () => {
   let fixture: ComponentFixture<HostComponent>;
   let host: HostComponent;
 
-  const el = (css: string) => fixture.nativeElement.querySelector(css) as HTMLElement | null;
+  // The menu lives in the CDK overlay container on <body>, not inside the
+  // component — that is the whole point of it.
+  const el = (css: string) => document.querySelector(css) as HTMLElement | null;
   const optionLabels = (): string[] =>
-    Array.from(fixture.nativeElement.querySelectorAll('[role=option] span')).map((s) =>
+    Array.from(document.querySelectorAll('[role=option] span')).map((s) =>
       (s as HTMLElement).textContent!.trim(),
     );
 
   const openDropdown = (): void => {
-    (el('button[aria-haspopup]') as HTMLElement).click();
+    (fixture.nativeElement.querySelector('button[aria-haspopup]') as HTMLElement).click();
     fixture.detectChanges();
   };
 
@@ -45,6 +47,10 @@ describe('SelectComponent', () => {
     await TestBed.configureTestingModule({ imports: [HostComponent] }).compileComponents();
     fixture = TestBed.createComponent(HostComponent);
     host = fixture.componentInstance;
+  });
+
+  afterEach(() => {
+    fixture.destroy();
   });
 
   const setUp = (count: number): void => {
@@ -72,9 +78,18 @@ describe('SelectComponent', () => {
     setUp(40);
     openDropdown();
 
-    const list = el('[role=listbox]')!;
-    expect(list.className).toContain('overflow-y-auto');
-    expect(list.className).toContain('max-h-');
+    expect(el('[role=listbox]')!.className).toContain('overflow-y-auto');
+  });
+
+  it('renders the menu outside the component, where nothing can clip it', () => {
+    // A modal panel clips its overflow and, carrying an entry animation on
+    // transform, is the containing block for anything positioned inside it.
+    setUp(40);
+    openDropdown();
+
+    const menu = el('[role=listbox]')!;
+    expect(fixture.nativeElement.contains(menu)).toBe(false);
+    expect(menu.closest('.cdk-overlay-container')).toBeTruthy();
   });
 
   it('filters on what is typed, ignoring case', () => {
@@ -95,7 +110,7 @@ describe('SelectComponent', () => {
     type('Antarctica');
 
     expect(optionLabels()).toEqual([]);
-    expect(fixture.nativeElement.textContent).toContain('No match for');
+    expect(el('.cdk-overlay-container')!.textContent).toContain('No match for');
   });
 
   it('picks the first match on Enter', () => {
@@ -124,10 +139,19 @@ describe('SelectComponent', () => {
   it('selecting an option reports it and closes', () => {
     setUp(4);
     openDropdown();
-    (fixture.nativeElement.querySelectorAll('[role=option]')[2] as HTMLElement).click();
+    (document.querySelectorAll('[role=option]')[2] as HTMLElement).click();
     fixture.detectChanges();
 
     expect(host.picked()).toBe('v2');
+    expect(el('[role=listbox]')).toBeNull();
+  });
+
+  it('Escape closes the menu and leaves whatever is behind it alone', () => {
+    setUp(40);
+    openDropdown();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+
     expect(el('[role=listbox]')).toBeNull();
   });
 });

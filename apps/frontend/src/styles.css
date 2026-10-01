@@ -17,6 +17,9 @@
 
 @import 'tailwindcss';
 
+/* Positions the CDK overlay pane that `mns-select` opens its menu in. */
+@import '@angular/cdk/overlay-prebuilt.css';
+
 /* Self-hosted fonts. Loading them from Google would be blocked by the
    production CSP (style-src/font-src are 'self'), which silently dropped the
    UI back to system fonts — and it sends every visitor's IP to a third party. */

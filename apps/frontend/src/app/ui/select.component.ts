@@ -1,16 +1,21 @@
 /* eslint-disable @angular-eslint/component-selector */
+import { CdkConnectedOverlay, CdkOverlayOrigin, Overlay } from '@angular/cdk/overlay';
+import type { ConnectedPosition } from '@angular/cdk/overlay';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   computed,
   effect,
+  inject,
   input,
   model,
   output,
   signal,
   viewChild,
 } from '@angular/core';
+import { closeLayer, isInnermostLayer, openLayer } from './dialog-stack';
 import { IconComponent } from './icon.component';
 
 export interface SelectOption {
@@ -23,6 +28,12 @@ export interface SelectOption {
  * faster than typing, and a search field on a three-item dropdown is noise.
  */
 const SEARCH_THRESHOLD = 8;
+
+/** Below the trigger, or above it when the viewport leaves no room. */
+const MENU_POSITIONS: ConnectedPosition[] = [
+  { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 6 },
+  { originX: 'start', originY: 'top', overlayX: 'start', overlayY: 'bottom', offsetY: -6 },
+];
 
 /**
  * Custom signal-driven dropdown. Closes on outside click and Escape key.
@@ -39,75 +50,92 @@ const SEARCH_THRESHOLD = 8;
   selector: 'mns-select',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent],
+  imports: [IconComponent, CdkOverlayOrigin, CdkConnectedOverlay],
   template: `
-    <div class="relative" #host>
-      <button
-        type="button"
-        class="inline-flex items-center justify-between gap-2 w-full px-3 py-2 rounded-[10px] text-sm font-medium bg-surface border border-border-strong text-text transition-all duration-[180ms] cursor-pointer"
-        [class.ring-[3px]]="open()"
-        [style.--tw-ring-color]="'var(--accent-soft)'"
-        (click)="toggleOpen()"
-        (keydown)="onKeydown($event)"
-        [attr.aria-expanded]="open()"
-        [attr.aria-haspopup]="'listbox'"
+    <button
+      #trigger
+      cdkOverlayOrigin
+      #origin="cdkOverlayOrigin"
+      type="button"
+      class="inline-flex items-center justify-between gap-2 w-full px-3 py-2 rounded-[10px] text-sm font-medium bg-surface border border-border-strong text-text transition-all duration-[180ms] cursor-pointer"
+      [class.ring-[3px]]="open()"
+      [style.--tw-ring-color]="'var(--accent-soft)'"
+      (click)="toggleOpen()"
+      (keydown)="onKeydown($event)"
+      [attr.aria-expanded]="open()"
+      [attr.aria-haspopup]="'listbox'"
+    >
+      <span class="truncate">{{ selectedLabel() }}</span>
+      <mns-icon
+        name="Chevron"
+        [size]="16"
+        class="text-muted flex-shrink-0 transition-transform duration-[180ms]"
+        [style.transform]="open() ? 'rotate(90deg)' : 'none'"
+      />
+    </button>
+
+    <!--
+      In an overlay rather than positioned next to the trigger: this dropdown is
+      routinely opened inside a modal, whose panel both clips its overflow and —
+      because it carries an entry animation on transform — is the containing
+      block for anything positioned inside it, fixed included. Only a pane
+      outside that subtree escapes both.
+    -->
+    <ng-template
+      cdkConnectedOverlay
+      [cdkConnectedOverlayOrigin]="origin"
+      [cdkConnectedOverlayOpen]="open()"
+      [cdkConnectedOverlayPositions]="positions"
+      [cdkConnectedOverlayWidth]="triggerWidth()"
+      [cdkConnectedOverlayViewportMargin]="8"
+      [cdkConnectedOverlayScrollStrategy]="scrollStrategy"
+      (overlayOutsideClick)="onOutsideClick($event)"
+      (detach)="open.set(false)"
+    >
+      <div
+        class="flex max-h-[16rem] flex-col overflow-hidden rounded-md border border-border-strong bg-surface"
+        style="box-shadow: var(--shadow-lg)"
       >
-        <span class="truncate">{{ selectedLabel() }}</span>
-        <mns-icon
-          name="Chevron"
-          [size]="16"
-          class="text-muted flex-shrink-0 transition-transform duration-[180ms]"
-          [style.transform]="open() ? 'rotate(90deg)' : 'none'"
-        />
-      </button>
-
-      @if (open()) {
-        <div
-          class="absolute z-50 top-full left-0 right-0 mt-1.5 flex flex-col overflow-hidden rounded-md border border-border-strong bg-surface"
-          style="box-shadow: var(--shadow-lg)"
-        >
-          @if (showSearch()) {
-            <div class="flex-shrink-0 border-b border-border p-2">
-              <input
-                #searchBox
-                type="text"
-                class="w-full rounded-[8px] border border-border-strong bg-surface-2 px-2.5 py-1.5 text-sm outline-none"
-                placeholder="Search…"
-                [value]="query()"
-                (input)="onQuery($event)"
-                (keydown)="onSearchKeydown($event)"
-              />
-            </div>
-          }
-
-          <div class="max-h-[16rem] overflow-y-auto overscroll-contain" role="listbox">
-            @for (opt of filtered(); track opt.value) {
-              <button
-                type="button"
-                role="option"
-                class="flex items-center justify-between w-full px-3 py-2 text-sm text-left transition-colors duration-[120ms]"
-                [class.bg-accent-soft]="opt.value === value()"
-                [class.text-accent]="opt.value === value()"
-                [class.hover:bg-hover]="opt.value !== value()"
-                [attr.aria-selected]="opt.value === value()"
-                (click)="select(opt.value)"
-              >
-                <span>{{ opt.label }}</span>
-                @if (opt.value === value()) {
-                  <mns-icon name="Check" [size]="14" class="text-accent" />
-                }
-              </button>
-            } @empty {
-              <p class="px-3 py-2.5 text-sm text-muted">No match for “{{ query() }}”</p>
-            }
+        @if (showSearch()) {
+          <div class="flex-shrink-0 border-b border-border p-2">
+            <input
+              #searchBox
+              type="text"
+              class="w-full rounded-[8px] border border-border-strong bg-surface-2 px-2.5 py-1.5 text-sm outline-none"
+              placeholder="Search…"
+              [value]="query()"
+              (input)="onQuery($event)"
+              (keydown)="onSearchKeydown($event)"
+            />
           </div>
+        }
+
+        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain" role="listbox">
+          @for (opt of filtered(); track opt.value) {
+            <button
+              type="button"
+              role="option"
+              class="flex items-center justify-between w-full px-3 py-2 text-sm text-left transition-colors duration-[120ms]"
+              [class.bg-accent-soft]="opt.value === value()"
+              [class.text-accent]="opt.value === value()"
+              [class.hover:bg-hover]="opt.value !== value()"
+              [attr.aria-selected]="opt.value === value()"
+              (click)="select(opt.value)"
+            >
+              <span>{{ opt.label }}</span>
+              @if (opt.value === value()) {
+                <mns-icon name="Check" [size]="14" class="text-accent" />
+              }
+            </button>
+          } @empty {
+            <p class="px-3 py-2.5 text-sm text-muted">No match for “{{ query() }}”</p>
+          }
         </div>
-      }
-    </div>
+      </div>
+    </ng-template>
   `,
   host: {
     style: 'display:contents',
-    '(document:click)': 'onDocClick($event)',
     '(document:keydown.escape)': 'closeIfOpen()',
   },
 })
@@ -122,10 +150,17 @@ export class SelectComponent {
 
   readonly open = signal(false);
 
-  protected readonly query = signal('');
+  protected readonly positions = MENU_POSITIONS;
+  protected readonly scrollStrategy = inject(Overlay).scrollStrategies.reposition();
 
-  private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
+  protected readonly query = signal('');
+  protected readonly triggerWidth = signal(0);
+
+  private readonly trigger = viewChild.required<ElementRef<HTMLElement>>('trigger');
   private readonly searchBox = viewChild<ElementRef<HTMLInputElement>>('searchBox');
+
+  /** Identity for the layer stack, so Escape closes this and not the dialog behind it. */
+  private readonly layer = {};
 
   readonly selectedLabel = computed(() => {
     const v = this.value();
@@ -143,6 +178,15 @@ export class SelectComponent {
   });
 
   constructor() {
+    effect(() => {
+      if (this.open()) {
+        openLayer(this.layer);
+        this.triggerWidth.set(this.trigger().nativeElement.offsetWidth);
+      } else {
+        closeLayer(this.layer);
+      }
+    });
+
     // The box only exists while the dropdown is open, so this runs when the
     // viewChild resolves rather than on a timer.
     effect(() => {
@@ -150,6 +194,8 @@ export class SelectComponent {
         this.searchBox()?.nativeElement.focus();
       }
     });
+
+    inject(DestroyRef).onDestroy(() => closeLayer(this.layer));
   }
 
   toggleOpen(): void {
@@ -158,7 +204,7 @@ export class SelectComponent {
   }
 
   closeIfOpen(): void {
-    if (this.open()) this.open.set(false);
+    if (this.open() && isInnermostLayer(this.layer)) this.open.set(false);
   }
 
   select(v: string): void {
@@ -186,9 +232,9 @@ export class SelectComponent {
     if (first) this.select(first.value);
   }
 
-  onDocClick(e: MouseEvent): void {
-    if (!this.host().nativeElement.contains(e.target as Node)) {
-      this.open.set(false);
-    }
+  /** The trigger's own click is handled by the button; closing here too would reopen it. */
+  protected onOutsideClick(e: MouseEvent): void {
+    if (this.trigger().nativeElement.contains(e.target as Node)) return;
+    this.open.set(false);
   }
 }
