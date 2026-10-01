@@ -101,6 +101,10 @@ describe('SelectComponent', () => {
     openDropdown();
 
     expect((el('.cdk-overlay-pane') as HTMLElement).style.width).toBe('480px');
+    // The pane is a flex container, so the box inside it has to be told to fill
+    // it — a pane of the right width around a menu of content width looks
+    // exactly like the bug this replaced.
+    expect(el('[role=listbox]')!.parentElement!.className).toContain('w-full');
   });
 
   it('filters on what is typed, ignoring case', () => {

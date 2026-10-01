@@ -92,8 +92,10 @@ const MENU_POSITIONS: ConnectedPosition[] = [
       (overlayOutsideClick)="onOutsideClick($event)"
       (detach)="open.set(false)"
     >
+      <!-- w-full because the overlay pane is a flex container: without it this
+           box sizes to its content inside a pane that is the field's width. -->
       <div
-        class="flex max-h-[16rem] flex-col overflow-hidden rounded-md border border-border-strong bg-surface"
+        class="flex w-full max-h-[16rem] flex-col overflow-hidden rounded-md border border-border-strong bg-surface"
         style="box-shadow: var(--shadow-lg)"
       >
         @if (showSearch()) {
