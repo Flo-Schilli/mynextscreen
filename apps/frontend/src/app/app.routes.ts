@@ -84,6 +84,15 @@ export const routes: Routes = [
         loadComponent: () => import('./screens/screens').then((m) => m.Screens),
       },
       {
+        path: 'site-agents',
+        loadComponent: () => import('./site-agents/site-agents').then((m) => m.SiteAgents),
+      },
+      {
+        path: 'site-agents/:id',
+        loadComponent: () =>
+          import('./site-agents/site-agent-detail').then((m) => m.SiteAgentDetail),
+      },
+      {
         path: 'screen-groups',
         loadComponent: () => import('./screen-groups/screen-groups').then((m) => m.ScreenGroups),
       },

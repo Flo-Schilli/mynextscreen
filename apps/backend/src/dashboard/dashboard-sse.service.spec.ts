@@ -5,6 +5,11 @@ import {
   TranscodingFailedEvent,
 } from '../content/transcoding.event';
 import { ScreenStatusEvent } from '../screen/screen-status.event';
+import { SiteAgentStatusChangedEvent } from '../site-agent/site-agent-status.event';
+import {
+  ScreenOnboardingCheckedEvent,
+  ScreenReachabilityChangedEvent,
+} from '../site-agent/screen-onboarding.event';
 import { ScheduleEntryChangedEvent } from '../schedule/schedule.event';
 import { LiveStreamHealthChangedEvent } from '../live-stream/stream-health.event';
 import { firstValueFrom, take } from 'rxjs';
@@ -188,6 +193,53 @@ describe('DashboardSseService', () => {
       return expectOrgEvent(() => service.handleScreenStatusChanged(event), 'screen.offline', {
         screenId: 'screen-1',
       });
+    });
+
+    it('should emit site-agent.status when a venue agent connects', () => {
+      const event = new SiteAgentStatusChangedEvent('agent-1', orgId, 'Venue North', true);
+      return expectOrgEvent(
+        () => service.handleSiteAgentStatusChanged(event),
+        'site-agent.status',
+        { agentId: 'agent-1', name: 'Venue North', isOnline: true },
+      );
+    });
+
+    it('should emit screen.reachability when the agent probes a TV', () => {
+      const probedAt = new Date('2026-10-01T12:00:00.000Z');
+      const event = new ScreenReachabilityChangedEvent('screen-1', orgId, 'unreachable', probedAt);
+      return expectOrgEvent(
+        () => service.handleScreenReachabilityChanged(event),
+        'screen.reachability',
+        {
+          screenId: 'screen-1',
+          reachability: 'unreachable',
+          lastProbeAt: probedAt.toISOString(),
+        },
+      );
+    });
+
+    // The wizard fires a check over HTTP and waits for the answer here, so the
+    // command id has to survive the hop.
+    it('should emit screen.onboarding-check with the correlation id', () => {
+      const event = new ScreenOnboardingCheckedEvent(
+        'screen-1',
+        orgId,
+        'cmd-1',
+        4,
+        false,
+        'ECONNREFUSED on 192.168.1.50:9991',
+      );
+      return expectOrgEvent(
+        () => service.handleScreenOnboardingChecked(event),
+        'screen.onboarding-check',
+        {
+          screenId: 'screen-1',
+          commandId: 'cmd-1',
+          step: 4,
+          ok: false,
+          detail: 'ECONNREFUSED on 192.168.1.50:9991',
+        },
+      );
     });
 
     it('should emit transcoding.progress', () => {

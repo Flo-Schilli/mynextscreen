@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build all three production images locally with version/build metadata baked in.
+# Build all production images locally with version/build metadata baked in.
 # Invoked via `npm run images:build` (which exports APP_VERSION/GIT_COMMIT/BUILD_DATE).
 set -euo pipefail
 
@@ -12,7 +12,7 @@ ENGINE="${ENGINE:-docker}"
 
 echo "Building images @ ${APP_VERSION} (commit ${GIT_COMMIT}, built ${BUILD_DATE})"
 
-for svc in backend frontend player; do
+for svc in backend frontend player site-agent; do
   echo "==> ${svc}"
   "${ENGINE}" build \
     --build-arg "APP_VERSION=${APP_VERSION}" \
@@ -24,4 +24,4 @@ for svc in backend frontend player; do
     .
 done
 
-echo "Done. Tagged ${REGISTRY}/{backend,frontend,player}:${APP_VERSION}"
+echo "Done. Tagged ${REGISTRY}/{backend,frontend,player,site-agent}:${APP_VERSION}"

@@ -136,6 +136,99 @@ describe('ScheduleBoundaryService', () => {
     });
   }
 
+  describe('getNextStart', () => {
+    const HOUR_MS = 60 * 60 * 1000;
+
+    it('returns null when nothing is scheduled', async () => {
+      expect(await service.getNextStart(screenId)).toBeNull();
+    });
+
+    it('returns the start of the next entry', async () => {
+      await seedScreenEntry(2 * HOUR_MS, 3 * HOUR_MS, playlistId);
+
+      const next = await service.getNextStart(screenId);
+
+      expect(next).not.toBeNull();
+      expect(next!.getTime()).toBeCloseTo(Date.now() + 2 * HOUR_MS, -3);
+    });
+
+    it('returns the earliest of several upcoming entries', async () => {
+      await seedScreenEntry(5 * HOUR_MS, 6 * HOUR_MS, playlistId);
+      await seedScreenEntry(2 * HOUR_MS, 3 * HOUR_MS, playlistId2);
+
+      const next = await service.getNextStart(screenId);
+
+      expect(next!.getTime()).toBeCloseTo(Date.now() + 2 * HOUR_MS, -3);
+    });
+
+    // A set showing a schedule that is already running is on anyway — waking it
+    // would be a magic packet to a TV that does not need one.
+    it('ignores an entry that is already running', async () => {
+      await seedScreenEntry(-HOUR_MS, HOUR_MS, playlistId);
+
+      expect(await service.getNextStart(screenId)).toBeNull();
+    });
+
+    it('ignores an entry that has already finished', async () => {
+      await seedScreenEntry(-3 * HOUR_MS, -2 * HOUR_MS, playlistId);
+
+      expect(await service.getNextStart(screenId)).toBeNull();
+    });
+
+    it('returns nothing beyond the 24h look-ahead window', async () => {
+      await seedScreenEntry(30 * HOUR_MS, 31 * HOUR_MS, playlistId);
+
+      expect(await service.getNextStart(screenId)).toBeNull();
+    });
+
+    it('includes the group schedule the screen inherits', async () => {
+      await db.update(screens).set({ groupId }).where(eq(screens.id, screenId));
+      const now = Date.now();
+      await db.insert(scheduleEntries).values({
+        organisationId: orgId,
+        groupId,
+        playlistId: playlistId2,
+        startTime: new Date(now + 4 * HOUR_MS),
+        endTime: new Date(now + 5 * HOUR_MS),
+        rrule: null,
+        colour: '#fff',
+      });
+
+      const next = await service.getNextStart(screenId);
+
+      expect(next!.getTime()).toBeCloseTo(now + 4 * HOUR_MS, -3);
+    });
+
+    it('expands a recurring entry to its next occurrence', async () => {
+      const now = new Date();
+      // Started an hour ago, repeats daily — the next occurrence is tomorrow.
+      const start = new Date(now.getTime() - HOUR_MS);
+      await db.insert(scheduleEntries).values({
+        organisationId: orgId,
+        screenId,
+        playlistId,
+        startTime: start,
+        endTime: new Date(start.getTime() + HOUR_MS),
+        rrule: 'FREQ=DAILY',
+        colour: '#fff',
+      });
+
+      const next = await service.getNextStart(screenId);
+
+      expect(next).not.toBeNull();
+      expect(next!.getTime()).toBeGreaterThan(now.getTime());
+      expect(next!.getTime()).toBeCloseTo(start.getTime() + 24 * HOUR_MS, -4);
+    });
+
+    it('measures the window from the given instant, not from now', async () => {
+      await seedScreenEntry(2 * HOUR_MS, 3 * HOUR_MS, playlistId);
+
+      const fromAfterIt = new Date(Date.now() + 4 * HOUR_MS);
+
+      expect(await service.getNextStart(screenId, fromAfterIt)).toBeNull();
+    });
+  });
+
   describe('registerScreen', () => {
     it('should register a screen and store current playlist', async () => {
       enableFakeTimers();

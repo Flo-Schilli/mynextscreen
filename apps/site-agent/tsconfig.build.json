@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../dist/apps/site-agent",
+    "rootDir": "./src",
+    "tsBuildInfoFile": "../../dist/apps/site-agent/.tsbuildinfo-build"
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "**/*spec.ts"
+  ]
+}

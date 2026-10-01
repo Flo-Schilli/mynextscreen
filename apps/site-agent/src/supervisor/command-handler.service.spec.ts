@@ -1,0 +1,179 @@
+import { CommandHandlerService } from './command-handler.service';
+import type { AgentConfigMessage, AgentScreenConfigMessage } from '../protocol/server-protocol';
+
+function screen(overrides: Partial<AgentScreenConfigMessage> = {}): AgentScreenConfigMessage {
+  return {
+    screenId: 's1',
+    name: 'Foyer left',
+    localIp: '192.168.1.50',
+    macAddress: null,
+    ssapPort: 3001,
+    devmodePassphrase: 'AEBC72',
+    autoLaunchEnabled: true,
+    extendDevmodeEnabled: true,
+    devmodeExtendIntervalDays: 7,
+    lastDevmodeExtendAt: null,
+    wakeBeforeScheduleEnabled: false,
+    wakeLeadTimeMinutes: 10,
+    wakeOnUnreachableEnabled: false,
+    playerHeartbeatStale: false,
+    nextScheduleStartAt: null,
+    sshHostKeyFingerprint: null,
+    keyStatus: 'unknown',
+    sshStatus: 'unknown',
+    ssapStatus: 'unknown',
+    onboardingStep: 1,
+    ...overrides,
+  };
+}
+
+describe('CommandHandlerService', () => {
+  let handler: CommandHandlerService;
+  let stream: { onCommand: jest.Mock };
+  let supervisor: { runNow: jest.Mock; refreshConfigIfDue: jest.Mock };
+  let configs: { current: jest.Mock };
+  let client: { sendReports: jest.Mock };
+  let reachability: { probe: jest.Mock };
+  let devmodeKeys: { obtain: jest.Mock; forget: jest.Mock };
+  let ssh: { run: jest.Mock };
+
+  const config = (screens: AgentScreenConfigMessage[]): AgentConfigMessage => ({
+    agentId: 'agent-1',
+    organisationId: 'org-1',
+    probeIntervalMs: 60_000,
+    appId: 'com.mynextscreen.webos',
+    screens,
+  });
+
+  function reported(): Record<string, unknown> {
+    return client.sendReports.mock.calls[0][0].screens[0];
+  }
+
+  beforeEach(() => {
+    stream = { onCommand: jest.fn() };
+    supervisor = { runNow: jest.fn(), refreshConfigIfDue: jest.fn() };
+    configs = { current: jest.fn().mockReturnValue(config([screen()])) };
+    client = { sendReports: jest.fn().mockResolvedValue(undefined) };
+    reachability = { probe: jest.fn().mockResolvedValue({ reachability: 'reachable' }) };
+    devmodeKeys = {
+      obtain: jest.fn().mockResolvedValue({ status: 'ok', privateKey: 'PEM' }),
+      forget: jest.fn(),
+    };
+    ssh = { run: jest.fn().mockResolvedValue({ status: 'ok', hostKeyFingerprint: 'SHA256:abc' }) };
+
+    handler = new CommandHandlerService(
+      stream as never,
+      supervisor as never,
+      configs as never,
+      client as never,
+      reachability as never,
+      devmodeKeys as never,
+      ssh as never,
+    );
+  });
+
+  describe('registration', () => {
+    it('subscribes to the command stream on start', () => {
+      handler.onModuleInit();
+
+      expect(stream.onCommand).toHaveBeenCalled();
+    });
+  });
+
+  describe('reload_config', () => {
+    it('forces a pull rather than waiting for the hourly one', async () => {
+      await handler.handle({ commandId: 'c1', type: 'reload_config' });
+
+      expect(supervisor.refreshConfigIfDue).toHaveBeenCalledWith(true);
+    });
+  });
+
+  describe('actions on a screen', () => {
+    it.each(['launch', 'wake', 'extend_devmode'] as const)(
+      '%s runs that screen immediately',
+      async (type) => {
+        await handler.handle({ commandId: 'c1', type, screenId: 's1' });
+
+        expect(supervisor.runNow).toHaveBeenCalledWith('s1');
+      },
+    );
+
+    // Dropping the cached key first is the whole point of the command; without
+    // it the agent would keep using the key the operator just replaced.
+    it('refetch_key discards the cached key before running', async () => {
+      await handler.handle({ commandId: 'c1', type: 'refetch_key', screenId: 's1' });
+
+      expect(devmodeKeys.forget).toHaveBeenCalledWith('s1');
+      expect(supervisor.runNow).toHaveBeenCalledWith('s1');
+    });
+
+    it('ignores a command with no screen', async () => {
+      await handler.handle({ commandId: 'c1', type: 'launch' });
+
+      expect(supervisor.runNow).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onboarding checks', () => {
+    it('step 2 reports what the network probe found', async () => {
+      reachability.probe.mockResolvedValue({ reachability: 'unreachable', detail: 'ETIMEDOUT' });
+
+      await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step: 2 });
+
+      expect(reported()).toMatchObject({
+        commandId: 'c1',
+        step: 2,
+        reachability: 'unreachable',
+        detail: 'ETIMEDOUT',
+      });
+    });
+
+    it.each([4, 5])('step %i reports the key status', async (step) => {
+      devmodeKeys.obtain.mockResolvedValue({ status: 'key_server_off', detail: 'refused' });
+
+      await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step });
+
+      expect(reported()).toMatchObject({ step, keyStatus: 'key_server_off', detail: 'refused' });
+    });
+
+    it('step 6 proves SSH works with a command that changes nothing', async () => {
+      await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step: 6 });
+
+      expect(ssh.run).toHaveBeenCalledWith(expect.anything(), 'echo mynextscreen-ssh-ok');
+      expect(reported()).toMatchObject({ sshStatus: 'ok', sshHostKeyFingerprint: 'SHA256:abc' });
+    });
+
+    it('step 6 stops at the key when there is no usable one', async () => {
+      devmodeKeys.obtain.mockResolvedValue({ status: 'wrong_passphrase', detail: 'no' });
+
+      await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step: 6 });
+
+      expect(ssh.run).not.toHaveBeenCalled();
+      expect(reported()).toMatchObject({ keyStatus: 'wrong_passphrase' });
+    });
+
+    it.each([7, 8])('step %i goes through the normal round', async (step) => {
+      await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step });
+
+      expect(supervisor.runNow).toHaveBeenCalledWith('s1');
+    });
+
+    it('ignores a check for a screen it does not look after', async () => {
+      configs.current.mockReturnValue(config([]));
+
+      await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step: 2 });
+
+      expect(client.sendReports).not.toHaveBeenCalled();
+    });
+
+    // The wizard is waiting on this result; failing silently would leave the
+    // operator looking at a spinner.
+    it('does not throw when the result cannot be delivered', async () => {
+      client.sendReports.mockRejectedValue(new Error('offline'));
+
+      await expect(
+        handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step: 2 }),
+      ).resolves.toBeUndefined();
+    });
+  });
+});

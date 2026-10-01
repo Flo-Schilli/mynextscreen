@@ -7,6 +7,7 @@ import { REDIS_CLIENT } from '../redis';
 import { REVOKE_FAMILY_SCRIPT, ROTATE_REFRESH_SCRIPT } from './token.scripts';
 import type {
   AccessTokenPayload,
+  AgentTokenPayload,
   IssuedAccessToken,
   IssuedRefreshToken,
   RotateResult,
@@ -47,6 +48,15 @@ const ACCESS_TOKEN_AUDIENCE = 'mynextscreen-api';
 export const SCREEN_TOKEN_AUDIENCE = 'mynextscreen-screen';
 /** Marks the token kind inside the payload, as a second, explicit layer. */
 export const SCREEN_TOKEN_TYPE = 'screen' as const;
+
+/**
+ * Site agents get a third audience, for the same structural reason screens got
+ * the second one: all three kinds are signed with one secret and one issuer, so
+ * without it an agent token would satisfy the screen guard with `sub` set to an
+ * agent id. An agent must never reach a screen or a dashboard route.
+ */
+export const AGENT_TOKEN_AUDIENCE = 'mynextscreen-agent';
+export const AGENT_TOKEN_TYPE = 'agent' as const;
 
 @Injectable()
 export class TokenService {
@@ -137,6 +147,40 @@ export class TokenService {
       throw new Error('Not a screen token');
     }
     return { sub: payload.sub, org: payload.org, typ: SCREEN_TOKEN_TYPE, jti: payload.jti };
+  }
+
+  /** Short-lived access token for a site agent, scoped to one organisation. */
+  async issueAgentAccessToken(agentId: string, organisationId: string): Promise<IssuedAccessToken> {
+    const jti = randomUUID();
+    const token = await this.jwt.signAsync(
+      { sub: agentId, org: organisationId, typ: AGENT_TOKEN_TYPE, jti },
+      {
+        secret: this.accessSecret,
+        expiresIn: this.accessTtlSeconds,
+        algorithm: ACCESS_TOKEN_ALGORITHM,
+        issuer: ACCESS_TOKEN_ISSUER,
+        audience: AGENT_TOKEN_AUDIENCE,
+      },
+    );
+    return {
+      token,
+      jti,
+      expiresAt: new Date(Date.now() + this.accessTtlSeconds * 1000),
+    };
+  }
+
+  /** Counterpart to {@link issueAgentAccessToken}; a user or screen token cannot pass. */
+  async verifyAgentAccessToken(token: string): Promise<AgentTokenPayload> {
+    const payload = await this.jwt.verifyAsync<AgentTokenPayload>(token, {
+      secret: this.accessSecret,
+      algorithms: [ACCESS_TOKEN_ALGORITHM],
+      issuer: ACCESS_TOKEN_ISSUER,
+      audience: AGENT_TOKEN_AUDIENCE,
+    });
+    if (payload.typ !== AGENT_TOKEN_TYPE) {
+      throw new Error('Not an agent token');
+    }
+    return { sub: payload.sub, org: payload.org, typ: AGENT_TOKEN_TYPE, jti: payload.jti };
   }
 
   /** Seconds an access token stays valid; handed to clients, never an instant. */

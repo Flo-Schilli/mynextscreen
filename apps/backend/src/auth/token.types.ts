@@ -29,6 +29,18 @@ export interface ScreenTokenPayload {
   jti: string;
 }
 
+/**
+ * Claims of a site-agent access token. Same shape as a screen's — an agent is
+ * not a user either — but a separate type so the two cannot be assigned to one
+ * another by accident.
+ */
+export interface AgentTokenPayload {
+  sub: string;
+  org: string;
+  typ: 'agent';
+  jti: string;
+}
+
 export interface RotateSuccess {
   status: 'ok';
   userId: string;

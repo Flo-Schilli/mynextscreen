@@ -10,6 +10,8 @@ export { EnrolmentAuth, IS_ENROLMENT_AUTH_KEY } from './enrolment-auth.decorator
 export { UserScoped, IS_USER_SCOPED_KEY } from './user-scoped.decorator';
 export { OrgFromParam, ORG_PARAM_KEY } from './org-from-param.decorator';
 export { ApiKeyAuthGuard, ScreenAuthenticatedRequest } from './api-key-auth.guard';
+export { AgentAuth, IS_AGENT_AUTH_KEY } from './agent-auth.decorator';
+export { AgentAuthGuard, AgentAuthenticatedRequest } from './agent-auth.guard';
 export { AuthService } from './auth.service';
 export { TokenService } from './token.service';
 export { PasswordService } from './password.service';

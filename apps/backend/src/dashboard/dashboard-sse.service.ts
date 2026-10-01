@@ -3,6 +3,16 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { Observable, Subject, finalize, map, merge, interval, takeUntil } from 'rxjs';
 import { randomUUID } from 'crypto';
 import {
+  SITE_AGENT_STATUS_CHANGED,
+  SiteAgentStatusChangedEvent,
+} from '../site-agent/site-agent-status.event';
+import {
+  SCREEN_ONBOARDING_CHECKED,
+  SCREEN_REACHABILITY_CHANGED,
+  ScreenOnboardingCheckedEvent,
+  ScreenReachabilityChangedEvent,
+} from '../site-agent/screen-onboarding.event';
+import {
   TRANSCODING_COMPLETED,
   TRANSCODING_FAILED,
   TRANSCODING_PROGRESS,
@@ -140,6 +150,40 @@ export class DashboardSseService implements OnModuleDestroy {
     const type = event.isOnline ? 'screen.online' : 'screen.offline';
     this.emitToOrg(event.organisationId, type, {
       screenId: event.screenId,
+    });
+  }
+
+  @OnEvent(SITE_AGENT_STATUS_CHANGED)
+  handleSiteAgentStatusChanged(event: SiteAgentStatusChangedEvent): void {
+    this.emitToOrg(event.organisationId, 'site-agent.status', {
+      agentId: event.agentId,
+      name: event.name,
+      isOnline: event.isOnline,
+    });
+  }
+
+  @OnEvent(SCREEN_REACHABILITY_CHANGED)
+  handleScreenReachabilityChanged(event: ScreenReachabilityChangedEvent): void {
+    this.emitToOrg(event.organisationId, 'screen.reachability', {
+      screenId: event.screenId,
+      reachability: event.reachability,
+      lastProbeAt: event.lastProbeAt.toISOString(),
+    });
+  }
+
+  /**
+   * The answer to an onboarding check the wizard fired over HTTP. It arrives
+   * here rather than on that request so nothing has to hold a connection open
+   * across a round trip to the venue; `commandId` is what pairs the two up.
+   */
+  @OnEvent(SCREEN_ONBOARDING_CHECKED)
+  handleScreenOnboardingChecked(event: ScreenOnboardingCheckedEvent): void {
+    this.emitToOrg(event.organisationId, 'screen.onboarding-check', {
+      screenId: event.screenId,
+      commandId: event.commandId,
+      step: event.step,
+      ok: event.ok,
+      detail: event.detail,
     });
   }
 

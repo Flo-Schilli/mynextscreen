@@ -27,6 +27,13 @@ import { ScheduleEntryModule } from '../schedule';
     ScreenScheduler,
     ScreenProtocolService,
   ],
-  exports: [ScreenSessionService, ScreenService, ScreenStateService, ScreenProtocolService],
+  exports: [
+    ScreenSessionService,
+    ScreenService,
+    ScreenStateService,
+    ScreenProtocolService,
+    // The site agent needs the next schedule start to wake a TV before playback.
+    ScheduleBoundaryService,
+  ],
 })
 export class ScreenModule {}

@@ -71,6 +71,42 @@ export class AuditScreenEvent {
   ) {}
 }
 
+// ── Site agents ──────────────────────────────────────────────────────────────
+export const AUDIT_SITE_AGENT_CREATED = 'audit.site_agent.created';
+export const AUDIT_SITE_AGENT_UPDATED = 'audit.site_agent.updated';
+export const AUDIT_SITE_AGENT_DELETED = 'audit.site_agent.deleted';
+export const AUDIT_SITE_AGENT_ENROLLED = 'audit.site_agent.enrolled';
+export const AUDIT_SITE_AGENT_REVOKED = 'audit.site_agent.revoked';
+export const AUDIT_SITE_AGENT_ONLINE = 'audit.site_agent.online';
+export const AUDIT_SITE_AGENT_OFFLINE = 'audit.site_agent.offline';
+
+export class AuditSiteAgentEvent {
+  constructor(
+    public readonly agentId: string,
+    public readonly organisationId: string,
+    public readonly userId: string | null,
+    public readonly details: Record<string, unknown> | null,
+  ) {}
+}
+
+export const AUDIT_SCREEN_REMOTE_CONTROL_UPDATED = 'audit.screen.remote_control_updated';
+export const AUDIT_SCREEN_REMOTE_COMMAND = 'audit.screen.remote_command';
+export const AUDIT_SCREEN_REMOTE_ONBOARDED = 'audit.screen.remote_onboarded';
+
+/**
+ * Remote-control changes to a screen. `details` must never carry the Developer
+ * Mode passphrase: audit entries are shown in the organisation's own audit log,
+ * and `audit_entries.details` is plain jsonb.
+ */
+export class AuditScreenRemoteEvent {
+  constructor(
+    public readonly screenId: string,
+    public readonly organisationId: string,
+    public readonly userId: string | null,
+    public readonly details: Record<string, unknown> | null,
+  ) {}
+}
+
 // ── User / Membership ────────────────────────────────────────────────────────
 export const AUDIT_USER_INVITED = 'audit.user.invited';
 export const AUDIT_USER_ROLE_CHANGED = 'audit.user.role_changed';

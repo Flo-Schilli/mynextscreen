@@ -12,6 +12,7 @@ import {
   GROUP_SCHEDULE_CHANGED,
   GroupScheduleChangedEvent,
 } from '../schedule';
+import type { DateRange } from '../schedule';
 import { SCHEDULE_CHANGED, ScreenStateChangeEvent } from './screen-state.event';
 
 interface TrackedScreen {
@@ -137,8 +138,43 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
     }
   }
 
+  /**
+   * When playback is next due to begin on this screen, or null if nothing
+   * starts inside the look-ahead window.
+   *
+   * Used by the site agent to wake the TV before a schedule starts. A schedule
+   * that is already running does not count: its start is in the past, and a set
+   * showing it is on anyway.
+   */
+  async getNextStart(screenId: string, from: Date = new Date()): Promise<Date | null> {
+    const windowEnd = new Date(from.getTime() + LOOK_AHEAD_MS);
+    const occurrences = await this.collectOccurrences(screenId, from, windowEnd);
+    const fromMs = from.getTime();
+
+    return (
+      occurrences
+        .map((occ) => occ.start)
+        .filter((start) => start.getTime() > fromMs)
+        .sort((a, b) => a.getTime() - b.getTime())[0] ?? null
+    );
+  }
+
   private async collectBoundaries(screenId: string, now: Date, windowEnd: Date): Promise<Date[]> {
-    const boundaries: Date[] = [];
+    const occurrences = await this.collectOccurrences(screenId, now, windowEnd);
+    return occurrences.flatMap((occ) => [occ.start, occ.end]);
+  }
+
+  /**
+   * Every occurrence touching the window, from the screen's own entries and
+   * from its group's. The window reaches back as far as it reaches forward, so
+   * an occurrence that began before `now` but is still running is included.
+   */
+  private async collectOccurrences(
+    screenId: string,
+    now: Date,
+    windowEnd: Date,
+  ): Promise<DateRange[]> {
+    const occurrences: DateRange[] = [];
     const windowStart = new Date(now.getTime() - LOOK_AHEAD_MS);
 
     const directEntries = await this.db
@@ -147,16 +183,9 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
       .where(eq(scheduleEntries.screenId, screenId));
 
     for (const entry of directEntries) {
-      const occurrences = getOccurrences(
-        entry.startTime,
-        entry.endTime,
-        entry.rrule,
-        windowStart,
-        windowEnd,
+      occurrences.push(
+        ...getOccurrences(entry.startTime, entry.endTime, entry.rrule, windowStart, windowEnd),
       );
-      for (const occ of occurrences) {
-        boundaries.push(occ.start, occ.end);
-      }
     }
 
     const [screen] = await this.db.select().from(screens).where(eq(screens.id, screenId)).limit(1);
@@ -166,20 +195,13 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
         .from(scheduleEntries)
         .where(eq(scheduleEntries.groupId, screen.groupId));
       for (const entry of groupEntries) {
-        const occurrences = getOccurrences(
-          entry.startTime,
-          entry.endTime,
-          entry.rrule,
-          windowStart,
-          windowEnd,
+        occurrences.push(
+          ...getOccurrences(entry.startTime, entry.endTime, entry.rrule, windowStart, windowEnd),
         );
-        for (const occ of occurrences) {
-          boundaries.push(occ.start, occ.end);
-        }
       }
     }
 
-    return boundaries;
+    return occurrences;
   }
 
   private async onBoundaryReached(screenId: string): Promise<void> {

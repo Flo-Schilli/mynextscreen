@@ -9,6 +9,7 @@ import Redis from 'ioredis';
 import { ProxyAwareThrottlerGuard } from './proxy-aware-throttler.guard';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
+import { AgentAuthGuard } from './agent-auth.guard';
 import { ApiKeyAuthGuard } from './api-key-auth.guard';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -48,8 +49,10 @@ import { UserModule } from '../user/user.module';
     PasswordService,
     TokenService,
     UnverifiedSignupCleanupService,
-    // Order matters: ProxyAwareThrottlerGuard first (rate limit before any work), then
-    // JWT (sets req.user), then API-key (screen routes), then roles.
+    // Order matters: ProxyAwareThrottlerGuard first (rate limit before any work),
+    // then JWT (sets req.user), then API-key (screen routes), then agent (site
+    // agent routes), then roles — which default-denies anything that declared
+    // none of them.
     {
       provide: APP_GUARD,
       useClass: ProxyAwareThrottlerGuard,
@@ -61,6 +64,10 @@ import { UserModule } from '../user/user.module';
     {
       provide: APP_GUARD,
       useClass: ApiKeyAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: AgentAuthGuard,
     },
     {
       provide: APP_GUARD,

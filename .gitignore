@@ -66,3 +66,6 @@ ansible/hosts.ini
 
 # Local demo media for screenshots — the source files, not the results.
 dummy-data/
+
+# LG TV SSAP client key (per-TV credential, obtained from the on-screen pairing prompt)
+.lgtv-key
