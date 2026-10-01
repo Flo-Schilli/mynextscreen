@@ -63,9 +63,28 @@ podman run -d --name mynextscreen-agent \
   ghcr.io/flo-schilli/mynextscreen/site-agent:latest
 ```
 
-`MNS_SETUP_PORT=0` leaves no inbound port open at all. Persisted state always
-wins over the variables, so a container restarted with a spent token keeps the
-session it already has rather than trying to redeem it again.
+`MNS_SETUP_PORT=0` leaves no inbound port open at all.
+
+### What wins over what
+
+`MNS_ENROLMENT_TOKEN` is only consulted when no session is stored, so a
+container restarted with a spent token keeps the session it already has rather
+than trying to redeem it again.
+
+`MNS_SERVER_URL` works the other way round: **when it is set, it wins over the
+stored address**, and the setup page shows that field read-only. This is worth
+setting on any agent you care about. Without it, the address lives only in
+`connection.json`, and anyone able to edit that file could point the agent at a
+server of their choosing — at which point the agent presents its real refresh
+token to that address on its very next request, and whatever configuration
+comes back decides which hosts on the venue network it connects to.
+
+That is not an escalation on its own: the same file is readable by anyone who
+can write it, and the refresh token, the TVs' keys and their passphrases all
+sit beside it. What the pin buys is that a _restored backup from the wrong
+venue_, a configuration-management run, or a volume with loose permissions on
+the host cannot quietly move the agent. The deployment decides, and a stored
+address that disagrees is logged at startup.
 
 | Variable                | Default                       | What it does                                            |
 | ----------------------- | ----------------------------- | ------------------------------------------------------- |

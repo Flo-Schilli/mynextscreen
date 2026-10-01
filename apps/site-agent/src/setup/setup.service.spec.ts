@@ -7,7 +7,7 @@ import type { AgentConfigMessage } from '../protocol/server-protocol';
 
 describe('SetupService', () => {
   let service: SetupService;
-  let connections: { load: jest.Mock; clear: jest.Mock };
+  let connections: { load: jest.Mock; clear: jest.Mock; isServerUrlPinned: boolean };
   let configs: { current: jest.Mock; clear: jest.Mock };
   let client: { enrol: jest.Mock; invalidateAccessToken: jest.Mock };
 
@@ -19,16 +19,59 @@ describe('SetupService', () => {
   };
 
   beforeEach(() => {
-    connections = { load: jest.fn().mockResolvedValue(null), clear: jest.fn() };
+    connections = {
+      load: jest.fn().mockResolvedValue(null),
+      clear: jest.fn(),
+      isServerUrlPinned: false,
+    };
     configs = { current: jest.fn().mockReturnValue(null), clear: jest.fn() };
     client = { enrol: jest.fn(), invalidateAccessToken: jest.fn() };
 
-    service = new SetupService(
+    service = build(null);
+  });
+
+  function build(pinned: string | null): SetupService {
+    return new SetupService(
       connections as unknown as ConnectionStore,
       configs as unknown as AgentConfigStore,
       client as unknown as ServerClient,
       '1.2.3',
+      pinned,
     );
+  }
+
+  describe('a pinned server address', () => {
+    const pinned = 'https://pinned.example.com';
+
+    it('is reported so the setup page can show the field read-only', async () => {
+      connections.isServerUrlPinned = true;
+
+      expect((await build(pinned).status()).serverUrlPinned).toBe(true);
+    });
+
+    it('is shown before enrolment, so the page is not blank', async () => {
+      connections.isServerUrlPinned = true;
+
+      expect((await build(pinned).status()).serverUrl).toBe(pinned);
+    });
+
+    // Letting the form enrol elsewhere would reopen exactly the hole the pin
+    // closes: the agent would hand a fresh session to whoever asked.
+    it('is used instead of whatever the form posted', async () => {
+      client.enrol.mockResolvedValue(connection);
+
+      await build(pinned).enrol('https://attacker.example.com', 'token');
+
+      expect(client.enrol).toHaveBeenCalledWith(pinned, 'token');
+    });
+
+    it('leaves the posted address alone when nothing is pinned', async () => {
+      client.enrol.mockResolvedValue(connection);
+
+      await build(null).enrol('https://signage.example.com', 'token');
+
+      expect(client.enrol).toHaveBeenCalledWith('https://signage.example.com', 'token');
+    });
   });
 
   describe('status', () => {

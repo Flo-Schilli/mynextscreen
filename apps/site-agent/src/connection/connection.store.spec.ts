@@ -106,6 +106,56 @@ describe('ConnectionStore', () => {
     });
   });
 
+  describe('MNS_SERVER_URL', () => {
+    const pinned = 'https://pinned.example.com';
+
+    function pinnedStore(): ConnectionStore {
+      return new ConnectionStore(connectionFilePath(stateDir), pinned);
+    }
+
+    it('is not pinned by default', () => {
+      expect(store.isServerUrlPinned).toBe(false);
+      expect(pinnedStore().isServerUrlPinned).toBe(true);
+    });
+
+    // The point of the pin: an edited file must not be able to move the agent,
+    // because the agent would hand that address its real refresh token.
+    it('overrides a stored address that was changed underneath', async () => {
+      await store.save({ ...connection, serverUrl: 'https://attacker.example.com' });
+
+      expect((await pinnedStore().load())?.serverUrl).toBe(pinned);
+    });
+
+    it('still takes the token from the file', async () => {
+      await store.save({ ...connection, serverUrl: 'https://attacker.example.com' });
+
+      const loaded = await pinnedStore().load();
+
+      expect(loaded?.refreshToken).toBe(connection.refreshToken);
+      expect(loaded?.agentId).toBe(connection.agentId);
+    });
+
+    it('writes the pinned address rather than the one it was handed', async () => {
+      const store = pinnedStore();
+
+      await store.save({ ...connection, serverUrl: 'https://somewhere-else.example.com' });
+
+      const raw = JSON.parse(await readFile(connectionFilePath(stateDir), 'utf8'));
+      expect(raw.serverUrl).toBe(pinned);
+    });
+
+    it('leaves a matching stored address alone', async () => {
+      const store = pinnedStore();
+      await store.save({ ...connection, serverUrl: pinned });
+
+      expect((await store.load())?.serverUrl).toBe(pinned);
+    });
+
+    it('still reports "never enrolled" when there is no file', async () => {
+      expect(await pinnedStore().load()).toBeNull();
+    });
+  });
+
   describe('updateRefreshToken', () => {
     it('replaces only the token', async () => {
       await store.save(connection);

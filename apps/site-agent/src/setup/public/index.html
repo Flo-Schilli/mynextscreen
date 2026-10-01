@@ -104,6 +104,9 @@
         <form id="connect-form">
           <label for="serverUrl">Server address</label>
           <input id="serverUrl" name="serverUrl" placeholder="https://signage.example.com" required />
+          <p class="hint" id="serverUrl-pinned" hidden>
+            Fixed by MNS_SERVER_URL in this deployment, so it cannot be changed here.
+          </p>
 
           <label for="enrolmentToken">Enrolment token</label>
           <input id="enrolmentToken" name="enrolmentToken" autocomplete="off" required />
@@ -139,6 +142,11 @@
           ? new Date(status.lastConfigPullAt).toLocaleString()
           : 'never';
         $('version').textContent = status.agentVersion || '—';
+
+        // A deployment that pinned the address must not be talked out of it by
+        // this page: enrolling elsewhere would reopen the hole the pin closes.
+        $('serverUrl').readOnly = !!status.serverUrlPinned;
+        $('serverUrl-pinned').hidden = !status.serverUrlPinned;
 
         $('connect-title').textContent = status.connected ? 'Reconnect this agent' : 'Connect this agent';
         $('connect-btn').textContent = status.connected ? 'Reconnect' : 'Connect';

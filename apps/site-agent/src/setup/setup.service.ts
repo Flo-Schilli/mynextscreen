@@ -7,6 +7,8 @@ import { AgentConfigStore } from '../config/agent-config.store';
 export interface SetupStatus {
   connected: boolean;
   serverUrl: string | null;
+  /** True when `MNS_SERVER_URL` fixed the address; the page then shows it read-only. */
+  serverUrlPinned: boolean;
   agentId: string | null;
   organisationId: string | null;
   screenCount: number;
@@ -24,6 +26,8 @@ export class SetupService {
     private readonly configs: AgentConfigStore,
     private readonly client: ServerClient,
     private readonly agentVersion: string,
+    /** From `MNS_SERVER_URL`, already normalised; null when the file decides. */
+    private readonly pinnedServerUrl: string | null = null,
   ) {}
 
   /** Called by the supervisor so the page can show how fresh the config is. */
@@ -37,7 +41,8 @@ export class SetupService {
 
     return {
       connected: connection !== null,
-      serverUrl: connection?.serverUrl ?? null,
+      serverUrl: connection?.serverUrl ?? this.pinnedServerUrl,
+      serverUrlPinned: this.connections.isServerUrlPinned,
       agentId: connection?.agentId ?? null,
       organisationId: connection?.organisationId ?? null,
       screenCount: config?.screens.length ?? 0,
@@ -47,8 +52,12 @@ export class SetupService {
   }
 
   async enrol(serverUrl: string, enrolmentToken: string): Promise<SetupStatus> {
+    // When the deployment pinned the address, the form cannot move it. Letting
+    // the page enrol somewhere else would reopen exactly the hole the pin
+    // closes — the agent would hand a fresh session to whoever asked.
+    const target = this.pinnedServerUrl ?? serverUrl;
     try {
-      const connection = await this.client.enrol(serverUrl, enrolmentToken);
+      const connection = await this.client.enrol(target, enrolmentToken);
       this.logger.log(`Enrolled as agent ${connection.agentId}`);
     } catch (error) {
       // The operator is standing at the machine with the token in hand; a

@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AgentEnv } from './agent-env';
 import { ConnectionStore, connectionFilePath } from './connection/connection.store';
+import { normaliseBaseUrl } from './connection/server-url';
 import { ServerClient } from './connection/server-client.service';
 import { AgentConfigStore, configCachePath } from './config/agent-config.store';
 import { SetupController } from './setup/setup.controller';
@@ -21,6 +22,27 @@ import { CommandHandlerService } from './supervisor/command-handler.service';
 /** Reported on heartbeat and shown on the setup page. Injected at build time. */
 export const AGENT_VERSION = process.env.APP_VERSION ?? '0.0.0-dev';
 
+/**
+ * `MNS_SERVER_URL` in canonical form, or null when it is not set.
+ *
+ * Validated here so a typo fails at boot with a message naming the variable,
+ * rather than at the first request with a stack trace.
+ */
+export function pinnedServerUrl(env: AgentEnv): string | null {
+  const raw = env.serverUrl;
+  if (!raw) {
+    return null;
+  }
+  try {
+    return normaliseBaseUrl(raw);
+  } catch (error) {
+    throw new Error(
+      `MNS_SERVER_URL is not usable: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
+}
+
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }), ScheduleModule.forRoot()],
   controllers: [SetupController],
@@ -38,7 +60,8 @@ export const AGENT_VERSION = process.env.APP_VERSION ?? '0.0.0-dev';
     },
     {
       provide: ConnectionStore,
-      useFactory: (env: AgentEnv) => new ConnectionStore(connectionFilePath(env.stateDir)),
+      useFactory: (env: AgentEnv) =>
+        new ConnectionStore(connectionFilePath(env.stateDir), pinnedServerUrl(env)),
       inject: [AgentEnv],
     },
     {

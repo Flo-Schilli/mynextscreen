@@ -1,6 +1,6 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { AppModule, AGENT_VERSION } from './app.module';
+import { AppModule, AGENT_VERSION, pinnedServerUrl } from './app.module';
 import { AgentEnv } from './agent-env';
 import { SetupPinService } from './setup/setup-pin.service';
 import { networkInterfaces } from 'node:os';
@@ -16,6 +16,12 @@ async function bootstrap(): Promise<void> {
   const env = app.get(AgentEnv);
 
   logger.log(`myNextScreen site agent ${AGENT_VERSION}`);
+
+  const pinned = pinnedServerUrl(env);
+  if (pinned) {
+    // Worth one line at boot: it changes what the setup page can do.
+    logger.log(`Server address pinned by MNS_SERVER_URL: ${pinned}`);
+  }
 
   if (env.setupPort === 0) {
     // An agent configured entirely through environment variables has no reason

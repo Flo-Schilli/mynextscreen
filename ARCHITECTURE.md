@@ -92,6 +92,12 @@ before a schedule begins, and extends Developer Mode over SSH + the Luna bus.
   set's own key server. That passphrase is the only field in the system that is
   delivered to one caller in the clear and masked for another, which is why the
   agent's payload and the dashboard's are separate types.
+- **The address can be pinned.** `MNS_SERVER_URL`, when set, wins over the one
+  in the agent's state file and the setup page cannot change it. Without it an
+  edited state file would have the agent present its real refresh token to an
+  address of the attacker's choosing — not an escalation, since that file is
+  readable by anyone who can write it, but the pin means a restored backup or a
+  loose host mount cannot quietly move an agent.
 - **It works from cache.** The configuration is held on disk, so a venue keeps
   being looked after — including waking a set before a schedule — when the
   uplink is down.
