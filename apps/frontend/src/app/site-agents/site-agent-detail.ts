@@ -18,6 +18,7 @@ import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { ToastService } from '../shared/toast/toast.service';
 import { ScreenRemoteSettings } from './screen-remote-settings';
 import { ScreenOnboardingWizard } from './screen-onboarding-wizard';
+import { SiteAgentConfirmModal } from './site-agent-confirm-modal';
 import type { RemoteCommandType, ScreenRemoteControl, SiteAgent } from './site-agent.model';
 import type { ScreenListItem } from '../screens/screen.model';
 import {
@@ -58,6 +59,7 @@ interface ManagedScreen {
     StatusDotComponent,
     ScreenRemoteSettings,
     ScreenOnboardingWizard,
+    SiteAgentConfirmModal,
   ],
   template: `
     @if (agent(); as agent) {
@@ -203,6 +205,58 @@ interface ManagedScreen {
         </mns-overlay>
       }
 
+      @if (removingScreen(); as item) {
+        <app-site-agent-confirm-modal
+          title="Remove display"
+          confirmLabel="Remove"
+          busyLabel="Removing…"
+          [busy]="busy()"
+          [error]="confirmError()"
+          (confirmed)="doRemoveScreen(item)"
+          (dismiss)="closeConfirm()"
+        >
+          Remove <strong class="text-text">{{ item.screen.name }}</strong> from this agent? Its
+          address, developer-mode passphrase and setup progress are forgotten, so adding it again
+          starts the setup from the beginning.
+        </app-site-agent-confirm-modal>
+      }
+
+      @if (confirmingDelete()) {
+        <app-site-agent-confirm-modal
+          title="Delete agent"
+          confirmLabel="Delete"
+          busyLabel="Deleting…"
+          [busy]="busy()"
+          [error]="confirmError()"
+          (confirmed)="doRemove()"
+          (dismiss)="closeConfirm()"
+        >
+          Delete <strong class="text-text">{{ agent.name }}</strong
+          >?
+          @if (managed().length > 0) {
+            The {{ managed().length }} display(s) it looks after are released and their setup is
+            forgotten.
+          }
+          This cannot be undone.
+        </app-site-agent-confirm-modal>
+      }
+
+      @if (confirmingRevoke()) {
+        <app-site-agent-confirm-modal
+          title="Revoke access"
+          confirmLabel="Revoke"
+          busyLabel="Revoking…"
+          icon="Logout"
+          [busy]="busy()"
+          [error]="confirmError()"
+          (confirmed)="doRevoke()"
+          (dismiss)="closeConfirm()"
+        >
+          End every session of this agent? It stops working immediately and needs a new enrolment
+          token to come back. Its displays and their settings are left alone.
+        </app-site-agent-confirm-modal>
+      }
+
       @if (settingsFor(); as item) {
         <app-screen-remote-settings
           [screen]="item.screen"
@@ -243,6 +297,12 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
   protected readonly assignOpen = signal(false);
   protected readonly assigning = signal('');
   protected readonly settingsFor = signal<ManagedScreen | null>(null);
+  /** The screen whose removal is being confirmed, if any. */
+  protected readonly removingScreen = signal<ManagedScreen | null>(null);
+  protected readonly confirmingDelete = signal(false);
+  protected readonly confirmingRevoke = signal(false);
+  protected readonly busy = signal(false);
+  protected readonly confirmError = signal('');
   protected readonly wizardFor = signal<ManagedScreen | null>(null);
 
   private readonly agentId = computed(() => this.route.snapshot.paramMap.get('id') ?? '');
@@ -447,61 +507,76 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
 
   /**
    * Takes a display away from this agent and forgets everything configured for
-   * it. Spelled out in the prompt, because the address, the passphrase and the
-   * onboarding progress go too — adding it back walks the operator through the
-   * set again rather than trusting what was true of a previous installation.
+   * it. The modal spells that out, because the cost of the action is that the
+   * setup has to be walked again.
    */
   protected removeScreen(item: ManagedScreen): void {
-    if (
-      !confirm(
-        `Remove ${item.screen.name} from this agent?\n\n` +
-          'Its address, developer-mode passphrase and setup progress are forgotten. ' +
-          'Adding it again starts the setup from the beginning.',
-      )
-    ) {
-      return;
-    }
+    this.confirmError.set('');
+    this.removingScreen.set(item);
+  }
+
+  protected doRemoveScreen(item: ManagedScreen): void {
+    this.busy.set(true);
     this.service.removeRemoteControl(item.screen.id).subscribe({
       next: () => {
+        this.busy.set(false);
+        this.closeConfirm();
         this.toast.success('Removed from this agent');
         this.load();
       },
-      error: () => this.toast.error('Could not remove that display'),
+      error: () => {
+        this.busy.set(false);
+        this.confirmError.set('Could not remove that display.');
+      },
     });
   }
 
   protected remove(): void {
-    const count = this.managed().length;
-    if (
-      !confirm(
-        'Delete this agent?\n\n' +
-          (count > 0
-            ? `The ${count} display(s) it looks after are released and their setup is forgotten. `
-            : '') +
-          'This cannot be undone.',
-      )
-    ) {
-      return;
-    }
+    this.confirmError.set('');
+    this.confirmingDelete.set(true);
+  }
+
+  protected doRemove(): void {
+    this.busy.set(true);
     this.service.remove(this.agentId()).subscribe({
       next: () => {
+        this.busy.set(false);
+        this.closeConfirm();
         this.toast.success('Agent deleted');
         void this.router.navigate(['/site-agents']);
       },
-      error: () => this.toast.error('Could not delete this agent'),
+      error: () => {
+        this.busy.set(false);
+        this.confirmError.set('Could not delete this agent.');
+      },
     });
   }
 
   protected revoke(): void {
-    if (!confirm('Revoke this agent’s access? It will need a new token to come back.')) {
-      return;
-    }
+    this.confirmError.set('');
+    this.confirmingRevoke.set(true);
+  }
+
+  protected doRevoke(): void {
+    this.busy.set(true);
     this.service.revoke(this.agentId()).subscribe({
       next: () => {
+        this.busy.set(false);
+        this.closeConfirm();
         this.toast.success('Access revoked');
         this.load();
       },
-      error: () => this.toast.error('Could not revoke access'),
+      error: () => {
+        this.busy.set(false);
+        this.confirmError.set('Could not revoke access.');
+      },
     });
+  }
+
+  protected closeConfirm(): void {
+    this.removingScreen.set(null);
+    this.confirmingDelete.set(false);
+    this.confirmingRevoke.set(false);
+    this.confirmError.set('');
   }
 }
