@@ -563,7 +563,7 @@ import { IconComponent } from '../ui/icon.component';
 
     /* Log out — danger */
     .dropdown-item-danger {
-      color: var(--offline);
+      color: var(--color-offline);
     }
     .dropdown-item-danger:hover {
       background: var(--offline-dim);

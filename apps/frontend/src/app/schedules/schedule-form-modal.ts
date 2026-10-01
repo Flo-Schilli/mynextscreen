@@ -147,7 +147,7 @@ export interface ScheduleFormResult {
               @if (targetGroup?.mode === 'split') {
                 <div
                   class="info-box info-box-warn rounded-[10px] px-3.5 py-2.5 text-[13px] text-muted border"
-                  style="background: color-mix(in srgb, var(--warn) 8%, var(--surface)); border-color: color-mix(in srgb, var(--warn) 28%, var(--border))"
+                  style="background: color-mix(in srgb, var(--color-warn) 8%, var(--surface)); border-color: color-mix(in srgb, var(--color-warn) 28%, var(--border))"
                 >
                   Content will be pre-sliced for each screen in the video wall. This may take a
                   moment to process after saving.

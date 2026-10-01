@@ -97,11 +97,11 @@ interface StatusCounts {
       flex-shrink: 0;
     }
     .status-dot.online {
-      background: var(--online);
+      background: var(--color-online);
       box-shadow: 0 0 0 3px var(--online-dim);
     }
     .status-dot.offline {
-      background: var(--offline);
+      background: var(--color-offline);
       box-shadow: 0 0 0 3px var(--offline-dim);
     }
 

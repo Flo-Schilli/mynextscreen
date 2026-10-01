@@ -51,6 +51,14 @@ describe('resolutionLabel', () => {
 
 describe('ScreenTile', () => {
   let fixture: ComponentFixture<ScreenTile>;
+
+  // The tile holds a RouterLink, which subscribes to router events. Letting the
+  // TestBed injector go first leaves that subscription to fire into a destroyed
+  // injector — NG0205, raised after the test has already passed, which Vitest
+  // reports as an unhandled error and CI fails on.
+  afterEach(() => {
+    fixture?.destroy();
+  });
   let getStaticThumbnailUrl: ReturnType<typeof vi.fn>;
 
   async function setUp(screen: ScreenListItem, showActions = false): Promise<void> {
@@ -66,9 +74,11 @@ describe('ScreenTile', () => {
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
-        // The tile links to the site agent that looks after the screen, so it
-        // needs a router even in tests that never navigate.
-        provideRouter([]),
+        // The tile links to the site agent that looks after the screen. The
+        // route has to exist, or following it rejects with NG04002 after the
+        // test has already passed — which Vitest reports as an unhandled
+        // rejection and CI fails on.
+        provideRouter([{ path: 'site-agents/:id', children: [] }]),
         { provide: ContentService, useValue: { getStaticThumbnailUrl } },
       ],
     });

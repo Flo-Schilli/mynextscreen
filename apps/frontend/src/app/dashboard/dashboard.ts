@@ -251,15 +251,15 @@ const WARNING_HEARTBEAT_MS = 60_000;
               <svg class="sparkline" [attr.viewBox]="'0 0 76 26'" fill="none">
                 <defs>
                   <linearGradient id="sg-online" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="var(--online)" stop-opacity="0.28" />
-                    <stop offset="1" stop-color="var(--online)" stop-opacity="0" />
+                    <stop offset="0" stop-color="var(--color-online)" stop-opacity="0.28" />
+                    <stop offset="1" stop-color="var(--color-online)" stop-opacity="0" />
                   </linearGradient>
                 </defs>
                 <path [attr.d]="onlineSparkArea()" fill="url(#sg-online)" />
                 <path
                   [attr.d]="onlineSparkLine()"
                   fill="none"
-                  stroke="var(--online)"
+                  stroke="var(--color-online)"
                   stroke-width="2"
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -317,15 +317,15 @@ const WARNING_HEARTBEAT_MS = 60_000;
               <svg class="sparkline" [attr.viewBox]="'0 0 76 26'" fill="none">
                 <defs>
                   <linearGradient id="sg-info" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="var(--info)" stop-opacity="0.28" />
-                    <stop offset="1" stop-color="var(--info)" stop-opacity="0" />
+                    <stop offset="0" stop-color="var(--color-info)" stop-opacity="0.28" />
+                    <stop offset="1" stop-color="var(--color-info)" stop-opacity="0" />
                   </linearGradient>
                 </defs>
                 <path [attr.d]="playlistSparkArea()" fill="url(#sg-info)" />
                 <path
                   [attr.d]="playlistSparkLine()"
                   fill="none"
-                  stroke="var(--info)"
+                  stroke="var(--color-info)"
                   stroke-width="2"
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -352,15 +352,15 @@ const WARNING_HEARTBEAT_MS = 60_000;
               <svg class="sparkline" [attr.viewBox]="'0 0 76 26'" fill="none">
                 <defs>
                   <linearGradient id="sg-offline" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="var(--offline)" stop-opacity="0.28" />
-                    <stop offset="1" stop-color="var(--offline)" stop-opacity="0" />
+                    <stop offset="0" stop-color="var(--color-offline)" stop-opacity="0.28" />
+                    <stop offset="1" stop-color="var(--color-offline)" stop-opacity="0" />
                   </linearGradient>
                 </defs>
                 <path [attr.d]="alertSparkArea()" fill="url(#sg-offline)" />
                 <path
                   [attr.d]="alertSparkLine()"
                   fill="none"
-                  stroke="var(--offline)"
+                  stroke="var(--color-offline)"
                   stroke-width="2"
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -495,7 +495,7 @@ const WARNING_HEARTBEAT_MS = 60_000;
     }
     .kpi-icon--online {
       background: var(--online-dim);
-      color: var(--online);
+      color: var(--color-online);
     }
     .kpi-icon--accent {
       background: var(--accent-soft);
@@ -503,11 +503,11 @@ const WARNING_HEARTBEAT_MS = 60_000;
     }
     .kpi-icon--info {
       background: var(--info-dim);
-      color: var(--info);
+      color: var(--color-info);
     }
     .kpi-icon--offline {
       background: var(--offline-dim);
-      color: var(--offline);
+      color: var(--color-offline);
     }
 
     .sparkline {
@@ -579,7 +579,7 @@ const WARNING_HEARTBEAT_MS = 60_000;
     }
     .step-icon--done {
       background: var(--online-dim);
-      color: var(--online);
+      color: var(--color-online);
     }
     .step-icon--active {
       background: linear-gradient(135deg, var(--accent), var(--accent-2));

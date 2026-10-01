@@ -57,9 +57,9 @@ describe('DashboardAlerts', () => {
 
   it('maps tone to the matching colour token', async () => {
     await setup([makeAlert({ tone: 'offline' })]);
-    expect(component.color('offline')).toBe('var(--offline)');
-    expect(component.color('warn')).toBe('var(--warn)');
-    expect(component.color('info')).toBe('var(--info)');
+    expect(component.color('offline')).toBe('var(--color-offline)');
+    expect(component.color('warn')).toBe('var(--color-warn)');
+    expect(component.color('info')).toBe('var(--color-info)');
     expect(component.bg('offline')).toBe('var(--offline-dim)');
     expect(component.icon('offline')).toBe('WifiOff');
     expect(component.icon('warn')).toBe('Alert');

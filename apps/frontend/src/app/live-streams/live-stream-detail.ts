@@ -351,10 +351,10 @@ type TargetMode = 'screens' | 'group';
     }
     .error {
       font-size: 0.875rem;
-      color: var(--offline);
+      color: var(--color-offline);
       padding: 0.75rem 1rem;
       border-radius: 10px;
-      border: 1px solid color-mix(in srgb, var(--offline) 30%, var(--border));
+      border: 1px solid color-mix(in srgb, var(--color-offline) 30%, var(--border));
       background: var(--offline-dim);
       margin-bottom: 1rem;
     }
@@ -492,7 +492,7 @@ type TargetMode = 'screens' | 'group';
       height: 13px;
     }
     .bar.on {
-      background: var(--online);
+      background: var(--color-online);
     }
     .tiles {
       display: grid;
@@ -657,14 +657,14 @@ type TargetMode = 'screens' | 'group';
       margin-top: 14px;
       padding: 11px 13px;
       border-radius: 11px;
-      border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--border));
+      border: 1px solid color-mix(in srgb, var(--color-warn) 40%, var(--border));
       background: var(--warn-dim);
       font-size: 12.5px;
       color: var(--text-muted);
       line-height: 1.45;
     }
     .override-icon {
-      color: var(--warn);
+      color: var(--color-warn);
       flex-shrink: 0;
       margin-top: 1px;
     }

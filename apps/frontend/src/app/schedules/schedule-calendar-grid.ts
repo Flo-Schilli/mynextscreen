@@ -188,13 +188,13 @@ const NOW_TICK_MS = 60_000;
                   @for (gap of getGapsForDay(dayIdx); track $index) {
                     <div
                       class="gap-indicator absolute left-0.5 right-0.5 rounded-md z-[1] flex items-center justify-center pointer-events-none"
-                      style="background: color-mix(in srgb, var(--warn) 8%, transparent); border: 1px dashed color-mix(in srgb, var(--warn) 28%, transparent)"
+                      style="background: color-mix(in srgb, var(--color-warn) 8%, transparent); border: 1px dashed color-mix(in srgb, var(--color-warn) 28%, transparent)"
                       [style.top.px]="gap.top"
                       [style.height.px]="gap.height"
                     >
                       <span
                         class="gap-label text-[10px] italic"
-                        style="color: color-mix(in srgb, var(--warn) 60%, transparent)"
+                        style="color: color-mix(in srgb, var(--color-warn) 60%, transparent)"
                         >Fallback playlist</span
                       >
                     </div>
@@ -301,7 +301,7 @@ const NOW_TICK_MS = 60_000;
       z-index: 10;
     }
     .schedule-block.conflict {
-      box-shadow: 0 0 0 1px var(--offline);
+      box-shadow: 0 0 0 1px var(--color-offline);
     }
     .month-day-cell:nth-child(7n) {
       border-right: none;
@@ -439,7 +439,7 @@ export class ScheduleCalendarGrid {
   }
 
   blockBorder(block: CalendarBlock): string {
-    if (this.hasConflict(block)) return '1px solid var(--offline)';
+    if (this.hasConflict(block)) return '1px solid var(--color-offline)';
     return `1px solid color-mix(in srgb, ${this.getColour(block.entry)} 60%, transparent)`;
   }
 

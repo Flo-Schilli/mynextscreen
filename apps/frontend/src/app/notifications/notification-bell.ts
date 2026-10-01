@@ -72,7 +72,7 @@ import { NotificationDropdown } from './notification-dropdown';
       width: 8px;
       height: 8px;
       border-radius: 99px;
-      background: var(--offline);
+      background: var(--color-offline);
       box-shadow: 0 0 0 2px var(--surface);
     }
   `,

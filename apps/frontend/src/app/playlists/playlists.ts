@@ -204,9 +204,9 @@ import {
     }
 
     .warning-text {
-      color: var(--warn);
+      color: var(--color-warn);
       background: var(--warn-dim);
-      border: 1px solid var(--warn);
+      border: 1px solid var(--color-warn);
       border-radius: 0.5rem;
       padding: 0.75rem 1rem;
       font-size: 0.8125rem;

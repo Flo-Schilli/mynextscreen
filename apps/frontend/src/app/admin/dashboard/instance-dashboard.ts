@@ -209,7 +209,7 @@ import {
                     {{ formatBytes(s.storage.originalLimitBytes) }}
                   </span>
                 </div>
-                <mns-bar [value]="origPct()" color="var(--info)" [glow]="true" [h]="9" />
+                <mns-bar [value]="origPct()" color="var(--color-info)" [glow]="true" [h]="9" />
                 <div class="mono text-[11.5px] text-faint mt-[6px]">
                   {{ origPct() | number: '1.1-1' }}%
                 </div>
@@ -256,7 +256,7 @@ import {
             </mns-card-head>
             @if (s.hostDisk.available) {
               <div class="flex items-center gap-[22px]">
-                <mns-ring [value]="hostPct()" [size]="104" [sw]="11" color="var(--online)">
+                <mns-ring [value]="hostPct()" [size]="104" [sw]="11" color="var(--color-online)">
                   <div class="text-center">
                     <div class="mono text-[22px] font-bold leading-none">
                       {{ hostPct() | number: '1.0-0' }}<span class="text-[13px]">%</span>
@@ -273,7 +273,7 @@ import {
                     <span class="font-semibold text-muted">Free</span>
                     <span class="mono text-online">{{ formatBytes(s.hostDisk.freeBytes) }}</span>
                   </div>
-                  <mns-bar [value]="hostPct()" color="var(--online)" [glow]="true" [h]="9" />
+                  <mns-bar [value]="hostPct()" color="var(--color-online)" [glow]="true" [h]="9" />
                   <div class="mono text-[11.5px] text-faint mt-2">
                     {{ formatBytes(s.hostDisk.freeBytes) }} free of
                     {{ formatBytes(s.hostDisk.totalBytes) }}
@@ -316,7 +316,7 @@ import {
             <div class="flex items-center gap-3">
               <span
                 class="w-4 h-1 rounded-[99px] flex-shrink-0"
-                style="background:repeating-linear-gradient(90deg,var(--info) 0 5px,transparent 5px 8px)"
+                style="background:repeating-linear-gradient(90deg,var(--color-info) 0 5px,transparent 5px 8px)"
               ></span>
               <div>
                 <div class="text-[12.5px] font-semibold text-muted whitespace-nowrap mb-[2px]">
