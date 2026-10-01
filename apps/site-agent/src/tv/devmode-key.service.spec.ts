@@ -9,7 +9,9 @@ describe('DevmodeKeyService', () => {
   let service: DevmodeKeyService;
   let tv: FakeKeyServer;
 
-  const screenId = 'screen-1';
+  // A real UUID: the store refuses anything else as a file name, because the
+  // id arrives in the server's configuration and is used to build a path.
+  const screenId = '7f1c2f3e-9a4b-4c5d-8e6f-0a1b2c3d4e5f';
 
   beforeAll(async () => {
     tv = await startFakeKeyServer('AEBC72');

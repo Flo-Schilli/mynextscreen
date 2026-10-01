@@ -1,5 +1,6 @@
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { screenFilePath } from './screen-id.util';
 import { Injectable } from '@nestjs/common';
 import { DIR_MODE, SECRET_MODE } from '../connection/connection.store';
 
@@ -37,7 +38,7 @@ export class SsapKeyStore {
   }
 
   private pathFor(screenId: string): string {
-    return join(this.dir, `${screenId}.key`);
+    return screenFilePath(this.dir, screenId, '.key');
   }
 }
 
