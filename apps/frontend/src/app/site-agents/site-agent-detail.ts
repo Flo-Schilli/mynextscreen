@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Subject, forkJoin, of, switchMap, takeUntil } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { SiteAgentService } from './site-agent.service';
@@ -33,6 +33,7 @@ import {
   SelectComponent,
   StatusDotComponent,
 } from '../ui';
+import { BackLink } from '../shared/back-link';
 
 /** A screen paired with what the agent knows about it. */
 interface ManagedScreen {
@@ -45,8 +46,8 @@ interface ManagedScreen {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackLink,
     DatePipe,
-    RouterLink,
     BadgeComponent,
     BtnComponent,
     CardComponent,
@@ -64,9 +65,7 @@ interface ManagedScreen {
   template: `
     @if (agent(); as agent) {
       <mns-page-header [title]="agent.name" [sub]="agent.location || 'Site agent'" icon="Cast">
-        <a routerLink="/site-agents"
-          ><mns-btn variant="outline" icon="ChevronLeft">Back</mns-btn></a
-        >
+        <app-back-link route="/site-agents" />
       </mns-page-header>
 
       <mns-card>

@@ -18,6 +18,7 @@ import {
   SelectComponent,
   SelectOption,
 } from '../ui';
+import { BackLink } from '../shared/back-link';
 
 /** A per-item field change emitted by the editor for the parent to persist. */
 export interface ItemFieldChange<T> {
@@ -37,6 +38,7 @@ export interface ItemFieldChange<T> {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackLink,
     DragDropModule,
     PlaylistLoopPreview,
     CardComponent,
@@ -48,13 +50,7 @@ export interface ItemFieldChange<T> {
   ],
   template: `
     <!-- back -->
-    <button
-      type="button"
-      class="inline-flex items-center gap-[7px] mb-4 pl-[9px] pr-[13px] py-[7px] rounded-[10px] border border-border bg-surface text-muted text-[13.5px] font-semibold cursor-pointer hover:text-text"
-      (click)="dismiss.emit()"
-    >
-      <mns-icon name="ChevronLeft" [size]="17" /> All playlists
-    </button>
+    <div class="mb-4"><app-back-link (back)="dismiss.emit()" /></div>
 
     <!-- header -->
     <mns-card>

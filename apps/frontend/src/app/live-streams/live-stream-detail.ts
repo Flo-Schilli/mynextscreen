@@ -33,6 +33,7 @@ import { ScreenGroup } from '../screen-groups/screen-group.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { ToastService } from '../shared/toast/toast.service';
+import { BackLink } from '../shared/back-link';
 
 type TargetMode = 'screens' | 'group';
 
@@ -54,6 +55,7 @@ type TargetMode = 'screens' | 'group';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackLink,
     FormsModule,
     IconComponent,
     BadgeComponent,
@@ -64,9 +66,7 @@ type TargetMode = 'screens' | 'group';
   ],
   template: `
     <div class="page">
-      <button type="button" class="back-btn" (click)="goBack()">
-        <mns-icon name="ChevronLeft" [size]="17" /> All streams
-      </button>
+      <div class="mb-4"><app-back-link route="/live-streams" /></div>
 
       @if (loadError()) {
         <p class="error">{{ loadError() }}</p>
@@ -332,23 +332,6 @@ type TargetMode = 'screens' | 'group';
     </div>
   `,
   styles: `
-    .back-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      margin-bottom: 16px;
-      padding: 7px 13px 7px 9px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text-muted);
-      font-size: 13.5px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .back-btn:hover {
-      color: var(--text);
-    }
     .error {
       font-size: 0.875rem;
       color: var(--color-offline);

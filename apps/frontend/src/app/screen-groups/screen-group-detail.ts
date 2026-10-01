@@ -38,6 +38,7 @@ import {
 import { ScreenGroupModeToggle } from './screen-group-mode-toggle';
 import { ScreenGroupWall, WallCell, WallPlaceable, WallAssignEvent } from './screen-group-wall';
 import { MonitorContent } from './screen-group-monitor-frame';
+import { BackLink } from '../shared/back-link';
 
 /** A screen placed in the group, with its split-cell number when applicable. */
 interface PlacedScreen {
@@ -58,6 +59,7 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackLink,
     CardComponent,
     CardHeadComponent,
     BadgeComponent,
@@ -80,13 +82,7 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
       }
 
       @if (group(); as g) {
-        <button
-          type="button"
-          class="inline-flex items-center gap-[7px] mb-4 pl-[9px] pr-[13px] py-[7px] rounded-[10px] border border-border bg-surface text-muted text-[13.5px] font-semibold"
-          (click)="goBack()"
-        >
-          <mns-icon name="ChevronLeft" [size]="17" /> All groups
-        </button>
+        <div class="mb-4"><app-back-link route="/screen-groups" /></div>
 
         <!-- header card -->
         <mns-card>

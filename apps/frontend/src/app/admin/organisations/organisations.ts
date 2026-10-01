@@ -20,6 +20,7 @@ import {
 } from '../../ui';
 import { formatBytes } from '../../shared/format-bytes';
 import { AdminTabsComponent } from '../admin-tabs.component';
+import { BackLink } from '../../shared/back-link';
 
 /**
  * Smart container for the (super-admin) organisations feature. Owns data
@@ -32,6 +33,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
   selector: 'app-organisations',
   standalone: true,
   imports: [
+    BackLink,
     AdminTabsComponent,
     OrgForm,
     OrgTable,
@@ -77,12 +79,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
       <!-- ── Organisation Detail + Members ── -->
       @if (selectedOrg) {
         <div class="flex items-center gap-3 mb-4 flex-wrap">
-          <button
-            class="inline-flex items-center gap-[7px] px-[13px] py-2 rounded-[10px] text-[13.5px] font-semibold border border-border-strong bg-surface text-muted hover:text-text transition-colors"
-            (click)="deselectOrg()"
-          >
-            <mns-icon name="ChevronLeft" [size]="16" /> All Organisations
-          </button>
+          <app-back-link (back)="deselectOrg()" />
           <h2 class="m-0 text-[20px] font-bold flex-1">{{ selectedOrg.name }}</h2>
           <mns-btn variant="outline" size="sm" icon="Pencil" (click)="openEditForm(selectedOrg)"
             >Edit</mns-btn
