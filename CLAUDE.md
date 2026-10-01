@@ -58,6 +58,8 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
   ├── Playlist        └── PlaylistItem { contentId, durationMs (für Bilder) }
   ├── Schedule        { screen|group, playlist, start/end, RRULE(recurring), color }
   ├── LiveStream      { sourceUrl, target screen(s)/group, ffmpeg lifecycle → HLS }
+  ├── SiteAgent       { name, location, version, heartbeat; Enrolment + rotierende Sessions }
+  │     └── ScreenRemoteControl { screenId 1:1, agentId, localIp, mac, devmodePassphrase(enc), Toggles, Telemetrie }
   ├── AuditEntry      { timestamp, userId, organisationId, action, resourceType/Id, details }
   └── Notification    { channel(inapp|email|ntfy), userPrefs }
 ```
@@ -95,6 +97,9 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
   password-changed) laufen über den **ENV-getriebenen `PlatformMailerService`**
   (`notification/channels/`, SMTP via `SMTP_*`, event-getrieben, best-effort). **Per-Org-SMTP**
   bleibt nur für **Org-Notifications** (`EmailNotificationChannel`). Dev: **Mailpit** (`:8025`).
+- **Site Agent:** eigene NestJS-App (`apps/site-agent/`), laeuft im Venue-Netz. `ws` (SSAP),
+  `ssh2` (Devmode-Verlaengerung ueber Luna), `dgram` (Wake-on-LAN). Eigene JWT-Audience
+  `mynextscreen-agent`. Setup-UI mit PIN auf Port 8787. Tests: **Jest** (Gate 85/75/83/85).
 - **Media:** **FFmpeg** als Child-Process (Transcoding + HLS-Live).
 - **Echtzeit:** **SSE** (Dashboard-Updates + Screen-Pushes).
 - **Runtime:** Node.js 22. **Package-Manager: npm** (npm@11.6.2, kein pnpm/yarn).
@@ -141,6 +146,11 @@ apps/
     angular.json          # minimal — hält Vitest-Root am App-Dir (TestBed-Isolation)
   player/                 # Angular 21 Player-App (connection/, playback/, player/)
     project.json          # build (@angular/build), serve, test (vitest run), …
+  site-agent/             # NestJS Site-Agent — laeuft IM Venue, steuert die LG-TVs
+    project.json          # build/serve/test/typecheck/lint/format
+    jest.config.ts        # Coverage-Gate 85/75/83/85
+    Dockerfile.prod       # baut aus Repo-Root-Context
+    src/{setup,connection,config,tv,probe,supervisor,protocol}/
 libs/
   shared-types/           # geteilte TS-Typen (Lib; nur lint/typecheck-Targets)
 nx.json                   # Nx-Targets, namedInputs (production), Caching
@@ -196,6 +206,10 @@ VISION.md                 # Produkt-Vision & Feature-Details (kanonisch)
   — nie manuell editieren; CI (`sync-versions.mjs --check`) erzwingt das.
 - Externe Calls (ntfy, SMTP) hinter Interface/Modul, mockbar.
 - Geheimnisse/API-Keys nie plaintext loggen; Config über ENV (`@nestjs/config`).
+- **Private SSH-Keys der TVs gehoeren nie auf den Server** — nur die Devmode-Passphrase,
+  verschluesselt. Der Agent zieht den Key vom Key-Server des TVs. Die Passphrase ist das
+  einzige Feld, das einem Aufrufer im Klartext und einem anderen maskiert geliefert wird;
+  deshalb sind Agent- und Dashboard-Payload getrennte Typen, nicht einer mit Flag.
 
 ## Do NOT
 
@@ -214,19 +228,19 @@ VISION.md                 # Produkt-Vision & Feature-Details (kanonisch)
 # Alles per Docker (dev): backend:3000 · frontend:4200 · player:4300 · redis:6379
 npm run dev                       # docker compose up --build
 
-# Root-Scripts fächern per `nx run-many` über ALLE Projekte (backend/frontend/player/shared-types):
+# Root-Scripts fächern per `nx run-many` über ALLE Projekte (backend/frontend/player/site-agent/shared-types):
 npm run lint                      # nx run-many -t lint
-npm run test                      # nx run-many -t test  (backend Jest · frontend/player Vitest)
+npm run test                      # nx run-many -t test  (backend + site-agent Jest · frontend/player Vitest)
 npm run typecheck                 # nx run-many -t typecheck
 npm run format:check              # nx run-many -t format:check
 # Release + lokale Prod-Images (Version aus Root-package.json):
 npm run version:patch             # bump + commit + tag (push: git push --follow-tags)
-npm run images:build              # baut alle 3 prod-Images aus Repo-Root-Context
+npm run images:build              # baut alle 4 prod-Images aus Repo-Root-Context
 
 # Nx direkt (vom Repo-Root):
 npx nx affected -t lint typecheck test build   # nur vom Diff betroffene Projekte (so läuft CI auf PRs)
 npx nx run-many -t lint typecheck test build   # alle Projekte (so läuft CI auf main)
-npx nx build  <app>               # backend → dist/apps/backend · frontend/player → dist/apps/<app>/browser
+npx nx build  <app>               # backend/site-agent → dist/apps/<app> · frontend/player → dist/apps/<app>/browser
 npx nx serve  <app>               # backend: nest start --watch · frontend/player: ng dev-server (4200/4300)
 npx nx test   <app>               # backend: jest --coverage (Gate) · frontend: ng test · player: vitest run
 npx nx typecheck <app> / lint <app> / format:check <app>

@@ -42,6 +42,10 @@ import { TranscodingPreset } from '../live-stream/transcoding-preset.enum';
 import { NotificationEventType } from '../notification/notification-event-type.enum';
 import { TransitionType } from '../playlist/transition-type.enum';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
+import { DevmodeKeyStatus } from '../site-agent/devmode-key-status.enum';
+import { ScreenReachability } from '../site-agent/screen-reachability.enum';
+import { SsapStatus } from '../site-agent/ssap-status.enum';
+import { SshStatus } from '../site-agent/ssh-status.enum';
 import { SliceStatus } from '../slice-content/slice-status.enum';
 import { OrganisationRole } from '../user/organisation-role.enum';
 
@@ -555,6 +559,172 @@ export const systemMetricSnapshots = pgTable(
   (t) => [index('IDX_system_metric_snapshots_time').on(t.capturedAt)],
 );
 
+// ── site agents (on-premise service that remote-controls the TVs) ────────────
+
+/**
+ * A service running inside a venue's LAN, paired to exactly one organisation.
+ *
+ * It exists because an LG consumer TV has no autostart and no permanent
+ * Developer Mode session, and because the player heartbeat alone cannot tell
+ * "TV is off" from "TV is on, app is not running". The agent probes the TVs
+ * from inside the network, starts the app, wakes the set and keeps the
+ * Developer Mode session alive.
+ *
+ * It is never in the media path: if it is down, playback carries on unchanged.
+ */
+export const siteAgents = pgTable(
+  'site_agents',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    name: text().notNull(),
+    location: text(),
+    /** Reported on heartbeat; null until the agent has enrolled and checked in. */
+    agentVersion: text(),
+    lastHeartbeat: timestamp({ withTimezone: true }),
+    isOnline: boolean().notNull().default(false),
+    ...timestamps,
+  },
+  (t) => [index('IDX_site_agents_organisation').on(t.organisationId)],
+);
+
+/**
+ * One-time tokens that let an agent exchange itself for a session.
+ *
+ * Admin-initiated, unlike a screen pairing: the operator creates the agent in
+ * the dashboard first and carries the token to the machine, rather than the
+ * device announcing itself. A leaked token before redemption buys an agent in
+ * this organisation but no TV access, because the key server it would need is
+ * only reachable from inside the venue.
+ */
+export const siteAgentEnrolments = pgTable(
+  'site_agent_enrolments',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    agentId: uuid()
+      .notNull()
+      .references(() => siteAgents.id, { onDelete: 'cascade' }),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    /** SHA-256 hex of the token; the raw value is shown in the dashboard once. */
+    tokenHash: text().notNull(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    /** Set on redemption; the row then acts as the tombstone. */
+    consumedAt: timestamp({ withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('UQ_site_agent_enrolments_token_hash').on(t.tokenHash),
+    index('IDX_site_agent_enrolments_agent').on(t.agentId),
+  ],
+);
+
+/**
+ * Rotating refresh tokens for site-agent sessions — the same shape, and for the
+ * same reasons, as {@link screenSessions}: a row is never updated in place on
+ * rotation but marked consumed with a successor inserted in the same family, so
+ * a replay can be told apart from the legitimate race of parallel refreshes.
+ */
+export const siteAgentSessions = pgTable(
+  'site_agent_sessions',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    agentId: uuid()
+      .notNull()
+      .references(() => siteAgents.id, { onDelete: 'cascade' }),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    /** Groups every rotation of one enrolment, so a whole line can be revoked. */
+    familyId: uuid().notNull(),
+    /** SHA-256 hex of the refresh token; the raw value is never stored. */
+    tokenHash: text().notNull(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    consumedAt: timestamp({ withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('UQ_site_agent_sessions_token_hash').on(t.tokenHash),
+    index('IDX_site_agent_sessions_family').on(t.familyId),
+    index('IDX_site_agent_sessions_agent').on(t.agentId),
+  ],
+);
+
+/**
+ * Per-screen remote-control settings and the telemetry the agent reports back.
+ *
+ * Deliberately its own table rather than columns on {@link screens}: screen rows
+ * are selected on nearly every request path (list endpoints, state assembly, the
+ * SSE push, the API-key guard), and an encrypted secret riding along on all of
+ * them would be shielded only by whichever DTO mapper remembered to strip it.
+ * Here it is reached only by the code that needs it.
+ *
+ * `devmodePassphrase` is encrypted at rest via `SecretCipher`. The TV's private
+ * key is never stored server-side at all — the agent fetches it from the set's
+ * own key server and keeps it inside the venue.
+ */
+export const screenRemoteControls = pgTable(
+  'screen_remote_controls',
+  {
+    screenId: uuid()
+      .primaryKey()
+      .references(() => screens.id, { onDelete: 'cascade' }),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    agentId: uuid().references(() => siteAgents.id, { onDelete: 'set null' }),
+    localIp: text(),
+    macAddress: text(),
+    /** AES-256-GCM envelope; never returned to the dashboard, only to the agent. */
+    devmodePassphrase: text(),
+    ssapPort: integer().notNull().default(3001),
+    autoLaunchEnabled: boolean().notNull().default(true),
+    extendDevmodeEnabled: boolean().notNull().default(true),
+    /**
+     * How often to extend the Developer Mode session, in days (1–40, enforced by
+     * the DTO). The session itself lasts ~1000 hours ≈ 41.7 days, and it can only
+     * be extended while the TV is on — so anything near the top of that range
+     * only suits a set that effectively runs continuously.
+     */
+    devmodeExtendIntervalDays: integer().notNull().default(7),
+    /** Both wake reasons require a MAC address; the UI gates on that. */
+    wakeBeforeScheduleEnabled: boolean().notNull().default(false),
+    wakeLeadTimeMinutes: integer().notNull().default(10),
+    /** Off by default: "the TV is off at 03:00" is not a fault to react to. */
+    wakeOnUnreachableEnabled: boolean().notNull().default(false),
+    // ── telemetry, written by the agent ──
+    reachability: text().$type<ScreenReachability>().notNull().default(ScreenReachability.Unknown),
+    lastProbeAt: timestamp({ withTimezone: true }),
+    lastProbeError: text(),
+    lastLaunchAt: timestamp({ withTimezone: true }),
+    lastWakeAt: timestamp({ withTimezone: true }),
+    lastDevmodeExtendAt: timestamp({ withTimezone: true }),
+    lastDevmodeExtendOk: boolean(),
+    keyStatus: text().$type<DevmodeKeyStatus>().notNull().default(DevmodeKeyStatus.Unknown),
+    sshStatus: text().$type<SshStatus>().notNull().default(SshStatus.Unknown),
+    ssapStatus: text().$type<SsapStatus>().notNull().default(SsapStatus.Unknown),
+    /** Pinned on first connect; a mismatch is reported, never silently accepted. */
+    sshHostKeyFingerprint: text(),
+    // ── onboarding wizard ──
+    onboardingStep: integer().notNull().default(1),
+    onboardingCompletedAt: timestamp({ withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index('IDX_screen_remote_controls_agent').on(t.agentId),
+    index('IDX_screen_remote_controls_organisation').on(t.organisationId),
+  ],
+);
+
 // ── relations (for db.query.*.findMany({ with: … }) eager loads) ─────────────
 
 export const organisationsRelations = relations(organisations, ({ one }) => ({
@@ -649,6 +819,18 @@ export type NewScreen = typeof screens.$inferInsert;
 
 export type ScreenPairing = typeof screenPairings.$inferSelect;
 export type NewScreenPairing = typeof screenPairings.$inferInsert;
+
+export type SiteAgent = typeof siteAgents.$inferSelect;
+export type NewSiteAgent = typeof siteAgents.$inferInsert;
+
+export type SiteAgentEnrolment = typeof siteAgentEnrolments.$inferSelect;
+export type NewSiteAgentEnrolment = typeof siteAgentEnrolments.$inferInsert;
+
+export type SiteAgentSession = typeof siteAgentSessions.$inferSelect;
+export type NewSiteAgentSession = typeof siteAgentSessions.$inferInsert;
+
+export type ScreenRemoteControl = typeof screenRemoteControls.$inferSelect;
+export type NewScreenRemoteControl = typeof screenRemoteControls.$inferInsert;
 
 export type Content = typeof contents.$inferSelect;
 export type NewContent = typeof contents.$inferInsert;

@@ -2,7 +2,13 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "../../dist/apps/backend",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "tsBuildInfoFile": "../../dist/apps/backend/.tsbuildinfo-build"
   },
-  "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "**/*spec.ts"
+  ]
 }

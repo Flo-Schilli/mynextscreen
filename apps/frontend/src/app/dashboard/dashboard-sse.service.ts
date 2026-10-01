@@ -35,6 +35,10 @@ export class DashboardSseService implements OnDestroy {
   readonly sliceFailed$ = new Subject<DashboardEvent>();
   readonly notificationNew$ = new Subject<DashboardEvent>();
   readonly liveStreamHealth$ = new Subject<DashboardEvent>();
+  readonly siteAgentStatus$ = new Subject<DashboardEvent>();
+  readonly screenReachability$ = new Subject<DashboardEvent>();
+  /** Answer to an onboarding check the wizard fired; paired by `commandId`. */
+  readonly screenOnboardingCheck$ = new Subject<DashboardEvent>();
 
   connect(): void {
     const orgId = this.orgState.selectedOrgId();
@@ -176,6 +180,15 @@ export class DashboardSseService implements OnDestroy {
     switch (event.type) {
       case 'screen.online':
         this.screenOnline$.next(event);
+        break;
+      case 'site-agent.status':
+        this.siteAgentStatus$.next(event);
+        break;
+      case 'screen.reachability':
+        this.screenReachability$.next(event);
+        break;
+      case 'screen.onboarding-check':
+        this.screenOnboardingCheck$.next(event);
         break;
       case 'screen.offline':
         this.screenOffline$.next(event);

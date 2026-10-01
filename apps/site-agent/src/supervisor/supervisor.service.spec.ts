@@ -1,0 +1,284 @@
+import { SupervisorService } from './supervisor.service';
+import { ServerUnreachableError } from '../connection/server-client.service';
+import type { AgentConfigMessage, AgentScreenConfigMessage } from '../protocol/server-protocol';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function screen(overrides: Partial<AgentScreenConfigMessage> = {}): AgentScreenConfigMessage {
+  return {
+    screenId: 's1',
+    name: 'Foyer left',
+    localIp: '192.168.1.50',
+    macAddress: null,
+    ssapPort: 3001,
+    devmodePassphrase: 'AEBC72',
+    autoLaunchEnabled: true,
+    extendDevmodeEnabled: false,
+    devmodeExtendIntervalDays: 7,
+    lastDevmodeExtendAt: new Date(Date.now() - DAY_MS).toISOString(),
+    wakeBeforeScheduleEnabled: false,
+    wakeLeadTimeMinutes: 10,
+    wakeOnUnreachableEnabled: false,
+    playerHeartbeatStale: false,
+    nextScheduleStartAt: null,
+    sshHostKeyFingerprint: null,
+    keyStatus: 'ok',
+    sshStatus: 'ok',
+    ssapStatus: 'ok',
+    onboardingStep: 8,
+    ...overrides,
+  };
+}
+
+describe('SupervisorService', () => {
+  let supervisor: SupervisorService;
+  let connections: { load: jest.Mock };
+  let client: { fetchConfig: jest.Mock; sendHeartbeat: jest.Mock; sendReports: jest.Mock };
+  let configs: { load: jest.Mock; save: jest.Mock; current: jest.Mock };
+  let setup: { recordConfigPull: jest.Mock };
+  let reachability: { probe: jest.Mock };
+  let devmodeKeys: { obtain: jest.Mock; forget: jest.Mock };
+  let ssh: { extendDevmode: jest.Mock; run: jest.Mock };
+  let wol: { wake: jest.Mock };
+  let ssapKeys: { load: jest.Mock; save: jest.Mock };
+
+  function build(config: AgentConfigMessage | null) {
+    configs.current.mockReturnValue(config);
+    configs.load.mockResolvedValue(config);
+    return new SupervisorService(
+      connections as never,
+      client as never,
+      configs as never,
+      setup as never,
+      reachability as never,
+      devmodeKeys as never,
+      ssh as never,
+      wol as never,
+      ssapKeys as never,
+      '1.2.3',
+    );
+  }
+
+  function configWith(screens: AgentScreenConfigMessage[]): AgentConfigMessage {
+    return {
+      agentId: 'agent-1',
+      organisationId: 'org-1',
+      probeIntervalMs: 60_000,
+      appId: 'com.mynextscreen.webos',
+      screens,
+    };
+  }
+
+  function reported(): Record<string, unknown> {
+    return client.sendReports.mock.calls[0][0].screens[0];
+  }
+
+  beforeEach(() => {
+    connections = { load: jest.fn().mockResolvedValue({ agentId: 'agent-1' }) };
+    client = {
+      fetchConfig: jest.fn(),
+      sendHeartbeat: jest.fn(),
+      sendReports: jest.fn().mockResolvedValue(undefined),
+    };
+    configs = { load: jest.fn(), save: jest.fn(), current: jest.fn() };
+    setup = { recordConfigPull: jest.fn() };
+    reachability = { probe: jest.fn().mockResolvedValue({ reachability: 'reachable' }) };
+    devmodeKeys = {
+      obtain: jest.fn().mockResolvedValue({ status: 'ok', privateKey: 'PEM' }),
+      forget: jest.fn(),
+    };
+    ssh = {
+      extendDevmode: jest.fn().mockResolvedValue({ status: 'ok', extended: true }),
+      run: jest.fn(),
+    };
+    wol = { wake: jest.fn().mockResolvedValue(undefined) };
+    ssapKeys = { load: jest.fn().mockResolvedValue('client-key'), save: jest.fn() };
+  });
+
+  describe('tick', () => {
+    it('does nothing before enrolment', async () => {
+      connections.load.mockResolvedValue(null);
+      supervisor = build(configWith([screen()]));
+
+      await supervisor.tick();
+
+      expect(reachability.probe).not.toHaveBeenCalled();
+    });
+
+    it('reports what it probed', async () => {
+      supervisor = build(configWith([screen()]));
+
+      await supervisor.tick();
+
+      expect(reported()).toMatchObject({ screenId: 's1', reachability: 'reachable' });
+    });
+
+    it('probes every screen it looks after', async () => {
+      supervisor = build(configWith([screen(), screen({ screenId: 's2' })]));
+
+      await supervisor.tick();
+
+      expect(reachability.probe).toHaveBeenCalledTimes(2);
+    });
+
+    // A round that overruns its interval must not have a second one start on
+    // top of it and send two launches to the same set.
+    it('does not start a second round on top of a running one', async () => {
+      let release!: (value: { reachability: string }) => void;
+      const blocked = new Promise<{ reachability: string }>((resolve) => {
+        release = resolve;
+      });
+      const entered = new Promise<void>((resolve) => {
+        reachability.probe.mockImplementation(() => {
+          resolve();
+          return blocked;
+        });
+      });
+      supervisor = build(configWith([screen()]));
+
+      const first = supervisor.tick();
+      await entered;
+      await supervisor.tick();
+      release({ reachability: 'reachable' });
+      await first;
+
+      expect(reachability.probe).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Developer Mode extension', () => {
+    const due = screen({ extendDevmodeEnabled: true, lastDevmodeExtendAt: null });
+
+    it('runs before the app is launched', async () => {
+      supervisor = build(configWith([{ ...due, playerHeartbeatStale: true }]));
+
+      await supervisor.tick();
+
+      expect(ssh.extendDevmode).toHaveBeenCalled();
+      expect(reported()).toMatchObject({ devmodeExtended: true });
+    });
+
+    it('never runs while the TV does not answer', async () => {
+      reachability.probe.mockResolvedValue({ reachability: 'unreachable' });
+      supervisor = build(configWith([due]));
+
+      await supervisor.tick();
+
+      expect(ssh.extendDevmode).not.toHaveBeenCalled();
+    });
+
+    it('reports the key problem instead of attempting SSH', async () => {
+      devmodeKeys.obtain.mockResolvedValue({ status: 'key_server_off', detail: 'refused' });
+      supervisor = build(configWith([due]));
+
+      await supervisor.tick();
+
+      expect(ssh.extendDevmode).not.toHaveBeenCalled();
+      expect(reported()).toMatchObject({ keyStatus: 'key_server_off' });
+    });
+
+    // Developer Mode re-issues the key when it is switched on again, so a
+    // rejected key is a reason to fetch a fresh one, not to give up.
+    it('discards the cached key after an authentication failure', async () => {
+      ssh.extendDevmode.mockResolvedValue({ status: 'auth_failed', extended: false });
+      supervisor = build(configWith([due]));
+
+      await supervisor.tick();
+
+      expect(devmodeKeys.forget).toHaveBeenCalledWith('s1');
+    });
+
+    it('passes the pinned host key through so a change is detected', async () => {
+      supervisor = build(configWith([{ ...due, sshHostKeyFingerprint: 'SHA256:abc' }]));
+
+      await supervisor.tick();
+
+      expect(ssh.extendDevmode).toHaveBeenCalledWith(
+        expect.objectContaining({ expectedHostKeyFingerprint: 'SHA256:abc' }),
+      );
+    });
+  });
+
+  describe('wake', () => {
+    it('sends a magic packet before a schedule', async () => {
+      reachability.probe.mockResolvedValue({ reachability: 'unreachable' });
+      supervisor = build(
+        configWith([
+          screen({
+            macAddress: 'AA:BB:CC:DD:EE:FF',
+            wakeBeforeScheduleEnabled: true,
+            nextScheduleStartAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+          }),
+        ]),
+      );
+
+      await supervisor.tick();
+
+      expect(wol.wake).toHaveBeenCalledWith('AA:BB:CC:DD:EE:FF');
+      expect(reported()).toMatchObject({ woken: true });
+    });
+
+    it('does not wake a set that already answers', async () => {
+      supervisor = build(
+        configWith([
+          screen({
+            macAddress: 'AA:BB:CC:DD:EE:FF',
+            wakeBeforeScheduleEnabled: true,
+            nextScheduleStartAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+          }),
+        ]),
+      );
+
+      await supervisor.tick();
+
+      expect(wol.wake).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resilience', () => {
+    // The whole reason the config is cached: the venue must keep being looked
+    // after when the uplink is down.
+    it('keeps working when the config cannot be refreshed', async () => {
+      client.fetchConfig.mockRejectedValue(new ServerUnreachableError(new Error('ENOTFOUND')));
+      supervisor = build(configWith([screen()]));
+
+      await supervisor.tick();
+
+      expect(reachability.probe).toHaveBeenCalled();
+    });
+
+    it('keeps working when the reports cannot be delivered', async () => {
+      client.sendReports.mockRejectedValue(new ServerUnreachableError(new Error('ENOTFOUND')));
+      supervisor = build(configWith([screen()]));
+
+      await expect(supervisor.tick()).resolves.toBeUndefined();
+    });
+
+    it('does nothing at all when there is no cached config yet', async () => {
+      supervisor = build(null);
+
+      await supervisor.tick();
+
+      expect(reachability.probe).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('runNow', () => {
+    it('visits one screen out of band', async () => {
+      supervisor = build(configWith([screen(), screen({ screenId: 's2' })]));
+
+      await supervisor.runNow('s2');
+
+      expect(reachability.probe).toHaveBeenCalledTimes(1);
+      expect(reported()).toMatchObject({ screenId: 's2' });
+    });
+
+    it('ignores a screen it does not look after', async () => {
+      supervisor = build(configWith([screen()]));
+
+      await supervisor.runNow('unknown');
+
+      expect(reachability.probe).not.toHaveBeenCalled();
+    });
+  });
+});

@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from './roles.decorator';
 import { IS_PUBLIC_KEY } from './public.decorator';
+import { IS_AGENT_AUTH_KEY } from './agent-auth.decorator';
 import { IS_SCREEN_AUTH_KEY } from './screen-auth.decorator';
 import { IS_USER_SCOPED_KEY } from './user-scoped.decorator';
 import { ORG_PARAM_KEY } from './org-from-param.decorator';
@@ -23,6 +24,13 @@ export class RolesGuard implements CanActivate {
 
     // Skip for screen-authenticated routes (API key auth, no user roles)
     if (this.metadata<boolean>(IS_SCREEN_AUTH_KEY, context)) {
+      return true;
+    }
+
+    // Same for site agents: they authenticate with their own token audience and
+    // carry no user, so there is no membership to check. Authorisation on those
+    // routes is "is this screen assigned to this agent", enforced in the handler.
+    if (this.metadata<boolean>(IS_AGENT_AUTH_KEY, context)) {
       return true;
     }
 
@@ -51,7 +59,7 @@ export class RolesGuard implements CanActivate {
     const requiredRoles = this.metadata<string[]>(ROLES_KEY, context);
     if (!requiredRoles || requiredRoles.length === 0) {
       throw new ForbiddenException(
-        'Route is missing an access declaration (@Roles, @UserScoped, @ScreenAuth or @Public)',
+        'Route is missing an access declaration (@Roles, @UserScoped, @ScreenAuth, @AgentAuth or @Public)',
       );
     }
 

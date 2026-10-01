@@ -4,6 +4,16 @@ Consumer TVs have no autostart — that is a signage-display feature. This direc
 holds the tooling that replaces it: start the app from the outside, keep the
 Developer Mode session alive, and wake the TV from standby.
 
+> **For running a venue, use the [site agent](../../../docs/site-agent.md)**, not
+> these. It does all of this unattended, for every display in a house, from
+> inside that venue's network, and reports back what it found. These scripts are
+> for poking at one set by hand — before an agent is set up, or when one cannot
+> reach a TV and you need to find out why.
+>
+> The rest of this file is the record of what LG's protocols actually do, most
+> of it learned against a real set. The agent's implementation relies on these
+> findings, so they are worth keeping whether or not you ever run the scripts.
+
 Everything here talks **SSAP**, LG's WebSocket remote-control protocol. No npm
 packages required; Node 22 ships a global `WebSocket`.
 

@@ -82,10 +82,17 @@ ares-launch --device mytv com.mynextscreen.webos
 
 ### Fernstart ohne Developer Mode (SSAP)
 
-TVs kennen keinen Autostart — nur Signage-Displays. Ersatz: die App von außen
-per SSAP starten, LGs WebSocket-Fernsteuerung auf Port 3000 (`ws`) bzw. 3001
-(`wss`, self-signed Zertifikat). Das Hilfsskript braucht keine npm-Pakete,
-Node 22 bringt alles mit:
+TVs kennen keinen Autostart — nur Signage-Displays. Im laufenden Betrieb
+übernimmt das der **Site Agent**: ein Dienst im Netz des Venues, der die
+Displays prüft, die App startet, den TV vor einem Schedule weckt und die
+Developer-Mode-Session am Leben hält. Das ist der Weg, den eine Installation
+nehmen sollte — siehe [docs/site-agent.md](../../docs/site-agent.md).
+
+Die Skripte unten bleiben für den Einzelfall: einen TV von Hand anstoßen, wenn
+der Agent ihn nicht erreicht, oder bevor überhaupt ein Agent eingerichtet ist.
+Sie starten die App von außen per SSAP, LGs WebSocket-Fernsteuerung auf Port
+3000 (`ws`) bzw. 3001 (`wss`, self-signed Zertifikat). Sie brauchen keine
+npm-Pakete, Node 22 bringt alles mit:
 
 ```bash
 node player-applications/lg-tvos/tools/launch-tv.mjs --host 192.168.1.50
@@ -95,9 +102,11 @@ Beim ersten Lauf erscheint ein Pairing-Prompt auf dem TV. Nach der Bestätigung
 liegt der `client-key` in `tools/.lgtv-key` (gitignored, Modus 600) und weitere
 Starts laufen ohne Prompt.
 
-Dauerbetrieb: `--watch` hält die Verbindung, beobachtet die Vordergrund-App und
-startet die Signage-App neu, sobald etwas anderes läuft — als systemd-Service
-auf dem Backend-Host der praktische Autostart-Ersatz.
+`--watch` hält die Verbindung und startet die Signage-App neu, sobald etwas
+anderes in den Vordergrund kommt — nützlich, um einem einzelnen TV beim
+Einrichten zuzusehen. Für den Dauerbetrieb ist der Site Agent gedacht: er macht
+dasselbe für alle Displays eines Hauses, läuft dort statt auf dem Server und
+meldet zurück, was er vorgefunden hat.
 
 ```bash
 node player-applications/lg-tvos/tools/launch-tv.mjs --host 192.168.1.50 --watch
@@ -110,8 +119,10 @@ im Standby aus), für das Aufwecken zusätzlich **Über Netzwerk einschalten**
 ### Developer-Mode-Session verlängern
 
 Ohne Verlängerung läuft die Dev-Mode-Session ab und der TV entfernt die per
-Developer Mode installierten Apps. Verlängert wird sie über den öffentlichen
-Luna-Bus — derselbe Weg, den der „Extend Session Time"-Button auf dem TV nimmt:
+Developer Mode installierten Apps. Auch das übernimmt der Site Agent, sobald
+ein Display ihm zugewiesen ist — und zwar nur, während der TV an ist, weil es
+anders nicht geht. Von Hand geht es über den öffentlichen Luna-Bus, denselben
+Weg, den der „Extend Session Time"-Button auf dem TV nimmt:
 
 ```bash
 player-applications/lg-tvos/tools/extend-devmode.sh <ssh-host> [<ssh-host>…]

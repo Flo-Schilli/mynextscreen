@@ -180,6 +180,7 @@ export class Layout implements OnInit {
     { label: 'Dashboard', route: '/dashboard', icon: 'Dashboard' },
     { label: 'Screens', route: '/screens', icon: 'Screens' },
     { label: 'Screen Groups', route: '/screen-groups', icon: 'Groups' },
+    { label: 'Site Agents', route: '/site-agents', icon: 'Cast' },
     { label: 'Content Library', route: '/content', icon: 'Content' },
     { label: 'Playlists', route: '/playlists', icon: 'Playlists' },
     { label: 'Schedules', route: '/schedules', icon: 'Schedules' },
