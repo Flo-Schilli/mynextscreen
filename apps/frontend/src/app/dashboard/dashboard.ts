@@ -126,7 +126,7 @@ const WARNING_HEARTBEAT_MS = 60_000;
       />
 
       <!-- progress banner -->
-      <mns-card [animate]="true" class="mb-5">
+      <mns-card [animate]="true" class="block mb-5">
         <div class="flex items-center gap-6 relative overflow-hidden">
           <div class="onboarding-glow"></div>
           <mns-ring [value]="onboardingProgress()" [size]="92" [sw]="9">

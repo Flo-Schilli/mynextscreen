@@ -118,7 +118,7 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
         }
 
         <!-- live preview card -->
-        <mns-card class="mt-[var(--gap)]">
+        <mns-card class="block mt-[var(--gap)]">
           <mns-card-head title="Live preview" [sub]="previewSub()" icon="Cast">
             <mns-badge slot="right" tone="neutral" icon="Image">{{ contentLabel() }}</mns-badge>
           </mns-card-head>
