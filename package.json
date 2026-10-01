@@ -71,8 +71,10 @@
     "reflect-metadata": "^0.2.0",
     "rrule": "^2.8.1",
     "rxjs": "~7.8.0",
+    "ssh2": "^1.17.0",
     "tailwindcss": "^4.2.2",
-    "tslib": "^2.3.0"
+    "tslib": "^2.3.0",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@analogjs/vite-plugin-angular": "2.3.1",
@@ -98,6 +100,8 @@
     "@types/multer": "^2.1.0",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.20.0",
+    "@types/ssh2": "^1.15.6",
+    "@types/ws": "^8.18.2",
     "@vitest/coverage-v8": "^4.1.8",
     "angular-eslint": "21.3.1",
     "drizzle-kit": "^0.31.10",

@@ -9,6 +9,14 @@ import { SetupController } from './setup/setup.controller';
 import { SetupService } from './setup/setup.service';
 import { SetupPinService } from './setup/setup-pin.service';
 import { SetupAuthGuard } from './setup/setup-auth.guard';
+import { CommandStreamService } from './connection/command-stream.service';
+import { ReachabilityService } from './probe/reachability.service';
+import { DevmodeKeyService, devmodeKeyDir } from './tv/devmode-key.service';
+import { SshService } from './tv/ssh.service';
+import { WolService } from './tv/wol.service';
+import { SsapKeyStore, ssapKeyDir } from './tv/ssap-key.store';
+import { SupervisorService } from './supervisor/supervisor.service';
+import { CommandHandlerService } from './supervisor/command-handler.service';
 
 /** Reported on heartbeat and shown on the setup page. Injected at build time. */
 export const AGENT_VERSION = process.env.APP_VERSION ?? '0.0.0-dev';
@@ -39,6 +47,58 @@ export const AGENT_VERSION = process.env.APP_VERSION ?? '0.0.0-dev';
       inject: [AgentEnv],
     },
     ServerClient,
+    CommandStreamService,
+    ReachabilityService,
+    SshService,
+    WolService,
+    CommandHandlerService,
+    {
+      provide: DevmodeKeyService,
+      useFactory: (env: AgentEnv) => new DevmodeKeyService(devmodeKeyDir(env.stateDir)),
+      inject: [AgentEnv],
+    },
+    {
+      provide: SsapKeyStore,
+      useFactory: (env: AgentEnv) => new SsapKeyStore(ssapKeyDir(env.stateDir)),
+      inject: [AgentEnv],
+    },
+    {
+      provide: SupervisorService,
+      useFactory: (
+        connections: ConnectionStore,
+        client: ServerClient,
+        configs: AgentConfigStore,
+        setup: SetupService,
+        reachability: ReachabilityService,
+        devmodeKeys: DevmodeKeyService,
+        ssh: SshService,
+        wol: WolService,
+        ssapKeys: SsapKeyStore,
+      ) =>
+        new SupervisorService(
+          connections,
+          client,
+          configs,
+          setup,
+          reachability,
+          devmodeKeys,
+          ssh,
+          wol,
+          ssapKeys,
+          AGENT_VERSION,
+        ),
+      inject: [
+        ConnectionStore,
+        ServerClient,
+        AgentConfigStore,
+        SetupService,
+        ReachabilityService,
+        DevmodeKeyService,
+        SshService,
+        WolService,
+        SsapKeyStore,
+      ],
+    },
     {
       provide: SetupService,
       useFactory: (connections: ConnectionStore, configs: AgentConfigStore, client: ServerClient) =>

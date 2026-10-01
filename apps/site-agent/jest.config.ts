@@ -19,10 +19,19 @@ const config: Config = {
     '!test/**', // fake TV harness
   ],
   coverageDirectory: '../coverage',
-  // No gate yet: the TV-facing modules land before the fakes that exercise
-  // them, and a threshold that has to be lowered once is a threshold nobody
-  // believes afterwards. Raised to the backend's level in the same change that
-  // adds the fake-TV harness.
+  // Lower than the backend's on purpose. What is left uncovered here is the
+  // code that only a real television can exercise: the SSAP launch path end to
+  // end, and the algorithm negotiation against a set running OpenSSH 6.1. The
+  // fakes in `test/fakes/` cover everything short of that, and padding the
+  // number with tests that assert the fakes' own behaviour would buy nothing.
+  coverageThreshold: {
+    global: {
+      statements: 85,
+      branches: 75,
+      functions: 83,
+      lines: 85,
+    },
+  },
   testEnvironment: 'node',
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
