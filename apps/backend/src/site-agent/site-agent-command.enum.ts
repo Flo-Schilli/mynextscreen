@@ -1,0 +1,42 @@
+/**
+ * Commands the server pushes down a site agent's SSE channel.
+ *
+ * Deliberately small: anything the agent does on its own schedule (probing,
+ * waking before a schedule, extending Developer Mode when it falls due) is
+ * driven by the config it already holds, not by a command. A command is only
+ * for "do it now, because a human asked" — which is also why a command to an
+ * offline agent is rejected rather than queued.
+ */
+export enum SiteAgentCommandType {
+  /** Start the signage app on the TV over SSAP. */
+  Launch = 'launch',
+  /** Send a Wake-on-LAN magic packet. */
+  Wake = 'wake',
+  /** Extend the Developer Mode session over SSH + Luna. */
+  ExtendDevmode = 'extend_devmode',
+  /** Discard the cached SSH key and fetch it from the TV again. */
+  RefetchKey = 'refetch_key',
+  /** Re-pull `/api/agents/me/config`. Carries no payload on purpose. */
+  ReloadConfig = 'reload_config',
+  /** Run one onboarding check; carries the step number. */
+  Check = 'check',
+}
+
+/**
+ * Steps of the per-screen onboarding wizard. Stored as a plain integer on
+ * `screen_remote_controls.onboarding_step` so "how far did we get" survives a
+ * reload and is the same for every operator looking at that screen.
+ */
+export enum OnboardingStep {
+  AssignAgent = 1,
+  Network = 2,
+  InstallDevmodeApp = 3,
+  KeyServer = 4,
+  Passphrase = 5,
+  Ssh = 6,
+  SsapPairing = 7,
+  Finish = 8,
+}
+
+/** Highest step; reaching it is what sets `onboardingCompletedAt`. */
+export const ONBOARDING_LAST_STEP = OnboardingStep.Finish;

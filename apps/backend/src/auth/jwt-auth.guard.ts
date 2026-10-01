@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { IS_PUBLIC_KEY } from './public.decorator';
+import { IS_AGENT_AUTH_KEY } from './agent-auth.decorator';
 import { IS_SCREEN_AUTH_KEY } from './screen-auth.decorator';
 import { ACCESS_COOKIE } from './cookies';
 import { TokenService } from './token.service';
@@ -18,8 +19,9 @@ export interface AuthenticatedRequest extends Request {
 
 /**
  * Validates the internal access-token JWT carried in the httpOnly `access_token`
- * cookie. Public and screen-authenticated routes short-circuit (screens use the
- * separate ApiKeyAuthGuard). Replaces the former Hanko JWKS validation.
+ * cookie. Public, screen- and agent-authenticated routes short-circuit (those
+ * two carry their own token kinds and are handled by ApiKeyAuthGuard and
+ * AgentAuthGuard). Replaces the former Hanko JWKS validation.
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -42,6 +44,14 @@ export class JwtAuthGuard implements CanActivate {
       context.getClass(),
     ]);
     if (isScreenAuth) {
+      return true;
+    }
+
+    const isAgentAuth = this.reflector.getAllAndOverride<boolean>(IS_AGENT_AUTH_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isAgentAuth) {
       return true;
     }
 
