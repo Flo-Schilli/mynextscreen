@@ -6,16 +6,20 @@ import {
   HttpStatus,
   Post,
   Req,
+  Sse,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import type { Observable } from 'rxjs';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SiteAgentEnrolmentService } from './site-agent-enrolment.service';
 import { SiteAgentSessionService, type SiteAgentSessionTokens } from './site-agent-session.service';
 import { SiteAgentService } from './site-agent.service';
 import { SiteAgentConfigService } from './site-agent-config.service';
+import { SiteAgentSseService } from './site-agent-sse.service';
+import { ScreenRemoteCommandService } from './screen-remote-command.service';
 import type { AgentConfig } from './agent-config.types';
-import { AgentHeartbeatDto, EnrolAgentDto, RefreshAgentSessionDto } from './dto';
+import { AgentHeartbeatDto, AgentReportDto, EnrolAgentDto, RefreshAgentSessionDto } from './dto';
 import { AgentAuth } from '../auth/agent-auth.decorator';
 import type { AgentAuthenticatedRequest } from '../auth/agent-auth.guard';
 import { Public } from '../auth/public.decorator';
@@ -52,6 +56,8 @@ export class SiteAgentDeviceController {
     private readonly sessions: SiteAgentSessionService,
     private readonly siteAgentService: SiteAgentService,
     private readonly configService: SiteAgentConfigService,
+    private readonly sse: SiteAgentSseService,
+    private readonly commands: ScreenRemoteCommandService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -106,6 +112,30 @@ export class SiteAgentDeviceController {
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   config(@Req() req: AgentAuthenticatedRequest): Promise<AgentConfig> {
     return this.configService.buildAgentConfig(req.agentId);
+  }
+
+  /**
+   * Commands the operator triggered, pushed as they happen.
+   *
+   * Carries nothing the agent cannot do without: everything on a schedule comes
+   * from the config it already holds, so a dropped connection costs no state
+   * and a reconnect needs no replay.
+   */
+  @Sse('me/events')
+  @AgentAuth()
+  events(@Req() req: AgentAuthenticatedRequest): Observable<unknown> {
+    return this.sse.subscribe(req.agentId);
+  }
+
+  /** Batched observations: one entry per screen the agent looks after. */
+  @Post('me/reports')
+  @AgentAuth()
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async reports(@Req() req: AgentAuthenticatedRequest, @Body() dto: AgentReportDto): Promise<void> {
+    for (const screen of dto.screens) {
+      await this.commands.applyReport(req.agentId, req.organisationId, screen);
+    }
   }
 
   @Post('me/heartbeat')

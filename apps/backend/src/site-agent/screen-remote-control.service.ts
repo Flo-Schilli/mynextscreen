@@ -9,6 +9,10 @@ import {
   AUDIT_SCREEN_REMOTE_CONTROL_UPDATED,
   AuditScreenRemoteEvent,
 } from '../audit-log/audit.events';
+import {
+  SCREEN_REMOTE_CONFIG_CHANGED,
+  ScreenRemoteConfigChangedEvent,
+} from './screen-onboarding.event';
 import { ScreenReachability } from './screen-reachability.enum';
 import { DevmodeKeyStatus } from './devmode-key-status.enum';
 import { SshStatus } from './ssh-status.enum';
@@ -139,6 +143,17 @@ export class ScreenRemoteControlService {
         set: { ...values, updatedAt: new Date() },
       })
       .returning();
+
+    // Both the agent losing the screen and the one gaining it need to re-pull.
+    const affectedAgents = [existing.agentId, saved.agentId].filter(
+      (id): id is string => id !== null,
+    );
+    if (affectedAgents.length > 0) {
+      this.eventEmitter.emit(
+        SCREEN_REMOTE_CONFIG_CHANGED,
+        new ScreenRemoteConfigChangedEvent([...new Set(affectedAgents)]),
+      );
+    }
 
     // `details` deliberately records only which fields changed, never their
     // values: audit entries are shown in the organisation's own audit log.

@@ -13,6 +13,8 @@ import { SiteAgentSessionService } from './site-agent-session.service';
 import { SiteAgentScheduler } from './site-agent.scheduler';
 import { ScreenRemoteControlService } from './screen-remote-control.service';
 import { SiteAgentConfigService } from './site-agent-config.service';
+import { SiteAgentSseService } from './site-agent-sse.service';
+import { ScreenRemoteCommandService } from './screen-remote-command.service';
 
 @Module({
   imports: [DatabaseModule, CommonModule, AuthModule, UserModule, ScreenModule],
@@ -24,6 +26,8 @@ import { SiteAgentConfigService } from './site-agent-config.service';
     SiteAgentScheduler,
     ScreenRemoteControlService,
     SiteAgentConfigService,
+    SiteAgentSseService,
+    ScreenRemoteCommandService,
   ],
   exports: [SiteAgentService, SiteAgentSessionService, ScreenRemoteControlService],
 })

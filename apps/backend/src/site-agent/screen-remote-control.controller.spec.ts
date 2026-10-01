@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Reflector } from '@nestjs/core';
 import { ScreenRemoteControlController } from './screen-remote-control.controller';
 import { ScreenRemoteControlService } from './screen-remote-control.service';
+import { ScreenRemoteCommandService } from './screen-remote-command.service';
+import { SiteAgentCommandType } from './site-agent-command.enum';
 import { REMOTE_CONTROL_DEFAULTS } from './screen-remote-control.service';
 import { MASKED_SECRET } from './screen-remote-control.dto-mapper';
 import { ROLES_KEY } from '../auth/roles.decorator';
@@ -12,6 +14,7 @@ import type { ScreenRemoteControl } from '../db/schema';
 describe('ScreenRemoteControlController', () => {
   let controller: ScreenRemoteControlController;
   let service: Record<string, jest.Mock>;
+  let commands: Record<string, jest.Mock>;
 
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
   const screenId = '770e8400-e29b-41d4-a716-446655440000';
@@ -31,10 +34,14 @@ describe('ScreenRemoteControlController', () => {
 
   beforeEach(async () => {
     service = { getForScreen: jest.fn(), upsert: jest.fn() };
+    commands = { dispatchManual: jest.fn(), dispatchCheck: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ScreenRemoteControlController],
-      providers: [{ provide: ScreenRemoteControlService, useValue: service }],
+      providers: [
+        { provide: ScreenRemoteControlService, useValue: service },
+        { provide: ScreenRemoteCommandService, useValue: commands },
+      ],
     }).compile();
 
     controller = module.get(ScreenRemoteControlController);
@@ -45,11 +52,14 @@ describe('ScreenRemoteControlController', () => {
 
     // Remote control hands out SSH reach into the venue; an Editor managing
     // playlists has no business changing it.
-    it.each(['get', 'update'] as const)('restricts %s to org admins', (method) => {
-      expect(
-        reflector.get<string[]>(ROLES_KEY, ScreenRemoteControlController.prototype[method]),
-      ).toEqual([OrganisationRole.OrgAdmin]);
-    });
+    it.each(['get', 'update', 'command', 'check'] as const)(
+      'restricts %s to org admins',
+      (method) => {
+        expect(
+          reflector.get<string[]>(ROLES_KEY, ScreenRemoteControlController.prototype[method]),
+        ).toEqual([OrganisationRole.OrgAdmin]);
+      },
+    );
   });
 
   describe('masking', () => {
@@ -114,6 +124,38 @@ describe('ScreenRemoteControlController', () => {
       await controller.update(orgId, screenId, { localIp: '10.0.0.5' }, mockReq);
 
       expect(service.upsert).toHaveBeenCalledWith(orgId, screenId, { localIp: '10.0.0.5' }, userId);
+    });
+  });
+
+  describe('command', () => {
+    it('dispatches the requested action with the acting user', async () => {
+      commands.dispatchManual.mockResolvedValue({ commandId: 'cmd-1' });
+
+      const result = await controller.command(
+        orgId,
+        screenId,
+        { type: SiteAgentCommandType.Launch },
+        mockReq,
+      );
+
+      expect(result).toEqual({ commandId: 'cmd-1' });
+      expect(commands.dispatchManual).toHaveBeenCalledWith(
+        orgId,
+        screenId,
+        SiteAgentCommandType.Launch,
+        userId,
+      );
+    });
+  });
+
+  describe('check', () => {
+    it('passes the wizard step through', async () => {
+      commands.dispatchCheck.mockResolvedValue({ commandId: 'cmd-2' });
+
+      const result = await controller.check(orgId, screenId, { step: 5 });
+
+      expect(result).toEqual({ commandId: 'cmd-2' });
+      expect(commands.dispatchCheck).toHaveBeenCalledWith(orgId, screenId, 5);
     });
   });
 });

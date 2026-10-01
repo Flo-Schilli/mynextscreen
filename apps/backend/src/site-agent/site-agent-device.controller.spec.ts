@@ -7,6 +7,9 @@ import { SiteAgentEnrolmentService } from './site-agent-enrolment.service';
 import { SiteAgentSessionService } from './site-agent-session.service';
 import { SiteAgentService } from './site-agent.service';
 import { SiteAgentConfigService } from './site-agent-config.service';
+import { SiteAgentSseService } from './site-agent-sse.service';
+import { ScreenRemoteCommandService } from './screen-remote-command.service';
+import { ScreenReachability } from './screen-reachability.enum';
 import { IS_AGENT_AUTH_KEY } from '../auth/agent-auth.decorator';
 import { IS_PUBLIC_KEY } from '../auth/public.decorator';
 import { ROLES_KEY } from '../auth/roles.decorator';
@@ -19,6 +22,8 @@ describe('SiteAgentDeviceController', () => {
   let sessions: Record<string, jest.Mock>;
   let siteAgentService: Record<string, jest.Mock>;
   let configService: Record<string, jest.Mock>;
+  let sse: Record<string, jest.Mock>;
+  let commands: Record<string, jest.Mock>;
   let emitter: { emit: jest.Mock };
 
   const agentId = '660e8400-e29b-41d4-a716-446655440000';
@@ -36,6 +41,8 @@ describe('SiteAgentDeviceController', () => {
     sessions = { refresh: jest.fn() };
     siteAgentService = { recordHeartbeat: jest.fn() };
     configService = { buildAgentConfig: jest.fn() };
+    sse = { subscribe: jest.fn().mockReturnValue('stream') };
+    commands = { applyReport: jest.fn() };
     emitter = { emit: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -45,6 +52,8 @@ describe('SiteAgentDeviceController', () => {
         { provide: SiteAgentSessionService, useValue: sessions },
         { provide: SiteAgentService, useValue: siteAgentService },
         { provide: SiteAgentConfigService, useValue: configService },
+        { provide: SiteAgentSseService, useValue: sse },
+        { provide: ScreenRemoteCommandService, useValue: commands },
         { provide: EventEmitter2, useValue: emitter },
       ],
     }).compile();
@@ -63,16 +72,26 @@ describe('SiteAgentDeviceController', () => {
       expect(isPublic).toBe(true);
     });
 
-    it.each(['heartbeat', 'config'] as const)('marks %s as agent-authenticated', (method) => {
-      expect(
-        reflector.get<boolean>(IS_AGENT_AUTH_KEY, SiteAgentDeviceController.prototype[method]),
-      ).toBe(true);
-    });
+    it.each(['heartbeat', 'config', 'events', 'reports'] as const)(
+      'marks %s as agent-authenticated',
+      (method) => {
+        expect(
+          reflector.get<boolean>(IS_AGENT_AUTH_KEY, SiteAgentDeviceController.prototype[method]),
+        ).toBe(true);
+      },
+    );
 
     // An agent has no membership, so a @Roles() here would make the route
     // permanently unreachable rather than more secure.
     it('declares no roles on any route', () => {
-      for (const method of ['enrol', 'refreshSession', 'heartbeat', 'config'] as const) {
+      for (const method of [
+        'enrol',
+        'refreshSession',
+        'heartbeat',
+        'config',
+        'events',
+        'reports',
+      ] as const) {
         expect(
           reflector.get<string[]>(ROLES_KEY, SiteAgentDeviceController.prototype[method]),
         ).toBeUndefined();
@@ -190,6 +209,44 @@ describe('SiteAgentDeviceController', () => {
       });
 
       expect(siteAgentService.recordHeartbeat).toHaveBeenCalledWith(agentId, '1.0.0');
+    });
+  });
+
+  describe('events', () => {
+    it('opens the stream for the agent named by the token', () => {
+      expect(controller.events(agentReq)).toBe('stream');
+      expect(sse.subscribe).toHaveBeenCalledWith(agentId);
+    });
+  });
+
+  describe('reports', () => {
+    it('applies every screen in the batch', async () => {
+      await controller.reports(agentReq, {
+        screens: [
+          { screenId: 'a', reachability: ScreenReachability.Reachable },
+          { screenId: 'b', reachability: ScreenReachability.Unreachable },
+        ],
+      });
+
+      expect(commands.applyReport).toHaveBeenCalledTimes(2);
+    });
+
+    // Both the agent and the organisation come from the verified token, so a
+    // report cannot be aimed at another venue.
+    it('scopes every entry to the calling agent and its organisation', async () => {
+      await controller.reports(agentReq, {
+        screens: [{ screenId: 'a', reachability: ScreenReachability.Reachable }],
+      });
+
+      expect(commands.applyReport).toHaveBeenCalledWith(
+        agentId,
+        orgId,
+        expect.objectContaining({ screenId: 'a' }),
+      );
+    });
+
+    it('accepts an empty batch', async () => {
+      await expect(controller.reports(agentReq, { screens: [] })).resolves.toBeUndefined();
     });
   });
 });

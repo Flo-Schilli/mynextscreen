@@ -3,3 +3,8 @@ export { UpdateSiteAgentDto } from './update-site-agent.dto';
 export { EnrolAgentDto } from './enrol-agent.dto';
 export { RefreshAgentSessionDto } from './refresh-agent-session.dto';
 export { AgentHeartbeatDto } from './agent-heartbeat.dto';
+export { UpdateScreenRemoteControlDto } from './update-screen-remote-control.dto';
+export { ScreenRemoteCommandDto, MANUAL_COMMANDS } from './screen-remote-command.dto';
+export type { ManualCommandType } from './screen-remote-command.dto';
+export { ScreenOnboardingCheckDto } from './screen-onboarding-check.dto';
+export { AgentReportDto } from './agent-report.dto';
