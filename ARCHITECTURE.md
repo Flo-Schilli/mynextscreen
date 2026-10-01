@@ -19,6 +19,7 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
 - **Authentication:**
   - **Users** — internal email + password (bcrypt). Login issues a short-lived JWT access token (HTTP-only cookie) plus a refresh token stored in Redis; JWT claims carry `userId` and `role`. Org/role scope is resolved server-side per request from memberships.
   - **Screens** — enrolled by a six-digit pairing code claimed in the dashboard. The credential handed over is exchanged once for a short-lived access token (its own JWT audience, `mynextscreen-screen`) plus a rotating refresh token held in Postgres; both travel in the `Authorization` header. Media URLs carry an HMAC signature instead of a credential.
+  - **Site agents** — a service inside a venue's network, enrolled with a one-time token an admin issues in the dashboard (an agent has no display to show a code on). It exchanges that once for a short-lived access token with its own JWT audience, `mynextscreen-agent`, plus a rotating refresh token in Postgres. It reaches the server outbound only.
 - **Authorisation** — NestJS guards enforce role-based access per organisation:
   - Super-admin: system-level operations (provision orgs, view global audit log)
   - Org Admin: full control within their organisation
@@ -46,6 +47,7 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
 | **UserModule**           | User-org membership, role assignment, notification preferences                                                                                     |
 | **ScreenModule**         | Pairing and re-pairing, screen sessions (rotating refresh tokens), heartbeat tracking, online/offline status                                       |
 | **ScreenGroupModule**    | Group management, mirror/split mode config, grid layout for video walls                                                                            |
+| **SiteAgentModule**      | On-premise agents: enrolment, rotating sessions, per-screen remote-control settings, command channel and telemetry |
 | **ContentModule**        | Upload handling, metadata CRUD, storage tracking, triggers transcoding jobs                                                                        |
 | **TranscodingModule**    | BullMQ workers: video → H.264 MP4, image → WebP (JPEG fallback), storage accounting                                                                |
 | **PlaylistModule**       | Playlist CRUD, ordered items with per-item duration                                                                                                |
@@ -68,6 +70,40 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
 - **Redis** — BullMQ job queue for transcoding jobs plus _user_ refresh tokens; no other application data
 - **Screen sessions live in PostgreSQL**, not Redis, and deliberately so: Redis runs without `appendonly`, and a lost snapshot window would leave every screen that rotated inside it holding a token the server has never seen. With no credential left on the device, that is a visit per display
 - **Storage tracking** — per-organisation byte counters for originals and transcoded files, checked on upload against configurable limits
+
+## Site Agents
+
+An LG consumer TV has no autostart and its Developer Mode session expires — and
+when it does, the set deletes the installed app. The server cannot act on either
+from outside the venue, and the player heartbeat alone cannot tell *the TV is
+off* from *the TV is on and the app is not running*.
+
+A **site agent** is a separate service (`apps/site-agent`) that runs inside a
+venue's LAN, pairs with one organisation and looks after the displays assigned
+to it: it probes them, starts the app over SSAP, wakes them with Wake-on-LAN
+before a schedule begins, and extends Developer Mode over SSH + the Luna bus.
+
+- **Outbound only to the server**: an HTTPS config pull plus an SSE channel for
+  operator commands. The one inbound port is its own setup page on the venue
+  LAN, guarded by a PIN printed to the container log, and `MNS_SETUP_PORT=0`
+  removes even that.
+- **The TVs' private keys never leave the venue.** The server stores only the
+  Developer Mode passphrase, encrypted; the agent fetches each key from the
+  set's own key server. That passphrase is the only field in the system that is
+  delivered to one caller in the clear and masked for another, which is why the
+  agent's payload and the dashboard's are separate types.
+- **It works from cache.** The configuration is held on disk, so a venue keeps
+  being looked after — including waking a set before a schedule — when the
+  uplink is down.
+- **Commands are not queued.** A command to a disconnected agent is refused with
+  409, because a "start the app now" that fires six hours later is worse than
+  none.
+- The command channel's connection map is per process, like the screen and
+  dashboard SSE streams. A horizontally scaled backend would reach an agent only
+  from the instance it is connected to; the channel therefore carries nothing
+  that must not be lost.
+
+See [docs/site-agent.md](docs/site-agent.md).
 
 ## Screen Communication
 
