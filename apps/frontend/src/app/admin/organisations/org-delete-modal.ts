@@ -17,7 +17,7 @@ import { OverlayComponent, ModalComponent, BtnComponent } from '../../ui';
     <mns-overlay (closed)="dismiss.emit()">
       <mns-modal title="Delete Organisation" icon="Trash" (closed)="dismiss.emit()">
         <p class="text-sm text-muted leading-relaxed">
-          Are you sure you want to delete <strong class="text-default">{{ org().name }}</strong
+          Are you sure you want to delete <strong class="text-text">{{ org().name }}</strong
           >? This permanently deletes all of its screens, content, playlists and schedules. This
           action cannot be undone.
         </p>

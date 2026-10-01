@@ -29,8 +29,16 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
     </div>
   `,
   styles: `
-    :host {
-      display: contents;
+    /*
+     * In a layer so a utility class on the host can win. Unlayered rules beat
+     * everything in Tailwind's layers, so an unlayered :host would make
+     * \`<mns-card class="block mb-5">\` silently do nothing: the margin would
+     * sit on an element that generates no box.
+     */
+    @layer components {
+      :host {
+        display: contents;
+      }
     }
     div {
       padding: var(--card-pad);

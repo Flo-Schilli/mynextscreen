@@ -17,6 +17,7 @@ function assigned(id: string, gridRow: number, gridColumn: number): ScreenGroupS
     id,
     name: `S${id}`,
     location: 'Hall',
+    resolution: '1920x1080',
     isOnline: false,
     groupId: 'g1',
     gridRow,

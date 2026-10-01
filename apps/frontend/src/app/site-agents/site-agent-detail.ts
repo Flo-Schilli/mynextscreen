@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Subject, forkJoin, of, switchMap, takeUntil } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { SiteAgentService } from './site-agent.service';
@@ -33,6 +33,7 @@ import {
   SelectComponent,
   StatusDotComponent,
 } from '../ui';
+import { BackLink } from '../shared/back-link';
 
 /** A screen paired with what the agent knows about it. */
 interface ManagedScreen {
@@ -45,8 +46,8 @@ interface ManagedScreen {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackLink,
     DatePipe,
-    RouterLink,
     BadgeComponent,
     BtnComponent,
     CardComponent,
@@ -64,9 +65,7 @@ interface ManagedScreen {
   template: `
     @if (agent(); as agent) {
       <mns-page-header [title]="agent.name" [sub]="agent.location || 'Site agent'" icon="Cast">
-        <a routerLink="/site-agents"
-          ><mns-btn variant="outline" icon="ChevronLeft">Back</mns-btn></a
-        >
+        <app-back-link route="/site-agents" />
       </mns-page-header>
 
       <mns-card>
@@ -119,7 +118,7 @@ interface ManagedScreen {
       @if (managed().length === 0) {
         <mns-empty icon="Screens" title="No displays assigned" [desc]="emptyDesc()" />
       } @else {
-        <div class="space-y-3">
+        <div class="flex flex-col gap-3">
           @for (item of managed(); track item.screen.id) {
             <mns-card>
               <div class="flex flex-wrap items-start gap-3">
@@ -186,7 +185,7 @@ interface ManagedScreen {
       @if (assignOpen()) {
         <mns-overlay (closed)="closeAssign()">
           <mns-modal title="Add a display" icon="Screens" (closed)="closeAssign()">
-            <div class="space-y-4">
+            <div class="flex flex-col gap-4">
               <p class="text-[13px] text-muted">
                 The agent will start probing it straight away. Its address and developer-mode
                 passphrase are set afterwards, in the display's settings.

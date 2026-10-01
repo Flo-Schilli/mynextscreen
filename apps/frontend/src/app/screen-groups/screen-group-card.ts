@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { CardComponent, BadgeComponent, IconComponent, IconName, StatusDotComponent } from '../ui';
 import { ScreenGroup } from './screen-group.model';
+import { wallResolution } from './wall-resolution';
 
 /** One panel in the split layout preview. */
 interface SplitPreviewCell {
@@ -52,8 +53,11 @@ const CELL_META_MAX_ROWS = 2;
           </span>
           <div class="flex-1 min-w-0">
             <div class="font-bold text-[15.5px] truncate">{{ group().name }}</div>
-            <div class="text-[12.5px] text-muted">
+            <div class="text-[12.5px] text-muted truncate">
               {{ screenCount() }} screen{{ screenCount() === 1 ? '' : 's' }}
+              @if (wallResolution(); as resolution) {
+                · {{ resolution }}
+              }
             </div>
           </div>
           <mns-badge
@@ -171,6 +175,9 @@ export class ScreenGroupCard {
   );
 
   readonly screenCount = computed(() => this.group().screens.length);
+
+  /** The whole group as one picture — the wall's size in split mode. */
+  readonly wallResolution = computed(() => wallResolution(this.group()));
 
   readonly modeLabel = computed(() => {
     const g = this.group();

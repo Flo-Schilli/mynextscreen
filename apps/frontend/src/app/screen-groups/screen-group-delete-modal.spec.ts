@@ -8,6 +8,7 @@ function makeScreen(id: string): ScreenGroupScreen {
     id,
     name: `Screen ${id}`,
     location: 'Hall',
+    resolution: '1920x1080',
     isOnline: false,
     groupId: 'g1',
     gridRow: null,

@@ -16,6 +16,8 @@ export interface ScreenGroupScreen {
   id: string;
   name: string;
   location: string;
+  /** `1920x1080`, as the screen reported it when it was paired. */
+  resolution: string;
   isOnline: boolean;
   groupId: string | null;
   gridRow: number | null;

@@ -134,7 +134,7 @@ import {
               </div>
             </div>
           } @else {
-            <div class="space-y-4">
+            <div class="flex flex-col gap-4">
               <mns-sfield label="Name" hint="How you will recognise this venue in the list">
                 <mns-sinput [(value)]="newName" placeholder="Venue North" />
               </mns-sfield>

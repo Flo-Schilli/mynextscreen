@@ -58,7 +58,7 @@ import {
         [widthPx]="620"
         (closed)="closed.emit()"
       >
-        <div class="space-y-5">
+        <div class="flex flex-col gap-5">
           <mns-sfield
             label="Site agent"
             hint="Which venue agent looks after this display. To take it out, use Remove on its row."

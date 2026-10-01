@@ -18,6 +18,7 @@ import {
 } from './screen-group.model';
 import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
 import { ScreenService } from '../screens/screen.service';
+import { wallResolution } from './wall-resolution';
 import { Screen } from '../screens/screen.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
@@ -37,6 +38,7 @@ import {
 import { ScreenGroupModeToggle } from './screen-group-mode-toggle';
 import { ScreenGroupWall, WallCell, WallPlaceable, WallAssignEvent } from './screen-group-wall';
 import { MonitorContent } from './screen-group-monitor-frame';
+import { BackLink } from '../shared/back-link';
 
 /** A screen placed in the group, with its split-cell number when applicable. */
 interface PlacedScreen {
@@ -57,6 +59,7 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    BackLink,
     CardComponent,
     CardHeadComponent,
     BadgeComponent,
@@ -79,13 +82,7 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
       }
 
       @if (group(); as g) {
-        <button
-          type="button"
-          class="inline-flex items-center gap-[7px] mb-4 pl-[9px] pr-[13px] py-[7px] rounded-[10px] border border-border bg-surface text-muted text-[13.5px] font-semibold"
-          (click)="goBack()"
-        >
-          <mns-icon name="ChevronLeft" [size]="17" /> All groups
-        </button>
+        <div class="mb-4"><app-back-link route="/screen-groups" /></div>
 
         <!-- header card -->
         <mns-card>
@@ -105,6 +102,9 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
                 <mns-badge tone="neutral" icon="Screens"
                   >{{ assignedCount() }} screen{{ assignedCount() === 1 ? '' : 's' }}</mns-badge
                 >
+                @if (wallResolution(); as resolution) {
+                  <mns-badge tone="neutral" icon="Screens">{{ resolution }}</mns-badge>
+                }
               </div>
             </div>
             <mns-btn variant="danger" size="sm" icon="Trash" (mnsClick)="onDelete()"
@@ -118,7 +118,7 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
         }
 
         <!-- live preview card -->
-        <mns-card class="mt-[var(--gap)]">
+        <mns-card class="block mt-[var(--gap)]">
           <mns-card-head title="Live preview" [sub]="previewSub()" icon="Cast">
             <mns-badge slot="right" tone="neutral" icon="Image">{{ contentLabel() }}</mns-badge>
           </mns-card-head>
@@ -413,12 +413,20 @@ export class ScreenGroupDetail implements OnInit {
     return cells;
   });
 
+  /** The whole group as one picture — the wall's size in split mode. */
+  readonly wallResolution = computed(() => {
+    const g = this.group();
+    return g ? wallResolution(g) : null;
+  });
+
   readonly previewSub = computed(() => {
     const g = this.group();
     if (!g) return '';
+    const resolution = this.wallResolution();
+    const suffix = resolution ? ` · ${resolution}` : '';
     return g.mode === 'split'
-      ? `Video wall · ${g.gridColumns ?? 1} columns × ${g.gridRows ?? 1} rows`
-      : `Mirrored to ${this.assignedCount()} screen${this.assignedCount() === 1 ? '' : 's'}`;
+      ? `Video wall · ${g.gridColumns ?? 1} columns × ${g.gridRows ?? 1} rows${suffix}`
+      : `Mirrored to ${this.assignedCount()} screen${this.assignedCount() === 1 ? '' : 's'}${suffix}`;
   });
 
   ngOnInit(): void {

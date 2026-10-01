@@ -1,5 +1,6 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { Router } from '@angular/router';
+
 import { InstanceAuditLogService, InstanceAuditLogFilters } from './instance-audit-log.service';
 import { AdminUserService } from '../users/admin-user.service';
 import { OrganisationService } from '../organisations/organisation.service';
@@ -19,6 +20,7 @@ import {
   SelectComponent,
   SelectOption,
 } from '../../ui';
+import { AdminTabsComponent } from '../admin-tabs.component';
 
 interface UserOption {
   userId: string;
@@ -38,8 +40,7 @@ const titleCase = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slic
   selector: 'app-instance-audit-log',
   standalone: true,
   imports: [
-    RouterLink,
-    RouterLinkActive,
+    AdminTabsComponent,
     AuditLogTable,
     BtnComponent,
     IconComponent,
@@ -72,19 +73,7 @@ const titleCase = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slic
       </div>
 
       <!-- tab bar -->
-      <div class="flex gap-1 border-b border-border mb-[var(--gap)] overflow-x-auto">
-        @for (tab of tabs; track tab.route) {
-          <a
-            [routerLink]="tab.route"
-            class="flex items-center gap-2 px-[14px] py-3 -mb-px text-[14px] font-semibold whitespace-nowrap border-b-2 border-transparent text-muted hover:text-default transition-colors no-underline"
-            routerLinkActive="border-accent text-default"
-            [routerLinkActiveOptions]="{ exact: true }"
-          >
-            <mns-icon [name]="tab.icon" [size]="16" />
-            {{ tab.label }}
-          </a>
-        }
-      </div>
+      <app-admin-tabs />
 
       <div
         class="flex flex-wrap items-end gap-4 mb-6 p-4 bg-surface border border-border rounded-lg"
@@ -184,13 +173,6 @@ export class InstanceAuditLog implements OnInit {
   private userService = inject(AdminUserService);
   private orgService = inject(OrganisationService);
   private router = inject(Router);
-
-  readonly tabs = [
-    { label: 'Dashboard', route: '/admin/dashboard', icon: 'Dashboard' as const },
-    { label: 'Organisations', route: '/admin/organisations', icon: 'Building' as const },
-    { label: 'Users', route: '/admin/users', icon: 'User' as const },
-    { label: 'Audit Log', route: '/admin/audit-log', icon: 'Audit' as const },
-  ];
 
   exportCsv(): void {
     // Placeholder — backend CSV export endpoint wired when available
