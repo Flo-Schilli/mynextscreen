@@ -38,8 +38,8 @@ const ADMIN_TABS: AdminTab[] = [
         @for (tab of tabs; track tab.route) {
           <a
             [routerLink]="tab.route"
-            class="flex shrink-0 items-center gap-2 px-[14px] py-3 -mb-px text-[14px] font-semibold whitespace-nowrap border-b-2 border-transparent text-muted hover:text-default transition-colors no-underline"
-            routerLinkActive="border-accent text-default"
+            class="flex shrink-0 items-center gap-2 px-[14px] py-3 -mb-px text-[14px] font-semibold whitespace-nowrap border-b-2 border-transparent text-muted hover:text-text transition-colors no-underline"
+            routerLinkActive="!text-text !border-accent"
             [routerLinkActiveOptions]="{ exact: true }"
           >
             <mns-icon [name]="tab.icon" [size]="16" />

@@ -78,7 +78,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
       @if (selectedOrg) {
         <div class="flex items-center gap-3 mb-4 flex-wrap">
           <button
-            class="inline-flex items-center gap-[7px] px-[13px] py-2 rounded-[10px] text-[13.5px] font-semibold border border-border-strong bg-surface text-muted hover:text-default transition-colors"
+            class="inline-flex items-center gap-[7px] px-[13px] py-2 rounded-[10px] text-[13.5px] font-semibold border border-border-strong bg-surface text-muted hover:text-text transition-colors"
             (click)="deselectOrg()"
           >
             <mns-icon name="ChevronLeft" [size]="16" /> All Organisations

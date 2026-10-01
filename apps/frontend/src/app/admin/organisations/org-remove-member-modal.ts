@@ -16,7 +16,7 @@ import { OverlayComponent, ModalComponent, BtnComponent } from '../../ui';
       <mns-modal title="Remove Member" icon="Trash" (closed)="dismiss.emit()">
         <p class="text-sm text-muted leading-relaxed">
           Are you sure you want to remove
-          <strong class="text-default">{{ member().user.email }}</strong> from this organisation?
+          <strong class="text-text">{{ member().user.email }}</strong> from this organisation?
         </p>
         <div slot="footer" class="flex justify-end gap-2 px-6 pb-5 pt-1">
           <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Cancel</mns-btn>

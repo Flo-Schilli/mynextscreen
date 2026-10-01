@@ -15,7 +15,7 @@ import { OverlayComponent, ModalComponent, BtnComponent } from '../../ui';
     <mns-overlay (closed)="dismiss.emit()">
       <mns-modal title="Delete User" icon="Trash" (closed)="dismiss.emit()">
         <p class="text-sm text-muted leading-relaxed">
-          Are you sure you want to delete <strong class="text-default">{{ user().email }}</strong
+          Are you sure you want to delete <strong class="text-text">{{ user().email }}</strong
           >? This removes the user and all of their organisation memberships. This action cannot be
           undone.
         </p>
