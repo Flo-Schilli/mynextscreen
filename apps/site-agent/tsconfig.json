@@ -9,8 +9,7 @@
     "allowSyntheticDefaultImports": true,
     "target": "ES2022",
     "sourceMap": true,
-    "outDir": "../../dist/apps/backend",
-    "rootDir": "./src",
+    "outDir": "../../dist/apps/site-agent",
     "baseUrl": "./",
     "incremental": true,
     "strict": true,
@@ -24,7 +23,8 @@
         "src/*"
       ]
     },
-    "tsBuildInfoFile": "../../dist/apps/backend/.tsbuildinfo"
+    "rootDir": "./src",
+    "tsBuildInfoFile": "../../dist/apps/site-agent/.tsbuildinfo"
   },
   "include": [
     "src/**/*"

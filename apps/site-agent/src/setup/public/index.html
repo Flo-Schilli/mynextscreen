@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>myNextScreen Site Agent</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --card: #171a21;
+        --line: #272b35;
+        --text: #e7e9ee;
+        --muted: #9aa1ae;
+        --accent: #6d6cf6;
+        --ok: #3fb950;
+        --bad: #f85149;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f6f7f9;
+          --card: #ffffff;
+          --line: #e2e5ea;
+          --text: #1b1e24;
+          --muted: #5d6471;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 32px 16px;
+        background: var(--bg);
+        color: var(--text);
+        font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      main { max-width: 520px; margin: 0 auto; }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      .sub { color: var(--muted); margin: 0 0 24px; }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 16px;
+      }
+      label { display: block; font-weight: 600; margin: 14px 0 6px; }
+      input {
+        width: 100%;
+        padding: 9px 11px;
+        border-radius: 7px;
+        border: 1px solid var(--line);
+        background: var(--bg);
+        color: var(--text);
+        font: inherit;
+      }
+      input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+      .hint { color: var(--muted); font-size: 13px; margin-top: 5px; }
+      button {
+        margin-top: 18px;
+        padding: 9px 16px;
+        border: 0;
+        border-radius: 7px;
+        background: var(--accent);
+        color: #fff;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button.secondary { background: transparent; border: 1px solid var(--line); color: var(--text); }
+      button:disabled { opacity: 0.55; cursor: default; }
+      dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; }
+      dt { color: var(--muted); }
+      dd { margin: 0; overflow-wrap: anywhere; }
+      .pill { font-weight: 600; }
+      .pill.on { color: var(--ok); }
+      .pill.off { color: var(--bad); }
+      .msg { margin-top: 14px; padding: 10px 12px; border-radius: 7px; font-size: 14px; }
+      .msg.err { background: rgba(248, 81, 73, 0.14); color: var(--bad); }
+      .msg.ok { background: rgba(63, 185, 80, 0.14); color: var(--ok); }
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>myNextScreen Site Agent</h1>
+      <p class="sub">On-premise control for the displays in this venue.</p>
+
+      <section class="card">
+        <dl>
+          <dt>Status</dt>
+          <dd><span id="state" class="pill">checking…</span></dd>
+          <dt>Server</dt>
+          <dd id="server">—</dd>
+          <dt>Displays</dt>
+          <dd id="screens">—</dd>
+          <dt>Last configuration</dt>
+          <dd id="pulled">—</dd>
+          <dt>Version</dt>
+          <dd id="version">—</dd>
+        </dl>
+      </section>
+
+      <section class="card" id="connect-card">
+        <strong id="connect-title">Connect this agent</strong>
+        <form id="connect-form">
+          <label for="serverUrl">Server address</label>
+          <input id="serverUrl" name="serverUrl" placeholder="https://signage.example.com" required />
+
+          <label for="enrolmentToken">Enrolment token</label>
+          <input id="enrolmentToken" name="enrolmentToken" autocomplete="off" required />
+          <p class="hint">Create the agent in the dashboard under Site Agents; the token is shown once.</p>
+
+          <label for="pin">Setup PIN</label>
+          <input id="pin" name="pin" autocomplete="off" required />
+          <p class="hint">Printed in this container's log when the agent started.</p>
+
+          <button type="submit" id="connect-btn">Connect</button>
+          <button type="button" id="reset-btn" class="secondary" hidden>Disconnect</button>
+        </form>
+        <div id="msg" class="msg" hidden></div>
+      </section>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const msg = $('msg');
+
+      function say(text, kind) {
+        msg.textContent = text;
+        msg.className = 'msg ' + kind;
+        msg.hidden = false;
+      }
+
+      function render(status) {
+        $('state').textContent = status.connected ? 'connected' : 'not connected';
+        $('state').className = 'pill ' + (status.connected ? 'on' : 'off');
+        $('server').textContent = status.serverUrl || '—';
+        $('screens').textContent = status.connected ? String(status.screenCount) : '—';
+        $('pulled').textContent = status.lastConfigPullAt
+          ? new Date(status.lastConfigPullAt).toLocaleString()
+          : 'never';
+        $('version').textContent = status.agentVersion || '—';
+
+        $('connect-title').textContent = status.connected ? 'Reconnect this agent' : 'Connect this agent';
+        $('connect-btn').textContent = status.connected ? 'Reconnect' : 'Connect';
+        $('reset-btn').hidden = !status.connected;
+        if (status.serverUrl) $('serverUrl').value = status.serverUrl;
+      }
+
+      async function refresh() {
+        try {
+          render(await (await fetch('api/status')).json());
+        } catch {
+          say('Cannot reach the agent.', 'err');
+        }
+      }
+
+      async function send(path, body) {
+        const res = await fetch(path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Setup-Pin': $('pin').value },
+          body: JSON.stringify(body ?? {}),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(payload.message || 'Request failed');
+        return payload;
+      }
+
+      $('connect-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        $('connect-btn').disabled = true;
+        try {
+          render(
+            await send('api/enrol', {
+              serverUrl: $('serverUrl').value.trim(),
+              enrolmentToken: $('enrolmentToken').value.trim(),
+            }),
+          );
+          $('enrolmentToken').value = '';
+          say('Connected. The agent is now looking after this venue.', 'ok');
+        } catch (error) {
+          say(error.message, 'err');
+        } finally {
+          $('connect-btn').disabled = false;
+        }
+      });
+
+      $('reset-btn').addEventListener('click', async () => {
+        if (!confirm('Disconnect this agent? It will need a new enrolment token to come back.')) return;
+        try {
+          render(await send('api/reset'));
+          say('Disconnected.', 'ok');
+        } catch (error) {
+          say(error.message, 'err');
+        }
+      });
+
+      refresh();
+      setInterval(refresh, 10000);
+    </script>
+  </body>
+</html>
