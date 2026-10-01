@@ -48,3 +48,4 @@ export { StepperComponent } from './stepper.component';
 
 // Overlays
 export { OverlayComponent, ModalComponent } from './overlay.component';
+export { useDialogStack } from './dialog-stack';

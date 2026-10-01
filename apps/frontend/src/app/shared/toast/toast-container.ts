@@ -57,7 +57,7 @@ import { ToastService } from './toast.service';
             aria-label="Dismiss"
             (click)="toasts.dismiss(toast.id)"
           >
-            <mns-icon name="Plus" [size]="12" style="transform:rotate(45deg)" />
+            <mns-icon name="X" [size]="12" />
           </button>
         </div>
       }

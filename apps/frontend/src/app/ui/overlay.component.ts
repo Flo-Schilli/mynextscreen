@@ -1,5 +1,6 @@
 /* eslint-disable @angular-eslint/component-selector */
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { useDialogStack } from './dialog-stack';
 import { IconComponent, IconName } from './icon.component';
 
 /**
@@ -27,19 +28,36 @@ import { IconComponent, IconName } from './icon.component';
       aria-modal="true"
       tabindex="0"
       (click)="onBackdropClick($event)"
-      (keydown.escape)="closed.emit()"
+      (keydown.escape)="onBackdropEscape($event)"
     >
       <ng-content />
     </div>
   `,
   host: {
     style: 'display:contents',
-    tabindex: '-1',
-    '(keydown.escape)': 'closed.emit()',
+    '(document:keydown.escape)': 'onEscape()',
   },
 })
 export class OverlayComponent {
   readonly closed = output<void>();
+
+  private readonly isInnermost = useDialogStack();
+
+  /** Only the innermost open dialog answers Escape. */
+  onEscape(): void {
+    if (this.isInnermost()) {
+      this.closed.emit();
+    }
+  }
+
+  /**
+   * Escape pressed while the backdrop itself holds focus. Handled here so the
+   * document listener does not see the same keypress a second time.
+   */
+  onBackdropEscape(event: Event): void {
+    event.stopPropagation();
+    this.onEscape();
+  }
 
   onBackdropClick(e: MouseEvent): void {
     if (e.target === e.currentTarget) {
@@ -68,9 +86,6 @@ export class OverlayComponent {
       class="relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-xl border border-border-strong bg-surface"
       [style.maxWidth.px]="widthPx()"
       style="box-shadow: var(--shadow-lg); animation: fadeUp .3s cubic-bezier(.22,.61,.36,1) both"
-      tabindex="0"
-      (click)="$event.stopPropagation()"
-      (keydown)="$event.stopPropagation()"
     >
       <!-- header -->
       <div class="flex flex-shrink-0 items-center gap-3 px-6 pt-5 pb-4 border-b border-border">
@@ -93,7 +108,7 @@ export class OverlayComponent {
           aria-label="Close"
           (click)="closed.emit()"
         >
-          <mns-icon name="Plus" [size]="16" style="transform: rotate(45deg)" />
+          <mns-icon name="X" [size]="16" />
         </button>
       </div>
 

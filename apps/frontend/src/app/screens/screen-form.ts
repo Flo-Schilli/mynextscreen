@@ -10,7 +10,7 @@ import {
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Screen, CreateScreenRequest, UpdateScreenRequest } from './screen.model';
-import { ToggleRowComponent } from '../ui';
+import { ToggleRowComponent, useDialogStack } from '../ui';
 
 const PRESET_RESOLUTIONS = ['1920x1080', '3840x2160', '1280x720', '2560x1440', '1080x1920'];
 
@@ -41,18 +41,12 @@ type ScreenFormMode = 'create' | 'edit';
       class="pairing-overlay"
       role="dialog"
       aria-modal="true"
-      tabindex="0"
       [attr.aria-label]="panelTitle()"
+      tabindex="0"
       (click)="onBackdropClick($event)"
-      (keydown.escape)="dismiss.emit()"
+      (keydown.escape)="onBackdropEscape($event)"
     >
-      <div
-        class="pairing-panel"
-        role="document"
-        (click)="$event.stopPropagation()"
-        (keydown)="$event.stopPropagation()"
-        (keydown.escape)="dismiss.emit()"
-      >
+      <div class="pairing-panel" role="document">
         <!-- Header -->
         <div class="panel-header">
           <span class="panel-icon">
@@ -681,6 +675,7 @@ type ScreenFormMode = 'create' | 'edit';
       }
     }
   `,
+  host: { '(document:keydown.escape)': 'onEscape()' },
 })
 export class ScreenForm implements OnInit {
   readonly mode = input.required<ScreenFormMode>();
@@ -697,6 +692,24 @@ export class ScreenForm implements OnInit {
   readonly repair = output<string>();
   readonly refresh = output<void>();
   readonly dismiss = output<void>();
+
+  private readonly isInnermost = useDialogStack();
+
+  /** Only the innermost open dialog answers Escape. */
+  onEscape(): void {
+    if (this.isInnermost()) {
+      this.dismiss.emit();
+    }
+  }
+
+  /**
+   * Escape pressed while the backdrop itself holds focus. Handled here so the
+   * document listener does not see the same keypress a second time.
+   */
+  onBackdropEscape(event: Event): void {
+    event.stopPropagation();
+    this.onEscape();
+  }
 
   protected name = '';
   protected location = '';
