@@ -4,6 +4,58 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.14.0
+
+### Added — a service in the venue that looks after the displays
+
+An LG consumer TV has no autostart, and its Developer Mode session expires —
+when it does, the set deletes the installed app. Neither can be dealt with from
+the server, and the player heartbeat alone cannot tell _the TV is off_ from _the
+TV is on and the app is not running_. Those are different problems with
+different fixes, and until now both looked like "offline".
+
+A **site agent** is a new service that runs inside a venue's network and is
+paired to one organisation. It probes the displays assigned to it, starts the
+app over SSAP when the player is not reporting, wakes a set with Wake-on-LAN
+before a schedule begins, and extends the Developer Mode session over SSH — only
+while the TV is on, because there is no other way, and before launching the app,
+because an expired session means the set has already deleted it.
+
+Everything it needs comes from a configuration it caches on disk, so a venue
+keeps being looked after when the uplink is down, including waking a set for a
+schedule it already knew about. A command an operator triggers by hand is
+refused with a clear error when the agent is not connected rather than queued: a
+"start the app now" that fires six hours later is worse than none.
+
+**The TVs' private keys never leave the venue.** The server stores only the
+Developer Mode passphrase, encrypted; the agent fetches each key from the set's
+own key server and keeps it locally. That passphrase is the only value in the
+system delivered to one caller in the clear and masked for another, so the two
+payloads are separate types rather than one with a flag.
+
+**Operator actions.** Create the agent under **Site Agents** in the dashboard,
+run the container in the venue, and connect it on its own setup page with the
+PIN printed to its log. Then connect each display with the eight-step wizard,
+which checks every step against the actual TV. Two settings on each set have to
+be made on the TV itself — **Quick Start+**, without which the network stack is
+dead in standby, and **Mobile TV On** for Wake-on-LAN.
+
+**Set `MNS_SERVER_URL` on every agent you care about.** Without it the server
+address lives only in the agent's state file, and the agent presents its real
+refresh token to whatever address is written there. With it, the deployment
+decides and the setup page cannot be used to move the agent.
+
+Full walkthrough, including what each status means and what to do about it:
+[docs/site-agent.md](docs/site-agent.md).
+
+### Changed — the LG helper scripts are no longer the autostart answer
+
+`player-applications/lg-tvos/tools/` told operators to run `launch-tv.mjs
+--watch` as a systemd service on the backend host. The site agent does that
+properly, for every display in a house, from inside the venue. The scripts stay
+for what they are still the answer to: poking at one set by hand, before an
+agent is set up or when one cannot reach a TV and you need to find out why.
+
 ## 0.13.0
 
 ### Fixed — the settings overlay could not be crossed with a TV remote
