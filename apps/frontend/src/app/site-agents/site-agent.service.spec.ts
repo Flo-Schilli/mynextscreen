@@ -144,6 +144,36 @@ describe('SiteAgentService', () => {
     });
   });
 
+  describe('removeRemoteControl', () => {
+    it('deletes the settings rather than unassigning them', () => {
+      service.removeRemoteControl(SCREEN_ID).subscribe();
+
+      const req = http.expectOne(`/api/screens/${SCREEN_ID}/remote-control`);
+      expect(req.request.method).toBe('DELETE');
+      req.flush(null, { status: 204, statusText: 'No Content' });
+    });
+
+    // A PUT with agentId: null would leave the address, the passphrase and the
+    // onboarding progress behind for the next agent to inherit.
+    it('does not send a body that could be mistaken for an update', () => {
+      service.removeRemoteControl(SCREEN_ID).subscribe();
+
+      const req = http.expectOne(`/api/screens/${SCREEN_ID}/remote-control`);
+      expect(req.request.body).toBeNull();
+      req.flush(null, { status: 204, statusText: 'No Content' });
+    });
+  });
+
+  describe('remove', () => {
+    it('deletes the agent', () => {
+      service.remove(AGENT_ID).subscribe();
+
+      const req = http.expectOne(`/api/site-agents/${AGENT_ID}`);
+      expect(req.request.method).toBe('DELETE');
+      req.flush(null, { status: 204, statusText: 'No Content' });
+    });
+  });
+
   describe('commands', () => {
     it('dispatches a manual action', () => {
       service.sendCommand(SCREEN_ID, 'launch').subscribe((result) => {

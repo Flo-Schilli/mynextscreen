@@ -86,6 +86,7 @@ interface ManagedScreen {
           </mns-btn>
           <mns-btn variant="outline" icon="Refresh" (mnsClick)="reissue()">New token</mns-btn>
           <mns-btn variant="outline" icon="Logout" (mnsClick)="revoke()">Revoke access</mns-btn>
+          <mns-btn variant="outline" icon="Trash" (mnsClick)="remove()">Delete agent</mns-btn>
         </div>
 
         @if (token(); as raw) {
@@ -438,6 +439,53 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
     this.service.reissueEnrolment(this.agentId()).subscribe({
       next: (result) => this.token.set(result.enrolmentToken),
       error: () => this.toast.error('Could not issue a token'),
+    });
+  }
+
+  /**
+   * Takes a display away from this agent and forgets everything configured for
+   * it. Spelled out in the prompt, because the address, the passphrase and the
+   * onboarding progress go too — adding it back walks the operator through the
+   * set again rather than trusting what was true of a previous installation.
+   */
+  protected removeScreen(item: ManagedScreen): void {
+    if (
+      !confirm(
+        `Remove ${item.screen.name} from this agent?\n\n` +
+          'Its address, developer-mode passphrase and setup progress are forgotten. ' +
+          'Adding it again starts the setup from the beginning.',
+      )
+    ) {
+      return;
+    }
+    this.service.removeRemoteControl(item.screen.id).subscribe({
+      next: () => {
+        this.toast.success('Removed from this agent');
+        this.load();
+      },
+      error: () => this.toast.error('Could not remove that display'),
+    });
+  }
+
+  protected remove(): void {
+    const count = this.managed().length;
+    if (
+      !confirm(
+        'Delete this agent?\n\n' +
+          (count > 0
+            ? `The ${count} display(s) it looks after are released and their setup is forgotten. `
+            : '') +
+          'This cannot be undone.',
+      )
+    ) {
+      return;
+    }
+    this.service.remove(this.agentId()).subscribe({
+      next: () => {
+        this.toast.success('Agent deleted');
+        void this.router.navigate(['/site-agents']);
+      },
+      error: () => this.toast.error('Could not delete this agent'),
     });
   }
 

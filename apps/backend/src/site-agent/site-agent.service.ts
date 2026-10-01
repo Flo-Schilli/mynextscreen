@@ -19,6 +19,7 @@ import {
   type IssuedEnrolmentToken,
 } from './site-agent-enrolment.service';
 import { SiteAgentSessionService } from './site-agent-session.service';
+import { ScreenRemoteControlService } from './screen-remote-control.service';
 
 /** A site agent plus the count of screens assigned to it. */
 export interface SiteAgentListItem extends SiteAgent {
@@ -37,6 +38,7 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
     @Inject(DRIZZLE) db: DrizzleDB,
     private readonly enrolments: SiteAgentEnrolmentService,
     private readonly sessions: SiteAgentSessionService,
+    private readonly remoteControls: ScreenRemoteControlService,
     private readonly eventEmitter: EventEmitter2,
   ) {
     super(db, siteAgents, 'Site agent');
@@ -72,12 +74,24 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
     return agent;
   }
 
+  /**
+   * Deletes an agent and clears the settings of every screen it looked after.
+   *
+   * The foreign key alone would only null `agent_id`, leaving each screen with
+   * the address, passphrase and completed onboarding of a venue that no longer
+   * has an agent — and the next agent would inherit all of it untouched. A
+   * screen whose agent is gone starts from nothing, like one never managed.
+   */
   async removeAgent(organisationId: string, id: string, userId: string | null): Promise<void> {
     const agent = await this.findOne(organisationId, id);
+    const clearedScreens = await this.remoteControls.removeForAgent(id);
     await this.remove(organisationId, id);
     this.eventEmitter.emit(
       AUDIT_SITE_AGENT_DELETED,
-      new AuditSiteAgentEvent(id, organisationId, userId, { name: agent.name }),
+      new AuditSiteAgentEvent(id, organisationId, userId, {
+        name: agent.name,
+        clearedScreens,
+      }),
     );
   }
 

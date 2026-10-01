@@ -6,6 +6,7 @@ import type { DrizzleDB } from '../db/drizzle.types';
 import { screenRemoteControls, screens, siteAgents, type ScreenRemoteControl } from '../db/schema';
 import { SecretCipher } from '../common/secret-cipher.service';
 import {
+  AUDIT_SCREEN_REMOTE_CONTROL_REMOVED,
   AUDIT_SCREEN_REMOTE_CONTROL_UPDATED,
   AuditScreenRemoteEvent,
 } from '../audit-log/audit.events';
@@ -165,6 +166,57 @@ export class ScreenRemoteControlService {
     );
 
     return this.decryptSecrets(saved);
+  }
+
+  /**
+   * Removes a screen's remote-control settings entirely.
+   *
+   * The row is deleted rather than its `agentId` nulled, and that is the point:
+   * what is left behind would otherwise be the old address, the old passphrase
+   * and a completed onboarding, so handing the screen to an agent again would
+   * silently reuse all of it instead of walking the operator through the set in
+   * front of them. A removed screen starts from nothing, like one that was
+   * never managed.
+   */
+  async remove(organisationId: string, screenId: string, userId: string | null): Promise<void> {
+    await this.assertScreenInOrg(organisationId, screenId);
+
+    const [removed] = await this.db
+      .delete(screenRemoteControls)
+      .where(eq(screenRemoteControls.screenId, screenId))
+      .returning({ agentId: screenRemoteControls.agentId });
+
+    if (!removed) {
+      // Nothing was configured; the caller already has what it asked for.
+      return;
+    }
+
+    if (removed.agentId) {
+      this.eventEmitter.emit(
+        SCREEN_REMOTE_CONFIG_CHANGED,
+        new ScreenRemoteConfigChangedEvent([removed.agentId]),
+      );
+    }
+
+    this.eventEmitter.emit(
+      AUDIT_SCREEN_REMOTE_CONTROL_REMOVED,
+      new AuditScreenRemoteEvent(screenId, organisationId, userId, {
+        previousAgentId: removed.agentId,
+      }),
+    );
+  }
+
+  /**
+   * Clears the settings of every screen an agent looked after. Called when the
+   * agent itself is deleted: the foreign key would only null `agent_id`, which
+   * leaves exactly the stale state {@link remove} exists to avoid.
+   */
+  async removeForAgent(agentId: string): Promise<number> {
+    const removed = await this.db
+      .delete(screenRemoteControls)
+      .where(eq(screenRemoteControls.agentId, agentId))
+      .returning({ screenId: screenRemoteControls.screenId });
+    return removed.length;
   }
 
   /** True when that screen is assigned to that agent. The agent's authorisation. */
