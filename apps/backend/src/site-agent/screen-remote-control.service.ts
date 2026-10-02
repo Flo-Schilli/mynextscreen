@@ -44,6 +44,8 @@ export const REMOTE_CONTROL_DEFAULTS = {
   sshStatus: SshStatus.Unknown,
   ssapStatus: SsapStatus.Unknown,
   sshHostKeyFingerprint: null,
+  lastInstallAt: null,
+  lastInstallOk: null,
   lastStandbyAt: null,
   lastStandbyOk: null,
   installedAppId: null,

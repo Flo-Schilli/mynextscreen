@@ -75,6 +75,8 @@ export interface ScreenRemoteControl {
   onboardingStep: number;
   onboardingCompletedAt: string | null;
   /** What the TV reports as installed; null when the app is not on the set. */
+  lastInstallAt: string | null;
+  lastInstallOk: boolean | null;
   lastStandbyAt: string | null;
   lastStandbyOk: boolean | null;
   installedAppId: string | null;
@@ -98,7 +100,8 @@ export interface UpdateScreenRemoteControlRequest {
   wakeOnUnreachableEnabled?: boolean;
 }
 
-export type RemoteCommandType = 'launch' | 'wake' | 'standby' | 'extend_devmode' | 'refetch_key';
+export type RemoteCommandType =
+  'launch' | 'wake' | 'standby' | 'extend_devmode' | 'install_app' | 'refetch_key';
 
 export interface DispatchedCommand {
   commandId: string;

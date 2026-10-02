@@ -115,6 +115,16 @@ const STEPS: WizardStep[] = [
   },
   {
     step: 7,
+    title: 'Install the player app',
+    short: 'Install',
+    instruction:
+      'The agent copies the app onto the TV over the connection it just proved. Nothing to do here — the step installs it.',
+    fields: [],
+    checkable: true,
+    optional: false,
+  },
+  {
+    step: 8,
     title: 'Confirm the pairing prompt',
     short: 'Pairing',
     instruction:
@@ -124,7 +134,7 @@ const STEPS: WizardStep[] = [
     optional: false,
   },
   {
-    step: 8,
+    step: 9,
     title: 'Start the app',
     short: 'Finish',
     instruction:
@@ -134,6 +144,9 @@ const STEPS: WizardStep[] = [
     optional: false,
   },
 ];
+
+/** How many steps the wizard has, for anything outside it that counts them. */
+export const ONBOARDING_STEP_COUNT = STEPS.length;
 
 /** Skipping the first Developer Mode step makes the rest of that chain moot. */
 const DEVMODE_CHAIN_END = 6;

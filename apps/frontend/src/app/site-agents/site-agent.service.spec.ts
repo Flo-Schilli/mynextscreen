@@ -27,6 +27,8 @@ function makeRemote(overrides: Partial<ScreenRemoteControl> = {}): ScreenRemoteC
     localIp: '192.168.1.50',
     macAddress: null,
     devmodePassphrase: MASKED_SECRET,
+    lastInstallAt: null,
+    lastInstallOk: null,
     lastStandbyAt: null,
     lastStandbyOk: null,
     installedAppId: null,

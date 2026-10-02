@@ -6,11 +6,14 @@ import {
   HttpStatus,
   Post,
   Req,
+  Res,
   Sse,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import type { Response } from 'express';
 import type { Observable } from 'rxjs';
+import { PlayerAppsService } from '../player-apps/player-apps.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SiteAgentEnrolmentService } from './site-agent-enrolment.service';
 import { SiteAgentSessionService, type SiteAgentSessionTokens } from './site-agent-session.service';
@@ -59,6 +62,7 @@ export class SiteAgentDeviceController {
     private readonly sse: SiteAgentSseService,
     private readonly commands: ScreenRemoteCommandService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly playerApps: PlayerAppsService,
   ) {}
 
   /**
@@ -112,6 +116,25 @@ export class SiteAgentDeviceController {
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   config(@Req() req: AgentAuthenticatedRequest): Promise<AgentConfig> {
     return this.configService.buildAgentConfig(req.agentId);
+  }
+
+  /**
+   * The native player package this server has, for the agent to install.
+   *
+   * Separate from the operator-facing download, which is `@UserScoped`: the
+   * agent holds an agent token, not a session. Same file either way — one
+   * source for what gets installed, whether a person or the agent does it.
+   */
+  @Get('me/app-package')
+  @AgentAuth()
+  appPackage(@Res() res: Response): void {
+    const slug = this.configService.appPackageSlug();
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${this.playerApps.getBinaryFilename(slug)}"`,
+    );
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.sendFile(this.playerApps.getBinaryPath(slug), { root: '/' });
   }
 
   /**

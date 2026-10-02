@@ -17,7 +17,7 @@ import { OrganisationStateService } from '../shell/organisation-state.service';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { ToastService } from '../shared/toast/toast.service';
 import { ScreenRemoteSettings } from './screen-remote-settings';
-import { ScreenOnboardingWizard } from './screen-onboarding-wizard';
+import { ScreenOnboardingWizard, ONBOARDING_STEP_COUNT } from './screen-onboarding-wizard';
 import { SiteAgentConfirmModal } from './site-agent-confirm-modal';
 import type { RemoteCommandType, ScreenRemoteControl, SiteAgent } from './site-agent.model';
 import type { ScreenListItem } from '../screens/screen.model';
@@ -131,7 +131,9 @@ interface ManagedScreen {
                 </div>
 
                 @if (!item.remote.onboardingCompletedAt) {
-                  <mns-badge tone="warning"> Setup {{ item.remote.onboardingStep }}/8 </mns-badge>
+                  <mns-badge tone="warning">
+                    Setup {{ item.remote.onboardingStep }}/{{ onboardingSteps }}
+                  </mns-badge>
                 }
                 @if (appUpdateAvailable(item)) {
                   <mns-badge tone="warning">
@@ -161,6 +163,19 @@ interface ManagedScreen {
                     @if (item.remote.macAddress) {
                       <mns-btn size="sm" variant="outline" (mnsClick)="standby(item)">
                         Standby
+                      </mns-btn>
+                    }
+                    <!--
+                      The install goes over SSH, so it needs the same thing the
+                      Developer Mode extension does: a stored passphrase.
+                    -->
+                    @if (item.remote.devmodePassphrase) {
+                      <mns-btn
+                        size="sm"
+                        [variant]="appUpdateAvailable(item) ? 'soft' : 'outline'"
+                        (mnsClick)="command(item, 'install_app')"
+                      >
+                        {{ item.remote.installedAppVersion ? 'Update app' : 'Install app' }}
                       </mns-btn>
                     }
                     @if (item.remote.extendDevmodeEnabled && item.remote.devmodePassphrase) {
@@ -343,6 +358,8 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
   /** The screen whose removal is being confirmed, if any. */
   protected readonly removingScreen = signal<ManagedScreen | null>(null);
   protected readonly standbyScreen = signal<ManagedScreen | null>(null);
+  /** Kept beside the wizard's own list so the badge cannot drift from it. */
+  protected readonly onboardingSteps = ONBOARDING_STEP_COUNT;
   protected readonly confirmingDelete = signal(false);
   protected readonly confirmingRevoke = signal(false);
   protected readonly busy = signal(false);

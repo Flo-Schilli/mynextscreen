@@ -4,6 +4,7 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -89,6 +90,10 @@ export class AgentScreenReportDto {
   @IsOptional()
   @IsBoolean()
   standby?: boolean;
+
+  @IsOptional()
+  @IsIn(['ok', 'failed'])
+  installStatus?: 'ok' | 'failed';
 
   @IsOptional()
   @IsString()

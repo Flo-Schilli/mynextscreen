@@ -19,8 +19,9 @@ const STEP_NETWORK = 2;
 const STEP_KEY_SERVER = 4;
 const STEP_PASSPHRASE = 5;
 const STEP_SSH = 6;
-const STEP_SSAP_PAIRING = 7;
-const STEP_FINISH = 8;
+const STEP_INSTALL_APP = 7;
+const STEP_SSAP_PAIRING = 8;
+const STEP_FINISH = 9;
 
 /**
  * Executes what the operator asked for, now.
@@ -71,6 +72,11 @@ export class CommandHandlerService implements OnModuleInit {
       return;
     }
 
+    if (command.type === 'install_app') {
+      await this.installApp(command);
+      return;
+    }
+
     if (command.type === 'refetch_key') {
       // The only one that really is "look again": dropping the key changes what
       // the next round finds, and the round is what fetches a fresh one.
@@ -85,6 +91,96 @@ export class CommandHandlerService implements OnModuleInit {
     const action =
       command.type === 'extend_devmode' ? 'extend-devmode' : (command.type as 'wake' | 'launch');
     await this.supervisor.runAction(command.screenId, action);
+  }
+
+  /**
+   * Installs the packaged player app on the TV.
+   *
+   * The same three steps `ares-install` takes over the Developer Mode session:
+   * copy the package to the set, hand it to the install service, delete it
+   * again. The call goes over `luna-send-pub` because that is all the
+   * `prisoner` user has — the private bus is closed to it, which is also why
+   * the install service is addressed through its `dev` folder.
+   *
+   * The package is fetched from the server rather than carried in the agent's
+   * image, so a venue does not need redeploying to pick up a new player.
+   */
+  private async installApp(command: SiteAgentCommandMessage): Promise<void> {
+    const screen = this.configs.current()?.screens.find((s) => s.screenId === command.screenId);
+    if (!screen) {
+      return;
+    }
+
+    const report: AgentScreenReportMessage = {
+      screenId: screen.screenId,
+      commandId: command.commandId,
+    };
+    await this.install(screen, report);
+    await this.send(report);
+  }
+
+  /** The install itself, shared by the command and the wizard step. */
+  private async install(
+    screen: AgentScreenConfigMessage,
+    report: AgentScreenReportMessage,
+  ): Promise<void> {
+    const config = this.configs.current();
+    const key = await this.devmodeKeys.obtain(
+      screen.screenId,
+      screen.localIp,
+      screen.devmodePassphrase,
+    );
+    report.keyStatus = key.status;
+    if (key.status !== 'ok' || !key.privateKey) {
+      report.installStatus = 'failed';
+      report.detail = key.detail ?? 'No usable Developer Mode key';
+      return;
+    }
+
+    const target = {
+      host: screen.localIp as string,
+      privateKey: key.privateKey,
+      passphrase: screen.devmodePassphrase as string,
+      expectedHostKeyFingerprint: screen.sshHostKeyFingerprint,
+    };
+    const remotePath = `${TEMP_DIR}/${config?.appId ?? 'player'}.ipk`;
+
+    try {
+      const pkg = await this.client.fetchAppPackage();
+      const uploaded = await this.ssh.upload(target, pkg, remotePath);
+      if (uploaded.status !== 'ok') {
+        throw new Error(uploaded.detail ?? `Upload failed: ${uploaded.status}`);
+      }
+
+      const installed = await this.ssh.run(target, installCommand(remotePath));
+      report.sshStatus = installed.status;
+      if (installed.status !== 'ok') {
+        throw new Error(installed.detail ?? 'Could not reach the set to install');
+      }
+
+      // Asked, not inferred. The service's own answers proved useless as a
+      // signal — the acknowledgement looks identical whether the package is
+      // taken or ignored, and it was reported as success for an install that
+      // never happened. Whether the app is on the set afterwards is the only
+      // honest answer, and it fills in the version at the same time.
+      const version = await this.supervisor.readInstalledVersion(screen.screenId);
+      if (!version) {
+        throw new Error(installed.stdout?.trim() || 'The set does not report the app as installed');
+      }
+
+      report.installStatus = 'ok';
+      report.installedAppId = config?.appId;
+      report.installedAppVersion = version;
+      this.logger.log(`Installed ${version} on ${screen.name}`);
+    } catch (error) {
+      report.installStatus = 'failed';
+      report.detail = describe(error);
+      this.logger.warn(`Install on ${screen.name} failed: ${report.detail}`);
+    } finally {
+      // Always, including after a failure: a half-uploaded package left on a
+      // set with little free space is the next problem nobody connects to this.
+      await this.ssh.run(target, `rm -f ${remotePath}`).catch(() => undefined);
+    }
   }
 
   /**
@@ -162,6 +258,12 @@ export class CommandHandlerService implements OnModuleInit {
         break;
       case STEP_SSH:
         await this.checkSsh(screen, report);
+        break;
+      case STEP_INSTALL_APP:
+        // The step *is* the install: there is nothing to verify beforehand, and
+        // a check that only looked would leave the operator to press a second
+        // button for the thing the step is named after.
+        await this.install(screen, report);
         break;
       case STEP_SSAP_PAIRING:
       case STEP_FINISH: {
@@ -269,4 +371,40 @@ export class CommandHandlerService implements OnModuleInit {
       );
     }
   }
+}
+
+/** Where `ares-install` puts a package before handing it over. */
+const TEMP_DIR = '/media/developer/temp';
+
+/** How long to wait on the set for a final install state, in seconds. */
+const INSTALL_WAIT_S = 90;
+
+/**
+ * `dev/install` rather than `install`: the Developer Mode entry point is the
+ * one the public bus exposes, and the public bus is all the agent has.
+ */
+function installCommand(remotePath: string): string {
+  // Subscribed, because the first answer is only an acknowledgement
+  // ({"subscribed":false,"returnValue":true}) — measured on a real set, where
+  // taking it for success reported an install that never happened. The outcome
+  // arrives in later messages as `details.state`.
+  const payload = JSON.stringify({
+    id: 'com.ares.defaultName',
+    ipkUrl: remotePath,
+    subscribe: true,
+  });
+  // `-i`, like ares-install, not `-n`: with a reply count luna-send returns on
+  // the acknowledgement and the install never runs — measured on a real set,
+  // where the package sat in the temp directory untouched. The subscription has
+  // to stay open until the service reports a final state, so this reads the
+  // stream on the TV and kills luna-send once it has one.
+  const out = '/tmp/mns-install.$$';
+  const done = '\'"state" *: *"(installed|install failed)"\'';
+  return (
+    `f=${out}; ` +
+    `luna-send-pub -i luna://com.webos.appInstallService/dev/install '${payload}' > $f 2>&1 & ` +
+    `p=$!; i=0; ` +
+    `while [ $i -lt ${INSTALL_WAIT_S} ]; do grep -qiE ${done} $f && break; i=$((i+1)); sleep 1; done; ` +
+    `kill $p 2>/dev/null; cat $f; rm -f $f`
+  );
 }

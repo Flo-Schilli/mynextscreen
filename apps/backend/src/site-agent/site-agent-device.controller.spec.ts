@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Reflector } from '@nestjs/core';
 import { UnauthorizedException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { PlayerAppsService } from '../player-apps/player-apps.service';
 import { SiteAgentDeviceController } from './site-agent-device.controller';
 import { SiteAgentEnrolmentService } from './site-agent-enrolment.service';
 import { SiteAgentSessionService } from './site-agent-session.service';
@@ -55,6 +56,10 @@ describe('SiteAgentDeviceController', () => {
         { provide: SiteAgentSseService, useValue: sse },
         { provide: ScreenRemoteCommandService, useValue: commands },
         { provide: EventEmitter2, useValue: emitter },
+        {
+          provide: PlayerAppsService,
+          useValue: { getBinaryPath: () => '/tmp/x.ipk', getBinaryFilename: () => 'x.ipk' },
+        },
       ],
     }).compile();
 

@@ -8,7 +8,13 @@ export const SSH_PORT = 9922;
 export const SSH_USER = 'prisoner';
 
 const CONNECT_TIMEOUT_MS = 8_000;
-const COMMAND_TIMEOUT_MS = 15_000;
+/** An IPK is tens of kilobytes, but a venue LAN can be slow. */
+const UPLOAD_TIMEOUT_MS = 120_000;
+/**
+ * Long enough for an install: the agent waits on the set for the service's
+ * final state, which it reports seconds after the package is handed over.
+ */
+const COMMAND_TIMEOUT_MS = 120_000;
 
 /**
  * The call that actually extends the Developer Mode session, over the public
@@ -59,6 +65,24 @@ export class SshService {
   private readonly logger = new Logger(SshService.name);
 
   async run(target: SshTarget, command: string): Promise<SshResult> {
+    return this.withConnection(target, (config) => this.exec(config, command));
+  }
+
+  /**
+   * Copies a file onto the TV over SFTP.
+   *
+   * The same connection settings as {@link run}, host-key check included: an
+   * upload that skipped it would be the weaker half of the pair, and it is the
+   * half that puts a package on the set.
+   */
+  async upload(target: SshTarget, data: Buffer, remotePath: string): Promise<SshResult> {
+    return this.withConnection(target, (config) => this.put(config, data, remotePath));
+  }
+
+  private async withConnection(
+    target: SshTarget,
+    work: (config: ConnectConfig) => Promise<string>,
+  ): Promise<SshResult> {
     let seenFingerprint: string | null = null;
     let mismatch = false;
 
@@ -87,7 +111,7 @@ export class SshService {
     };
 
     try {
-      const stdout = await this.exec(config, command);
+      const stdout = await work(config);
       return { status: 'ok', stdout, hostKeyFingerprint: seenFingerprint ?? undefined };
     } catch (error) {
       if (mismatch) {
@@ -107,6 +131,42 @@ export class SshService {
   async extendDevmode(target: SshTarget): Promise<SshResult & { extended: boolean }> {
     const result = await this.run(target, EXTEND_DEVMODE_COMMAND);
     return { ...result, extended: (result.stdout ?? '').includes('"returnValue":true') };
+  }
+
+  /** Writes `data` to `remotePath` over SFTP on an already-verified connection. */
+  private put(config: ConnectConfig, data: Buffer, remotePath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const client = new Client();
+      const timer = setTimeout(() => {
+        client.end();
+        reject(new Error(`SFTP upload timed out after ${UPLOAD_TIMEOUT_MS}ms`));
+      }, UPLOAD_TIMEOUT_MS);
+
+      const finish = (error: Error | null): void => {
+        clearTimeout(timer);
+        client.end();
+        if (error) {
+          reject(error);
+        } else {
+          resolve('');
+        }
+      };
+
+      client.on('ready', () => {
+        client.sftp((error, sftp) => {
+          if (error) {
+            finish(error);
+            return;
+          }
+          const stream = sftp.createWriteStream(remotePath);
+          stream.on('error', finish);
+          stream.on('close', () => finish(null));
+          stream.end(data);
+        });
+      });
+      client.on('error', finish);
+      client.connect(config);
+    });
   }
 
   private exec(config: ConnectConfig, command: string): Promise<string> {

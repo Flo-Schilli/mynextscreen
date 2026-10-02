@@ -112,6 +112,37 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * What the set reports as installed for the app the agents run.
+   *
+   * Lives here because the SSAP session handling does, and because the install
+   * needs it as a verification: the install service's own answer looks the
+   * same whether the package was taken or ignored.
+   */
+  async readInstalledVersion(screenId: string): Promise<string | null> {
+    const config = this.configs.current();
+    const screen = config?.screens.find((s) => s.screenId === screenId);
+    if (!screen) {
+      return null;
+    }
+
+    let client: SsapClient | null = null;
+    try {
+      client = await SsapClient.connect(screen.localIp as string, screen.ssapPort);
+      const stored = await this.ssapKeys.load(screenId);
+      const clientKey = await client.register(stored);
+      if (clientKey && clientKey !== stored) {
+        await this.ssapKeys.save(screenId, clientKey);
+      }
+      return await client.installedAppVersion(config?.appId ?? '');
+    } catch (error) {
+      this.logger.debug(`Could not read the installed version: ${describe(error)}`);
+      return null;
+    } finally {
+      client?.close();
+    }
+  }
+
+  /**
    * Does one thing because a person asked, bypassing the policy that decides
    * what is *due*.
    *

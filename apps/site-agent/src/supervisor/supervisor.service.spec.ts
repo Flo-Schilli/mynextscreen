@@ -203,6 +203,22 @@ describe('SupervisorService', () => {
    * The counterpart to the command handler's tests: these go through the real
    * supervisor, so they catch an action wired to the wrong branch.
    */
+  describe('readInstalledVersion', () => {
+    it('answers null for a screen it does not look after', async () => {
+      supervisor = build(configWith([screen()]));
+
+      expect(await supervisor.readInstalledVersion('unknown')).toBeNull();
+    });
+
+    // Used to verify an install, so a connection problem must read as "not
+    // installed" rather than throwing into the caller's error path.
+    it('answers null instead of throwing when the set cannot be reached', async () => {
+      supervisor = build(configWith([screen({ localIp: '203.0.113.1' })]));
+
+      await expect(supervisor.readInstalledVersion('s1')).resolves.toBeNull();
+    });
+  });
+
   describe('runAction', () => {
     it('wakes a screen whose automatic waking is switched off', async () => {
       supervisor = build(

@@ -34,13 +34,14 @@ describe('CommandHandlerService', () => {
     runNow: jest.Mock;
     visitNow: jest.Mock;
     runAction: jest.Mock;
+    readInstalledVersion: jest.Mock;
     refreshConfigIfDue: jest.Mock;
   };
   let configs: { current: jest.Mock };
-  let client: { sendReports: jest.Mock };
+  let client: { sendReports: jest.Mock; fetchAppPackage: jest.Mock };
   let reachability: { probe: jest.Mock };
   let devmodeKeys: { obtain: jest.Mock; probeKeyServer: jest.Mock; forget: jest.Mock };
-  let ssh: { run: jest.Mock };
+  let ssh: { run: jest.Mock; upload: jest.Mock };
   let ssapKeys: { load: jest.Mock; save: jest.Mock };
 
   const config = (screens: AgentScreenConfigMessage[]): AgentConfigMessage => ({
@@ -61,17 +62,28 @@ describe('CommandHandlerService', () => {
       runNow: jest.fn(),
       visitNow: jest.fn().mockResolvedValue(null),
       runAction: jest.fn(),
+      readInstalledVersion: jest.fn().mockResolvedValue('0.15.0'),
       refreshConfigIfDue: jest.fn(),
     };
     configs = { current: jest.fn().mockReturnValue(config([screen()])) };
-    client = { sendReports: jest.fn().mockResolvedValue(undefined) };
+    client = {
+      sendReports: jest.fn().mockResolvedValue(undefined),
+      fetchAppPackage: jest.fn().mockResolvedValue(Buffer.from('ipk')),
+    };
     reachability = { probe: jest.fn().mockResolvedValue({ reachability: 'reachable' }) };
     devmodeKeys = {
       obtain: jest.fn().mockResolvedValue({ status: 'ok', privateKey: 'PEM' }),
       probeKeyServer: jest.fn().mockResolvedValue({ status: 'ok' }),
       forget: jest.fn(),
     };
-    ssh = { run: jest.fn().mockResolvedValue({ status: 'ok', hostKeyFingerprint: 'SHA256:abc' }) };
+    ssh = {
+      run: jest.fn().mockResolvedValue({
+        status: 'ok',
+        stdout: '{"returnValue":true}',
+        hostKeyFingerprint: 'SHA256:abc',
+      }),
+      upload: jest.fn().mockResolvedValue({ status: 'ok' }),
+    };
     ssapKeys = { load: jest.fn().mockResolvedValue('granted-key'), save: jest.fn() };
 
     handler = new CommandHandlerService(
@@ -179,18 +191,73 @@ describe('CommandHandlerService', () => {
     });
   });
 
-  describe('onboarding checks', () => {
-    it('step 2 reports what the network probe found', async () => {
-      reachability.probe.mockResolvedValue({ reachability: 'unreachable', detail: 'ETIMEDOUT' });
+  describe('install_app', () => {
+    it('uploads the package and hands it to the install service', async () => {
+      await handler.handle({ commandId: 'c1', type: 'install_app', screenId: 's1' });
 
-      await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step: 2 });
-
+      expect(client.fetchAppPackage).toHaveBeenCalled();
+      expect(ssh.upload).toHaveBeenCalled();
+      expect(ssh.run).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('appInstallService/dev/install'),
+      );
       expect(reported()).toMatchObject({
         commandId: 'c1',
-        step: 2,
-        reachability: 'unreachable',
-        detail: 'ETIMEDOUT',
+        installStatus: 'ok',
+        installedAppVersion: '0.15.0',
       });
+    });
+
+    /**
+     * The install service answers the same whether it took the package or
+     * ignored it — measured on a real set, where a success was reported for an
+     * install that never happened. Only the set's own answer counts.
+     */
+    it('fails when the set does not report the app afterwards', async () => {
+      supervisor.readInstalledVersion.mockResolvedValue(null);
+
+      await handler.handle({ commandId: 'c1', type: 'install_app', screenId: 's1' });
+
+      expect(reported()).toMatchObject({ installStatus: 'failed' });
+    });
+
+    /**
+     * A package left behind on a set with little free space is the next problem
+     * nobody connects back to this one.
+     */
+    it('removes the uploaded package even after a failure', async () => {
+      ssh.upload.mockResolvedValue({ status: 'unreachable', detail: 'ETIMEDOUT' });
+
+      await handler.handle({ commandId: 'c1', type: 'install_app', screenId: 's1' });
+
+      expect(ssh.run).toHaveBeenCalledWith(expect.anything(), expect.stringContaining('rm -f'));
+      expect(reported()).toMatchObject({ installStatus: 'failed' });
+    });
+
+    it('reports a package the server could not hand over', async () => {
+      client.fetchAppPackage.mockRejectedValue(new Error('404'));
+
+      await handler.handle({ commandId: 'c1', type: 'install_app', screenId: 's1' });
+
+      expect(ssh.upload).not.toHaveBeenCalled();
+      expect(reported()).toMatchObject({ installStatus: 'failed', detail: '404' });
+    });
+
+    it('ignores a command for a screen it does not look after', async () => {
+      configs.current.mockReturnValue(config([]));
+
+      await handler.handle({ commandId: 'c1', type: 'install_app', screenId: 's1' });
+
+      expect(client.fetchAppPackage).not.toHaveBeenCalled();
+    });
+
+    it('does not reach the TV at all without a usable key', async () => {
+      devmodeKeys.obtain.mockResolvedValue({ status: 'no_passphrase' });
+
+      await handler.handle({ commandId: 'c1', type: 'install_app', screenId: 's1' });
+
+      expect(ssh.upload).not.toHaveBeenCalled();
+      expect(reported()).toMatchObject({ installStatus: 'failed', keyStatus: 'no_passphrase' });
     });
 
     it('step 5 reports the key status', async () => {
@@ -238,7 +305,7 @@ describe('CommandHandlerService', () => {
       expect(reported()).toMatchObject({ keyStatus: 'wrong_passphrase' });
     });
 
-    it.each([7, 8])('step %i goes through the normal round', async (step) => {
+    it.each([8, 9])('step %i goes through the normal round', async (step) => {
       await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step });
 
       expect(supervisor.visitNow).toHaveBeenCalledWith('s1');
@@ -249,7 +316,7 @@ describe('CommandHandlerService', () => {
      * The server only advances the wizard on a report that carries one, so
      * these two steps failed in the dashboard however well the round had gone.
      */
-    it.each([7, 8])('step %i reports the round under its own command', async (step) => {
+    it.each([8, 9])('step %i reports the round under its own command', async (step) => {
       supervisor.visitNow.mockResolvedValue({
         screenId: 's1',
         reachability: 'reachable',
@@ -268,10 +335,19 @@ describe('CommandHandlerService', () => {
       });
     });
 
-    it('still answers step 7 when the round had nothing to do', async () => {
+    it('still answers step 8 when the round had nothing to do', async () => {
+      await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step: 8 });
+
+      expect(reported()).toMatchObject({ commandId: 'c1', step: 8 });
+    });
+
+    // The step is the install, not a look at it: an operator should not have to
+    // press a second button for the thing the step is named after.
+    it('step 7 installs rather than only checking', async () => {
       await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step: 7 });
 
-      expect(reported()).toMatchObject({ commandId: 'c1', step: 7 });
+      expect(ssh.upload).toHaveBeenCalled();
+      expect(reported()).toMatchObject({ commandId: 'c1', step: 7, installStatus: 'ok' });
     });
 
     it('ignores a check for a screen it does not look after', async () => {

@@ -720,6 +720,9 @@ export const screenRemoteControls = pgTable(
      * an app installed in Developer Mode can also vanish, so the set is the
      * only honest source.
      */
+    /** Outcome of the last install the agent attempted. */
+    lastInstallAt: timestamp({ withTimezone: true }),
+    lastInstallOk: boolean(),
     /** Last standby request and whether the set acknowledged it. */
     lastStandbyAt: timestamp({ withTimezone: true }),
     lastStandbyOk: boolean(),
