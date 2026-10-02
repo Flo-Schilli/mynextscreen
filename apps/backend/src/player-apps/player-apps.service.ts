@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { marked } from 'marked';
@@ -34,14 +35,33 @@ const PLAYER_APP_DEFS: Pick<PlayerAppDefinition, 'slug' | 'name'>[] = [
 @Injectable()
 export class PlayerAppsService {
   private readonly logger = new Logger(PlayerAppsService.name);
-  private readonly appsBasePath = path.join(process.cwd(), 'player-applications');
+  /**
+   * `player-applications` sits beside the compiled output in the image
+   * (`COPY player-applications ./player-applications`), so the working
+   * directory is right in production. It is not in development, where the
+   * backend runs from `apps/backend` while the directory is at the repo root —
+   * which silently disabled the download and the version lookup. Hence the
+   * override.
+   */
+  private readonly appsBasePath: string;
   private readonly playerApps: PlayerAppDefinition[];
 
-  constructor() {
+  constructor(config: ConfigService) {
+    this.appsBasePath =
+      config.get<string>('PLAYER_APPS_PATH')?.trim() ||
+      path.join(process.cwd(), 'player-applications');
     this.playerApps = PLAYER_APP_DEFS.map((def) => {
       const appInfo = this.readAppInfo(def.slug);
       return { ...def, appId: appInfo?.id ?? '', version: appInfo?.version ?? '0.0.0' };
     });
+  }
+
+  /**
+   * The version packaged in the repo for an app id, or null when nothing here
+   * builds that id. What a TV reports is compared against this.
+   */
+  versionForAppId(appId: string): string | null {
+    return this.playerApps.find((app) => app.appId === appId)?.version ?? null;
   }
 
   listApps(): PlayerAppMeta[] {
