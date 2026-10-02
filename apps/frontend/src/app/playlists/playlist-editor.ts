@@ -135,7 +135,7 @@ export interface ItemFieldChange<T> {
       <mns-card>
         <mns-card-head
           title="Sequence"
-          sub="Drag to reorder · set duration & transition per item"
+          sub="Drag to reorder · set duration & the transition each item enters with"
           icon="List"
         >
           <mns-btn slot="right" variant="soft" size="md" icon="Plus" (mnsClick)="addContent.emit()"
@@ -254,11 +254,17 @@ export interface ItemFieldChange<T> {
                   </div>
                 }
 
-                <!-- transition -->
-                <div class="w-full sm:w-[140px] sm:flex-shrink-0">
+                <!-- transition — the player animates an item as it enters, so
+                     this is the item's own way in, not the way the one before
+                     it leaves. -->
+                <div
+                  class="w-full sm:w-[140px] sm:flex-shrink-0"
+                  title="Transition on enter — plays when this item appears"
+                >
                   <mns-select
                     [options]="transitionOptions"
                     [value]="item.transition"
+                    ariaLabel="Transition on enter — plays when this item appears"
                     (changed)="transitionChange.emit({ item, value: asTransition($event) })"
                   />
                 </div>
