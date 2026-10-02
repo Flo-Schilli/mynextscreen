@@ -12,6 +12,13 @@ export enum SiteAgentCommandType {
   Launch = 'launch',
   /** Send a Wake-on-LAN magic packet. */
   Wake = 'wake',
+  /**
+   * Put the set into standby over SSAP.
+   *
+   * Standby, not screen-off: the TV's power service refuses the screen-only
+   * calls over SSAP, measured on a real set. Coming back needs Wake-on-LAN.
+   */
+  Standby = 'standby',
   /** Extend the Developer Mode session over SSH + Luna. */
   ExtendDevmode = 'extend_devmode',
   /** Discard the cached SSH key and fetch it from the TV again. */

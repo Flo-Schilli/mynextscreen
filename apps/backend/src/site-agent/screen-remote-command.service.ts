@@ -121,6 +121,10 @@ export class ScreenRemoteCommandService {
     if (report.sshHostKeyFingerprint) {
       updates.sshHostKeyFingerprint = report.sshHostKeyFingerprint;
     }
+    if (report.standby !== undefined) {
+      updates.lastStandbyAt = now;
+      updates.lastStandbyOk = report.standby;
+    }
     if (report.installedAppVersion) {
       updates.installedAppVersion = report.installedAppVersion;
       updates.installedAppVersionAt = now;

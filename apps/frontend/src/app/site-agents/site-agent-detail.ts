@@ -158,6 +158,11 @@ interface ManagedScreen {
                       Shown only where it can work: the extension runs over SSH,
                       which needs the Developer Mode passphrase stored.
                     -->
+                    @if (item.remote.macAddress) {
+                      <mns-btn size="sm" variant="outline" (mnsClick)="standby(item)">
+                        Standby
+                      </mns-btn>
+                    }
                     @if (item.remote.extendDevmodeEnabled && item.remote.devmodePassphrase) {
                       <mns-btn
                         size="sm"
@@ -223,6 +228,24 @@ interface ManagedScreen {
             </div>
           </mns-modal>
         </mns-overlay>
+      }
+
+      @if (standbyScreen(); as item) {
+        <app-site-agent-confirm-modal
+          title="Standby"
+          confirmLabel="Send to standby"
+          busyLabel="Sending…"
+          [busy]="busy()"
+          [error]="confirmError()"
+          (confirmed)="doStandby(item)"
+          (dismiss)="closeConfirm()"
+        >
+          Put <strong class="text-text">{{ item.screen.name }}</strong> into standby? It can only be
+          woken over the network afterwards, which needs
+          <strong class="text-text">Quick Start+</strong>
+          enabled on the TV (Settings → General → Energy Saving). Without it, someone has to use the
+          remote.
+        </app-site-agent-confirm-modal>
       }
 
       @if (removingScreen(); as item) {
@@ -319,6 +342,7 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
   protected readonly settingsFor = signal<ManagedScreen | null>(null);
   /** The screen whose removal is being confirmed, if any. */
   protected readonly removingScreen = signal<ManagedScreen | null>(null);
+  protected readonly standbyScreen = signal<ManagedScreen | null>(null);
   protected readonly confirmingDelete = signal(false);
   protected readonly confirmingRevoke = signal(false);
   protected readonly busy = signal(false);
@@ -460,6 +484,23 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
     const installed = item.remote.installedAppVersion;
     const available = item.remote.availableAppVersion;
     return !!installed && !!available && installed !== available;
+  }
+
+  /**
+   * Standby asks first, because it is the one command that can strand a display.
+   *
+   * Waking it again needs Quick Start+ at the TV, and whether that is on cannot
+   * be read remotely — so the dialog names what is at stake and leaves the
+   * decision to whoever is asking, rather than blocking on a guess.
+   */
+  protected standby(item: ManagedScreen): void {
+    this.confirmError.set('');
+    this.standbyScreen.set(item);
+  }
+
+  protected doStandby(item: ManagedScreen): void {
+    this.closeConfirm();
+    this.command(item, 'standby');
   }
 
   protected command(item: ManagedScreen, type: RemoteCommandType): void {
@@ -608,6 +649,7 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
 
   protected closeConfirm(): void {
     this.removingScreen.set(null);
+    this.standbyScreen.set(null);
     this.confirmingDelete.set(false);
     this.confirmingRevoke.set(false);
     this.confirmError.set('');

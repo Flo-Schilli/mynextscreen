@@ -87,6 +87,10 @@ export class AgentScreenReportDto {
   devmodeExtended?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  standby?: boolean;
+
+  @IsOptional()
   @IsString()
   @MaxLength(128)
   installedAppId?: string;
