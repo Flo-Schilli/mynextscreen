@@ -133,6 +133,14 @@ interface ManagedScreen {
                 @if (!item.remote.onboardingCompletedAt) {
                   <mns-badge tone="warning"> Setup {{ item.remote.onboardingStep }}/8 </mns-badge>
                 }
+                @if (appUpdateAvailable(item)) {
+                  <mns-badge tone="warning">
+                    App {{ item.remote.installedAppVersion }} →
+                    {{ item.remote.availableAppVersion }}
+                  </mns-badge>
+                } @else if (item.remote.installedAppVersion) {
+                  <mns-badge tone="neutral">App {{ item.remote.installedAppVersion }}</mns-badge>
+                }
 
                 <div class="flex flex-wrap gap-2">
                   @if (!item.remote.onboardingCompletedAt) {
@@ -144,6 +152,19 @@ interface ManagedScreen {
                     @if (item.remote.macAddress) {
                       <mns-btn size="sm" variant="outline" (mnsClick)="command(item, 'wake')">
                         Wake
+                      </mns-btn>
+                    }
+                    <!--
+                      Shown only where it can work: the extension runs over SSH,
+                      which needs the Developer Mode passphrase stored.
+                    -->
+                    @if (item.remote.extendDevmodeEnabled && item.remote.devmodePassphrase) {
+                      <mns-btn
+                        size="sm"
+                        variant="outline"
+                        (mnsClick)="command(item, 'extend_devmode')"
+                      >
+                        Extend Dev Mode
                       </mns-btn>
                     }
                   }
@@ -426,6 +447,19 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
       return 'never extended';
     }
     return item.remote.lastDevmodeExtendOk === false ? 'last attempt failed' : 'extended';
+  }
+
+  /**
+   * Whether the set runs something older than what this server packages.
+   *
+   * A plain inequality, not a semver comparison: the only versions in play are
+   * the ones this repo builds, and "different from what we ship" is exactly the
+   * thing worth offering to fix. A downgrade is as much a reason to act.
+   */
+  protected appUpdateAvailable(item: ManagedScreen): boolean {
+    const installed = item.remote.installedAppVersion;
+    const available = item.remote.availableAppVersion;
+    return !!installed && !!available && installed !== available;
   }
 
   protected command(item: ManagedScreen, type: RemoteCommandType): void {

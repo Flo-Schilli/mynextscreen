@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Reflector } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
+import { PlayerAppsService } from '../player-apps/player-apps.service';
 import { ScreenRemoteControlController } from './screen-remote-control.controller';
 import { ScreenRemoteControlService } from './screen-remote-control.service';
 import { ScreenRemoteCommandService } from './screen-remote-command.service';
@@ -41,6 +43,8 @@ describe('ScreenRemoteControlController', () => {
       providers: [
         { provide: ScreenRemoteControlService, useValue: service },
         { provide: ScreenRemoteCommandService, useValue: commands },
+        { provide: PlayerAppsService, useValue: { versionForAppId: () => '1.2.3' } },
+        { provide: ConfigService, useValue: { get: (_k: string, d: string) => d } },
       ],
     }).compile();
 

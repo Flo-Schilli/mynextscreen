@@ -85,6 +85,16 @@ export class AgentScreenReportDto {
   @IsOptional()
   @IsBoolean()
   devmodeExtended?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  installedAppId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  installedAppVersion?: string;
 }
 
 /** Batched because an agent reports for every screen it looks after each round. */

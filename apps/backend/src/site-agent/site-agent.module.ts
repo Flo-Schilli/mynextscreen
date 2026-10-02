@@ -3,6 +3,7 @@ import { DatabaseModule } from '../db/database.module';
 import { CommonModule } from '../common/common.module';
 import { AuthModule } from '../auth/auth.module';
 import { UserModule } from '../user/user.module';
+import { PlayerAppsModule } from '../player-apps/player-apps.module';
 import { ScreenModule } from '../screen';
 import { SiteAgentController } from './site-agent.controller';
 import { ScreenRemoteControlController } from './screen-remote-control.controller';
@@ -17,7 +18,7 @@ import { SiteAgentSseService } from './site-agent-sse.service';
 import { ScreenRemoteCommandService } from './screen-remote-command.service';
 
 @Module({
-  imports: [DatabaseModule, CommonModule, AuthModule, UserModule, ScreenModule],
+  imports: [DatabaseModule, CommonModule, AuthModule, UserModule, ScreenModule, PlayerAppsModule],
   controllers: [SiteAgentController, SiteAgentDeviceController, ScreenRemoteControlController],
   providers: [
     SiteAgentService,

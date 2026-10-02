@@ -207,6 +207,41 @@ describe('ScreenRemoteCommandService', () => {
       expect((await remoteRow()).lastProbeError).toBeNull();
     });
 
+    it('records the version the TV reports as installed', async () => {
+      await service.applyReport(agentId, orgId, {
+        screenId,
+        installedAppId: 'com.mynextscreen.webos',
+        installedAppVersion: '0.15.0',
+      });
+
+      const row = await remoteRow();
+      expect(row.installedAppId).toBe('com.mynextscreen.webos');
+      expect(row.installedAppVersion).toBe('0.15.0');
+      expect(row.installedAppVersionAt).not.toBeNull();
+    });
+
+    /**
+     * Developer Mode deletes the app when the session expires. Keeping the last
+     * known version would have the dashboard claim an app is installed that is
+     * not there any more.
+     */
+    it('clears the version when the set reports the app id without one', async () => {
+      await service.applyReport(agentId, orgId, {
+        screenId,
+        installedAppId: 'com.mynextscreen.webos',
+        installedAppVersion: '0.15.0',
+      });
+
+      await service.applyReport(agentId, orgId, {
+        screenId,
+        installedAppId: 'com.mynextscreen.webos',
+      });
+
+      const row = await remoteRow();
+      expect(row.installedAppVersion).toBeNull();
+      expect(row.installedAppId).toBe('com.mynextscreen.webos');
+    });
+
     // A probe round says nothing about SSH; blanking it would discard exactly
     // what the operator needs to see.
     it('leaves statuses the agent did not report untouched', async () => {

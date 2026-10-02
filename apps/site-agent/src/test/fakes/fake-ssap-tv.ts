@@ -7,6 +7,8 @@ export interface FakeSsapTv {
   /** Set to null to make the TV demand a pairing prompt that never resolves. */
   grantKey: string | null;
   foregroundAppId: string | null;
+  /** What `listApps` answers with; shaped like the real payload. */
+  installedApps: { id: string; version?: unknown }[];
   close(): Promise<void>;
 }
 
@@ -26,6 +28,7 @@ export async function startFakeSsapTv(): Promise<FakeSsapTv> {
     launched: [],
     grantKey: 'granted-key',
     foregroundAppId: 'com.webos.app.livetv',
+    installedApps: [{ id: 'com.mynextscreen.webos', version: '0.15.0' }],
     close: () =>
       new Promise<void>((resolve) => {
         server.close(() => resolve());
@@ -73,6 +76,17 @@ export async function startFakeSsapTv(): Promise<FakeSsapTv> {
             id: message.id,
             type: 'response',
             payload: { returnValue: true, appId: fake.foregroundAppId },
+          }),
+        );
+        return;
+      }
+
+      if (message.uri?.includes('applicationManager/listApps')) {
+        socket.send(
+          JSON.stringify({
+            id: message.id,
+            type: 'response',
+            payload: { returnValue: true, apps: fake.installedApps },
           }),
         );
         return;

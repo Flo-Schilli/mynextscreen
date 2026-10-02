@@ -15,6 +15,14 @@ export interface ScreenRuntime {
    * starved the launch branch that follows it.
    */
   lastDevmodeExtendAt: number;
+  /**
+   * When the installed app version was last read, 0 if never.
+   *
+   * A healthy screen rarely relaunches, so reading the version only during a
+   * launch would leave it unknown indefinitely. One read per agent run covers
+   * that without opening an SSAP session every round.
+   */
+  appVersionReadAt: number;
   /** Jitter offset for the Developer Mode extension, stable per screen. */
   devmodeJitterMs: number;
 }
@@ -26,6 +34,7 @@ export function newRuntime(devmodeJitterMs: number): ScreenRuntime {
     lastLaunchAt: 0,
     lastWakeAt: 0,
     lastDevmodeExtendAt: 0,
+    appVersionReadAt: 0,
     devmodeJitterMs,
   };
 }

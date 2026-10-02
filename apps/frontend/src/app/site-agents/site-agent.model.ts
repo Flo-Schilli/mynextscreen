@@ -74,6 +74,12 @@ export interface ScreenRemoteControl {
   sshHostKeyFingerprint: string | null;
   onboardingStep: number;
   onboardingCompletedAt: string | null;
+  /** What the TV reports as installed; null when the app is not on the set. */
+  installedAppId: string | null;
+  installedAppVersion: string | null;
+  installedAppVersionAt: string | null;
+  /** What this server has packaged, for the comparison. */
+  availableAppVersion: string | null;
 }
 
 export interface UpdateScreenRemoteControlRequest {

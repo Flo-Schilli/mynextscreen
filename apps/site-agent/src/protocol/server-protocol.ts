@@ -84,6 +84,9 @@ export interface AgentScreenReportMessage {
   launched?: boolean;
   woken?: boolean;
   devmodeExtended?: boolean;
+  /** App id and version the set reports, so the server can spot an outdated app. */
+  installedAppId?: string;
+  installedAppVersion?: string;
 }
 
 export interface AgentReportMessage {

@@ -9,7 +9,9 @@ import { ScreenRemoteControlService } from './screen-remote-control.service';
 import type { AgentConfig, AgentScreenConfig } from './agent-config.types';
 
 /** The webOS app the agent keeps in the foreground, unless overridden. */
-const DEFAULT_APP_ID = 'com.mynextscreen.webos';
+/** Also used where the dashboard needs to know which app a TV should run. */
+export const DEFAULT_SITE_AGENT_APP_ID = 'com.mynextscreen.webos';
+const DEFAULT_APP_ID = DEFAULT_SITE_AGENT_APP_ID;
 
 /** How often the agent probes its TVs, unless overridden. */
 const DEFAULT_PROBE_INTERVAL_MS = 60_000;

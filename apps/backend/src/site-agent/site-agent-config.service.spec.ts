@@ -139,7 +139,7 @@ describe('SiteAgentConfigService', () => {
 
     // ...and the dashboard's view of the very same row must not.
     it('masks it on the dashboard view of the same row', async () => {
-      const dashboard = toDashboardDto(await remoteControls.getForScreen(orgId, screenId));
+      const dashboard = toDashboardDto(await remoteControls.getForScreen(orgId, screenId), null);
 
       expect(dashboard.devmodePassphrase).toBe(MASKED_SECRET);
     });

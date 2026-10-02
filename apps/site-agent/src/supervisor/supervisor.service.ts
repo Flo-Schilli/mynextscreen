@@ -166,6 +166,12 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
         break;
     }
 
+    // Only when the round had nothing else to do: a launch already read it on
+    // the session it opened, and a failing screen has worse problems.
+    if (ok && action.kind === 'none' && runtime.appVersionReadAt === 0) {
+      await this.readAppVersionOnce(screen, appId, runtime, report);
+    }
+
     this.recordOutcome(runtime, ok, screen);
     return report;
   }
@@ -236,6 +242,58 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     return result.extended;
   }
 
+  /**
+   * Reads the installed version onto an SSAP session that is already open.
+   *
+   * Never fatal: an outdated version is worth knowing, but failing to read it
+   * must not turn a successful launch into a failed round.
+   */
+  private async readAppVersion(
+    client: SsapClient,
+    appId: string,
+    runtime: ScreenRuntime,
+    report: AgentScreenReportMessage,
+  ): Promise<void> {
+    try {
+      const version = await client.installedAppVersion(appId);
+      runtime.appVersionReadAt = Date.now();
+      report.installedAppId = appId;
+      if (version) {
+        report.installedAppVersion = version;
+      }
+    } catch (error) {
+      this.logger.debug(`Could not read the installed version: ${describe(error)}`);
+    }
+  }
+
+  /** Opens a session purely to read the version, once per agent run. */
+  private async readAppVersionOnce(
+    screen: AgentScreenConfigMessage,
+    appId: string,
+    runtime: ScreenRuntime,
+    report: AgentScreenReportMessage,
+  ): Promise<void> {
+    let client: SsapClient | null = null;
+    try {
+      client = await SsapClient.connect(screen.localIp as string, screen.ssapPort);
+      const stored = await this.ssapKeys.load(screen.screenId);
+      // No prompt callback: an unpaired screen is not worth interrupting
+      // someone's evening for, and the launch path asks properly.
+      const clientKey = await client.register(stored);
+      if (clientKey && clientKey !== stored) {
+        await this.ssapKeys.save(screen.screenId, clientKey);
+      }
+      await this.readAppVersion(client, appId, runtime, report);
+    } catch (error) {
+      // Marked as attempted either way, so an unreachable or unpaired set is
+      // not retried every single round.
+      runtime.appVersionReadAt = Date.now();
+      this.logger.debug(`Version read skipped for ${screen.name}: ${describe(error)}`);
+    } finally {
+      client?.close();
+    }
+  }
+
   private async doLaunch(
     screen: AgentScreenConfigMessage,
     appId: string,
@@ -258,10 +316,15 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
 
       const foreground = await client.foregroundAppId();
       if (foreground !== appId) {
-        await client.launch(appId);
+        // The address this agent is itself talking to: a display that was just
+        // installed has nothing stored, and this saves typing a URL with a
+        // remote. The shell ignores it once it has one of its own.
+        const serverUrl = (await this.connections.load())?.serverUrl;
+        await client.launch(appId, serverUrl ? { serverUrl } : undefined);
         runtime.lastLaunchAt = Date.now();
         report.launched = true;
       }
+      await this.readAppVersion(client, appId, runtime, report);
       report.ssapStatus = 'ok';
       return true;
     } catch (error) {

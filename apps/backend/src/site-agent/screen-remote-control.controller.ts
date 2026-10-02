@@ -23,6 +23,9 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
+import { ConfigService } from '@nestjs/config';
+import { PlayerAppsService } from '../player-apps/player-apps.service';
+import { DEFAULT_SITE_AGENT_APP_ID } from './site-agent-config.service';
 import { toDashboardDto, type ScreenRemoteControlDto } from './screen-remote-control.dto-mapper';
 
 @Controller('screens')
@@ -30,7 +33,16 @@ export class ScreenRemoteControlController {
   constructor(
     private readonly service: ScreenRemoteControlService,
     private readonly commands: ScreenRemoteCommandService,
+    private readonly playerApps: PlayerAppsService,
+    private readonly config: ConfigService,
   ) {}
+
+  /** The version packaged here for the app id the agents are told to run. */
+  private availableAppVersion(): string | null {
+    return this.playerApps.versionForAppId(
+      this.config.get<string>('SITE_AGENT_APP_ID', DEFAULT_SITE_AGENT_APP_ID),
+    );
+  }
 
   @Get(':id/remote-control')
   @Roles(OrganisationRole.OrgAdmin)
@@ -38,7 +50,10 @@ export class ScreenRemoteControlController {
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) screenId: string,
   ): Promise<ScreenRemoteControlDto> {
-    return toDashboardDto(await this.service.getForScreen(organisationId, screenId));
+    return toDashboardDto(
+      await this.service.getForScreen(organisationId, screenId),
+      this.availableAppVersion(),
+    );
   }
 
   @Put(':id/remote-control')
@@ -50,7 +65,7 @@ export class ScreenRemoteControlController {
     @Req() req: AuthenticatedRequest,
   ): Promise<ScreenRemoteControlDto> {
     const saved = await this.service.upsert(organisationId, screenId, dto, req.user.userId);
-    return toDashboardDto(saved);
+    return toDashboardDto(saved, this.availableAppVersion());
   }
 
   /**

@@ -714,6 +714,15 @@ export const screenRemoteControls = pgTable(
     ssapStatus: text().$type<SsapStatus>().notNull().default(SsapStatus.Unknown),
     /** Pinned on first connect; a mismatch is reported, never silently accepted. */
     sshHostKeyFingerprint: text(),
+    /**
+     * What the TV reports as installed, not what the server believes it pushed.
+     * Compared against the version packaged in the repo to offer an update —
+     * an app installed in Developer Mode can also vanish, so the set is the
+     * only honest source.
+     */
+    installedAppId: text(),
+    installedAppVersion: text(),
+    installedAppVersionAt: timestamp({ withTimezone: true }),
     // ── onboarding wizard ──
     onboardingStep: integer().notNull().default(1),
     onboardingCompletedAt: timestamp({ withTimezone: true }),

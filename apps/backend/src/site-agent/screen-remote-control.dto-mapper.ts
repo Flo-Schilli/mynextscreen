@@ -15,11 +15,20 @@ export const MASKED_SECRET = '••••••••';
 export interface ScreenRemoteControlDto extends Omit<ScreenRemoteControl, 'devmodePassphrase'> {
   /** {@link MASKED_SECRET} when one is stored, null when none is. Never the value. */
   devmodePassphrase: string | null;
+  /**
+   * The version this server has packaged, so the dashboard can compare without
+   * knowing how the app is built. Null when nothing here builds that app id.
+   */
+  availableAppVersion: string | null;
 }
 
-export function toDashboardDto(row: ScreenRemoteControl): ScreenRemoteControlDto {
+export function toDashboardDto(
+  row: ScreenRemoteControl,
+  availableAppVersion: string | null,
+): ScreenRemoteControlDto {
   return {
     ...row,
     devmodePassphrase: row.devmodePassphrase ? MASKED_SECRET : null,
+    availableAppVersion,
   };
 }
