@@ -64,6 +64,7 @@ const MENU_POSITIONS: ConnectedPosition[] = [
       (keydown)="onKeydown($event)"
       [attr.aria-expanded]="open()"
       [attr.aria-haspopup]="'listbox'"
+      [attr.aria-label]="ariaLabel()"
     >
       <span class="truncate">{{ selectedLabel() }}</span>
       <mns-icon
@@ -146,6 +147,8 @@ export class SelectComponent {
   readonly options = input.required<SelectOption[]>();
   readonly value = model<string>('');
   readonly placeholder = input<string>('Select…');
+  /** Accessible name for the trigger, for a select with no visible label. */
+  readonly ariaLabel = input<string | undefined>(undefined);
   /** Leave unset to decide from the number of options. */
   readonly searchable = input<boolean | undefined>(undefined);
 

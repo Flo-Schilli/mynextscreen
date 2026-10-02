@@ -50,12 +50,15 @@ export class ScreenProtocolService {
       return;
     }
 
-    // Resolve the current playlist + shared playback epoch for the group via the
-    // first screen (all screens in the group share the same group schedule).
+    // Resolved from the group's own schedule, not by asking one of its members:
+    // getCurrentPlaylist prefers a screen's *direct* entries, so a member that
+    // happens to carry a schedule of its own used to push its private epoch to
+    // the whole group. `group.screens[0]` was not even a stable member — the
+    // relation comes back unordered.
     let currentPlaylist: { id: string; name: string } | null = null;
     let epoch = 0;
     try {
-      const result = await this.scheduleService.getCurrentPlaylist(group.screens[0].id);
+      const result = await this.scheduleService.getCurrentGroupPlaylist(event.groupId);
       epoch = result.epoch;
       currentPlaylist = result.playlist
         ? { id: result.playlist.id, name: result.playlist.name }

@@ -1,16 +1,11 @@
 import { PlaylistItem } from '../player/player.models';
 
 /**
- * Pure-function tests for playback logic — URL building, item sequencing,
- * and preload decisions without Angular DI.
+ * Pure-function tests for playlist sequencing and preload decisions.
+ *
+ * Timing, anchoring and transition behaviour live in playback.component.spec.ts
+ * against the real component — they cannot be reproduced by copies of the logic.
  */
-
-// --- URL building (mirrors PlaybackComponent.buildMediaUrl) ---
-
-function buildMediaUrl(url: string, serverUrl: string, apiKey: string): string {
-  const separator = url.includes('?') ? '&' : '?';
-  return `${serverUrl}${url}${separator}token=${apiKey}`;
-}
 
 // --- Item sequencing ---
 
@@ -34,27 +29,6 @@ function shouldPreload(item: PlaylistItem | null): boolean {
 }
 
 // --- Tests ---
-
-describe('Playback URL building', () => {
-  it('should append token query param to media URL', () => {
-    const url = buildMediaUrl('/api/media/org1/content1', 'http://localhost:3000', 'my-api-key');
-    expect(url).toBe('http://localhost:3000/api/media/org1/content1?token=my-api-key');
-  });
-
-  it('should use & separator if URL already has query params', () => {
-    const url = buildMediaUrl(
-      '/api/media/org1/content1?quality=high',
-      'http://localhost:3000',
-      'key123',
-    );
-    expect(url).toBe('http://localhost:3000/api/media/org1/content1?quality=high&token=key123');
-  });
-
-  it('should handle empty server URL (proxy mode)', () => {
-    const url = buildMediaUrl('/api/media/org1/content1', '', 'key');
-    expect(url).toBe('/api/media/org1/content1?token=key');
-  });
-});
 
 describe('Playlist item sequencing', () => {
   const items: PlaylistItem[] = [

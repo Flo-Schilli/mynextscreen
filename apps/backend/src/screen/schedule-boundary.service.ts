@@ -12,22 +12,44 @@ import {
   GROUP_SCHEDULE_CHANGED,
   GroupScheduleChangedEvent,
 } from '../schedule';
-import type { DateRange } from '../schedule';
+import type { DateRange, CurrentPlaylistSource } from '../schedule';
 import { SCHEDULE_CHANGED, ScreenStateChangeEvent } from './screen-state.event';
 
 interface TrackedScreen {
   timer: ReturnType<typeof setTimeout>;
   currentPlaylistId: string | null;
+  /** Playback anchor last seen for this screen; a change has to reach the player. */
+  epoch: number;
+  source: CurrentPlaylistSource;
   organisationId: string;
+  /**
+   * Captured when the screen registers. Deliberately not re-read per boundary:
+   * that would add a query for every screen on every boundary to catch a screen
+   * being moved between groups, which re-registers the screen anyway.
+   */
+  groupId: string | null;
+  /**
+   * Bumped on every (re)schedule. `scheduleNextBoundary` awaits a query between
+   * clearing and re-arming its timer, so a concurrent call would otherwise leave
+   * one timer armed but unreferenced — it would survive `unregisterScreen` and
+   * fire a second boundary.
+   */
+  generation: number;
 }
 
 const LOOK_AHEAD_MS = 24 * 60 * 60 * 1000;
 const FALLBACK_REEVAL_MS = 60_000;
+/** Coalescing window for group re-alignment when members reconnect together. */
+const REALIGN_THROTTLE_MS = 5_000;
 
 @Injectable()
 export class ScheduleBoundaryService implements OnModuleDestroy {
   private readonly logger = new Logger(ScheduleBoundaryService.name);
   private readonly tracked = new Map<string, TrackedScreen>();
+  /** Last anchor already fanned out per group — de-dupes the N-member boundary storm. */
+  private readonly lastGroupAnchor = new Map<string, string>();
+  /** When each group was last re-aligned, so a reconnect storm costs one fan-out. */
+  private readonly lastGroupRealignAt = new Map<string, number>();
   private destroyed = false;
 
   constructor(
@@ -46,6 +68,8 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
       clearTimeout(state.timer);
     }
     this.tracked.clear();
+    this.lastGroupAnchor.clear();
+    this.lastGroupRealignAt.clear();
   }
 
   async registerScreen(screenId: string): Promise<void> {
@@ -55,9 +79,13 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
     if (!screen) return;
 
     let currentPlaylistId: string | null = null;
+    let epoch = 0;
+    let source: CurrentPlaylistSource = 'fallback';
     try {
-      const { playlist } = await this.scheduleService.getCurrentPlaylist(screenId);
-      currentPlaylistId = playlist?.id ?? null;
+      const result = await this.scheduleService.getCurrentPlaylist(screenId);
+      currentPlaylistId = result.playlist?.id ?? null;
+      epoch = result.epoch;
+      source = result.source;
     } catch {
       this.logger.warn(`Failed to resolve initial playlist for screen ${screenId}`);
     }
@@ -67,19 +95,70 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
     const state: TrackedScreen = {
       timer: null as unknown as ReturnType<typeof setTimeout>,
       currentPlaylistId,
+      epoch,
+      source,
       organisationId: screen.organisationId,
+      groupId: screen.groupId,
+      generation: 0,
     };
     this.tracked.set(screenId, state);
 
     await this.scheduleNextBoundary(screenId);
+
+    // A screen that just (re)connected holds whatever anchor it fetched, while
+    // its peers still hold the one they were last told about. Nothing used to
+    // reconcile the two, so a single restarted member could sit on a different
+    // epoch indefinitely. Re-align the whole group on its arrival; the push is
+    // visually free for the peers, whose player short-circuits a re-anchor that
+    // changes neither playlist, epoch nor timeline.
+    if (screen.groupId) {
+      this.realignGroup(screen.groupId, screen.organisationId, currentPlaylistId);
+    }
   }
 
   unregisterScreen(screenId: string): void {
     const state = this.tracked.get(screenId);
     if (state) {
       clearTimeout(state.timer);
+      state.generation++;
       this.tracked.delete(screenId);
     }
+  }
+
+  /**
+   * Fan the group's shared anchor out to every member, at most once per
+   * {@link REALIGN_THROTTLE_MS}.
+   *
+   * Throttled rather than de-duplicated by anchor: when the backend restarts,
+   * every member reconnects within milliseconds carrying an *unchanged* anchor,
+   * which anchor-dedup would suppress — exactly the fan-out that is wanted — while
+   * letting each arrival push to all N peers.
+   */
+  private realignGroup(groupId: string, organisationId: string, playlistId: string | null): void {
+    const last = this.lastGroupRealignAt.get(groupId) ?? 0;
+    const now = Date.now();
+    if (now - last < REALIGN_THROTTLE_MS) return;
+
+    this.lastGroupRealignAt.set(groupId, now);
+    this.eventEmitter.emit(
+      GROUP_SCHEDULE_CHANGED,
+      new GroupScheduleChangedEvent(groupId, organisationId, playlistId),
+    );
+  }
+
+  /**
+   * True when this member won the race to fan out this anchor.
+   *
+   * Every member of a group has its own timer and they all fire at the same
+   * boundary. The claim is written synchronously before the emit, so whichever
+   * member's query resolves first claims the anchor and the rest see an
+   * identical one and skip — N members produce one fan-out, not N.
+   */
+  private claimGroupAnchor(groupId: string, playlistId: string | null, epoch: number): boolean {
+    const anchor = `${playlistId ?? ''}:${epoch}`;
+    if (this.lastGroupAnchor.get(groupId) === anchor) return false;
+    this.lastGroupAnchor.set(groupId, anchor);
+    return true;
   }
 
   @OnEvent(SCHEDULE_ENTRY_CHANGED)
@@ -111,6 +190,7 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
     if (!state) return;
 
     clearTimeout(state.timer);
+    const generation = ++state.generation;
 
     const now = new Date();
     const windowEnd = new Date(now.getTime() + LOOK_AHEAD_MS);
@@ -118,8 +198,13 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
 
     // The collectBoundaries query is async; bail if the service was destroyed
     // (and its timers cleared) while it was in flight, so we don't re-arm a
-    // timer on a torn-down service.
-    if (this.destroyed || !this.tracked.has(screenId)) return;
+    // timer on a torn-down service. The generation check covers the same window
+    // against a *concurrent* re-schedule — common now that a boundary both
+    // re-arms itself and emits an event that re-enters through
+    // handleGroupScheduleChanged. Without it both calls assign, and the first
+    // timer stays armed with nothing referencing it.
+    if (this.destroyed || this.tracked.get(screenId) !== state) return;
+    if (state.generation !== generation) return;
 
     const nowMs = now.getTime();
     const nextBoundary = boundaries
@@ -210,19 +295,50 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
     if (!state) return;
 
     try {
-      const { playlist } = await this.scheduleService.getCurrentPlaylist(screenId);
+      const result = await this.scheduleService.getCurrentPlaylist(screenId);
       if (this.destroyed) return;
-      const newPlaylistId = playlist?.id ?? null;
+      const newPlaylistId = result.playlist?.id ?? null;
 
-      if (newPlaylistId !== state.currentPlaylistId) {
-        state.currentPlaylistId = newPlaylistId;
-        this.eventEmitter.emit(
-          SCHEDULE_CHANGED,
-          new ScreenStateChangeEvent(screenId, state.organisationId),
-        );
-        this.logger.log(
-          `Schedule boundary crossed for screen ${screenId}: playlist changed to ${newPlaylistId}`,
-        );
+      // The epoch matters as much as the playlist id. An RRULE rolling to the
+      // next occurrence of the *same* playlist moves the anchor without
+      // changing the id — comparing the id alone meant nothing was emitted, so
+      // every running player kept an anchor that was a full recurrence period
+      // stale while any screen that reconnected picked up the new one.
+      const changed = newPlaylistId !== state.currentPlaylistId || result.epoch !== state.epoch;
+      const previousSource = state.source;
+
+      state.currentPlaylistId = newPlaylistId;
+      state.epoch = result.epoch;
+      state.source = result.source;
+
+      if (changed) {
+        const groupId = state.groupId;
+
+        // Group-wide when either side of the transition came from the group's
+        // own schedule — a group entry ending has to re-align the members just
+        // as much as one starting.
+        const groupWide =
+          groupId !== null && (result.source === 'group' || previousSource === 'group');
+
+        if (groupWide) {
+          if (this.claimGroupAnchor(groupId, newPlaylistId, result.epoch)) {
+            this.eventEmitter.emit(
+              GROUP_SCHEDULE_CHANGED,
+              new GroupScheduleChangedEvent(groupId, state.organisationId, newPlaylistId),
+            );
+            this.logger.log(
+              `Schedule boundary crossed for group ${groupId}: playlist ${newPlaylistId}, epoch ${result.epoch}`,
+            );
+          }
+        } else {
+          this.eventEmitter.emit(
+            SCHEDULE_CHANGED,
+            new ScreenStateChangeEvent(screenId, state.organisationId),
+          );
+          this.logger.log(
+            `Schedule boundary crossed for screen ${screenId}: playlist ${newPlaylistId}, epoch ${result.epoch}`,
+          );
+        }
       }
     } catch (error) {
       this.logger.warn(`Failed to evaluate boundary for screen ${screenId}: ${error}`);

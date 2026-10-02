@@ -8,6 +8,10 @@ import { selectOffsetByMinRtt, type RoundTripSample } from './time-sync.util';
 const SAMPLE_COUNT = 9;
 /** How often the offset is refreshed to bound residual clock drift. */
 const RESYNC_INTERVAL_MS = 60_000;
+/** Samples on the fast first pass — enough for a usable offset before the first anchor. */
+const FIRST_PASS_SAMPLE_COUNT = 3;
+/** Hard cap on how long startup may wait for that first pass. */
+const FIRST_PASS_TIMEOUT_MS = 1_500;
 
 /**
  * Estimates and maintains the offset between the local clock and the server
@@ -31,6 +35,19 @@ export class TimeSyncService {
   /** Current best estimate of the server clock in epoch milliseconds. */
   serverNow(): number {
     return Date.now() + this._offsetMs();
+  }
+
+  /**
+   * A short sampling pass to run before the first playback anchor, so the screen
+   * does not pick its starting item from an uncorrected local clock. Resolves as
+   * soon as an offset is in hand or the cap elapses, and never rejects — a
+   * screen that cannot reach `/api/time` still has to play.
+   */
+  async syncFirstPass(): Promise<void> {
+    await Promise.race([
+      this.sync(FIRST_PASS_SAMPLE_COUNT).catch(() => undefined),
+      new Promise<void>((resolve) => setTimeout(resolve, FIRST_PASS_TIMEOUT_MS)),
+    ]);
   }
 
   /** Start syncing now and keep the offset fresh on an interval. */

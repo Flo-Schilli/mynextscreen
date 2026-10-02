@@ -2,7 +2,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { eq } from 'drizzle-orm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ScheduleBoundaryService } from './schedule-boundary.service';
-import { ScheduleService, ScheduleEntryChangedEvent, GroupScheduleChangedEvent } from '../schedule';
+import {
+  ScheduleService,
+  ScheduleEntryChangedEvent,
+  GroupScheduleChangedEvent,
+  GROUP_SCHEDULE_CHANGED,
+} from '../schedule';
 import { SCHEDULE_CHANGED, ScreenStateChangeEvent } from './screen-state.event';
 import { DRIZZLE } from '../db/database.constants';
 import { organisations, screens, screenGroups, playlists, scheduleEntries } from '../db/schema';
@@ -72,6 +77,8 @@ describe('ScheduleBoundaryService', () => {
       getCurrentPlaylist: jest.fn().mockResolvedValue({
         playlist: { id: playlistId, name: 'Playlist 1' },
         isDefault: true,
+        epoch: 0,
+        source: 'fallback',
       }),
     };
     emit = jest.fn();
@@ -87,9 +94,15 @@ describe('ScheduleBoundaryService', () => {
     service = module.get<ScheduleBoundaryService>(ScheduleBoundaryService);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     if (service) service.onModuleDestroy();
     jest.useRealTimers();
+    // A boundary that fired during the test may still be mid-chain. Its DB
+    // round-trips resolve on real socket I/O, which fake timers do not advance,
+    // so give them a real moment here — otherwise the chain outlives the suite
+    // and queries a pool that `closeTestDb` has already ended. `destroyed` is
+    // set above, so nothing re-arms while we wait.
+    await new Promise((resolve) => setTimeout(resolve, 50));
   });
 
   /**
@@ -289,6 +302,8 @@ describe('ScheduleBoundaryService', () => {
       scheduleService.getCurrentPlaylist.mockResolvedValue({
         playlist: { id: playlistId, name: 'Playlist 1' },
         isDefault: true,
+        epoch: 0,
+        source: 'fallback',
       });
 
       enableFakeTimers();
@@ -298,6 +313,8 @@ describe('ScheduleBoundaryService', () => {
       scheduleService.getCurrentPlaylist.mockResolvedValue({
         playlist: { id: playlistId2, name: 'Playlist 2' },
         isDefault: false,
+        epoch: 1_700_000_000_000,
+        source: 'screen',
       });
 
       jest.advanceTimersByTime(1500);
@@ -417,6 +434,226 @@ describe('ScheduleBoundaryService', () => {
       await service.registerScreen(screenId);
 
       expect(hasScheduledTimer(screenId)).toBe(true);
+    });
+  });
+
+  /**
+   * A restarted player used to keep whatever anchor it fetched on reconnect
+   * while its peers kept theirs, with nothing reconciling the two. These cover
+   * the two halves of the fix: a boundary on a group entry is fanned out to the
+   * whole group exactly once, and an arriving member re-aligns its peers.
+   */
+  describe('group synchronisation', () => {
+    async function seedGroupedScreen(name: string): Promise<string> {
+      const [screen] = await db
+        .insert(screens)
+        .values({
+          organisationId: orgId,
+          name,
+          resolution: '1920x1080',
+          location: 'Stage Right',
+          apiKeyHash: `$2b$10$${name}`,
+          isOnline: true,
+          groupId,
+        })
+        .returning();
+      return screen.id;
+    }
+
+    function resolveAs(
+      pid: string | null,
+      epoch: number,
+      source: 'screen' | 'group' | 'fallback',
+    ): void {
+      scheduleService.getCurrentPlaylist.mockResolvedValue({
+        playlist: pid ? { id: pid, name: 'Playlist' } : null,
+        isDefault: source === 'fallback',
+        epoch,
+        source,
+      });
+    }
+
+    function groupEmits(): unknown[] {
+      return emit.mock.calls.filter((c: unknown[]) => c[0] === GROUP_SCHEDULE_CHANGED);
+    }
+
+    // An RRULE rolling to the next occurrence of the same playlist moves the
+    // anchor without changing the id. Comparing ids alone emitted nothing, so
+    // running players stayed a full recurrence period behind.
+    it('emits when only the epoch moved', async () => {
+      resolveAs(playlistId, 1_000, 'screen');
+      enableFakeTimers();
+      await service.registerScreen(screenId);
+      emit.mockClear();
+
+      resolveAs(playlistId, 2_000, 'screen');
+      await jest.advanceTimersByTimeAsync(60_000);
+
+      expect(emit).toHaveBeenCalledWith(SCHEDULE_CHANGED, expect.any(ScreenStateChangeEvent));
+    });
+
+    it('emits nothing when playlist and epoch are unchanged', async () => {
+      resolveAs(playlistId, 1_000, 'screen');
+      enableFakeTimers();
+      await service.registerScreen(screenId);
+      emit.mockClear();
+
+      await jest.advanceTimersByTimeAsync(60_000);
+
+      expect(emit).not.toHaveBeenCalled();
+    });
+
+    it('fans a group-sourced boundary out to the group, not to the one screen', async () => {
+      const s1 = await seedGroupedScreen('Wall A');
+      resolveAs(playlistId, 1_000, 'group');
+      enableFakeTimers();
+      await service.registerScreen(s1);
+      emit.mockClear();
+
+      resolveAs(playlistId2, 2_000, 'group');
+      await jest.advanceTimersByTimeAsync(60_000);
+
+      expect(emit).not.toHaveBeenCalledWith(SCHEDULE_CHANGED, expect.anything());
+      expect(groupEmits()).toHaveLength(1);
+      expect(groupEmits()[0]).toEqual([
+        GROUP_SCHEDULE_CHANGED,
+        expect.objectContaining({ groupId, organisationId: orgId, playlistId: playlistId2 }),
+      ]);
+    });
+
+    // A group entry ending has to re-align the members just as much as one
+    // starting: the screen that notices resolves to the fallback, which is not
+    // group-sourced, so only the previous source identifies it as group-wide.
+    it('fans out group-wide when a group entry ends into the fallback', async () => {
+      const s1 = await seedGroupedScreen('Wall A');
+      resolveAs(playlistId, 1_000, 'group');
+      enableFakeTimers();
+      await service.registerScreen(s1);
+      emit.mockClear();
+
+      resolveAs(playlistId2, 0, 'fallback');
+      await jest.advanceTimersByTimeAsync(60_000);
+
+      expect(groupEmits()).toHaveLength(1);
+      expect(emit).not.toHaveBeenCalledWith(SCHEDULE_CHANGED, expect.anything());
+    });
+
+    it('keeps a screen-sourced boundary local to that screen', async () => {
+      const s1 = await seedGroupedScreen('Wall A');
+      resolveAs(playlistId, 1_000, 'screen');
+      enableFakeTimers();
+      await service.registerScreen(s1);
+      emit.mockClear();
+
+      resolveAs(playlistId2, 2_000, 'screen');
+      await jest.advanceTimersByTimeAsync(60_000);
+
+      expect(emit).toHaveBeenCalledWith(SCHEDULE_CHANGED, expect.any(ScreenStateChangeEvent));
+      expect(groupEmits()).toHaveLength(0);
+    });
+
+    // Every member has its own timer and they all fire at the same boundary.
+    it('produces one fan-out when every member crosses the same boundary', async () => {
+      const s1 = await seedGroupedScreen('Wall A');
+      const s2 = await seedGroupedScreen('Wall B');
+      const s3 = await seedGroupedScreen('Wall C');
+      resolveAs(playlistId, 1_000, 'group');
+      enableFakeTimers();
+      await service.registerScreen(s1);
+      await service.registerScreen(s2);
+      await service.registerScreen(s3);
+      emit.mockClear();
+
+      resolveAs(playlistId2, 2_000, 'group');
+      await jest.advanceTimersByTimeAsync(60_000);
+
+      expect(groupEmits()).toHaveLength(1);
+    });
+
+    it('re-aligns the group when a member registers', async () => {
+      const s1 = await seedGroupedScreen('Wall A');
+      resolveAs(playlistId, 1_000, 'group');
+      enableFakeTimers();
+
+      await service.registerScreen(s1);
+
+      expect(groupEmits()).toHaveLength(1);
+      expect(groupEmits()[0]).toEqual([
+        GROUP_SCHEDULE_CHANGED,
+        expect.objectContaining({ groupId, organisationId: orgId, playlistId }),
+      ]);
+    });
+
+    it('does not re-align for an ungrouped screen', async () => {
+      resolveAs(playlistId, 1_000, 'screen');
+      enableFakeTimers();
+
+      await service.registerScreen(screenId);
+
+      expect(groupEmits()).toHaveLength(0);
+    });
+
+    // A backend restart reconnects every member within milliseconds; without the
+    // throttle each arrival would push to all N peers.
+    it('coalesces a reconnect storm into one re-alignment', async () => {
+      const s1 = await seedGroupedScreen('Wall A');
+      const s2 = await seedGroupedScreen('Wall B');
+      const s3 = await seedGroupedScreen('Wall C');
+      resolveAs(playlistId, 1_000, 'group');
+      enableFakeTimers();
+
+      await service.registerScreen(s1);
+      await service.registerScreen(s2);
+      await service.registerScreen(s3);
+
+      expect(groupEmits()).toHaveLength(1);
+    });
+
+    it('re-aligns again once the throttle window has passed', async () => {
+      const s1 = await seedGroupedScreen('Wall A');
+      resolveAs(playlistId, 1_000, 'group');
+      enableFakeTimers();
+      await service.registerScreen(s1);
+      service.unregisterScreen(s1);
+      emit.mockClear();
+
+      await jest.advanceTimersByTimeAsync(6_000);
+      await service.registerScreen(s1);
+
+      expect(groupEmits()).toHaveLength(1);
+    });
+
+    // scheduleNextBoundary awaits a query between clearing and re-arming its
+    // timer. Without the generation guard both concurrent calls arm one, and the
+    // superseded call's timer stays pending with nothing referencing it — so the
+    // screen evaluates a boundary at a time that is no longer scheduled.
+    //
+    // The boundary query is stubbed to stay open: against the real pool the two
+    // calls serialize on the single connection and never overlap, so the race
+    // the guard exists for cannot be reproduced through the database.
+    it('arms only the newest timer when two reschedules race', async () => {
+      enableFakeTimers();
+      await service.registerScreen(screenId);
+
+      const pending: Array<(boundaries: Date[]) => void> = [];
+      (service as unknown as { collectBoundaries: () => Promise<Date[]> }).collectBoundaries = () =>
+        new Promise<Date[]>((resolve) => pending.push(resolve));
+
+      const base = Date.now();
+      const event = new ScheduleEntryChangedEvent(screenId, orgId);
+      const stale = service.handleScheduleEntryChanged(event);
+      const newest = service.handleScheduleEntryChanged(event);
+      // The superseded call comes back first, and with a nearer boundary.
+      pending[0]([new Date(base + 10_000)]);
+      pending[1]([new Date(base + 30_000)]);
+      await Promise.all([stale, newest]);
+      scheduleService.getCurrentPlaylist.mockClear();
+
+      await jest.advanceTimersByTimeAsync(15_000);
+      expect(scheduleService.getCurrentPlaylist).not.toHaveBeenCalled();
+
+      await jest.advanceTimersByTimeAsync(15_000);
+      expect(scheduleService.getCurrentPlaylist).toHaveBeenCalledTimes(1);
     });
   });
 });

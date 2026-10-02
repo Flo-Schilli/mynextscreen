@@ -27,7 +27,7 @@ describe('ScreenProtocolService', () => {
   let service: ScreenProtocolService;
   let db: DrizzleDB;
   let screenStateService: { pushEvent: jest.Mock };
-  let scheduleService: { getCurrentPlaylist: jest.Mock };
+  let scheduleService: { getCurrentGroupPlaylist: jest.Mock };
 
   let orgId: string;
   let contentItemId: string;
@@ -65,10 +65,11 @@ describe('ScreenProtocolService', () => {
 
     screenStateService = { pushEvent: jest.fn() };
     scheduleService = {
-      getCurrentPlaylist: jest.fn().mockResolvedValue({
+      getCurrentGroupPlaylist: jest.fn().mockResolvedValue({
         playlist: { id: playlistId, name: 'Test Playlist' },
         isDefault: false,
         epoch: 1_700_000_000_000,
+        source: 'group',
       }),
     };
 
@@ -227,10 +228,10 @@ describe('ScreenProtocolService', () => {
       });
     });
 
-    it('should handle getCurrentPlaylist failure gracefully', async () => {
+    it('should handle getCurrentGroupPlaylist failure gracefully', async () => {
       const gid = await seedGroup(ScreenGroupMode.Mirror);
       await seedScreen(gid);
-      scheduleService.getCurrentPlaylist.mockRejectedValue(new Error('DB error'));
+      scheduleService.getCurrentGroupPlaylist.mockRejectedValue(new Error('DB error'));
 
       await service.handleGroupScheduleChanged(
         new GroupScheduleChangedEvent(gid, orgId, playlistId),

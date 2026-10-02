@@ -18,7 +18,13 @@ import { PlaylistItem } from '../player/player.models';
 import { PlaybackStateService } from './playback-state.service';
 import { StatusOverlayComponent } from './status-overlay.component';
 import { LiveStreamViewComponent } from './live-stream-view.component';
-import { resolveTransition, enterAnim, exitAnim, TransitionSpec } from './playback-transitions';
+import {
+  resolveTransition,
+  enterAnim,
+  exitAnim,
+  crossDissolves,
+  TransitionSpec,
+} from './playback-transitions';
 import { computePosition } from './playlist-clock';
 
 type LayerId = 0 | 1;
@@ -64,7 +70,7 @@ type LayerId = 0 | 1;
               class="content-media"
               alt=""
               (load)="onLayerImageLoaded(0)"
-              (error)="onMediaError($event)"
+              (error)="onMediaError($event, 0)"
             />
           } @else if (layer0Item()?.type === 'video') {
             <video
@@ -75,7 +81,7 @@ type LayerId = 0 | 1;
               muted
               playsinline
               (loadeddata)="onLayerVideoReady(0)"
-              (error)="onMediaError($event)"
+              (error)="onMediaError($event, 0)"
             ></video>
           }
         </div>
@@ -94,7 +100,7 @@ type LayerId = 0 | 1;
               class="content-media"
               alt=""
               (load)="onLayerImageLoaded(1)"
-              (error)="onMediaError($event)"
+              (error)="onMediaError($event, 1)"
             />
           } @else if (layer1Item()?.type === 'video') {
             <video
@@ -105,7 +111,7 @@ type LayerId = 0 | 1;
               muted
               playsinline
               (loadeddata)="onLayerVideoReady(1)"
-              (error)="onMediaError($event)"
+              (error)="onMediaError($event, 1)"
             ></video>
           }
         </div>
@@ -212,21 +218,15 @@ type LayerId = 0 | 1;
 
       /* ── Transition keyframes ── */
 
-      /* Fade */
+      /* Fade — a cross-dissolve: only the incoming layer animates, the
+         outgoing one stays opaque underneath it. See playback-transitions.ts
+         for why ramping both at once dips through black. */
       @keyframes fade-enter {
         from {
           opacity: 0;
         }
         to {
           opacity: 1;
-        }
-      }
-      @keyframes fade-exit {
-        from {
-          opacity: 1;
-        }
-        to {
-          opacity: 0;
         }
       }
 
@@ -302,43 +302,29 @@ type LayerId = 0 | 1;
         }
       }
 
-      /* Zoom In — outgoing scales up and fades out, incoming fades in */
+      /* Zoom In — the incoming picture grows into place as it dissolves in.
+         The scale used to sit on the outgoing layer, which the incoming one
+         covers completely, so zoom-in was indistinguishable from a plain fade. */
       @keyframes zoom-in-enter {
         from {
           opacity: 0;
+          transform: scale(0.85);
         }
         to {
-          opacity: 1;
-        }
-      }
-      @keyframes zoom-in-exit {
-        from {
           opacity: 1;
           transform: scale(1);
-        }
-        to {
-          opacity: 0;
-          transform: scale(1.5);
         }
       }
 
-      /* Zoom Out — outgoing scales down and fades out, incoming fades in */
+      /* Zoom Out — the incoming picture shrinks into place as it dissolves in. */
       @keyframes zoom-out-enter {
         from {
           opacity: 0;
+          transform: scale(1.15);
         }
         to {
-          opacity: 1;
-        }
-      }
-      @keyframes zoom-out-exit {
-        from {
           opacity: 1;
           transform: scale(1);
-        }
-        to {
-          opacity: 0;
-          transform: scale(0.5);
         }
       }
     `,
@@ -367,11 +353,27 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
   private advanceTimer: ReturnType<typeof setTimeout> | null = null;
   private transitionTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingLoadWatchdog: ReturnType<typeof setTimeout> | null = null;
   private destroyed = false;
   private _pendingTransition: TransitionSpec | null = null;
   private _isPendingImageLoad = false;
   /** Offset (ms) to seek the active video to on first appearance after a clock re-anchor. */
   private _pendingSeekOffsetMs = 0;
+  private lastAnchorSignature: string | null = null;
+  /**
+   * Bumped on every re-anchor. Deferred callbacks capture it and bail once it
+   * has moved on, so a timer armed before a re-anchor can no longer write
+   * animation state into the run that replaced it.
+   */
+  private anchorGeneration = 0;
+  private lastAppliedOffsetMs = 0;
+
+  /** Clock corrections below this are sampling jitter, not worth re-arming for. */
+  private static readonly OFFSET_REARM_THRESHOLD_MS = 100;
+  /** Retry delay when a boundary lands while the previous switch is still settling. */
+  private static readonly BOUNDARY_RETRY_MS = 250;
+  /** Floor for how long to wait on an incoming image before giving up on its load. */
+  private static readonly PENDING_LOAD_TIMEOUT_MS = 3000;
 
   readonly isMuted = this._isMuted.asReadonly();
   readonly isPending = this._isPending.asReadonly();
@@ -441,10 +443,22 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     // without re-initialising playback — ongoing drift is corrected because each
     // scheduleAdvance() re-reads serverNow() for the next boundary.
     effect(() => {
-      this.playerService.activePlaylist();
-      this.playerService.epoch();
-      this.timeSync.synced();
+      const signature = this.anchorSignature();
+      if (signature === this.lastAnchorSignature) return;
+      this.lastAnchorSignature = signature;
       this.loadFromClock();
+    });
+
+    // A re-sync moves the clock, and with it every boundary derived from it. An
+    // already-armed timer still holds a delay computed against the old offset,
+    // so it has to be recomputed — otherwise the correction only lands one item
+    // later, which is exactly when a group member drifts out of step.
+    effect(() => {
+      const offset = this.timeSync.offsetMs();
+      const delta = offset - this.lastAppliedOffsetMs;
+      this.lastAppliedOffsetMs = offset;
+      if (Math.abs(delta) < PlaybackComponent.OFFSET_REARM_THRESHOLD_MS) return;
+      untracked(() => this.applyClockCorrection());
     });
 
     // Sync playback state for status overlay
@@ -462,6 +476,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     this.destroyed = true;
     this.clearAdvanceTimer();
     this.clearTransitionTimer();
+    this.clearPendingLoadWatchdog();
     this.playerService.disconnect();
   }
 
@@ -469,15 +484,14 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
   onLayerImageLoaded(layer: LayerId): void {
     if (this._initialLoad() && layer === this._activeLayer()) {
-      this.playInitialAppearance();
+      this.playEnterAnimation();
     } else if (
       this._pendingTransition &&
       this._isPendingImageLoad &&
       layer !== this._activeLayer()
     ) {
-      this._isPendingImageLoad = false;
       const transition = this._pendingTransition;
-      this._pendingTransition = null;
+      this.clearPendingLoad();
       this.executeTransition(transition);
     }
   }
@@ -496,7 +510,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
       });
     }
     if (this._initialLoad() && layer === this._activeLayer()) {
-      this.playInitialAppearance();
+      this.playEnterAnimation();
     }
   }
 
@@ -504,7 +518,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   // (scheduleAdvance), not the native `ended` event, so every group member
   // switches at the same instant even if real video lengths differ slightly.
 
-  onMediaError(event?: Event): void {
+  onMediaError(event: Event | undefined, layer: LayerId): void {
     const target = event?.target as HTMLVideoElement | HTMLImageElement | null;
     const error = (target as HTMLVideoElement)?.error;
     // The URL is deliberately not logged: it carries the signed grant, and this
@@ -517,6 +531,16 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     // fresh ones, so refetch rather than skipping items one by one until the
     // whole playlist has been walked off.
     void this.playerService.fetchState().catch(() => undefined);
+
+    // Release whatever this layer was holding. No `load` follows an `error`, and
+    // a stuck `_isPendingImageLoad` makes every later boundary early-return — a
+    // single broken media URL used to stall the screen for good.
+    if (layer !== this._activeLayer()) {
+      this.clearPendingLoad();
+    } else if (this._initialLoad()) {
+      this._initialLoad.set(false);
+    }
+
     // Skip broken items — advance after a short delay
     setTimeout(() => {
       if (!this.destroyed) this.advance();
@@ -556,16 +580,16 @@ export class PlaybackComponent implements OnInit, OnDestroy {
    * the clock untracked so this stays free of the periodic-resync offset signal.
    */
   private loadFromClock(): void {
+    this.anchorGeneration++;
     this.clearAdvanceTimer();
     this.clearTransitionTimer();
+    this.clearPendingLoad();
     this._activeLayer.set(0);
     this._layer1Item.set(null);
     this._layer0Anim.set('');
     this._layer1Anim.set('');
     this._isTransitioning.set(false);
     this._initialLoad.set(true);
-    this._pendingTransition = null;
-    this._isPendingImageLoad = false;
 
     const items = this.items();
     if (items.length === 0) {
@@ -577,9 +601,40 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
     const epoch = this.playerService.epoch();
     const pos = untracked(() => computePosition(items, epoch, this.timeSync.serverNow()));
+    const nextItem = items[pos.index] ?? null;
+
+    // A re-anchor that lands on the item already on screen writes back the very
+    // same object reference. `signal.set` compares with `Object.is`, so nothing
+    // notifies, the <img> is not re-created and no `load` event will ever
+    // arrive — which is why the appearance has to be settled here rather than
+    // waiting for a DOM event that is not coming.
+    const unchanged = nextItem !== null && untracked(this._layer0Item) === nextItem;
+
     this._currentIndex.set(pos.index);
-    this._pendingSeekOffsetMs = items[pos.index]?.type === 'video' ? pos.offsetMs : 0;
-    this._layer0Item.set(items[pos.index] ?? null);
+    this._pendingSeekOffsetMs = nextItem?.type === 'video' && !unchanged ? pos.offsetMs : 0;
+    this._layer0Item.set(nextItem);
+    if (unchanged) this._initialLoad.set(false);
+
+    // Timing comes from the shared clock, never from when media happened to
+    // decode. Arming here is what keeps the screen on the group's grid even if
+    // the media event never fires.
+    untracked(() => this.scheduleAdvance());
+  }
+
+  /**
+   * Apply a clock correction to the running schedule. A correction that lands in
+   * a different item needs a full re-anchor; anything smaller only moves the
+   * boundary, so re-arming the timer is enough and nothing on screen changes.
+   */
+  private applyClockCorrection(): void {
+    // Never start playback from here — only adjust a schedule already running.
+    if (this.advanceTimer === null) return;
+    const items = this.items();
+    if (items.length === 0) return;
+
+    const pos = computePosition(items, this.playerService.epoch(), this.timeSync.serverNow());
+    if (pos.index !== this._currentIndex()) this.loadFromClock();
+    else this.scheduleAdvance();
   }
 
   // ── Playback scheduling ──
@@ -605,31 +660,39 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
   // ── Transitions ──
 
-  private playInitialAppearance(): void {
+  /**
+   * Enter animation for a freshly anchored item. Cosmetic only — the boundary
+   * timer is armed by {@link loadFromClock} from the shared clock, so a slow
+   * decode or a media event that never arrives can no longer stop playback.
+   */
+  private playEnterAnimation(): void {
     if (!this._initialLoad()) return;
     this._initialLoad.set(false);
     this._pendingSeekOffsetMs = 0;
 
-    const item = this.currentItem();
-    const { type, duration } = resolveTransition(item);
+    const { type, duration } = resolveTransition(this.currentItem());
+    if (type === 'cut') return;
+
     const layer = this._activeLayer();
-
-    if (type === 'cut') {
-      this.scheduleAdvance();
-      return;
-    }
-
     this.setLayerAnim(layer, enterAnim(type, duration));
-    this.transitionTimer = setTimeout(() => {
-      this.zone.run(() => {
-        this.setLayerAnim(layer, '');
-        this.scheduleAdvance();
-      });
-    }, duration);
+    this.armTransitionTimer(() => this.setLayerAnim(layer, ''), duration);
   }
 
   private advance(): void {
-    if (this.destroyed || this._isTransitioning() || this._isPendingImageLoad) return;
+    if (this.destroyed) return;
+
+    // The boundary landed while the previous switch was still settling. Dropping
+    // it lost the switch with nothing left to re-arm it, so retry shortly. A
+    // fixed delay rather than scheduleAdvance(): the boundary is already in the
+    // past, so recomputing it yields 0 and spins for the whole transition.
+    if (this._isTransitioning() || this._isPendingImageLoad) {
+      this.clearAdvanceTimer();
+      this.advanceTimer = setTimeout(
+        () => this.zone.run(() => this.advance()),
+        PlaybackComponent.BOUNDARY_RETRY_MS,
+      );
+      return;
+    }
 
     const list = this.items();
     if (list.length === 0) return;
@@ -665,47 +728,68 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     const inactiveLayer: LayerId = this._activeLayer() === 0 ? 1 : 0;
     this.setLayerItem(inactiveLayer, nextItem);
 
-    if (transition.type === 'cut') {
-      // Instant swap — no animation
-      const oldLayer = this._activeLayer();
-      this._activeLayer.set(inactiveLayer);
-      this.setLayerItem(oldLayer, null);
-      this.onTransitionComplete(nextItem);
-      return;
-    }
-
     if (nextItem.type === 'image') {
-      // Wait for image to load before starting animation
+      // Wait for the image to decode before swapping or animating — cut included.
+      // Cut used to swap straight away, onto a layer whose <img> had not loaded
+      // yet, so the black container showed through until the decode finished. On
+      // a TV that gap is long enough to read as a blend rather than a cut.
       this._isPendingImageLoad = true;
       this._pendingTransition = transition;
+      this.armPendingLoadWatchdog(transition);
     } else {
-      // Video — start transition immediately
+      // Video — start immediately
       this.executeTransition(transition);
     }
+  }
+
+  /**
+   * Identity of everything that forces playback to re-anchor to the shared
+   * clock: the playlist, its timeline and the group epoch, plus the one-shot
+   * first clock sync. Per-item transition settings are deliberately excluded —
+   * every state push replaces the playlist object, and re-anchoring on that
+   * restarted playback and replayed an enter animation for edits that do not
+   * move a single boundary.
+   */
+  private anchorSignature(): string {
+    const playlist = this.playerService.activePlaylist();
+    const epoch = this.playerService.epoch();
+    const synced = this.timeSync.synced();
+    const timeline = (playlist?.items ?? [])
+      .map((item) => `${item.type}:${item.duration}:${item.url}`)
+      .join('|');
+    return `${playlist?.id ?? ''}#${epoch}#${synced}#${timeline}`;
   }
 
   private executeTransition(transition: TransitionSpec): void {
     const activeLayer = this._activeLayer();
     const inactiveLayer: LayerId = activeLayer === 0 ? 1 : 0;
 
+    if (transition.type === 'cut') {
+      this.commitLayerSwap(activeLayer, inactiveLayer);
+      return;
+    }
+
     this._isTransitioning.set(true);
 
-    // Apply exit animation to outgoing layer, enter animation to incoming layer
+    // Enter animation on the incoming layer. The outgoing one only animates for
+    // transitions that move it off screen; a cross-dissolve leaves it opaque
+    // underneath, so `exitAnim` hands back an empty string.
     this.setLayerAnim(activeLayer, exitAnim(transition.type, transition.duration));
     this.setLayerAnim(inactiveLayer, enterAnim(transition.type, transition.duration));
 
-    this.transitionTimer = setTimeout(() => {
-      this.zone.run(() => {
-        this._isTransitioning.set(false);
-        this._activeLayer.set(inactiveLayer);
-        this.setLayerAnim(0, '');
-        this.setLayerAnim(1, '');
-        this.setLayerItem(activeLayer, null); // clean up old layer
-
-        const item = inactiveLayer === 0 ? this._layer0Item() : this._layer1Item();
-        this.onTransitionComplete(item);
-      });
+    this.armTransitionTimer(() => {
+      this._isTransitioning.set(false);
+      this.setLayerAnim(0, '');
+      this.setLayerAnim(1, '');
+      this.commitLayerSwap(activeLayer, inactiveLayer);
     }, transition.duration);
+  }
+
+  /** Make the incoming layer current and release the outgoing one. */
+  private commitLayerSwap(outgoing: LayerId, incoming: LayerId): void {
+    this._activeLayer.set(incoming);
+    this.setLayerItem(outgoing, null);
+    this.onTransitionComplete(incoming === 0 ? this._layer0Item() : this._layer1Item());
   }
 
   private advanceWrapping(item: PlaylistItem, transition: TransitionSpec): void {
@@ -720,27 +804,34 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
     this._isTransitioning.set(true);
 
+    // A one-item playlist has no second layer to dissolve against, so a
+    // cross-dissolve restarts and plays its enter half only. Running exit and
+    // enter back to back took twice the configured duration and showed up as
+    // two separate blends.
+    if (crossDissolves(transition.type)) {
+      this.restartCurrentItem(item);
+      this.setLayerAnim(layer, enterAnim(transition.type, transition.duration));
+      this.armTransitionTimer(() => this.finishWrap(layer), transition.duration);
+      return;
+    }
+
     // Exit animation on current layer
     this.setLayerAnim(layer, exitAnim(transition.type, transition.duration));
 
-    this.transitionTimer = setTimeout(() => {
-      if (this.destroyed) return;
-      this.zone.run(() => {
-        this.restartCurrentItem(item);
+    this.armTransitionTimer(() => {
+      this.restartCurrentItem(item);
 
-        // Enter animation on same layer
-        this.setLayerAnim(layer, enterAnim(transition.type, transition.duration));
+      // Enter animation on same layer
+      this.setLayerAnim(layer, enterAnim(transition.type, transition.duration));
 
-        this.transitionTimer = setTimeout(() => {
-          if (this.destroyed) return;
-          this.zone.run(() => {
-            this._isTransitioning.set(false);
-            this.setLayerAnim(layer, '');
-            this.scheduleAdvance();
-          });
-        }, transition.duration);
-      });
+      this.armTransitionTimer(() => this.finishWrap(layer), transition.duration);
     }, transition.duration);
+  }
+
+  private finishWrap(layer: LayerId): void {
+    this._isTransitioning.set(false);
+    this.setLayerAnim(layer, '');
+    this.scheduleAdvance();
   }
 
   private restartCurrentItem(item: PlaylistItem): void {
@@ -779,6 +870,52 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     if (this.advanceTimer !== null) {
       clearTimeout(this.advanceTimer);
       this.advanceTimer = null;
+    }
+  }
+
+  /**
+   * Arm the transition timer, replacing whatever was pending. The captured
+   * generation makes the callback a no-op once a re-anchor has happened, so a
+   * stale callback can no longer wipe the animation of the run that replaced it.
+   */
+  private armTransitionTimer(run: () => void, delayMs: number): void {
+    this.clearTransitionTimer();
+    const generation = this.anchorGeneration;
+    this.transitionTimer = setTimeout(() => {
+      if (this.destroyed || generation !== this.anchorGeneration) return;
+      this.zone.run(run);
+    }, delayMs);
+  }
+
+  /**
+   * Give up on an incoming image whose `load` never arrives. A hung request
+   * fires neither `load` nor `error`, and the pending gate would otherwise make
+   * every later boundary early-return for good.
+   */
+  private armPendingLoadWatchdog(transition: TransitionSpec): void {
+    this.clearPendingLoadWatchdog();
+    const generation = this.anchorGeneration;
+    const delay = Math.max(2 * transition.duration, PlaybackComponent.PENDING_LOAD_TIMEOUT_MS);
+    this.pendingLoadWatchdog = setTimeout(() => {
+      this.zone.run(() => {
+        if (this.destroyed || generation !== this.anchorGeneration) return;
+        if (!this._isPendingImageLoad) return;
+        this.clearPendingLoad();
+        this.executeTransition(transition);
+      });
+    }, delay);
+  }
+
+  private clearPendingLoad(): void {
+    this.clearPendingLoadWatchdog();
+    this._isPendingImageLoad = false;
+    this._pendingTransition = null;
+  }
+
+  private clearPendingLoadWatchdog(): void {
+    if (this.pendingLoadWatchdog !== null) {
+      clearTimeout(this.pendingLoadWatchdog);
+      this.pendingLoadWatchdog = null;
     }
   }
 
