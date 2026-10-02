@@ -150,6 +150,10 @@ jobs:
             echo "app_version=${APP_VERSION}"
             echo "short_sha=${SHORT_SHA}"
             echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            # Date only, so the apk layer is re-resolved once a day rather than
+            # on every build: Alpine ships package fixes faster than the base
+            # image tag is rebuilt, and the scan below gates on exactly those.
+            echo "alpine_refresh=$(date -u +%Y-%m-%d)"
           } >> "$GITHUB_OUTPUT"
 
       # Build and package the LG webOS player app (.ipk) so it can be served
@@ -194,6 +198,7 @@ jobs:
             APP_VERSION=${{ steps.meta.outputs.app_version }}
             GIT_COMMIT=${{ steps.meta.outputs.short_sha }}
             BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            ALPINE_REFRESH=${{ steps.meta.outputs.alpine_refresh }}
           # Scoped per architecture: one cache key for both would have the two
           # runners overwrite each other's layers on every run.
           cache-from: type=gha,scope=${{ matrix.app }}-${{ matrix.arch }}
@@ -227,6 +232,7 @@ jobs:
             APP_VERSION=${{ steps.meta.outputs.app_version }}
             GIT_COMMIT=${{ steps.meta.outputs.short_sha }}
             BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            ALPINE_REFRESH=${{ steps.meta.outputs.alpine_refresh }}
           cache-from: type=gha,scope=${{ matrix.app }}-${{ matrix.arch }}
           # Attach an SBOM and build provenance so a deployed image can be traced
           # back to the commit and its contents listed without unpacking it.
