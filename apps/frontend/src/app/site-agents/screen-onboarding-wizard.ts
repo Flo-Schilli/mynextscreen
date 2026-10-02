@@ -286,7 +286,7 @@ const DEVMODE_CHAIN_END = 6;
           class="flex items-center justify-between gap-3 px-6 py-5 border-t border-border"
         >
           <span class="text-[13px] text-muted">
-            @if (remote().onboardingCompletedAt) {
+            @if (completed()) {
               This display is set up. Re-run any step if something changes on the TV.
             } @else {
               Step {{ current() }} of {{ steps.length }}
@@ -312,6 +312,14 @@ export class ScreenOnboardingWizard implements OnInit, OnDestroy {
 
   protected readonly steps = STEPS;
   protected readonly current = signal(1);
+  /**
+   * Whether the wizard is finished.
+   *
+   * Needed as its own flag because the step number cannot express it: the last
+   * step can never be "past", so deriving Done from the step alone left the
+   * final one reading "In progress" after it had passed.
+   */
+  protected readonly completed = signal(false);
   protected readonly busy = signal(false);
   protected readonly result = signal<{ ok: boolean; detail: string | null } | null>(null);
   protected readonly agentOptions = signal<{ value: string; label: string }[]>([]);
@@ -338,6 +346,7 @@ export class ScreenOnboardingWizard implements OnInit, OnDestroy {
     const remote = this.remote();
     this.current.set(remote.onboardingStep);
     this.reached.set(remote.onboardingStep);
+    this.completed.set(remote.onboardingCompletedAt !== null);
     this.agentId.set(remote.agentId ?? '');
     this.localIp.set(remote.localIp ?? '');
     this.macAddress.set(remote.macAddress ?? '');
@@ -366,6 +375,9 @@ export class ScreenOnboardingWizard implements OnInit, OnDestroy {
       this.settle();
       this.result.set({ ok: data.ok, detail: data.detail });
       if (data.ok) {
+        if (data.step >= STEPS.length) {
+          this.completed.set(true);
+        }
         this.moveTo(data.step + 1);
         this.changed.emit();
       }
@@ -380,6 +392,7 @@ export class ScreenOnboardingWizard implements OnInit, OnDestroy {
 
   protected state(item: WizardStep): 'done' | 'current' | 'skipped' | 'todo' {
     if (this.skipped().has(item.step)) return 'skipped';
+    if (this.completed()) return 'done';
     if (item.step === this.current()) return 'current';
     return item.step < this.reached() ? 'done' : 'todo';
   }
