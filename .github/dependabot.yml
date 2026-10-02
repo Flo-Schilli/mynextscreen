@@ -14,11 +14,18 @@ updates:
     # Grouped so a framework bump arrives as one reviewable PR instead of a
     # dozen that cannot be merged independently anyway.
     groups:
+      # Angular's peer ranges pin typescript and vitest to narrow windows
+      # (@angular/build@21 wants typescript >=5.9 <6.0 and vitest ^4.0.8), so
+      # those two cannot move on their own. Grouping them here keeps the
+      # unmergeable combination out of the `remaining` group.
       angular:
         patterns:
           - '@angular*'
           - 'angular-eslint'
           - '@analogjs/*'
+          - 'typescript'
+          - 'vitest'
+          - '@vitest/*'
       nestjs:
         patterns:
           - '@nestjs/*'
@@ -42,6 +49,9 @@ updates:
           - 'nx'
           - '@nx/*'
           - '@types/*'
+          - 'typescript'
+          - 'vitest'
+          - '@vitest/*'
 
   - package-ecosystem: github-actions
     directory: /
