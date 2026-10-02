@@ -30,12 +30,18 @@ function screen(overrides: Partial<AgentScreenConfigMessage> = {}): AgentScreenC
 describe('CommandHandlerService', () => {
   let handler: CommandHandlerService;
   let stream: { onCommand: jest.Mock };
-  let supervisor: { runNow: jest.Mock; visitNow: jest.Mock; refreshConfigIfDue: jest.Mock };
+  let supervisor: {
+    runNow: jest.Mock;
+    visitNow: jest.Mock;
+    runAction: jest.Mock;
+    refreshConfigIfDue: jest.Mock;
+  };
   let configs: { current: jest.Mock };
   let client: { sendReports: jest.Mock };
   let reachability: { probe: jest.Mock };
   let devmodeKeys: { obtain: jest.Mock; probeKeyServer: jest.Mock; forget: jest.Mock };
   let ssh: { run: jest.Mock };
+  let ssapKeys: { load: jest.Mock; save: jest.Mock };
 
   const config = (screens: AgentScreenConfigMessage[]): AgentConfigMessage => ({
     agentId: 'agent-1',
@@ -54,6 +60,7 @@ describe('CommandHandlerService', () => {
     supervisor = {
       runNow: jest.fn(),
       visitNow: jest.fn().mockResolvedValue(null),
+      runAction: jest.fn(),
       refreshConfigIfDue: jest.fn(),
     };
     configs = { current: jest.fn().mockReturnValue(config([screen()])) };
@@ -65,6 +72,7 @@ describe('CommandHandlerService', () => {
       forget: jest.fn(),
     };
     ssh = { run: jest.fn().mockResolvedValue({ status: 'ok', hostKeyFingerprint: 'SHA256:abc' }) };
+    ssapKeys = { load: jest.fn().mockResolvedValue('granted-key'), save: jest.fn() };
 
     handler = new CommandHandlerService(
       stream as never,
@@ -74,6 +82,7 @@ describe('CommandHandlerService', () => {
       reachability as never,
       devmodeKeys as never,
       ssh as never,
+      ssapKeys as never,
     );
   });
 
@@ -94,14 +103,15 @@ describe('CommandHandlerService', () => {
   });
 
   describe('actions on a screen', () => {
-    it.each(['launch', 'wake', 'extend_devmode'] as const)(
-      '%s runs that screen immediately',
-      async (type) => {
-        await handler.handle({ commandId: 'c1', type, screenId: 's1' });
+    it.each([
+      ['launch', 'launch'],
+      ['wake', 'wake'],
+      ['extend_devmode', 'extend-devmode'],
+    ])('%s acts on that screen immediately', async (type, action) => {
+      await handler.handle({ commandId: 'c1', type, screenId: 's1' } as never);
 
-        expect(supervisor.runNow).toHaveBeenCalledWith('s1');
-      },
-    );
+      expect(supervisor.runAction).toHaveBeenCalledWith('s1', action);
+    });
 
     // Dropping the cached key first is the whole point of the command; without
     // it the agent would keep using the key the operator just replaced.
@@ -116,6 +126,56 @@ describe('CommandHandlerService', () => {
       await handler.handle({ commandId: 'c1', type: 'launch' });
 
       expect(supervisor.runNow).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * Standby deliberately does not end in a round: the set is on its way off, so
+   * probing it straight away would record it unreachable and start the backoff
+   * on a screen doing exactly what was asked.
+   */
+  describe('standby', () => {
+    it('does not run a round afterwards', async () => {
+      await handler.handle({ commandId: 'c1', type: 'standby', screenId: 's1' });
+
+      expect(supervisor.runNow).not.toHaveBeenCalled();
+    });
+
+    it('reports the failure rather than staying silent', async () => {
+      await handler.handle({ commandId: 'c1', type: 'standby', screenId: 's1' });
+
+      // No SSAP server in this suite, so the connection cannot succeed — what
+      // matters is that the command answers at all.
+      expect(reported()).toMatchObject({ commandId: 'c1', standby: false });
+    });
+  });
+
+  /**
+   * A person pressing a button has already decided. Running an ordinary round
+   * instead put the request back in front of the policy that decides what is
+   * *due* — and that refused a wake unless `wakeOnUnreachableEnabled` was set, a
+   * launch unless the heartbeat was stale, an extension unless it fell due. The
+   * button did nothing at all, not even fail.
+   */
+  describe('manual commands', () => {
+    it.each([
+      ['wake', 'wake'],
+      ['launch', 'launch'],
+      ['extend_devmode', 'extend-devmode'],
+    ])('carries out %s outright rather than running a round', async (type, action) => {
+      await handler.handle({ commandId: 'c1', type, screenId: 's1' } as never);
+
+      expect(supervisor.runAction).toHaveBeenCalledWith('s1', action);
+      expect(supervisor.runNow).not.toHaveBeenCalled();
+    });
+
+    // Dropping the key changes what the next round finds, so this one really is
+    // "look again".
+    it('runs a round after discarding the key', async () => {
+      await handler.handle({ commandId: 'c1', type: 'refetch_key', screenId: 's1' });
+
+      expect(devmodeKeys.forget).toHaveBeenCalledWith('s1');
+      expect(supervisor.runNow).toHaveBeenCalledWith('s1');
     });
   });
 

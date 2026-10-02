@@ -5,7 +5,9 @@ import { AgentConfigStore } from '../config/agent-config.store';
 import { DevmodeKeyService } from '../tv/devmode-key.service';
 import { ReachabilityService } from '../probe/reachability.service';
 import { SshService } from '../tv/ssh.service';
-import { SupervisorService } from './supervisor.service';
+import { SsapClient } from '../tv/ssap-client';
+import { SsapKeyStore } from '../tv/ssap-key.store';
+import { SupervisorService, classifySsap, describe } from './supervisor.service';
 import type {
   AgentScreenConfigMessage,
   AgentScreenReportMessage,
@@ -40,6 +42,7 @@ export class CommandHandlerService implements OnModuleInit {
     private readonly reachability: ReachabilityService,
     private readonly devmodeKeys: DevmodeKeyService,
     private readonly ssh: SshService,
+    private readonly ssapKeys: SsapKeyStore,
   ) {}
 
   onModuleInit(): void {
@@ -63,13 +66,70 @@ export class CommandHandlerService implements OnModuleInit {
       return;
     }
 
-    if (command.type === 'refetch_key') {
-      await this.devmodeKeys.forget(command.screenId);
+    if (command.type === 'standby') {
+      await this.standby(command);
+      return;
     }
 
-    // launch, wake, extend_devmode and refetch_key all end in "look at this
-    // screen now", which is exactly what a round does — with the backoff reset.
-    await this.supervisor.runNow(command.screenId);
+    if (command.type === 'refetch_key') {
+      // The only one that really is "look again": dropping the key changes what
+      // the next round finds, and the round is what fetches a fresh one.
+      await this.devmodeKeys.forget(command.screenId);
+      await this.supervisor.runNow(command.screenId);
+      return;
+    }
+
+    // The rest are done outright. Running a round instead would put them back
+    // in front of the policy that decides what is *due*, which is exactly what
+    // a person pressing a button has already overruled.
+    const action =
+      command.type === 'extend_devmode' ? 'extend-devmode' : (command.type as 'wake' | 'launch');
+    await this.supervisor.runAction(command.screenId, action);
+  }
+
+  /**
+   * Puts the set into standby and reports whether it acknowledged.
+   *
+   * Does not end in a round like the other commands do: the set is on its way
+   * off, so probing it immediately afterwards would record it as unreachable
+   * and start the backoff on a screen that is doing exactly what was asked.
+   */
+  private async standby(command: SiteAgentCommandMessage): Promise<void> {
+    const screen = this.configs.current()?.screens.find((s) => s.screenId === command.screenId);
+    if (!screen) {
+      return;
+    }
+
+    const report: AgentScreenReportMessage = {
+      screenId: screen.screenId,
+      commandId: command.commandId,
+    };
+
+    let client: SsapClient | null = null;
+    try {
+      client = await SsapClient.connect(screen.localIp as string, screen.ssapPort);
+      const stored = await this.ssapKeys.load(screen.screenId);
+      const clientKey = await client.register(stored, () => {
+        this.logger.warn(
+          `Screen ${screen.name} is showing a pairing prompt — confirm it on the TV`,
+        );
+      });
+      if (clientKey && clientKey !== stored) {
+        await this.ssapKeys.save(screen.screenId, clientKey);
+      }
+      await client.standby();
+      report.standby = true;
+      report.ssapStatus = 'ok';
+      this.logger.log(`Screen ${screen.name} sent to standby`);
+    } catch (error) {
+      report.standby = false;
+      report.ssapStatus = classifySsap(error);
+      report.detail = describe(error);
+    } finally {
+      client?.close();
+    }
+
+    await this.send(report);
   }
 
   /**

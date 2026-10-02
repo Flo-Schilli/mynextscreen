@@ -112,6 +112,39 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Does one thing because a person asked, bypassing the policy that decides
+   * what is *due*.
+   *
+   * The manual commands used to run an ordinary round, which refused them: a
+   * wake needs `wakeOnUnreachableEnabled`, a launch needs a stale heartbeat, an
+   * extension needs to be due. Pressing a button and having nothing happen —
+   * not even an error — is the worst of both.
+   */
+  async runAction(screenId: string, action: 'wake' | 'launch' | 'extend-devmode'): Promise<void> {
+    const screen = this.configs.current()?.screens.find((s) => s.screenId === screenId);
+    if (!screen) {
+      return;
+    }
+    const runtime = this.runtimeFor(screenId);
+    runtime.failures = 0;
+    runtime.nextAttemptAt = 0;
+
+    const report: AgentScreenReportMessage = { screenId };
+    switch (action) {
+      case 'wake':
+        await this.doWake(screen, runtime, report);
+        break;
+      case 'launch':
+        await this.doLaunch(screen, this.configs.current()?.appId ?? '', runtime, report);
+        break;
+      case 'extend-devmode':
+        await this.doExtendDevmode(screen, runtime, report);
+        break;
+    }
+    await this.send([report]);
+  }
+
+  /**
    * One round for a single screen, returned instead of sent.
    *
    * The onboarding wizard needs the outcome of a round under its own
@@ -182,7 +215,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     report: AgentScreenReportMessage,
   ): Promise<boolean> {
     try {
-      await this.wol.wake(screen.macAddress as string);
+      await this.wol.wake(screen.macAddress as string, screen.localIp);
       runtime.lastWakeAt = Date.now();
       report.woken = true;
       return true;
@@ -419,7 +452,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   }
 }
 
-function classifySsap(error: unknown): 'awaiting_pairing' | 'rejected' | 'unreachable' {
+export function classifySsap(error: unknown): 'awaiting_pairing' | 'rejected' | 'unreachable' {
   const name = error instanceof Error ? error.name : '';
   if (name === 'SsapPairingTimeoutError') {
     return 'awaiting_pairing';
@@ -430,6 +463,6 @@ function classifySsap(error: unknown): 'awaiting_pairing' | 'rejected' | 'unreac
   return 'rejected';
 }
 
-function describe(error: unknown): string {
+export function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
