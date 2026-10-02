@@ -25,7 +25,13 @@ FROM node:22-alpine
 
 # Pull the current Alpine package set: the base image tag is rebuilt less often
 # than its packages are fixed, and the CI image scan gates on exactly these.
-RUN apk upgrade --no-cache
+# Changes daily (CI passes the build date), so the layer below is re-resolved
+# instead of replayed from the buildx cache. Without it the cached layer keeps
+# whatever package set existed when it was first built, and the Trivy gate then
+# fails on advisories Alpine has already shipped a fix for.
+ARG ALPINE_REFRESH=unset
+RUN echo "alpine package refresh: ${ALPINE_REFRESH}" \
+    && apk upgrade --no-cache
 
 # ffmpeg for transcoding + live streaming; tini as PID 1 for clean signal handling
 RUN apk add --no-cache ffmpeg tini
