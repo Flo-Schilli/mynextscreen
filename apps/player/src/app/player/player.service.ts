@@ -80,7 +80,11 @@ export class PlayerService implements OnDestroy {
     this._status.set('connecting');
 
     try {
-      await this.fetchState();
+      // The clock pass starts before the await, not after it: the first anchor
+      // must not be computed on an uncorrected RTC, which on a TV that has not
+      // reached NTP yet can be minutes off. Both requests are in flight at once,
+      // so startup pays about one extra round trip, not a second sequential fetch.
+      await Promise.all([this.fetchState(), this.timeSync.syncFirstPass()]);
       this._status.set('connected');
       this.timeSync.start();
       this.startHeartbeat();
@@ -88,6 +92,8 @@ export class PlayerService implements OnDestroy {
       window.addEventListener('beforeunload', this.beforeUnloadHandler);
     } catch {
       this._status.set('disconnected');
+      // Leave no 60s resync interval behind on a failed connect.
+      this.timeSync.stop();
       throw new Error('Failed to fetch screen state');
     }
   }
