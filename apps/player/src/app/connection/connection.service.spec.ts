@@ -13,7 +13,7 @@ import { TestBed, getTestBed } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ConnectionService } from './connection.service';
+import { ConnectionService, isTrustedConnectOrigin } from './connection.service';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -165,6 +165,40 @@ describe('ConnectionService mynextscreen-connect handoff', () => {
       // away a code it just put on the display.
       expect(localStorage.getItem('mynextscreen_server_url')).toBeNull();
     });
+  });
+});
+
+/**
+ * The shell's origin decides whether the server URL is accepted at all. Real
+ * webOS sets report `file://<app-id>-webos`, not the opaque `'null'` this
+ * originally assumed, so every TV rejected the handoff.
+ */
+describe('isTrustedConnectOrigin', () => {
+  afterEach(() => {
+    delete (window as { __SIGNAGE_TRUSTED_ORIGINS__?: unknown }).__SIGNAGE_TRUSTED_ORIGINS__;
+  });
+
+  it('accepts the webOS shell, whatever app id it derives its origin from', () => {
+    expect(isTrustedConnectOrigin('file://com.mynextscreen.webos-webos')).toBe(true);
+    expect(isTrustedConnectOrigin('file://com.example.other-webos')).toBe(true);
+  });
+
+  it('accepts its own origin and the opaque one', () => {
+    expect(isTrustedConnectOrigin(window.location.origin)).toBe(true);
+    expect(isTrustedConnectOrigin('null')).toBe(true);
+  });
+
+  it('rejects an ordinary web origin', () => {
+    expect(isTrustedConnectOrigin('https://evil.example.com')).toBe(false);
+  });
+
+  it('honours a configured list over the defaults, file:// included', () => {
+    (window as { __SIGNAGE_TRUSTED_ORIGINS__?: unknown }).__SIGNAGE_TRUSTED_ORIGINS__ =
+      'https://shell.example.com';
+
+    expect(isTrustedConnectOrigin('https://shell.example.com')).toBe(true);
+    expect(isTrustedConnectOrigin('file://com.mynextscreen.webos-webos')).toBe(false);
+    expect(isTrustedConnectOrigin('null')).toBe(false);
   });
 });
 

@@ -63,10 +63,16 @@ export type PollPairingResult = 'pending' | 'claimed' | 'expired';
 /**
  * Origins allowed to hand the server URL to the player.
  *
- * Same-origin always counts. `'null'` is the opaque origin of the webOS shell,
- * which is served from `file://` and therefore has no real origin — and that is
- * the weak part of the list, because an opaque origin proves nothing: a page can
- * obtain one for itself by framing through a `sandbox="allow-scripts"` document.
+ * Same-origin always counts, as does a `file://` origin: that is what the webOS
+ * shell sends. Real sets report it as `file://<app-id>-webos` rather than the
+ * opaque `'null'` this once assumed, and with only `'null'` trusted the handoff
+ * was rejected on every TV — the player then fell back to guessing the server
+ * from its own hostname, which cannot work for an address with a port.
+ *
+ * `'null'` stays accepted for shells that do send it, and it is the weak part
+ * of the list: an opaque origin proves nothing, because a page can obtain one
+ * for itself by framing through a `sandbox="allow-scripts"` document. A
+ * `file://` origin cannot be forged by a web page.
  *
  * A deployment without the webOS shell should therefore drop it, by setting
  * `window.__SIGNAGE_TRUSTED_ORIGINS__` to a comma-separated list before the
@@ -83,6 +89,19 @@ export function trustedConnectOrigins(): readonly string[] {
       .filter((origin) => origin !== '');
   }
   return [window.location.origin, 'null'];
+}
+
+/** Whether `origin` may hand this player its server URL. */
+export function isTrustedConnectOrigin(origin: string): boolean {
+  const configured = (window as { __SIGNAGE_TRUSTED_ORIGINS__?: unknown })
+    .__SIGNAGE_TRUSTED_ORIGINS__;
+  if (typeof configured === 'string' && configured.trim() !== '') {
+    return trustedConnectOrigins().includes(origin);
+  }
+  // Any `file://` origin, not one spelled-out app id: webOS derives it from the
+  // id, so pinning one here would break the moment the app is renamed, and a
+  // web page cannot claim a file:// origin in the first place.
+  return origin.startsWith('file://') || trustedConnectOrigins().includes(origin);
 }
 
 @Injectable({ providedIn: 'root' })
@@ -225,7 +244,7 @@ export class ConnectionService implements OnDestroy {
     if (window.parent !== window.top) {
       return false;
     }
-    return trustedConnectOrigins().includes(event.origin);
+    return isTrustedConnectOrigin(event.origin);
   }
 
   /**

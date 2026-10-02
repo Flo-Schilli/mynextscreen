@@ -14,9 +14,9 @@
       /*
        * Origins allowed to hand this player its server URL over postMessage.
        *
-       * Leave it commented out and the player trusts its own origin plus the
-       * opaque origin 'null' — which the LG webOS shell needs, because it is
-       * served from file:// and has no real origin.
+       * Leave it commented out and the player trusts its own origin plus any
+       * file:// origin — which the LG webOS shell needs, because that is what
+       * it is served from (real sets report file://<app-id>-webos).
        *
        * If no webOS shell is used, uncomment the line and name the origins that
        * may embed this player. Trusting 'null' means trusting any page that
