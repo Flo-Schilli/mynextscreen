@@ -4,6 +4,116 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.16.0
+
+Everything here came out of running the Site Agent against a real LG television
+for the first time. Most of it could not have been found any other way: the
+faults were assumptions about the set that no test could contradict.
+
+### Added — the agent installs the player app on a TV
+
+Setting up a display no longer means building a package and pushing it from a
+developer machine. The agent fetches it from the server, copies it onto the set
+over the Developer Mode connection and hands it to the install service. The
+onboarding wizard has a step of its own for it, between the SSH check and the
+pairing prompt.
+
+The gain is not the first install, it is every one after: an app installed in
+Developer Mode is deleted when the session expires, and the agent can now put it
+back without anyone driving to the venue.
+
+**Operator action:** the wizard has nine steps instead of eight, and the numbers
+of the later ones shifted. A display part-way through setup continues from a
+step one further along than it was; re-run that step if it looks out of place.
+
+### Added — the dashboard shows which app version a TV is running
+
+A screen carries a badge with the version the set reports, and offers the update
+when it differs from the one this server has. Nothing updates on its own: an
+install restarts the app and interrupts whatever is playing, so it stays
+something a person asks for.
+
+### Added — a display configures itself from the launch parameters
+
+The agent hands over the server address when it starts the app, so a freshly
+installed display no longer needs a URL typed in with a remote. Only when
+nothing is stored — an address that was typed or already confirmed is never
+overwritten, so a second agent cannot silently re-point a working display.
+
+### Added — standby from the dashboard
+
+A screen can be sent to standby and woken again. Screen-off is not offered: the
+television refuses those calls over the remote-control protocol, and the
+Developer Mode account cannot reach them either.
+
+**Operator action:** waking a set over the network needs **Quick Start+** on the
+TV (Settings → General → Energy Saving). Without it, only the remote brings it
+back — the dialog says so, and does not block the choice, because the setting
+cannot be read remotely.
+
+**Operator action:** the TV shows its pairing prompt once more, on every display
+already paired with an agent. This is expected. Controlling power needs a
+permission the agent did not ask for before, and the set re-confirms when the
+request changes. Confirm it with the remote once per display.
+
+### Added — an Extend Dev Mode button
+
+The command existed; the button did not. Expect the Developer Mode app to appear
+on screen when it runs — that is how the extension works, not a fault.
+
+### Fixed — manual commands did nothing at all
+
+Wake, Start app and Extend Dev Mode were handed to the logic that decides what
+is _due_ rather than being carried out. All three refused silently: a wake
+unless automatic waking was switched on, a launch unless the player had already
+stopped reporting, an extension unless it had fallen due. The button did
+nothing, not even fail.
+
+### Fixed — Wake-on-LAN reached the wrong network
+
+The magic packet went only to the global broadcast address, which leaves the
+machine over its default route — not necessarily the network the television is
+on. It is now also sent to the broadcast address of the interface that covers
+the set.
+
+### Fixed — Developer Mode was extended every minute
+
+Whether an extension was due was read from a cached value that never changed, so
+it fell due again a minute later, every minute. Each one launched the Developer
+Mode app on the screen, and because one action runs per round, the app launch
+behind it never happened — which is why pairing never completed on a set that
+had Developer Mode switched on.
+
+### Fixed — the setup wizard could not be completed
+
+Three separate faults, each enough on its own. The key-server step asked for the
+Developer Mode passphrase one step before the wizard offers to enter it. The
+last two steps did their work but reported it in a form the server does not
+count, so they never advanced. And the final step read "in progress" forever,
+because "done" was derived from being past the furthest step reached — which the
+last step cannot be.
+
+### Fixed — a display could not be enrolled where the server address was pinned
+
+Deployments that fix the address in the environment showed no server on the
+agent's setup page and rejected the enrolment, because the form posts the field
+empty when it cannot be changed.
+
+### Fixed — the player rejected the webOS shell's handover
+
+The player accepted the server address only from an origin that real sets do not
+use, so every television fell back to guessing the address from its own
+hostname — which cannot work for an address with a port. No display ever got a
+pairing code this way.
+
+### Fixed — the screen saver started with the app in the foreground
+
+The television has no switch for it, only a veto the app holds. A registration
+left behind by an earlier run of the app blocked the new one, and the old one
+belonged to a page that could no longer answer — so nothing vetoed anything.
+webOS offers no way to drop such a registration, so each run now registers under
+a name of its own.
+
 ## 0.15.0
 
 ### Fixed — a screen stopped switching after a restart
