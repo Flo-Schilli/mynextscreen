@@ -18,7 +18,13 @@ import { PlaylistItem } from '../player/player.models';
 import { PlaybackStateService } from './playback-state.service';
 import { StatusOverlayComponent } from './status-overlay.component';
 import { LiveStreamViewComponent } from './live-stream-view.component';
-import { resolveTransition, enterAnim, exitAnim, TransitionSpec } from './playback-transitions';
+import {
+  resolveTransition,
+  enterAnim,
+  exitAnim,
+  crossDissolves,
+  TransitionSpec,
+} from './playback-transitions';
 import { computePosition } from './playlist-clock';
 
 type LayerId = 0 | 1;
@@ -212,21 +218,15 @@ type LayerId = 0 | 1;
 
       /* ── Transition keyframes ── */
 
-      /* Fade */
+      /* Fade — a cross-dissolve: only the incoming layer animates, the
+         outgoing one stays opaque underneath it. See playback-transitions.ts
+         for why ramping both at once dips through black. */
       @keyframes fade-enter {
         from {
           opacity: 0;
         }
         to {
           opacity: 1;
-        }
-      }
-      @keyframes fade-exit {
-        from {
-          opacity: 1;
-        }
-        to {
-          opacity: 0;
         }
       }
 
@@ -302,43 +302,29 @@ type LayerId = 0 | 1;
         }
       }
 
-      /* Zoom In — outgoing scales up and fades out, incoming fades in */
+      /* Zoom In — the incoming picture grows into place as it dissolves in.
+         The scale used to sit on the outgoing layer, which the incoming one
+         covers completely, so zoom-in was indistinguishable from a plain fade. */
       @keyframes zoom-in-enter {
         from {
           opacity: 0;
+          transform: scale(0.85);
         }
         to {
-          opacity: 1;
-        }
-      }
-      @keyframes zoom-in-exit {
-        from {
           opacity: 1;
           transform: scale(1);
-        }
-        to {
-          opacity: 0;
-          transform: scale(1.5);
         }
       }
 
-      /* Zoom Out — outgoing scales down and fades out, incoming fades in */
+      /* Zoom Out — the incoming picture shrinks into place as it dissolves in. */
       @keyframes zoom-out-enter {
         from {
           opacity: 0;
+          transform: scale(1.15);
         }
         to {
-          opacity: 1;
-        }
-      }
-      @keyframes zoom-out-exit {
-        from {
           opacity: 1;
           transform: scale(1);
-        }
-        to {
-          opacity: 0;
-          transform: scale(0.5);
         }
       }
     `,
@@ -372,6 +358,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   private _isPendingImageLoad = false;
   /** Offset (ms) to seek the active video to on first appearance after a clock re-anchor. */
   private _pendingSeekOffsetMs = 0;
+  private lastAnchorSignature: string | null = null;
 
   readonly isMuted = this._isMuted.asReadonly();
   readonly isPending = this._isPending.asReadonly();
@@ -441,9 +428,9 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     // without re-initialising playback — ongoing drift is corrected because each
     // scheduleAdvance() re-reads serverNow() for the next boundary.
     effect(() => {
-      this.playerService.activePlaylist();
-      this.playerService.epoch();
-      this.timeSync.synced();
+      const signature = this.anchorSignature();
+      if (signature === this.lastAnchorSignature) return;
+      this.lastAnchorSignature = signature;
       this.loadFromClock();
     });
 
@@ -665,47 +652,70 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     const inactiveLayer: LayerId = this._activeLayer() === 0 ? 1 : 0;
     this.setLayerItem(inactiveLayer, nextItem);
 
-    if (transition.type === 'cut') {
-      // Instant swap — no animation
-      const oldLayer = this._activeLayer();
-      this._activeLayer.set(inactiveLayer);
-      this.setLayerItem(oldLayer, null);
-      this.onTransitionComplete(nextItem);
-      return;
-    }
-
     if (nextItem.type === 'image') {
-      // Wait for image to load before starting animation
+      // Wait for the image to decode before swapping or animating — cut included.
+      // Cut used to swap straight away, onto a layer whose <img> had not loaded
+      // yet, so the black container showed through until the decode finished. On
+      // a TV that gap is long enough to read as a blend rather than a cut.
       this._isPendingImageLoad = true;
       this._pendingTransition = transition;
     } else {
-      // Video — start transition immediately
+      // Video — start immediately
       this.executeTransition(transition);
     }
+  }
+
+  /**
+   * Identity of everything that forces playback to re-anchor to the shared
+   * clock: the playlist, its timeline and the group epoch, plus the one-shot
+   * first clock sync. Per-item transition settings are deliberately excluded —
+   * every state push replaces the playlist object, and re-anchoring on that
+   * restarted playback and replayed an enter animation for edits that do not
+   * move a single boundary.
+   */
+  private anchorSignature(): string {
+    const playlist = this.playerService.activePlaylist();
+    const epoch = this.playerService.epoch();
+    const synced = this.timeSync.synced();
+    const timeline = (playlist?.items ?? [])
+      .map((item) => `${item.type}:${item.duration}:${item.url}`)
+      .join('|');
+    return `${playlist?.id ?? ''}#${epoch}#${synced}#${timeline}`;
   }
 
   private executeTransition(transition: TransitionSpec): void {
     const activeLayer = this._activeLayer();
     const inactiveLayer: LayerId = activeLayer === 0 ? 1 : 0;
 
+    if (transition.type === 'cut') {
+      this.commitLayerSwap(activeLayer, inactiveLayer);
+      return;
+    }
+
     this._isTransitioning.set(true);
 
-    // Apply exit animation to outgoing layer, enter animation to incoming layer
+    // Enter animation on the incoming layer. The outgoing one only animates for
+    // transitions that move it off screen; a cross-dissolve leaves it opaque
+    // underneath, so `exitAnim` hands back an empty string.
     this.setLayerAnim(activeLayer, exitAnim(transition.type, transition.duration));
     this.setLayerAnim(inactiveLayer, enterAnim(transition.type, transition.duration));
 
     this.transitionTimer = setTimeout(() => {
+      if (this.destroyed) return;
       this.zone.run(() => {
         this._isTransitioning.set(false);
-        this._activeLayer.set(inactiveLayer);
         this.setLayerAnim(0, '');
         this.setLayerAnim(1, '');
-        this.setLayerItem(activeLayer, null); // clean up old layer
-
-        const item = inactiveLayer === 0 ? this._layer0Item() : this._layer1Item();
-        this.onTransitionComplete(item);
+        this.commitLayerSwap(activeLayer, inactiveLayer);
       });
     }, transition.duration);
+  }
+
+  /** Make the incoming layer current and release the outgoing one. */
+  private commitLayerSwap(outgoing: LayerId, incoming: LayerId): void {
+    this._activeLayer.set(incoming);
+    this.setLayerItem(outgoing, null);
+    this.onTransitionComplete(incoming === 0 ? this._layer0Item() : this._layer1Item());
   }
 
   private advanceWrapping(item: PlaylistItem, transition: TransitionSpec): void {
@@ -720,6 +730,20 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
     this._isTransitioning.set(true);
 
+    // A one-item playlist has no second layer to dissolve against, so a
+    // cross-dissolve restarts and plays its enter half only. Running exit and
+    // enter back to back took twice the configured duration and showed up as
+    // two separate blends.
+    if (crossDissolves(transition.type)) {
+      this.restartCurrentItem(item);
+      this.setLayerAnim(layer, enterAnim(transition.type, transition.duration));
+      this.transitionTimer = setTimeout(() => {
+        if (this.destroyed) return;
+        this.zone.run(() => this.finishWrap(layer));
+      }, transition.duration);
+      return;
+    }
+
     // Exit animation on current layer
     this.setLayerAnim(layer, exitAnim(transition.type, transition.duration));
 
@@ -733,14 +757,16 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
         this.transitionTimer = setTimeout(() => {
           if (this.destroyed) return;
-          this.zone.run(() => {
-            this._isTransitioning.set(false);
-            this.setLayerAnim(layer, '');
-            this.scheduleAdvance();
-          });
+          this.zone.run(() => this.finishWrap(layer));
         }, transition.duration);
       });
     }, transition.duration);
+  }
+
+  private finishWrap(layer: LayerId): void {
+    this._isTransitioning.set(false);
+    this.setLayerAnim(layer, '');
+    this.scheduleAdvance();
   }
 
   private restartCurrentItem(item: PlaylistItem): void {
