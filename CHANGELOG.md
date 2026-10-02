@@ -4,6 +4,57 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.15.0
+
+### Fixed — a screen stopped switching after a restart
+
+A player that restarted ran one item and stayed on it. The boundary that ends
+an item was armed only from a media `load` event, and the re-anchor that runs
+when the clock sync completes puts back the item that is already on screen —
+same object, so nothing re-rendered, nothing loaded, and the timer that had
+just been cleared was never re-armed. Timing now comes from the shared clock
+alone; when a picture happens to decode is not a timing input.
+
+Three more ways the timeline hung on a DOM event are gone with it: one expired
+media URL used to stall a screen permanently, a boundary that arrived during a
+transition was dropped instead of retried, and a clock correction only took
+effect an item later. A screen also no longer anchors to a raw `Date.now()` at
+boot — on a TV that has not reached NTP yet, that was minutes off.
+
+### Fixed — a restarted screen in a group played out of step
+
+A screen that reconnected resolved its own anchor while its peers kept theirs,
+and nothing reconciled the two: the set showed the right playlist at the wrong
+moment, indefinitely. A group's state is now resolved from the group's own
+schedule rather than by asking whichever member answered first, a member
+arriving re-aligns the whole group, and a recurring schedule rolling into its
+next occurrence re-anchors every player instead of only the ones that reconnect.
+
+Nothing to do on the screens: a push that changes neither playlist nor timing
+is ignored by the player, so re-alignment is invisible unless a set is actually
+out of step.
+
+### Fixed — a fade faded through black
+
+A fade ramped both layers at once, which leaves a quarter of the screen showing
+the container behind them at the midpoint — on a TV that reads as two fades
+through black rather than one dissolve. Fade, zoom-in and zoom-out now animate
+the incoming picture over the outgoing one, which stays put underneath.
+
+Zoom-in and zoom-out were identical to fade in effect, because the scale sat on
+the layer the incoming picture covers completely. Cut showed black for as long
+as the next picture took to decode. A one-item playlist took twice the
+configured duration for a single transition. And editing any playlist setting
+restarted playback and replayed an animation, so trying a transition out always
+looked like a fade whatever was picked.
+
+### Changed — the transition setting says which end of the item it belongs to
+
+The transition on a row is that item's own way in, not the way the row above it
+leaves. Setting it on one of two items therefore left every second switch on
+the default, which reads as the setting doing nothing. The field now says so in
+its label and tooltip.
+
 ## 0.14.1
 
 ### Fixed — a display could not actually be given to an agent
