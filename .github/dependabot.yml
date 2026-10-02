@@ -77,3 +77,9 @@ updates:
     schedule:
       interval: weekly
       day: monday
+
+  - package-ecosystem: docker
+    directory: /apps/site-agent
+    schedule:
+      interval: weekly
+      day: monday
