@@ -23,8 +23,26 @@
     var REGISTER_METHOD = POWER_SERVICE + '/power/registerScreenSaverRequest';
     var RESPOND_METHOD = POWER_SERVICE + '/power/responseScreenSaverRequest';
 
-    /** Identifies this app to the power service; matches `id` in appinfo.json. */
-    var CLIENT_NAME = 'com.mynextscreen.webos';
+    /**
+     * Identifies this registration to the power service. Deliberately *not*
+     * the bare app id.
+     *
+     * The service keeps a registration under its client name until the TV is
+     * restarted, and offers no way to drop one: `unregisterScreenSaverRequest`
+     * does not exist, and registering the same name again is refused with
+     * errorCode -3, "The client is already registered". A relaunched app would
+     * therefore inherit a registration belonging to a page that is gone, which
+     * can no longer answer the announcements — and an announcement nobody
+     * answers lets the screen saver start, with the app still on screen.
+     *
+     * A name unique to this run always registers, verified against a real set.
+     */
+    var CLIENT_NAME = 'com.mynextscreen.webos.' + Date.now().toString(36);
+
+    /** Fresh names are cheap; a refusal that repeats is not worth hammering. */
+    var MAX_REGISTER_ATTEMPTS = 3;
+    var RETRY_DELAY_MS = 2000;
+    var attempts = 0;
 
     /** The screen saver is about to start. Any other state is not ours to answer. */
     var PENDING_STATE = 'Active';
@@ -75,6 +93,15 @@
 
         if (request.returnValue === false) {
             console.warn('[keep-awake] the power service refused the subscription:', payload);
+            // Retried under a new name rather than given up on: without a live
+            // subscription nothing vetoes the screen saver, and a signage
+            // display that blanks is as good as off.
+            if (attempts < MAX_REGISTER_ATTEMPTS) {
+                CLIENT_NAME = 'com.mynextscreen.webos.' + Date.now().toString(36);
+                setTimeout(keepAwake, RETRY_DELAY_MS);
+            } else {
+                console.error('[keep-awake] giving up; the screen saver will blank this display');
+            }
             return;
         }
 
@@ -87,6 +114,7 @@
     }
 
     function keepAwake() {
+        attempts++;
         subscription = openBridge();
 
         if (subscription === null) {

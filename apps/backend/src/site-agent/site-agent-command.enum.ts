@@ -12,8 +12,17 @@ export enum SiteAgentCommandType {
   Launch = 'launch',
   /** Send a Wake-on-LAN magic packet. */
   Wake = 'wake',
+  /**
+   * Put the set into standby over SSAP.
+   *
+   * Standby, not screen-off: the TV's power service refuses the screen-only
+   * calls over SSAP, measured on a real set. Coming back needs Wake-on-LAN.
+   */
+  Standby = 'standby',
   /** Extend the Developer Mode session over SSH + Luna. */
   ExtendDevmode = 'extend_devmode',
+  /** Install the packaged player app on the TV over SSH. */
+  InstallApp = 'install_app',
   /** Discard the cached SSH key and fetch it from the TV again. */
   RefetchKey = 'refetch_key',
   /** Re-pull `/api/agents/me/config`. Carries no payload on purpose. */
@@ -34,8 +43,13 @@ export enum OnboardingStep {
   KeyServer = 4,
   Passphrase = 5,
   Ssh = 6,
-  SsapPairing = 7,
-  Finish = 8,
+  /**
+   * Inserted ahead of pairing: the launch at the end has nothing to start
+   * without it, and the agent can only install once SSH works.
+   */
+  InstallApp = 7,
+  SsapPairing = 8,
+  Finish = 9,
 }
 
 /** Highest step; reaching it is what sets `onboardingCompletedAt`. */

@@ -4,6 +4,7 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -85,6 +86,24 @@ export class AgentScreenReportDto {
   @IsOptional()
   @IsBoolean()
   devmodeExtended?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  standby?: boolean;
+
+  @IsOptional()
+  @IsIn(['ok', 'failed'])
+  installStatus?: 'ok' | 'failed';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  installedAppId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  installedAppVersion?: string;
 }
 
 /** Batched because an agent reports for every screen it looks after each round. */

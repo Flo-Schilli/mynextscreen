@@ -17,7 +17,7 @@ import { OrganisationStateService } from '../shell/organisation-state.service';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { ToastService } from '../shared/toast/toast.service';
 import { ScreenRemoteSettings } from './screen-remote-settings';
-import { ScreenOnboardingWizard } from './screen-onboarding-wizard';
+import { ScreenOnboardingWizard, ONBOARDING_STEP_COUNT } from './screen-onboarding-wizard';
 import { SiteAgentConfirmModal } from './site-agent-confirm-modal';
 import type { RemoteCommandType, ScreenRemoteControl, SiteAgent } from './site-agent.model';
 import type { ScreenListItem } from '../screens/screen.model';
@@ -131,7 +131,17 @@ interface ManagedScreen {
                 </div>
 
                 @if (!item.remote.onboardingCompletedAt) {
-                  <mns-badge tone="warning"> Setup {{ item.remote.onboardingStep }}/8 </mns-badge>
+                  <mns-badge tone="warning">
+                    Setup {{ item.remote.onboardingStep }}/{{ onboardingSteps }}
+                  </mns-badge>
+                }
+                @if (appUpdateAvailable(item)) {
+                  <mns-badge tone="warning">
+                    App {{ item.remote.installedAppVersion }} →
+                    {{ item.remote.availableAppVersion }}
+                  </mns-badge>
+                } @else if (item.remote.installedAppVersion) {
+                  <mns-badge tone="neutral">App {{ item.remote.installedAppVersion }}</mns-badge>
                 }
 
                 <div class="flex flex-wrap gap-2">
@@ -144,6 +154,37 @@ interface ManagedScreen {
                     @if (item.remote.macAddress) {
                       <mns-btn size="sm" variant="outline" (mnsClick)="command(item, 'wake')">
                         Wake
+                      </mns-btn>
+                    }
+                    <!--
+                      Shown only where it can work: the extension runs over SSH,
+                      which needs the Developer Mode passphrase stored.
+                    -->
+                    @if (item.remote.macAddress) {
+                      <mns-btn size="sm" variant="outline" (mnsClick)="standby(item)">
+                        Standby
+                      </mns-btn>
+                    }
+                    <!--
+                      The install goes over SSH, so it needs the same thing the
+                      Developer Mode extension does: a stored passphrase.
+                    -->
+                    @if (item.remote.devmodePassphrase) {
+                      <mns-btn
+                        size="sm"
+                        [variant]="appUpdateAvailable(item) ? 'soft' : 'outline'"
+                        (mnsClick)="command(item, 'install_app')"
+                      >
+                        {{ item.remote.installedAppVersion ? 'Update app' : 'Install app' }}
+                      </mns-btn>
+                    }
+                    @if (item.remote.extendDevmodeEnabled && item.remote.devmodePassphrase) {
+                      <mns-btn
+                        size="sm"
+                        variant="outline"
+                        (mnsClick)="command(item, 'extend_devmode')"
+                      >
+                        Extend Dev Mode
                       </mns-btn>
                     }
                   }
@@ -202,6 +243,24 @@ interface ManagedScreen {
             </div>
           </mns-modal>
         </mns-overlay>
+      }
+
+      @if (standbyScreen(); as item) {
+        <app-site-agent-confirm-modal
+          title="Standby"
+          confirmLabel="Send to standby"
+          busyLabel="Sending…"
+          [busy]="busy()"
+          [error]="confirmError()"
+          (confirmed)="doStandby(item)"
+          (dismiss)="closeConfirm()"
+        >
+          Put <strong class="text-text">{{ item.screen.name }}</strong> into standby? It can only be
+          woken over the network afterwards, which needs
+          <strong class="text-text">Quick Start+</strong>
+          enabled on the TV (Settings → General → Energy Saving). Without it, someone has to use the
+          remote.
+        </app-site-agent-confirm-modal>
       }
 
       @if (removingScreen(); as item) {
@@ -298,6 +357,9 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
   protected readonly settingsFor = signal<ManagedScreen | null>(null);
   /** The screen whose removal is being confirmed, if any. */
   protected readonly removingScreen = signal<ManagedScreen | null>(null);
+  protected readonly standbyScreen = signal<ManagedScreen | null>(null);
+  /** Kept beside the wizard's own list so the badge cannot drift from it. */
+  protected readonly onboardingSteps = ONBOARDING_STEP_COUNT;
   protected readonly confirmingDelete = signal(false);
   protected readonly confirmingRevoke = signal(false);
   protected readonly busy = signal(false);
@@ -426,6 +488,36 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
       return 'never extended';
     }
     return item.remote.lastDevmodeExtendOk === false ? 'last attempt failed' : 'extended';
+  }
+
+  /**
+   * Whether the set runs something older than what this server packages.
+   *
+   * A plain inequality, not a semver comparison: the only versions in play are
+   * the ones this repo builds, and "different from what we ship" is exactly the
+   * thing worth offering to fix. A downgrade is as much a reason to act.
+   */
+  protected appUpdateAvailable(item: ManagedScreen): boolean {
+    const installed = item.remote.installedAppVersion;
+    const available = item.remote.availableAppVersion;
+    return !!installed && !!available && installed !== available;
+  }
+
+  /**
+   * Standby asks first, because it is the one command that can strand a display.
+   *
+   * Waking it again needs Quick Start+ at the TV, and whether that is on cannot
+   * be read remotely — so the dialog names what is at stake and leaves the
+   * decision to whoever is asking, rather than blocking on a guess.
+   */
+  protected standby(item: ManagedScreen): void {
+    this.confirmError.set('');
+    this.standbyScreen.set(item);
+  }
+
+  protected doStandby(item: ManagedScreen): void {
+    this.closeConfirm();
+    this.command(item, 'standby');
   }
 
   protected command(item: ManagedScreen, type: RemoteCommandType): void {
@@ -574,6 +666,7 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
 
   protected closeConfirm(): void {
     this.removingScreen.set(null);
+    this.standbyScreen.set(null);
     this.confirmingDelete.set(false);
     this.confirmingRevoke.set(false);
     this.confirmError.set('');

@@ -199,6 +199,74 @@ describe('SupervisorService', () => {
     });
   });
 
+  /**
+   * The counterpart to the command handler's tests: these go through the real
+   * supervisor, so they catch an action wired to the wrong branch.
+   */
+  describe('readInstalledVersion', () => {
+    it('answers null for a screen it does not look after', async () => {
+      supervisor = build(configWith([screen()]));
+
+      expect(await supervisor.readInstalledVersion('unknown')).toBeNull();
+    });
+
+    // Used to verify an install, so a connection problem must read as "not
+    // installed" rather than throwing into the caller's error path.
+    it('answers null instead of throwing when the set cannot be reached', async () => {
+      supervisor = build(configWith([screen({ localIp: '203.0.113.1' })]));
+
+      await expect(supervisor.readInstalledVersion('s1')).resolves.toBeNull();
+    });
+  });
+
+  describe('runAction', () => {
+    it('wakes a screen whose automatic waking is switched off', async () => {
+      supervisor = build(
+        configWith([screen({ macAddress: 'AA:BB:CC:DD:EE:FF', wakeOnUnreachableEnabled: false })]),
+      );
+
+      await supervisor.runAction('s1', 'wake');
+
+      expect(wol.wake).toHaveBeenCalledWith('AA:BB:CC:DD:EE:FF', '192.168.1.50');
+      expect(reported()).toMatchObject({ woken: true });
+    });
+
+    it('extends Developer Mode even when it is not due', async () => {
+      supervisor = build(
+        configWith([
+          screen({
+            extendDevmodeEnabled: true,
+            lastDevmodeExtendAt: new Date().toISOString(),
+          }),
+        ]),
+      );
+
+      await supervisor.runAction('s1', 'extend-devmode');
+
+      expect(ssh.extendDevmode).toHaveBeenCalled();
+      expect(reported()).toMatchObject({ devmodeExtended: true });
+    });
+
+    it('reports the launch attempt even when the player is healthy', async () => {
+      supervisor = build(configWith([screen({ playerHeartbeatStale: false })]));
+
+      await supervisor.runAction('s1', 'launch');
+
+      // No SSAP server here, so the attempt fails — what matters is that it was
+      // made at all instead of being filtered out by the policy.
+      expect(reported()).toMatchObject({ screenId: 's1' });
+    });
+
+    it('does nothing for a screen it does not look after', async () => {
+      supervisor = build(configWith([screen()]));
+
+      await supervisor.runAction('unknown', 'wake');
+
+      expect(wol.wake).not.toHaveBeenCalled();
+      expect(client.sendReports).not.toHaveBeenCalled();
+    });
+  });
+
   describe('wake', () => {
     it('sends a magic packet before a schedule', async () => {
       reachability.probe.mockResolvedValue({ reachability: 'unreachable' });
@@ -214,7 +282,9 @@ describe('SupervisorService', () => {
 
       await supervisor.tick();
 
-      expect(wol.wake).toHaveBeenCalledWith('AA:BB:CC:DD:EE:FF');
+      // The address goes with it: without one the packet only reaches the
+      // default route's network, which need not be the TV's.
+      expect(wol.wake).toHaveBeenCalledWith('AA:BB:CC:DD:EE:FF', expect.any(String));
       expect(reported()).toMatchObject({ woken: true });
     });
 

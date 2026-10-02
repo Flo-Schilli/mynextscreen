@@ -85,6 +85,25 @@ export class ServerClient {
     await this.request('/api/agents/me/reports', { method: 'POST', body: report });
   }
 
+  /**
+   * The native player package, as bytes.
+   *
+   * Not routed through {@link request}, which expects JSON. The package is
+   * small enough to hold in memory and is written straight to the TV, so it
+   * never touches the agent's disk — one less copy of something installable
+   * lying around in a venue.
+   */
+  async fetchAppPackage(): Promise<Buffer> {
+    const connection = await this.requireConnection();
+    const response = await fetch(`${connection.serverUrl}/api/agents/me/app-package`, {
+      headers: { Authorization: await this.authorization() },
+    });
+    if (!response.ok) {
+      throw new Error(`/api/agents/me/app-package returned ${response.status}`);
+    }
+    return Buffer.from(await response.arrayBuffer());
+  }
+
   /** Absolute URL of the command stream, for the SSE consumer to open. */
   async eventsUrl(): Promise<string> {
     const connection = await this.requireConnection();

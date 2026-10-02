@@ -51,11 +51,14 @@ export class SetupService {
     };
   }
 
-  async enrol(serverUrl: string, enrolmentToken: string): Promise<SetupStatus> {
+  async enrol(serverUrl: string | undefined, enrolmentToken: string): Promise<SetupStatus> {
     // When the deployment pinned the address, the form cannot move it. Letting
     // the page enrol somewhere else would reopen exactly the hole the pin
     // closes — the agent would hand a fresh session to whoever asked.
     const target = this.pinnedServerUrl ?? serverUrl;
+    if (!target) {
+      throw new BadRequestException('Enter the address of the myNextScreen server.');
+    }
     try {
       const connection = await this.client.enrol(target, enrolmentToken);
       this.logger.log(`Enrolled as agent ${connection.agentId}`);

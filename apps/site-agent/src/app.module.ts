@@ -124,9 +124,17 @@ export function pinnedServerUrl(env: AgentEnv): string | null {
     },
     {
       provide: SetupService,
-      useFactory: (connections: ConnectionStore, configs: AgentConfigStore, client: ServerClient) =>
-        new SetupService(connections, configs, client, AGENT_VERSION),
-      inject: [ConnectionStore, AgentConfigStore, ServerClient],
+      // `pinnedServerUrl` has to reach this service as well as ConnectionStore:
+      // without it the setup page shows no server and, because the form then
+      // posts an empty address, enrolment fails validation before the service
+      // ever gets to substitute the pinned one.
+      useFactory: (
+        connections: ConnectionStore,
+        configs: AgentConfigStore,
+        client: ServerClient,
+        env: AgentEnv,
+      ) => new SetupService(connections, configs, client, AGENT_VERSION, pinnedServerUrl(env)),
+      inject: [ConnectionStore, AgentConfigStore, ServerClient, AgentEnv],
     },
   ],
 })

@@ -38,23 +38,30 @@ export type ScreenAction =
 export function isDevmodeExtensionDue(
   screen: AgentScreenConfigMessage,
   now: number,
-  jitterMs: number,
+  runtime: ScreenRuntime,
 ): boolean {
   if (!screen.extendDevmodeEnabled) {
     return false;
   }
-  if (!screen.lastDevmodeExtendAt) {
+
+  // Whichever is newer: the server's record, or an extension this agent did
+  // since it last pulled the config. Without the second one a successful
+  // extension stayed invisible until the next pull, and the screen was
+  // extended again every round in the meantime.
+  const reported = screen.lastDevmodeExtendAt ? Date.parse(screen.lastDevmodeExtendAt) : 0;
+  const lastExtendAt = Math.max(reported, runtime.lastDevmodeExtendAt);
+  if (!lastExtendAt) {
     return true;
   }
 
   const intervalMs = screen.devmodeExtendIntervalDays * DAY_MS;
-  const age = now - Date.parse(screen.lastDevmodeExtendAt);
+  const age = now - lastExtendAt;
   if (age >= intervalMs * 1.5) {
     // Overdue by half an interval: safety wins over spreading the load, since
     // an expired session means the TV has already deleted the app.
     return true;
   }
-  return age >= intervalMs + jitterMs;
+  return age >= intervalMs + runtime.devmodeJitterMs;
 }
 
 /** Whether a scheduled start is close enough to warrant waking the set. */
@@ -93,7 +100,7 @@ export function decideAction(
     return { kind: 'none' };
   }
 
-  if (isDevmodeExtensionDue(screen, now, runtime.devmodeJitterMs)) {
+  if (isDevmodeExtensionDue(screen, now, runtime)) {
     return { kind: 'extend-devmode' };
   }
 

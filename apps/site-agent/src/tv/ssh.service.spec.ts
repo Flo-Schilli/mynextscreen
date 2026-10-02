@@ -86,6 +86,26 @@ describe('SshService', () => {
     });
   });
 
+  describe('upload', () => {
+    // The host-key check is the point: an upload that skipped it would be the
+    // weaker half of the pair, and the half that puts a package on the set.
+    it('refuses an upload when the host key changed', async () => {
+      const result = await service.upload(
+        target({ expectedHostKeyFingerprint: 'SHA256:not-the-one' }),
+        Buffer.from('ipk'),
+        '/tmp/x.ipk',
+      );
+
+      expect(result.status).toBe('host_key_mismatch');
+    });
+
+    it('reports a set that is not there as unreachable', async () => {
+      const result = await service.upload(target({ port: 1 }), Buffer.from('ipk'), '/tmp/x.ipk');
+
+      expect(result.status).toBe('unreachable');
+    });
+  });
+
   describe('extendDevmode', () => {
     // This exact Luna call is what the "Extend Session Time" button on the TV
     // does. The same call over SSAP is acked and does nothing — verified on a

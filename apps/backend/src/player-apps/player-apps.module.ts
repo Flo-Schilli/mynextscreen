@@ -5,5 +5,6 @@ import { PlayerAppsService } from './player-apps.service';
 @Module({
   controllers: [PlayerAppsController],
   providers: [PlayerAppsService],
+  exports: [PlayerAppsService],
 })
 export class PlayerAppsModule {}

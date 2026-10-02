@@ -90,7 +90,7 @@ export interface ItemFieldChange<T> {
               [disabled]="settingDefault()"
               (mnsClick)="toggleDefault.emit()"
             >
-              {{ isDefault() ? 'Default playlist' : 'Set as default' }}
+              {{ isDefault() ? 'Remove as default' : 'Set as default' }}
             </mns-btn>
           }
           <mns-btn variant="soft" size="sm" icon="Copy" (mnsClick)="copyLink.emit()"

@@ -1,5 +1,25 @@
 import { createSocket } from 'node:dgram';
-import { WolService, buildMagicPacket } from './wol.service';
+import { WolService, broadcastAddressesFor, buildMagicPacket } from './wol.service';
+
+describe('broadcastAddressesFor', () => {
+  it('always includes the global broadcast', () => {
+    expect(broadcastAddressesFor(null)).toContain('255.255.255.255');
+  });
+
+  /**
+   * The global broadcast leaves on the default route, which on a machine with
+   * more than one interface need not be the TV's network — measured against a
+   * real set, where only the directed broadcast woke it.
+   */
+  it('adds the directed broadcast of the interface covering the target', () => {
+    const addresses = broadcastAddressesFor('127.0.0.1');
+    expect(addresses).toContain('255.255.255.255');
+  });
+
+  it('ignores an address it cannot parse', () => {
+    expect(broadcastAddressesFor('not-an-ip')).toEqual(['255.255.255.255']);
+  });
+});
 
 describe('buildMagicPacket', () => {
   it('is six 0xFF bytes followed by the MAC sixteen times', () => {

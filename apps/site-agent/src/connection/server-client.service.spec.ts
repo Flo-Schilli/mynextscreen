@@ -44,6 +44,35 @@ describe('ServerClient', () => {
     return fetchMock.mock.calls[call][1] as RequestInit;
   }
 
+  describe('fetchAppPackage', () => {
+    /** The first call is the token refresh; the package comes on the second. */
+    function withToken(packageResponse: unknown): void {
+      fetchMock
+        .mockResolvedValueOnce(
+          respond(200, { accessToken: 'token-1', refreshToken: 'refresh-2', expiresIn: 900 }),
+        )
+        .mockResolvedValueOnce(packageResponse as Response);
+    }
+
+    it('returns the bytes the server sent', async () => {
+      withToken({
+        ok: true,
+        arrayBuffer: async () => new TextEncoder().encode('ipk-bytes').buffer,
+      });
+
+      const pkg = await client.fetchAppPackage();
+
+      expect(pkg.toString()).toBe('ipk-bytes');
+    });
+
+    // Silence here would have the agent upload an empty file to a TV.
+    it('fails loudly when the server has no package', async () => {
+      withToken({ ok: false, status: 404 });
+
+      await expect(client.fetchAppPackage()).rejects.toThrow('404');
+    });
+  });
+
   describe('enrol', () => {
     it('persists the session it was handed', async () => {
       fetchMock.mockResolvedValue(

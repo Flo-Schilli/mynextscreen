@@ -14,10 +14,31 @@ const PERMISSIONS = [
   'READ_APP_STATUS',
   'READ_RUNNING_APPS',
   'READ_INSTALLED_APPS',
+  'CONTROL_POWER',
 ];
+
+/**
+ * Bumped whenever {@link PERMISSIONS} changes.
+ *
+ * A client key is bound to the manifest it was granted for, so a key stored
+ * against an older permission set would register without the new rights and
+ * fail at the first call that needs them — a confusing 401 rather than the
+ * prompt that actually resolves it. Storing the version alongside the key makes
+ * the agent ask for a fresh prompt instead.
+ */
+export const MANIFEST_VERSION = 2;
 
 export const FOREGROUND_URI = 'ssap://com.webos.applicationManager/getForegroundAppInfo';
 export const LAUNCH_URI = 'ssap://system.launcher/launch';
+export const LIST_APPS_URI = 'ssap://com.webos.applicationManager/listApps';
+/**
+ * Standby, not screen-off. Measured on a real set: the whole
+ * `com.webos.service.tvpower` category answers 401 over SSAP even with
+ * CONTROL_POWER granted, so turning only the panel off is not reachable this
+ * way. The set stays on the network afterwards when Quick Start+ is on, which
+ * is why reachability must never be read as "powered on".
+ */
+export const TURN_OFF_URI = 'ssap://system/turnOff';
 
 interface SsapMessage {
   id?: string;
@@ -144,8 +165,44 @@ export class SsapClient {
     return typeof appId === 'string' && appId.length > 0 ? appId : null;
   }
 
-  async launch(appId: string): Promise<void> {
-    await this.request(LAUNCH_URI, { id: appId });
+  /**
+   * Starts the app, optionally handing it launch parameters.
+   *
+   * The shell uses them to learn the server address, so a freshly installed
+   * display needs nobody typing a URL with a remote. Omitted entirely when
+   * empty: `params: {}` is not the same as no params to every webOS build.
+   */
+  async launch(appId: string, params?: Record<string, unknown>): Promise<void> {
+    const payload: Record<string, unknown> = { id: appId };
+    if (params && Object.keys(params).length > 0) {
+      payload.params = params;
+    }
+    await this.request(LAUNCH_URI, payload);
+  }
+
+  /**
+   * Version of an installed app, or null when the set does not have it.
+   *
+   * Covered by READ_INSTALLED_APPS, which the manifest already asks for, so
+   * this needs neither Developer Mode nor a new pairing prompt. Verified
+   * against a real set: it answers while the app is running.
+   */
+  async installedAppVersion(appId: string): Promise<string | null> {
+    const payload = await this.request(LIST_APPS_URI);
+    const apps = payload.apps;
+    if (!Array.isArray(apps)) {
+      return null;
+    }
+    const match = apps.find(
+      (app): app is { id: string; version?: unknown } =>
+        typeof app === 'object' && app !== null && (app as { id?: unknown }).id === appId,
+    );
+    return typeof match?.version === 'string' ? match.version : null;
+  }
+
+  /** Puts the set into standby. Coming back needs Wake-on-LAN. */
+  async standby(): Promise<void> {
+    await this.request(TURN_OFF_URI);
   }
 
   close(): void {

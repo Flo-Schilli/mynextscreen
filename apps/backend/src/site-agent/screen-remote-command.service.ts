@@ -121,6 +121,27 @@ export class ScreenRemoteCommandService {
     if (report.sshHostKeyFingerprint) {
       updates.sshHostKeyFingerprint = report.sshHostKeyFingerprint;
     }
+    if (report.installStatus) {
+      updates.lastInstallAt = now;
+      updates.lastInstallOk = report.installStatus === 'ok';
+    }
+    if (report.standby !== undefined) {
+      updates.lastStandbyAt = now;
+      updates.lastStandbyOk = report.standby;
+    }
+    if (report.installedAppVersion) {
+      updates.installedAppVersion = report.installedAppVersion;
+      updates.installedAppVersionAt = now;
+      if (report.installedAppId) updates.installedAppId = report.installedAppId;
+    } else if (report.installedAppId) {
+      // Reported the app id but no version: the set does not have it installed.
+      // Recorded as such rather than left stale, which would keep claiming a
+      // version that is no longer there — Developer Mode deletes apps when the
+      // session expires.
+      updates.installedAppId = report.installedAppId;
+      updates.installedAppVersion = null;
+      updates.installedAppVersionAt = now;
+    }
     if (report.launched) updates.lastLaunchAt = now;
     if (report.woken) updates.lastWakeAt = now;
     if (report.devmodeExtended !== undefined) {

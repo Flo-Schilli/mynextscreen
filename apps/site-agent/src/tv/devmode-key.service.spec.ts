@@ -63,6 +63,34 @@ describe('DevmodeKeyService', () => {
     });
   });
 
+  /**
+   * The wizard checks the key server one step before it asks for the
+   * passphrase, so this path must never report `no_passphrase` — doing so left
+   * the wizard unable to get past its own fourth step.
+   */
+  describe('probeKeyServer', () => {
+    it('answers without a passphrase', async () => {
+      const result = await service.probeKeyServer('127.0.0.1');
+
+      expect(result.status).not.toBe('no_passphrase');
+      expect(result.status).toBe('key_server_off');
+      expect(result.detail).toContain('9991');
+    });
+
+    it('reports unreachable when no address is configured', async () => {
+      const result = await service.probeKeyServer(null);
+
+      expect(result.status).toBe('unreachable');
+      expect(result.detail).toMatch(/No address/);
+    });
+
+    it('never hands back a key, since no passphrase has been checked against it', async () => {
+      const result = await service.probeKeyServer('127.0.0.1');
+
+      expect(result.privateKey).toBeUndefined();
+    });
+  });
+
   describe('caching', () => {
     it('does not write anything when the fetch failed', async () => {
       await service.obtain(screenId, '127.0.0.1', 'AEBC72');

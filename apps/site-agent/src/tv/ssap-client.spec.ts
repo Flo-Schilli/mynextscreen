@@ -76,6 +76,39 @@ describe('SsapClient', () => {
     });
   });
 
+  /**
+   * Covered by READ_INSTALLED_APPS, which the manifest already asks for — this
+   * needs neither Developer Mode nor a new pairing prompt.
+   */
+  describe('installedAppVersion', () => {
+    it('finds the version of the app it was asked about', async () => {
+      const client = await connect();
+      await client.register('granted-key');
+
+      expect(await client.installedAppVersion('com.mynextscreen.webos')).toBe('0.15.0');
+      client.close();
+    });
+
+    it('answers null when the set does not have that app', async () => {
+      const client = await connect();
+      await client.register('granted-key');
+
+      expect(await client.installedAppVersion('com.example.absent')).toBeNull();
+      client.close();
+    });
+
+    // Developer Mode deletes the app when the session expires, and the entry
+    // can come back without a version rather than not at all.
+    it('answers null when the entry carries no usable version', async () => {
+      tv.installedApps = [{ id: 'com.mynextscreen.webos', version: 42 }];
+      const client = await connect();
+      await client.register('granted-key');
+
+      expect(await client.installedAppVersion('com.mynextscreen.webos')).toBeNull();
+      client.close();
+    });
+  });
+
   describe('launch', () => {
     it('asks the set to start the app', async () => {
       const client = await connect();

@@ -74,6 +74,16 @@ export interface ScreenRemoteControl {
   sshHostKeyFingerprint: string | null;
   onboardingStep: number;
   onboardingCompletedAt: string | null;
+  /** What the TV reports as installed; null when the app is not on the set. */
+  lastInstallAt: string | null;
+  lastInstallOk: boolean | null;
+  lastStandbyAt: string | null;
+  lastStandbyOk: boolean | null;
+  installedAppId: string | null;
+  installedAppVersion: string | null;
+  installedAppVersionAt: string | null;
+  /** What this server has packaged, for the comparison. */
+  availableAppVersion: string | null;
 }
 
 export interface UpdateScreenRemoteControlRequest {
@@ -90,7 +100,8 @@ export interface UpdateScreenRemoteControlRequest {
   wakeOnUnreachableEnabled?: boolean;
 }
 
-export type RemoteCommandType = 'launch' | 'wake' | 'extend_devmode' | 'refetch_key';
+export type RemoteCommandType =
+  'launch' | 'wake' | 'standby' | 'extend_devmode' | 'install_app' | 'refetch_key';
 
 export interface DispatchedCommand {
   commandId: string;

@@ -105,19 +105,95 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
 
   /** Runs one screen immediately, out of band, for an operator command. */
   async runNow(screenId: string): Promise<void> {
+    const report = await this.visitNow(screenId);
+    if (report) {
+      await this.send([report]);
+    }
+  }
+
+  /**
+   * What the set reports as installed for the app the agents run.
+   *
+   * Lives here because the SSAP session handling does, and because the install
+   * needs it as a verification: the install service's own answer looks the
+   * same whether the package was taken or ignored.
+   */
+  async readInstalledVersion(screenId: string): Promise<string | null> {
+    const config = this.configs.current();
+    const screen = config?.screens.find((s) => s.screenId === screenId);
+    if (!screen) {
+      return null;
+    }
+
+    let client: SsapClient | null = null;
+    try {
+      client = await SsapClient.connect(screen.localIp as string, screen.ssapPort);
+      const stored = await this.ssapKeys.load(screenId);
+      const clientKey = await client.register(stored);
+      if (clientKey && clientKey !== stored) {
+        await this.ssapKeys.save(screenId, clientKey);
+      }
+      return await client.installedAppVersion(config?.appId ?? '');
+    } catch (error) {
+      this.logger.debug(`Could not read the installed version: ${describe(error)}`);
+      return null;
+    } finally {
+      client?.close();
+    }
+  }
+
+  /**
+   * Does one thing because a person asked, bypassing the policy that decides
+   * what is *due*.
+   *
+   * The manual commands used to run an ordinary round, which refused them: a
+   * wake needs `wakeOnUnreachableEnabled`, a launch needs a stale heartbeat, an
+   * extension needs to be due. Pressing a button and having nothing happen —
+   * not even an error — is the worst of both.
+   */
+  async runAction(screenId: string, action: 'wake' | 'launch' | 'extend-devmode'): Promise<void> {
     const screen = this.configs.current()?.screens.find((s) => s.screenId === screenId);
     if (!screen) {
       return;
+    }
+    const runtime = this.runtimeFor(screenId);
+    runtime.failures = 0;
+    runtime.nextAttemptAt = 0;
+
+    const report: AgentScreenReportMessage = { screenId };
+    switch (action) {
+      case 'wake':
+        await this.doWake(screen, runtime, report);
+        break;
+      case 'launch':
+        await this.doLaunch(screen, this.configs.current()?.appId ?? '', runtime, report);
+        break;
+      case 'extend-devmode':
+        await this.doExtendDevmode(screen, runtime, report);
+        break;
+    }
+    await this.send([report]);
+  }
+
+  /**
+   * One round for a single screen, returned instead of sent.
+   *
+   * The onboarding wizard needs the outcome of a round under its own
+   * `commandId` and `step`; sending it from here as well would report the same
+   * round twice, and the copy without a step is the one that does not advance
+   * the wizard.
+   */
+  async visitNow(screenId: string): Promise<AgentScreenReportMessage | null> {
+    const screen = this.configs.current()?.screens.find((s) => s.screenId === screenId);
+    if (!screen) {
+      return null;
     }
     const runtime = this.runtimeFor(screenId);
     // A human asking resets the backoff: they have presumably just fixed
     // whatever the loop kept failing on.
     runtime.failures = 0;
     runtime.nextAttemptAt = 0;
-    const report = await this.visit(screen, this.configs.current()?.appId ?? '');
-    if (report) {
-      await this.send([report]);
-    }
+    return this.visit(screen, this.configs.current()?.appId ?? '');
   }
 
   private async visit(
@@ -145,13 +221,19 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
         ok = await this.doWake(screen, runtime, report);
         break;
       case 'extend-devmode':
-        ok = await this.doExtendDevmode(screen, report);
+        ok = await this.doExtendDevmode(screen, runtime, report);
         break;
       case 'launch':
         ok = await this.doLaunch(screen, appId, runtime, report);
         break;
       case 'none':
         break;
+    }
+
+    // Only when the round had nothing else to do: a launch already read it on
+    // the session it opened, and a failing screen has worse problems.
+    if (ok && action.kind === 'none' && runtime.appVersionReadAt === 0) {
+      await this.readAppVersionOnce(screen, appId, runtime, report);
     }
 
     this.recordOutcome(runtime, ok, screen);
@@ -164,7 +246,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     report: AgentScreenReportMessage,
   ): Promise<boolean> {
     try {
-      await this.wol.wake(screen.macAddress as string);
+      await this.wol.wake(screen.macAddress as string, screen.localIp);
       runtime.lastWakeAt = Date.now();
       report.woken = true;
       return true;
@@ -176,6 +258,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
 
   private async doExtendDevmode(
     screen: AgentScreenConfigMessage,
+    runtime: ScreenRuntime,
     report: AgentScreenReportMessage,
   ): Promise<boolean> {
     const key = await this.devmodeKeys.obtain(
@@ -210,10 +293,69 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
       await this.devmodeKeys.forget(screen.screenId);
     }
 
+    // Recorded locally as well as reported: the cached config is not refetched
+    // after a report, so without this the next round would find the extension
+    // due again and relaunch the Developer Mode app a minute later.
+    if (result.extended) {
+      runtime.lastDevmodeExtendAt = Date.now();
+    }
+
     // The TV's own displayed countdown updates with a long delay, so it is not
     // read back here: the return value of the Luna call is the only honest
     // signal available.
     return result.extended;
+  }
+
+  /**
+   * Reads the installed version onto an SSAP session that is already open.
+   *
+   * Never fatal: an outdated version is worth knowing, but failing to read it
+   * must not turn a successful launch into a failed round.
+   */
+  private async readAppVersion(
+    client: SsapClient,
+    appId: string,
+    runtime: ScreenRuntime,
+    report: AgentScreenReportMessage,
+  ): Promise<void> {
+    try {
+      const version = await client.installedAppVersion(appId);
+      runtime.appVersionReadAt = Date.now();
+      report.installedAppId = appId;
+      if (version) {
+        report.installedAppVersion = version;
+      }
+    } catch (error) {
+      this.logger.debug(`Could not read the installed version: ${describe(error)}`);
+    }
+  }
+
+  /** Opens a session purely to read the version, once per agent run. */
+  private async readAppVersionOnce(
+    screen: AgentScreenConfigMessage,
+    appId: string,
+    runtime: ScreenRuntime,
+    report: AgentScreenReportMessage,
+  ): Promise<void> {
+    let client: SsapClient | null = null;
+    try {
+      client = await SsapClient.connect(screen.localIp as string, screen.ssapPort);
+      const stored = await this.ssapKeys.load(screen.screenId);
+      // No prompt callback: an unpaired screen is not worth interrupting
+      // someone's evening for, and the launch path asks properly.
+      const clientKey = await client.register(stored);
+      if (clientKey && clientKey !== stored) {
+        await this.ssapKeys.save(screen.screenId, clientKey);
+      }
+      await this.readAppVersion(client, appId, runtime, report);
+    } catch (error) {
+      // Marked as attempted either way, so an unreachable or unpaired set is
+      // not retried every single round.
+      runtime.appVersionReadAt = Date.now();
+      this.logger.debug(`Version read skipped for ${screen.name}: ${describe(error)}`);
+    } finally {
+      client?.close();
+    }
   }
 
   private async doLaunch(
@@ -238,10 +380,15 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
 
       const foreground = await client.foregroundAppId();
       if (foreground !== appId) {
-        await client.launch(appId);
+        // The address this agent is itself talking to: a display that was just
+        // installed has nothing stored, and this saves typing a URL with a
+        // remote. The shell ignores it once it has one of its own.
+        const serverUrl = (await this.connections.load())?.serverUrl;
+        await client.launch(appId, serverUrl ? { serverUrl } : undefined);
         runtime.lastLaunchAt = Date.now();
         report.launched = true;
       }
+      await this.readAppVersion(client, appId, runtime, report);
       report.ssapStatus = 'ok';
       return true;
     } catch (error) {
@@ -336,7 +483,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   }
 }
 
-function classifySsap(error: unknown): 'awaiting_pairing' | 'rejected' | 'unreachable' {
+export function classifySsap(error: unknown): 'awaiting_pairing' | 'rejected' | 'unreachable' {
   const name = error instanceof Error ? error.name : '';
   if (name === 'SsapPairingTimeoutError') {
     return 'awaiting_pairing';
@@ -347,6 +494,6 @@ function classifySsap(error: unknown): 'awaiting_pairing' | 'rejected' | 'unreac
   return 'rejected';
 }
 
-function describe(error: unknown): string {
+export function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

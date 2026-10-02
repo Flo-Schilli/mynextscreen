@@ -175,9 +175,112 @@ function requestPlayerDisconnect() {
 
 window.requestPlayerDisconnect = requestPlayerDisconnect;
 
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
-} else {
+/**
+ * Takes the server address out of the launch parameters.
+ *
+ * The agent passes it when it starts the app, so a display that was just
+ * installed does not need a URL typed in with a remote. Deliberately only
+ * filled in when nothing is stored: a stored address was either typed by
+ * someone or already confirmed, and letting a launch overwrite it would mean a
+ * different agent could silently re-point a working display. The settings
+ * overlay is the way to change it.
+ *
+ * The player URL is not taken from here — it is fetched from the server the
+ * same way the overlay does it, so there is one source for it either way.
+ */
+async function applyLaunchParams(params) {
+    if (!params || typeof params.serverUrl !== 'string' || params.serverUrl === '') {
+        return false;
+    }
+    if (localStorage.getItem(STORAGE_KEYS.serverUrl)) {
+        return false;
+    }
+
+    var serverUrl = params.serverUrl.replace(/\/+$/, '');
+    try {
+        var response = await fetch(serverUrl + '/api/config');
+        if (!response.ok) {
+            throw new Error('HTTP ' + response.status);
+        }
+        var data = await response.json();
+        if (!data.playerUrl) {
+            throw new Error('no playerUrl in the answer');
+        }
+        localStorage.setItem(STORAGE_KEYS.serverUrl, serverUrl);
+        localStorage.setItem(STORAGE_KEYS.playerUrl, data.playerUrl);
+        console.log('[launch] configured from launch parameters:', serverUrl);
+        return true;
+    } catch (error) {
+        // Left unconfigured on purpose: a half-written pair would send the
+        // settings overlay chasing a player URL that was never resolved.
+        console.warn('[launch] could not use the handed server address', error);
+        return false;
+    }
+}
+
+/**
+ * Launch parameters, from whichever place this webOS build keeps them.
+ *
+ * Measured on a real set rather than taken from the docs: `webOSDev` is not
+ * there at all (its library is not bundled), the `webOSLaunch` event did not
+ * reach a listener registered this late, and the parameters sat in
+ * `PalmSystem.launchParams` — as a JSON *string*, not an object. The other two
+ * are kept as fallbacks because they are what other generations offer.
+ */
+function launchParamsFrom(event) {
+    if (event && event.detail) {
+        return event.detail;
+    }
+    if (window.webOSDev && typeof window.webOSDev.launchParams === 'function') {
+        try {
+            return window.webOSDev.launchParams();
+        } catch (error) {
+            // Falls through to PalmSystem below.
+        }
+    }
+    var raw = window.PalmSystem && window.PalmSystem.launchParams;
+    if (typeof raw === 'string' && raw.trim() !== '') {
+        try {
+            return JSON.parse(raw);
+        } catch (error) {
+            console.warn('[launch] unreadable launch parameters', error);
+            return null;
+        }
+    }
+    return raw && typeof raw === 'object' ? raw : null;
+}
+
+/** Both the launch event and DOM-ready can get here; only the first counts. */
+var booted = false;
+
+async function bootWith(event) {
+    if (booted) {
+        return;
+    }
+    booted = true;
+    await applyLaunchParams(launchParamsFrom(event));
     initApp();
+}
+
+// webOS fires this once the app is launched; it carries the parameters the
+// agent sent. `webOSRelaunch` is the same thing for an app already running.
+document.addEventListener('webOSLaunch', bootWith);
+document.addEventListener('webOSRelaunch', function (event) {
+    // Only interesting while nothing is configured — otherwise a relaunch would
+    // tear down a player that is happily running.
+    if (!localStorage.getItem(STORAGE_KEYS.serverUrl)) {
+        booted = false;
+        void bootWith(event);
+    }
+});
+
+// Initialize when DOM is ready. The launch event may never arrive — off webOS,
+// or when it fired before this script ran — so this stays the entry point and
+// `applyLaunchParams` is idempotent.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+        void bootWith(null);
+    });
+} else {
+    void bootWith(null);
 }

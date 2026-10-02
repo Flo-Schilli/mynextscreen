@@ -9,7 +9,11 @@ import { ScreenRemoteControlService } from './screen-remote-control.service';
 import type { AgentConfig, AgentScreenConfig } from './agent-config.types';
 
 /** The webOS app the agent keeps in the foreground, unless overridden. */
-const DEFAULT_APP_ID = 'com.mynextscreen.webos';
+/** Also used where the dashboard needs to know which app a TV should run. */
+export const DEFAULT_SITE_AGENT_APP_ID = 'com.mynextscreen.webos';
+/** Which packaged app the agents install. One entry today; kept explicit. */
+export const SITE_AGENT_APP_SLUG = 'lg-tvos';
+const DEFAULT_APP_ID = DEFAULT_SITE_AGENT_APP_ID;
 
 /** How often the agent probes its TVs, unless overridden. */
 const DEFAULT_PROBE_INTERVAL_MS = 60_000;
@@ -25,6 +29,7 @@ const DEFAULT_PROBE_INTERVAL_MS = 60_000;
 export class SiteAgentConfigService {
   private readonly probeIntervalMs: number;
   private readonly appId: string;
+
   private readonly screenOfflineThresholdMs: number;
 
   constructor(
@@ -39,6 +44,11 @@ export class SiteAgentConfigService {
     );
     this.appId = config.get<string>('SITE_AGENT_APP_ID', DEFAULT_APP_ID);
     this.screenOfflineThresholdMs = config.get<number>('SCREEN_OFFLINE_THRESHOLD_MS', 120_000);
+  }
+
+  /** The packaged app the agents install. */
+  appPackageSlug(): string {
+    return SITE_AGENT_APP_SLUG;
   }
 
   async buildAgentConfig(agentId: string): Promise<AgentConfig> {

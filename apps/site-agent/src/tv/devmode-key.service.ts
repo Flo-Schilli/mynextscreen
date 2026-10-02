@@ -62,6 +62,24 @@ export class DevmodeKeyService {
     return this.fetchAndCache(screenId, host, passphrase);
   }
 
+  /**
+   * Whether the TV's key server is answering, without needing a passphrase.
+   *
+   * The onboarding wizard asks this one step before it asks for the passphrase,
+   * so it cannot go through {@link obtain}: that reports `no_passphrase` before
+   * it ever reaches the TV, which left the step unpassable in the order the
+   * wizard itself prescribes. Nothing is cached here — the key this returns is
+   * still encrypted, and caching it would mean storing a key no passphrase has
+   * been checked against.
+   */
+  async probeKeyServer(host: string | null): Promise<DevmodeKeyResult> {
+    if (!host) {
+      return { status: 'unreachable', detail: 'No address configured for this screen' };
+    }
+    const fetched = await this.fetchPem(host);
+    return 'pem' in fetched ? { status: 'ok' } : fetched;
+  }
+
   /** Discards the cached key so the next call pulls a fresh one from the TV. */
   async forget(screenId: string): Promise<void> {
     await rm(this.pathFor(screenId), { force: true });
@@ -72,15 +90,30 @@ export class DevmodeKeyService {
     host: string,
     passphrase: string,
   ): Promise<DevmodeKeyResult> {
-    const url = `http://${host}:${KEY_SERVER_PORT}${KEY_PATH}`;
-    let pem: string;
+    const fetched = await this.fetchPem(host);
+    if (!('pem' in fetched)) {
+      return fetched;
+    }
+    const pem = fetched.pem;
 
+    if (!this.opensWith(pem, passphrase)) {
+      return { status: 'wrong_passphrase', detail: 'The stored passphrase does not open this key' };
+    }
+
+    await this.writeCached(screenId, pem);
+    this.logger.log(`Fetched Developer Mode key for screen ${screenId} from ${host}`);
+    return { status: 'ok', privateKey: pem };
+  }
+
+  /** Pulls the encrypted PEM off the TV, or classifies why it could not. */
+  private async fetchPem(host: string): Promise<{ pem: string } | DevmodeKeyResult> {
+    const url = `http://${host}:${KEY_SERVER_PORT}${KEY_PATH}`;
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
       if (!response.ok) {
         return { status: 'key_server_off', detail: `${url} answered ${response.status}` };
       }
-      pem = await response.text();
+      return { pem: await response.text() };
     } catch (error) {
       // A refused connection is the key server being off, which is a switch in
       // the Developer Mode app; anything else is the TV not being there at all.
@@ -96,14 +129,6 @@ export class DevmodeKeyService {
         detail: `${message} (${url})`,
       };
     }
-
-    if (!this.opensWith(pem, passphrase)) {
-      return { status: 'wrong_passphrase', detail: 'The stored passphrase does not open this key' };
-    }
-
-    await this.writeCached(screenId, pem);
-    this.logger.log(`Fetched Developer Mode key for screen ${screenId} from ${host}`);
-    return { status: 'ok', privateKey: pem };
   }
 
   /**

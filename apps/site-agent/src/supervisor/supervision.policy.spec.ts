@@ -40,26 +40,54 @@ function screen(overrides: Partial<AgentScreenConfigMessage> = {}): AgentScreenC
 }
 
 describe('isDevmodeExtensionDue', () => {
+  /**
+   * The cached config is not refetched after a report, so a successful
+   * extension is invisible there until the next pull. Before this was tracked
+   * on the runtime, every round found the extension due again and relaunched
+   * the Developer Mode app on the set a minute later — which also starved the
+   * launch branch that comes after it.
+   */
+  it('is not due again right after this agent extended it', () => {
+    const justExtended = { ...newRuntime(0), lastDevmodeExtendAt: NOW - 1_000 };
+
+    expect(isDevmodeExtensionDue(screen({ lastDevmodeExtendAt: null }), NOW, justExtended)).toBe(
+      false,
+    );
+  });
+
+  it("takes the agent's own extension over an older one from the server", () => {
+    const stale = new Date(NOW - 30 * 24 * 60 * 60_000).toISOString();
+    const justExtended = { ...newRuntime(0), lastDevmodeExtendAt: NOW - 1_000 };
+
+    expect(isDevmodeExtensionDue(screen({ lastDevmodeExtendAt: stale }), NOW, justExtended)).toBe(
+      false,
+    );
+  });
+
   it('is due when it has never been extended', () => {
-    expect(isDevmodeExtensionDue(screen({ lastDevmodeExtendAt: null }), NOW, 0)).toBe(true);
+    expect(isDevmodeExtensionDue(screen({ lastDevmodeExtendAt: null }), NOW, newRuntime(0))).toBe(
+      true,
+    );
   });
 
   it('is not due inside the interval', () => {
-    expect(isDevmodeExtensionDue(screen(), NOW, 0)).toBe(false);
+    expect(isDevmodeExtensionDue(screen(), NOW, newRuntime(0))).toBe(false);
   });
 
   it('is due once the interval has passed', () => {
     const last = new Date(NOW - 8 * DAY_MS).toISOString();
 
-    expect(isDevmodeExtensionDue(screen({ lastDevmodeExtendAt: last }), NOW, 0)).toBe(true);
+    expect(isDevmodeExtensionDue(screen({ lastDevmodeExtendAt: last }), NOW, newRuntime(0))).toBe(
+      true,
+    );
   });
 
   it('respects the per-screen jitter so twenty sets do not all get SSH at once', () => {
     const last = new Date(NOW - 7 * DAY_MS - 60_000).toISOString();
 
-    expect(isDevmodeExtensionDue(screen({ lastDevmodeExtendAt: last }), NOW, 10 * 60_000)).toBe(
-      false,
-    );
+    expect(
+      isDevmodeExtensionDue(screen({ lastDevmodeExtendAt: last }), NOW, newRuntime(10 * 60_000)),
+    ).toBe(false);
   });
 
   // Once it is half an interval overdue, the session is close enough to expiry
@@ -68,15 +96,15 @@ describe('isDevmodeExtensionDue', () => {
   it('ignores the jitter once it is badly overdue', () => {
     const last = new Date(NOW - 11 * DAY_MS).toISOString();
 
-    expect(isDevmodeExtensionDue(screen({ lastDevmodeExtendAt: last }), NOW, 30 * 60_000)).toBe(
-      true,
-    );
+    expect(
+      isDevmodeExtensionDue(screen({ lastDevmodeExtendAt: last }), NOW, newRuntime(30 * 60_000)),
+    ).toBe(true);
   });
 
   it('is never due when the feature is switched off', () => {
     const off = screen({ extendDevmodeEnabled: false, lastDevmodeExtendAt: null });
 
-    expect(isDevmodeExtensionDue(off, NOW, 0)).toBe(false);
+    expect(isDevmodeExtensionDue(off, NOW, newRuntime(0))).toBe(false);
   });
 
   it('honours a one-day interval', () => {
@@ -85,7 +113,7 @@ describe('isDevmodeExtensionDue', () => {
       lastDevmodeExtendAt: new Date(NOW - 2 * DAY_MS).toISOString(),
     });
 
-    expect(isDevmodeExtensionDue(config, NOW, 0)).toBe(true);
+    expect(isDevmodeExtensionDue(config, NOW, newRuntime(0))).toBe(true);
   });
 });
 

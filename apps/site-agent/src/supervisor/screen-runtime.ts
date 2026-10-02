@@ -6,6 +6,23 @@ export interface ScreenRuntime {
   nextAttemptAt: number;
   lastLaunchAt: number;
   lastWakeAt: number;
+  /**
+   * When this agent last extended Developer Mode, 0 if never.
+   *
+   * Kept here as well as in the server's config because the cached config is
+   * not refetched after a report: relying on it alone made the extension look
+   * due on every round, which relaunched the Developer Mode app each minute and
+   * starved the launch branch that follows it.
+   */
+  lastDevmodeExtendAt: number;
+  /**
+   * When the installed app version was last read, 0 if never.
+   *
+   * A healthy screen rarely relaunches, so reading the version only during a
+   * launch would leave it unknown indefinitely. One read per agent run covers
+   * that without opening an SSAP session every round.
+   */
+  appVersionReadAt: number;
   /** Jitter offset for the Developer Mode extension, stable per screen. */
   devmodeJitterMs: number;
 }
@@ -16,6 +33,8 @@ export function newRuntime(devmodeJitterMs: number): ScreenRuntime {
     nextAttemptAt: 0,
     lastLaunchAt: 0,
     lastWakeAt: 0,
+    lastDevmodeExtendAt: 0,
+    appVersionReadAt: 0,
     devmodeJitterMs,
   };
 }

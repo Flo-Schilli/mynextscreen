@@ -22,7 +22,14 @@ export type SshStatusValue = 'unknown' | 'ok' | 'auth_failed' | 'host_key_mismat
 export type SsapStatusValue = 'unknown' | 'ok' | 'awaiting_pairing' | 'rejected' | 'unreachable';
 
 export type SiteAgentCommandTypeValue =
-  'launch' | 'wake' | 'extend_devmode' | 'refetch_key' | 'reload_config' | 'check';
+  | 'launch'
+  | 'wake'
+  | 'standby'
+  | 'extend_devmode'
+  | 'install_app'
+  | 'refetch_key'
+  | 'reload_config'
+  | 'check';
 
 /** One instruction pushed down the agent's SSE channel. */
 export interface SiteAgentCommandMessage {
@@ -84,6 +91,13 @@ export interface AgentScreenReportMessage {
   launched?: boolean;
   woken?: boolean;
   devmodeExtended?: boolean;
+  /** App id and version the set reports, so the server can spot an outdated app. */
+  installedAppId?: string;
+  installedAppVersion?: string;
+  /** True when the set acknowledged the standby request. */
+  standby?: boolean;
+  /** Outcome of an install attempt. */
+  installStatus?: 'ok' | 'failed';
 }
 
 export interface AgentReportMessage {

@@ -11,7 +11,9 @@ import { SiteAgentCommandType } from '../site-agent-command.enum';
 export const MANUAL_COMMANDS = [
   SiteAgentCommandType.Launch,
   SiteAgentCommandType.Wake,
+  SiteAgentCommandType.Standby,
   SiteAgentCommandType.ExtendDevmode,
+  SiteAgentCommandType.InstallApp,
   SiteAgentCommandType.RefetchKey,
 ] as const;
 

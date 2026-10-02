@@ -2,6 +2,7 @@ import { Logger, NotFoundException } from '@nestjs/common';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { ConfigService } from '@nestjs/config';
 import { PlayerAppsService } from './player-apps.service';
 
 /**
@@ -10,6 +11,14 @@ import { PlayerAppsService } from './player-apps.service';
  * `player-applications/` tree and point the cwd at it, so the IPK filename is
  * matched exactly the way it is in a built image.
  */
+/**
+ * No PLAYER_APPS_PATH set, so the service falls back to the working directory —
+ * which is what these tests arrange.
+ */
+function config(path?: string): ConfigService {
+  return { get: () => path } as unknown as ConfigService;
+}
+
 describe('PlayerAppsService', () => {
   const SLUG = 'lg-tvos';
   const APP_ID = 'com.mynextscreen.webos';
@@ -58,7 +67,7 @@ describe('PlayerAppsService', () => {
       writeBinary(`${APP_ID}_${VERSION}_all.ipk`);
 
       // Act
-      const apps = new PlayerAppsService().listApps();
+      const apps = new PlayerAppsService(config()).listApps();
 
       // Assert
       expect(apps).toEqual([{ slug: SLUG, name: 'LG webOS', downloadAvailable: true }]);
@@ -69,7 +78,7 @@ describe('PlayerAppsService', () => {
       writeAppInfo({ id: APP_ID, version: VERSION });
 
       // Act
-      const apps = new PlayerAppsService().listApps();
+      const apps = new PlayerAppsService(config()).listApps();
 
       // Assert
       expect(apps[0].downloadAvailable).toBe(false);
@@ -81,7 +90,7 @@ describe('PlayerAppsService', () => {
       writeBinary(`com.cbf.webos_${VERSION}_all.ipk`);
 
       // Act
-      const apps = new PlayerAppsService().listApps();
+      const apps = new PlayerAppsService(config()).listApps();
 
       // Assert
       expect(apps[0].downloadAvailable).toBe(false);
@@ -92,7 +101,7 @@ describe('PlayerAppsService', () => {
       writeBinary(`${APP_ID}_${VERSION}_all.ipk`);
 
       // Act
-      const apps = new PlayerAppsService().listApps();
+      const apps = new PlayerAppsService(config()).listApps();
 
       // Assert
       expect(apps[0].downloadAvailable).toBe(false);
@@ -105,7 +114,7 @@ describe('PlayerAppsService', () => {
       writeBinary(`_${VERSION}_all.ipk`);
 
       // Act
-      const apps = new PlayerAppsService().listApps();
+      const apps = new PlayerAppsService(config()).listApps();
 
       // Assert
       expect(apps[0].downloadAvailable).toBe(false);
@@ -119,7 +128,7 @@ describe('PlayerAppsService', () => {
       writeAppInfo({ id: 'com.example.renamed', version: '2.5.0' });
 
       // Act
-      const filename = new PlayerAppsService().getBinaryFilename(SLUG);
+      const filename = new PlayerAppsService(config()).getBinaryFilename(SLUG);
 
       // Assert
       expect(filename).toBe('com.example.renamed_2.5.0_all.ipk');
@@ -128,7 +137,7 @@ describe('PlayerAppsService', () => {
     it('throws for an unknown slug', () => {
       // Arrange
       writeAppInfo({ id: APP_ID, version: VERSION });
-      const service = new PlayerAppsService();
+      const service = new PlayerAppsService(config());
 
       // Act + Assert
       expect(() => service.getBinaryFilename('samsung-tizen')).toThrow(NotFoundException);
@@ -142,7 +151,7 @@ describe('PlayerAppsService', () => {
       const expected = writeBinary(`${APP_ID}_${VERSION}_all.ipk`);
 
       // Act
-      const binPath = new PlayerAppsService().getBinaryPath(SLUG);
+      const binPath = new PlayerAppsService(config()).getBinaryPath(SLUG);
 
       // Assert
       expect(binPath).toBe(expected);
@@ -151,7 +160,7 @@ describe('PlayerAppsService', () => {
     it('throws when no IPK was packaged', () => {
       // Arrange
       writeAppInfo({ id: APP_ID, version: VERSION });
-      const service = new PlayerAppsService();
+      const service = new PlayerAppsService(config());
 
       // Act + Assert
       expect(() => service.getBinaryPath(SLUG)).toThrow(NotFoundException);
@@ -165,7 +174,7 @@ describe('PlayerAppsService', () => {
       writeGuide('# Install\n\nOpen the Developer Mode app.');
 
       // Act
-      const html = await new PlayerAppsService().getGuideHtml(SLUG);
+      const html = await new PlayerAppsService(config()).getGuideHtml(SLUG);
 
       // Assert
       expect(html).toContain('<h1>Install</h1>');
@@ -178,7 +187,7 @@ describe('PlayerAppsService', () => {
       writeGuide('# Install');
 
       // Act
-      const html = await new PlayerAppsService().getGuideHtml(SLUG);
+      const html = await new PlayerAppsService(config()).getGuideHtml(SLUG);
 
       // Assert
       expect(html).toContain('<h1>Install</h1>');
@@ -187,7 +196,7 @@ describe('PlayerAppsService', () => {
     it('throws when the guide is missing', async () => {
       // Arrange
       writeAppInfo({ id: APP_ID, version: VERSION });
-      const service = new PlayerAppsService();
+      const service = new PlayerAppsService(config());
 
       // Act + Assert
       await expect(service.getGuideHtml(SLUG)).rejects.toThrow(NotFoundException);
