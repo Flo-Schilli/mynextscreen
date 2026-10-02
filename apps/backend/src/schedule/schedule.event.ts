@@ -12,6 +12,12 @@ export class GroupScheduleChangedEvent {
   constructor(
     public readonly groupId: string,
     public readonly organisationId: string,
-    public readonly playlistId: string,
+    /**
+     * Nullable because a group entry can roll into the organisation fallback,
+     * which has no playlist. No consumer reads this today — listeners re-resolve
+     * the group's current playlist themselves — so it is carried for logging and
+     * as a hint, not as the source of truth.
+     */
+    public readonly playlistId: string | null,
   ) {}
 }

@@ -23,6 +23,7 @@ import {
 import { CreateScheduleEntryDto } from './dto/create-schedule-entry.dto';
 import { UpdateScheduleEntryDto } from './dto/update-schedule-entry.dto';
 import { getOccurrences, DateRange } from './rrule.util';
+import { sortScheduleEntries } from './schedule-entry-order.util';
 import {
   SCHEDULE_ENTRY_CHANGED,
   ScheduleEntryChangedEvent,
@@ -52,10 +53,19 @@ const FALLBACK_EPOCH = 0;
  * Result of resolving the currently-active playlist for a screen, including the
  * shared playback `epoch` (ms) that anchors synchronized transitions across a group.
  */
+/** Which kind of entry resolved the current playlist. */
+export type CurrentPlaylistSource = 'screen' | 'group' | 'fallback';
+
 export interface CurrentPlaylistResult {
   playlist: Playlist | null;
   isDefault: boolean;
   epoch: number;
+  /**
+   * Lets a caller tell a group-wide change from a screen-local one without
+   * resolving a second time — a boundary on a group entry has to re-align every
+   * member, one on a screen's own entry must not touch the others.
+   */
+  source: CurrentPlaylistSource;
 }
 
 @Injectable()
@@ -279,10 +289,13 @@ export class ScheduleService {
     const entries = await this.db.query.scheduleEntries.findMany({
       where: eq(scheduleEntries.screenId, screenId),
       with: { playlist: true },
+      orderBy: [asc(scheduleEntries.startTime), asc(scheduleEntries.id)],
     });
 
-    // Check if any direct entry is currently active
-    for (const entry of entries) {
+    // Check if any direct entry is currently active. Sorted, because two screens
+    // of one group resolving the same overlap independently must land on the
+    // same entry — otherwise they anchor to different epochs and drift apart.
+    for (const entry of sortScheduleEntries(entries)) {
       const occurrences = getOccurrences(
         entry.startTime,
         entry.endTime,
@@ -295,7 +308,12 @@ export class ScheduleService {
         if (occ.start <= now && occ.end > now) {
           // Epoch = start of the active occurrence. Identical for every screen
           // in a group, so all members compute the same playlist position.
-          return { playlist: entry.playlist, isDefault: false, epoch: occ.start.getTime() };
+          return {
+            playlist: entry.playlist,
+            isDefault: false,
+            epoch: occ.start.getTime(),
+            source: 'screen',
+          };
         }
       }
     }
@@ -303,49 +321,88 @@ export class ScheduleService {
     // No direct schedule active — check group schedule as fallback
     const [screen] = await this.db.select().from(screens).where(eq(screens.id, screenId)).limit(1);
     if (!screen) {
-      return { playlist: null, isDefault: false, epoch: FALLBACK_EPOCH };
+      return { playlist: null, isDefault: false, epoch: FALLBACK_EPOCH, source: 'fallback' };
     }
 
     if (screen.groupId) {
-      const groupEntries = await this.db.query.scheduleEntries.findMany({
-        where: eq(scheduleEntries.groupId, screen.groupId),
-        with: { playlist: true },
-      });
-
-      // Split groups need per-screen sliced renditions before the wall can show a
-      // playlist. Until the slice job for that playlist is `completed`, the entry
-      // is NOT yet eligible to be "current" — we skip it so resolution falls
-      // through to the previously-active content (other entry / fallback). The
-      // moment slicing completes, `GROUP_SCHEDULE_CHANGED` re-pulls and the entry
-      // becomes current. A `failed` job also keeps the previous content (operator
-      // must re-slice). Mirror groups never slice, so they are unaffected.
-      const isSplitGroup = await this.isSplitGroup(screen.groupId);
-      const sliceReady = isSplitGroup
-        ? await this.loadCompletedSlicePlaylists(screen.groupId)
-        : null;
-
-      for (const entry of groupEntries) {
-        const occurrences = getOccurrences(
-          entry.startTime,
-          entry.endTime,
-          entry.rrule,
-          new Date(now.getTime() - 24 * 60 * 60 * 1000),
-          new Date(now.getTime() + 24 * 60 * 60 * 1000),
-        );
-
-        for (const occ of occurrences) {
-          if (occ.start <= now && occ.end > now) {
-            if (sliceReady && !sliceReady.has(entry.playlistId)) {
-              // Not-yet-sliced split entry: ignore it, keep previous content.
-              break;
-            }
-            return { playlist: entry.playlist, isDefault: false, epoch: occ.start.getTime() };
-          }
-        }
+      const group = await this.resolveGroupEntry(screen.groupId, now);
+      if (group) {
+        return { playlist: group.playlist, isDefault: false, epoch: group.epoch, source: 'group' };
       }
     }
 
     return this.getFallbackPlaylist(screen.organisationId);
+  }
+
+  /**
+   * The group's current playlist and shared epoch, resolved from the group's own
+   * schedule alone.
+   *
+   * The fan-out used to answer this by asking one arbitrary member via
+   * {@link getCurrentPlaylist}, which prefers that member's *direct* entries. A
+   * member with a screen-level schedule of its own therefore pushed its private
+   * epoch to the whole group.
+   */
+  async getCurrentGroupPlaylist(groupId: string): Promise<CurrentPlaylistResult> {
+    const now = new Date();
+    const entry = await this.resolveGroupEntry(groupId, now);
+    if (entry) {
+      return { playlist: entry.playlist, isDefault: false, epoch: entry.epoch, source: 'group' };
+    }
+
+    const [group] = await this.db
+      .select()
+      .from(screenGroups)
+      .where(eq(screenGroups.id, groupId))
+      .limit(1);
+    if (!group) {
+      return { playlist: null, isDefault: true, epoch: FALLBACK_EPOCH, source: 'fallback' };
+    }
+    return this.getFallbackPlaylist(group.organisationId);
+  }
+
+  /** The group entry active at `now`, or null when the group has none. */
+  private async resolveGroupEntry(
+    groupId: string,
+    now: Date,
+  ): Promise<{ playlist: Playlist; epoch: number } | null> {
+    const groupEntries = await this.db.query.scheduleEntries.findMany({
+      where: eq(scheduleEntries.groupId, groupId),
+      with: { playlist: true },
+      orderBy: [asc(scheduleEntries.startTime), asc(scheduleEntries.id)],
+    });
+
+    // Split groups need per-screen sliced renditions before the wall can show a
+    // playlist. Until the slice job for that playlist is `completed`, the entry
+    // is NOT yet eligible to be "current" — we skip it so resolution falls
+    // through to the previously-active content (other entry / fallback). The
+    // moment slicing completes, `GROUP_SCHEDULE_CHANGED` re-pulls and the entry
+    // becomes current. A `failed` job also keeps the previous content (operator
+    // must re-slice). Mirror groups never slice, so they are unaffected.
+    const isSplitGroup = await this.isSplitGroup(groupId);
+    const sliceReady = isSplitGroup ? await this.loadCompletedSlicePlaylists(groupId) : null;
+
+    for (const entry of sortScheduleEntries(groupEntries)) {
+      const occurrences = getOccurrences(
+        entry.startTime,
+        entry.endTime,
+        entry.rrule,
+        new Date(now.getTime() - 24 * 60 * 60 * 1000),
+        new Date(now.getTime() + 24 * 60 * 60 * 1000),
+      );
+
+      for (const occ of occurrences) {
+        if (occ.start <= now && occ.end > now) {
+          if (sliceReady && !sliceReady.has(entry.playlistId)) {
+            // Not-yet-sliced split entry: ignore it, keep previous content.
+            break;
+          }
+          return { playlist: entry.playlist, epoch: occ.start.getTime() };
+        }
+      }
+    }
+
+    return null;
   }
 
   /** True if the group exists and is in split (video-wall) mode. */
@@ -491,14 +548,19 @@ export class ScheduleService {
       .where(eq(organisations.id, organisationId))
       .limit(1);
     if (!org?.defaultPlaylistId) {
-      return { playlist: null, isDefault: true, epoch: FALLBACK_EPOCH };
+      return { playlist: null, isDefault: true, epoch: FALLBACK_EPOCH, source: 'fallback' };
     }
     const [playlist] = await this.db
       .select()
       .from(playlists)
       .where(eq(playlists.id, org.defaultPlaylistId))
       .limit(1);
-    return { playlist: playlist ?? null, isDefault: true, epoch: FALLBACK_EPOCH };
+    return {
+      playlist: playlist ?? null,
+      isDefault: true,
+      epoch: FALLBACK_EPOCH,
+      source: 'fallback',
+    };
   }
 
   private emitScheduleChanged(screenId: string, organisationId: string): void {

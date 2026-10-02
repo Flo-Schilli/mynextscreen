@@ -606,6 +606,7 @@ describe('ScheduleService', () => {
       expect(result.isDefault).toBe(false);
       // Epoch anchors deterministic playback to the active occurrence start.
       expect(result.epoch).toBe(startTime.getTime());
+      expect(result.source).toBe('screen');
     });
 
     it('should return the fallback playlist when no entry is active', async () => {
@@ -634,6 +635,7 @@ describe('ScheduleService', () => {
       expect(result.playlist).toEqual(expect.objectContaining({ name: 'Default Playlist' }));
       // Fallback playlist uses a fixed epoch so all group members align on the clock.
       expect(result.epoch).toBe(0);
+      expect(result.source).toBe('fallback');
     });
 
     it('should return null playlist when no entries and no default', async () => {
@@ -667,6 +669,9 @@ describe('ScheduleService', () => {
 
       expect(result.playlist).toEqual(expect.objectContaining({ name: 'Group Playlist' }));
       expect(result.isDefault).toBe(false);
+      // The caller needs to know a group entry resolved this, so a boundary on
+      // it re-aligns the whole group instead of only this screen.
+      expect(result.source).toBe('group');
     });
 
     it('should prefer direct screen schedule over group schedule', async () => {
@@ -804,6 +809,220 @@ describe('ScheduleService', () => {
 
       expect(result.playlist).toEqual(expect.objectContaining({ name: 'Group Playlist' }));
       expect(result.isDefault).toBe(false);
+    });
+  });
+
+  // Resolving the group by asking one of its members returned that member's own
+  // schedule when it had one, so a group whose members carry private entries was
+  // fanned out a private epoch. These cover the group-only resolution path.
+  describe('getCurrentGroupPlaylist', () => {
+    it('should return the active group entry with its occurrence start as epoch', async () => {
+      const org = await seedOrg();
+      const group = await seedGroup(org.id);
+      const playlist = await seedPlaylist(org.id, 'Group Playlist');
+      const start = new Date(Date.now() - 60 * 60 * 1000);
+      await db.insert(scheduleEntries).values({
+        organisationId: org.id,
+        screenId: null,
+        groupId: group.id,
+        playlistId: playlist.id,
+        startTime: start,
+        endTime: new Date(Date.now() + 60 * 60 * 1000),
+        rrule: null,
+        colour: '#FF5733',
+      });
+
+      const result = await service.getCurrentGroupPlaylist(group.id);
+
+      expect(result.playlist).toEqual(expect.objectContaining({ name: 'Group Playlist' }));
+      expect(result.isDefault).toBe(false);
+      expect(result.epoch).toBe(start.getTime());
+      expect(result.source).toBe('group');
+    });
+
+    // The regression itself: the member's own entry must not become the group's.
+    it('should ignore a member screen entry that is active at the same time', async () => {
+      const org = await seedOrg();
+      const group = await seedGroup(org.id);
+      const screen = await seedScreen(org.id, { groupId: group.id });
+      const groupPlaylist = await seedPlaylist(org.id, 'Group Playlist');
+      const screenPlaylist = await seedPlaylist(org.id, 'Screen Playlist');
+      const now = Date.now();
+      const groupStart = new Date(now - 2 * 60 * 60 * 1000);
+      const screenStart = new Date(now - 30 * 60 * 1000);
+      await db.insert(scheduleEntries).values([
+        {
+          organisationId: org.id,
+          screenId: null,
+          groupId: group.id,
+          playlistId: groupPlaylist.id,
+          startTime: groupStart,
+          endTime: new Date(now + 60 * 60 * 1000),
+          rrule: null,
+          colour: '#FF5733',
+        },
+        {
+          organisationId: org.id,
+          screenId: screen.id,
+          playlistId: screenPlaylist.id,
+          startTime: screenStart,
+          endTime: new Date(now + 60 * 60 * 1000),
+          rrule: null,
+          colour: '#00FF00',
+        },
+      ]);
+
+      const groupResult = await service.getCurrentGroupPlaylist(group.id);
+      const screenResult = await service.getCurrentPlaylist(screen.id);
+
+      expect(groupResult.playlist).toEqual(expect.objectContaining({ name: 'Group Playlist' }));
+      expect(groupResult.epoch).toBe(groupStart.getTime());
+      // The member keeps its own anchor; only the group's is fanned out.
+      expect(screenResult.playlist).toEqual(expect.objectContaining({ name: 'Screen Playlist' }));
+      expect(screenResult.epoch).toBe(screenStart.getTime());
+      expect(screenResult.source).toBe('screen');
+    });
+
+    it('should fall back to the organisation default when no group entry is active', async () => {
+      const org = await seedOrg();
+      const group = await seedGroup(org.id);
+      const fallback = await seedPlaylist(org.id, 'Default Playlist');
+      await db
+        .update(organisations)
+        .set({ defaultPlaylistId: fallback.id })
+        .where(eq(organisations.id, org.id));
+
+      const result = await service.getCurrentGroupPlaylist(group.id);
+
+      expect(result.playlist).toEqual(expect.objectContaining({ name: 'Default Playlist' }));
+      expect(result.isDefault).toBe(true);
+      expect(result.epoch).toBe(0);
+      expect(result.source).toBe('fallback');
+    });
+
+    it('should return no playlist when the group does not exist', async () => {
+      const result = await service.getCurrentGroupPlaylist('00000000-0000-0000-0000-000000000000');
+
+      expect(result.playlist).toBeNull();
+      expect(result.isDefault).toBe(true);
+      expect(result.source).toBe('fallback');
+    });
+
+    it('should not switch a split group to a playlist whose slice job is unfinished', async () => {
+      const org = await seedOrg();
+      const group = await seedGroup(org.id, { mode: ScreenGroupMode.Split });
+      const playlist = await seedPlaylist(org.id, 'Group Playlist');
+      const now = Date.now();
+      await db.insert(scheduleEntries).values({
+        organisationId: org.id,
+        screenId: null,
+        groupId: group.id,
+        playlistId: playlist.id,
+        startTime: new Date(now - 60 * 60 * 1000),
+        endTime: new Date(now + 60 * 60 * 1000),
+        rrule: null,
+        colour: '#FF5733',
+      });
+      await db.insert(sliceJobs).values({
+        organisationId: org.id,
+        groupId: group.id,
+        playlistId: playlist.id,
+        status: SliceStatus.Processing,
+        totalItems: 4,
+        completedItems: 1,
+      });
+
+      const result = await service.getCurrentGroupPlaylist(group.id);
+
+      expect(result.playlist).toBeNull();
+      expect(result.isDefault).toBe(true);
+    });
+
+    // Group entries are not overlap-checked (checkOverlap only guards screen
+    // entries), so two can genuinely be active at once. Which one wins has to be
+    // a property of the data, never of the row order the driver returns.
+    it('should pick the same entry on every call when two group entries overlap', async () => {
+      const org = await seedOrg();
+      const group = await seedGroup(org.id);
+      const first = await seedPlaylist(org.id, 'First');
+      const second = await seedPlaylist(org.id, 'Second');
+      const now = Date.now();
+      const start = new Date(now - 60 * 60 * 1000);
+      const end = new Date(now + 60 * 60 * 1000);
+      const inserted = await db
+        .insert(scheduleEntries)
+        .values([
+          {
+            organisationId: org.id,
+            screenId: null,
+            groupId: group.id,
+            playlistId: first.id,
+            startTime: start,
+            endTime: end,
+            rrule: null,
+            colour: '#FF5733',
+          },
+          {
+            organisationId: org.id,
+            screenId: null,
+            groupId: group.id,
+            playlistId: second.id,
+            startTime: start,
+            endTime: end,
+            rrule: null,
+            colour: '#00FF00',
+          },
+        ])
+        .returning();
+      const lowestId = [...inserted].sort((a, b) => (a.id < b.id ? -1 : 1))[0];
+
+      const results = await Promise.all([
+        service.getCurrentGroupPlaylist(group.id),
+        service.getCurrentGroupPlaylist(group.id),
+        service.getCurrentGroupPlaylist(group.id),
+      ]);
+
+      for (const result of results) {
+        expect(result.playlist?.id).toBe(lowestId.playlistId);
+      }
+    });
+
+    it('should prefer a high-priority entry over an earlier normal one', async () => {
+      const org = await seedOrg();
+      const group = await seedGroup(org.id);
+      const normal = await seedPlaylist(org.id, 'Normal');
+      const important = await seedPlaylist(org.id, 'Important');
+      const now = Date.now();
+      const importantStart = new Date(now - 30 * 60 * 1000);
+      await db.insert(scheduleEntries).values([
+        {
+          organisationId: org.id,
+          screenId: null,
+          groupId: group.id,
+          playlistId: normal.id,
+          startTime: new Date(now - 2 * 60 * 60 * 1000),
+          endTime: new Date(now + 60 * 60 * 1000),
+          rrule: null,
+          colour: '#FF5733',
+          priority: 'normal',
+        },
+        {
+          organisationId: org.id,
+          screenId: null,
+          groupId: group.id,
+          playlistId: important.id,
+          startTime: importantStart,
+          endTime: new Date(now + 60 * 60 * 1000),
+          rrule: null,
+          colour: '#00FF00',
+          priority: 'high',
+        },
+      ]);
+
+      const result = await service.getCurrentGroupPlaylist(group.id);
+
+      expect(result.playlist).toEqual(expect.objectContaining({ name: 'Important' }));
+      expect(result.epoch).toBe(importantStart.getTime());
     });
   });
 
