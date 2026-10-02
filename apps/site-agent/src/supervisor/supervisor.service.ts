@@ -105,19 +105,31 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
 
   /** Runs one screen immediately, out of band, for an operator command. */
   async runNow(screenId: string): Promise<void> {
+    const report = await this.visitNow(screenId);
+    if (report) {
+      await this.send([report]);
+    }
+  }
+
+  /**
+   * One round for a single screen, returned instead of sent.
+   *
+   * The onboarding wizard needs the outcome of a round under its own
+   * `commandId` and `step`; sending it from here as well would report the same
+   * round twice, and the copy without a step is the one that does not advance
+   * the wizard.
+   */
+  async visitNow(screenId: string): Promise<AgentScreenReportMessage | null> {
     const screen = this.configs.current()?.screens.find((s) => s.screenId === screenId);
     if (!screen) {
-      return;
+      return null;
     }
     const runtime = this.runtimeFor(screenId);
     // A human asking resets the backoff: they have presumably just fixed
     // whatever the loop kept failing on.
     runtime.failures = 0;
     runtime.nextAttemptAt = 0;
-    const report = await this.visit(screen, this.configs.current()?.appId ?? '');
-    if (report) {
-      await this.send([report]);
-    }
+    return this.visit(screen, this.configs.current()?.appId ?? '');
   }
 
   private async visit(
@@ -145,7 +157,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
         ok = await this.doWake(screen, runtime, report);
         break;
       case 'extend-devmode':
-        ok = await this.doExtendDevmode(screen, report);
+        ok = await this.doExtendDevmode(screen, runtime, report);
         break;
       case 'launch':
         ok = await this.doLaunch(screen, appId, runtime, report);
@@ -176,6 +188,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
 
   private async doExtendDevmode(
     screen: AgentScreenConfigMessage,
+    runtime: ScreenRuntime,
     report: AgentScreenReportMessage,
   ): Promise<boolean> {
     const key = await this.devmodeKeys.obtain(
@@ -208,6 +221,13 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     if (result.status === 'auth_failed') {
       // Developer Mode was probably switched on again, which issues a new key.
       await this.devmodeKeys.forget(screen.screenId);
+    }
+
+    // Recorded locally as well as reported: the cached config is not refetched
+    // after a report, so without this the next round would find the extension
+    // due again and relaunch the Developer Mode app a minute later.
+    if (result.extended) {
+      runtime.lastDevmodeExtendAt = Date.now();
     }
 
     // The TV's own displayed countdown updates with a long delay, so it is not

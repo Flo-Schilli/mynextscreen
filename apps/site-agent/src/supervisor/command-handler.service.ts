@@ -95,6 +95,8 @@ export class CommandHandlerService implements OnModuleInit {
         await this.checkNetwork(screen, report);
         break;
       case STEP_KEY_SERVER:
+        await this.checkKeyServer(screen, report);
+        break;
       case STEP_PASSPHRASE:
         await this.checkKey(screen, report);
         break;
@@ -102,11 +104,20 @@ export class CommandHandlerService implements OnModuleInit {
         await this.checkSsh(screen, report);
         break;
       case STEP_SSAP_PAIRING:
-      case STEP_FINISH:
+      case STEP_FINISH: {
         // Both end in talking to the set over SSAP; the finish step also leaves
         // the app running, which is what the operator wants to see.
-        await this.supervisor.runNow(screen.screenId);
-        return;
+        //
+        // The round's own findings are carried into this report rather than
+        // sent separately: a report without `step` never reaches the wizard, so
+        // these two steps used to fail in the dashboard however well the round
+        // had gone.
+        const round = await this.supervisor.visitNow(screen.screenId);
+        if (round) {
+          Object.assign(report, round, { commandId: command.commandId, step: command.step });
+        }
+        break;
+      }
       default:
         report.detail = `Step ${command.step} needs nothing from the agent`;
     }
@@ -120,6 +131,22 @@ export class CommandHandlerService implements OnModuleInit {
   ): Promise<void> {
     const probe = await this.reachability.probe(screen.localIp, screen.ssapPort);
     report.reachability = probe.reachability;
+    report.detail = probe.detail;
+  }
+
+  /**
+   * The key-server step, which runs before the passphrase has been entered.
+   *
+   * It therefore asks only whether Developer Mode is answering on the TV. Going
+   * through the full key acquisition here would report `no_passphrase` and make
+   * the step impossible to pass in the order the wizard asks for it.
+   */
+  private async checkKeyServer(
+    screen: AgentScreenConfigMessage,
+    report: AgentScreenReportMessage,
+  ): Promise<void> {
+    const probe = await this.devmodeKeys.probeKeyServer(screen.localIp);
+    report.keyStatus = probe.status;
     report.detail = probe.detail;
   }
 

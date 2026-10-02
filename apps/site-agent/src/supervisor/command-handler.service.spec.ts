@@ -30,11 +30,11 @@ function screen(overrides: Partial<AgentScreenConfigMessage> = {}): AgentScreenC
 describe('CommandHandlerService', () => {
   let handler: CommandHandlerService;
   let stream: { onCommand: jest.Mock };
-  let supervisor: { runNow: jest.Mock; refreshConfigIfDue: jest.Mock };
+  let supervisor: { runNow: jest.Mock; visitNow: jest.Mock; refreshConfigIfDue: jest.Mock };
   let configs: { current: jest.Mock };
   let client: { sendReports: jest.Mock };
   let reachability: { probe: jest.Mock };
-  let devmodeKeys: { obtain: jest.Mock; forget: jest.Mock };
+  let devmodeKeys: { obtain: jest.Mock; probeKeyServer: jest.Mock; forget: jest.Mock };
   let ssh: { run: jest.Mock };
 
   const config = (screens: AgentScreenConfigMessage[]): AgentConfigMessage => ({
@@ -51,12 +51,17 @@ describe('CommandHandlerService', () => {
 
   beforeEach(() => {
     stream = { onCommand: jest.fn() };
-    supervisor = { runNow: jest.fn(), refreshConfigIfDue: jest.fn() };
+    supervisor = {
+      runNow: jest.fn(),
+      visitNow: jest.fn().mockResolvedValue(null),
+      refreshConfigIfDue: jest.fn(),
+    };
     configs = { current: jest.fn().mockReturnValue(config([screen()])) };
     client = { sendReports: jest.fn().mockResolvedValue(undefined) };
     reachability = { probe: jest.fn().mockResolvedValue({ reachability: 'reachable' }) };
     devmodeKeys = {
       obtain: jest.fn().mockResolvedValue({ status: 'ok', privateKey: 'PEM' }),
+      probeKeyServer: jest.fn().mockResolvedValue({ status: 'ok' }),
       forget: jest.fn(),
     };
     ssh = { run: jest.fn().mockResolvedValue({ status: 'ok', hostKeyFingerprint: 'SHA256:abc' }) };
@@ -128,12 +133,33 @@ describe('CommandHandlerService', () => {
       });
     });
 
-    it.each([4, 5])('step %i reports the key status', async (step) => {
+    it('step 5 reports the key status', async () => {
       devmodeKeys.obtain.mockResolvedValue({ status: 'key_server_off', detail: 'refused' });
 
-      await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step });
+      await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step: 5 });
 
-      expect(reported()).toMatchObject({ step, keyStatus: 'key_server_off', detail: 'refused' });
+      expect(reported()).toMatchObject({ step: 5, keyStatus: 'key_server_off', detail: 'refused' });
+    });
+
+    it('step 4 reports what the key server probe found', async () => {
+      devmodeKeys.probeKeyServer.mockResolvedValue({ status: 'key_server_off', detail: 'refused' });
+
+      await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step: 4 });
+
+      expect(reported()).toMatchObject({ step: 4, keyStatus: 'key_server_off', detail: 'refused' });
+    });
+
+    /**
+     * The wizard asks for the passphrase in step 5, so step 4 has to pass
+     * without one. Going through `obtain` reported `no_passphrase` and left the
+     * wizard stuck on its own fourth step.
+     */
+    it('step 4 does not need a passphrase', async () => {
+      await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step: 4 });
+
+      expect(devmodeKeys.obtain).not.toHaveBeenCalled();
+      expect(devmodeKeys.probeKeyServer).toHaveBeenCalled();
+      expect(reported()).toMatchObject({ step: 4, keyStatus: 'ok' });
     });
 
     it('step 6 proves SSH works with a command that changes nothing', async () => {
@@ -155,7 +181,37 @@ describe('CommandHandlerService', () => {
     it.each([7, 8])('step %i goes through the normal round', async (step) => {
       await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step });
 
-      expect(supervisor.runNow).toHaveBeenCalledWith('s1');
+      expect(supervisor.visitNow).toHaveBeenCalledWith('s1');
+    });
+
+    /**
+     * The round used to report itself, which produced a report with no `step`.
+     * The server only advances the wizard on a report that carries one, so
+     * these two steps failed in the dashboard however well the round had gone.
+     */
+    it.each([7, 8])('step %i reports the round under its own command', async (step) => {
+      supervisor.visitNow.mockResolvedValue({
+        screenId: 's1',
+        reachability: 'reachable',
+        ssapStatus: 'ok',
+        launched: true,
+      });
+
+      await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step });
+
+      expect(reported()).toMatchObject({
+        commandId: 'c1',
+        step,
+        screenId: 's1',
+        ssapStatus: 'ok',
+        launched: true,
+      });
+    });
+
+    it('still answers step 7 when the round had nothing to do', async () => {
+      await handler.handle({ commandId: 'c1', type: 'check', screenId: 's1', step: 7 });
+
+      expect(reported()).toMatchObject({ commandId: 'c1', step: 7 });
     });
 
     it('ignores a check for a screen it does not look after', async () => {
