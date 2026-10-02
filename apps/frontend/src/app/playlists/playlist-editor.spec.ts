@@ -132,10 +132,13 @@ describe('PlaylistEditor', () => {
       expect(fixture.nativeElement.textContent).not.toContain('Set as default');
     });
 
-    it('labels the button "Default playlist" when already default', () => {
+    // The label is the only thing that tells an operator the default can be
+    // taken off again; "Default playlist" read as a status badge, and the grid
+    // already carries that badge.
+    it('offers to remove the default when it is already the default', () => {
       fixture.componentRef.setInput('isDefault', true);
       fixture.detectChanges();
-      expect(fixture.nativeElement.textContent).toContain('Default playlist');
+      expect(fixture.nativeElement.textContent).toContain('Remove as default');
     });
 
     it('emits toggleDefault when the default button is clicked', () => {
