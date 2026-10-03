@@ -11,7 +11,6 @@
     "sourceMap": true,
     "outDir": "../../dist/apps/backend",
     "rootDir": "./src",
-    "baseUrl": "./",
     "incremental": true,
     "strict": true,
     "strictPropertyInitialization": false,
@@ -19,9 +18,10 @@
     "noImplicitReturns": true,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
+    "types": ["node", "jest", "express", "multer"],
     "paths": {
       "@/*": [
-        "src/*"
+        "./src/*"
       ]
     },
     "tsBuildInfoFile": "../../dist/apps/backend/.tsbuildinfo"

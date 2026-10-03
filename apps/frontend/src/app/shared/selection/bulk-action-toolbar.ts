@@ -1,4 +1,4 @@
-import { Component, inject, input, signal, Signal } from '@angular/core';
+import { Component, inject, input, signal, Signal, ChangeDetectionStrategy } from '@angular/core';
 import { SelectionService } from './selection.service';
 
 export interface BulkAction {
@@ -43,6 +43,7 @@ export interface BulkAction {
       </div>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .bulk-toolbar {
       position: sticky;

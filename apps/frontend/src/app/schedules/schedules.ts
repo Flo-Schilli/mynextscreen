@@ -1,4 +1,11 @@
-import { Component, inject, OnInit, OnDestroy, DestroyRef } from '@angular/core';
+import {
+  Component,
+  inject,
+  OnInit,
+  OnDestroy,
+  DestroyRef,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ScheduleService } from './schedule.service';
 import {
@@ -192,6 +199,7 @@ const HOUR_HEIGHT = 60;
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     /* Calendar Layout */
     .calendar-layout {

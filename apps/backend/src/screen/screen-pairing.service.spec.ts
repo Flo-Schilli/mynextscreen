@@ -9,6 +9,15 @@ import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { sha256hex } from './api-key.util';
 
+// TS 6.0 compiles `import * as crypto` to a namespace whose members are no longer
+// reconfigurable, so `jest.spyOn(crypto, 'randomInt')` throws. Replace the module
+// with a jest.fn that defaults to the real implementation (so unrelated tests keep
+// real CSPRNG behaviour) and can be overridden where the wiring is asserted.
+jest.mock('crypto', () => {
+  const actual = jest.requireActual('crypto');
+  return { ...actual, randomInt: jest.fn(actual.randomInt) };
+});
+
 describe('ScreenPairingService', () => {
   let service: ScreenPairingService;
   let db: DrizzleDB;
@@ -56,17 +65,15 @@ describe('ScreenPairingService', () => {
     });
 
     it('derives the 6-digit code from the CSPRNG (crypto.randomInt)', async () => {
-      const spy = jest.spyOn(crypto, 'randomInt') as unknown as jest.SpyInstance;
+      const randomIntMock = crypto.randomInt as unknown as jest.Mock;
       // randomInt(100000, 1000000) → return a fixed value to assert wiring.
-      spy.mockImplementation(() => 100042);
+      randomIntMock.mockReturnValueOnce(100042);
 
       const started = await service.startPairing();
 
-      expect(spy).toHaveBeenCalledWith(100000, 1000000);
+      expect(randomIntMock).toHaveBeenCalledWith(100000, 1000000);
       expect(started.code).toBe('100042');
       expect(started.code).toMatch(/^\d{6}$/);
-
-      spy.mockRestore();
     });
 
     it('retries when a generated code collides with an active row', async () => {

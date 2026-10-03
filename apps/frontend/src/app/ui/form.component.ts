@@ -1,5 +1,5 @@
 /* eslint-disable @angular-eslint/component-selector */
-import { ChangeDetectionStrategy, Component, input, model, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output, linkedSignal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { IconComponent, IconName } from './icon.component';
 
@@ -30,7 +30,7 @@ import { IconComponent, IconName } from './icon.component';
         [type]="type()"
         [placeholder]="placeholder()"
         [disabled]="disabled()"
-        [(ngModel)]="value"
+        [(ngModel)]="model"
         (focus)="focused = true"
         (blur)="focused = false"
         (ngModelChange)="valueChange.emit($event)"
@@ -50,7 +50,8 @@ export class SInputComponent {
   readonly type = input<string>('text');
   readonly disabled = input<boolean>(false);
 
-  readonly value = model<string>('');
+  readonly value = input<string>('');
+  protected readonly model = linkedSignal(this.value);
   readonly valueChange = output<string>();
 
   protected focused = false;

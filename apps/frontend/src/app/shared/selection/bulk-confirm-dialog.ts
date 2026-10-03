@@ -6,6 +6,7 @@ import {
   AfterViewInit,
   OnDestroy,
   ViewChild,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 
 @Component({
@@ -39,6 +40,7 @@ import {
       </div>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .modal:focus {
       outline: none;

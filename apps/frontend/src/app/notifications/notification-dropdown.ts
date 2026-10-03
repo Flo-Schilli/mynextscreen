@@ -1,4 +1,4 @@
-import { Component, inject, output, OnInit } from '@angular/core';
+import { Component, inject, output, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
 import { NotificationService } from './notification.service';
 import { Notification, NotificationEventType } from './notification.model';
@@ -42,6 +42,7 @@ import { Notification, NotificationEventType } from './notification.model';
       </div>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .dropdown {
       position: absolute;

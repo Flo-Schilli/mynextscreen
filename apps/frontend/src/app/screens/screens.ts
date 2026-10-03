@@ -1,4 +1,12 @@
-import { Component, computed, inject, OnInit, OnDestroy, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  inject,
+  OnInit,
+  OnDestroy,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { ScreenService } from './screen.service';
@@ -44,6 +52,7 @@ import {
     ModalComponent,
     IconComponent,
   ],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div>
       <!-- Loading -->

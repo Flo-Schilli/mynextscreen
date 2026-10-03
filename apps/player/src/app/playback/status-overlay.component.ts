@@ -6,6 +6,7 @@ import {
   OnInit,
   OnDestroy,
   HostListener,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { PlayerService } from '../player/player.service';
 import { ConnectionService } from '../connection/connection.service';
@@ -54,6 +55,7 @@ const AUTO_HIDE_MS = 5_000;
       </div>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [
     `
       .status-overlay {

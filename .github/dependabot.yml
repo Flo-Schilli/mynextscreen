@@ -52,15 +52,11 @@ updates:
           - 'typescript'
           - 'vitest'
           - '@vitest/*'
-    # Deferred major upgrades (tracked as separate migration work). Both arrived
-    # as grouped PRs that cannot resolve, so they are ignored to stop a red PR
-    # being reopened every Monday. Un-ignore with `@dependabot unignore` (or
-    # drop the rule) when the migration is scheduled.
+    # Deferred major upgrades (tracked as separate migration work). The grouped
+    # PR cannot resolve, so it is ignored to stop a red PR being reopened every
+    # Monday. Un-ignore with `@dependabot unignore` (or drop the rule) when the
+    # migration is scheduled.
     ignore:
-      # Angular 21 -> 22 is a framework migration: @angular/build@22 pins
-      # typescript to >=6.0 <6.1, so the group cannot move on its own.
-      - dependency-name: '@angular/*'
-        update-types: ['version-update:semver-major']
       # NestJS 11 -> 12 is blocked upstream: @nest-lab/throttler-storage-redis
       # has no NestJS 12-compatible release yet.
       - dependency-name: '@nestjs/*'

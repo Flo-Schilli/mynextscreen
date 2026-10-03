@@ -15,6 +15,9 @@ module.exports = defineConfig([
     ],
     processor: angular.processInlineTemplates,
     rules: {
+      // Angular-22-Migration hat Eager-CD gesetzt (verhaltenserhaltend);
+      // OnPush-Adoption ist ein separates Refactoring.
+      '@angular-eslint/prefer-on-push-component-change-detection': 'off',
       '@angular-eslint/directive-selector': [
         'error',
         {

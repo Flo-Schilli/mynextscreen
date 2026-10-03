@@ -8,6 +8,7 @@ import {
   viewChild,
   effect,
   NgZone,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { HlsService } from './hls.service';
 import { PlaybackStateService } from './playback-state.service';
@@ -39,6 +40,7 @@ import { PlaybackStateService } from './playback-state.service';
       </button>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [
     `
       .content-layer {

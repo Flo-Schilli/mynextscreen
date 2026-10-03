@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
 import { ScreenGroupService } from './screen-group.service';
 import { forkJoin } from 'rxjs';
@@ -36,6 +36,7 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
     BtnComponent,
     EmptyComponent,
   ],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="page">
       <mns-page-header title="Screen Groups" icon="Groups" [sub]="headerSub()">

@@ -1,4 +1,13 @@
-import { Component, inject, signal, OnInit, HostListener, effect, computed } from '@angular/core';
+import {
+  Component,
+  inject,
+  signal,
+  OnInit,
+  HostListener,
+  effect,
+  computed,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { OrganisationStateService } from './organisation-state.service';
@@ -78,6 +87,7 @@ const SIDEBAR_KEY = 'mynextscreen_sidebar_collapsed';
       />
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     :host {
       display: flex;
