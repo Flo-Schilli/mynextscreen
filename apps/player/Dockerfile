@@ -1,5 +1,5 @@
 # Dev image — build context = repo root. Hot-reload via `nx serve`.
-FROM node:24-alpine
+FROM node:25-alpine
 
 WORKDIR /app
 
