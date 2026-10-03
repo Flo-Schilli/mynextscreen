@@ -2,13 +2,13 @@
 # Build:  docker build -f apps/site-agent/Dockerfile.prod -t mynextscreen-site-agent .
 
 # Stage 1: Build
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
 COPY package.json package-lock.json nx.json tsconfig.base.json ./
 # The lockfile is maintained with the npm version pinned in package.json;
-# node:22-alpine ships npm 10, which cannot install it.
+# the base image's bundled npm can lag that patch, so pin it explicitly.
 RUN npm i -g npm@11.6.2
 RUN npm ci
 
@@ -18,7 +18,7 @@ COPY libs libs
 RUN npx nx build site-agent
 
 # Stage 2: Production runtime
-FROM node:22-alpine
+FROM node:24-alpine
 
 # Pull the current Alpine package set: the base image tag is rebuilt less often
 # than its packages are fixed, and the CI image scan gates on exactly these.
