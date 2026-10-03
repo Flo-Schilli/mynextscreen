@@ -111,8 +111,8 @@ Full walkthrough, production deployment and configuration: **[docs/](docs/)**.
 | ---------- | -------------------------------------------------------------------------- |
 | Dashboard  | Angular 21 (standalone, signals), Tailwind CSS v4                          |
 | Player     | Angular 21, hls.js                                                         |
-| Site agent | NestJS 11, `ws` (SSAP), `ssh2` (Luna over SSH), Wake-on-LAN                |
-| Backend    | NestJS 11, Drizzle ORM                                                     |
+| Site agent | NestJS 12, `ws` (SSAP), `ssh2` (Luna over SSH), Wake-on-LAN                |
+| Backend    | NestJS 12, Drizzle ORM                                                     |
 | Database   | PostgreSQL 16                                                              |
 | Jobs       | BullMQ + Redis                                                             |
 | Users      | Email + password, JWT access cookie, refresh tokens in Redis               |
