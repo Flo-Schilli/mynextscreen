@@ -45,7 +45,7 @@ rm -rf test-data/media/*    # and the uploaded media
 
 ## Without Docker
 
-You need PostgreSQL 16+, Redis 7+ and FFmpeg on `PATH`, plus Node.js 24.
+You need PostgreSQL 16+, Redis 7+ and FFmpeg on `PATH`, plus Node.js 26.
 
 ```bash
 npm ci                                   # root only — one lockfile for the monorepo
