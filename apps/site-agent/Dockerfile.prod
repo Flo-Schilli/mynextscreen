@@ -2,7 +2,7 @@
 # Build:  docker build -f apps/site-agent/Dockerfile.prod -t mynextscreen-site-agent .
 
 # Stage 1: Build
-FROM node:24-alpine AS builder
+FROM node:25-alpine AS builder
 
 WORKDIR /app
 
@@ -18,7 +18,7 @@ COPY libs libs
 RUN npx nx build site-agent
 
 # Stage 2: Production runtime
-FROM node:24-alpine
+FROM node:25-alpine
 
 # Pull the current Alpine package set: the base image tag is rebuilt less often
 # than its packages are fixed, and the CI image scan gates on exactly these.
