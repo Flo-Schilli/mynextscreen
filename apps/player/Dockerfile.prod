@@ -2,14 +2,14 @@
 # Build:  docker build -f apps/player/Dockerfile.prod -t mynextscreen-player .
 
 # Stage 1: Build
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
 COPY package.json package-lock.json nx.json tsconfig.base.json ./
 # The lockfile is maintained with the npm version pinned in package.json;
-# node:22-alpine ships npm 10, which cannot install it (`npm ci` fails with
-# "Missing: ... from lock file").
+# the base image's bundled npm can lag that patch, so pin it explicitly to keep
+# `npm ci` deterministic (older npm fails with "Missing: ... from lock file").
 RUN npm i -g npm@11.6.2
 RUN npm ci
 
