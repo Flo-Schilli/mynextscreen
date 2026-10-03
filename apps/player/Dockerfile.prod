@@ -21,7 +21,7 @@ RUN npx nx build player --configuration=production
 # Stage 2: Production runtime
 # Unprivileged variant: runs as UID 101 and listens on 8080, so the container
 # does not need root just to serve static files.
-FROM nginxinc/nginx-unprivileged:1.29-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 
 # The base image already switches to UID 101; the build steps below need to
 # write into /etc/nginx and /usr/share/nginx, so they run as root and the
