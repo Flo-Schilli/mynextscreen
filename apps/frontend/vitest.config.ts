@@ -10,13 +10,6 @@ export default defineConfig({
     // 'forks' pool gives each spec file a fresh, process-isolated module registry, so
     // the TestBed is clean per file. Do not remove — this is a hard CI gate (CLAUDE.md).
     pool: 'forks',
-    poolOptions: {
-      // Node 26 enables the Web Storage API by default, installing a native global
-      // `localStorage` that shadows jsdom's and returns undefined without
-      // --localstorage-file. Disable it in the worker so jsdom owns localStorage
-      // again (no-op on Node 24, where the feature is opt-in).
-      forks: { execArgv: ['--no-experimental-webstorage'] },
-    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

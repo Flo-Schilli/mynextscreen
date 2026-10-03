@@ -79,7 +79,7 @@
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "ng test",
+        "command": "NODE_OPTIONS=--no-experimental-webstorage ng test",
         "cwd": "apps/frontend"
       }
     },
