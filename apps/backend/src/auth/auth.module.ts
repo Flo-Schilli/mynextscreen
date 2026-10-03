@@ -4,8 +4,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import Redis from 'ioredis';
+import { RedisThrottlerStorage } from './redis-throttler.storage';
 import { ProxyAwareThrottlerGuard } from './proxy-aware-throttler.guard';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
@@ -30,7 +30,7 @@ import { UserModule } from '../user/user.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         throttlers: [{ ttl: 60_000, limit: 120 }],
-        storage: new ThrottlerStorageRedisService(
+        storage: new RedisThrottlerStorage(
           new Redis(config.get<string>('REDIS_URL', 'redis://localhost:6379')),
         ),
       }),
