@@ -6,6 +6,7 @@ import {
   OnDestroy,
   ElementRef,
   HostListener,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { NotificationService } from './notification.service';
 import { NotificationDropdown } from './notification-dropdown';
@@ -39,6 +40,7 @@ import { NotificationDropdown } from './notification-dropdown';
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .bell-wrapper {
       position: relative;

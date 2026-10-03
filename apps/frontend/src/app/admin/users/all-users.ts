@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { DatePipe } from '@angular/common';
 
 import { AdminUserService } from './admin-user.service';
@@ -312,6 +312,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: ``,
 })
 export class AllUsers implements OnInit {

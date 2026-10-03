@@ -7,6 +7,7 @@ import {
   AfterViewInit,
   OnInit,
   OnDestroy,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -256,6 +257,7 @@ import {
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     /* Drag & drop overlay — positioned (fixed) over the whole main content
        area; its rect is taken from the host's <main class="content"> ancestor. */

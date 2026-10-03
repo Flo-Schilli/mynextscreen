@@ -1,4 +1,4 @@
-import { Component, inject, input, output } from '@angular/core';
+import { Component, inject, input, output, ChangeDetectionStrategy } from '@angular/core';
 import { Content } from './content.model';
 import { ContentFormatService } from './content-format.service';
 import { SelectionService } from '../shared/selection/selection.service';
@@ -87,6 +87,7 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
 
     <app-bulk-action-toolbar [actions]="bulkActions()" />
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     /* Content Grid */
     .content-grid {

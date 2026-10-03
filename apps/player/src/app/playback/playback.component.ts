@@ -10,6 +10,7 @@ import {
   viewChild,
   effect,
   NgZone,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { PlayerService } from '../player/player.service';
 import { TimeSyncService } from '../player/time-sync.service';
@@ -132,6 +133,7 @@ type LayerId = 0 | 1;
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [
     `
       .playback-container {

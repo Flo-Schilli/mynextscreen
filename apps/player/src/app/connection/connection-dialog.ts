@@ -7,6 +7,7 @@ import {
   inject,
   output,
   signal,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ConnectionService, STORAGE_KEY_URL } from './connection.service';
@@ -104,6 +105,7 @@ const POLL_INTERVAL_MS = 3_000;
       </div>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     :host {
       display: contents;

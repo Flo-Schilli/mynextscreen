@@ -1,4 +1,11 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  inject,
+  OnInit,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { Router } from '@angular/router';
 
 import { InstanceAuditLogService, InstanceAuditLogFilters } from './instance-audit-log.service';
@@ -166,6 +173,7 @@ const titleCase = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slic
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: ``,
 })
 export class InstanceAuditLog implements OnInit {

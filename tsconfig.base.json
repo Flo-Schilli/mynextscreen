@@ -2,7 +2,6 @@
   "compileOnSave": false,
   "compilerOptions": {
     "rootDir": ".",
-    "baseUrl": ".",
     "skipLibCheck": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
@@ -10,7 +9,7 @@
     "noFallthroughCasesInSwitch": true,
     "target": "ES2022",
     "paths": {
-      "@mynextscreen/shared-types": ["libs/shared-types/src/index.ts"]
+      "@mynextscreen/shared-types": ["./libs/shared-types/src/index.ts"]
     }
   }
 }

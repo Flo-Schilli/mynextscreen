@@ -1,4 +1,4 @@
-import { Component, inject, input } from '@angular/core';
+import { Component, inject, input, ChangeDetectionStrategy } from '@angular/core';
 import { StorageInfo } from './content.model';
 import { ContentFormatService } from './content-format.service';
 
@@ -49,6 +49,7 @@ import { ContentFormatService } from './content-format.service';
       </div>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .storage-bar-container {
       background: var(--surface-2);

@@ -10,7 +10,6 @@
     "target": "ES2022",
     "sourceMap": true,
     "outDir": "../../dist/apps/site-agent",
-    "baseUrl": "./",
     "incremental": true,
     "strict": true,
     "strictPropertyInitialization": false,
@@ -18,9 +17,10 @@
     "noImplicitReturns": true,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
+    "types": ["node", "jest"],
     "paths": {
       "@/*": [
-        "src/*"
+        "./src/*"
       ]
     },
     "rootDir": "./src",

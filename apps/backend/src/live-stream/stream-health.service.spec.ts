@@ -13,15 +13,31 @@ import { organisations, liveStreams, type LiveStream, type NewLiveStream } from 
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 
+// TS 6.0 compiles `import * as fs` to a namespace whose members are no longer
+// reconfigurable, so `jest.spyOn(fs, …)` throws. Replace the three functions this
+// suite controls with jest.fn()s; they are reset to the real implementation in
+// beforeEach so unrelated fs usage (e.g. the db harness) keeps working.
+jest.mock('fs', () => {
+  const actual = jest.requireActual('fs');
+  return {
+    ...actual,
+    // Default to the real implementation so setup code (e.g. the db harness in
+    // beforeAll) keeps working; individual tests override via mockReturnValue.
+    existsSync: jest.fn(actual.existsSync),
+    readdirSync: jest.fn(actual.readdirSync),
+    statSync: jest.fn(actual.statSync),
+  };
+});
+
 describe('StreamHealthService', () => {
   let service: StreamHealthService;
   let db: DrizzleDB;
   let ffmpegLiveService: Record<string, jest.Mock>;
   let eventEmitter: { emit: jest.Mock };
 
-  let existsSyncSpy: jest.SpyInstance;
-  let readdirSyncSpy: jest.SpyInstance;
-  let statSyncSpy: jest.SpyInstance;
+  let existsSyncSpy: jest.Mock;
+  let readdirSyncSpy: jest.Mock;
+  let statSyncSpy: jest.Mock;
 
   let orgId: string;
   let streamId: string;
@@ -67,9 +83,16 @@ describe('StreamHealthService', () => {
 
     eventEmitter = { emit: jest.fn() };
 
-    existsSyncSpy = jest.spyOn(fs, 'existsSync');
-    readdirSyncSpy = jest.spyOn(fs, 'readdirSync');
-    statSyncSpy = jest.spyOn(fs, 'statSync');
+    const realFs = jest.requireActual('fs');
+    existsSyncSpy = (fs.existsSync as unknown as jest.Mock)
+      .mockReset()
+      .mockImplementation(realFs.existsSync);
+    readdirSyncSpy = (fs.readdirSync as unknown as jest.Mock)
+      .mockReset()
+      .mockImplementation(realFs.readdirSync);
+    statSyncSpy = (fs.statSync as unknown as jest.Mock)
+      .mockReset()
+      .mockImplementation(realFs.statSync);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -88,9 +111,9 @@ describe('StreamHealthService', () => {
 
   afterEach(() => {
     service.onModuleDestroy();
-    existsSyncSpy.mockRestore();
-    readdirSyncSpy.mockRestore();
-    statSyncSpy.mockRestore();
+    existsSyncSpy.mockReset();
+    readdirSyncSpy.mockReset();
+    statSyncSpy.mockReset();
   });
 
   function setupFreshSegments(): void {

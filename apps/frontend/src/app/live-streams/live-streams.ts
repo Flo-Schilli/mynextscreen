@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { LiveStreamService } from './live-stream.service';
@@ -110,6 +110,7 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .stream-grid {
       display: grid;

@@ -1,4 +1,4 @@
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, inject, input, ChangeDetectionStrategy } from '@angular/core';
 import { SelectionService } from './selection.service';
 
 @Component({
@@ -13,6 +13,7 @@ import { SelectionService } from './selection.service';
       (click)="onClick($event)"
     />
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .selection-checkbox {
       width: 1rem;

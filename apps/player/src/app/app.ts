@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { ConnectionService } from './connection/connection.service';
 import { ConnectionDialogComponent } from './connection/connection-dialog';
 import { PlaybackComponent } from './playback/playback.component';
@@ -14,6 +14,7 @@ import { PlayerService } from './player/player.service';
       <app-playback />
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [
     `
       :host {

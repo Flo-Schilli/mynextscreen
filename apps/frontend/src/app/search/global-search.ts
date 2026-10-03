@@ -7,6 +7,7 @@ import {
   OnDestroy,
   ViewChild,
   ElementRef,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { Router, NavigationStart } from '@angular/router';
 import { SearchService } from './search.service';
@@ -89,6 +90,7 @@ interface ResultSection {
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     :host {
       display: block;

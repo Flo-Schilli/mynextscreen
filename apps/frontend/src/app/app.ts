@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { ToastContainer } from './shared/toast/toast-container';
 
@@ -6,6 +6,7 @@ import { ToastContainer } from './shared/toast/toast-container';
   selector: 'app-root',
   imports: [RouterOutlet, ToastContainer],
   templateUrl: './app.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './app.css',
 })
 export class App {}

@@ -32,7 +32,7 @@
     "images:build": "APP_VERSION=$(node -p \"require('./package.json').version\") GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo unknown) BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) ./scripts/build-images.sh"
   },
   "dependencies": {
-    "@angular/cdk": "^21.2.4",
+    "@angular/cdk": "22.2.1",
     "@angular/common": "22.2.1",
     "@angular/compiler": "22.2.1",
     "@angular/core": "22.2.1",
@@ -77,10 +77,10 @@
     "ws": "^8.22.0"
   },
   "devDependencies": {
-    "@analogjs/vite-plugin-angular": "2.3.1",
-    "@analogjs/vitest-angular": "2.3.1",
-    "@angular/build": "^21.2.5",
-    "@angular/cli": "^21.2.5",
+    "@analogjs/vite-plugin-angular": "2.8.0",
+    "@analogjs/vitest-angular": "2.8.0",
+    "@angular/build": "22.2.1",
+    "@angular/cli": "22.2.1",
     "@angular/compiler-cli": "22.2.1",
     "@eslint/js": "^10.0.1",
     "@nestjs/cli": "^11.0.0",
@@ -103,7 +103,7 @@
     "@types/ssh2": "^1.15.6",
     "@types/ws": "^8.18.2",
     "@vitest/coverage-v8": "^4.1.8",
-    "angular-eslint": "21.3.1",
+    "angular-eslint": "22.5.0",
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.0.0",
@@ -115,7 +115,7 @@
     "ts-jest": "^29.4.6",
     "ts-loader": "^9.0.0",
     "tsconfig-paths": "^4.0.0",
-    "typescript": "~5.9.2",
+    "typescript": "~6.0.3",
     "typescript-eslint": "8.71.0",
     "vitest": "^4.1.2",
     "zone.js": "^0.16.1"

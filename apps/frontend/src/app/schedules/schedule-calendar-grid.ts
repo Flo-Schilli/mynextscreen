@@ -1,4 +1,13 @@
-import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { ScheduleEntry } from './schedule.model';
 import {
   CalendarBlock,
@@ -290,6 +299,7 @@ const NOW_TICK_MS = 60_000;
       }
     </mns-card>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .schedule-block:hover {
       box-shadow: var(--shadow);
