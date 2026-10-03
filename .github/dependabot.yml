@@ -71,26 +71,43 @@ updates:
       day: monday
     open-pull-requests-limit: 5
 
+  # The `node` base image follows Node's even-numbered LTS line (24 -> 26 ->
+  # 28 ...). Odd majors (25, 27) are non-LTS and short-lived, and a new even
+  # major is only worth adopting around its Active-LTS date. Dependabot cannot
+  # tell odd from even, so block all node majors here and bump the tag manually
+  # each LTS cycle; minor/patch bumps still flow through.
   - package-ecosystem: docker
     directory: /apps/backend
     schedule:
       interval: weekly
       day: monday
+    ignore:
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: docker
     directory: /apps/frontend
     schedule:
       interval: weekly
       day: monday
+    ignore:
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: docker
     directory: /apps/player
     schedule:
       interval: weekly
       day: monday
+    ignore:
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: docker
     directory: /apps/site-agent
     schedule:
       interval: weekly
       day: monday
+    ignore:
+      - dependency-name: node
+        update-types: ['version-update:semver-major']

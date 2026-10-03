@@ -1,5 +1,5 @@
 # Dev image — build context = repo root. Hot-reload via `nx serve` (nest --watch).
-FROM node:24-alpine
+FROM node:26-alpine
 
 RUN apk add --no-cache ffmpeg
 

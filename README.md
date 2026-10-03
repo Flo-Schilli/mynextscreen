@@ -119,7 +119,7 @@ Full walkthrough, production deployment and configuration: **[docs/](docs/)**.
 | Screens    | Pairing code, short-lived access token, rotating refresh token in Postgres |
 | Real-time  | Server-Sent Events                                                         |
 | Media      | FFmpeg (transcoding and HLS)                                               |
-| Runtime    | Node.js 24, Nx monorepo                                                    |
+| Runtime    | Node.js 26, Nx monorepo                                                    |
 
 ## Contributing
 
