@@ -164,7 +164,7 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 
 ## Tech Stack
 
-- **Frontend:** Angular 21, Tailwind CSS v4, PostCSS
+- **Frontend:** Angular 22, Tailwind CSS v4, PostCSS
 - **Backend:** NestJS, Drizzle ORM, PostgreSQL
 - **Authentication:** internal email + password — JWT access cookie + Redis refresh tokens (users), pairing code + rotating session tokens (screens)
 - **Storage:** Filesystem for transcoded and original media; PostgreSQL for everything relational, including screen sessions

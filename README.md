@@ -109,8 +109,8 @@ Full walkthrough, production deployment and configuration: **[docs/](docs/)**.
 
 | Layer      | Technology                                                                 |
 | ---------- | -------------------------------------------------------------------------- |
-| Dashboard  | Angular 21 (standalone, signals), Tailwind CSS v4                          |
-| Player     | Angular 21, hls.js                                                         |
+| Dashboard  | Angular 22 (standalone, signals), Tailwind CSS v4                          |
+| Player     | Angular 22, hls.js                                                         |
 | Site agent | NestJS 12, `ws` (SSAP), `ssh2` (Luna over SSH), Wake-on-LAN                |
 | Backend    | NestJS 12, Drizzle ORM                                                     |
 | Database   | PostgreSQL 16                                                              |
