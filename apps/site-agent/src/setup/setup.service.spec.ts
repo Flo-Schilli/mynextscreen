@@ -164,6 +164,15 @@ describe('SetupService', () => {
         BadRequestException,
       );
     });
+
+    // Nothing pinned and the form left the address blank: there is nowhere to
+    // send the token, so the operator must be told before anything leaves.
+    it('refuses to enrol when no address is pinned or supplied', async () => {
+      await expect(build(null).enrol(undefined, 'token')).rejects.toThrow(
+        /address of the myNextScreen server/,
+      );
+      expect(client.enrol).not.toHaveBeenCalled();
+    });
   });
 
   describe('reset', () => {
@@ -200,11 +209,27 @@ describe('SetupService', () => {
     it.each([
       ['410', /already been used/],
       ['401', /not valid or has expired/],
+      ['403', /not valid or has expired/],
     ])('turns a %s from the server into an actionable message', async (status, expected) => {
       connections.load.mockResolvedValue(connection);
       client.requestReset.mockRejectedValue(new Error(`/api/agents/me/reset returned ${status}`));
 
       await expect(service.reset('code')).rejects.toThrow(expected);
+    });
+
+    it('says the server was unreachable when the reset could not be confirmed', async () => {
+      connections.load.mockResolvedValue(connection);
+      client.requestReset.mockRejectedValue(new ServerUnreachableError(new Error('ECONNREFUSED')));
+
+      await expect(service.reset('fresh-code')).rejects.toThrow(/could not be reached/);
+      expect(connections.clear).not.toHaveBeenCalled();
+    });
+
+    it('surfaces an unexpected failure verbatim rather than swallowing it', async () => {
+      connections.load.mockResolvedValue(connection);
+      client.requestReset.mockRejectedValue(new Error('disk on fire'));
+
+      await expect(service.reset('fresh-code')).rejects.toThrow(/Reset failed: disk on fire/);
     });
 
     it('clears the last pull time so the page does not look fresh', async () => {
