@@ -76,9 +76,9 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
 
 ## Stack
 
-- **Frontend (Admin):** Angular ~21.2 (Standalone, Signals, **zoneless-orientiert**),
+- **Frontend (Admin):** Angular ~22.2 (Standalone, Signals, **zoneless-orientiert**),
   Tailwind CSS v4 (`@tailwindcss/postcss`), eigene Auth-UI (email+password). Tests: **Vitest**.
-- **Player:** eigene Angular-21-App (`player/`), **hls.js** für Live-Streams. Tests: **Vitest**.
+- **Player:** eigene Angular-22-App (`player/`), **hls.js** für Live-Streams. Tests: **Vitest**.
 - **Backend:** NestJS 12 (modular, ein Modul pro Domain), **Drizzle ORM** + **PostgreSQL**
   (`pg`), **BullMQ + Redis** (Transcoding-Jobs), `@nestjs/schedule`, `@nestjs/jwt` + `bcrypt`
   (interne Auth), `rrule`, `nodemailer`, `class-validator`/`class-transformer`. Tests: **Jest**.
@@ -141,10 +141,10 @@ apps/
       db/                 # Drizzle-Schema + migrations/ (generierte SQL)
       health.controller.ts # Healthcheck
     Dockerfile.prod       # baut aus Repo-Root-Context (COPY package*.json …)
-  frontend/               # Angular 21 Admin-SPA (src/app/<domain>, shell/, shared/)
+  frontend/               # Angular 22 Admin-SPA (src/app/<domain>, shell/, shared/)
     project.json          # build (@angular/build), serve, test (ng test → Vitest), …
     angular.json          # minimal — hält Vitest-Root am App-Dir (TestBed-Isolation)
-  player/                 # Angular 21 Player-App (connection/, playback/, player/)
+  player/                 # Angular 22 Player-App (connection/, playback/, player/)
     project.json          # build (@angular/build), serve, test (vitest run), …
   site-agent/             # NestJS Site-Agent — laeuft IM Venue, steuert die LG-TVs
     project.json          # build/serve/test/typecheck/lint/format
