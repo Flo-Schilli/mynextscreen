@@ -12,6 +12,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { ContentService, UploadProgress } from './content.service';
 import { Content, StorageInfo, UploadItem } from './content.model';
@@ -66,11 +67,12 @@ import {
     OverlayComponent,
     ModalComponent,
     IconComponent,
+    TranslocoDirective,
   ],
   providers: [SelectionService],
   template: `
-    <div class="page">
-      <mns-page-header title="Content Library" icon="Image">
+    <div class="page" *transloco="let t">
+      <mns-page-header [title]="t('content.library.title')" icon="Image">
         @if (!selectedContent) {
           <div class="type-toggle">
             <button
@@ -78,21 +80,21 @@ import {
               [class.active]="!filterType"
               (click)="setTypeFilter(undefined)"
             >
-              All
+              {{ t('content.filter.all') }}
             </button>
             <button
               class="toggle-btn"
               [class.active]="filterType === 'image'"
               (click)="setTypeFilter('image')"
             >
-              Images
+              {{ t('content.filter.images') }}
             </button>
             <button
               class="toggle-btn"
               [class.active]="filterType === 'video'"
               (click)="setTypeFilter('video')"
             >
-              Videos
+              {{ t('content.filter.videos') }}
             </button>
           </div>
           <input
@@ -104,7 +106,7 @@ import {
             hidden
           />
           <mns-btn variant="primary" icon="Upload" (mnsClick)="browseInput.click()">
-            Browse files
+            {{ t('content.library.browseFiles') }}
           </mns-btn>
         }
       </mns-page-header>
@@ -120,8 +122,8 @@ import {
         >
           <div class="drag-overlay-card">
             <mns-icon name="Upload" [size]="40" />
-            <p class="drag-overlay-title">Drop files to upload</p>
-            <p class="drag-overlay-sub">Images and videos</p>
+            <p class="drag-overlay-title">{{ t('content.library.dropTitle') }}</p>
+            <p class="drag-overlay-sub">{{ t('content.library.dropSub') }}</p>
           </div>
         </div>
       }
@@ -136,7 +138,7 @@ import {
       }
 
       @if (loading) {
-        <p class="loading-text">Loading content...</p>
+        <p class="loading-text">{{ t('content.library.loading') }}</p>
       }
 
       <!-- Tag Filter -->
@@ -152,7 +154,9 @@ import {
             </button>
           }
           @if (filterTags.length > 0) {
-            <button class="tag-chip clear" (click)="clearTags()">Clear</button>
+            <button class="tag-chip clear" (click)="clearTags()">
+              {{ t('content.library.clearTags') }}
+            </button>
           }
         </div>
       }
@@ -194,24 +198,26 @@ import {
       @if (!loading && !selectedContent && filteredContent.length === 0 && !loadError) {
         <mns-empty
           icon="Image"
-          title="No content yet"
-          desc="Drag files anywhere onto this page or use Browse files to get started."
+          [title]="t('content.library.emptyTitle')"
+          [desc]="t('content.library.emptyDesc')"
         />
       }
 
       <!-- Delete Confirmation Modal -->
       @if (showDeleteConfirm) {
         <mns-overlay (closed)="cancelDelete()">
-          <mns-modal title="Delete Content" icon="Trash" (closed)="cancelDelete()">
+          <mns-modal [title]="t('content.delete.title')" icon="Trash" (closed)="cancelDelete()">
             <p class="text-sm text-muted mb-4">
-              Are you sure you want to delete
+              {{ t('content.delete.confirmPrefix') }}
               <strong class="text-text">{{ selectedContent?.title }}</strong
-              >? This will permanently remove the original and transcoded files.
+              >{{ t('content.delete.confirmSuffix') }}
             </p>
             <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
-              <mns-btn variant="outline" (mnsClick)="cancelDelete()">Cancel</mns-btn>
+              <mns-btn variant="outline" (mnsClick)="cancelDelete()">{{
+                t('common.actions.cancel')
+              }}</mns-btn>
               <mns-btn variant="danger" [disabled]="deleting" (mnsClick)="executeDelete()">
-                {{ deleting ? 'Deleting…' : 'Delete' }}
+                {{ deleting ? t('common.actions.deleting') : t('common.actions.delete') }}
               </mns-btn>
             </div>
           </mns-modal>
@@ -221,9 +227,9 @@ import {
       <!-- Bulk Delete Confirmation Modal -->
       @if (showBulkDeleteConfirm) {
         <app-bulk-confirm-dialog
-          title="Delete Content"
+          [title]="t('content.bulk.deleteTitle')"
           [message]="bulkDeleteMessage()"
-          confirmLabel="Delete"
+          [confirmLabel]="t('common.actions.delete')"
           [itemCount]="selectionService.count()"
           (confirmed)="onBulkDeleteConfirmed($event)"
         />
@@ -376,6 +382,7 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
   private memberService = inject(MemberService);
   private playlistService = inject(PlaylistService);
   private toast = inject(ToastService);
+  private transloco = inject(TranslocoService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
@@ -443,28 +450,30 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
   selectedPlaylistId = '';
   private playlistModalResolve: ((v: boolean) => void) | null = null;
 
-  bulkActions: BulkAction[] = [
-    {
-      label: 'Delete selected',
-      variant: 'danger',
-      handler: () => this.handleBulkDelete(),
-    },
-    {
-      label: 'Add tags',
-      variant: 'default',
-      handler: () => this.handleBulkTag('add'),
-    },
-    {
-      label: 'Remove tags',
-      variant: 'default',
-      handler: () => this.handleBulkTag('remove'),
-    },
-    {
-      label: 'Add to playlist',
-      variant: 'default',
-      handler: () => this.handleBulkAddToPlaylist(),
-    },
-  ];
+  get bulkActions(): BulkAction[] {
+    return [
+      {
+        label: this.transloco.translate('content.bulk.deleteSelected'),
+        variant: 'danger',
+        handler: () => this.handleBulkDelete(),
+      },
+      {
+        label: this.transloco.translate('content.bulk.addTags'),
+        variant: 'default',
+        handler: () => this.handleBulkTag('add'),
+      },
+      {
+        label: this.transloco.translate('content.bulk.removeTags'),
+        variant: 'default',
+        handler: () => this.handleBulkTag('remove'),
+      },
+      {
+        label: this.transloco.translate('content.bulk.addToPlaylist'),
+        variant: 'default',
+        handler: () => this.handleBulkAddToPlaylist(),
+      },
+    ];
+  }
 
   // Transcoding progress
   transcodingProgress: Record<string, number | undefined> = {};
@@ -502,12 +511,12 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
           this.subscribeToTranscoding();
           this.watchRoute();
         } else {
-          this.loadError = 'You are not a member of any organisation.';
+          this.loadError = this.transloco.translate('common.errors.noOrgMembership');
           this.loading = false;
         }
       },
       error: () => {
-        this.loadError = 'Failed to load organisation context.';
+        this.loadError = this.transloco.translate('common.errors.loadOrgContext');
         this.loading = false;
       },
     });
@@ -565,7 +574,10 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
         this.loading = false;
       },
       error: (err) => {
-        this.loadError = err.status === 403 ? 'Access denied.' : 'Failed to load content.';
+        this.loadError =
+          err.status === 403
+            ? this.transloco.translate('content.errors.accessDenied')
+            : this.transloco.translate('content.errors.loadContent');
         this.loading = false;
       },
     });
@@ -703,12 +715,13 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
             }
             this.loadStorage();
             this.clearDoneUploads();
-            this.toast.success('Upload complete.');
+            this.toast.success(this.transloco.translate('content.toast.uploadComplete'));
           }
         },
         error: (err) => {
           item.status = 'error';
-          item.error = err.error?.message || 'Upload failed';
+          item.error =
+            err.error?.message || this.transloco.translate('content.errors.uploadFailed');
         },
       });
     }
@@ -748,7 +761,7 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
         this.selectedContent = content;
       },
       error: () => {
-        this.toast.error('Could not open that content item.');
+        this.toast.error(this.transloco.translate('content.toast.openFailed'));
         this.loadedDetailId = null;
         void this.router.navigate(['/content']);
       },
@@ -771,9 +784,9 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
     const url = `${window.location.origin}/content/${this.selectedContent.id}`;
     try {
       await navigator.clipboard.writeText(url);
-      this.toast.success('Link copied to clipboard.');
+      this.toast.success(this.transloco.translate('content.toast.linkCopied'));
     } catch {
-      this.toast.error('Could not copy link.');
+      this.toast.error(this.transloco.translate('content.toast.linkCopyFailed'));
     }
   }
 
@@ -816,10 +829,11 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
           if (idx >= 0) this.contents[idx] = updated;
           this.extractTags();
           this.applyFilters();
-          this.toast.success('Content updated.');
+          this.toast.success(this.transloco.translate('content.toast.updated'));
         },
         error: (err) => {
-          this.metadataError = err.error?.message || 'Failed to save changes.';
+          this.metadataError =
+            err.error?.message || this.transloco.translate('content.errors.saveChanges');
           this.savingMetadata = false;
         },
       });
@@ -852,12 +866,13 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
           }
           this.loadStorage();
           this.clearDoneUploads();
-          this.toast.success('Re-upload complete.');
+          this.toast.success(this.transloco.translate('content.toast.reuploadComplete'));
         }
       },
       error: (err) => {
         item.status = 'error';
-        item.error = err.error?.message || 'Re-upload failed';
+        item.error =
+          err.error?.message || this.transloco.translate('content.errors.reuploadFailed');
       },
     });
   }
@@ -886,10 +901,11 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
         this.selectedContent = null;
         this.loadStorage();
         void this.router.navigate(['/content']);
-        this.toast.success('Content deleted.');
+        this.toast.success(this.transloco.translate('content.toast.deleted'));
       },
       error: (err) => {
-        this.actionError = err.error?.message || 'Failed to delete content.';
+        this.actionError =
+          err.error?.message || this.transloco.translate('content.errors.deleteContent');
         this.deleting = false;
         this.showDeleteConfirm = false;
       },
@@ -904,10 +920,13 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
     const ids = [...this.selectionService.selectedIds()];
     const result = await firstValueFrom(this.contentService.bulkDelete(this.orgId, ids));
 
-    this.showToast(`${result.deleted} item(s) deleted`, 'success');
+    this.showToast(
+      this.transloco.translate('content.bulk.deleted', { count: result.deleted }),
+      'success',
+    );
     if (result.notFound.length > 0) {
       this.showToast(
-        `${result.notFound.length} item(s) could not be found and were skipped`,
+        this.transloco.translate('content.bulk.notFound', { count: result.notFound.length }),
         'warning',
       );
     }
@@ -923,10 +942,9 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
   }
 
   bulkDeleteMessage(): string {
-    return (
-      `You are about to permanently delete ${this.selectionService.count()} item(s). ` +
-      'This will remove all original and transcoded files. This cannot be undone.'
-    );
+    return this.transloco.translate('content.bulk.deleteMessage', {
+      count: this.selectionService.count(),
+    });
   }
 
   onBulkDeleteConfirmed(confirmed: boolean): void {
@@ -952,12 +970,14 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
         : await firstValueFrom(this.contentService.bulkUntag(this.orgId, ids, tags));
 
     this.showToast(
-      `${result.updated} item(s) ${mode === 'add' ? 'tagged' : 'untagged'}`,
+      this.transloco.translate(mode === 'add' ? 'content.bulk.tagged' : 'content.bulk.untagged', {
+        count: result.updated,
+      }),
       'success',
     );
     if (result.notFound.length > 0) {
       this.showToast(
-        `${result.notFound.length} item(s) could not be found and were skipped`,
+        this.transloco.translate('content.bulk.notFound', { count: result.notFound.length }),
         'warning',
       );
     }
@@ -995,15 +1015,21 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
     );
 
     const playlistName =
-      this.playlists.find((p) => p.id === this.selectedPlaylistId)?.name ?? 'selected playlist';
-    let message = `${result.added} item(s) added to ${playlistName}`;
+      this.playlists.find((p) => p.id === this.selectedPlaylistId)?.name ??
+      this.transloco.translate('content.bulk.selectedPlaylist');
+    let message = this.transloco.translate('content.bulk.addedToPlaylist', {
+      count: result.added,
+      playlist: playlistName,
+    });
     if (result.alreadyPresent > 0) {
-      message += ` (${result.alreadyPresent} were already in the playlist)`;
+      message += this.transloco.translate('content.bulk.alreadyPresent', {
+        count: result.alreadyPresent,
+      });
     }
     this.showToast(message, 'success');
     if (result.notFound.length > 0) {
       this.showToast(
-        `${result.notFound.length} item(s) could not be found and were skipped`,
+        this.transloco.translate('content.bulk.notFound', { count: result.notFound.length }),
         'warning',
       );
     }
@@ -1021,7 +1047,7 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
         this.playlistsLoading = false;
       },
       error: () => {
-        this.playlistsLoadError = 'Failed to load playlists.';
+        this.playlistsLoadError = this.transloco.translate('content.errors.loadPlaylists');
         this.playlistsLoading = false;
       },
     });

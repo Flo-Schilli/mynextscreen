@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { ScheduleEntry } from './schedule.model';
 import { CalendarBlock } from './schedule-calendar.service';
 import { BtnComponent, IconComponent } from '../ui';
-import { UI_LOCALE } from '../shared/locale';
+import { LanguageService } from '../i18n/language.service';
 
 /**
  * Presentational mobile agenda for a single day. Renders the day's schedule
@@ -15,16 +16,16 @@ import { UI_LOCALE } from '../shared/locale';
   selector: 'app-schedule-agenda-list',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [BtnComponent, IconComponent],
+  imports: [BtnComponent, IconComponent, TranslocoDirective],
   template: `
-    <div class="agenda-list border-t border-border px-[var(--card-pad)] py-3.5">
+    <div class="agenda-list border-t border-border px-[var(--card-pad)] py-3.5" *transloco="let t">
       @if (showDaySwitcher()) {
         <div class="flex items-center justify-between gap-2 mb-3.5">
           <button
             type="button"
             class="touch-target grid place-items-center rounded-lg border border-border-strong bg-surface text-muted transition-colors duration-[150ms] hover:bg-surface-3 hover:text-text"
-            title="Previous day"
-            aria-label="Previous day"
+            [title]="t('schedules.agenda.previousDay')"
+            [attr.aria-label]="t('schedules.agenda.previousDay')"
             (click)="prevDay.emit()"
           >
             <span class="inline-grid place-items-center rotate-180">
@@ -37,8 +38,8 @@ import { UI_LOCALE } from '../shared/locale';
           <button
             type="button"
             class="touch-target grid place-items-center rounded-lg border border-border-strong bg-surface text-muted transition-colors duration-[150ms] hover:bg-surface-3 hover:text-text"
-            title="Next day"
-            aria-label="Next day"
+            [title]="t('schedules.agenda.nextDay')"
+            [attr.aria-label]="t('schedules.agenda.nextDay')"
             (click)="nextDay.emit()"
           >
             <mns-icon name="Chevron" [size]="18" />
@@ -51,7 +52,7 @@ import { UI_LOCALE } from '../shared/locale';
       }
 
       @if (sortedBlocks().length === 0) {
-        <p class="agenda-empty text-[13px] text-faint py-2">No schedule entries for this day.</p>
+        <p class="agenda-empty text-[13px] text-faint py-2">{{ t('schedules.agenda.empty') }}</p>
       }
 
       <div class="agenda-items flex flex-col gap-2">
@@ -71,7 +72,7 @@ import { UI_LOCALE } from '../shared/locale';
               >
                 @if (block.entry.groupId) {
                   <span class="agenda-group-badge text-[9px] font-extrabold uppercase text-accent">
-                    Group
+                    {{ t('schedules.agenda.group') }}
                   </span>
                 }
                 @if (block.isRecurring) {
@@ -92,7 +93,7 @@ import { UI_LOCALE } from '../shared/locale';
 
       <div class="mt-3.5">
         <mns-btn variant="outline" icon="Plus" [full]="true" (mnsClick)="addSlot.emit()">
-          Add slot
+          {{ t('schedules.agenda.addSlot') }}
         </mns-btn>
       </div>
     </div>
@@ -111,12 +112,16 @@ export class ScheduleAgendaList {
   readonly prevDay = output<void>();
   readonly nextDay = output<void>();
 
+  private readonly transloco = inject(TranslocoService);
+  private readonly language = inject(LanguageService);
+
   readonly sortedBlocks = computed<CalendarBlock[]>(() =>
     [...this.dayBlocks()].sort((a, b) => a.occurrenceStart.getTime() - b.occurrenceStart.getTime()),
   );
 
   label(entry: ScheduleEntry): string {
-    const playlistName = entry.playlist?.name || 'Playlist';
+    const playlistName =
+      entry.playlist?.name || this.transloco.translate<string>('schedules.agenda.playlistFallback');
     if (entry.groupId && entry.group) {
       return `${playlistName} - ${entry.group.name}`;
     }
@@ -128,7 +133,7 @@ export class ScheduleAgendaList {
   }
 
   formatTime(date: Date): string {
-    return date.toLocaleTimeString(UI_LOCALE, {
+    return date.toLocaleTimeString(this.language.locale(), {
       timeZone: this.orgTimeZone(),
       hour: '2-digit',
       minute: '2-digit',

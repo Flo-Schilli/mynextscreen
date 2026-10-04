@@ -489,5 +489,400 @@
     "monitor": {
       "empty": "Empty"
     }
+  },
+  "content": {
+    "library": {
+      "title": "Content Library",
+      "browseFiles": "Browse files",
+      "loading": "Loading content…",
+      "dropTitle": "Drop files to upload",
+      "dropSub": "Images and videos",
+      "emptyTitle": "No content yet",
+      "emptyDesc": "Drag files anywhere onto this page or use Browse files to get started.",
+      "clearTags": "Clear"
+    },
+    "filter": {
+      "all": "All",
+      "images": "Images",
+      "videos": "Videos"
+    },
+    "type": {
+      "image": "Image",
+      "video": "Video"
+    },
+    "transcoding": {
+      "label": "Transcoding",
+      "pending": "Pending",
+      "processing": "Processing",
+      "processingPercent": "Processing {progress}%",
+      "completed": "Completed",
+      "failed": "Failed",
+      "percent": "{progress}%"
+    },
+    "detail": {
+      "reupload": "Re-upload",
+      "copyLink": "Copy link",
+      "previewAlt": "Preview",
+      "titleLabel": "Title",
+      "descriptionLabel": "Description",
+      "tagsLabel": "Tags (comma-separated)",
+      "saveChanges": "Save Changes",
+      "saving": "Saving…",
+      "changesSaved": "Changes saved.",
+      "infoType": "Type",
+      "infoOriginalFile": "Original File",
+      "infoOriginalSize": "Original Size",
+      "infoTranscodedSize": "Transcoded Size",
+      "infoMimeType": "MIME Type",
+      "infoUploaded": "Uploaded"
+    },
+    "grid": {
+      "pending": "Pending",
+      "failed": "Failed",
+      "meta": "{type} · {size}"
+    },
+    "upload": {
+      "done": "Done",
+      "error": "Error"
+    },
+    "storage": {
+      "label": "Storage",
+      "unlimited": "Unlimited",
+      "original": "Original ({size})",
+      "transcoded": "Transcoded ({size})"
+    },
+    "tagModal": {
+      "addTitle": "Add Tags",
+      "removeTitle": "Remove Tags",
+      "fieldLabel": "Tags (comma-separated)",
+      "placeholder": "e.g. promo, seasonal"
+    },
+    "playlistModal": {
+      "title": "Add to Playlist",
+      "loading": "Loading playlists…",
+      "empty": "No playlists available.",
+      "confirm": "Add to Playlist"
+    },
+    "delete": {
+      "title": "Delete Content",
+      "confirmPrefix": "Are you sure you want to delete",
+      "confirmSuffix": "? This will permanently remove the original and transcoded files."
+    },
+    "bulk": {
+      "deleteTitle": "Delete Content",
+      "deleteSelected": "Delete selected",
+      "addTags": "Add tags",
+      "removeTags": "Remove tags",
+      "addToPlaylist": "Add to playlist",
+      "deleteMessage": "You are about to permanently delete {count} {count, plural, one {item} other {items}}. This will remove all original and transcoded files. This cannot be undone.",
+      "deleted": "{count} {count, plural, one {item} other {items}} deleted",
+      "tagged": "{count} {count, plural, one {item} other {items}} tagged",
+      "untagged": "{count} {count, plural, one {item} other {items}} untagged",
+      "addedToPlaylist": "{count} {count, plural, one {item} other {items}} added to {playlist}",
+      "alreadyPresent": " ({count} were already in the playlist)",
+      "notFound": "{count} {count, plural, one {item} other {items}} could not be found and {count, plural, one {was} other {were}} skipped",
+      "selectedPlaylist": "selected playlist"
+    },
+    "toast": {
+      "uploadComplete": "Upload complete.",
+      "reuploadComplete": "Re-upload complete.",
+      "updated": "Content updated.",
+      "deleted": "Content deleted.",
+      "linkCopied": "Link copied to clipboard.",
+      "linkCopyFailed": "Could not copy link.",
+      "openFailed": "Could not open that content item."
+    },
+    "errors": {
+      "loadContent": "Failed to load content.",
+      "accessDenied": "Access denied.",
+      "uploadFailed": "Upload failed",
+      "reuploadFailed": "Re-upload failed",
+      "saveChanges": "Failed to save changes.",
+      "deleteContent": "Failed to delete content.",
+      "loadPlaylists": "Failed to load playlists."
+    }
+  },
+  "playlists": {
+    "list": {
+      "title": "Playlists",
+      "count": "{count, plural, one {# playlist} other {# playlists}}",
+      "newPlaylist": "New playlist",
+      "loading": "Loading playlists…",
+      "selectAll": "Select all",
+      "emptyTitle": "No playlists yet",
+      "emptyDesc": "No playlists created yet.",
+      "createFirst": "Create Your First Playlist",
+      "items": "{count, plural, one {# item} other {# items}}",
+      "default": "Default",
+      "emptyPlaylist": "Empty playlist"
+    },
+    "create": {
+      "title": "New playlist",
+      "nameLabel": "Playlist name",
+      "namePlaceholder": "e.g. Lobby Welcome Loop",
+      "accentColor": "Accent colour",
+      "setAccentColor": "Set accent colour {color}",
+      "creating": "Creating…",
+      "createPlaylist": "Create playlist"
+    },
+    "delete": {
+      "title": "Delete Playlist",
+      "confirmPrefix": "Are you sure you want to delete",
+      "confirmSuffix": "? This action cannot be undone.",
+      "defaultWarning": "This playlist is currently set as the organisation's default. Deleting it will clear the default playlist setting."
+    },
+    "editor": {
+      "untitled": "Untitled",
+      "unknown": "unknown",
+      "default": "Default",
+      "reslicing": "Re-rendering video wall…",
+      "removeAsDefault": "Remove as default",
+      "setAsDefault": "Set as default",
+      "copyLink": "Copy link",
+      "accentColor": "Accent colour",
+      "setAccentColor": "Set accent colour {color}",
+      "sequenceTitle": "Sequence",
+      "sequenceSub": "Drag to reorder · set duration & the transition each item enters with",
+      "addContent": "Add content",
+      "noItems": "No items yet — add content to build the loop",
+      "dragToReorder": "Drag to reorder",
+      "previewItemAria": "Preview item",
+      "itemType": "{type}",
+      "playsFullVideo": "Plays the full video length",
+      "decreaseDuration": "Decrease duration",
+      "increaseDuration": "Increase duration",
+      "durationSeconds": "{seconds}s",
+      "transitionOnEnter": "Transition on enter — plays when this item appears",
+      "transitionDuration": "Transition duration (ms)",
+      "decreaseTransitionMs": "Decrease transition ms",
+      "increaseTransitionMs": "Increase transition ms",
+      "transitionMs": "{ms}ms",
+      "removeFromPlaylist": "Remove from playlist",
+      "previewTitle": "Preview: {title}",
+      "previewAlt": "Preview"
+    },
+    "transition": {
+      "cut": "Cut",
+      "fade": "Fade",
+      "slide-left": "Slide Left",
+      "slide-right": "Slide Right",
+      "slide-up": "Slide Up",
+      "slide-down": "Slide Down",
+      "zoom-in": "Zoom In",
+      "zoom-out": "Zoom Out"
+    },
+    "loopPreview": {
+      "title": "Loop preview",
+      "emptySub": "Add content to preview the loop",
+      "emptyPlaylist": "Empty playlist",
+      "sub": "{count, plural, one {# item} other {# items}} · {duration} total · loops",
+      "playing": "Playing",
+      "paused": "Paused",
+      "unmute": "Unmute",
+      "untitled": "Untitled",
+      "previous": "Previous",
+      "play": "Play",
+      "pause": "Pause",
+      "next": "Next",
+      "nowPlaying": "Now playing · item {index}",
+      "jumpToItem": "Jump to item {index}"
+    },
+    "addContent": {
+      "title": "Add content",
+      "searchPlaceholder": "Search content…",
+      "all": "All",
+      "images": "Images",
+      "videos": "Videos",
+      "loading": "Loading content library…",
+      "empty": "No content available. Upload content first.",
+      "noMatches": "No content matches your search."
+    },
+    "assignScreen": {
+      "title": "Assign to screen",
+      "prompt": "Select a screen to assign {count, plural, one {# playlist} other {# playlists}} to:",
+      "screenLabel": "Screen",
+      "selectPlaceholder": "-- Select a screen --",
+      "loading": "Loading…",
+      "assign": "Assign"
+    },
+    "bulk": {
+      "deleteTitle": "Delete Playlists",
+      "deleteSelected": "Delete selected",
+      "assignToScreen": "Assign to screen(s)",
+      "deleteMessage": "You are about to permanently delete {count, plural, one {# playlist} other {# playlists}}. This cannot be undone.",
+      "deleted": "{count, plural, one {# playlist} other {# playlists}} deleted",
+      "assigned": "{count, plural, one {# playlist} other {# playlists}} assigned to {screen}",
+      "notFound": "{count} {count, plural, one {item} other {items}} could not be found and {count, plural, one {was} other {were}} skipped",
+      "selectedScreen": "selected screen"
+    },
+    "toast": {
+      "created": "Playlist created.",
+      "renamed": "Playlist renamed.",
+      "colorUpdated": "Accent colour updated.",
+      "deleted": "Playlist deleted.",
+      "setDefault": "Set as default playlist.",
+      "clearedDefault": "Default playlist cleared.",
+      "itemAdded": "Item added to playlist.",
+      "itemRemoved": "Item removed from playlist.",
+      "orderSaved": "Playlist order saved.",
+      "linkCopied": "Link copied to clipboard.",
+      "linkCopyFailed": "Could not copy link."
+    },
+    "errors": {
+      "loadPlaylists": "Failed to load playlists.",
+      "accessDenied": "Access denied.",
+      "loadDetails": "Failed to load playlist details.",
+      "nameRequired": "Name is required.",
+      "createPlaylist": "Failed to create playlist.",
+      "renamePlaylist": "Failed to rename playlist.",
+      "updateColor": "Failed to update colour.",
+      "deletePlaylist": "Failed to delete playlist.",
+      "setDefault": "Failed to set default playlist.",
+      "addItem": "Failed to add item.",
+      "removeItem": "Failed to remove item.",
+      "reorderItems": "Failed to reorder items.",
+      "loadScreens": "Failed to load screens."
+    }
+  },
+  "schedules": {
+    "page": {
+      "title": "Schedules",
+      "subtitleDefault": "Plan playlists across screens and groups by the calendar",
+      "subtitleCount": "{count, plural, one {# scheduled block} other {# scheduled blocks}}",
+      "loading": "Loading schedules…"
+    },
+    "toolbar": {
+      "target": "Target",
+      "targetPlaceholder": "No screens or groups",
+      "screenOption": "Screen · {name}",
+      "groupOption": "Group · {name} ({mode})",
+      "today": "Today",
+      "previous": "Previous",
+      "next": "Next",
+      "newSchedule": "New schedule",
+      "viewDay": "Day",
+      "viewWeek": "Week",
+      "viewMonth": "Month"
+    },
+    "grid": {
+      "monthTitle": "Month schedule",
+      "dayTitle": "Day schedule",
+      "weekTitle": "Week schedule",
+      "cardSub": "Click any block to edit",
+      "fallbackPlaylist": "Fallback playlist",
+      "groupBadge": "Group",
+      "oneOff": "1×",
+      "resizeTop": "Resize top",
+      "resizeBottom": "Resize bottom",
+      "preparingRenditions": "Preparing wall renditions… {percent}%",
+      "renditionFailed": "Rendition pre-transcoding failed",
+      "playlistFallback": "Playlist"
+    },
+    "sidePanel": {
+      "today": "Today",
+      "headSub": "{date} · {count, plural, one {# scheduled} other {# scheduled}}",
+      "empty": "No schedule entries for this day."
+    },
+    "agenda": {
+      "previousDay": "Previous day",
+      "nextDay": "Next day",
+      "empty": "No schedule entries for this day.",
+      "group": "Group",
+      "addSlot": "Add slot",
+      "playlistFallback": "Playlist"
+    },
+    "slice": {
+      "failedTitle": "Rendition pre-transcoding failed",
+      "readyTitle": "Renditions ready",
+      "preparingTitle": "Preparing video-wall renditions…",
+      "failedBody": "{error} The wall keeps showing the previous content until you re-assign or re-slice.",
+      "failedFallback": "Slicing failed.",
+      "completedBody": "The video wall has been updated.",
+      "processingBody": "The wall keeps showing the previous content and switches automatically when slicing completes.",
+      "runInBackground": "Run in background"
+    },
+    "form": {
+      "editTitle": "Edit Schedule Entry",
+      "createTitle": "Create Schedule Entry",
+      "sub": "Decide when a playlist plays — and where",
+      "nameLabel": "Schedule name",
+      "namePlaceholder": "e.g. Morning Welcome (optional)",
+      "targetLabel": "Target",
+      "targetPlaceholder": "Select a screen or group",
+      "screenOption": "Screen · {name}",
+      "groupOption": "Group · {name} ({mode})",
+      "modeLabel": "Mode:",
+      "modeMirror": "Mirror",
+      "modeSplit": "Split",
+      "modeMirrorDesc": "all screens show the same content",
+      "modeSplitDesc": "{columns}x{rows} grid",
+      "splitWarning": "Content will be pre-sliced for each screen in the video wall. This may take a moment to process after saving.",
+      "playlistLabel": "Playlist to play",
+      "noPlaylists": "No playlists yet — create one first.",
+      "playlistItems": "{count, plural, one {# item} other {# items}}",
+      "whenLabel": "When does it run?",
+      "daysLabel": "Days",
+      "startLabel": "Start",
+      "endLabel": "End",
+      "endAfterStart": "End must be after the start.",
+      "priorityLabel": "Priority",
+      "priorityHint": "· wins when schedules overlap",
+      "colourLabel": "Colour",
+      "selectColour": "Select colour {colour}",
+      "customColour": "Custom colour",
+      "saving": "Saving…",
+      "update": "Update",
+      "create": "Create",
+      "recurrence": {
+        "none": "One-off",
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "weekdays": "Specific days"
+      },
+      "weekday": {
+        "MO": "Mon",
+        "TU": "Tue",
+        "WE": "Wed",
+        "TH": "Thu",
+        "FR": "Fri",
+        "SA": "Sat",
+        "SU": "Sun"
+      },
+      "weekdayPreset": {
+        "monFri": "Mon–Fri",
+        "weekends": "Weekends",
+        "allDays": "All days"
+      },
+      "timePreset": {
+        "business": "Business 09–17",
+        "morning": "Morning 06–12",
+        "evening": "Evening 17–22",
+        "allDay": "All day 06–23"
+      },
+      "priority": {
+        "normal": "Normal",
+        "high": "High"
+      }
+    },
+    "toast": {
+      "created": "Schedule created.",
+      "createdPreparing": "Schedule created. Preparing video-wall renditions…",
+      "updated": "Schedule updated.",
+      "updatedPreparing": "Schedule updated. Preparing video-wall renditions…",
+      "deleted": "Schedule deleted.",
+      "overlapReverted": "Overlap detected. Move was reverted.",
+      "moveFailed": "Failed to move entry."
+    },
+    "errors": {
+      "loadScreens": "Failed to load screens.",
+      "loadEntries": "Failed to load schedule entries.",
+      "endAfterStart": "End time must be after start time.",
+      "selectPlaylist": "Please select a playlist.",
+      "selectTarget": "Please select a target screen or group.",
+      "overlap": "This time slot overlaps with an existing entry.",
+      "createEntry": "Failed to create entry.",
+      "updateEntry": "Failed to update entry.",
+      "deleteEntry": "Failed to delete entry."
+    }
   }
 }

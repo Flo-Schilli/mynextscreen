@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { DayTimeline } from './schedule-calendar.service';
 import { CardComponent, CardHeadComponent, IconComponent } from '../ui';
 
@@ -10,13 +11,19 @@ import { CardComponent, CardHeadComponent, IconComponent } from '../ui';
   selector: 'app-schedule-side-panel',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CardComponent, CardHeadComponent, IconComponent],
+  imports: [CardComponent, CardHeadComponent, IconComponent, TranslocoDirective],
   template: `
-    <div class="side-panel w-64 flex-shrink-0">
+    <div class="side-panel w-64 flex-shrink-0" *transloco="let t">
       <mns-card>
-        <mns-card-head title="Today" [sub]="headSub()" icon="Clock"></mns-card-head>
+        <mns-card-head
+          [title]="t('schedules.sidePanel.today')"
+          [sub]="headSub()"
+          icon="Clock"
+        ></mns-card-head>
         @if (timeline().length === 0) {
-          <p class="empty-text text-[13px] text-faint py-2">No schedule entries for this day.</p>
+          <p class="empty-text text-[13px] text-faint py-2">
+            {{ t('schedules.sidePanel.empty') }}
+          </p>
         }
         @for (item of timeline(); track $index) {
           <div class="timeline-item flex gap-2.5 py-2.5 border-b border-border last:border-b-0">
@@ -53,8 +60,12 @@ export class ScheduleSidePanel {
   readonly dateLabel = input.required<string>();
   readonly timeline = input.required<DayTimeline[]>();
 
-  readonly headSub = computed(() => {
-    const count = this.timeline().length;
-    return `${this.dateLabel()} · ${count} scheduled`;
-  });
+  private readonly transloco = inject(TranslocoService);
+
+  readonly headSub = computed(() =>
+    this.transloco.translate('schedules.sidePanel.headSub', {
+      date: this.dateLabel(),
+      count: this.timeline().length,
+    }),
+  );
 }

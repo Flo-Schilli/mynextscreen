@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, input, output, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { Content } from './content.model';
 import { ContentFormatService } from './content-format.service';
 import { BtnComponent } from '../ui';
@@ -24,14 +25,14 @@ export interface MetadataUpdate {
   selector: 'app-content-detail',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, BtnComponent],
+  imports: [FormsModule, BtnComponent, TranslocoDirective],
   template: `
-    <div class="detail-card">
+    <div class="detail-card" *transloco="let t">
       <div class="detail-header">
         <h2>{{ content().title }}</h2>
         <div class="detail-actions">
           <label class="reupload-btn">
-            Re-upload
+            {{ t('content.detail.reupload') }}
             <input
               type="file"
               accept="image/*,video/*"
@@ -39,20 +40,26 @@ export interface MetadataUpdate {
               style="display:none"
             />
           </label>
-          <mns-btn variant="outline" size="sm" icon="Copy" (mnsClick)="copyLink.emit()"
-            >Copy link</mns-btn
-          >
-          <mns-btn variant="danger" size="sm" icon="Trash" (mnsClick)="remove.emit()"
-            >Delete</mns-btn
-          >
-          <mns-btn variant="outline" size="sm" (mnsClick)="dismiss.emit()">Close</mns-btn>
+          <mns-btn variant="outline" size="sm" icon="Copy" (mnsClick)="copyLink.emit()">{{
+            t('content.detail.copyLink')
+          }}</mns-btn>
+          <mns-btn variant="danger" size="sm" icon="Trash" (mnsClick)="remove.emit()">{{
+            t('common.actions.delete')
+          }}</mns-btn>
+          <mns-btn variant="outline" size="sm" (mnsClick)="dismiss.emit()">{{
+            t('common.actions.close')
+          }}</mns-btn>
         </div>
       </div>
 
       <!-- Preview -->
       <div class="preview-area">
         @if (content().type === 'image') {
-          <img [src]="previewUrl()(content())" alt="Preview" class="preview-img" />
+          <img
+            [src]="previewUrl()(content())"
+            [alt]="t('content.detail.previewAlt')"
+            class="preview-img"
+          />
         } @else {
           <video [src]="previewUrl()(content())" controls class="preview-video"></video>
         }
@@ -60,12 +67,16 @@ export interface MetadataUpdate {
 
       <!-- Transcoding Status -->
       <div class="transcoding-status">
-        <span class="detail-label">Transcoding</span>
+        <span class="detail-label">{{ t('content.transcoding.label') }}</span>
         <span class="status-pill" [attr.data-status]="content().transcodingStatus">
           @if (content().transcodingStatus === 'processing') {
-            Processing {{ transcodingProgress()[content().id] ?? 0 }}%
+            {{
+              t('content.transcoding.processingPercent', {
+                progress: transcodingProgress()[content().id] ?? 0,
+              })
+            }}
           } @else {
-            {{ content().transcodingStatus }}
+            {{ t('content.transcoding.' + content().transcodingStatus) }}
           }
         </span>
         @if (content().transcodingStatus === 'processing') {
@@ -84,11 +95,11 @@ export interface MetadataUpdate {
       <!-- Metadata Editing -->
       <div class="metadata-section">
         <div class="field">
-          <label for="editTitle">Title</label>
+          <label for="editTitle">{{ t('content.detail.titleLabel') }}</label>
           <input id="editTitle" type="text" [(ngModel)]="editTitle" name="editTitle" />
         </div>
         <div class="field">
-          <label for="editDescription">Description</label>
+          <label for="editDescription">{{ t('content.detail.descriptionLabel') }}</label>
           <textarea
             id="editDescription"
             [(ngModel)]="editDescription"
@@ -97,38 +108,38 @@ export interface MetadataUpdate {
           ></textarea>
         </div>
         <div class="field">
-          <label for="editTags">Tags (comma-separated)</label>
+          <label for="editTags">{{ t('content.detail.tagsLabel') }}</label>
           <input id="editTags" type="text" [(ngModel)]="editTagsStr" name="editTags" />
         </div>
         <div class="metadata-actions">
           <mns-btn variant="primary" [disabled]="savingMetadata()" (mnsClick)="onSave()">
-            {{ savingMetadata() ? 'Saving...' : 'Save Changes' }}
+            {{ savingMetadata() ? t('content.detail.saving') : t('content.detail.saveChanges') }}
           </mns-btn>
         </div>
         @if (metadataError()) {
           <p class="error">{{ metadataError() }}</p>
         }
         @if (metadataSaved()) {
-          <p class="success">Changes saved.</p>
+          <p class="success">{{ t('content.detail.changesSaved') }}</p>
         }
       </div>
 
       <!-- File Info -->
       <div class="file-info-grid">
         <div class="detail-item">
-          <span class="detail-label">Type</span>
-          <span>{{ content().type }}</span>
+          <span class="detail-label">{{ t('content.detail.infoType') }}</span>
+          <span>{{ t('content.type.' + content().type) }}</span>
         </div>
         <div class="detail-item">
-          <span class="detail-label">Original File</span>
+          <span class="detail-label">{{ t('content.detail.infoOriginalFile') }}</span>
           <span>{{ content().originalFilename }}</span>
         </div>
         <div class="detail-item">
-          <span class="detail-label">Original Size</span>
+          <span class="detail-label">{{ t('content.detail.infoOriginalSize') }}</span>
           <span>{{ format.formatBytes(content().originalSizeBytes) }}</span>
         </div>
         <div class="detail-item">
-          <span class="detail-label">Transcoded Size</span>
+          <span class="detail-label">{{ t('content.detail.infoTranscodedSize') }}</span>
           <span>{{
             content().transcodedSizeBytes !== null
               ? format.formatBytes(content().transcodedSizeBytes!)
@@ -136,11 +147,11 @@ export interface MetadataUpdate {
           }}</span>
         </div>
         <div class="detail-item">
-          <span class="detail-label">MIME Type</span>
+          <span class="detail-label">{{ t('content.detail.infoMimeType') }}</span>
           <span>{{ content().originalMimeType }}</span>
         </div>
         <div class="detail-item">
-          <span class="detail-label">Uploaded</span>
+          <span class="detail-label">{{ t('content.detail.infoUploaded') }}</span>
           <span>{{ format.formatDate(content().createdAt) }}</span>
         </div>
       </div>

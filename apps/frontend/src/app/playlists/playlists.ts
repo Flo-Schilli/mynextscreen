@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { firstValueFrom } from 'rxjs';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { PlaylistService } from './playlist.service';
 import { Playlist, PlaylistItem, TransitionType } from './playlist.model';
 import { PlaylistCreateForm } from './playlist-create-form';
@@ -52,15 +53,20 @@ import {
     EmptyComponent,
     OverlayComponent,
     ModalComponent,
+    TranslocoDirective,
   ],
   providers: [SelectionService],
   template: `
-    <div class="page">
-      <mns-page-header title="Playlists" [sub]="playlistCountLabel()" icon="Playlists">
+    <div class="page" *transloco="let t">
+      <mns-page-header
+        [title]="t('playlists.list.title')"
+        [sub]="playlistCountLabel()"
+        icon="Playlists"
+      >
         @if (!loading && !selectedPlaylist && !showCreateForm) {
-          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()"
-            >New playlist</mns-btn
-          >
+          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">{{
+            t('playlists.list.newPlaylist')
+          }}</mns-btn>
         }
       </mns-page-header>
 
@@ -69,7 +75,7 @@ import {
       }
 
       @if (loading) {
-        <p class="text-muted text-sm mt-3">Loading playlists…</p>
+        <p class="text-muted text-sm mt-3">{{ t('playlists.list.loading') }}</p>
       }
 
       <!-- Create Playlist Modal -->
@@ -129,32 +135,37 @@ import {
       @if (
         !loading && !selectedPlaylist && !showCreateForm && playlists.length === 0 && !loadError
       ) {
-        <mns-empty icon="Playlists" title="No playlists yet" desc="No playlists created yet.">
-          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()"
-            >Create Your First Playlist</mns-btn
-          >
+        <mns-empty
+          icon="Playlists"
+          [title]="t('playlists.list.emptyTitle')"
+          [desc]="t('playlists.list.emptyDesc')"
+        >
+          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">{{
+            t('playlists.list.createFirst')
+          }}</mns-btn>
         </mns-empty>
       }
 
       <!-- Delete Confirmation Modal -->
       @if (showDeleteConfirm) {
         <mns-overlay (closed)="cancelDelete()">
-          <mns-modal title="Delete Playlist" icon="Trash" (closed)="cancelDelete()">
+          <mns-modal [title]="t('playlists.delete.title')" icon="Trash" (closed)="cancelDelete()">
             <p class="text-sm text-muted mb-3">
-              Are you sure you want to delete
+              {{ t('playlists.delete.confirmPrefix') }}
               <strong class="text-text">{{ selectedPlaylist?.name }}</strong
-              >? This action cannot be undone.
+              >{{ t('playlists.delete.confirmSuffix') }}
             </p>
             @if (selectedPlaylist?.id === defaultPlaylistId) {
               <p class="warning-text mb-3">
-                This playlist is currently set as the organisation's default. Deleting it will clear
-                the default playlist setting.
+                {{ t('playlists.delete.defaultWarning') }}
               </p>
             }
             <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
-              <mns-btn variant="outline" (mnsClick)="cancelDelete()">Cancel</mns-btn>
+              <mns-btn variant="outline" (mnsClick)="cancelDelete()">{{
+                t('common.actions.cancel')
+              }}</mns-btn>
               <mns-btn variant="danger" [disabled]="deleting" (mnsClick)="executeDelete()">
-                {{ deleting ? 'Deleting…' : 'Delete' }}
+                {{ deleting ? t('common.actions.deleting') : t('common.actions.delete') }}
               </mns-btn>
             </div>
           </mns-modal>
@@ -175,9 +186,9 @@ import {
       <!-- Bulk Delete Confirmation Modal -->
       @if (showBulkDeleteConfirm) {
         <app-bulk-confirm-dialog
-          title="Delete Playlists"
+          [title]="t('playlists.bulk.deleteTitle')"
           [message]="bulkDeleteMessage()"
-          confirmLabel="Delete"
+          [confirmLabel]="t('common.actions.delete')"
           [itemCount]="selectionService.count()"
           (confirmed)="onBulkDeleteConfirmed($event)"
         />
@@ -222,6 +233,7 @@ export class Playlists implements OnInit {
   private organisationService = inject(OrganisationService);
   readonly selectionService = inject(SelectionService);
   private toast = inject(ToastService);
+  private transloco = inject(TranslocoService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private destroyRef = inject(DestroyRef);
@@ -282,18 +294,20 @@ export class Playlists implements OnInit {
   private assignScreenResolve: ((value: boolean) => void) | null = null;
 
   // Bulk actions
-  bulkActions: BulkAction[] = [
-    {
-      label: 'Delete selected',
-      variant: 'danger',
-      handler: () => this.handleBulkDelete(),
-    },
-    {
-      label: 'Assign to screen(s)',
-      variant: 'default',
-      handler: () => this.handleBulkAssignScreen(),
-    },
-  ];
+  get bulkActions(): BulkAction[] {
+    return [
+      {
+        label: this.transloco.translate('playlists.bulk.deleteSelected'),
+        variant: 'danger',
+        handler: () => this.handleBulkDelete(),
+      },
+      {
+        label: this.transloco.translate('playlists.bulk.assignToScreen'),
+        variant: 'default',
+        handler: () => this.handleBulkAssignScreen(),
+      },
+    ];
+  }
 
   get isOrgAdmin(): boolean {
     return this.userRole === 'org_admin';
@@ -337,7 +351,7 @@ export class Playlists implements OnInit {
           this.orgId = memberships[0].organisationId;
           this.userRole = memberships[0].role;
         } else {
-          this.loadError = 'You are not a member of any organisation.';
+          this.loadError = this.transloco.translate('common.errors.noOrgMembership');
           this.loading = false;
           return;
         }
@@ -346,7 +360,7 @@ export class Playlists implements OnInit {
         this.watchRoute();
       },
       error: () => {
-        this.loadError = 'Failed to load organisation context.';
+        this.loadError = this.transloco.translate('common.errors.loadOrgContext');
         this.loading = false;
       },
     });
@@ -380,7 +394,7 @@ export class Playlists implements OnInit {
         this.selectedPlaylist = full;
       },
       error: () => {
-        this.editorError = 'Failed to load playlist details.';
+        this.editorError = this.transloco.translate('playlists.errors.loadDetails');
       },
     });
   }
@@ -406,15 +420,17 @@ export class Playlists implements OnInit {
         this.loading = false;
       },
       error: (err) => {
-        this.loadError = err.status === 403 ? 'Access denied.' : 'Failed to load playlists.';
+        this.loadError =
+          err.status === 403
+            ? this.transloco.translate('playlists.errors.accessDenied')
+            : this.transloco.translate('playlists.errors.loadPlaylists');
         this.loading = false;
       },
     });
   }
 
   playlistCountLabel(): string {
-    const n = this.playlists.length;
-    return `${n} playlist${n !== 1 ? 's' : ''}`;
+    return this.transloco.translate('playlists.list.count', { count: this.playlists.length });
   }
 
   // --- Create ---
@@ -431,7 +447,7 @@ export class Playlists implements OnInit {
 
   submitCreate(): void {
     if (!this.createName.trim()) {
-      this.createError = 'Name is required.';
+      this.createError = this.transloco.translate('playlists.errors.nameRequired');
       return;
     }
 
@@ -445,10 +461,11 @@ export class Playlists implements OnInit {
           this.showCreateForm = false;
           this.loadPlaylists();
           this.selectPlaylist(playlist);
-          this.toast.success('Playlist created.');
+          this.toast.success(this.transloco.translate('playlists.toast.created'));
         },
         error: (err) => {
-          this.createError = err.error?.message || 'Failed to create playlist.';
+          this.createError =
+            err.error?.message || this.transloco.translate('playlists.errors.createPlaylist');
           this.creating = false;
         },
       });
@@ -467,9 +484,9 @@ export class Playlists implements OnInit {
     const url = `${window.location.origin}/playlists/${this.selectedPlaylist.id}`;
     try {
       await navigator.clipboard.writeText(url);
-      this.toast.success('Link copied to clipboard.');
+      this.toast.success(this.transloco.translate('playlists.toast.linkCopied'));
     } catch {
-      this.toast.error('Could not copy link.');
+      this.toast.error(this.transloco.translate('playlists.toast.linkCopyFailed'));
     }
   }
 
@@ -491,10 +508,11 @@ export class Playlists implements OnInit {
           if (this.selectedPlaylist) {
             this.selectedPlaylist = { ...this.selectedPlaylist, name: updated.name };
           }
-          this.toast.success('Playlist renamed.');
+          this.toast.success(this.transloco.translate('playlists.toast.renamed'));
         },
         error: (err) => {
-          this.editorError = err.error?.message || 'Failed to rename playlist.';
+          this.editorError =
+            err.error?.message || this.transloco.translate('playlists.errors.renamePlaylist');
         },
       });
   }
@@ -508,10 +526,11 @@ export class Playlists implements OnInit {
         if (this.selectedPlaylist) {
           this.selectedPlaylist = { ...this.selectedPlaylist, color: updated.color };
         }
-        this.toast.success('Accent colour updated.');
+        this.toast.success(this.transloco.translate('playlists.toast.colorUpdated'));
       },
       error: (err) => {
-        this.editorError = err.error?.message || 'Failed to update colour.';
+        this.editorError =
+          err.error?.message || this.transloco.translate('playlists.errors.updateColor');
       },
     });
   }
@@ -549,10 +568,11 @@ export class Playlists implements OnInit {
         this.loadPlaylists();
         // If the deleted playlist was the one open via deeplink, drop its id from the URL.
         if (wasOpen) void this.router.navigate(['/playlists']);
-        this.toast.success('Playlist deleted.');
+        this.toast.success(this.transloco.translate('playlists.toast.deleted'));
       },
       error: (err) => {
-        this.editorError = err.error?.message || 'Failed to delete playlist.';
+        this.editorError =
+          err.error?.message || this.transloco.translate('playlists.errors.deletePlaylist');
         this.deleting = false;
         this.showDeleteConfirm = false;
       },
@@ -568,10 +588,15 @@ export class Playlists implements OnInit {
       next: () => {
         this.defaultPlaylistId = newDefault;
         this.settingDefault = false;
-        this.toast.success(newDefault ? 'Set as default playlist.' : 'Default playlist cleared.');
+        this.toast.success(
+          this.transloco.translate(
+            newDefault ? 'playlists.toast.setDefault' : 'playlists.toast.clearedDefault',
+          ),
+        );
       },
       error: (err) => {
-        this.editorError = err.error?.message || 'Failed to set default playlist.';
+        this.editorError =
+          err.error?.message || this.transloco.translate('playlists.errors.setDefault');
         this.settingDefault = false;
       },
     });
@@ -610,10 +635,11 @@ export class Playlists implements OnInit {
       .subscribe({
         next: () => {
           this.reloadPlaylist();
-          this.toast.success('Item added to playlist.');
+          this.toast.success(this.transloco.translate('playlists.toast.itemAdded'));
         },
         error: (err) => {
-          this.editorError = err.error?.message || 'Failed to add item.';
+          this.editorError =
+            err.error?.message || this.transloco.translate('playlists.errors.addItem');
         },
       });
   }
@@ -627,10 +653,11 @@ export class Playlists implements OnInit {
           this.previewingItem = null;
         }
         this.reloadPlaylist();
-        this.toast.success('Item removed from playlist.');
+        this.toast.success(this.transloco.translate('playlists.toast.itemRemoved'));
       },
       error: (err) => {
-        this.editorError = err.error?.message || 'Failed to remove item.';
+        this.editorError =
+          err.error?.message || this.transloco.translate('playlists.errors.removeItem');
       },
     });
   }
@@ -646,10 +673,11 @@ export class Playlists implements OnInit {
     const itemIds = items.map((i) => i.id);
     this.playlistService.reorderItems(this.orgId, this.selectedPlaylist.id, { itemIds }).subscribe({
       next: () => {
-        this.toast.success('Playlist order saved.');
+        this.toast.success(this.transloco.translate('playlists.toast.orderSaved'));
       },
       error: (err) => {
-        this.editorError = err.error?.message || 'Failed to reorder items.';
+        this.editorError =
+          err.error?.message || this.transloco.translate('playlists.errors.reorderItems');
         this.reloadPlaylist();
       },
     });
@@ -740,10 +768,13 @@ export class Playlists implements OnInit {
     const ids = [...this.selectionService.selectedIds()];
     const result = await firstValueFrom(this.playlistService.bulkDelete(this.orgId, ids));
 
-    this.showToast(`${result.deleted} playlist(s) deleted`, 'success');
+    this.showToast(
+      this.transloco.translate('playlists.bulk.deleted', { count: result.deleted }),
+      'success',
+    );
     if (result.notFound.length > 0) {
       this.showToast(
-        `${result.notFound.length} item(s) could not be found and were skipped`,
+        this.transloco.translate('playlists.bulk.notFound', { count: result.notFound.length }),
         'warning',
       );
     }
@@ -758,10 +789,9 @@ export class Playlists implements OnInit {
   }
 
   bulkDeleteMessage(): string {
-    return (
-      `You are about to permanently delete ${this.selectionService.count()} playlist(s). ` +
-      'This cannot be undone.'
-    );
+    return this.transloco.translate('playlists.bulk.deleteMessage', {
+      count: this.selectionService.count(),
+    });
   }
 
   onBulkDeleteConfirmed(confirmed: boolean): void {
@@ -781,11 +811,18 @@ export class Playlists implements OnInit {
     );
 
     const screenName =
-      this.availableScreens.find((s) => s.id === this.selectedScreenId)?.name ?? 'selected screen';
-    this.showToast(`${result.assigned} playlist(s) assigned to ${screenName}`, 'success');
+      this.availableScreens.find((s) => s.id === this.selectedScreenId)?.name ??
+      this.transloco.translate('playlists.bulk.selectedScreen');
+    this.showToast(
+      this.transloco.translate('playlists.bulk.assigned', {
+        count: result.assigned,
+        screen: screenName,
+      }),
+      'success',
+    );
     if (result.notFound.length > 0) {
       this.showToast(
-        `${result.notFound.length} item(s) could not be found and were skipped`,
+        this.transloco.translate('playlists.bulk.notFound', { count: result.notFound.length }),
         'warning',
       );
     }
@@ -803,7 +840,7 @@ export class Playlists implements OnInit {
         this.screensLoading = false;
       },
       error: () => {
-        this.screensLoadError = 'Failed to load screens.';
+        this.screensLoadError = this.transloco.translate('playlists.errors.loadScreens');
         this.screensLoading = false;
       },
     });

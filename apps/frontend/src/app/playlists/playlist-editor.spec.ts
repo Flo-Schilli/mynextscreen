@@ -4,6 +4,7 @@ import { By } from '@angular/platform-browser';
 import { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { PlaylistEditor } from './playlist-editor';
 import { Playlist, PlaylistItem } from './playlist.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 function buildItem(overrides: Partial<PlaylistItem> = {}): PlaylistItem {
   return {
@@ -46,7 +47,10 @@ describe('PlaylistEditor', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PlaylistEditor],
+      imports: [
+        PlaylistEditor,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

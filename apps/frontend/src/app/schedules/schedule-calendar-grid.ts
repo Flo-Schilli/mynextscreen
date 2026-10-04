@@ -15,9 +15,10 @@ import {
   MonthDayCell,
   ScheduleViewMode,
 } from './schedule-calendar.service';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { CardComponent, CardHeadComponent, IconComponent } from '../ui';
 import { ScheduleAgendaList } from './schedule-agenda-list';
-import { UI_LOCALE } from '../shared/locale';
+import { LanguageService } from '../i18n/language.service';
 
 export interface CreateSlot {
   start: Date;
@@ -33,7 +34,8 @@ export interface ResizePointerEvent extends BlockPointerEvent {
   edge: 'top' | 'bottom';
 }
 
-const WEEKDAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+/** Weekday order (Mon-first) used to render the month header from the active locale. */
+const WEEKDAY_KEYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const NOW_TICK_MS = 60_000;
 
@@ -46,18 +48,24 @@ const NOW_TICK_MS = 60_000;
 @Component({
   selector: 'app-schedule-calendar-grid',
   standalone: true,
-  imports: [CardComponent, CardHeadComponent, IconComponent, ScheduleAgendaList],
+  imports: [
+    CardComponent,
+    CardHeadComponent,
+    IconComponent,
+    ScheduleAgendaList,
+    TranslocoDirective,
+  ],
   template: `
-    <mns-card [pad]="false">
+    <mns-card [pad]="false" *transloco="let t">
       <div class="px-[var(--card-pad)] pt-[var(--card-pad)] pb-3.5">
-        <mns-card-head [title]="cardTitle()" [sub]="cardSub" icon="Calendar"></mns-card-head>
+        <mns-card-head [title]="cardTitle()" [sub]="cardSub()" icon="Calendar"></mns-card-head>
       </div>
 
       @if (viewMode() === 'month') {
         <!-- Month View -->
         <div class="month-grid border-t border-border">
           <div class="month-header-row grid grid-cols-7 border-b border-border">
-            @for (dayName of weekdayNames; track dayName) {
+            @for (dayName of weekdayNames(); track dayName) {
               <div
                 class="month-header-cell px-2 py-2.5 text-center text-[13px] font-bold text-muted"
               >
@@ -204,7 +212,7 @@ const NOW_TICK_MS = 60_000;
                       <span
                         class="gap-label text-[10px] italic"
                         style="color: color-mix(in srgb, var(--color-warn) 60%, transparent)"
-                        >Fallback playlist</span
+                        >{{ t('schedules.grid.fallbackPlaylist') }}</span
                       >
                     </div>
                   }
@@ -231,7 +239,7 @@ const NOW_TICK_MS = 60_000;
                         (keydown.enter)="$event.preventDefault()"
                         role="separator"
                         tabindex="0"
-                        aria-label="Resize top"
+                        [attr.aria-label]="t('schedules.grid.resizeTop')"
                         aria-valuenow="0"
                       ></div>
                       <div class="block-content px-2 py-1 flex flex-col gap-0.5 h-full box-border">
@@ -244,13 +252,17 @@ const NOW_TICK_MS = 60_000;
                           @if (block.entry.groupId) {
                             <span
                               class="group-badge text-[9px] font-extrabold uppercase tracking-wide text-accent flex-shrink-0"
-                              >Group</span
+                              >{{ t('schedules.grid.groupBadge') }}</span
                             >
                           }
                           @if (isSlicePreparing(block.entry)) {
                             <span
                               class="flex-shrink-0 inline-flex items-center gap-0.5 text-warn"
-                              [title]="'Preparing wall renditions… ' + slicePct(block.entry) + '%'"
+                              [title]="
+                                t('schedules.grid.preparingRenditions', {
+                                  percent: slicePct(block.entry),
+                                })
+                              "
                             >
                               <mns-icon name="Layers" [size]="11" class="animate-pulse" />
                               <span class="text-[9px] font-bold tabular-nums"
@@ -258,7 +270,10 @@ const NOW_TICK_MS = 60_000;
                               >
                             </span>
                           } @else if (block.entry.sliceStatus?.status === 'failed') {
-                            <span class="flex-shrink-0" title="Rendition pre-transcoding failed">
+                            <span
+                              class="flex-shrink-0"
+                              [title]="t('schedules.grid.renditionFailed')"
+                            >
                               <mns-icon name="Alert" [size]="11" class="text-offline" />
                             </span>
                           }
@@ -286,7 +301,7 @@ const NOW_TICK_MS = 60_000;
                         (keydown.enter)="$event.preventDefault()"
                         role="separator"
                         tabindex="0"
-                        aria-label="Resize bottom"
+                        [attr.aria-label]="t('schedules.grid.resizeBottom')"
                         aria-valuenow="0"
                       ></div>
                     </div>
@@ -353,8 +368,16 @@ export class ScheduleCalendarGrid {
   readonly mobilePrevDay = output<void>();
   readonly mobileNextDay = output<void>();
 
-  readonly weekdayNames = WEEKDAY_NAMES;
   readonly hours = HOURS;
+
+  private readonly transloco = inject(TranslocoService);
+  private readonly language = inject(LanguageService);
+
+  /** Short weekday labels (Mon-first) in the active locale for the month header. */
+  readonly weekdayNames = computed<string[]>(() => {
+    this.language.locale();
+    return WEEKDAY_KEYS.map((k) => this.transloco.translate('schedules.form.weekday.' + k));
+  });
 
   /** Re-evaluated each minute so the now-line tracks the current time. */
   private readonly nowMs = signal(Date.now());
@@ -366,12 +389,12 @@ export class ScheduleCalendarGrid {
 
   readonly cardTitle = computed(() => {
     const mode = this.viewMode();
-    if (mode === 'month') return 'Month schedule';
-    if (mode === 'day') return 'Day schedule';
-    return 'Week schedule';
+    if (mode === 'month') return this.transloco.translate('schedules.grid.monthTitle');
+    if (mode === 'day') return this.transloco.translate('schedules.grid.dayTitle');
+    return this.transloco.translate('schedules.grid.weekTitle');
   });
 
-  readonly cardSub = 'Click any block to edit';
+  readonly cardSub = computed(() => this.transloco.translate('schedules.grid.cardSub'));
 
   /** The visible day the mobile agenda renders (defaults to the first day). */
   private readonly mobileDay = computed<Date | null>(() => {
@@ -390,7 +413,7 @@ export class ScheduleCalendarGrid {
   readonly mobileDayLabel = computed<string>(() => {
     const day = this.mobileDay();
     if (!day) return '';
-    return day.toLocaleDateString(UI_LOCALE, {
+    return day.toLocaleDateString(this.language.locale(), {
       timeZone: this.orgTimeZone(),
       weekday: 'long',
       month: 'long',
@@ -416,7 +439,8 @@ export class ScheduleCalendarGrid {
   }
 
   getEntryLabel(entry: ScheduleEntry): string {
-    const playlistName = entry.playlist?.name || 'Playlist';
+    const playlistName =
+      entry.playlist?.name || this.transloco.translate<string>('schedules.grid.playlistFallback');
     if (entry.groupId && entry.group) {
       return `${playlistName} - ${entry.group.name}`;
     }
@@ -488,7 +512,7 @@ export class ScheduleCalendarGrid {
   }
 
   formatDayHeader(day: Date): string {
-    return day.toLocaleDateString(UI_LOCALE, {
+    return day.toLocaleDateString(this.language.locale(), {
       timeZone: this.orgTimeZone(),
       weekday: 'short',
       month: 'short',
@@ -497,7 +521,7 @@ export class ScheduleCalendarGrid {
   }
 
   formatBlockTime(date: Date): string {
-    return date.toLocaleTimeString(UI_LOCALE, {
+    return date.toLocaleTimeString(this.language.locale(), {
       timeZone: this.orgTimeZone(),
       hour: '2-digit',
       minute: '2-digit',

@@ -6,6 +6,7 @@ import { ScheduleEntry, TargetOption } from './schedule.model';
 import { Playlist } from '../playlists/playlist.model';
 import { ScreenGroup } from '../screen-groups/screen-group.model';
 import { RecurrenceType } from './schedule-recurrence.service';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -89,7 +90,10 @@ describe('ScheduleFormModal', () => {
   }
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
+      providers: [provideZonelessChangeDetection()],
+    });
   });
 
   describe('ngOnInit initialization', () => {
@@ -343,7 +347,7 @@ describe('ScheduleFormModal', () => {
         'button[type="submit"]',
       ) as HTMLButtonElement;
       expect(submitBtn.disabled).toBe(true);
-      expect(submitBtn.textContent?.trim()).toBe('Saving...');
+      expect(submitBtn.textContent?.trim()).toBe('Saving…');
     });
   });
 

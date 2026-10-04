@@ -5,6 +5,7 @@ import { ContentGrid } from './content-grid';
 import { Content } from './content.model';
 import { SelectionService } from '../shared/selection/selection.service';
 import { BulkAction } from '../shared/selection/bulk-action-toolbar';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -73,6 +74,7 @@ describe('ContentGrid', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [provideZonelessChangeDetection(), SelectionService],
     });
   });
@@ -84,7 +86,7 @@ describe('ContentGrid', () => {
     // Assert
     expect(cards().length).toBe(2);
     const firstMeta = cards()[0].querySelector('.card-meta')?.textContent as string;
-    expect(firstMeta).toContain('image');
+    expect(firstMeta).toContain('Image');
     expect(firstMeta).toContain('1.0 KB');
   });
 

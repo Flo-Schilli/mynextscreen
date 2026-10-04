@@ -3,6 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ContentPlaylistModal } from './content-playlist-modal';
 import { Playlist } from '../playlists/playlist.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -61,7 +62,10 @@ describe('ContentPlaylistModal', () => {
   }
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
+      providers: [provideZonelessChangeDetection()],
+    });
   });
 
   it('shows a loading message while playlists are loading', () => {
@@ -69,7 +73,7 @@ describe('ContentPlaylistModal', () => {
     setUp({ loading: true });
 
     // Assert
-    expect(fixture.nativeElement.textContent).toContain('Loading playlists...');
+    expect(fixture.nativeElement.textContent).toContain('Loading playlists…');
     expect(fixture.nativeElement.querySelector('.playlist-list')).toBeNull();
   });
 

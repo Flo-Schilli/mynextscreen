@@ -1,6 +1,7 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { TranslocoService } from '@jsverse/transloco';
 import { StorageInfo } from './content.model';
-import { UI_LOCALE } from '../shared/locale';
+import { LanguageService } from '../i18n/language.service';
 
 /**
  * Pure presentation helpers for content sizes, dates and storage-bar
@@ -9,16 +10,19 @@ import { UI_LOCALE } from '../shared/locale';
  */
 @Injectable({ providedIn: 'root' })
 export class ContentFormatService {
+  private transloco = inject(TranslocoService);
+  private language = inject(LanguageService);
+
   formatBytes(bytes: number): string {
     if (bytes === 0) return '0 B';
-    if (!isFinite(bytes)) return 'Unlimited';
+    if (!isFinite(bytes)) return this.transloco.translate('content.storage.unlimited');
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
     return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
   }
 
   formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString(UI_LOCALE, {
+    return new Date(dateStr).toLocaleDateString(this.language.locale(), {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

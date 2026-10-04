@@ -4,6 +4,7 @@ import { By } from '@angular/platform-browser';
 import { PlaylistAssignScreenModal } from './playlist-assign-screen-modal';
 import { Screen } from '../screens/screen.model';
 import { BtnComponent, OverlayComponent } from '../ui';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 function buildScreen(overrides: Partial<Screen> = {}): Screen {
   return {
@@ -35,7 +36,10 @@ describe('PlaylistAssignScreenModal', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PlaylistAssignScreenModal],
+      imports: [
+        PlaylistAssignScreenModal,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 
@@ -51,8 +55,7 @@ describe('PlaylistAssignScreenModal', () => {
   it('renders the selected playlist count', () => {
     fixture.detectChanges();
 
-    const strong = fixture.debugElement.query(By.css('strong'));
-    expect(strong.nativeElement.textContent).toContain('2 playlist(s)');
+    expect(fixture.nativeElement.textContent).toContain('2 playlists');
   });
 
   it('builds one option per screen with name and location', () => {

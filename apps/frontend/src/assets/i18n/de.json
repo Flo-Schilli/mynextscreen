@@ -489,5 +489,400 @@
     "monitor": {
       "empty": "Leer"
     }
+  },
+  "content": {
+    "library": {
+      "title": "Content-Bibliothek",
+      "browseFiles": "Dateien durchsuchen",
+      "loading": "Inhalte werden geladen…",
+      "dropTitle": "Dateien zum Hochladen ablegen",
+      "dropSub": "Bilder und Videos",
+      "emptyTitle": "Noch keine Inhalte",
+      "emptyDesc": "Ziehen Sie Dateien an eine beliebige Stelle dieser Seite oder nutzen Sie „Dateien durchsuchen“, um zu beginnen.",
+      "clearTags": "Leeren"
+    },
+    "filter": {
+      "all": "Alle",
+      "images": "Bilder",
+      "videos": "Videos"
+    },
+    "type": {
+      "image": "Bild",
+      "video": "Video"
+    },
+    "transcoding": {
+      "label": "Transkodierung",
+      "pending": "Ausstehend",
+      "processing": "Wird verarbeitet",
+      "processingPercent": "Wird verarbeitet {progress}%",
+      "completed": "Abgeschlossen",
+      "failed": "Fehlgeschlagen",
+      "percent": "{progress}%"
+    },
+    "detail": {
+      "reupload": "Erneut hochladen",
+      "copyLink": "Link kopieren",
+      "previewAlt": "Vorschau",
+      "titleLabel": "Titel",
+      "descriptionLabel": "Beschreibung",
+      "tagsLabel": "Tags (kommagetrennt)",
+      "saveChanges": "Änderungen speichern",
+      "saving": "Wird gespeichert…",
+      "changesSaved": "Änderungen gespeichert.",
+      "infoType": "Typ",
+      "infoOriginalFile": "Originaldatei",
+      "infoOriginalSize": "Originalgröße",
+      "infoTranscodedSize": "Transkodierte Größe",
+      "infoMimeType": "MIME-Typ",
+      "infoUploaded": "Hochgeladen"
+    },
+    "grid": {
+      "pending": "Ausstehend",
+      "failed": "Fehlgeschlagen",
+      "meta": "{type} · {size}"
+    },
+    "upload": {
+      "done": "Fertig",
+      "error": "Fehler"
+    },
+    "storage": {
+      "label": "Speicher",
+      "unlimited": "Unbegrenzt",
+      "original": "Original ({size})",
+      "transcoded": "Transkodiert ({size})"
+    },
+    "tagModal": {
+      "addTitle": "Tags hinzufügen",
+      "removeTitle": "Tags entfernen",
+      "fieldLabel": "Tags (kommagetrennt)",
+      "placeholder": "z. B. promo, saisonal"
+    },
+    "playlistModal": {
+      "title": "Zur Playlist hinzufügen",
+      "loading": "Playlists werden geladen…",
+      "empty": "Keine Playlists verfügbar.",
+      "confirm": "Zur Playlist hinzufügen"
+    },
+    "delete": {
+      "title": "Inhalt löschen",
+      "confirmPrefix": "Möchten Sie",
+      "confirmSuffix": "wirklich löschen? Dadurch werden die Original- und die transkodierten Dateien dauerhaft entfernt."
+    },
+    "bulk": {
+      "deleteTitle": "Inhalt löschen",
+      "deleteSelected": "Auswahl löschen",
+      "addTags": "Tags hinzufügen",
+      "removeTags": "Tags entfernen",
+      "addToPlaylist": "Zur Playlist hinzufügen",
+      "deleteMessage": "Sie sind dabei, {count} {count, plural, one {Element} other {Elemente}} dauerhaft zu löschen. Dadurch werden alle Original- und transkodierten Dateien entfernt. Dies kann nicht rückgängig gemacht werden.",
+      "deleted": "{count} {count, plural, one {Element} other {Elemente}} gelöscht",
+      "tagged": "{count} {count, plural, one {Element} other {Elemente}} getaggt",
+      "untagged": "{count} {count, plural, one {Element} other {Elemente}} Tags entfernt",
+      "addedToPlaylist": "{count} {count, plural, one {Element} other {Elemente}} zu {playlist} hinzugefügt",
+      "alreadyPresent": " ({count} bereits in der Playlist)",
+      "notFound": "{count} {count, plural, one {Element konnte} other {Elemente konnten}} nicht gefunden werden und {count, plural, one {wurde} other {wurden}} übersprungen",
+      "selectedPlaylist": "ausgewählte Playlist"
+    },
+    "toast": {
+      "uploadComplete": "Upload abgeschlossen.",
+      "reuploadComplete": "Erneuter Upload abgeschlossen.",
+      "updated": "Inhalt aktualisiert.",
+      "deleted": "Inhalt gelöscht.",
+      "linkCopied": "Link in die Zwischenablage kopiert.",
+      "linkCopyFailed": "Link konnte nicht kopiert werden.",
+      "openFailed": "Dieses Inhaltselement konnte nicht geöffnet werden."
+    },
+    "errors": {
+      "loadContent": "Inhalte konnten nicht geladen werden.",
+      "accessDenied": "Zugriff verweigert.",
+      "uploadFailed": "Upload fehlgeschlagen",
+      "reuploadFailed": "Erneuter Upload fehlgeschlagen",
+      "saveChanges": "Änderungen konnten nicht gespeichert werden.",
+      "deleteContent": "Inhalt konnte nicht gelöscht werden.",
+      "loadPlaylists": "Playlists konnten nicht geladen werden."
+    }
+  },
+  "playlists": {
+    "list": {
+      "title": "Playlists",
+      "count": "{count, plural, one {# Playlist} other {# Playlists}}",
+      "newPlaylist": "Neue Playlist",
+      "loading": "Playlists werden geladen…",
+      "selectAll": "Alle auswählen",
+      "emptyTitle": "Noch keine Playlists",
+      "emptyDesc": "Es wurden noch keine Playlists erstellt.",
+      "createFirst": "Erste Playlist erstellen",
+      "items": "{count, plural, one {# Element} other {# Elemente}}",
+      "default": "Standard",
+      "emptyPlaylist": "Leere Playlist"
+    },
+    "create": {
+      "title": "Neue Playlist",
+      "nameLabel": "Playlist-Name",
+      "namePlaceholder": "z. B. Lobby-Willkommensschleife",
+      "accentColor": "Akzentfarbe",
+      "setAccentColor": "Akzentfarbe {color} setzen",
+      "creating": "Wird erstellt…",
+      "createPlaylist": "Playlist erstellen"
+    },
+    "delete": {
+      "title": "Playlist löschen",
+      "confirmPrefix": "Möchten Sie",
+      "confirmSuffix": "wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "defaultWarning": "Diese Playlist ist derzeit als Standard der Organisation festgelegt. Beim Löschen wird die Standard-Playlist-Einstellung zurückgesetzt."
+    },
+    "editor": {
+      "untitled": "Ohne Titel",
+      "unknown": "Unbekannt",
+      "default": "Standard",
+      "reslicing": "Video-Wall wird neu gerendert…",
+      "removeAsDefault": "Als Standard entfernen",
+      "setAsDefault": "Als Standard festlegen",
+      "copyLink": "Link kopieren",
+      "accentColor": "Akzentfarbe",
+      "setAccentColor": "Akzentfarbe {color} setzen",
+      "sequenceTitle": "Sequenz",
+      "sequenceSub": "Zum Neuordnen ziehen · Dauer & Übergang pro Element festlegen",
+      "addContent": "Inhalt hinzufügen",
+      "noItems": "Noch keine Elemente — fügen Sie Inhalt hinzu, um die Schleife aufzubauen",
+      "dragToReorder": "Zum Neuordnen ziehen",
+      "previewItemAria": "Element-Vorschau",
+      "itemType": "{type}",
+      "playsFullVideo": "Spielt die volle Videolänge",
+      "decreaseDuration": "Dauer verringern",
+      "increaseDuration": "Dauer erhöhen",
+      "durationSeconds": "{seconds}s",
+      "transitionOnEnter": "Übergang beim Erscheinen — wird abgespielt, wenn dieses Element erscheint",
+      "transitionDuration": "Übergangsdauer (ms)",
+      "decreaseTransitionMs": "Übergang (ms) verringern",
+      "increaseTransitionMs": "Übergang (ms) erhöhen",
+      "transitionMs": "{ms}ms",
+      "removeFromPlaylist": "Aus Playlist entfernen",
+      "previewTitle": "Vorschau: {title}",
+      "previewAlt": "Vorschau"
+    },
+    "transition": {
+      "cut": "Hart",
+      "fade": "Überblendung",
+      "slide-left": "Nach links schieben",
+      "slide-right": "Nach rechts schieben",
+      "slide-up": "Nach oben schieben",
+      "slide-down": "Nach unten schieben",
+      "zoom-in": "Hineinzoomen",
+      "zoom-out": "Herauszoomen"
+    },
+    "loopPreview": {
+      "title": "Schleifen-Vorschau",
+      "emptySub": "Inhalt hinzufügen, um die Schleife vorzuschauen",
+      "emptyPlaylist": "Leere Playlist",
+      "sub": "{count, plural, one {# Element} other {# Elemente}} · {duration} gesamt · Schleife",
+      "playing": "Wird abgespielt",
+      "paused": "Pausiert",
+      "unmute": "Ton einschalten",
+      "untitled": "Ohne Titel",
+      "previous": "Zurück",
+      "play": "Abspielen",
+      "pause": "Pausieren",
+      "next": "Weiter",
+      "nowPlaying": "Jetzt läuft · Element {index}",
+      "jumpToItem": "Zu Element {index} springen"
+    },
+    "addContent": {
+      "title": "Inhalt hinzufügen",
+      "searchPlaceholder": "Inhalt suchen…",
+      "all": "Alle",
+      "images": "Bilder",
+      "videos": "Videos",
+      "loading": "Content-Bibliothek wird geladen…",
+      "empty": "Kein Inhalt verfügbar. Laden Sie zuerst Inhalt hoch.",
+      "noMatches": "Kein Inhalt entspricht Ihrer Suche."
+    },
+    "assignScreen": {
+      "title": "Bildschirm zuweisen",
+      "prompt": "Wählen Sie einen Bildschirm, dem {count, plural, one {# Playlist} other {# Playlists}} zugewiesen werden soll:",
+      "screenLabel": "Bildschirm",
+      "selectPlaceholder": "-- Bildschirm auswählen --",
+      "loading": "Wird geladen…",
+      "assign": "Zuweisen"
+    },
+    "bulk": {
+      "deleteTitle": "Playlists löschen",
+      "deleteSelected": "Auswahl löschen",
+      "assignToScreen": "Bildschirm(en) zuweisen",
+      "deleteMessage": "Sie sind dabei, {count, plural, one {# Playlist} other {# Playlists}} dauerhaft zu löschen. Dies kann nicht rückgängig gemacht werden.",
+      "deleted": "{count, plural, one {# Playlist} other {# Playlists}} gelöscht",
+      "assigned": "{count, plural, one {# Playlist} other {# Playlists}} zu {screen} zugewiesen",
+      "notFound": "{count} {count, plural, one {Element konnte} other {Elemente konnten}} nicht gefunden werden und {count, plural, one {wurde} other {wurden}} übersprungen",
+      "selectedScreen": "ausgewählter Bildschirm"
+    },
+    "toast": {
+      "created": "Playlist erstellt.",
+      "renamed": "Playlist umbenannt.",
+      "colorUpdated": "Akzentfarbe aktualisiert.",
+      "deleted": "Playlist gelöscht.",
+      "setDefault": "Als Standard-Playlist festgelegt.",
+      "clearedDefault": "Standard-Playlist zurückgesetzt.",
+      "itemAdded": "Element zur Playlist hinzugefügt.",
+      "itemRemoved": "Element aus Playlist entfernt.",
+      "orderSaved": "Playlist-Reihenfolge gespeichert.",
+      "linkCopied": "Link in die Zwischenablage kopiert.",
+      "linkCopyFailed": "Link konnte nicht kopiert werden."
+    },
+    "errors": {
+      "loadPlaylists": "Playlists konnten nicht geladen werden.",
+      "accessDenied": "Zugriff verweigert.",
+      "loadDetails": "Playlist-Details konnten nicht geladen werden.",
+      "nameRequired": "Name ist erforderlich.",
+      "createPlaylist": "Playlist konnte nicht erstellt werden.",
+      "renamePlaylist": "Playlist konnte nicht umbenannt werden.",
+      "updateColor": "Farbe konnte nicht aktualisiert werden.",
+      "deletePlaylist": "Playlist konnte nicht gelöscht werden.",
+      "setDefault": "Standard-Playlist konnte nicht festgelegt werden.",
+      "addItem": "Element konnte nicht hinzugefügt werden.",
+      "removeItem": "Element konnte nicht entfernt werden.",
+      "reorderItems": "Elemente konnten nicht neu geordnet werden.",
+      "loadScreens": "Bildschirme konnten nicht geladen werden."
+    }
+  },
+  "schedules": {
+    "page": {
+      "title": "Zeitpläne",
+      "subtitleDefault": "Planen Sie Playlists über Bildschirme und Gruppen hinweg im Kalender",
+      "subtitleCount": "{count, plural, one {# geplanter Block} other {# geplante Blöcke}}",
+      "loading": "Zeitpläne werden geladen…"
+    },
+    "toolbar": {
+      "target": "Ziel",
+      "targetPlaceholder": "Keine Bildschirme oder Gruppen",
+      "screenOption": "Bildschirm · {name}",
+      "groupOption": "Gruppe · {name} ({mode})",
+      "today": "Heute",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "newSchedule": "Neuer Zeitplan",
+      "viewDay": "Tag",
+      "viewWeek": "Woche",
+      "viewMonth": "Monat"
+    },
+    "grid": {
+      "monthTitle": "Monatsplan",
+      "dayTitle": "Tagesplan",
+      "weekTitle": "Wochenplan",
+      "cardSub": "Klicken Sie auf einen Block, um ihn zu bearbeiten",
+      "fallbackPlaylist": "Fallback-Playlist",
+      "groupBadge": "Gruppe",
+      "oneOff": "1×",
+      "resizeTop": "Oben anpassen",
+      "resizeBottom": "Unten anpassen",
+      "preparingRenditions": "Wall-Renditionen werden vorbereitet… {percent}%",
+      "renditionFailed": "Vorab-Transkodierung der Rendition fehlgeschlagen",
+      "playlistFallback": "Playlist"
+    },
+    "sidePanel": {
+      "today": "Heute",
+      "headSub": "{date} · {count, plural, one {# geplant} other {# geplant}}",
+      "empty": "Keine Zeitplaneinträge für diesen Tag."
+    },
+    "agenda": {
+      "previousDay": "Vorheriger Tag",
+      "nextDay": "Nächster Tag",
+      "empty": "Keine Zeitplaneinträge für diesen Tag.",
+      "group": "Gruppe",
+      "addSlot": "Zeitfenster hinzufügen",
+      "playlistFallback": "Playlist"
+    },
+    "slice": {
+      "failedTitle": "Vorab-Transkodierung der Rendition fehlgeschlagen",
+      "readyTitle": "Renditionen bereit",
+      "preparingTitle": "Video-Wall-Renditionen werden vorbereitet…",
+      "failedBody": "{error} Die Wall zeigt weiterhin den vorherigen Inhalt, bis Sie neu zuweisen oder neu slicen.",
+      "failedFallback": "Slicing fehlgeschlagen.",
+      "completedBody": "Die Video-Wall wurde aktualisiert.",
+      "processingBody": "Die Wall zeigt weiterhin den vorherigen Inhalt und wechselt automatisch, sobald das Slicing abgeschlossen ist.",
+      "runInBackground": "Im Hintergrund ausführen"
+    },
+    "form": {
+      "editTitle": "Zeitplaneintrag bearbeiten",
+      "createTitle": "Zeitplaneintrag erstellen",
+      "sub": "Legen Sie fest, wann eine Playlist läuft — und wo",
+      "nameLabel": "Name des Zeitplans",
+      "namePlaceholder": "z. B. Morgen-Willkommen (optional)",
+      "targetLabel": "Ziel",
+      "targetPlaceholder": "Bildschirm oder Gruppe auswählen",
+      "screenOption": "Bildschirm · {name}",
+      "groupOption": "Gruppe · {name} ({mode})",
+      "modeLabel": "Modus:",
+      "modeMirror": "Mirror",
+      "modeSplit": "Split",
+      "modeMirrorDesc": "alle Bildschirme zeigen denselben Inhalt",
+      "modeSplitDesc": "{columns}x{rows}-Raster",
+      "splitWarning": "Der Inhalt wird für jeden Bildschirm der Video-Wall vorab zerteilt. Dies kann nach dem Speichern einen Moment dauern.",
+      "playlistLabel": "Abzuspielende Playlist",
+      "noPlaylists": "Noch keine Playlists — erstellen Sie zuerst eine.",
+      "playlistItems": "{count, plural, one {# Element} other {# Elemente}}",
+      "whenLabel": "Wann läuft es?",
+      "daysLabel": "Tage",
+      "startLabel": "Start",
+      "endLabel": "Ende",
+      "endAfterStart": "Ende muss nach dem Start liegen.",
+      "priorityLabel": "Priorität",
+      "priorityHint": "· gewinnt bei sich überschneidenden Zeitplänen",
+      "colourLabel": "Farbe",
+      "selectColour": "Farbe {colour} auswählen",
+      "customColour": "Eigene Farbe",
+      "saving": "Wird gespeichert…",
+      "update": "Aktualisieren",
+      "create": "Erstellen",
+      "recurrence": {
+        "none": "Einmalig",
+        "daily": "Täglich",
+        "weekly": "Wöchentlich",
+        "weekdays": "Bestimmte Tage"
+      },
+      "weekday": {
+        "MO": "Mo",
+        "TU": "Di",
+        "WE": "Mi",
+        "TH": "Do",
+        "FR": "Fr",
+        "SA": "Sa",
+        "SU": "So"
+      },
+      "weekdayPreset": {
+        "monFri": "Mo–Fr",
+        "weekends": "Wochenende",
+        "allDays": "Alle Tage"
+      },
+      "timePreset": {
+        "business": "Geschäft 09–17",
+        "morning": "Morgen 06–12",
+        "evening": "Abend 17–22",
+        "allDay": "Ganztags 06–23"
+      },
+      "priority": {
+        "normal": "Normal",
+        "high": "Hoch"
+      }
+    },
+    "toast": {
+      "created": "Zeitplan erstellt.",
+      "createdPreparing": "Zeitplan erstellt. Video-Wall-Renditionen werden vorbereitet…",
+      "updated": "Zeitplan aktualisiert.",
+      "updatedPreparing": "Zeitplan aktualisiert. Video-Wall-Renditionen werden vorbereitet…",
+      "deleted": "Zeitplan gelöscht.",
+      "overlapReverted": "Überschneidung erkannt. Verschieben wurde rückgängig gemacht.",
+      "moveFailed": "Eintrag konnte nicht verschoben werden."
+    },
+    "errors": {
+      "loadScreens": "Bildschirme konnten nicht geladen werden.",
+      "loadEntries": "Zeitplaneinträge konnten nicht geladen werden.",
+      "endAfterStart": "Die Endzeit muss nach der Startzeit liegen.",
+      "selectPlaylist": "Bitte wählen Sie eine Playlist.",
+      "selectTarget": "Bitte wählen Sie einen Ziel-Bildschirm oder eine Gruppe.",
+      "overlap": "Dieses Zeitfenster überschneidet sich mit einem bestehenden Eintrag.",
+      "createEntry": "Eintrag konnte nicht erstellt werden.",
+      "updateEntry": "Eintrag konnte nicht aktualisiert werden.",
+      "deleteEntry": "Eintrag konnte nicht gelöscht werden."
+    }
   }
 }
