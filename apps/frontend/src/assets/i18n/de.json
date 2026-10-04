@@ -1378,5 +1378,297 @@
       "email.sent": "E-Mail gesendet",
       "email.send_failed": "E-Mail-Versand fehlgeschlagen"
     }
+  },
+  "notifications": {
+    "ariaLabel": "Benachrichtigungen",
+    "title": "Benachrichtigungen",
+    "markAllRead": "Alle als gelesen markieren",
+    "loading": "Wird geladen…",
+    "empty": "Noch keine Benachrichtigungen",
+    "time": {
+      "justNow": "gerade eben",
+      "minutesAgo": "vor {minutes}m",
+      "hoursAgo": "vor {hours}h",
+      "daysAgo": "vor {days}d"
+    }
+  },
+  "search": {
+    "placeholder": "Suchen…",
+    "shortcut": "Strg+K",
+    "noResults": "Keine Ergebnisse gefunden",
+    "sections": {
+      "screens": "Bildschirme",
+      "content": "Inhalte",
+      "playlists": "Playlists",
+      "schedules": "Zeitpläne"
+    }
+  },
+  "settings": {
+    "tabs": {
+      "users": "Benutzerverwaltung",
+      "notificationConfig": "Benachrichtigungen",
+      "storage": "Speicher"
+    },
+    "user": {
+      "page": {
+        "title": "Benutzereinstellungen",
+        "subtitle": "Verwalten Sie Ihr persönliches Konto über alle Organisationen hinweg."
+      },
+      "profile": {
+        "title": "Profil",
+        "subtitle": "Ihre Kontodaten und Ihr Anzeigename.",
+        "avatarAlt": "Ihr Avatar",
+        "gravatarLabel": "Gravatar verwenden",
+        "gravatarDesc": "Den mit Ihrer E-Mail verknüpften Gravatar-Avatar anzeigen",
+        "gravatarHint": "Wenn deaktiviert, wird kein E-Mail-Hash an gravatar.com gesendet",
+        "emailLabel": "E-Mail",
+        "emailHint": "Ändern Sie Ihre E-Mail unten; wir senden zuerst einen Bestätigungslink.",
+        "displayNameLabel": "Anzeigename",
+        "displayNamePlaceholder": "Ihr Name",
+        "nameTooLong": "Der Name darf höchstens 255 Zeichen lang sein.",
+        "save": "Profil speichern",
+        "saving": "Wird gespeichert…"
+      },
+      "channels": {
+        "title": "Benachrichtigungskanäle",
+        "subtitle": "Wählen Sie, wie Sie Benachrichtigungen erhalten. Diese gelten für alle Organisationen, denen Sie angehören.",
+        "loading": "Einstellungen werden geladen…",
+        "inAppLabel": "In-App",
+        "inAppDesc": "Benachrichtigungen im Dashboard erhalten",
+        "emailLabel": "E-Mail",
+        "emailDesc": "Benachrichtigungen per E-Mail erhalten — für Organisationen mit konfigurierter E-Mail",
+        "ntfyLabel": "ntfy",
+        "ntfyDesc": "Benachrichtigungen via ntfy erhalten — für Organisationen mit konfiguriertem ntfy"
+      },
+      "appearance": {
+        "title": "Darstellung",
+        "subtitle": "Passen Sie Akzentfarbe und Oberflächendichte an.",
+        "accentLabel": "Akzentfarbe",
+        "densityLabel": "Oberflächendichte",
+        "accent": {
+          "indigo": "Indigo",
+          "teal": "Türkis",
+          "amber": "Bernstein",
+          "blue": "Blau"
+        },
+        "density": {
+          "compactLabel": "Kompakt",
+          "compactDesc": "Engere Abstände",
+          "regularLabel": "Standard",
+          "regularDesc": "Standardabstände",
+          "comfyLabel": "Weit",
+          "comfyDesc": "Mehr Platz zum Atmen"
+        }
+      },
+      "password": {
+        "title": "Passwort ändern",
+        "subtitle": "Aktualisieren Sie das Passwort für die Anmeldung.",
+        "currentLabel": "Aktuelles Passwort",
+        "newLabel": "Neues Passwort",
+        "newHint": "Mindestens 8 Zeichen verwenden.",
+        "confirmLabel": "Neues Passwort bestätigen",
+        "mismatch": "Passwörter stimmen nicht überein.",
+        "save": "Passwort aktualisieren",
+        "saving": "Wird gespeichert…"
+      },
+      "email": {
+        "title": "E-Mail ändern",
+        "subtitle": "Wir senden einen Bestätigungslink an die neue Adresse; die Änderung wird nach Ihrer Bestätigung wirksam.",
+        "newLabel": "Neue E-Mail",
+        "newPlaceholder": "neu@beispiel.de",
+        "invalid": "Geben Sie eine gültige E-Mail-Adresse ein.",
+        "currentPasswordLabel": "Aktuelles Passwort",
+        "save": "Bestätigungslink senden",
+        "saving": "Wird gesendet…"
+      },
+      "danger": {
+        "title": "Gefahrenzone",
+        "subtitle": "Löschen Sie Ihr Konto dauerhaft. Dadurch werden Ihre Organisationsmitgliedschaften entfernt. Dies kann nicht rückgängig gemacht werden.",
+        "deleteAccount": "Konto löschen"
+      },
+      "deleteModal": {
+        "title": "Konto löschen",
+        "desc": "Dadurch wird Ihr Konto dauerhaft gelöscht und kann nicht wiederhergestellt werden. Geben Sie Ihr aktuelles Passwort zur Bestätigung ein.",
+        "currentPasswordLabel": "Aktuelles Passwort",
+        "cancel": "Abbrechen",
+        "confirm": "Konto löschen",
+        "deleting": "Wird gelöscht…"
+      },
+      "toast": {
+        "profileSaved": "Profil gespeichert.",
+        "profileSaveFailed": "Profil konnte nicht gespeichert werden.",
+        "preferencesSaved": "Einstellungen gespeichert.",
+        "preferencesSaveFailed": "Einstellungen konnten nicht gespeichert werden.",
+        "passwordUpdated": "Passwort aktualisiert.",
+        "passwordUpdateFailed": "Passwort konnte nicht aktualisiert werden. Prüfen Sie Ihr aktuelles Passwort.",
+        "emailLinkSent": "Bestätigungslink an die neue Adresse gesendet.",
+        "emailChangeFailed": "E-Mail konnte nicht geändert werden. Prüfen Sie Ihr Passwort."
+      },
+      "errors": {
+        "loadPreferences": "Benachrichtigungseinstellungen konnten nicht geladen werden.",
+        "deleteAccount": "Konto konnte nicht gelöscht werden. Prüfen Sie Ihr aktuelles Passwort."
+      }
+    },
+    "org": {
+      "notifications": {
+        "page": {
+          "title": "Benachrichtigungen",
+          "subtitle": "E-Mail- und Push-Zustellungseinstellungen für Ihre Organisation."
+        },
+        "loading": "Konfiguration wird geladen…",
+        "smtp": {
+          "title": "SMTP-E-Mail-Einstellungen",
+          "subtitle": "Konfigurieren Sie SMTP, um E-Mail-Benachrichtigungen für Ihre Organisation zu aktivieren.",
+          "hostLabel": "Host",
+          "portLabel": "Port",
+          "userLabel": "Benutzername",
+          "passwordLabel": "Passwort",
+          "passwordSaved": "Gespeichert — leer lassen, um aktuelles zu behalten",
+          "passwordEnter": "Passwort eingeben",
+          "fromLabel": "Absenderadresse",
+          "secureLabel": "Sicher (TLS)",
+          "secureDesc": "Deaktivieren, um stattdessen STARTTLS zu verwenden",
+          "save": "SMTP-Einstellungen speichern",
+          "saving": "Wird gespeichert…",
+          "test": "Test-E-Mail senden",
+          "testing": "Wird gesendet…"
+        },
+        "ntfy": {
+          "title": "ntfy-Push-Benachrichtigungen",
+          "subtitle": "Konfigurieren Sie ntfy, um Push-Benachrichtigungen für Ihre Organisation zu aktivieren.",
+          "urlLabel": "ntfy-URL",
+          "topicLabel": "Thema",
+          "topicPlaceholder": "meine-org-benachrichtigungen",
+          "tokenLabel": "Auth-Token",
+          "tokenHint": "Optional — nur für geschützte Themen erforderlich.",
+          "tokenSaved": "Gespeichert — leer lassen, um aktuelles zu behalten",
+          "tokenEnter": "Token eingeben (optional)",
+          "infoPrefix": "Installieren Sie die",
+          "infoApp": "ntfy",
+          "infoSuffix": "-App und abonnieren Sie Ihr Thema, um Benachrichtigungen mobil zu erhalten.",
+          "save": "Push-Einstellungen speichern",
+          "saving": "Wird gespeichert…",
+          "test": "Test-Push senden",
+          "testing": "Wird gesendet…"
+        },
+        "rules": {
+          "title": "Alarmregeln",
+          "subtitle": "Wählen Sie, welche Ereignisse eine Benachrichtigung per E-Mail und Push auslösen.",
+          "offlineLabel": "Bildschirm wird offline",
+          "offlineDesc": "Alarm, wenn ein Display 5 Minuten lang nicht erreichbar ist",
+          "recoveredLabel": "Bildschirm erholt sich",
+          "recoveredDesc": "Benachrichtigen, wenn ein offline-Display wieder online ist",
+          "transcodeFailLabel": "Transcoding-Fehler",
+          "transcodeFailDesc": "Alarm, wenn hochgeladene Medien nicht verarbeitet werden können",
+          "storageLabel": "Speicher nahe Limit",
+          "storageDesc": "Warnen, wenn die Nutzung 90 % der Zuteilung überschreitet",
+          "weeklyLabel": "Wochenzusammenfassung",
+          "weeklyDesc": "Eine Übersicht über Verfügbarkeit und Aktivität jeden Montag",
+          "save": "Alarmregeln speichern",
+          "saving": "Wird gespeichert…"
+        },
+        "toast": {
+          "smtpSaved": "SMTP-Einstellungen gespeichert.",
+          "smtpSaveFailed": "SMTP-Einstellungen konnten nicht gespeichert werden.",
+          "ntfySaved": "ntfy-Einstellungen gespeichert.",
+          "ntfySaveFailed": "ntfy-Einstellungen konnten nicht gespeichert werden.",
+          "rulesSaved": "Alarmregeln gespeichert.",
+          "rulesSaveFailed": "Alarmregeln konnten nicht gespeichert werden.",
+          "testEmailFailed": "Test-E-Mail konnte nicht gesendet werden.",
+          "testNtfyFailed": "Test-Benachrichtigung konnte nicht gesendet werden."
+        },
+        "errors": {
+          "noOrgSelected": "Keine Organisation ausgewählt.",
+          "loadConfig": "Benachrichtigungskonfiguration konnte nicht geladen werden."
+        }
+      },
+      "storage": {
+        "page": {
+          "title": "Speicher",
+          "subtitle": "Verfolgen Sie die Medien-Nutzung gegenüber Ihren zugewiesenen Limits."
+        },
+        "loading": "Speichernutzung wird geladen…",
+        "card": {
+          "title": "Speichernutzung",
+          "subtitle": "Die Nutzung Ihrer Organisation gegenüber den zugewiesenen Limits. Wenden Sie sich an einen Instanz-Administrator, um diese Limits zu ändern."
+        },
+        "errors": {
+          "noOrgSelected": "Keine Organisation ausgewählt.",
+          "accessDenied": "Zugriff verweigert.",
+          "loadStorage": "Speichernutzung konnte nicht geladen werden."
+        }
+      }
+    },
+    "users": {
+      "page": {
+        "title": "Benutzerverwaltung",
+        "subtitle": "Verwalten Sie, wer Zugriff auf Ihre Organisation hat und was er tun darf.",
+        "invite": "Benutzer einladen"
+      },
+      "loading": "Mitglieder werden geladen…",
+      "summary": {
+        "members": "Mitglieder",
+        "pending": "Ausstehend"
+      },
+      "table": {
+        "name": "Name",
+        "email": "E-Mail",
+        "role": "Rolle",
+        "status": "Status",
+        "joined": "Beigetreten",
+        "actions": "Aktionen",
+        "emailPrefix": "E-Mail:",
+        "joinedPrefix": "Beigetreten:",
+        "invitePending": "Einladung ausstehend",
+        "statusPending": "Einladung ausstehend",
+        "statusActive": "Aktiv",
+        "revoke": "Widerrufen",
+        "remove": "Entfernen"
+      },
+      "roles": {
+        "orgAdmin": "Org-Admin",
+        "editor": "Editor",
+        "viewer": "Betrachter"
+      },
+      "empty": {
+        "title": "Noch keine Mitglieder",
+        "desc": "Keine Mitglieder gefunden. Laden Sie Ihren ersten Teamkollegen ein, um ihm Zugriff zu geben."
+      },
+      "inviteModal": {
+        "title": "Benutzer einladen",
+        "emailLabel": "E-Mail-Adresse",
+        "emailPlaceholder": "name@firma.de",
+        "roleLabel": "Rolle",
+        "cancel": "Abbrechen",
+        "submit": "Einladung senden",
+        "submitting": "Wird eingeladen…"
+      },
+      "removeModal": {
+        "title": "Mitglied entfernen",
+        "cancel": "Abbrechen",
+        "remove": "Entfernen",
+        "removing": "Wird entfernt…"
+      },
+      "removeConfirm": {
+        "prefix": "Möchten Sie",
+        "suffix": "wirklich aus dieser Organisation entfernen?"
+      },
+      "toast": {
+        "invited": "Mitglied eingeladen.",
+        "roleUpdated": "Rolle aktualisiert.",
+        "removed": "Mitglied entfernt."
+      },
+      "errors": {
+        "noOrgAdmin": "Sie haben keinen Org-Admin-Zugriff auf eine Organisation.",
+        "noMembership": "Sie sind kein Mitglied einer Organisation.",
+        "loadOrgContext": "Organisationskontext konnte nicht geladen werden.",
+        "accessDenied": "Zugriff verweigert. Org-Admin-Berechtigungen erforderlich.",
+        "loadMembers": "Mitglieder konnten nicht geladen werden.",
+        "invalidEmail": "Eine gültige E-Mail ist erforderlich.",
+        "inviteFailed": "Benutzer konnte nicht eingeladen werden.",
+        "updateRole": "Rolle konnte nicht aktualisiert werden.",
+        "removeMember": "Mitglied konnte nicht entfernt werden."
+      }
+    }
   }
 }

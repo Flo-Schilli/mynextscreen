@@ -1378,5 +1378,297 @@
       "email.sent": "Email sent",
       "email.send_failed": "Email send failed"
     }
+  },
+  "notifications": {
+    "ariaLabel": "Notifications",
+    "title": "Notifications",
+    "markAllRead": "Mark all as read",
+    "loading": "Loading...",
+    "empty": "No notifications yet",
+    "time": {
+      "justNow": "just now",
+      "minutesAgo": "{minutes}m ago",
+      "hoursAgo": "{hours}h ago",
+      "daysAgo": "{days}d ago"
+    }
+  },
+  "search": {
+    "placeholder": "Search…",
+    "shortcut": "Ctrl+K",
+    "noResults": "No results found",
+    "sections": {
+      "screens": "Screens",
+      "content": "Content",
+      "playlists": "Playlists",
+      "schedules": "Schedules"
+    }
+  },
+  "settings": {
+    "tabs": {
+      "users": "User Management",
+      "notificationConfig": "Notification Config",
+      "storage": "Storage"
+    },
+    "user": {
+      "page": {
+        "title": "User Settings",
+        "subtitle": "Manage your personal account across every organisation."
+      },
+      "profile": {
+        "title": "Profile",
+        "subtitle": "Your account details and display name.",
+        "avatarAlt": "Your avatar",
+        "gravatarLabel": "Use Gravatar",
+        "gravatarDesc": "Show the avatar linked to your email via Gravatar",
+        "gravatarHint": "When off, no email hash is sent to gravatar.com",
+        "emailLabel": "Email",
+        "emailHint": "Change your email below; we'll send a confirmation link first.",
+        "displayNameLabel": "Display name",
+        "displayNamePlaceholder": "Your name",
+        "nameTooLong": "Name must be 255 characters or fewer.",
+        "save": "Save profile",
+        "saving": "Saving…"
+      },
+      "channels": {
+        "title": "Notification Channels",
+        "subtitle": "Choose how you receive notifications. These apply across all organisations you belong to.",
+        "loading": "Loading preferences...",
+        "inAppLabel": "In-app",
+        "inAppDesc": "Receive notifications in the dashboard",
+        "emailLabel": "Email",
+        "emailDesc": "Receive notifications by email — sent for orgs that have email configured",
+        "ntfyLabel": "ntfy",
+        "ntfyDesc": "Receive notifications via ntfy — sent for orgs that have ntfy configured"
+      },
+      "appearance": {
+        "title": "Appearance",
+        "subtitle": "Customise the colour accent and interface density.",
+        "accentLabel": "Accent colour",
+        "densityLabel": "Interface density",
+        "accent": {
+          "indigo": "Indigo",
+          "teal": "Teal",
+          "amber": "Amber",
+          "blue": "Blue"
+        },
+        "density": {
+          "compactLabel": "Compact",
+          "compactDesc": "Tighter spacing",
+          "regularLabel": "Regular",
+          "regularDesc": "Default spacing",
+          "comfyLabel": "Comfy",
+          "comfyDesc": "More breathing room"
+        }
+      },
+      "password": {
+        "title": "Change password",
+        "subtitle": "Update the password you use to sign in.",
+        "currentLabel": "Current password",
+        "newLabel": "New password",
+        "newHint": "Use at least 8 characters.",
+        "confirmLabel": "Confirm new password",
+        "mismatch": "Passwords do not match.",
+        "save": "Update password",
+        "saving": "Saving…"
+      },
+      "email": {
+        "title": "Change email",
+        "subtitle": "We'll send a confirmation link to the new address; the change applies once you confirm it.",
+        "newLabel": "New email",
+        "newPlaceholder": "new@example.com",
+        "invalid": "Enter a valid email address.",
+        "currentPasswordLabel": "Current password",
+        "save": "Send confirmation link",
+        "saving": "Sending…"
+      },
+      "danger": {
+        "title": "Danger Zone",
+        "subtitle": "Permanently delete your account. This removes your organisation memberships and cannot be undone.",
+        "deleteAccount": "Delete account"
+      },
+      "deleteModal": {
+        "title": "Delete account",
+        "desc": "This permanently deletes your account and cannot be undone. Enter your current password to confirm.",
+        "currentPasswordLabel": "Current password",
+        "cancel": "Cancel",
+        "confirm": "Delete account",
+        "deleting": "Deleting…"
+      },
+      "toast": {
+        "profileSaved": "Profile saved.",
+        "profileSaveFailed": "Could not save profile.",
+        "preferencesSaved": "Preferences saved.",
+        "preferencesSaveFailed": "Failed to save preferences.",
+        "passwordUpdated": "Password updated.",
+        "passwordUpdateFailed": "Could not update password. Check your current password.",
+        "emailLinkSent": "Confirmation link sent to the new address.",
+        "emailChangeFailed": "Could not change email. Check your password."
+      },
+      "errors": {
+        "loadPreferences": "Failed to load notification preferences.",
+        "deleteAccount": "Could not delete account. Check your current password."
+      }
+    },
+    "org": {
+      "notifications": {
+        "page": {
+          "title": "Notification Config",
+          "subtitle": "Email & push delivery settings for your organisation."
+        },
+        "loading": "Loading configuration...",
+        "smtp": {
+          "title": "SMTP Email Settings",
+          "subtitle": "Configure SMTP to enable email notifications for your organisation.",
+          "hostLabel": "Host",
+          "portLabel": "Port",
+          "userLabel": "Username",
+          "passwordLabel": "Password",
+          "passwordSaved": "Saved — leave blank to keep current",
+          "passwordEnter": "Enter password",
+          "fromLabel": "From address",
+          "secureLabel": "Secure (TLS)",
+          "secureDesc": "Turn off to use STARTTLS instead",
+          "save": "Save SMTP settings",
+          "saving": "Saving...",
+          "test": "Send test email",
+          "testing": "Sending..."
+        },
+        "ntfy": {
+          "title": "ntfy Push Notifications",
+          "subtitle": "Configure ntfy to enable push notifications for your organisation.",
+          "urlLabel": "ntfy URL",
+          "topicLabel": "Topic",
+          "topicPlaceholder": "my-org-notifications",
+          "tokenLabel": "Auth token",
+          "tokenHint": "Optional — only required for protected topics.",
+          "tokenSaved": "Saved — leave blank to keep current",
+          "tokenEnter": "Enter token (optional)",
+          "infoPrefix": "Install the",
+          "infoApp": "ntfy",
+          "infoSuffix": "app and subscribe to your topic to receive alerts on mobile.",
+          "save": "Save push settings",
+          "saving": "Saving...",
+          "test": "Send test push",
+          "testing": "Sending..."
+        },
+        "rules": {
+          "title": "Alert rules",
+          "subtitle": "Choose which events trigger a notification across email and push.",
+          "offlineLabel": "Screen goes offline",
+          "offlineDesc": "Alert after a display is unreachable for 5 minutes",
+          "recoveredLabel": "Screen recovers",
+          "recoveredDesc": "Notify when an offline display comes back online",
+          "transcodeFailLabel": "Transcode failure",
+          "transcodeFailDesc": "Alert when uploaded media fails to process",
+          "storageLabel": "Storage near limit",
+          "storageDesc": "Warn when usage passes 90% of the allocation",
+          "weeklyLabel": "Weekly summary",
+          "weeklyDesc": "A digest of uptime and activity every Monday",
+          "save": "Save alert rules",
+          "saving": "Saving..."
+        },
+        "toast": {
+          "smtpSaved": "SMTP settings saved.",
+          "smtpSaveFailed": "Failed to save SMTP settings.",
+          "ntfySaved": "ntfy settings saved.",
+          "ntfySaveFailed": "Failed to save ntfy settings.",
+          "rulesSaved": "Alert rules saved.",
+          "rulesSaveFailed": "Failed to save alert rules.",
+          "testEmailFailed": "Failed to send test email.",
+          "testNtfyFailed": "Failed to send test notification."
+        },
+        "errors": {
+          "noOrgSelected": "No organisation selected.",
+          "loadConfig": "Failed to load notification configuration."
+        }
+      },
+      "storage": {
+        "page": {
+          "title": "Storage",
+          "subtitle": "Track media usage against your allocated limits."
+        },
+        "loading": "Loading storage usage...",
+        "card": {
+          "title": "Storage usage",
+          "subtitle": "Your organisation's usage against its allocated limits. Contact an instance administrator to change these limits."
+        },
+        "errors": {
+          "noOrgSelected": "No organisation selected.",
+          "accessDenied": "Access denied.",
+          "loadStorage": "Failed to load storage usage."
+        }
+      }
+    },
+    "users": {
+      "page": {
+        "title": "User Management",
+        "subtitle": "Manage who has access to your organisation and what they can do.",
+        "invite": "Invite User"
+      },
+      "loading": "Loading members...",
+      "summary": {
+        "members": "Members",
+        "pending": "Pending"
+      },
+      "table": {
+        "name": "Name",
+        "email": "Email",
+        "role": "Role",
+        "status": "Status",
+        "joined": "Joined",
+        "actions": "Actions",
+        "emailPrefix": "Email:",
+        "joinedPrefix": "Joined:",
+        "invitePending": "Invite pending",
+        "statusPending": "Pending invite",
+        "statusActive": "Active",
+        "revoke": "Revoke",
+        "remove": "Remove"
+      },
+      "roles": {
+        "orgAdmin": "Org Admin",
+        "editor": "Editor",
+        "viewer": "Viewer"
+      },
+      "empty": {
+        "title": "No members yet",
+        "desc": "No members found. Invite your first teammate to give them access."
+      },
+      "inviteModal": {
+        "title": "Invite a user",
+        "emailLabel": "Email address",
+        "emailPlaceholder": "name@company.com",
+        "roleLabel": "Role",
+        "cancel": "Cancel",
+        "submit": "Send invite",
+        "submitting": "Inviting..."
+      },
+      "removeModal": {
+        "title": "Remove member",
+        "cancel": "Cancel",
+        "remove": "Remove",
+        "removing": "Removing..."
+      },
+      "removeConfirm": {
+        "prefix": "Are you sure you want to remove",
+        "suffix": "from this organisation?"
+      },
+      "toast": {
+        "invited": "Member invited.",
+        "roleUpdated": "Role updated.",
+        "removed": "Member removed."
+      },
+      "errors": {
+        "noOrgAdmin": "You do not have Org Admin access to any organisation.",
+        "noMembership": "You are not a member of any organisation.",
+        "loadOrgContext": "Failed to load organisation context.",
+        "accessDenied": "Access denied. Org Admin privileges required.",
+        "loadMembers": "Failed to load members.",
+        "invalidEmail": "A valid email is required.",
+        "inviteFailed": "Failed to invite user.",
+        "updateRole": "Failed to update role.",
+        "removeMember": "Failed to remove member."
+      }
+    }
   }
 }

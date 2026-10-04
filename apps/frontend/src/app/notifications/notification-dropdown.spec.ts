@@ -6,6 +6,7 @@ import { Router, provideRouter } from '@angular/router';
 import { NotificationDropdown } from './notification-dropdown';
 import { NotificationService } from './notification.service';
 import { Notification, NotificationEventType } from './notification.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -50,7 +51,10 @@ describe('NotificationDropdown', () => {
     };
 
     await TestBed.configureTestingModule({
-      imports: [NotificationDropdown],
+      imports: [
+        NotificationDropdown,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [
         provideZonelessChangeDetection(),
         provideRouter([]),
