@@ -73,19 +73,23 @@ describe('AppModule wiring', () => {
       expect(client.enrol).toHaveBeenCalledWith(serverUrl, 'token-1');
     });
 
-    it('leaves the address to the form when nothing is pinned', async () => {
-      const service = buildWith(
-        SetupService,
-        stubs({ serverUrl: null } as unknown as AgentEnv),
-      ) as SetupService;
-
-      const status = await service.status();
-
-      expect(status.serverUrl).toBeNull();
+    it('refuses to build when the server address is not pinned', () => {
+      // Pinning the address is mandatory now, so a factory without it must fail
+      // at wiring rather than silently leaving the agent willing to enrol
+      // anywhere a form points it.
+      expect(() =>
+        buildWith(SetupService, stubs({ serverUrl: null } as unknown as AgentEnv)),
+      ).toThrow(/MNS_SERVER_URL/);
     });
   });
 
   describe('pinnedServerUrl', () => {
+    it('names the variable when it is missing', () => {
+      expect(() => pinnedServerUrl({ serverUrl: null } as unknown as AgentEnv)).toThrow(
+        /MNS_SERVER_URL is required/,
+      );
+    });
+
     it('names the variable when the value cannot be parsed', () => {
       expect(() => pinnedServerUrl({ serverUrl: 'not a url' } as AgentEnv)).toThrow(
         /MNS_SERVER_URL/,

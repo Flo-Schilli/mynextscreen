@@ -74,6 +74,18 @@ export class ServerClient {
     return this.request<AgentConfigMessage>('/api/agents/me/config');
   }
 
+  /**
+   * Asks the server to end this agent's sessions, gated on a fresh setup code
+   * from the dashboard.
+   *
+   * Done server-side first so a reset started on the venue LAN still needs an
+   * authenticated dashboard session: the setup code is the proof. On success the
+   * caller discards the local session; the server has already forgotten it.
+   */
+  async requestReset(setupCode: string): Promise<void> {
+    await this.request('/api/agents/me/reset', { method: 'POST', body: { setupCode } });
+  }
+
   async sendHeartbeat(agentVersion: string | null): Promise<void> {
     await this.request('/api/agents/me/heartbeat', {
       method: 'POST',

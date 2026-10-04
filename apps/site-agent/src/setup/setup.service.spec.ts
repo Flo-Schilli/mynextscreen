@@ -9,7 +9,7 @@ describe('SetupService', () => {
   let service: SetupService;
   let connections: { load: jest.Mock; clear: jest.Mock; isServerUrlPinned: boolean };
   let configs: { current: jest.Mock; clear: jest.Mock };
-  let client: { enrol: jest.Mock; invalidateAccessToken: jest.Mock };
+  let client: { enrol: jest.Mock; invalidateAccessToken: jest.Mock; requestReset: jest.Mock };
 
   const connection = {
     serverUrl: 'https://signage.example.com',
@@ -25,7 +25,11 @@ describe('SetupService', () => {
       isServerUrlPinned: false,
     };
     configs = { current: jest.fn().mockReturnValue(null), clear: jest.fn() };
-    client = { enrol: jest.fn(), invalidateAccessToken: jest.fn() };
+    client = {
+      enrol: jest.fn(),
+      invalidateAccessToken: jest.fn(),
+      requestReset: jest.fn().mockResolvedValue(undefined),
+    };
 
     service = build(null);
   });
@@ -163,21 +167,51 @@ describe('SetupService', () => {
   });
 
   describe('reset', () => {
+    it('confirms the reset with the server before touching local state', async () => {
+      connections.load.mockResolvedValue(connection);
+
+      await service.reset('fresh-code');
+
+      expect(client.requestReset).toHaveBeenCalledWith('fresh-code');
+    });
+
     it('forgets the session, the cached config and the access token', async () => {
       connections.load.mockResolvedValue(connection);
 
-      await service.reset();
+      await service.reset('fresh-code');
 
       expect(connections.clear).toHaveBeenCalled();
       expect(configs.clear).toHaveBeenCalled();
       expect(client.invalidateAccessToken).toHaveBeenCalled();
     });
 
+    // If the server refuses the code, the local session must survive: a reset
+    // that fails halfway would strand the agent exactly as an unauthorised one
+    // would.
+    it('keeps the local session when the server rejects the code', async () => {
+      connections.load.mockResolvedValue(connection);
+      client.requestReset.mockRejectedValue(new Error('/api/agents/me/reset returned 401'));
+
+      await expect(service.reset('stale-code')).rejects.toThrow(BadRequestException);
+      expect(connections.clear).not.toHaveBeenCalled();
+      expect(configs.clear).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['410', /already been used/],
+      ['401', /not valid or has expired/],
+    ])('turns a %s from the server into an actionable message', async (status, expected) => {
+      connections.load.mockResolvedValue(connection);
+      client.requestReset.mockRejectedValue(new Error(`/api/agents/me/reset returned ${status}`));
+
+      await expect(service.reset('code')).rejects.toThrow(expected);
+    });
+
     it('clears the last pull time so the page does not look fresh', async () => {
       service.recordConfigPull(new Date());
       connections.load.mockResolvedValue(null);
 
-      expect((await service.reset()).lastConfigPullAt).toBeNull();
+      expect((await service.reset('fresh-code')).lastConfigPullAt).toBeNull();
     });
   });
 });

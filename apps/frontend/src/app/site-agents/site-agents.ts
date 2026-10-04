@@ -106,28 +106,22 @@ import {
     @if (createOpen()) {
       <mns-overlay (closed)="closeCreate()">
         <mns-modal title="Add a site agent" icon="Cast" (closed)="closeCreate()">
-          @if (issued(); as token) {
-            <div class="space-y-4">
+          @if (issued(); as code) {
+            <div class="space-y-4" data-testid="setup-code">
               <p class="text-sm">
-                <strong>{{ token.agent.name }}</strong> is ready. Start the agent in the venue and
-                enter this token in its setup page.
+                <strong>{{ code.agent.name }}</strong> is ready. Start the agent in the venue and
+                enter this setup code on its setup page.
               </p>
               <!-- Shown once and never again: the server stores only its hash. -->
               <div class="rounded-lg border border-border-strong bg-surface-2 p-3">
-                <code class="block break-all font-mono text-[13px]">{{
-                  token.enrolmentToken
-                }}</code>
+                <code class="block break-all font-mono text-[13px]">{{ code.enrolmentToken }}</code>
               </div>
               <p class="text-[13px] text-muted">
-                It can only be used once and expires {{ token.expiresAt | date: 'short' }}. Copy it
+                It can only be used once and expires {{ code.expiresAt | date: 'short' }}. Copy it
                 now — it cannot be shown again, but you can issue a new one.
               </p>
               <div class="flex justify-end gap-2">
-                <mns-btn
-                  variant="outline"
-                  icon="Check"
-                  (mnsClick)="copyToken(token.enrolmentToken)"
-                >
+                <mns-btn variant="outline" icon="Check" (mnsClick)="copyToken(code.enrolmentToken)">
                   Copy
                 </mns-btn>
                 <mns-btn (mnsClick)="closeCreate()">Done</mns-btn>
@@ -219,14 +213,14 @@ export class SiteAgents implements OnInit, OnDestroy {
       });
   }
 
-  protected async copyToken(token: string): Promise<void> {
+  protected async copyToken(code: string): Promise<void> {
     try {
-      await navigator.clipboard.writeText(token);
-      this.toast.success('Token copied');
+      await navigator.clipboard.writeText(code);
+      this.toast.success('Setup code copied');
     } catch {
-      // Clipboard access is denied in plenty of contexts; the token is on
-      // screen either way, so this is a convenience, not a failure.
-      this.toast.error('Could not copy — select the token and copy it by hand');
+      // Clipboard access is denied in plenty of contexts; the code is on screen
+      // either way, so this is a convenience, not a failure.
+      this.toast.error('Could not copy — select the setup code and copy it by hand');
     }
   }
 

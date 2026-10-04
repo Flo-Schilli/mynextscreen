@@ -40,7 +40,7 @@ describe('SiteAgentDeviceController', () => {
   beforeEach(async () => {
     enrolments = { redeem: jest.fn() };
     sessions = { refresh: jest.fn() };
-    siteAgentService = { recordHeartbeat: jest.fn() };
+    siteAgentService = { recordHeartbeat: jest.fn(), resetFromAgent: jest.fn() };
     configService = { buildAgentConfig: jest.fn() };
     sse = { subscribe: jest.fn().mockReturnValue('stream') };
     commands = { applyReport: jest.fn() };
@@ -77,7 +77,7 @@ describe('SiteAgentDeviceController', () => {
       expect(isPublic).toBe(true);
     });
 
-    it.each(['heartbeat', 'config', 'events', 'reports'] as const)(
+    it.each(['heartbeat', 'config', 'events', 'reports', 'reset'] as const)(
       'marks %s as agent-authenticated',
       (method) => {
         expect(
@@ -85,6 +85,14 @@ describe('SiteAgentDeviceController', () => {
         ).toBe(true);
       },
     );
+
+    // reset must not be @Public: a fresh setup code still has to be presented by
+    // an already-enrolled agent, so the agent token gates reach to the route.
+    it('does not mark reset public', () => {
+      expect(
+        reflector.get<boolean>(IS_PUBLIC_KEY, SiteAgentDeviceController.prototype.reset),
+      ).toBeUndefined();
+    });
 
     // An agent has no membership, so a @Roles() here would make the route
     // permanently unreachable rather than more secure.
@@ -96,6 +104,7 @@ describe('SiteAgentDeviceController', () => {
         'config',
         'events',
         'reports',
+        'reset',
       ] as const) {
         expect(
           reflector.get<string[]>(ROLES_KEY, SiteAgentDeviceController.prototype[method]),
@@ -252,6 +261,27 @@ describe('SiteAgentDeviceController', () => {
 
     it('accepts an empty batch', async () => {
       await expect(controller.reports(agentReq, { screens: [] })).resolves.toBeUndefined();
+    });
+  });
+
+  describe('reset', () => {
+    it('forwards the setup code and the token-derived identity', async () => {
+      await controller.reset(agentReq, { setupCode: 'fresh-code' });
+
+      expect(siteAgentService.resetFromAgent).toHaveBeenCalledWith(agentId, orgId, 'fresh-code');
+    });
+
+    // Both the agent and the organisation come from the verified token, so the
+    // reset cannot be aimed at another venue by spoofing the payload.
+    it('takes the agent and organisation from the request, not the body', async () => {
+      const spoofed = {
+        ...agentReq,
+        body: { agentId: 'someone-else', organisationId: 'another-org' },
+      } as unknown as AgentAuthenticatedRequest;
+
+      await controller.reset(spoofed, { setupCode: 'fresh-code' });
+
+      expect(siteAgentService.resetFromAgent).toHaveBeenCalledWith(agentId, orgId, 'fresh-code');
     });
   });
 });

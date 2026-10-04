@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { GoneException, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { eq } from 'drizzle-orm';
-import { SiteAgentEnrolmentService } from './site-agent-enrolment.service';
+import {
+  DEFAULT_ENROLMENT_TTL_MS,
+  SiteAgentEnrolmentService,
+} from './site-agent-enrolment.service';
 import { SiteAgentSessionService } from './site-agent-session.service';
 import { TokenService } from '../auth/token.service';
 import { hashToken } from '../auth/token-hash.util';
@@ -34,20 +38,28 @@ describe('SiteAgentEnrolmentService', () => {
     await closeTestDb();
   });
 
-  beforeEach(async () => {
-    await truncateAll();
-    jest.clearAllMocks();
-
+  async function buildService(configValue?: string): Promise<SiteAgentEnrolmentService> {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SiteAgentEnrolmentService,
         SiteAgentSessionService,
         { provide: DRIZZLE, useValue: db },
         { provide: TokenService, useValue: tokens },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(configValue) },
+        },
       ],
     }).compile();
-    service = module.get(SiteAgentEnrolmentService);
     sessions = module.get(SiteAgentSessionService);
+    return module.get(SiteAgentEnrolmentService);
+  }
+
+  beforeEach(async () => {
+    await truncateAll();
+    jest.clearAllMocks();
+
+    service = await buildService();
 
     const [org] = await db
       .insert(organisations)
@@ -166,6 +178,86 @@ describe('SiteAgentEnrolmentService', () => {
 
       const refreshed = await sessions.refresh(result.tokens.refreshToken);
       expect(refreshed.status).toBe('ok');
+    });
+  });
+
+  describe('time to live', () => {
+    it('defaults to the 15-minute window when unconfigured', async () => {
+      const issued = await service.issue(agentId, orgId);
+
+      const expectedMs = Date.now() + DEFAULT_ENROLMENT_TTL_MS;
+      // Within a minute of the computed default: the row is written with a real
+      // clock, so an exact match would be flaky.
+      expect(Math.abs(issued.expiresAt.getTime() - expectedMs)).toBeLessThan(60_000);
+    });
+
+    it('honours SITE_AGENT_ENROLMENT_TTL_MS when it is a usable value', async () => {
+      const oneHour = 60 * 60 * 1000;
+      const configured = await buildService(String(oneHour));
+
+      const issued = await configured.issue(agentId, orgId);
+
+      expect(Math.abs(issued.expiresAt.getTime() - (Date.now() + oneHour))).toBeLessThan(60_000);
+    });
+
+    it('falls back to the default on a nonsense or too-small TTL', async () => {
+      const configured = await buildService('nonsense');
+
+      const issued = await configured.issue(agentId, orgId);
+
+      expect(
+        Math.abs(issued.expiresAt.getTime() - (Date.now() + DEFAULT_ENROLMENT_TTL_MS)),
+      ).toBeLessThan(60_000);
+    });
+  });
+
+  describe('verifyFresh', () => {
+    it('accepts a fresh code scoped to the organisation without consuming it', async () => {
+      const issued = await service.issue(agentId, orgId);
+
+      await expect(service.verifyFresh(issued.token, orgId)).resolves.toBeUndefined();
+
+      const [row] = await db
+        .select()
+        .from(siteAgentEnrolments)
+        .where(eq(siteAgentEnrolments.tokenHash, hashToken(issued.token)));
+      // Still redeemable afterwards: verification must not spend the code.
+      expect(row.consumedAt).toBeNull();
+    });
+
+    it('rejects a code issued for a different organisation with 401', async () => {
+      const issued = await service.issue(agentId, orgId);
+      const [other] = await db
+        .insert(organisations)
+        .values({ name: `Org ${Math.random()}`, timeZone: 'UTC' })
+        .returning();
+
+      await expect(service.verifyFresh(issued.token, other.id)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('rejects an already-used code with 410', async () => {
+      const issued = await service.issue(agentId, orgId);
+      await service.redeem(issued.token);
+
+      await expect(service.verifyFresh(issued.token, orgId)).rejects.toThrow(GoneException);
+    });
+
+    it('rejects an expired code with 401', async () => {
+      const issued = await service.issue(agentId, orgId);
+      await db
+        .update(siteAgentEnrolments)
+        .set({ expiresAt: new Date(Date.now() - 1000) })
+        .where(eq(siteAgentEnrolments.tokenHash, hashToken(issued.token)));
+
+      await expect(service.verifyFresh(issued.token, orgId)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('rejects an unknown code with 401', async () => {
+      await expect(service.verifyFresh('never-issued', orgId)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 

@@ -9,6 +9,7 @@ import {
   AUDIT_SITE_AGENT_CREATED,
   AUDIT_SITE_AGENT_DELETED,
   AUDIT_SITE_AGENT_ONLINE,
+  AUDIT_SITE_AGENT_RESET,
   AUDIT_SITE_AGENT_REVOKED,
   AUDIT_SITE_AGENT_UPDATED,
   AuditSiteAgentEvent,
@@ -130,6 +131,27 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
       new AuditSiteAgentEvent(id, organisationId, userId, { reissuedEnrolment: true }),
     );
     return enrolment;
+  }
+
+  /**
+   * Resets an agent at the operator's own request, from the agent's setup page.
+   *
+   * Gated on a fresh setup code from the dashboard — proof the caller holds an
+   * authenticated dashboard session for this organisation, not merely a browser
+   * on the venue LAN. Without the gate, anyone who could reach the agent's setup
+   * port could strand the venue by resetting it.
+   *
+   * The code is verified, not consumed: the operator still needs it to re-enrol
+   * the agent immediately afterwards.
+   */
+  async resetFromAgent(agentId: string, organisationId: string, setupCode: string): Promise<void> {
+    await this.enrolments.verifyFresh(setupCode, organisationId);
+    await this.sessions.revokeForAgent(agentId);
+    await this.markOffline(agentId, organisationId);
+    this.eventEmitter.emit(
+      AUDIT_SITE_AGENT_RESET,
+      new AuditSiteAgentEvent(agentId, organisationId, null, { origin: 'agent' }),
+    );
   }
 
   /** Ends every session of an agent; it has to be enrolled again to come back. */

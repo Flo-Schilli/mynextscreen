@@ -35,6 +35,7 @@ import {
   AUDIT_SITE_AGENT_UPDATED,
   AUDIT_SITE_AGENT_DELETED,
   AUDIT_SITE_AGENT_ENROLLED,
+  AUDIT_SITE_AGENT_RESET,
   AUDIT_SITE_AGENT_REVOKED,
   AUDIT_SITE_AGENT_ONLINE,
   AUDIT_SITE_AGENT_OFFLINE,
@@ -712,6 +713,11 @@ export class AuditListener {
   @OnEvent(AUDIT_SITE_AGENT_ENROLLED, { async: true })
   handleSiteAgentEnrolled(event: AuditSiteAgentEvent): void {
     this.recordSiteAgent(AuditAction.SiteAgentEnrolled, event);
+  }
+
+  @OnEvent(AUDIT_SITE_AGENT_RESET, { async: true })
+  handleSiteAgentReset(event: AuditSiteAgentEvent): void {
+    this.recordSiteAgent(AuditAction.SiteAgentReset, event);
   }
 
   @OnEvent(AUDIT_SITE_AGENT_REVOKED, { async: true })
