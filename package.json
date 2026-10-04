@@ -65,7 +65,7 @@
     "ioredis": "^6.0.0",
     "marked": "^18.0.6",
     "nodemailer": "^10.0.12",
-    "pg": "^8.21.0",
+    "pg": "^8.23.1",
     "postcss": "^8.5.8",
     "reflect-metadata": "^0.2.0",
     "rrule": "^2.8.1",
