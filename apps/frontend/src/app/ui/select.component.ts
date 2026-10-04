@@ -15,6 +15,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { closeLayer, isInnermostLayer, openLayer } from './dialog-stack';
 import { IconComponent } from './icon.component';
 
@@ -50,7 +51,7 @@ const MENU_POSITIONS: ConnectedPosition[] = [
   selector: 'mns-select',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, CdkOverlayOrigin, CdkConnectedOverlay],
+  imports: [IconComponent, CdkOverlayOrigin, CdkConnectedOverlay, TranslocoDirective],
   template: `
     <button
       #trigger
@@ -96,6 +97,7 @@ const MENU_POSITIONS: ConnectedPosition[] = [
       <!-- w-full because the overlay pane is a flex container: without it this
            box sizes to its content inside a pane that is the field's width. -->
       <div
+        *transloco="let t"
         class="flex w-full max-h-[16rem] flex-col overflow-hidden rounded-md border border-border-strong bg-surface"
         style="box-shadow: var(--shadow-lg)"
       >
@@ -105,7 +107,7 @@ const MENU_POSITIONS: ConnectedPosition[] = [
               #searchBox
               type="text"
               class="w-full rounded-[8px] border border-border-strong bg-surface-2 px-2.5 py-1.5 text-sm outline-none"
-              placeholder="Search…"
+              [placeholder]="t('ui.select.searchPlaceholder')"
               [value]="query()"
               (input)="onQuery($event)"
               (keydown)="onSearchKeydown($event)"
@@ -131,7 +133,9 @@ const MENU_POSITIONS: ConnectedPosition[] = [
               }
             </button>
           } @empty {
-            <p class="px-3 py-2.5 text-sm text-muted">No match for “{{ query() }}”</p>
+            <p class="px-3 py-2.5 text-sm text-muted">
+              {{ t('ui.select.noMatch', { query: query() }) }}
+            </p>
           }
         </div>
       </div>
@@ -144,9 +148,12 @@ const MENU_POSITIONS: ConnectedPosition[] = [
   },
 })
 export class SelectComponent {
+  private readonly transloco = inject(TranslocoService);
+
   readonly options = input.required<SelectOption[]>();
   readonly value = model<string>('');
-  readonly placeholder = input<string>('Select…');
+  /** Defaults to a localized "Select…" when left unset. */
+  readonly placeholder = input<string>('');
   /** Accessible name for the trigger, for a select with no visible label. */
   readonly ariaLabel = input<string | undefined>(undefined);
   /** Leave unset to decide from the number of options. */
@@ -170,7 +177,8 @@ export class SelectComponent {
 
   readonly selectedLabel = computed(() => {
     const v = this.value();
-    return this.options().find((o) => o.value === v)?.label ?? this.placeholder();
+    const placeholder = this.placeholder() || this.transloco.translate('ui.select.placeholder');
+    return this.options().find((o) => o.value === v)?.label ?? placeholder;
   });
 
   protected readonly showSearch = computed(

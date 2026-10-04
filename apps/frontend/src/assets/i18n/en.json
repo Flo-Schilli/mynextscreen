@@ -103,6 +103,35 @@
     "errors": {
       "notVerified": "Please verify your email before signing in.",
       "invalidCredentials": "Invalid email or password."
+    },
+    "setPassword": {
+      "title": "Set your password",
+      "subtitle": "Choose a password for your account. Use at least 8 characters.",
+      "missingToken": "Missing or invalid activation link. Ask an administrator to re-invite you.",
+      "newPasswordLabel": "New password",
+      "passwordMinLength": "Use at least 8 characters.",
+      "submit": "Set password",
+      "submitting": "Saving…",
+      "errors": {
+        "invalidLink": "This link is invalid or has expired. Ask an administrator to re-invite you."
+      }
+    },
+    "verifyEmail": {
+      "title": "Verify your email",
+      "verifying": "Verifying your email…",
+      "invalidLink": "This verification link is invalid or has expired.",
+      "resentNotice": "If that account needs verifying, a new link is on its way.",
+      "resend": "Resend verification email",
+      "resending": "Sending…",
+      "backToSignIn": "Back to sign in",
+      "resendPrompt": "Enter your email to resend the verification link:"
+    },
+    "confirmEmailChange": {
+      "title": "Email change",
+      "confirming": "Confirming your new email address…",
+      "doneBody": "Your email address has been updated. Use it the next time you sign in.",
+      "goToDashboard": "Go to dashboard",
+      "invalidLink": "This confirmation link is invalid or has expired."
     }
   },
   "shell": {
@@ -1668,6 +1697,288 @@
         "inviteFailed": "Failed to invite user.",
         "updateRole": "Failed to update role.",
         "removeMember": "Failed to remove member."
+      }
+    }
+  },
+  "register": {
+    "title": "Create your account",
+    "subtitle": "Start managing your screens in minutes.",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@company.com",
+    "emailInvalid": "Enter a valid email address.",
+    "orgNameLabel": "Organisation name",
+    "orgNamePlaceholder": "Your company or workspace",
+    "orgNameRequired": "An organisation name is required.",
+    "passwordLabel": "Password",
+    "passwordMinLength": "Use at least 8 characters.",
+    "confirmPasswordLabel": "Confirm password",
+    "passwordMismatch": "Passwords do not match.",
+    "submit": "Create account",
+    "submitting": "Creating…",
+    "haveAccount": "Already have an account?",
+    "signIn": "Sign in",
+    "backToSignIn": "Back to sign in",
+    "success": {
+      "title": "Check your inbox",
+      "body": "Almost there — we sent a verification link to your email. Click it to activate your account and organisation."
+    },
+    "errors": {
+      "conflict": "That email or organisation name is already taken.",
+      "disabled": "Self-signup is currently disabled.",
+      "generic": "Could not create your account. Please try again."
+    }
+  },
+  "setup": {
+    "title": "Welcome",
+    "subtitle": "Create the first administrator account.",
+    "nameLabel": "Name",
+    "nameOptional": "(optional)",
+    "namePlaceholder": "Jane Doe",
+    "emailLabel": "Email",
+    "emailPlaceholder": "admin@company.com",
+    "emailInvalid": "Enter a valid email address.",
+    "passwordLabel": "Password",
+    "passwordMinLength": "Password must be at least 8 characters.",
+    "confirmPasswordLabel": "Confirm password",
+    "passwordMismatch": "Passwords do not match.",
+    "submit": "Create admin account",
+    "submitting": "Creating account…",
+    "errors": {
+      "generic": "Could not complete setup. It may already be done — try signing in."
+    }
+  },
+  "ui": {
+    "select": {
+      "placeholder": "Select…",
+      "searchPlaceholder": "Search…",
+      "noMatch": "No match for “{query}”"
+    },
+    "stepper": {
+      "decrease": "Decrease",
+      "increase": "Increase"
+    },
+    "selection": {
+      "selectAll": "Select all items",
+      "bulkActions": "Bulk actions",
+      "clearSelection": "Clear selection",
+      "selectedCount": "{count, plural, one {# item selected} other {# items selected}}"
+    },
+    "toast": {
+      "dismiss": "Dismiss"
+    }
+  },
+  "admin": {
+    "instanceAdmin": "Instance Admin",
+    "tabs": {
+      "dashboard": "Dashboard",
+      "organisations": "Organisations",
+      "users": "Users",
+      "auditLog": "Audit Log"
+    },
+    "dashboard": {
+      "subtitle": "Manage every organisation, user and resource on this instance",
+      "loading": "Loading instance overview…",
+      "diskUnavailable": "Disk usage unavailable on this host.",
+      "errors": {
+        "accessDenied": "Access denied. Instance Admin privileges required.",
+        "loadFailed": "Failed to load instance overview."
+      },
+      "kpi": {
+        "organisations": "Organisations",
+        "activeTenants": "Active tenants",
+        "users": "Users",
+        "verified": "Verified",
+        "pending": "Pending",
+        "total": "{count} total",
+        "storageUsed": "Storage Used",
+        "ofAllocated": "of {limit} allocated",
+        "hostDiskFree": "Host Disk Free",
+        "ofUsed": "of {total} · {pct}% used"
+      },
+      "storageAllocated": {
+        "title": "Storage — Allocated vs Used",
+        "allOrganisations": "All organisations",
+        "originals": "Originals",
+        "transcoded": "Transcoded"
+      },
+      "orgLegend": {
+        "usedOf": "{used} used · {limit}"
+      },
+      "hostDisk": {
+        "title": "Host Disk",
+        "used": "used",
+        "usedLabel": "Used",
+        "freeLabel": "Free",
+        "freeOf": "{free} free of {total}"
+      },
+      "systemLoad": {
+        "title": "System load",
+        "subtitle": "CPU & memory · last 24 hours",
+        "hourlyAverage": "Hourly average",
+        "cpuCores": "CPU · {cores} cores",
+        "memoryTotal": "Memory · {total} GB",
+        "peak": "peak {pct}%",
+        "memoryReadout": "{used} GB · peak {peak} GB",
+        "collecting": "Collecting system-load history — the chart appears once enough data has been recorded.",
+        "chartAria": "CPU and memory usage over the last 24 hours",
+        "ticks": {
+          "start": "24h ago",
+          "now": "now"
+        }
+      },
+      "orgSnapshot": {
+        "title": "Organisations",
+        "subtitle": "Usage at a glance"
+      }
+    },
+    "organisations": {
+      "heading": "Organisations",
+      "new": "New Organisation",
+      "loading": "Loading organisations…",
+      "emptyTitle": "No organisations yet",
+      "emptyDesc": "Create your first organisation to start provisioning screens and content.",
+      "storageUsage": "Storage Usage",
+      "members": "Members",
+      "addMember": "Add Member",
+      "loadingMembers": "Loading members…",
+      "noMembersTitle": "No members yet",
+      "noMembersDesc": "Use “Add Member” above to give people access to this organisation.",
+      "roles": {
+        "org_admin": "Org Admin",
+        "editor": "Editor",
+        "viewer": "Viewer"
+      },
+      "toasts": {
+        "created": "Organisation “{name}” created.",
+        "updated": "Organisation “{name}” updated.",
+        "deleted": "Organisation deleted.",
+        "memberAdded": "Member added.",
+        "memberRemoved": "Member removed.",
+        "roleUpdated": "Role updated to {role}."
+      },
+      "errors": {
+        "accessDenied": "Access denied. Instance Admin privileges required.",
+        "loadFailed": "Failed to load organisations.",
+        "loadMembers": "Failed to load members.",
+        "addMember": "Failed to add member.",
+        "removeMember": "Failed to remove member.",
+        "updateRole": "Failed to update role.",
+        "delete": "Failed to delete organisation.",
+        "generic": "An error occurred. Please try again."
+      }
+    },
+    "orgTable": {
+      "manage": "Manage",
+      "headers": {
+        "organisation": "Organisation",
+        "users": "Users",
+        "storage": "Storage",
+        "created": "Created",
+        "actions": "Actions"
+      }
+    },
+    "orgMemberList": {
+      "noName": "(no name)",
+      "headers": {
+        "name": "Name",
+        "email": "Email",
+        "role": "Role",
+        "joined": "Joined",
+        "actions": "Actions"
+      }
+    },
+    "orgForm": {
+      "createTitle": "Create Organisation",
+      "editTitle": "Edit Organisation",
+      "nameLabel": "Name",
+      "namePlaceholder": "Organisation name",
+      "timeZoneLabel": "Time Zone",
+      "timeZonePlaceholder": "Select a time zone",
+      "originalStorageLimit": "Original Storage Limit",
+      "transcodedStorageLimit": "Transcoded Storage Limit",
+      "saveChanges": "Save Changes",
+      "validationRequired": "Name and time zone are required."
+    },
+    "addMemberModal": {
+      "title": "Add Member",
+      "emailLabel": "Email",
+      "emailPlaceholder": "user@example.com",
+      "roleLabel": "Role",
+      "adding": "Adding…",
+      "emailRequired": "Email is required."
+    },
+    "removeMemberModal": {
+      "title": "Remove Member",
+      "confirmPrefix": "Are you sure you want to remove",
+      "confirmSuffix": " from this organisation?",
+      "removing": "Removing…"
+    },
+    "deleteOrgModal": {
+      "title": "Delete Organisation",
+      "confirmPrefix": "Are you sure you want to delete",
+      "confirmSuffix": "? This permanently deletes all of its screens, content, playlists and schedules. This action cannot be undone.",
+      "deleting": "Deleting…"
+    },
+    "users": {
+      "heading": "Users",
+      "loading": "Loading users…",
+      "invitePending": "Invite pending",
+      "superuser": "Superuser",
+      "instanceAdminBadge": "Instance Admin",
+      "verified": "Verified",
+      "pending": "Pending",
+      "emptyTitle": "No users yet",
+      "emptyDesc": "Platform users appear here once they sign up or get invited to an organisation.",
+      "table": {
+        "user": "User",
+        "organisation": "Organisation",
+        "role": "Role",
+        "status": "Status",
+        "created": "Created",
+        "actions": "Actions"
+      },
+      "mobile": {
+        "organisation": "Organisation",
+        "role": "Role",
+        "status": "Status",
+        "created": "Created"
+      },
+      "stats": {
+        "total": "Total users",
+        "verified": "Verified",
+        "pending": "Pending",
+        "instanceAdmins": "Instance admins"
+      },
+      "toasts": {
+        "deleted": "User deleted."
+      },
+      "errors": {
+        "accessDenied": "Access denied. Instance Admin privileges required.",
+        "loadFailed": "Failed to load users.",
+        "delete": "Failed to delete user."
+      }
+    },
+    "deleteUserModal": {
+      "title": "Delete User",
+      "confirmPrefix": "Are you sure you want to delete",
+      "confirmSuffix": "? This removes the user and all of their organisation memberships. This action cannot be undone.",
+      "deleting": "Deleting…"
+    },
+    "auditLog": {
+      "heading": "Audit Log",
+      "exportCsv": "Export CSV",
+      "loading": "Loading audit log…",
+      "emptyTitle": "No audit log entries found",
+      "emptyDesc": "Instance-wide activity across every organisation will show up here.",
+      "filters": {
+        "organisation": "Organisation",
+        "allOrganisations": "All organisations",
+        "clear": "Clear filters"
+      },
+      "errors": {
+        "accessDenied": "Access denied. Instance Admin privileges required.",
+        "loadFailed": "Failed to load audit log.",
+        "loadMoreFailed": "Failed to load more entries."
       }
     }
   }

@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { IconComponent } from '../../ui/icon.component';
 import { ToastService } from './toast.service';
 
@@ -11,9 +12,10 @@ import { ToastService } from './toast.service';
   selector: 'app-toast-container',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent],
+  imports: [IconComponent, TranslocoDirective],
   template: `
     <div
+      *transloco="let t"
       class="fixed bottom-6 right-6 z-[2000] flex flex-col gap-2.5 pointer-events-none"
       style="max-width: min(24rem, calc(100vw - 3rem))"
       aria-live="polite"
@@ -54,7 +56,7 @@ import { ToastService } from './toast.service';
           <button
             type="button"
             class="flex-shrink-0 w-6 h-6 rounded-md grid place-items-center text-muted transition-colors duration-[120ms] hover:bg-hover hover:text-text"
-            aria-label="Dismiss"
+            [attr.aria-label]="t('ui.toast.dismiss')"
             (click)="toasts.dismiss(toast.id)"
           >
             <mns-icon name="X" [size]="12" />

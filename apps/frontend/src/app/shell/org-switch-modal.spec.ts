@@ -5,6 +5,7 @@ import { By } from '@angular/platform-browser';
 import { vi } from 'vitest';
 import { OrgSwitchModal } from './org-switch-modal';
 import { OrgWithRole } from './organisation-state.service';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -22,7 +23,10 @@ async function createFixture(
   overrides: { organisations?: OrgWithRole[]; selectedOrgId?: string | null } = {},
 ): Promise<ComponentFixture<OrgSwitchModal>> {
   await TestBed.configureTestingModule({
-    imports: [OrgSwitchModal],
+    imports: [
+      OrgSwitchModal,
+      getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+    ],
     providers: [provideZonelessChangeDetection()],
   }).compileComponents();
 

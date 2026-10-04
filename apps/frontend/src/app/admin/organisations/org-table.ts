@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { Organisation } from './organisation.model';
 import { formatBytes } from '../../shared/format-bytes';
 import { CardComponent, BarComponent, AvatarComponent, BtnComponent } from '../../ui';
@@ -14,9 +15,16 @@ import { CardComponent, BarComponent, AvatarComponent, BtnComponent } from '../.
   selector: 'app-org-table',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, CardComponent, BarComponent, AvatarComponent, BtnComponent],
+  imports: [
+    DatePipe,
+    CardComponent,
+    BarComponent,
+    AvatarComponent,
+    BtnComponent,
+    TranslocoDirective,
+  ],
   template: `
-    <mns-card [pad]="false" class="block overflow-hidden">
+    <mns-card [pad]="false" class="block overflow-hidden" *transloco="let t">
       <div class="overflow-x-auto">
         <div class="min-w-[760px]">
           <!-- header row -->
@@ -29,7 +37,7 @@ import { CardComponent, BarComponent, AvatarComponent, BtnComponent } from '../.
                 class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint"
                 [class.text-right]="last"
               >
-                {{ h }}
+                {{ t(h) }}
               </div>
             }
           </div>
@@ -71,7 +79,7 @@ import { CardComponent, BarComponent, AvatarComponent, BtnComponent } from '../.
               <!-- actions -->
               <div class="flex justify-end">
                 <mns-btn variant="outline" size="sm" icon="Eye" (mnsClick)="selectOrg.emit(org)">
-                  Manage
+                  {{ t('admin.orgTable.manage') }}
                 </mns-btn>
               </div>
             </div>
@@ -89,7 +97,13 @@ export class OrgTable {
 
   protected readonly formatBytes = formatBytes;
   protected readonly cols = '2.1fr 96px minmax(200px,1.4fr) 132px 110px';
-  protected readonly headers = ['Organisation', 'Users', 'Storage', 'Created', 'Actions'];
+  protected readonly headers = [
+    'admin.orgTable.headers.organisation',
+    'admin.orgTable.headers.users',
+    'admin.orgTable.headers.storage',
+    'admin.orgTable.headers.created',
+    'admin.orgTable.headers.actions',
+  ];
 
   protected memberCountFor(orgId: string): string {
     const count = this.memberCounts()[orgId] as number | undefined;

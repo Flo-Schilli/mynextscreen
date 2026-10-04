@@ -3,6 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
 import { SelectionService } from './selection.service';
 import { BulkActionToolbarComponent, BulkAction } from './bulk-action-toolbar';
+import { getTranslocoTestingModule } from '../../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -29,6 +30,7 @@ describe('BulkActionToolbarComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [provideZonelessChangeDetection()],
     });
     fixture = TestBed.createComponent(TestHostComponent);
@@ -76,7 +78,7 @@ describe('BulkActionToolbarComponent', () => {
   it('should display the correct selection count', () => {
     service.selectAll(['a', 'b', 'c']);
     fixture.detectChanges();
-    expect(getCountText()).toBe('3 item(s) selected');
+    expect(getCountText()).toBe('3 items selected');
   });
 
   it('should clear selection when clear button is clicked', () => {
@@ -153,7 +155,7 @@ describe('BulkActionToolbarComponent', () => {
     expect(spinner).not.toBeNull();
 
     // Selection count should still be visible
-    expect(getCountText()).toBe('1 item(s) selected');
+    expect(getCountText()).toBe('1 item selected');
 
     // Resolve the action
     resolveHandler();

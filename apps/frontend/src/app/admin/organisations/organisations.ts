@@ -1,4 +1,5 @@
 import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 
 import { OrganisationService } from './organisation.service';
 import { Organisation, OrgMember, OrgMemberRole } from './organisation.model';
@@ -47,9 +48,10 @@ import { BackLink } from '../../shared/back-link';
     BtnComponent,
     IconComponent,
     EmptyComponent,
+    TranslocoDirective,
   ],
   template: `
-    <div class="page">
+    <div class="page" *transloco="let t">
       <!-- amber page header -->
       <div class="flex items-end justify-between gap-4 flex-wrap mb-[22px]">
         <div class="flex items-center gap-4 min-w-0">
@@ -61,14 +63,18 @@ import { BackLink } from '../../shared/back-link';
               <mns-icon name="Building" [size]="23" />
             </span>
             <div class="min-w-0">
-              <h1 class="m-0 text-[27px] font-extrabold tracking-[-0.025em]">Instance Admin</h1>
-              <div class="text-muted text-[14px] mt-[3px]">Organisations</div>
+              <h1 class="m-0 text-[27px] font-extrabold tracking-[-0.025em]">
+                {{ t('admin.instanceAdmin') }}
+              </h1>
+              <div class="text-muted text-[14px] mt-[3px]">
+                {{ t('admin.organisations.heading') }}
+              </div>
             </div>
           </div>
         </div>
         @if (!selectedOrg) {
           <mns-btn variant="primary" size="md" icon="Plus" (click)="openCreateForm()">
-            New Organisation
+            {{ t('admin.organisations.new') }}
           </mns-btn>
         }
       </div>
@@ -81,12 +87,12 @@ import { BackLink } from '../../shared/back-link';
         <div class="flex items-center gap-3 mb-4 flex-wrap">
           <app-back-link (back)="deselectOrg()" />
           <h2 class="m-0 text-[20px] font-bold flex-1">{{ selectedOrg.name }}</h2>
-          <mns-btn variant="outline" size="sm" icon="Pencil" (click)="openEditForm(selectedOrg)"
-            >Edit</mns-btn
-          >
-          <mns-btn variant="danger" size="sm" icon="Trash" (click)="openDeleteModal()"
-            >Delete</mns-btn
-          >
+          <mns-btn variant="outline" size="sm" icon="Pencil" (click)="openEditForm(selectedOrg)">{{
+            t('common.actions.edit')
+          }}</mns-btn>
+          <mns-btn variant="danger" size="sm" icon="Trash" (click)="openDeleteModal()">{{
+            t('common.actions.delete')
+          }}</mns-btn>
         </div>
 
         <div class="flex flex-wrap gap-2 mb-4">
@@ -98,20 +104,20 @@ import { BackLink } from '../../shared/back-link';
         </div>
 
         <mns-card class="mb-6 block max-w-[40rem]">
-          <mns-card-head title="Storage Usage" icon="Storage" />
+          <mns-card-head [title]="t('admin.organisations.storageUsage')" icon="Storage" />
           <app-storage-usage-bars [storage]="storageOf(selectedOrg)" />
         </mns-card>
 
         <!-- Members section -->
         <div class="flex justify-between items-center mb-4">
-          <h3 class="m-0 text-[18px] font-bold">Members</h3>
-          <mns-btn variant="primary" size="sm" icon="Plus" (click)="openAddMemberModal()"
-            >Add Member</mns-btn
-          >
+          <h3 class="m-0 text-[18px] font-bold">{{ t('admin.organisations.members') }}</h3>
+          <mns-btn variant="primary" size="sm" icon="Plus" (click)="openAddMemberModal()">{{
+            t('admin.organisations.addMember')
+          }}</mns-btn>
         </div>
 
         @if (membersLoading) {
-          <p class="text-muted text-sm">Loading members…</p>
+          <p class="text-muted text-sm">{{ t('admin.organisations.loadingMembers') }}</p>
         }
         @if (membersError) {
           <p class="text-offline text-sm">{{ membersError }}</p>
@@ -128,8 +134,8 @@ import { BackLink } from '../../shared/back-link';
         @if (!membersLoading && members.length === 0 && !membersError) {
           <mns-empty
             icon="User"
-            title="No members yet"
-            desc="Use “Add Member” above to give people access to this organisation."
+            [title]="t('admin.organisations.noMembersTitle')"
+            [desc]="t('admin.organisations.noMembersDesc')"
           />
         }
         @if (memberActionError) {
@@ -143,7 +149,7 @@ import { BackLink } from '../../shared/back-link';
           <p class="text-offline text-sm">{{ loadError }}</p>
         }
         @if (loading) {
-          <p class="text-muted text-sm">Loading organisations…</p>
+          <p class="text-muted text-sm">{{ t('admin.organisations.loading') }}</p>
         }
         @if (!loading && organisations.length > 0) {
           <app-org-table
@@ -155,11 +161,11 @@ import { BackLink } from '../../shared/back-link';
         @if (!loading && organisations.length === 0 && !loadError) {
           <mns-empty
             icon="Building"
-            title="No organisations yet"
-            desc="Create your first organisation to start provisioning screens and content."
+            [title]="t('admin.organisations.emptyTitle')"
+            [desc]="t('admin.organisations.emptyDesc')"
           >
             <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">
-              New Organisation
+              {{ t('admin.organisations.new') }}
             </mns-btn>
           </mns-empty>
         }
@@ -214,6 +220,7 @@ import { BackLink } from '../../shared/back-link';
 export class Organisations implements OnInit {
   private orgService = inject(OrganisationService);
   private toast = inject(ToastService);
+  private transloco = inject(TranslocoService);
 
   protected readonly formatBytes = formatBytes;
 
@@ -277,8 +284,8 @@ export class Organisations implements OnInit {
       error: (err) => {
         this.loadError =
           err.status === 403
-            ? 'Access denied. Instance Admin privileges required.'
-            : 'Failed to load organisations.';
+            ? this.transloco.translate('admin.organisations.errors.accessDenied')
+            : this.transloco.translate('admin.organisations.errors.loadFailed');
         this.loading = false;
       },
     });
@@ -336,12 +343,13 @@ export class Organisations implements OnInit {
         this.loadOrganisations();
         this.toast.success(
           editingId
-            ? `Organisation “${saved.name}” updated.`
-            : `Organisation “${saved.name}” created.`,
+            ? this.transloco.translate('admin.organisations.toasts.updated', { name: saved.name })
+            : this.transloco.translate('admin.organisations.toasts.created', { name: saved.name }),
         );
       },
       error: (err) => {
-        this.formError = err.error?.message || 'An error occurred. Please try again.';
+        this.formError =
+          err.error?.message || this.transloco.translate('admin.organisations.errors.generic');
         this.submitting = false;
       },
     });
@@ -360,7 +368,7 @@ export class Organisations implements OnInit {
         this.membersLoading = false;
       },
       error: () => {
-        this.membersError = 'Failed to load members.';
+        this.membersError = this.transloco.translate('admin.organisations.errors.loadMembers');
         this.membersLoading = false;
       },
     });
@@ -385,10 +393,11 @@ export class Organisations implements OnInit {
         this.addingMember = false;
         this.showAddMemberModal = false;
         this.loadMembers();
-        this.toast.success('Member added.');
+        this.toast.success(this.transloco.translate('admin.organisations.toasts.memberAdded'));
       },
       error: (err) => {
-        this.addMemberError = err.error?.message || 'Failed to add member.';
+        this.addMemberError =
+          err.error?.message || this.transloco.translate('admin.organisations.errors.addMember');
         this.addingMember = false;
       },
     });
@@ -405,10 +414,15 @@ export class Organisations implements OnInit {
         next: (updated) => {
           member.role = updated.role;
           this.updatingMemberId = null;
-          this.toast.success(`Role updated to ${updated.role}.`);
+          this.toast.success(
+            this.transloco.translate('admin.organisations.toasts.roleUpdated', {
+              role: this.roleLabel(updated.role),
+            }),
+          );
         },
         error: (err) => {
-          this.memberActionError = err.error?.message || 'Failed to update role.';
+          this.memberActionError =
+            err.error?.message || this.transloco.translate('admin.organisations.errors.updateRole');
           this.updatingMemberId = null;
         },
       });
@@ -435,10 +449,11 @@ export class Organisations implements OnInit {
         this.showRemoveConfirm = false;
         this.removingMember = null;
         this.loadMembers();
-        this.toast.success('Member removed.');
+        this.toast.success(this.transloco.translate('admin.organisations.toasts.memberRemoved'));
       },
       error: (err) => {
-        this.memberActionError = err.error?.message || 'Failed to remove member.';
+        this.memberActionError =
+          err.error?.message || this.transloco.translate('admin.organisations.errors.removeMember');
         this.removingMemberId = null;
         this.showRemoveConfirm = false;
         this.removingMember = null;
@@ -470,16 +485,22 @@ export class Organisations implements OnInit {
         this.showDeleteModal = false;
         this.deselectOrg();
         this.loadOrganisations();
-        this.toast.success('Organisation deleted.');
+        this.toast.success(this.transloco.translate('admin.organisations.toasts.deleted'));
       },
       error: (err) => {
-        this.deleteError = err.error?.message || 'Failed to delete organisation.';
+        this.deleteError =
+          err.error?.message || this.transloco.translate('admin.organisations.errors.delete');
         this.deletingOrg = false;
       },
     });
   }
 
   // ── Helpers ──
+
+  /** Human-readable, localized label for a membership role. */
+  private roleLabel(role: OrgMemberRole): string {
+    return this.transloco.translate('admin.organisations.roles.' + role);
+  }
 
   /** Map an organisation's storage columns to the shared {@link StorageInfo} shape. */
   storageOf(org: Organisation): StorageInfo {

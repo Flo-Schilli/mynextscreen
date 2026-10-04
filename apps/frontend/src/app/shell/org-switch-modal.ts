@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { OrgWithRole } from './organisation-state.service';
 import { formatRole } from './format-role';
 import { OverlayComponent, ModalComponent } from '../ui/overlay.component';
@@ -12,10 +13,10 @@ import { IconComponent } from '../ui/icon.component';
   selector: 'app-org-switch-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayComponent, ModalComponent, IconComponent],
+  imports: [OverlayComponent, ModalComponent, IconComponent, TranslocoDirective],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
-      <mns-modal title="Switch organisation" icon="Building" (closed)="dismiss.emit()">
+    <mns-overlay (closed)="dismiss.emit()" *transloco="let t">
+      <mns-modal [title]="t('shell.topbar.switchOrg')" icon="Building" (closed)="dismiss.emit()">
         <!-- org list -->
         <ul class="org-list">
           @for (org of organisations(); track org.id) {
@@ -42,7 +43,7 @@ import { IconComponent } from '../ui/icon.component';
         <!-- footer slot -->
         <div slot="footer" class="modal-footer">
           <button type="button" class="btn-secondary btn-secondary" (click)="dismiss.emit()">
-            Close
+            {{ t('common.actions.close') }}
           </button>
         </div>
       </mns-modal>

@@ -7,13 +7,13 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { Router } from '@angular/router';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 
 import { InstanceAuditLogService, InstanceAuditLogFilters } from './instance-audit-log.service';
 import { AdminUserService } from '../users/admin-user.service';
 import { OrganisationService } from '../organisations/organisation.service';
 import {
   AuditEntry,
-  AUDIT_ACTION_LABELS,
   INSTANCE_AUDIT_ACTIONS,
   INSTANCE_RESOURCE_TYPES,
 } from '../../audit-log/audit-log.model';
@@ -55,9 +55,10 @@ const titleCase = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slic
     SFieldComponent,
     SInputComponent,
     SelectComponent,
+    TranslocoDirective,
   ],
   template: `
-    <div class="page">
+    <div class="page" *transloco="let t">
       <!-- amber page header -->
       <div class="flex items-end justify-between gap-4 flex-wrap mb-[22px]">
         <div class="flex items-center gap-4 min-w-0">
@@ -69,14 +70,16 @@ const titleCase = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slic
               <mns-icon name="Audit" [size]="23" />
             </span>
             <div class="min-w-0">
-              <h1 class="m-0 text-[27px] font-extrabold tracking-[-0.025em]">Instance Admin</h1>
-              <div class="text-muted text-[14px] mt-[3px]">Audit Log</div>
+              <h1 class="m-0 text-[27px] font-extrabold tracking-[-0.025em]">
+                {{ t('admin.instanceAdmin') }}
+              </h1>
+              <div class="text-muted text-[14px] mt-[3px]">{{ t('admin.auditLog.heading') }}</div>
             </div>
           </div>
         </div>
-        <mns-btn variant="outline" size="md" icon="Download" (click)="exportCsv()"
-          >Export CSV</mns-btn
-        >
+        <mns-btn variant="outline" size="md" icon="Download" (click)="exportCsv()">{{
+          t('admin.auditLog.exportCsv')
+        }}</mns-btn>
       </div>
 
       <!-- tab bar -->
@@ -86,7 +89,7 @@ const titleCase = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slic
         class="flex flex-wrap items-end gap-4 mb-6 p-4 bg-surface border border-border rounded-lg"
       >
         <div class="min-w-[10rem]">
-          <mns-sfield label="Organisation">
+          <mns-sfield [label]="t('admin.auditLog.filters.organisation')">
             <mns-select
               [options]="orgSelectOptions()"
               [(value)]="filterOrg"
@@ -96,7 +99,7 @@ const titleCase = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slic
         </div>
 
         <div class="min-w-[10rem]">
-          <mns-sfield label="Action">
+          <mns-sfield [label]="t('auditLog.filters.action')">
             <mns-select
               [options]="actionSelectOptions()"
               [(value)]="filterAction"
@@ -106,7 +109,7 @@ const titleCase = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slic
         </div>
 
         <div class="min-w-[10rem]">
-          <mns-sfield label="User">
+          <mns-sfield [label]="t('auditLog.filters.user')">
             <mns-select
               [options]="userSelectOptions()"
               [(value)]="filterUserId"
@@ -116,7 +119,7 @@ const titleCase = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slic
         </div>
 
         <div class="min-w-[10rem]">
-          <mns-sfield label="Resource Type">
+          <mns-sfield [label]="t('auditLog.filters.resourceType')">
             <mns-select
               [options]="resourceSelectOptions()"
               [(value)]="filterResourceType"
@@ -126,19 +129,21 @@ const titleCase = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slic
         </div>
 
         <div class="min-w-[9rem]">
-          <mns-sfield label="From">
+          <mns-sfield [label]="t('auditLog.filters.from')">
             <mns-sinput type="date" [(value)]="filterFrom" (valueChange)="applyFilters()" />
           </mns-sfield>
         </div>
 
         <div class="min-w-[9rem]">
-          <mns-sfield label="To">
+          <mns-sfield [label]="t('auditLog.filters.to')">
             <mns-sinput type="date" [(value)]="filterTo" (valueChange)="applyFilters()" />
           </mns-sfield>
         </div>
 
         @if (hasActiveFilters()) {
-          <mns-btn variant="ghost" size="sm" (mnsClick)="clearFilters()">Clear filters</mns-btn>
+          <mns-btn variant="ghost" size="sm" (mnsClick)="clearFilters()">{{
+            t('admin.auditLog.filters.clear')
+          }}</mns-btn>
         }
       </div>
 
@@ -147,14 +152,14 @@ const titleCase = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slic
       }
 
       @if (loading && entries.length === 0) {
-        <p class="text-muted text-sm">Loading audit log…</p>
+        <p class="text-muted text-sm">{{ t('admin.auditLog.loading') }}</p>
       }
 
       @if (!loading && entries.length === 0 && !loadError) {
         <mns-empty
           icon="Audit"
-          title="No audit log entries found"
-          desc="Instance-wide activity across every organisation will show up here."
+          [title]="t('admin.auditLog.emptyTitle')"
+          [desc]="t('admin.auditLog.emptyDesc')"
         />
       }
 
@@ -181,6 +186,7 @@ export class InstanceAuditLog implements OnInit {
   private userService = inject(AdminUserService);
   private orgService = inject(OrganisationService);
   private router = inject(Router);
+  private transloco = inject(TranslocoService);
 
   exportCsv(): void {
     // Placeholder — backend CSV export endpoint wired when available
@@ -210,19 +216,19 @@ export class InstanceAuditLog implements OnInit {
 
   // ── Select options for the filter bar (mns-select) ──
   readonly orgSelectOptions = computed<SelectOption[]>(() => [
-    { value: '', label: 'All organisations' },
+    { value: '', label: this.transloco.translate('admin.auditLog.filters.allOrganisations') },
     ...this.orgOptions().map((o) => ({ value: o.id, label: o.name })),
   ]);
   readonly actionSelectOptions = computed<SelectOption[]>(() => [
-    { value: '', label: 'All actions' },
+    { value: '', label: this.transloco.translate('auditLog.filters.allActions') },
     ...this.auditActions.map((a) => ({ value: a, label: this.actionLabel(a) })),
   ]);
   readonly userSelectOptions = computed<SelectOption[]>(() => [
-    { value: '', label: 'All users' },
+    { value: '', label: this.transloco.translate('auditLog.filters.allUsers') },
     ...this.userOptions().map((u) => ({ value: u.userId, label: u.label })),
   ]);
   readonly resourceSelectOptions = computed<SelectOption[]>(() => [
-    { value: '', label: 'All types' },
+    { value: '', label: this.transloco.translate('auditLog.filters.allTypes') },
     ...this.resourceTypes.map((t) => ({ value: t, label: titleCase(t) })),
   ]);
 
@@ -293,8 +299,8 @@ export class InstanceAuditLog implements OnInit {
       error: (err) => {
         this.loadError =
           err.status === 403
-            ? 'Access denied. Instance Admin privileges required.'
-            : 'Failed to load audit log.';
+            ? this.transloco.translate('admin.auditLog.errors.accessDenied')
+            : this.transloco.translate('admin.auditLog.errors.loadFailed');
         this.loading = false;
       },
     });
@@ -309,7 +315,7 @@ export class InstanceAuditLog implements OnInit {
         this.loading = false;
       },
       error: () => {
-        this.loadError = 'Failed to load more entries.';
+        this.loadError = this.transloco.translate('admin.auditLog.errors.loadMoreFailed');
         this.loading = false;
       },
     });
@@ -354,6 +360,10 @@ export class InstanceAuditLog implements OnInit {
   }
 
   protected actionLabel(action: string): string {
-    return AUDIT_ACTION_LABELS[action] ?? action;
+    const key = 'auditLog.actions.' + action;
+    const label = this.transloco.translate(key);
+    // Transloco echoes the key back when there is no translation; fall back to
+    // the raw action id (e.g. a new backend action not yet in the catalogue).
+    return label === key ? action : label;
   }
 }

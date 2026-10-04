@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { OrgMemberRole } from './organisation.model';
 import {
   OverlayComponent,
@@ -14,12 +23,6 @@ export interface AddMemberPayload {
   email: string;
   role: OrgMemberRole;
 }
-
-const ROLE_OPTIONS: SelectOption[] = [
-  { value: 'org_admin', label: 'Org Admin' },
-  { value: 'editor', label: 'Editor' },
-  { value: 'viewer', label: 'Viewer' },
-];
 
 /**
  * Add-member modal. Owns its own email/role field state, validates locally and
@@ -37,25 +40,33 @@ const ROLE_OPTIONS: SelectOption[] = [
     SFieldComponent,
     SInputComponent,
     SelectComponent,
+    TranslocoDirective,
   ],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
-      <mns-modal title="Add Member" icon="User" (closed)="dismiss.emit()">
+    <mns-overlay (closed)="dismiss.emit()" *transloco="let t">
+      <mns-modal [title]="t('admin.addMemberModal.title')" icon="User" (closed)="dismiss.emit()">
         <div class="flex flex-col gap-4">
-          <mns-sfield label="Email">
-            <mns-sinput type="email" icon="Mail" placeholder="user@example.com" [(value)]="email" />
+          <mns-sfield [label]="t('admin.addMemberModal.emailLabel')">
+            <mns-sinput
+              type="email"
+              icon="Mail"
+              [placeholder]="t('admin.addMemberModal.emailPlaceholder')"
+              [(value)]="email"
+            />
           </mns-sfield>
-          <mns-sfield label="Role">
-            <mns-select [options]="roleOptions" [(value)]="role" />
+          <mns-sfield [label]="t('admin.addMemberModal.roleLabel')">
+            <mns-select [options]="roleOptions()" [(value)]="role" />
           </mns-sfield>
           @if (localError() || error()) {
             <p class="error text-offline text-sm">{{ localError() || error() }}</p>
           }
         </div>
         <div slot="footer" class="flex justify-end gap-2 px-6 pb-5 pt-1">
-          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">{{
+            t('common.actions.cancel')
+          }}</mns-btn>
           <mns-btn variant="primary" [disabled]="adding()" (mnsClick)="onSubmit()">
-            {{ adding() ? 'Adding…' : 'Add Member' }}
+            {{ adding() ? t('admin.addMemberModal.adding') : t('admin.addMemberModal.title') }}
           </mns-btn>
         </div>
       </mns-modal>
@@ -69,7 +80,13 @@ export class OrgAddMemberModal {
   readonly add = output<AddMemberPayload>();
   readonly dismiss = output<void>();
 
-  protected readonly roleOptions = ROLE_OPTIONS;
+  private readonly transloco = inject(TranslocoService);
+
+  protected readonly roleOptions = computed<SelectOption[]>(() => [
+    { value: 'org_admin', label: this.transloco.translate('admin.organisations.roles.org_admin') },
+    { value: 'editor', label: this.transloco.translate('admin.organisations.roles.editor') },
+    { value: 'viewer', label: this.transloco.translate('admin.organisations.roles.viewer') },
+  ]);
 
   protected readonly email = signal('');
   protected readonly role = signal<string>('viewer');
@@ -77,7 +94,7 @@ export class OrgAddMemberModal {
 
   onSubmit(): void {
     if (!this.email()) {
-      this.localError.set('Email is required.');
+      this.localError.set(this.transloco.translate('admin.addMemberModal.emailRequired'));
       return;
     }
 

@@ -1,6 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { SelectComponent, SelectOption } from './select.component';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 function makeOptions(count: number): SelectOption[] {
   return Array.from({ length: count }, (_, i) => ({
@@ -44,7 +45,12 @@ describe('SelectComponent', () => {
   };
 
   beforeEach(async () => {
-    await TestBed.configureTestingModule({ imports: [HostComponent] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [
+        HostComponent,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
+    }).compileComponents();
     fixture = TestBed.createComponent(HostComponent);
     host = fixture.componentInstance;
   });

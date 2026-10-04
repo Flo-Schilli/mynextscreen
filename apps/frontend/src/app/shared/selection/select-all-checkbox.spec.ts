@@ -3,6 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { Component, provideZonelessChangeDetection } from '@angular/core';
 import { SelectionService } from './selection.service';
 import { SelectAllCheckboxComponent } from './select-all-checkbox';
+import { getTranslocoTestingModule } from '../../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -26,6 +27,7 @@ describe('SelectAllCheckboxComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [provideZonelessChangeDetection()],
     });
     fixture = TestBed.createComponent(TestHostComponent);

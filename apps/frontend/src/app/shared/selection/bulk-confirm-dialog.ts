@@ -8,12 +8,15 @@ import {
   ViewChild,
   ChangeDetectionStrategy,
 } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 
 @Component({
   selector: 'app-bulk-confirm-dialog',
   standalone: true,
+  imports: [TranslocoDirective],
   template: `
     <div
+      *transloco="let t"
       class="modal-overlay"
       role="dialog"
       aria-modal="true"
@@ -32,7 +35,9 @@ import {
         <h2>{{ title() }}</h2>
         <p>{{ message() }}</p>
         <div class="form-actions">
-          <button class="btn btn-secondary" (click)="onCancel()">Cancel</button>
+          <button class="btn btn-secondary" (click)="onCancel()">
+            {{ t('common.actions.cancel') }}
+          </button>
           <button class="btn btn-danger" #confirmBtn (click)="onConfirm()">
             {{ confirmLabel() }}
           </button>

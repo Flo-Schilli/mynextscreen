@@ -1,4 +1,4 @@
-<div class="flex min-h-screen items-center justify-center bg-bg px-4 py-10">
+<div class="flex min-h-screen items-center justify-center bg-bg px-4 py-10" *transloco="let t">
   <div
     class="w-full max-w-[400px]"
     style="animation: fadeUp 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both"
@@ -31,7 +31,9 @@
       class="w-full rounded-xl border border-border bg-surface p-8"
       style="box-shadow: var(--shadow)"
     >
-      <h1 class="mb-4 text-[22px] font-extrabold tracking-tight">Verify your email</h1>
+      <h1 class="mb-4 text-[22px] font-extrabold tracking-tight">
+        {{ t('auth.verifyEmail.title') }}
+      </h1>
 
       @if (state() === 'verifying') {
         <!-- Verifying state -->
@@ -40,7 +42,7 @@
             class="h-10 w-10 animate-spin rounded-full border-2 border-border border-t-accent"
             style="@media (prefers-reduced-motion: reduce) {animation: none}"
           ></div>
-          <p class="text-[13.5px] text-muted">Verifying your email…</p>
+          <p class="text-[13.5px] text-muted">{{ t('auth.verifyEmail.verifying') }}</p>
         </div>
       } @else {
         <!-- Error state -->
@@ -53,16 +55,16 @@
           </div>
 
           <p class="text-[13.5px] text-offline" role="alert">
-            This verification link is invalid or has expired.
+            {{ t('auth.verifyEmail.invalidLink') }}
           </p>
 
           @if (resent()) {
             <p class="text-[13.5px] text-muted">
-              If that account needs verifying, a new link is on its way.
+              {{ t('auth.verifyEmail.resentNotice') }}
             </p>
           } @else {
             <mns-btn variant="primary" [full]="true" [disabled]="resending()" (mnsClick)="resend()">
-              {{ resending() ? 'Sending…' : 'Resend verification email' }}
+              {{ resending() ? t('auth.verifyEmail.resending') : t('auth.verifyEmail.resend') }}
             </mns-btn>
           }
 
@@ -70,7 +72,7 @@
             href="/login"
             class="inline-flex items-center justify-center gap-1.5 text-sm font-semibold text-accent hover:opacity-80"
           >
-            <mns-icon name="ChevronLeft" [size]="15" />Back to sign in
+            <mns-icon name="ChevronLeft" [size]="15" />{{ t('auth.verifyEmail.backToSignIn') }}
           </a>
         </div>
       }

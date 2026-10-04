@@ -1,5 +1,6 @@
 /* eslint-disable @angular-eslint/component-selector */
 import { ChangeDetectionStrategy, Component, computed, input, model } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 
 /**
  * Labelled −/+ numeric stepper bounded by `min`/`max`. Signal-model only:
@@ -12,14 +13,15 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
   selector: 'mns-stepper',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [TranslocoDirective],
   template: `
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between" *transloco="let t">
       <span class="text-[13.5px] text-muted">{{ label() }}</span>
       <div class="flex items-center border border-border-strong rounded-[10px] overflow-hidden">
         <button
           type="button"
           class="grid place-items-center w-8 h-8 text-muted text-lg font-bold transition-colors duration-[120ms] hover:bg-hover disabled:opacity-40 disabled:cursor-not-allowed"
-          aria-label="Decrease"
+          [attr.aria-label]="t('ui.stepper.decrease')"
           [disabled]="value() <= min()"
           (click)="dec()"
         >
@@ -29,7 +31,7 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
         <button
           type="button"
           class="grid place-items-center w-8 h-8 text-muted text-lg font-bold transition-colors duration-[120ms] hover:bg-hover disabled:opacity-40 disabled:cursor-not-allowed"
-          aria-label="Increase"
+          [attr.aria-label]="t('ui.stepper.increase')"
           [disabled]="value() >= max()"
           (click)="inc()"
         >

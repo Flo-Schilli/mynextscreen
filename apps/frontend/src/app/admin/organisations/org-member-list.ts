@@ -1,13 +1,8 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { OrgMember, OrgMemberRole } from './organisation.model';
 import { CardComponent, BtnComponent, SelectComponent, SelectOption } from '../../ui';
-
-const ROLE_OPTIONS: SelectOption[] = [
-  { value: 'org_admin', label: 'Org Admin' },
-  { value: 'editor', label: 'Editor' },
-  { value: 'viewer', label: 'Viewer' },
-];
 
 /**
  * Presentational organisation members list. Renders each member as a card-grid
@@ -19,9 +14,9 @@ const ROLE_OPTIONS: SelectOption[] = [
   selector: 'app-org-member-list',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, CardComponent, BtnComponent, SelectComponent],
+  imports: [DatePipe, CardComponent, BtnComponent, SelectComponent, TranslocoDirective],
   template: `
-    <mns-card [pad]="false" class="block overflow-hidden">
+    <mns-card [pad]="false" class="block overflow-hidden" *transloco="let t">
       <!-- ── table view (tablet and up) ── -->
       <div class="hidden md:block overflow-x-auto">
         <div class="min-w-[680px]">
@@ -35,7 +30,7 @@ const ROLE_OPTIONS: SelectOption[] = [
                 class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint"
                 [class.text-right]="last"
               >
-                {{ h }}
+                {{ t(h) }}
               </div>
             }
           </div>
@@ -48,7 +43,7 @@ const ROLE_OPTIONS: SelectOption[] = [
             >
               <!-- name -->
               <div class="text-[14px] font-semibold truncate">
-                {{ member.user.name || '(no name)' }}
+                {{ member.user.name || t('admin.orgMemberList.noName') }}
               </div>
               <!-- email -->
               <div class="mono text-[12.5px] text-muted truncate">{{ member.user.email }}</div>
@@ -56,7 +51,7 @@ const ROLE_OPTIONS: SelectOption[] = [
               <div>
                 <mns-select
                   class="role-select"
-                  [options]="roleOptions"
+                  [options]="roleOptions()"
                   [value]="member.role"
                   (changed)="changeRole.emit({ member, newRole: asRole($event) })"
                 />
@@ -74,7 +69,7 @@ const ROLE_OPTIONS: SelectOption[] = [
                   [disabled]="removingMemberId() === member.userId"
                   (mnsClick)="removeMember.emit(member)"
                 >
-                  Remove
+                  {{ t('common.actions.remove') }}
                 </mns-btn>
               </div>
             </div>
@@ -91,27 +86,27 @@ const ROLE_OPTIONS: SelectOption[] = [
             <!-- identity -->
             <div class="min-w-0">
               <div class="text-[14px] font-semibold truncate">
-                {{ member.user.name || '(no name)' }}
+                {{ member.user.name || t('admin.orgMemberList.noName') }}
               </div>
               <div class="mono text-[12.5px] text-muted truncate">{{ member.user.email }}</div>
             </div>
             <!-- role -->
             <div class="flex items-center justify-between gap-3">
-              <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint"
-                >Role</span
-              >
+              <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint">{{
+                t('admin.orgMemberList.headers.role')
+              }}</span>
               <mns-select
                 class="role-select"
-                [options]="roleOptions"
+                [options]="roleOptions()"
                 [value]="member.role"
                 (changed)="changeRole.emit({ member, newRole: asRole($event) })"
               />
             </div>
             <!-- joined -->
             <div class="flex items-center justify-between gap-3">
-              <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint"
-                >Joined</span
-              >
+              <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint">{{
+                t('admin.orgMemberList.headers.joined')
+              }}</span>
               <span class="text-[12.5px] text-muted">{{
                 member.createdAt | date: 'mediumDate'
               }}</span>
@@ -142,9 +137,21 @@ export class OrgMemberList {
   readonly changeRole = output<{ member: OrgMember; newRole: OrgMemberRole }>();
   readonly removeMember = output<OrgMember>();
 
-  protected readonly roleOptions = ROLE_OPTIONS;
+  private readonly transloco = inject(TranslocoService);
+
+  protected readonly roleOptions = computed<SelectOption[]>(() => [
+    { value: 'org_admin', label: this.transloco.translate('admin.organisations.roles.org_admin') },
+    { value: 'editor', label: this.transloco.translate('admin.organisations.roles.editor') },
+    { value: 'viewer', label: this.transloco.translate('admin.organisations.roles.viewer') },
+  ]);
   protected readonly cols = 'minmax(140px,1.4fr) minmax(180px,1.6fr) 150px 132px 110px';
-  protected readonly headers = ['Name', 'Email', 'Role', 'Joined', 'Actions'];
+  protected readonly headers = [
+    'admin.orgMemberList.headers.name',
+    'admin.orgMemberList.headers.email',
+    'admin.orgMemberList.headers.role',
+    'admin.orgMemberList.headers.joined',
+    'admin.orgMemberList.headers.actions',
+  ];
 
   protected asRole(value: string): OrgMemberRole {
     return value as OrgMemberRole;

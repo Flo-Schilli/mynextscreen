@@ -1,6 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ModalComponent, OverlayComponent } from './overlay.component';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 @Component({
   standalone: true,
@@ -35,7 +36,12 @@ describe('OverlayComponent', () => {
   };
 
   beforeEach(async () => {
-    await TestBed.configureTestingModule({ imports: [HostComponent] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [
+        HostComponent,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
+    }).compileComponents();
     fixture = TestBed.createComponent(HostComponent);
     host = fixture.componentInstance;
     fixture.detectChanges();

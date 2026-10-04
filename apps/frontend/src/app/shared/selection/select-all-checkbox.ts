@@ -1,16 +1,19 @@
 import { Component, computed, inject, input, ChangeDetectionStrategy } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { SelectionService } from './selection.service';
 
 @Component({
   selector: 'app-select-all-checkbox',
   standalone: true,
+  imports: [TranslocoDirective],
   template: `
     <input
+      *transloco="let t"
       type="checkbox"
       class="selection-checkbox"
       [checked]="allSelected()"
       [indeterminate]="indeterminate()"
-      aria-label="Select all items"
+      [attr.aria-label]="t('ui.selection.selectAll')"
       (click)="onClick($event)"
     />
   `,

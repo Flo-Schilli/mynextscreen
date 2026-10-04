@@ -4,6 +4,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { App } from './app';
+import { getTranslocoTestingModule } from './i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -16,7 +17,7 @@ describe('App', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [App],
+      imports: [App, getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [provideZonelessChangeDetection(), provideRouter([])],
     }).compileComponents();
 
