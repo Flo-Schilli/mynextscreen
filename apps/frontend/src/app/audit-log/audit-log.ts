@@ -7,6 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { Router } from '@angular/router';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { AuditLogService } from './audit-log.service';
 import { MemberService } from '../settings/users/member.service';
 import { OrganisationStateService } from '../shell/organisation-state.service';
@@ -45,98 +46,104 @@ import {
     EmptyComponent,
     IconComponent,
     PageHeaderComponent,
+    TranslocoDirective,
   ],
   template: `
-    <mns-page-header
-      title="Audit Log"
-      sub="Every action across screens, content, people and settings"
-      icon="Audit"
-    >
-      <mns-btn variant="outline" size="md" icon="Refresh" (mnsClick)="refresh()"> Refresh </mns-btn>
-      <mns-btn variant="primary" size="md" icon="Download" (mnsClick)="exportCsv()">
-        Export CSV
-      </mns-btn>
-    </mns-page-header>
+    <ng-container *transloco="let t">
+      <mns-page-header
+        [title]="t('auditLog.page.title')"
+        [sub]="t('auditLog.page.subtitle')"
+        icon="Audit"
+      >
+        <mns-btn variant="outline" size="md" icon="Refresh" (mnsClick)="refresh()">
+          {{ t('auditLog.page.refresh') }}
+        </mns-btn>
+        <mns-btn variant="primary" size="md" icon="Download" (mnsClick)="exportCsv()">
+          {{ t('auditLog.page.exportCsv') }}
+        </mns-btn>
+      </mns-page-header>
 
-    @if (!isOrgAdmin()) {
-      <p class="error text-[13.5px] text-offline bg-offline-dim rounded-[10px] px-4 py-3">
-        Access denied. Org Admin privileges required.
-      </p>
-    } @else {
-      <!-- filter card -->
-      <mns-card [pad]="true" [animate]="true" [delay]="0">
-        <app-audit-log-filters
-          [auditActions]="auditActions"
-          [members]="members()"
-          [resourceTypes]="resourceTypes"
-          [(action)]="filterAction"
-          [(userId)]="filterUserId"
-          [(resourceType)]="filterResourceType"
-          [(from)]="filterFrom"
-          [(to)]="filterTo"
-          (apply)="applyFilters()"
-          (clear)="clearFilters()"
-        />
-      </mns-card>
-
-      <!-- result count row -->
-      @if (!loadError()) {
-        <div class="flex items-center justify-between px-1 my-3">
-          <span class="text-[13px] text-muted">
-            @if (entries().length === total() && total() > 0) {
-              <span class="font-bold text-text">{{ total() }}</span> events
-            } @else if (total() > 0) {
-              <span class="font-bold text-text">{{ entries().length }}</span> of
-              {{ total() }} events
-            }
-          </span>
-        </div>
-      }
-
-      @if (loadError()) {
-        <p class="error text-[13.5px] text-offline bg-offline-dim rounded-[10px] px-4 py-3 mt-3">
-          {{ loadError() }}
+      @if (!isOrgAdmin()) {
+        <p class="error text-[13.5px] text-offline bg-offline-dim rounded-[10px] px-4 py-3">
+          {{ t('auditLog.page.accessDenied') }}
         </p>
-      }
-
-      @if (loading() && entries().length === 0) {
-        <mns-card [pad]="true">
-          <div class="flex items-center justify-center gap-2.5 py-10 text-muted text-[13.5px]">
-            <mns-icon name="Refresh" [size]="18" />
-            <span>Loading audit log…</span>
-          </div>
-        </mns-card>
-      }
-
-      @if (!loading() && entries().length === 0 && !loadError()) {
-        <mns-card [pad]="false">
-          <mns-empty
-            icon="Audit"
-            title="No audit log entries found"
-            desc="Once you start managing screens and content, every action shows up here."
+      } @else {
+        <!-- filter card -->
+        <mns-card [pad]="true" [animate]="true" [delay]="0">
+          <app-audit-log-filters
+            [auditActions]="auditActions"
+            [members]="members()"
+            [resourceTypes]="resourceTypes"
+            [(action)]="filterAction"
+            [(userId)]="filterUserId"
+            [(resourceType)]="filterResourceType"
+            [(from)]="filterFrom"
+            [(to)]="filterTo"
+            (apply)="applyFilters()"
+            (clear)="clearFilters()"
           />
         </mns-card>
-      }
 
-      <!-- keep the mns-empty selector accessible for spec query -->
-      <p class="empty-text sr-only" aria-hidden="true">
-        @if (!loading() && entries().length === 0 && !loadError()) {
-          No audit log entries found.
+        <!-- result count row -->
+        @if (!loadError()) {
+          <div class="flex items-center justify-between px-1 my-3">
+            <span class="text-[13px] text-muted">
+              @if (entries().length === total() && total() > 0) {
+                <span class="font-bold text-text">{{ total() }}</span>
+                {{ t('auditLog.page.eventsAll') }}
+              } @else if (total() > 0) {
+                <span class="font-bold text-text">{{ entries().length }}</span>
+                {{ t('auditLog.page.eventsOf', { total: total() }) }}
+              }
+            </span>
+          </div>
         }
-      </p>
 
-      @if (entries().length > 0) {
-        <app-audit-log-table
-          [entries]="entries()"
-          [total]="total()"
-          [loading]="loading()"
-          [hasMore]="hasMore()"
-          [userMap]="userMap()"
-          (loadMore)="loadMore()"
-          (selectResource)="navigateToResource($event.resourceType, $event.resourceId)"
-        />
+        @if (loadError()) {
+          <p class="error text-[13.5px] text-offline bg-offline-dim rounded-[10px] px-4 py-3 mt-3">
+            {{ loadError() }}
+          </p>
+        }
+
+        @if (loading() && entries().length === 0) {
+          <mns-card [pad]="true">
+            <div class="flex items-center justify-center gap-2.5 py-10 text-muted text-[13.5px]">
+              <mns-icon name="Refresh" [size]="18" />
+              <span>{{ t('auditLog.page.loading') }}</span>
+            </div>
+          </mns-card>
+        }
+
+        @if (!loading() && entries().length === 0 && !loadError()) {
+          <mns-card [pad]="false">
+            <mns-empty
+              icon="Audit"
+              [title]="t('auditLog.page.emptyTitle')"
+              [desc]="t('auditLog.page.emptyDesc')"
+            />
+          </mns-card>
+        }
+
+        <!-- keep the mns-empty selector accessible for spec query -->
+        <p class="empty-text sr-only" aria-hidden="true">
+          @if (!loading() && entries().length === 0 && !loadError()) {
+            {{ t('auditLog.page.emptyText') }}
+          }
+        </p>
+
+        @if (entries().length > 0) {
+          <app-audit-log-table
+            [entries]="entries()"
+            [total]="total()"
+            [loading]="loading()"
+            [hasMore]="hasMore()"
+            [userMap]="userMap()"
+            (loadMore)="loadMore()"
+            (selectResource)="navigateToResource($event.resourceType, $event.resourceId)"
+          />
+        }
       }
-    }
+    </ng-container>
   `,
   styles: `
     :host {
@@ -162,6 +169,7 @@ export class AuditLog implements OnInit {
   private memberService = inject(MemberService);
   private orgState = inject(OrganisationStateService);
   private router = inject(Router);
+  private transloco = inject(TranslocoService);
 
   readonly auditActions = AUDIT_ACTIONS;
   readonly resourceTypes = RESOURCE_TYPES;
@@ -191,7 +199,7 @@ export class AuditLog implements OnInit {
   ngOnInit(): void {
     const org = this.orgState.selectedOrg();
     if (!org) {
-      this.loadError.set('No organisation selected.');
+      this.loadError.set(this.transloco.translate('auditLog.errors.noOrgSelected'));
       this.loading.set(false);
       return;
     }
@@ -253,8 +261,8 @@ export class AuditLog implements OnInit {
       error: (err) => {
         this.loadError.set(
           err.status === 403
-            ? 'Access denied. Org Admin privileges required.'
-            : 'Failed to load audit log.',
+            ? this.transloco.translate('auditLog.errors.accessDenied')
+            : this.transloco.translate('auditLog.errors.loadAuditLog'),
         );
         this.loading.set(false);
       },
@@ -274,7 +282,7 @@ export class AuditLog implements OnInit {
         this.loading.set(false);
       },
       error: () => {
-        this.loadError.set('Failed to load more entries.');
+        this.loadError.set(this.transloco.translate('auditLog.errors.loadMore'));
         this.loading.set(false);
       },
     });

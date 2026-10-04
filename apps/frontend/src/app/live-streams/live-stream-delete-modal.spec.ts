@@ -3,6 +3,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { LiveStreamDeleteModal } from './live-stream-delete-modal';
 import { LiveStream } from './live-stream.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 function makeStream(overrides: Partial<LiveStream> = {}): LiveStream {
   return {
@@ -33,7 +34,10 @@ describe('LiveStreamDeleteModal', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [LiveStreamDeleteModal],
+      imports: [
+        LiveStreamDeleteModal,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

@@ -3,6 +3,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { LiveStreamCreateModal } from './live-stream-create-modal';
 import { CreateLiveStreamRequest } from './live-stream.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 describe('LiveStreamCreateModal', () => {
   let fixture: ComponentFixture<LiveStreamCreateModal>;
@@ -10,7 +11,10 @@ describe('LiveStreamCreateModal', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [LiveStreamCreateModal],
+      imports: [
+        LiveStreamCreateModal,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

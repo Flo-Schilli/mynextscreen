@@ -5,6 +5,7 @@ import { By } from '@angular/platform-browser';
 import { AuditLogFilters } from './audit-log-filters';
 import { AUDIT_ACTIONS, RESOURCE_TYPES } from './audit-log.model';
 import { Membership } from '../settings/users/member.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -37,7 +38,10 @@ describe('AuditLogFilters', () => {
 
   async function setUp(members: Membership[] = []): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [AuditLogFilters],
+      imports: [
+        AuditLogFilters,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 
@@ -65,10 +69,9 @@ describe('AuditLogFilters', () => {
       expect(uploadOption?.nativeElement.textContent.trim()).toBe('Content uploaded');
     });
 
-    it('falls back to the raw action key when no label is registered', () => {
+    it('falls back to the raw action key when no label is registered', async () => {
       // Arrange
-      fixture = TestBed.createComponent(AuditLogFilters);
-      component = fixture.componentInstance;
+      await setUp();
 
       // Act
       const label = (component as unknown as { actionLabel(a: string): string }).actionLabel(

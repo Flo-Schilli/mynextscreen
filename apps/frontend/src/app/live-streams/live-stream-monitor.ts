@@ -1,10 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { IconComponent } from '../ui';
-import {
-  LiveStreamStatus,
-  TranscodingPreset,
-  TRANSCODING_PRESET_LABELS,
-} from './live-stream.model';
+import { LiveStreamStatus, TranscodingPreset } from './live-stream.model';
 
 /** Deterministic decorative gradients keyed off the stream id (Entsch. 8). */
 const THUMBS: readonly string[] = [
@@ -38,9 +35,9 @@ function hashIndex(id: string, len: number): number {
   selector: 'app-live-stream-monitor',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent],
+  imports: [IconComponent, TranslocoDirective],
   template: `
-    <div class="monitor" [class.big]="big()" [style.background]="gradient()">
+    <div class="monitor" [class.big]="big()" [style.background]="gradient()" *transloco="let t">
       @if (!offline()) {
         <div class="blob-a"></div>
         <div class="blob-b"></div>
@@ -56,14 +53,16 @@ function hashIndex(id: string, len: number): number {
       @if (offline()) {
         <div class="no-signal">
           <mns-icon name="WifiOff" [size]="big() ? 34 : 24" />
-          <span class="no-signal-label">{{ error() ? 'STREAM ERROR' : 'NO SIGNAL' }}</span>
+          <span class="no-signal-label">{{
+            error() ? t('liveStreams.monitor.streamError') : t('liveStreams.monitor.noSignal')
+          }}</span>
         </div>
       }
 
       @if (live()) {
         <span class="live-pill">
           <span class="live-dot"></span>
-          LIVE
+          {{ t('liveStreams.monitor.live') }}
         </span>
       }
 
@@ -74,7 +73,7 @@ function hashIndex(id: string, len: number): number {
       @if (live() && !audioEnabled()) {
         <span class="muted-pill">
           <mns-icon name="WifiOff" [size]="big() ? 12 : 10" />
-          MUTED
+          {{ t('liveStreams.monitor.muted') }}
         </span>
       }
     </div>
@@ -275,7 +274,9 @@ export class LiveStreamMonitor {
 
   protected readonly gradient = computed(() => THUMBS[hashIndex(this.streamId(), THUMBS.length)]);
 
-  protected readonly presetLabel = computed(
-    () => TRANSCODING_PRESET_LABELS[this.transcodingPreset()] ?? this.transcodingPreset(),
+  private readonly transloco = inject(TranslocoService);
+
+  protected readonly presetLabel = computed(() =>
+    this.transloco.translate('liveStreams.preset.' + this.transcodingPreset()),
   );
 }

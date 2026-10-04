@@ -3,13 +3,17 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { LiveStreamMonitor } from './live-stream-monitor';
 import { LiveStreamStatus } from './live-stream.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 describe('LiveStreamMonitor', () => {
   let fixture: ComponentFixture<LiveStreamMonitor>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [LiveStreamMonitor],
+      imports: [
+        LiveStreamMonitor,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 
