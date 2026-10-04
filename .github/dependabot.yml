@@ -11,11 +11,19 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    # TypeScript majors are driven by Angular's build toolchain, not Dependabot:
+    # @angular/build@22 pins `peer typescript@">=6.0 <6.1"`, so a TS 7 bump
+    # (PR #114) cannot resolve and breaks `npm ci` for the whole group. Bump the
+    # TS major manually alongside the Angular major that adds support; minor/
+    # patch bumps still flow through.
+    ignore:
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
     # Grouped so a framework bump arrives as one reviewable PR instead of a
     # dozen that cannot be merged independently anyway.
     groups:
       # Angular's peer ranges pin typescript and vitest to narrow windows
-      # (@angular/build@21 wants typescript >=5.9 <6.0 and vitest ^4.0.8), so
+      # (@angular/build@22 wants typescript >=6.0 <6.1 and vitest ^4.0.8), so
       # those two cannot move on their own. Grouping them here keeps the
       # unmergeable combination out of the `remaining` group.
       angular:
