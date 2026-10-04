@@ -61,6 +61,43 @@
       "required": "Erforderlich"
     }
   },
+  "auth": {
+    "brand": {
+      "heading": "Jeder Bildschirm,<br />unter einem Dach.",
+      "subtitle": "Der Kontrollraum für Ihre Digital Signage: Displays koppeln, Playlists bauen und Zeitpläne überallhin ausspielen.",
+      "ticks": {
+        "pair": "Jeden Bildschirm in Sekunden koppeln",
+        "schedule": "Inhalte standortübergreifend planen",
+        "monitor": "Jedes Display in Echtzeit überwachen"
+      }
+    },
+    "login": {
+      "title": "Willkommen zurück",
+      "subtitle": "Melden Sie sich bei Ihrem myNextScreen-Arbeitsbereich an.",
+      "emailLabel": "E-Mail",
+      "emailPlaceholder": "sie@firma.com",
+      "emailInvalid": "Geben Sie eine gültige E-Mail-Adresse ein.",
+      "passwordLabel": "Passwort",
+      "passwordRequired": "Passwort ist erforderlich.",
+      "showPassword": "Passwort anzeigen",
+      "hidePassword": "Passwort verbergen",
+      "submit": "Anmelden",
+      "submitting": "Anmeldung läuft…",
+      "resendLink": "Bestätigungs-E-Mail erneut senden",
+      "resending": "Wird gesendet…",
+      "resentNotice": "Ein neuer Bestätigungslink ist unterwegs.",
+      "or": "oder",
+      "noAccount": "Noch kein Konto?",
+      "createAccount": "Konto erstellen"
+    },
+    "notice": {
+      "accountDeleted": "Konto gelöscht."
+    },
+    "errors": {
+      "notVerified": "Bitte bestätigen Sie Ihre E-Mail, bevor Sie sich anmelden.",
+      "invalidCredentials": "Ungültige E-Mail oder ungültiges Passwort."
+    }
+  },
   "shell": {
     "nav": {
       "dashboard": "Dashboard",

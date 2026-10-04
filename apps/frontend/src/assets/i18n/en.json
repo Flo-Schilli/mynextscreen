@@ -61,6 +61,43 @@
       "required": "Required"
     }
   },
+  "auth": {
+    "brand": {
+      "heading": "Every screen,<br />under one roof.",
+      "subtitle": "The control room for your digital signage — pair displays, build playlists, and push schedules anywhere.",
+      "ticks": {
+        "pair": "Pair any screen in seconds",
+        "schedule": "Schedule content across locations",
+        "monitor": "Monitor every display in real time"
+      }
+    },
+    "login": {
+      "title": "Welcome back",
+      "subtitle": "Sign in to your myNextScreen workspace.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "you@company.com",
+      "emailInvalid": "Enter a valid email address.",
+      "passwordLabel": "Password",
+      "passwordRequired": "Password is required.",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "resendLink": "Resend verification email",
+      "resending": "Sending…",
+      "resentNotice": "A new verification link is on its way.",
+      "or": "or",
+      "noAccount": "Don't have an account?",
+      "createAccount": "Create account"
+    },
+    "notice": {
+      "accountDeleted": "Account deleted."
+    },
+    "errors": {
+      "notVerified": "Please verify your email before signing in.",
+      "invalidCredentials": "Invalid email or password."
+    }
+  },
   "shell": {
     "nav": {
       "dashboard": "Dashboard",
