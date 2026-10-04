@@ -15,6 +15,7 @@ import { contents, organisations, type Content, type Organisation } from '../db/
 import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
 import { StorageService } from '../organisation/storage.service';
+import { JobMetricsService } from '../observability/job-metrics.service';
 import { TRANSCODING_COMPLETED, TRANSCODING_FAILED } from './transcoding.event';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
@@ -141,6 +142,10 @@ describe('TranscodingProcessor', () => {
         { provide: DRIZZLE, useValue: db },
         { provide: StorageService, useValue: storageService },
         { provide: EventEmitter2, useValue: { emit } },
+        {
+          provide: JobMetricsService,
+          useValue: { recordCompleted: jest.fn(), recordFailed: jest.fn() },
+        },
         {
           provide: ConfigService,
           useValue: {

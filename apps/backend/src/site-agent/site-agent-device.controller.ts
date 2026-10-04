@@ -21,6 +21,7 @@ import { SiteAgentService } from './site-agent.service';
 import { SiteAgentConfigService } from './site-agent-config.service';
 import { SiteAgentSseService } from './site-agent-sse.service';
 import { ScreenRemoteCommandService } from './screen-remote-command.service';
+import { AgentMetricsService } from '../observability/agent-metrics.service';
 import type { AgentConfig } from './agent-config.types';
 import { AgentHeartbeatDto, AgentReportDto, EnrolAgentDto, RefreshAgentSessionDto } from './dto';
 import { AgentAuth } from '../auth/agent-auth.decorator';
@@ -63,6 +64,7 @@ export class SiteAgentDeviceController {
     private readonly commands: ScreenRemoteCommandService,
     private readonly eventEmitter: EventEmitter2,
     private readonly playerApps: PlayerAppsService,
+    private readonly agentMetrics: AgentMetricsService,
   ) {}
 
   /**
@@ -170,5 +172,8 @@ export class SiteAgentDeviceController {
     @Body() dto: AgentHeartbeatDto,
   ): Promise<void> {
     await this.siteAgentService.recordHeartbeat(req.agentId, dto.agentVersion ?? null);
+    if (dto.metrics) {
+      this.agentMetrics.record(req.agentId, dto.metrics);
+    }
   }
 }

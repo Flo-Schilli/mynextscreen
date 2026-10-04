@@ -286,6 +286,11 @@ export class FfmpegLiveService implements OnModuleInit, OnModuleDestroy {
     return this.processes.has(streamId);
   }
 
+  /** Number of FFmpeg live processes currently tracked. Read by observability. */
+  activeStreamCount(): number {
+    return this.processes.size;
+  }
+
   getHlsOutputDir(streamId: string): string {
     return path.join(this.hlsOutputDir, streamId);
   }

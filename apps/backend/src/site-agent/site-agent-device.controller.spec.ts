@@ -10,6 +10,7 @@ import { SiteAgentService } from './site-agent.service';
 import { SiteAgentConfigService } from './site-agent-config.service';
 import { SiteAgentSseService } from './site-agent-sse.service';
 import { ScreenRemoteCommandService } from './screen-remote-command.service';
+import { AgentMetricsService } from '../observability/agent-metrics.service';
 import { ScreenReachability } from './screen-reachability.enum';
 import { IS_AGENT_AUTH_KEY } from '../auth/agent-auth.decorator';
 import { IS_PUBLIC_KEY } from '../auth/public.decorator';
@@ -26,6 +27,7 @@ describe('SiteAgentDeviceController', () => {
   let sse: Record<string, jest.Mock>;
   let commands: Record<string, jest.Mock>;
   let emitter: { emit: jest.Mock };
+  let agentMetrics: { record: jest.Mock };
 
   const agentId = '660e8400-e29b-41d4-a716-446655440000';
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
@@ -45,6 +47,7 @@ describe('SiteAgentDeviceController', () => {
     sse = { subscribe: jest.fn().mockReturnValue('stream') };
     commands = { applyReport: jest.fn() };
     emitter = { emit: jest.fn() };
+    agentMetrics = { record: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SiteAgentDeviceController],
@@ -60,6 +63,7 @@ describe('SiteAgentDeviceController', () => {
           provide: PlayerAppsService,
           useValue: { getBinaryPath: () => '/tmp/x.ipk', getBinaryFilename: () => 'x.ipk' },
         },
+        { provide: AgentMetricsService, useValue: agentMetrics },
       ],
     }).compile();
 

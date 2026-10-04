@@ -104,6 +104,32 @@ export interface AgentReportMessage {
   screens: AgentScreenReportMessage[];
 }
 
+/**
+ * Per-screen runtime metrics the agent pushes on heartbeat. The backend mirror
+ * of this contract is `apps/backend/src/observability/agent-metrics.types.ts`
+ * (kept in sync by hand — see the note at the top of this file). No
+ * `organisationId`: org breakdown stays in the dashboard, not Prometheus.
+ */
+export interface AgentScreenMetricsMessage {
+  screenId: string;
+  reachable: boolean;
+  failures: number;
+  devmodeActive: boolean;
+  devmodeExtensions: number;
+  launches: number;
+  wakes: number;
+}
+
+/** Agent-level metrics pushed on heartbeat. */
+export interface AgentMetricsMessage {
+  uptimeSeconds: number;
+  memoryRssBytes: number;
+  connected: boolean;
+  lastConfigPullAtMs: number;
+  screenCount: number;
+  screens: AgentScreenMetricsMessage[];
+}
+
 export interface AgentSessionMessage {
   accessToken: string;
   refreshToken: string;

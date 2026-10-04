@@ -23,6 +23,7 @@ import { LiveStreamModule } from './live-stream';
 import { SearchModule } from './search/search.module';
 import { InstanceAdminModule } from './instance-admin';
 import { MetricsModule } from './metrics';
+import { ObservabilityModule } from './observability';
 import { PlayerAppsModule } from './player-apps/player-apps.module';
 import { HealthController } from './health.controller';
 import { VersionController } from './version.controller';
@@ -67,6 +68,7 @@ import { validateEnv } from './config/env.validation';
     SearchModule,
     InstanceAdminModule,
     MetricsModule,
+    ObservabilityModule,
     PlayerAppsModule,
   ],
   controllers: [HealthController, VersionController, TimeController, PublicConfigController],

@@ -1,4 +1,4 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { eq } from 'drizzle-orm';
@@ -14,6 +14,7 @@ import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
 import { StorageService } from '../organisation/storage.service';
 import { getOriginalPath, getTranscodedPath, getThumbnailPath } from './content-storage.util';
+import { JobMetricsService } from '../observability/job-metrics.service';
 import { parseDuration, parseProgressTime, calculateProgress } from './ffmpeg-progress.util';
 import { ffprobeDuration } from './ffprobe-duration.util';
 import {
@@ -61,6 +62,7 @@ export class TranscodingProcessor extends WorkerHost {
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
     private readonly storageService: StorageService,
+    private readonly jobMetrics: JobMetricsService,
   ) {
     super();
     this.mediaBasePath = this.configService.get<string>('MEDIA_BASE_PATH', './media');
@@ -78,6 +80,16 @@ export class TranscodingProcessor extends WorkerHost {
       return this.processThumbnailJob(job as Job<ThumbnailJobData>);
     }
     return this.processTranscode(job as Job<TranscodeJobData>);
+  }
+
+  @OnWorkerEvent('completed')
+  onCompleted(job: Job): void {
+    this.jobMetrics.recordCompleted('transcoding', job);
+  }
+
+  @OnWorkerEvent('failed')
+  onFailed(job: Job | undefined): void {
+    this.jobMetrics.recordFailed('transcoding', job);
   }
 
   private async processTranscode(job: Job<TranscodeJobData>): Promise<void> {

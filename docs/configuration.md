@@ -86,3 +86,9 @@ One more knob lives in the player rather than the environment:
 `window.__SIGNAGE_TRUSTED_ORIGINS__` in `apps/player/src/index.html` decides
 which origins may hand a player its server URL over `postMessage`. Deployments
 that do not use the LG webOS shell should pin it — see the comment in that file.
+
+## Observability
+
+| Variable                | Default | What it is                                                                                                                                                              |
+| ----------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `METRICS_SCRAPE_TOKEN`  | —       | Bearer token Prometheus must present to scrape `GET /api/metrics`. **Unset disables the endpoint (404), never exposes it.** `openssl rand -base64 32`. See [Observability](observability.md). |
