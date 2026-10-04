@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { IconComponent, StatusDotComponent } from '../ui';
 import { ScreenGroupScreen } from './screen-group.model';
 import { ScreenGroupMonitorFrame, MonitorContent } from './screen-group-monitor-frame';
@@ -38,22 +39,22 @@ export interface WallAssignEvent {
   selector: 'app-screen-group-wall',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, StatusDotComponent, ScreenGroupMonitorFrame],
+  imports: [IconComponent, StatusDotComponent, ScreenGroupMonitorFrame, TranslocoDirective],
   template: `
-    <div class="wall-mount">
+    <div class="wall-mount" *transloco="let t">
       @if (mode() === 'mirror') {
         <div class="mirror-row">
           @for (s of mirrorScreens(); track s?.id ?? $index) {
             <div class="mirror-frame">
               <app-screen-group-monitor-frame
                 [content]="content()"
-                [label]="s ? s.name : 'No screens yet'"
+                [label]="s ? s.name : t('screenGroups.wall.noScreensYet')"
                 [status]="s ? statusOf(s) : 'offline'"
               />
             </div>
           }
         </div>
-        <div class="caption">Every screen mirrors the same content, perfectly in sync.</div>
+        <div class="caption">{{ t('screenGroups.wall.mirrorCaption') }}</div>
       } @else {
         <div class="split-wrap" [class.wide]="cols() >= rows()">
           <div
@@ -76,8 +77,10 @@ export interface WallAssignEvent {
                     type="button"
                     class="cell-hit"
                     [class.active]="openCell() === cell.idx"
-                    title="Assign a screen to this panel"
-                    [attr.aria-label]="'Assign a screen to panel ' + (cell.idx + 1)"
+                    [title]="t('screenGroups.wall.assignPanel')"
+                    [attr.aria-label]="
+                      t('screenGroups.wall.assignPanelAria', { panel: cell.idx + 1 })
+                    "
                     (click)="toggle(cell.idx)"
                   ></button>
                   <span class="cell-pencil" [class.active]="openCell() === cell.idx">
@@ -89,18 +92,26 @@ export interface WallAssignEvent {
                   <button
                     type="button"
                     class="popover-scrim"
-                    aria-label="Close menu"
+                    [attr.aria-label]="t('screenGroups.wall.closeMenu')"
                     (click)="close()"
                   ></button>
                   <div class="popover" [class.upward]="isUpward(cell)">
                     <div class="popover-head">
-                      Panel {{ cell.idx + 1 }} · Row {{ cell.row + 1 }} · Col {{ cell.col + 1 }}
+                      {{
+                        t('screenGroups.wall.panelHead', {
+                          panel: cell.idx + 1,
+                          row: cell.row + 1,
+                          col: cell.col + 1,
+                        })
+                      }}
                     </div>
                     <div class="popover-body">
                       @if (cell.screen) {
                         <button type="button" class="menu-item" (click)="leaveEmpty(cell)">
                           <span class="menu-trash"><mns-icon name="Trash" [size]="13" /></span>
-                          <span class="menu-empty-label">Leave empty</span>
+                          <span class="menu-empty-label">{{
+                            t('screenGroups.wall.leaveEmpty')
+                          }}</span>
                         </button>
                       }
                       @for (s of placeableFor(cell); track s.id) {
@@ -124,7 +135,7 @@ export interface WallAssignEvent {
                         </button>
                       }
                       @if (placeableFor(cell).length === 0 && !cell.screen) {
-                        <div class="menu-none">All screens are already placed.</div>
+                        <div class="menu-none">{{ t('screenGroups.wall.allPlaced') }}</div>
                       }
                     </div>
                   </div>
@@ -134,8 +145,7 @@ export interface WallAssignEvent {
           </div>
         </div>
         <div class="caption">
-          One source split across a {{ cols() }}×{{ rows() }} wall — click any panel to place its
-          screen.
+          {{ t('screenGroups.wall.splitCaption', { cols: cols(), rows: rows() }) }}
         </div>
       }
     </div>

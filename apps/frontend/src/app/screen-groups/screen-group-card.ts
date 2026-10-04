@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { CardComponent, BadgeComponent, IconComponent, IconName, StatusDotComponent } from '../ui';
 import { ScreenGroup } from './screen-group.model';
 import { wallResolution } from './wall-resolution';
@@ -32,12 +33,12 @@ const CELL_META_MAX_ROWS = 2;
   selector: 'app-screen-group-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CardComponent, BadgeComponent, IconComponent, StatusDotComponent],
+  imports: [CardComponent, BadgeComponent, IconComponent, StatusDotComponent, TranslocoDirective],
   template: `
-    <mns-card [hover]="true" [hoverAccent]="true" [clickable]="true">
+    <mns-card [hover]="true" [hoverAccent]="true" [clickable]="true" *transloco="let t">
       <div
         class="cursor-pointer"
-        [attr.aria-label]="'Open ' + group().name"
+        [attr.aria-label]="t('screenGroups.card.open', { name: group().name })"
         (click)="open.emit(group())"
         (keydown.enter)="open.emit(group())"
         (keydown.space)="open.emit(group())"
@@ -54,7 +55,7 @@ const CELL_META_MAX_ROWS = 2;
           <div class="flex-1 min-w-0">
             <div class="font-bold text-[15.5px] truncate">{{ group().name }}</div>
             <div class="text-[12.5px] text-muted truncate">
-              {{ screenCount() }} screen{{ screenCount() === 1 ? '' : 's' }}
+              {{ t('screenGroups.card.screens', { count: screenCount() }) }}
               @if (wallResolution(); as resolution) {
                 · {{ resolution }}
               }
@@ -64,7 +65,7 @@ const CELL_META_MAX_ROWS = 2;
             [tone]="group().mode === 'split' ? 'accent' : 'neutral'"
             [icon]="group().mode === 'split' ? 'Grid' : 'Copy'"
           >
-            {{ modeLabel() }}
+            {{ group().mode === 'split' ? modeLabel() : t('screenGroups.card.modeMirror') }}
           </mns-badge>
         </div>
 
@@ -110,7 +111,7 @@ const CELL_META_MAX_ROWS = 2;
               class="h-full grid place-items-center rounded-md border border-dashed border-border text-faint text-[11.5px] font-semibold"
               style="background: var(--surface-3)"
             >
-              No screens
+              {{ t('screenGroups.card.noScreens') }}
             </div>
           } @else {
             <div class="relative h-full">
@@ -142,7 +143,7 @@ const CELL_META_MAX_ROWS = 2;
           <button
             type="button"
             class="grid place-items-center w-8 h-8 rounded-lg border border-border text-muted transition-colors duration-[120ms] hover:text-white hover:bg-offline hover:border-offline"
-            [attr.aria-label]="'Delete ' + group().name"
+            [attr.aria-label]="t('screenGroups.card.deleteGroup', { name: group().name })"
             (click)="onDelete($event)"
           >
             <mns-icon name="Trash" [size]="15" />
@@ -179,9 +180,10 @@ export class ScreenGroupCard {
   /** The whole group as one picture — the wall's size in split mode. */
   readonly wallResolution = computed(() => wallResolution(this.group()));
 
+  /** Grid dimensions for split mode; mirror is labelled via i18n in the template. */
   readonly modeLabel = computed(() => {
     const g = this.group();
-    return g.mode === 'split' ? `${g.gridColumns ?? 1}×${g.gridRows ?? 1}` : 'Mirror';
+    return `${g.gridColumns ?? 1}×${g.gridRows ?? 1}`;
   });
 
   readonly contentLabel = computed(() => this.group().name.split(' ')[0].toUpperCase().slice(0, 9));

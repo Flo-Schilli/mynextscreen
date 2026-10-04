@@ -11,6 +11,7 @@ import {
 import { DecimalPipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { ScreenService } from '../screens/screen.service';
 import { ScheduleService } from '../schedules/schedule.service';
 import { OrganisationStateService } from '../shell/organisation-state.service';
@@ -37,50 +38,19 @@ import {
   RingComponent,
   StatusDotComponent,
 } from '../ui';
-import { UI_LOCALE } from '../shared/locale';
+import { LanguageService } from '../i18n/language.service';
 
 interface OnboardingStep {
   key: 'screen' | 'content' | 'playlist' | 'schedule';
   icon: 'Screens' | 'Upload' | 'Playlists' | 'Schedules';
-  title: string;
-  desc: string;
-  cta: string;
   route: string;
 }
 
 const ONBOARDING_STEPS: OnboardingStep[] = [
-  {
-    key: 'screen',
-    icon: 'Screens',
-    title: 'Add your first screen',
-    desc: 'Pair a display with a one-time code. Takes about 30 seconds.',
-    cta: 'Add screen',
-    route: '/screens',
-  },
-  {
-    key: 'content',
-    icon: 'Upload',
-    title: 'Upload content',
-    desc: 'Bring in images and video. We transcode and optimise automatically.',
-    cta: 'Upload media',
-    route: '/content',
-  },
-  {
-    key: 'playlist',
-    icon: 'Playlists',
-    title: 'Build a playlist',
-    desc: 'Sequence your content and set durations and transitions.',
-    cta: 'Create playlist',
-    route: '/playlists',
-  },
-  {
-    key: 'schedule',
-    icon: 'Schedules',
-    title: 'Schedule & publish',
-    desc: 'Choose when and where it plays, then push it live.',
-    cta: 'Schedule',
-    route: '/schedules',
-  },
+  { key: 'screen', icon: 'Screens', route: '/screens' },
+  { key: 'content', icon: 'Upload', route: '/content' },
+  { key: 'playlist', icon: 'Playlists', route: '/playlists' },
+  { key: 'schedule', icon: 'Schedules', route: '/schedules' },
 ];
 
 /**
@@ -115,356 +85,420 @@ const WARNING_HEARTBEAT_MS = 60_000;
     PageHeaderComponent,
     RingComponent,
     StatusDotComponent,
+    TranslocoDirective,
   ],
   template: `
-    @if (dataState() === 'onboarding') {
-      <!-- ======== ONBOARDING STATE ======== -->
-      <mns-page-header
-        title="Welcome to myNextScreen"
-        icon="Sparkle"
-        sub="Let's get your first display live. Four quick steps."
-      />
+    <ng-container *transloco="let t">
+      @if (dataState() === 'onboarding') {
+        <!-- ======== ONBOARDING STATE ======== -->
+        <mns-page-header
+          [title]="t('dashboard.onboarding.title')"
+          icon="Sparkle"
+          [sub]="t('dashboard.onboarding.subtitle')"
+        />
 
-      <!-- progress banner -->
-      <mns-card [animate]="true" class="block mb-5">
-        <div class="flex items-center gap-6 relative overflow-hidden">
-          <div class="onboarding-glow"></div>
-          <mns-ring [value]="onboardingProgress()" [size]="92" [sw]="9">
-            <div class="text-center">
-              <div class="mono text-[22px] font-bold leading-none">
-                {{ onboardingDone() }}<span class="text-faint text-[15px]">/4</span>
+        <!-- progress banner -->
+        <mns-card [animate]="true" class="block mb-5">
+          <div class="flex items-center gap-6 relative overflow-hidden">
+            <div class="onboarding-glow"></div>
+            <mns-ring [value]="onboardingProgress()" [size]="92" [sw]="9">
+              <div class="text-center">
+                <div class="mono text-[22px] font-bold leading-none">
+                  {{ onboardingDone() }}<span class="text-faint text-[15px]">/4</span>
+                </div>
               </div>
-            </div>
-          </mns-ring>
-          <div class="flex-1 relative">
-            <div class="text-[18px] font-bold">
-              @if (onboardingDone() === 0) {
-                Set up your network
-              } @else if (onboardingDone() === 4) {
-                You're all set!
-              } @else {
-                Nice progress — keep going
-              }
-            </div>
-            <div class="text-[14px] text-muted mt-1">
-              @if (onboardingDone() === 4) {
-                Loading your live dashboard…
-              } @else {
-                {{ 4 - onboardingDone() }} step{{ 4 - onboardingDone() > 1 ? 's' : '' }} left to
-                publish your first content.
-              }
-            </div>
-          </div>
-          @if (screens().length > 0) {
-            <mns-badge tone="online">
-              <mns-status-dot status="online" [pulse]="true" [size]="7" />
-              &nbsp;{{ screens().length }} screen{{ screens().length > 1 ? 's' : '' }} online
-            </mns-badge>
-          }
-        </div>
-      </mns-card>
-
-      <!-- step cards -->
-      <div class="flex flex-col gap-4">
-        @for (step of onboardingSteps; track step.key; let i = $index) {
-          <mns-card
-            [animate]="true"
-            [delay]="i * 0.06"
-            [hover]="!onboardingStepDone(step.key)"
-            class="step-card"
-            [class.step-card--active]="i === onboardingFirstIncomplete()"
-            [class.step-card--done]="onboardingStepDone(step.key)"
-            [class.step-card--dim]="
-              !onboardingStepDone(step.key) && i !== onboardingFirstIncomplete()
-            "
-          >
-            <div class="flex items-center gap-4">
-              <!-- icon tile -->
-              <div
-                class="step-icon"
-                [class.step-icon--done]="onboardingStepDone(step.key)"
-                [class.step-icon--active]="
-                  i === onboardingFirstIncomplete() && !onboardingStepDone(step.key)
-                "
-              >
-                @if (onboardingStepDone(step.key)) {
-                  <mns-icon name="Check" [size]="24" />
+            </mns-ring>
+            <div class="flex-1 relative">
+              <div class="text-[18px] font-bold">
+                @if (onboardingDone() === 0) {
+                  {{ t('dashboard.onboarding.setupTitle') }}
+                } @else if (onboardingDone() === 4) {
+                  {{ t('dashboard.onboarding.allSetTitle') }}
                 } @else {
-                  <mns-icon [name]="step.icon" [size]="22" />
+                  {{ t('dashboard.onboarding.progressTitle') }}
                 }
               </div>
-              <!-- text -->
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-0.5">
-                  <span
-                    class="mono text-[12px] font-semibold"
-                    [class]="onboardingStepDone(step.key) ? 'text-online' : 'text-faint'"
-                  >
-                    {{ onboardingStepDone(step.key) ? 'DONE' : 'STEP ' + (i + 1) }}
-                  </span>
-                </div>
-                <div class="text-[15.5px] font-bold mt-0.5">{{ step.title }}</div>
-                <div class="text-[13px] text-muted mt-1">{{ step.desc }}</div>
+              <div class="text-[14px] text-muted mt-1">
+                @if (onboardingDone() === 4) {
+                  {{ t('dashboard.onboarding.loadingLive') }}
+                } @else {
+                  {{ t('dashboard.onboarding.stepsLeft', { count: 4 - onboardingDone() }) }}
+                }
               </div>
-              <!-- action -->
-              @if (onboardingStepDone(step.key)) {
-                <mns-badge tone="online" icon="Check">Complete</mns-badge>
-              } @else {
-                <mns-btn
-                  [variant]="i === onboardingFirstIncomplete() ? 'primary' : 'soft'"
-                  size="sm"
-                  iconRight="Arrow"
-                  (mnsClick)="navigateTo(step.route)"
+            </div>
+            @if (screens().length > 0) {
+              <mns-badge tone="online">
+                <mns-status-dot status="online" [pulse]="true" [size]="7" />
+                &nbsp;{{ t('dashboard.onboarding.screensOnline', { count: screens().length }) }}
+              </mns-badge>
+            }
+          </div>
+        </mns-card>
+
+        <!-- step cards -->
+        <div class="flex flex-col gap-4">
+          @for (step of onboardingSteps; track step.key; let i = $index) {
+            <mns-card
+              [animate]="true"
+              [delay]="i * 0.06"
+              [hover]="!onboardingStepDone(step.key)"
+              class="step-card"
+              [class.step-card--active]="i === onboardingFirstIncomplete()"
+              [class.step-card--done]="onboardingStepDone(step.key)"
+              [class.step-card--dim]="
+                !onboardingStepDone(step.key) && i !== onboardingFirstIncomplete()
+              "
+            >
+              <div class="flex items-center gap-4">
+                <!-- icon tile -->
+                <div
+                  class="step-icon"
+                  [class.step-icon--done]="onboardingStepDone(step.key)"
+                  [class.step-icon--active]="
+                    i === onboardingFirstIncomplete() && !onboardingStepDone(step.key)
+                  "
                 >
-                  {{ step.cta }}
-                </mns-btn>
-              }
+                  @if (onboardingStepDone(step.key)) {
+                    <mns-icon name="Check" [size]="24" />
+                  } @else {
+                    <mns-icon [name]="step.icon" [size]="22" />
+                  }
+                </div>
+                <!-- text -->
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-0.5">
+                    <span
+                      class="mono text-[12px] font-semibold"
+                      [class]="onboardingStepDone(step.key) ? 'text-online' : 'text-faint'"
+                    >
+                      {{
+                        onboardingStepDone(step.key)
+                          ? t('dashboard.onboarding.doneBadge')
+                          : t('dashboard.onboarding.stepBadge', { number: i + 1 })
+                      }}
+                    </span>
+                  </div>
+                  <div class="text-[15.5px] font-bold mt-0.5">
+                    {{ t('dashboard.onboarding.steps.' + step.key + '.title') }}
+                  </div>
+                  <div class="text-[13px] text-muted mt-1">
+                    {{ t('dashboard.onboarding.steps.' + step.key + '.desc') }}
+                  </div>
+                </div>
+                <!-- action -->
+                @if (onboardingStepDone(step.key)) {
+                  <mns-badge tone="online" icon="Check">{{
+                    t('dashboard.onboarding.complete')
+                  }}</mns-badge>
+                } @else {
+                  <mns-btn
+                    [variant]="i === onboardingFirstIncomplete() ? 'primary' : 'soft'"
+                    size="sm"
+                    iconRight="Arrow"
+                    (mnsClick)="navigateTo(step.route)"
+                  >
+                    {{ t('dashboard.onboarding.steps.' + step.key + '.cta') }}
+                  </mns-btn>
+                }
+              </div>
+            </mns-card>
+          }
+        </div>
+      } @else {
+        <!-- ======== POPULATED STATE ======== -->
+        <mns-page-header
+          [title]="t('dashboard.header.title')"
+          icon="Dashboard"
+          [sub]="dashboardSub()"
+        >
+          <mns-btn variant="outline" size="md" icon="Refresh" (mnsClick)="refresh()">{{
+            t('common.actions.refresh')
+          }}</mns-btn>
+          <mns-btn variant="primary" size="md" icon="Plus" (mnsClick)="navigateTo('/screens')">
+            {{ t('dashboard.header.addScreen') }}
+          </mns-btn>
+        </mns-page-header>
+
+        <!-- KPI row -->
+        <div class="kpi-row grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          <!-- Screens online -->
+          <mns-card [animate]="true" [hover]="true">
+            <div class="kpi-card">
+              <div class="flex items-center justify-between">
+                <span class="text-[13px] font-semibold text-muted">{{
+                  t('dashboard.kpi.screensOnline')
+                }}</span>
+                <span class="kpi-icon kpi-icon--online">
+                  <mns-icon name="Power" [size]="18" />
+                </span>
+              </div>
+              <div class="kpi-value mono">{{ screensOnline() }}</div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[12.5px] text-muted">
+                  {{
+                    t('dashboard.kpi.screensSummary', {
+                      offline: screensOffline(),
+                      warning: screensWarning(),
+                    })
+                  }}
+                </span>
+                <svg class="sparkline" [attr.viewBox]="'0 0 76 26'" fill="none">
+                  <defs>
+                    <linearGradient id="sg-online" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="var(--color-online)" stop-opacity="0.28" />
+                      <stop offset="1" stop-color="var(--color-online)" stop-opacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <path [attr.d]="onlineSparkArea()" fill="url(#sg-online)" />
+                  <path
+                    [attr.d]="onlineSparkLine()"
+                    fill="none"
+                    stroke="var(--color-online)"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
             </div>
           </mns-card>
-        }
-      </div>
-    } @else {
-      <!-- ======== POPULATED STATE ======== -->
-      <mns-page-header title="Dashboard" icon="Dashboard" [sub]="dashboardSub()">
-        <mns-btn variant="outline" size="md" icon="Refresh" (mnsClick)="refresh()">Refresh</mns-btn>
-        <mns-btn variant="primary" size="md" icon="Plus" (mnsClick)="navigateTo('/screens')">
-          Add screen
-        </mns-btn>
-      </mns-page-header>
 
-      <!-- KPI row -->
-      <div class="kpi-row grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <!-- Screens online -->
-        <mns-card [animate]="true" [hover]="true">
-          <div class="kpi-card">
-            <div class="flex items-center justify-between">
-              <span class="text-[13px] font-semibold text-muted">Screens online</span>
-              <span class="kpi-icon kpi-icon--online">
-                <mns-icon name="Power" [size]="18" />
-              </span>
-            </div>
-            <div class="kpi-value mono">{{ screensOnline() }}</div>
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-[12.5px] text-muted">
-                {{ screensOffline() }} offline · {{ screensWarning() }} warning
-              </span>
-              <svg class="sparkline" [attr.viewBox]="'0 0 76 26'" fill="none">
-                <defs>
-                  <linearGradient id="sg-online" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="var(--color-online)" stop-opacity="0.28" />
-                    <stop offset="1" stop-color="var(--color-online)" stop-opacity="0" />
-                  </linearGradient>
-                </defs>
-                <path [attr.d]="onlineSparkArea()" fill="url(#sg-online)" />
-                <path
-                  [attr.d]="onlineSparkLine()"
-                  fill="none"
-                  stroke="var(--color-online)"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </div>
-          </div>
-        </mns-card>
-
-        <!-- Content items -->
-        <mns-card [animate]="true" [delay]="0.05" [hover]="true">
-          <div class="kpi-card">
-            <div class="flex items-center justify-between">
-              <span class="text-[13px] font-semibold text-muted">Content items</span>
-              <span class="kpi-icon kpi-icon--accent">
-                <mns-icon name="Content" [size]="18" />
-              </span>
-            </div>
-            <div class="kpi-value mono">{{ contentCount() }}</div>
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-[12.5px] text-muted">{{ libraryGb() }} GB in library</span>
-              <svg class="sparkline" [attr.viewBox]="'0 0 76 26'" fill="none">
-                <defs>
-                  <linearGradient id="sg-accent" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="var(--accent)" stop-opacity="0.28" />
-                    <stop offset="1" stop-color="var(--accent)" stop-opacity="0" />
-                  </linearGradient>
-                </defs>
-                <path [attr.d]="contentSparkArea()" fill="url(#sg-accent)" />
-                <path
-                  [attr.d]="contentSparkLine()"
-                  fill="none"
-                  stroke="var(--accent)"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </div>
-          </div>
-        </mns-card>
-
-        <!-- Active playlists -->
-        <mns-card [animate]="true" [delay]="0.1" [hover]="true">
-          <div class="kpi-card">
-            <div class="flex items-center justify-between">
-              <span class="text-[13px] font-semibold text-muted">Active playlists</span>
-              <span class="kpi-icon kpi-icon--info">
-                <mns-icon name="Playlists" [size]="18" />
-              </span>
-            </div>
-            <div class="kpi-value mono">{{ playlistCount() }}</div>
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-[12.5px] text-muted">{{ upcomingEvents() }} scheduled events</span>
-              <svg class="sparkline" [attr.viewBox]="'0 0 76 26'" fill="none">
-                <defs>
-                  <linearGradient id="sg-info" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="var(--color-info)" stop-opacity="0.28" />
-                    <stop offset="1" stop-color="var(--color-info)" stop-opacity="0" />
-                  </linearGradient>
-                </defs>
-                <path [attr.d]="playlistSparkArea()" fill="url(#sg-info)" />
-                <path
-                  [attr.d]="playlistSparkLine()"
-                  fill="none"
-                  stroke="var(--color-info)"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </div>
-          </div>
-        </mns-card>
-
-        <!-- Open alerts -->
-        <mns-card [animate]="true" [delay]="0.15" [hover]="true">
-          <div class="kpi-card">
-            <div class="flex items-center justify-between">
-              <span class="text-[13px] font-semibold text-muted">Open alerts</span>
-              <span class="kpi-icon kpi-icon--offline">
-                <mns-icon name="Alert" [size]="18" />
-              </span>
-            </div>
-            <div class="kpi-value mono">{{ alertCount() }}</div>
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-[12.5px] text-muted">
-                {{ criticalAlertCount() }} critical · {{ warningAlertCount() }} warning
-              </span>
-              <svg class="sparkline" [attr.viewBox]="'0 0 76 26'" fill="none">
-                <defs>
-                  <linearGradient id="sg-offline" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="var(--color-offline)" stop-opacity="0.28" />
-                    <stop offset="1" stop-color="var(--color-offline)" stop-opacity="0" />
-                  </linearGradient>
-                </defs>
-                <path [attr.d]="alertSparkArea()" fill="url(#sg-offline)" />
-                <path
-                  [attr.d]="alertSparkLine()"
-                  fill="none"
-                  stroke="var(--color-offline)"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </div>
-          </div>
-        </mns-card>
-      </div>
-
-      <!-- main grid: screens + (storage + alerts) -->
-      <div class="main-grid mb-5">
-        <!-- Screens live -->
-        <mns-card [animate]="true" [delay]="0.05">
-          <mns-card-head title="Screens" [sub]="screensSubline()" icon="Screens">
-            <mns-btn
-              slot="right"
-              variant="ghost"
-              size="sm"
-              iconRight="Arrow"
-              (mnsClick)="navigateTo('/screens')"
-            >
-              View all
-            </mns-btn>
-          </mns-card-head>
-          @if (loadingScreens()) {
-            <div class="empty-msg">Loading screens…</div>
-          } @else if (screens().length === 0) {
-            <div class="empty-state">No screens registered yet.</div>
-          } @else {
-            <app-dashboard-screen-grid
-              [screens]="screens()"
-              (selectScreen)="navigateToScreen($event)"
-            />
-          }
-        </mns-card>
-
-        <!-- right column -->
-        <div class="right-col">
-          <!-- Storage donut -->
-          <mns-card [animate]="true" [delay]="0.08">
-            <mns-card-head title="Storage" sub="Media library usage" icon="Storage" />
-            @if (loadingSummary()) {
-              <div class="empty-msg">Loading storage…</div>
-            } @else if (!storage()) {
-              <div class="empty-state">No storage data available.</div>
-            } @else {
-              <div class="storage-layout">
-                <mns-ring [value]="storagePercent()" [size]="104" [sw]="11">
-                  <div class="text-center">
-                    <div class="mono text-[22px] font-bold leading-none">
-                      {{ storagePercent() | number: '1.0-0' }}<span class="text-[13px]">%</span>
-                    </div>
-                    <div class="text-[11px] text-muted mt-0.5">used</div>
-                  </div>
-                </mns-ring>
-                <app-storage-usage-bars [storage]="storage()!" />
+          <!-- Content items -->
+          <mns-card [animate]="true" [delay]="0.05" [hover]="true">
+            <div class="kpi-card">
+              <div class="flex items-center justify-between">
+                <span class="text-[13px] font-semibold text-muted">{{
+                  t('dashboard.kpi.contentItems')
+                }}</span>
+                <span class="kpi-icon kpi-icon--accent">
+                  <mns-icon name="Content" [size]="18" />
+                </span>
               </div>
+              <div class="kpi-value mono">{{ contentCount() }}</div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[12.5px] text-muted">{{
+                  t('dashboard.kpi.libraryUsage', { gb: libraryGb() })
+                }}</span>
+                <svg class="sparkline" [attr.viewBox]="'0 0 76 26'" fill="none">
+                  <defs>
+                    <linearGradient id="sg-accent" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="var(--accent)" stop-opacity="0.28" />
+                      <stop offset="1" stop-color="var(--accent)" stop-opacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <path [attr.d]="contentSparkArea()" fill="url(#sg-accent)" />
+                  <path
+                    [attr.d]="contentSparkLine()"
+                    fill="none"
+                    stroke="var(--accent)"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+            </div>
+          </mns-card>
+
+          <!-- Active playlists -->
+          <mns-card [animate]="true" [delay]="0.1" [hover]="true">
+            <div class="kpi-card">
+              <div class="flex items-center justify-between">
+                <span class="text-[13px] font-semibold text-muted">{{
+                  t('dashboard.kpi.activePlaylists')
+                }}</span>
+                <span class="kpi-icon kpi-icon--info">
+                  <mns-icon name="Playlists" [size]="18" />
+                </span>
+              </div>
+              <div class="kpi-value mono">{{ playlistCount() }}</div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[12.5px] text-muted">{{
+                  t('dashboard.kpi.scheduledEvents', { count: upcomingEvents() })
+                }}</span>
+                <svg class="sparkline" [attr.viewBox]="'0 0 76 26'" fill="none">
+                  <defs>
+                    <linearGradient id="sg-info" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="var(--color-info)" stop-opacity="0.28" />
+                      <stop offset="1" stop-color="var(--color-info)" stop-opacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <path [attr.d]="playlistSparkArea()" fill="url(#sg-info)" />
+                  <path
+                    [attr.d]="playlistSparkLine()"
+                    fill="none"
+                    stroke="var(--color-info)"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+            </div>
+          </mns-card>
+
+          <!-- Open alerts -->
+          <mns-card [animate]="true" [delay]="0.15" [hover]="true">
+            <div class="kpi-card">
+              <div class="flex items-center justify-between">
+                <span class="text-[13px] font-semibold text-muted">{{
+                  t('dashboard.kpi.openAlerts')
+                }}</span>
+                <span class="kpi-icon kpi-icon--offline">
+                  <mns-icon name="Alert" [size]="18" />
+                </span>
+              </div>
+              <div class="kpi-value mono">{{ alertCount() }}</div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[12.5px] text-muted">
+                  {{
+                    t('dashboard.kpi.alertsSummary', {
+                      critical: criticalAlertCount(),
+                      warning: warningAlertCount(),
+                    })
+                  }}
+                </span>
+                <svg class="sparkline" [attr.viewBox]="'0 0 76 26'" fill="none">
+                  <defs>
+                    <linearGradient id="sg-offline" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="var(--color-offline)" stop-opacity="0.28" />
+                      <stop offset="1" stop-color="var(--color-offline)" stop-opacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <path [attr.d]="alertSparkArea()" fill="url(#sg-offline)" />
+                  <path
+                    [attr.d]="alertSparkLine()"
+                    fill="none"
+                    stroke="var(--color-offline)"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+            </div>
+          </mns-card>
+        </div>
+
+        <!-- main grid: screens + (storage + alerts) -->
+        <div class="main-grid mb-5">
+          <!-- Screens live -->
+          <mns-card [animate]="true" [delay]="0.05">
+            <mns-card-head
+              [title]="t('dashboard.cards.screensTitle')"
+              [sub]="screensSubline()"
+              icon="Screens"
+            >
+              <mns-btn
+                slot="right"
+                variant="ghost"
+                size="sm"
+                iconRight="Arrow"
+                (mnsClick)="navigateTo('/screens')"
+              >
+                {{ t('dashboard.cards.viewAll') }}
+              </mns-btn>
+            </mns-card-head>
+            @if (loadingScreens()) {
+              <div class="empty-msg">{{ t('dashboard.cards.loadingScreens') }}</div>
+            } @else if (screens().length === 0) {
+              <div class="empty-state">{{ t('dashboard.cards.noScreens') }}</div>
+            } @else {
+              <app-dashboard-screen-grid
+                [screens]="screens()"
+                (selectScreen)="navigateToScreen($event)"
+              />
             }
           </mns-card>
 
-          <!-- Alerts -->
+          <!-- right column -->
+          <div class="right-col">
+            <!-- Storage donut -->
+            <mns-card [animate]="true" [delay]="0.08">
+              <mns-card-head
+                [title]="t('dashboard.cards.storageTitle')"
+                [sub]="t('dashboard.cards.storageSub')"
+                icon="Storage"
+              />
+              @if (loadingSummary()) {
+                <div class="empty-msg">{{ t('dashboard.cards.loadingStorage') }}</div>
+              } @else if (!storage()) {
+                <div class="empty-state">{{ t('dashboard.cards.noStorage') }}</div>
+              } @else {
+                <div class="storage-layout">
+                  <mns-ring [value]="storagePercent()" [size]="104" [sw]="11">
+                    <div class="text-center">
+                      <div class="mono text-[22px] font-bold leading-none">
+                        {{ storagePercent() | number: '1.0-0' }}<span class="text-[13px]">%</span>
+                      </div>
+                      <div class="text-[11px] text-muted mt-0.5">
+                        {{ t('dashboard.cards.used') }}
+                      </div>
+                    </div>
+                  </mns-ring>
+                  <app-storage-usage-bars [storage]="storage()!" />
+                </div>
+              }
+            </mns-card>
+
+            <!-- Alerts -->
+            <mns-card [animate]="true" [delay]="0.1">
+              <mns-card-head
+                [title]="t('dashboard.cards.alertsTitle')"
+                [sub]="alertsSubline()"
+                icon="Alert"
+              >
+                <mns-badge slot="right" tone="offline">{{ alertCount() }}</mns-badge>
+              </mns-card-head>
+              @if (loadingSummary()) {
+                <div class="empty-msg">{{ t('dashboard.cards.loadingAlerts') }}</div>
+              } @else if (alerts().length === 0) {
+                <div class="empty-state">{{ t('dashboard.cards.noAlerts') }}</div>
+              } @else {
+                <app-dashboard-alerts [alerts]="alerts()" />
+              }
+            </mns-card>
+          </div>
+        </div>
+
+        <!-- bottom grid: schedule timeline + activity -->
+        <div class="bottom-grid">
+          <!-- Schedule timeline -->
           <mns-card [animate]="true" [delay]="0.1">
-            <mns-card-head title="Alerts" [sub]="alertsSubline()" icon="Alert">
-              <mns-badge slot="right" tone="offline">{{ alertCount() }}</mns-badge>
+            <mns-card-head
+              [title]="t('dashboard.cards.scheduleTitle')"
+              [sub]="t('dashboard.cards.scheduleSub')"
+              icon="Schedules"
+            >
+              <mns-badge slot="right" tone="neutral">{{
+                t('dashboard.cards.scheduleEvents', { count: scheduleEntries().length })
+              }}</mns-badge>
             </mns-card-head>
-            @if (loadingSummary()) {
-              <div class="empty-msg">Loading alerts…</div>
-            } @else if (alerts().length === 0) {
-              <div class="empty-state">No open alerts — everything looks healthy.</div>
+            @if (loadingSchedule()) {
+              <div class="empty-msg">{{ t('dashboard.cards.loadingSchedule') }}</div>
+            } @else if (timelineRows().length === 0) {
+              <div class="empty-state">{{ t('dashboard.cards.noSchedule') }}</div>
             } @else {
-              <app-dashboard-alerts [alerts]="alerts()" />
+              <app-dashboard-schedule-timeline [rows]="timelineRows()" [hours]="timelineHours()" />
+            }
+          </mns-card>
+
+          <!-- Activity feed -->
+          <mns-card [animate]="true" [delay]="0.12">
+            <mns-card-head
+              [title]="t('dashboard.cards.activityTitle')"
+              [sub]="t('dashboard.cards.activitySub')"
+              icon="Audit"
+            />
+            @if (activityFeed().length === 0) {
+              <div class="empty-state">{{ t('dashboard.cards.noActivity') }}</div>
+            } @else {
+              <app-dashboard-activity-feed [entries]="activityFeed()" />
             }
           </mns-card>
         </div>
-      </div>
-
-      <!-- bottom grid: schedule timeline + activity -->
-      <div class="bottom-grid">
-        <!-- Schedule timeline -->
-        <mns-card [animate]="true" [delay]="0.1">
-          <mns-card-head title="Upcoming Schedule" sub="Next 24 hours" icon="Schedules">
-            <mns-badge slot="right" tone="neutral">{{ scheduleEntries().length }} events</mns-badge>
-          </mns-card-head>
-          @if (loadingSchedule()) {
-            <div class="empty-msg">Loading schedule…</div>
-          } @else if (timelineRows().length === 0) {
-            <div class="empty-state">No upcoming schedules.</div>
-          } @else {
-            <app-dashboard-schedule-timeline [rows]="timelineRows()" [hours]="timelineHours()" />
-          }
-        </mns-card>
-
-        <!-- Activity feed -->
-        <mns-card [animate]="true" [delay]="0.12">
-          <mns-card-head title="Recent Activity" sub="Team & system events" icon="Audit" />
-          @if (activityFeed().length === 0) {
-            <div class="empty-state">No recent activity.</div>
-          } @else {
-            <app-dashboard-activity-feed [entries]="activityFeed()" />
-          }
-        </mns-card>
-      </div>
-    }
+      }
+    </ng-container>
   `,
   styles: `
     /* ── KPI row ──
@@ -624,6 +658,8 @@ export class Dashboard implements OnInit, OnDestroy {
   private dashboardService = inject(DashboardService);
   private orgState = inject(OrganisationStateService);
   private socketService = inject(DashboardSseService);
+  private transloco = inject(TranslocoService);
+  private language = inject(LanguageService);
 
   private subscriptions: Subscription[] = [];
 
@@ -685,8 +721,11 @@ export class Dashboard implements OnInit, OnDestroy {
   );
   readonly screensOffline = computed(() => this.screens().filter((s) => !s.isOnline).length);
 
-  readonly screensSubline = computed(
-    () => `${this.screensOnline()} of ${this.screens().length} active`,
+  readonly screensSubline = computed(() =>
+    this.transloco.translate('dashboard.cards.screensSub', {
+      online: this.screensOnline(),
+      total: this.screens().length,
+    }),
   );
 
   // ── Summary-backed KPIs ──
@@ -710,13 +749,21 @@ export class Dashboard implements OnInit, OnDestroy {
   );
   readonly alertsSubline = computed(() => {
     const n = this.alertCount();
-    return n === 0 ? 'All clear' : `${n} need${n === 1 ? 's' : ''} attention`;
+    return n === 0
+      ? this.transloco.translate('dashboard.cards.alertsAllClear')
+      : this.transloco.translate('dashboard.cards.alertsNeedAttention', { count: n });
   });
 
   readonly dashboardSub = computed(() => {
     const h = new Date().getHours();
-    const greeting = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-    const today = new Date().toLocaleDateString('en-US', {
+    const greetingKey =
+      h < 12
+        ? 'dashboard.header.greetingMorning'
+        : h < 18
+          ? 'dashboard.header.greetingAfternoon'
+          : 'dashboard.header.greetingEvening';
+    const greeting = this.transloco.translate(greetingKey);
+    const today = new Date().toLocaleDateString(this.language.locale(), {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
@@ -766,7 +813,9 @@ export class Dashboard implements OnInit, OnDestroy {
     const start = new Date(this.timelineStart);
     for (let i = 0; i <= 24; i += 3) {
       const h = new Date(start.getTime() + i * 60 * 60 * 1000);
-      hours.push(h.toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit' }));
+      hours.push(
+        h.toLocaleTimeString(this.language.locale(), { hour: '2-digit', minute: '2-digit' }),
+      );
     }
     return hours;
   });
@@ -776,7 +825,10 @@ export class Dashboard implements OnInit, OnDestroy {
     const screenMap = new Map<string, { name: string; entries: ScheduleEntry[] }>();
 
     for (const entry of entries) {
-      const screenName = entry.screen?.name ?? entry.group?.name ?? 'Unknown';
+      const screenName: string =
+        entry.screen?.name ??
+        entry.group?.name ??
+        this.transloco.translate('dashboard.timeline.unknownScreen');
       const targetId = entry.screenId ?? entry.groupId ?? 'unknown';
       if (!screenMap.has(targetId)) {
         screenMap.set(targetId, { name: screenName, entries: [] });
@@ -800,15 +852,16 @@ export class Dashboard implements OnInit, OnDestroy {
         const widthPercent = ((entryEnd - entryStart) / rangeMs) * 100;
 
         timelineEntries.push({
-          playlistName: entry.playlist?.name ?? 'Unknown',
+          playlistName: (entry.playlist?.name ??
+            this.transloco.translate('dashboard.timeline.unknownPlaylist')) as string,
           colour: entry.colour || '#3b82f6',
           startPercent,
           widthPercent,
-          startTime: new Date(entryStart).toLocaleTimeString(UI_LOCALE, {
+          startTime: new Date(entryStart).toLocaleTimeString(this.language.locale(), {
             hour: '2-digit',
             minute: '2-digit',
           }),
-          endTime: new Date(entryEnd).toLocaleTimeString(UI_LOCALE, {
+          endTime: new Date(entryEnd).toLocaleTimeString(this.language.locale(), {
             hour: '2-digit',
             minute: '2-digit',
           }),
@@ -830,28 +883,40 @@ export class Dashboard implements OnInit, OnDestroy {
     this.subscriptions.push(
       this.socketService.screenOnline$.subscribe((event) => {
         this.updateScreenStatus(event.data['screenId'] as string, true);
-        this.addActivity('screen', `Screen came online`);
+        this.addActivity('screen', this.transloco.translate('dashboard.activity.screenOnline'));
       }),
       this.socketService.screenOffline$.subscribe((event) => {
         this.updateScreenStatus(event.data['screenId'] as string, false);
-        this.addActivity('screen', `Screen went offline`);
+        this.addActivity('screen', this.transloco.translate('dashboard.activity.screenOffline'));
       }),
       this.socketService.scheduleUpdated$.subscribe(() => {
-        this.addActivity('schedule', `Schedule updated`);
+        this.addActivity(
+          'schedule',
+          this.transloco.translate('dashboard.activity.scheduleUpdated'),
+        );
         const orgId = this.orgState.selectedOrgId();
         if (orgId) this.loadSchedule(orgId);
       }),
       this.socketService.transcodingComplete$.subscribe(() => {
-        this.addActivity('transcoding', `Transcoding completed`);
+        this.addActivity(
+          'transcoding',
+          this.transloco.translate('dashboard.activity.transcodingComplete'),
+        );
         this.reloadSummary();
       }),
       this.socketService.transcodingFailed$.subscribe(() => {
-        this.addActivity('transcoding', `Transcoding failed`);
+        this.addActivity(
+          'transcoding',
+          this.transloco.translate('dashboard.activity.transcodingFailed'),
+        );
         this.reloadSummary();
       }),
       this.socketService.transcodingProgress$.subscribe((event) => {
         const progress = event.data['progress'] as number;
-        this.addActivity('transcoding', `Transcoding progress: ${progress}%`);
+        this.addActivity(
+          'transcoding',
+          this.transloco.translate('dashboard.activity.transcodingProgress', { progress }),
+        );
       }),
     );
   }

@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ScreenGroupMonitorFrame, MonitorContent } from './screen-group-monitor-frame';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 const CONTENT: MonitorContent = { bg: 'linear-gradient(#000,#111)', label: 'LOBBY', type: 'image' };
 
@@ -10,7 +11,10 @@ describe('ScreenGroupMonitorFrame', () => {
 
   async function setUp(inputs: Record<string, unknown> = {}): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [ScreenGroupMonitorFrame],
+      imports: [
+        ScreenGroupMonitorFrame,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

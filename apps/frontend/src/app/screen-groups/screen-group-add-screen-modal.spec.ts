@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ScreenGroupAddScreenModal } from './screen-group-add-screen-modal';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 import { Screen } from '../screens/screen.model';
 
 function makeScreen(overrides: Partial<Screen> = {}): Screen {
@@ -41,7 +42,10 @@ describe('ScreenGroupAddScreenModal', () => {
     } = {},
   ): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [ScreenGroupAddScreenModal],
+      imports: [
+        ScreenGroupAddScreenModal,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

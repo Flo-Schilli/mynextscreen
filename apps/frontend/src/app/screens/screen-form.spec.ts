@@ -3,6 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ScreenForm } from './screen-form';
 import { Screen, CreateScreenRequest, UpdateScreenRequest } from './screen.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -60,7 +61,10 @@ describe('ScreenForm', () => {
   }
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
+      providers: [provideZonelessChangeDetection()],
+    });
   });
 
   describe('create mode', () => {

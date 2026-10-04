@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
+import { TranslocoService } from '@jsverse/transloco';
 import { DashboardAlert, DashboardAlertTone } from './dashboard-summary.model';
 import { IconComponent, IconName } from '../ui';
 
@@ -102,6 +103,8 @@ const TONE_COLOR: Record<DashboardAlertTone, string> = {
   `,
 })
 export class DashboardAlerts {
+  private readonly transloco = inject(TranslocoService);
+
   readonly alerts = input.required<DashboardAlert[]>();
 
   icon(tone: DashboardAlertTone): IconName {
@@ -120,10 +123,11 @@ export class DashboardAlerts {
   relativeTime(iso: string): string {
     const diffMs = Date.now() - new Date(iso).getTime();
     const minutes = Math.floor(diffMs / 60_000);
-    if (minutes < 1) return 'just now';
-    if (minutes < 60) return `${minutes} min ago`;
+    if (minutes < 1) return this.transloco.translate('dashboard.alerts.justNow');
+    if (minutes < 60)
+      return this.transloco.translate('dashboard.alerts.minutesAgo', { count: minutes });
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours} h ago`;
-    return `${Math.floor(hours / 24)} d ago`;
+    if (hours < 24) return this.transloco.translate('dashboard.alerts.hoursAgo', { count: hours });
+    return this.transloco.translate('dashboard.alerts.daysAgo', { count: Math.floor(hours / 24) });
   }
 }

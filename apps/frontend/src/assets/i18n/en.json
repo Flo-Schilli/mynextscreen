@@ -31,7 +31,9 @@
       "deselect": "Deselect",
       "view": "View",
       "open": "Open",
-      "done": "Done"
+      "done": "Done",
+      "deleting": "Deleting…",
+      "saving": "Saving…"
     },
     "status": {
       "loading": "Loading…",
@@ -59,12 +61,17 @@
       "all": "All",
       "optional": "Optional",
       "required": "Required"
+    },
+    "errors": {
+      "noOrgMembership": "You are not a member of any organisation.",
+      "loadOrgContext": "Failed to load organisation context.",
+      "accessDenied": "Access denied."
     }
   },
   "auth": {
     "brand": {
       "heading": "Every screen,<br />under one roof.",
-      "subtitle": "The control room for your digital signage — pair displays, build playlists, and push schedules anywhere.",
+      "subtitle": "The control room for your digital signage: pair displays, build playlists and broadcast schedules everywhere.",
       "ticks": {
         "pair": "Pair any screen in seconds",
         "schedule": "Schedule content across locations",
@@ -87,7 +94,7 @@
       "resending": "Sending…",
       "resentNotice": "A new verification link is on its way.",
       "or": "or",
-      "noAccount": "Don't have an account?",
+      "noAccount": "No account yet?",
       "createAccount": "Create account"
     },
     "notice": {
@@ -136,6 +143,351 @@
         "de": "DE",
         "en": "EN"
       }
+    }
+  },
+  "dashboard": {
+    "onboarding": {
+      "title": "Welcome to myNextScreen",
+      "subtitle": "Let's get your first display live. Four quick steps.",
+      "setupTitle": "Set up your network",
+      "allSetTitle": "You're all set!",
+      "progressTitle": "Nice progress — keep going",
+      "loadingLive": "Loading your live dashboard…",
+      "stepsLeft": "{count, plural, one {# step} other {# steps}} left to publish your first content.",
+      "screensOnline": "{count, plural, one {# screen} other {# screens}} online",
+      "stepBadge": "STEP {number}",
+      "doneBadge": "DONE",
+      "complete": "Complete",
+      "steps": {
+        "screen": {
+          "title": "Add your first screen",
+          "desc": "Pair a display with a one-time code. Takes about 30 seconds.",
+          "cta": "Add screen"
+        },
+        "content": {
+          "title": "Upload content",
+          "desc": "Bring in images and video. We transcode and optimise automatically.",
+          "cta": "Upload media"
+        },
+        "playlist": {
+          "title": "Build a playlist",
+          "desc": "Sequence your content and set durations and transitions.",
+          "cta": "Create playlist"
+        },
+        "schedule": {
+          "title": "Schedule & publish",
+          "desc": "Choose when and where it plays, then push it live.",
+          "cta": "Schedule"
+        }
+      }
+    },
+    "header": {
+      "title": "Dashboard",
+      "greetingMorning": "Good morning",
+      "greetingAfternoon": "Good afternoon",
+      "greetingEvening": "Good evening",
+      "addScreen": "Add screen"
+    },
+    "kpi": {
+      "screensOnline": "Screens online",
+      "screensSummary": "{offline} offline · {warning} warning",
+      "contentItems": "Content items",
+      "libraryUsage": "{gb} GB in library",
+      "activePlaylists": "Active playlists",
+      "scheduledEvents": "{count} scheduled events",
+      "openAlerts": "Open alerts",
+      "alertsSummary": "{critical} critical · {warning} warning"
+    },
+    "cards": {
+      "screensTitle": "Screens",
+      "screensSub": "{online} of {total} active",
+      "viewAll": "View all",
+      "noScreens": "No screens registered yet.",
+      "storageTitle": "Storage",
+      "storageSub": "Media library usage",
+      "loadingStorage": "Loading storage…",
+      "noStorage": "No storage data available.",
+      "used": "used",
+      "alertsTitle": "Alerts",
+      "alertsAllClear": "All clear",
+      "alertsNeedAttention": "{count, plural, one {# needs attention} other {# need attention}}",
+      "loadingAlerts": "Loading alerts…",
+      "noAlerts": "No open alerts — everything looks healthy.",
+      "scheduleTitle": "Upcoming Schedule",
+      "scheduleSub": "Next 24 hours",
+      "scheduleEvents": "{count} events",
+      "loadingSchedule": "Loading schedule…",
+      "noSchedule": "No upcoming schedules.",
+      "activityTitle": "Recent Activity",
+      "activitySub": "Team & system events",
+      "noActivity": "No recent activity.",
+      "loadingScreens": "Loading screens…"
+    },
+    "activity": {
+      "screenOnline": "Screen came online",
+      "screenOffline": "Screen went offline",
+      "scheduleUpdated": "Schedule updated",
+      "transcodingComplete": "Transcoding completed",
+      "transcodingFailed": "Transcoding failed",
+      "transcodingProgress": "Transcoding progress: {progress}%"
+    },
+    "alerts": {
+      "justNow": "just now",
+      "minutesAgo": "{count} min ago",
+      "hoursAgo": "{count} h ago",
+      "daysAgo": "{count} d ago"
+    },
+    "timeline": {
+      "unknownScreen": "Unknown",
+      "unknownPlaylist": "Unknown"
+    }
+  },
+  "screens": {
+    "list": {
+      "title": "Screens",
+      "subtitleDefault": "Pair and manage every display in your network",
+      "subtitleCounts": "{online} online · {offline} offline",
+      "installPlayer": "Install Player",
+      "addScreen": "Add screen",
+      "webPlayer": "Web Player:",
+      "loading": "Loading screens…",
+      "emptyTitle": "No screens yet",
+      "emptyDesc": "Pair your first display with a one-time code to start broadcasting content.",
+      "addFirst": "Add your first screen"
+    },
+    "delete": {
+      "title": "Delete screen",
+      "confirmPrefix": "Are you sure you want to delete",
+      "confirmSuffix": "? This cannot be undone."
+    },
+    "errors": {
+      "loadScreens": "Failed to load screens.",
+      "registerScreen": "Failed to register screen.",
+      "updateScreen": "Failed to update screen.",
+      "repairScreen": "Failed to re-pair screen.",
+      "refreshPlayer": "Failed to refresh player.",
+      "deleteScreen": "Failed to delete screen."
+    },
+    "toast": {
+      "created": "Screen “{name}” created.",
+      "updated": "Screen “{name}” updated.",
+      "deleted": "Screen “{name}” deleted.",
+      "repairStarted": "Re-pairing started. The display will pick up the new key.",
+      "refreshSent": "Refresh sent. The player will reload shortly."
+    },
+    "tile": {
+      "open": "Open {name}",
+      "deleteScreen": "Delete screen",
+      "siteAgent": "Site agent",
+      "siteAgentAria": "Open the site agent that looks after this screen",
+      "noLocation": "No location",
+      "lastSeen": "Last seen {time}",
+      "neverConnected": "Never connected",
+      "status": {
+        "online": "Online",
+        "appNotRunning": "App not running",
+        "tvUnreachable": "No answer",
+        "offline": "Offline",
+        "never": "Never"
+      }
+    },
+    "grid": {
+      "filterAll": "All",
+      "filterOnline": "Online",
+      "filterOffline": "Offline"
+    },
+    "form": {
+      "createTitle": "Add a screen",
+      "editTitle": "Edit screen",
+      "createSub": "Pair a display with a one-time code",
+      "editSub": "Update this display's details",
+      "close": "Close",
+      "hintWithUrl": "Open <strong>{url}</strong> on your display — it shows a 6-digit code.",
+      "hintNoUrl": "Open the player on your display — it shows a 6-digit code. Set <strong>PLAYER_BASE_URL</strong> on the server to show its address here.",
+      "nameLabel": "Screen name",
+      "namePlaceholder": "e.g. Lobby — Main Wall",
+      "locationLabel": "Location",
+      "locationPlaceholder": "HQ · Ground Floor",
+      "resolutionLabel": "Display resolution",
+      "resolutionCustom": "Custom resolution…",
+      "customResolutionLabel": "Custom resolution",
+      "customResolutionPlaceholder": "e.g. 1920x1200",
+      "playerOptions": "Player options",
+      "unmuteLabel": "Show “Click to unmute”",
+      "unmuteDesc": "Display the unmute overlay on videos with sound.",
+      "disconnectLabel": "Allow “Disconnect”",
+      "disconnectDesc": "Offer it in the player's info panel and the webOS settings overlay.",
+      "pairingCodeLabel": "Pairing code",
+      "pairingCodePlaceholder": "6-digit code from the display",
+      "submitRegister": "Register screen",
+      "submitRegistering": "Registering…",
+      "submitSave": "Save changes",
+      "submitSaving": "Saving…",
+      "infoStatus": "Status",
+      "infoLastSeen": "Last seen",
+      "infoNever": "Never",
+      "infoPlayerVersion": "Player version",
+      "infoNotReported": "Not reported",
+      "infoRegistered": "Registered",
+      "refreshTitle": "Refresh player",
+      "refreshHint": "Reload the display's player remotely (like pressing F5). Useful after changing settings or if the screen looks stuck.",
+      "refreshButton": "Refresh player",
+      "refreshing": "Refreshing…",
+      "screenOffline": "Screen is offline.",
+      "repairTitle": "Re-pair display",
+      "repairHint": "Reconnecting a display? Open it to show a fresh 6-digit code, then enter it here to issue a new key. The current key is invalidated immediately.",
+      "repairCodePlaceholder": "6-digit code",
+      "repairButton": "Re-pair",
+      "repairing": "Re-pairing…",
+      "errorAllRequired": "All fields are required.",
+      "errorPairingDigits": "Pairing code must be 6 digits."
+    },
+    "playerApps": {
+      "title": "Install Player",
+      "loading": "Loading player apps…",
+      "loadError": "Failed to load player apps.",
+      "choosePlatform": "Choose a platform for the installation guide and download.",
+      "guideAndBinary": "Guide + IPK binary available",
+      "guideOnly": "Guide available",
+      "allPlatforms": "All platforms",
+      "downloadIpk": "Download IPK",
+      "loadingGuide": "Loading guide…",
+      "guideError": "Failed to load guide."
+    }
+  },
+  "screenGroups": {
+    "list": {
+      "title": "Screen Groups",
+      "subtitle": "{count, plural, one {# group} other {# groups}}",
+      "newGroup": "New Group",
+      "loading": "Loading screen groups…",
+      "emptyTitle": "No screen groups yet",
+      "emptyDesc": "Create your first screen group to start building mirror displays or video walls.",
+      "createFirst": "Create Your First Group"
+    },
+    "errors": {
+      "loadGroups": "Failed to load screen groups.",
+      "loadGroup": "Failed to load screen group.",
+      "createGroup": "Failed to create screen group.",
+      "updateGroup": "Failed to update screen group.",
+      "deleteGroup": "Failed to delete screen group.",
+      "assignScreen": "Failed to assign screen.",
+      "moveScreen": "Failed to move screen.",
+      "addScreen": "Failed to add screen.",
+      "removeScreen": "Failed to remove screen.",
+      "updateGroupGeneric": "Failed to update group.",
+      "refreshGroup": "Failed to refresh group data.",
+      "groupNotFound": "Screen group not found.",
+      "noGroupId": "No group ID provided.",
+      "allPanelsAssigned": "All wall panels are already assigned.",
+      "screenInOtherGroup": "Screen \"{name}\" already belongs to another group.",
+      "removeScreensFirst": "Remove all screens from the group before deleting it."
+    },
+    "toast": {
+      "created": "Screen group created.",
+      "updated": "Screen group updated.",
+      "deleted": "Screen group deleted.",
+      "someScreensNotAssigned": "Group created, but some screens could not be assigned.",
+      "screenAssigned": "Screen assigned.",
+      "screenAdded": "Screen added.",
+      "screenRemoved": "Screen removed.",
+      "modeSwitched": "Switched to {mode} mode.",
+      "wallLayoutUpdated": "Wall layout updated."
+    },
+    "mode": {
+      "mirror": "Mirror",
+      "mirrorDesc": "Same content on every screen at once",
+      "split": "Split",
+      "splitDesc": "One image or video spread across a video wall"
+    },
+    "card": {
+      "open": "Open {name}",
+      "deleteGroup": "Delete {name}",
+      "screens": "{count, plural, one {# screen} other {# screens}}",
+      "noScreens": "No screens",
+      "modeMirror": "Mirror"
+    },
+    "create": {
+      "title": "New screen group",
+      "nameLabel": "Group name",
+      "namePlaceholder": "e.g. HQ Lobby Wall",
+      "colourLabel": "Colour",
+      "colourAria": "Colour {colour}",
+      "displayModeLabel": "Display mode",
+      "columns": "Columns",
+      "rows": "Rows",
+      "wallHint": "Creates a {cols}×{rows} wall ({panels} panels).",
+      "addScreens": "Add screens",
+      "selectedSuffix": "· {count} selected",
+      "noUnassigned": "No unassigned screens available.",
+      "creating": "Creating…",
+      "createGroup": "Create group",
+      "errorNameLength": "Name must be at least 2 characters."
+    },
+    "edit": {
+      "title": "Edit screen group",
+      "nameLabel": "Group name",
+      "colourLabel": "Colour",
+      "colourAria": "Colour {colour}",
+      "displayModeLabel": "Display mode",
+      "columns": "Columns",
+      "rows": "Rows",
+      "saving": "Saving…",
+      "saveChanges": "Save changes",
+      "errorNameRequired": "Name is required."
+    },
+    "deleteModal": {
+      "title": "Delete screen group",
+      "blocked": "Cannot delete \"{name}\" because it still has {count} assigned screen(s). Remove all screens from the group before deleting it.",
+      "confirmPrefix": "Are you sure you want to delete the screen group",
+      "confirmSuffix": "? This action cannot be undone.",
+      "deleting": "Deleting…"
+    },
+    "addScreen": {
+      "title": "Add a screen",
+      "loading": "Loading screens…",
+      "noUnassigned": "No unassigned screens available.",
+      "inAnotherGroup": "In another group",
+      "add": "Add",
+      "close": "Close"
+    },
+    "detail": {
+      "loading": "Loading group details…",
+      "delete": "Delete",
+      "modeSplit": "Split · {cols}×{rows}",
+      "modeMirror": "Mirror",
+      "screens": "{count, plural, one {# screen} other {# screens}}",
+      "livePreview": "Live preview",
+      "previewSplit": "Video wall · {cols} columns × {rows} rows{suffix}",
+      "previewMirror": "Mirrored to {count, plural, one {# screen} other {# screens}}{suffix}",
+      "preparingRenditions": "Preparing video-wall renditions…",
+      "renditionFailed": "Rendition pre-transcoding failed{error}",
+      "displayMode": "Display mode",
+      "displayModeSub": "How content is distributed across the group",
+      "wallLayout": "Wall layout",
+      "columns": "Columns",
+      "rows": "Rows",
+      "panelsAssigned": "{assigned} of {needed} panels assigned",
+      "groupScreens": "Group screens",
+      "groupScreensSubSplit": "Click a wall panel to place a screen",
+      "groupScreensSubMirror": "All mirror the same output",
+      "noScreensAssigned": "No screens assigned yet.",
+      "remove": "Remove",
+      "addScreenPlaceholder": "+ Add a screen to this group…"
+    },
+    "wall": {
+      "noScreensYet": "No screens yet",
+      "mirrorCaption": "Every screen mirrors the same content, perfectly in sync.",
+      "splitCaption": "One source split across a {cols}×{rows} wall — click any panel to place its screen.",
+      "assignPanel": "Assign a screen to this panel",
+      "assignPanelAria": "Assign a screen to panel {panel}",
+      "closeMenu": "Close menu",
+      "panelHead": "Panel {panel} · Row {row} · Col {col}",
+      "leaveEmpty": "Leave empty",
+      "allPlaced": "All screens are already placed."
+    },
+    "monitor": {
+      "empty": "Empty"
     }
   }
 }

@@ -31,7 +31,9 @@
       "deselect": "Abwählen",
       "view": "Ansehen",
       "open": "Öffnen",
-      "done": "Fertig"
+      "done": "Fertig",
+      "deleting": "Wird gelöscht…",
+      "saving": "Wird gespeichert…"
     },
     "status": {
       "loading": "Wird geladen…",
@@ -59,6 +61,11 @@
       "all": "Alle",
       "optional": "Optional",
       "required": "Erforderlich"
+    },
+    "errors": {
+      "noOrgMembership": "Sie sind kein Mitglied einer Organisation.",
+      "loadOrgContext": "Organisationskontext konnte nicht geladen werden.",
+      "accessDenied": "Zugriff verweigert."
     }
   },
   "auth": {
@@ -136,6 +143,351 @@
         "de": "DE",
         "en": "EN"
       }
+    }
+  },
+  "dashboard": {
+    "onboarding": {
+      "title": "Willkommen bei myNextScreen",
+      "subtitle": "Bringen wir Ihr erstes Display live. Vier schnelle Schritte.",
+      "setupTitle": "Richten Sie Ihr Netzwerk ein",
+      "allSetTitle": "Alles bereit!",
+      "progressTitle": "Guter Fortschritt — weiter so",
+      "loadingLive": "Ihr Live-Dashboard wird geladen…",
+      "stepsLeft": "{count, plural, one {# Schritt} other {# Schritte}} bis zur Veröffentlichung Ihres ersten Inhalts.",
+      "screensOnline": "{count, plural, one {# Bildschirm} other {# Bildschirme}} online",
+      "stepBadge": "SCHRITT {number}",
+      "doneBadge": "ERLEDIGT",
+      "complete": "Abgeschlossen",
+      "steps": {
+        "screen": {
+          "title": "Ersten Bildschirm hinzufügen",
+          "desc": "Koppeln Sie ein Display mit einem Einmalcode. Dauert etwa 30 Sekunden.",
+          "cta": "Bildschirm hinzufügen"
+        },
+        "content": {
+          "title": "Inhalte hochladen",
+          "desc": "Bringen Sie Bilder und Videos ein. Wir transkodieren und optimieren automatisch.",
+          "cta": "Medien hochladen"
+        },
+        "playlist": {
+          "title": "Playlist erstellen",
+          "desc": "Reihen Sie Ihre Inhalte und legen Sie Dauer und Übergänge fest.",
+          "cta": "Playlist erstellen"
+        },
+        "schedule": {
+          "title": "Planen & veröffentlichen",
+          "desc": "Wählen Sie, wann und wo es läuft, und schalten Sie es live.",
+          "cta": "Planen"
+        }
+      }
+    },
+    "header": {
+      "title": "Dashboard",
+      "greetingMorning": "Guten Morgen",
+      "greetingAfternoon": "Guten Tag",
+      "greetingEvening": "Guten Abend",
+      "addScreen": "Bildschirm hinzufügen"
+    },
+    "kpi": {
+      "screensOnline": "Bildschirme online",
+      "screensSummary": "{offline} offline · {warning} Warnung",
+      "contentItems": "Inhaltselemente",
+      "libraryUsage": "{gb} GB in der Bibliothek",
+      "activePlaylists": "Aktive Playlists",
+      "scheduledEvents": "{count} geplante Ereignisse",
+      "openAlerts": "Offene Warnungen",
+      "alertsSummary": "{critical} kritisch · {warning} Warnung"
+    },
+    "cards": {
+      "screensTitle": "Bildschirme",
+      "screensSub": "{online} von {total} aktiv",
+      "viewAll": "Alle ansehen",
+      "noScreens": "Noch keine Bildschirme registriert.",
+      "storageTitle": "Speicher",
+      "storageSub": "Nutzung der Medienbibliothek",
+      "loadingStorage": "Speicher wird geladen…",
+      "noStorage": "Keine Speicherdaten verfügbar.",
+      "used": "belegt",
+      "alertsTitle": "Warnungen",
+      "alertsAllClear": "Alles in Ordnung",
+      "alertsNeedAttention": "{count, plural, one {# erfordert Aufmerksamkeit} other {# erfordern Aufmerksamkeit}}",
+      "loadingAlerts": "Warnungen werden geladen…",
+      "noAlerts": "Keine offenen Warnungen — alles sieht gesund aus.",
+      "scheduleTitle": "Anstehender Zeitplan",
+      "scheduleSub": "Nächste 24 Stunden",
+      "scheduleEvents": "{count} Ereignisse",
+      "loadingSchedule": "Zeitplan wird geladen…",
+      "noSchedule": "Keine anstehenden Zeitpläne.",
+      "activityTitle": "Letzte Aktivität",
+      "activitySub": "Team- & Systemereignisse",
+      "noActivity": "Keine aktuelle Aktivität.",
+      "loadingScreens": "Bildschirme werden geladen…"
+    },
+    "activity": {
+      "screenOnline": "Bildschirm online gegangen",
+      "screenOffline": "Bildschirm offline gegangen",
+      "scheduleUpdated": "Zeitplan aktualisiert",
+      "transcodingComplete": "Transkodierung abgeschlossen",
+      "transcodingFailed": "Transkodierung fehlgeschlagen",
+      "transcodingProgress": "Transkodierungsfortschritt: {progress}%"
+    },
+    "alerts": {
+      "justNow": "gerade eben",
+      "minutesAgo": "vor {count} Min.",
+      "hoursAgo": "vor {count} Std.",
+      "daysAgo": "vor {count} T."
+    },
+    "timeline": {
+      "unknownScreen": "Unbekannt",
+      "unknownPlaylist": "Unbekannt"
+    }
+  },
+  "screens": {
+    "list": {
+      "title": "Bildschirme",
+      "subtitleDefault": "Koppeln und verwalten Sie jedes Display in Ihrem Netzwerk",
+      "subtitleCounts": "{online} online · {offline} offline",
+      "installPlayer": "Player installieren",
+      "addScreen": "Bildschirm hinzufügen",
+      "webPlayer": "Web-Player:",
+      "loading": "Bildschirme werden geladen…",
+      "emptyTitle": "Noch keine Bildschirme",
+      "emptyDesc": "Koppeln Sie Ihr erstes Display mit einem Einmalcode, um Inhalte auszuspielen.",
+      "addFirst": "Ersten Bildschirm hinzufügen"
+    },
+    "delete": {
+      "title": "Bildschirm löschen",
+      "confirmPrefix": "Möchten Sie",
+      "confirmSuffix": "wirklich löschen? Dies kann nicht rückgängig gemacht werden."
+    },
+    "errors": {
+      "loadScreens": "Bildschirme konnten nicht geladen werden.",
+      "registerScreen": "Bildschirm konnte nicht registriert werden.",
+      "updateScreen": "Bildschirm konnte nicht aktualisiert werden.",
+      "repairScreen": "Bildschirm konnte nicht erneut gekoppelt werden.",
+      "refreshPlayer": "Player konnte nicht aktualisiert werden.",
+      "deleteScreen": "Bildschirm konnte nicht gelöscht werden."
+    },
+    "toast": {
+      "created": "Bildschirm „{name}“ erstellt.",
+      "updated": "Bildschirm „{name}“ aktualisiert.",
+      "deleted": "Bildschirm „{name}“ gelöscht.",
+      "repairStarted": "Erneute Kopplung gestartet. Das Display übernimmt den neuen Schlüssel.",
+      "refreshSent": "Aktualisierung gesendet. Der Player lädt in Kürze neu."
+    },
+    "tile": {
+      "open": "{name} öffnen",
+      "deleteScreen": "Bildschirm löschen",
+      "siteAgent": "Standort-Agent",
+      "siteAgentAria": "Standort-Agent öffnen, der diesen Bildschirm betreut",
+      "noLocation": "Kein Standort",
+      "lastSeen": "Zuletzt gesehen {time}",
+      "neverConnected": "Nie verbunden",
+      "status": {
+        "online": "Online",
+        "appNotRunning": "App läuft nicht",
+        "tvUnreachable": "Keine Antwort",
+        "offline": "Offline",
+        "never": "Nie"
+      }
+    },
+    "grid": {
+      "filterAll": "Alle",
+      "filterOnline": "Online",
+      "filterOffline": "Offline"
+    },
+    "form": {
+      "createTitle": "Bildschirm hinzufügen",
+      "editTitle": "Bildschirm bearbeiten",
+      "createSub": "Koppeln Sie ein Display mit einem Einmalcode",
+      "editSub": "Aktualisieren Sie die Details dieses Displays",
+      "close": "Schließen",
+      "hintWithUrl": "Öffnen Sie <strong>{url}</strong> auf Ihrem Display — es zeigt einen 6-stelligen Code.",
+      "hintNoUrl": "Öffnen Sie den Player auf Ihrem Display — er zeigt einen 6-stelligen Code. Setzen Sie <strong>PLAYER_BASE_URL</strong> auf dem Server, um die Adresse hier anzuzeigen.",
+      "nameLabel": "Bildschirmname",
+      "namePlaceholder": "z. B. Lobby — Hauptwand",
+      "locationLabel": "Standort",
+      "locationPlaceholder": "HQ · Erdgeschoss",
+      "resolutionLabel": "Display-Auflösung",
+      "resolutionCustom": "Eigene Auflösung…",
+      "customResolutionLabel": "Eigene Auflösung",
+      "customResolutionPlaceholder": "z. B. 1920x1200",
+      "playerOptions": "Player-Optionen",
+      "unmuteLabel": "„Zum Stummschalten aufheben klicken“ anzeigen",
+      "unmuteDesc": "Zeigt das Aufhebe-Overlay bei Videos mit Ton.",
+      "disconnectLabel": "„Trennen“ erlauben",
+      "disconnectDesc": "Im Info-Panel des Players und im webOS-Einstellungs-Overlay anbieten.",
+      "pairingCodeLabel": "Kopplungscode",
+      "pairingCodePlaceholder": "6-stelliger Code vom Display",
+      "submitRegister": "Bildschirm registrieren",
+      "submitRegistering": "Wird registriert…",
+      "submitSave": "Änderungen speichern",
+      "submitSaving": "Wird gespeichert…",
+      "infoStatus": "Status",
+      "infoLastSeen": "Zuletzt gesehen",
+      "infoNever": "Nie",
+      "infoPlayerVersion": "Player-Version",
+      "infoNotReported": "Nicht gemeldet",
+      "infoRegistered": "Registriert",
+      "refreshTitle": "Player aktualisieren",
+      "refreshHint": "Laden Sie den Player des Displays aus der Ferne neu (wie F5). Nützlich nach Einstellungsänderungen oder wenn der Bildschirm hängt.",
+      "refreshButton": "Player aktualisieren",
+      "refreshing": "Wird aktualisiert…",
+      "screenOffline": "Bildschirm ist offline.",
+      "repairTitle": "Display erneut koppeln",
+      "repairHint": "Display erneut verbinden? Öffnen Sie es, um einen neuen 6-stelligen Code anzuzeigen, und geben Sie ihn hier ein, um einen neuen Schlüssel auszustellen. Der aktuelle Schlüssel wird sofort ungültig.",
+      "repairCodePlaceholder": "6-stelliger Code",
+      "repairButton": "Erneut koppeln",
+      "repairing": "Wird erneut gekoppelt…",
+      "errorAllRequired": "Alle Felder sind erforderlich.",
+      "errorPairingDigits": "Kopplungscode muss 6 Ziffern haben."
+    },
+    "playerApps": {
+      "title": "Player installieren",
+      "loading": "Player-Apps werden geladen…",
+      "loadError": "Player-Apps konnten nicht geladen werden.",
+      "choosePlatform": "Wählen Sie eine Plattform für die Installationsanleitung und den Download.",
+      "guideAndBinary": "Anleitung + IPK-Binary verfügbar",
+      "guideOnly": "Anleitung verfügbar",
+      "allPlatforms": "Alle Plattformen",
+      "downloadIpk": "IPK herunterladen",
+      "loadingGuide": "Anleitung wird geladen…",
+      "guideError": "Anleitung konnte nicht geladen werden."
+    }
+  },
+  "screenGroups": {
+    "list": {
+      "title": "Bildschirmgruppen",
+      "subtitle": "{count, plural, one {# Gruppe} other {# Gruppen}}",
+      "newGroup": "Neue Gruppe",
+      "loading": "Bildschirmgruppen werden geladen…",
+      "emptyTitle": "Noch keine Bildschirmgruppen",
+      "emptyDesc": "Erstellen Sie Ihre erste Bildschirmgruppe, um Spiegel-Displays oder Video-Walls aufzubauen.",
+      "createFirst": "Erste Gruppe erstellen"
+    },
+    "errors": {
+      "loadGroups": "Bildschirmgruppen konnten nicht geladen werden.",
+      "loadGroup": "Bildschirmgruppe konnte nicht geladen werden.",
+      "createGroup": "Bildschirmgruppe konnte nicht erstellt werden.",
+      "updateGroup": "Bildschirmgruppe konnte nicht aktualisiert werden.",
+      "deleteGroup": "Bildschirmgruppe konnte nicht gelöscht werden.",
+      "assignScreen": "Bildschirm konnte nicht zugewiesen werden.",
+      "moveScreen": "Bildschirm konnte nicht verschoben werden.",
+      "addScreen": "Bildschirm konnte nicht hinzugefügt werden.",
+      "removeScreen": "Bildschirm konnte nicht entfernt werden.",
+      "updateGroupGeneric": "Gruppe konnte nicht aktualisiert werden.",
+      "refreshGroup": "Gruppendaten konnten nicht aktualisiert werden.",
+      "groupNotFound": "Bildschirmgruppe nicht gefunden.",
+      "noGroupId": "Keine Gruppen-ID angegeben.",
+      "allPanelsAssigned": "Alle Wandpanels sind bereits zugewiesen.",
+      "screenInOtherGroup": "Bildschirm „{name}“ gehört bereits zu einer anderen Gruppe.",
+      "removeScreensFirst": "Entfernen Sie alle Bildschirme aus der Gruppe, bevor Sie sie löschen."
+    },
+    "toast": {
+      "created": "Bildschirmgruppe erstellt.",
+      "updated": "Bildschirmgruppe aktualisiert.",
+      "deleted": "Bildschirmgruppe gelöscht.",
+      "someScreensNotAssigned": "Gruppe erstellt, aber einige Bildschirme konnten nicht zugewiesen werden.",
+      "screenAssigned": "Bildschirm zugewiesen.",
+      "screenAdded": "Bildschirm hinzugefügt.",
+      "screenRemoved": "Bildschirm entfernt.",
+      "modeSwitched": "Zu {mode}-Modus gewechselt.",
+      "wallLayoutUpdated": "Wandlayout aktualisiert."
+    },
+    "mode": {
+      "mirror": "Spiegeln",
+      "mirrorDesc": "Gleicher Inhalt auf jedem Bildschirm gleichzeitig",
+      "split": "Teilen",
+      "splitDesc": "Ein Bild oder Video über eine Video-Wall verteilt"
+    },
+    "card": {
+      "open": "{name} öffnen",
+      "deleteGroup": "{name} löschen",
+      "screens": "{count, plural, one {# Bildschirm} other {# Bildschirme}}",
+      "noScreens": "Keine Bildschirme",
+      "modeMirror": "Spiegeln"
+    },
+    "create": {
+      "title": "Neue Bildschirmgruppe",
+      "nameLabel": "Gruppenname",
+      "namePlaceholder": "z. B. HQ Lobby-Wand",
+      "colourLabel": "Farbe",
+      "colourAria": "Farbe {colour}",
+      "displayModeLabel": "Anzeigemodus",
+      "columns": "Spalten",
+      "rows": "Zeilen",
+      "wallHint": "Erstellt eine {cols}×{rows}-Wand ({panels} Panels).",
+      "addScreens": "Bildschirme hinzufügen",
+      "selectedSuffix": "· {count} ausgewählt",
+      "noUnassigned": "Keine nicht zugewiesenen Bildschirme verfügbar.",
+      "creating": "Wird erstellt…",
+      "createGroup": "Gruppe erstellen",
+      "errorNameLength": "Name muss mindestens 2 Zeichen lang sein."
+    },
+    "edit": {
+      "title": "Bildschirmgruppe bearbeiten",
+      "nameLabel": "Gruppenname",
+      "colourLabel": "Farbe",
+      "colourAria": "Farbe {colour}",
+      "displayModeLabel": "Anzeigemodus",
+      "columns": "Spalten",
+      "rows": "Zeilen",
+      "saving": "Wird gespeichert…",
+      "saveChanges": "Änderungen speichern",
+      "errorNameRequired": "Name ist erforderlich."
+    },
+    "deleteModal": {
+      "title": "Bildschirmgruppe löschen",
+      "blocked": "„{name}“ kann nicht gelöscht werden, da ihr noch {count} Bildschirm(e) zugewiesen sind. Entfernen Sie alle Bildschirme aus der Gruppe, bevor Sie sie löschen.",
+      "confirmPrefix": "Möchten Sie die Bildschirmgruppe",
+      "confirmSuffix": "wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "deleting": "Wird gelöscht…"
+    },
+    "addScreen": {
+      "title": "Bildschirm hinzufügen",
+      "loading": "Bildschirme werden geladen…",
+      "noUnassigned": "Keine nicht zugewiesenen Bildschirme verfügbar.",
+      "inAnotherGroup": "In einer anderen Gruppe",
+      "add": "Hinzufügen",
+      "close": "Schließen"
+    },
+    "detail": {
+      "loading": "Gruppendetails werden geladen…",
+      "delete": "Löschen",
+      "modeSplit": "Teilen · {cols}×{rows}",
+      "modeMirror": "Spiegeln",
+      "screens": "{count, plural, one {# Bildschirm} other {# Bildschirme}}",
+      "livePreview": "Live-Vorschau",
+      "previewSplit": "Video-Wall · {cols} Spalten × {rows} Zeilen{suffix}",
+      "previewMirror": "Gespiegelt auf {count, plural, one {# Bildschirm} other {# Bildschirme}}{suffix}",
+      "preparingRenditions": "Video-Wall-Renditionen werden vorbereitet…",
+      "renditionFailed": "Vorab-Transkodierung der Renditionen fehlgeschlagen{error}",
+      "displayMode": "Anzeigemodus",
+      "displayModeSub": "Wie Inhalte über die Gruppe verteilt werden",
+      "wallLayout": "Wandlayout",
+      "columns": "Spalten",
+      "rows": "Zeilen",
+      "panelsAssigned": "{assigned} von {needed} Panels zugewiesen",
+      "groupScreens": "Gruppen-Bildschirme",
+      "groupScreensSubSplit": "Klicken Sie auf ein Wandpanel, um einen Bildschirm zu platzieren",
+      "groupScreensSubMirror": "Alle spiegeln dieselbe Ausgabe",
+      "noScreensAssigned": "Noch keine Bildschirme zugewiesen.",
+      "remove": "Entfernen",
+      "addScreenPlaceholder": "+ Einen Bildschirm zu dieser Gruppe hinzufügen…"
+    },
+    "wall": {
+      "noScreensYet": "Noch keine Bildschirme",
+      "mirrorCaption": "Jeder Bildschirm spiegelt denselben Inhalt, perfekt synchron.",
+      "splitCaption": "Eine Quelle über eine {cols}×{rows}-Wand verteilt — klicken Sie auf ein Panel, um dessen Bildschirm zu platzieren.",
+      "assignPanel": "Einen Bildschirm diesem Panel zuweisen",
+      "assignPanelAria": "Einen Bildschirm Panel {panel} zuweisen",
+      "closeMenu": "Menü schließen",
+      "panelHead": "Panel {panel} · Zeile {row} · Spalte {col}",
+      "leaveEmpty": "Leer lassen",
+      "allPlaced": "Alle Bildschirme sind bereits platziert."
+    },
+    "monitor": {
+      "empty": "Leer"
     }
   }
 }

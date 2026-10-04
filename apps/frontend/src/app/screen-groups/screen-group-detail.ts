@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { ScreenGroupService } from './screen-group.service';
 import {
   ScreenGroup,
@@ -70,15 +71,16 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
     StepperComponent,
     ScreenGroupModeToggle,
     ScreenGroupWall,
+    TranslocoDirective,
   ],
   template: `
-    <div class="page">
+    <div class="page" *transloco="let t">
       @if (loadError()) {
         <p class="text-offline text-sm mb-4">{{ loadError() }}</p>
       }
 
       @if (loading()) {
-        <p class="text-muted text-sm">Loading group details…</p>
+        <p class="text-muted text-sm">{{ t('screenGroups.detail.loading') }}</p>
       }
 
       @if (group(); as g) {
@@ -99,17 +101,17 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
                 <mns-badge tone="accent" [icon]="g.mode === 'split' ? 'Grid' : 'Copy'">{{
                   modeLabel()
                 }}</mns-badge>
-                <mns-badge tone="neutral" icon="Screens"
-                  >{{ assignedCount() }} screen{{ assignedCount() === 1 ? '' : 's' }}</mns-badge
-                >
+                <mns-badge tone="neutral" icon="Screens">{{
+                  t('screenGroups.detail.screens', { count: assignedCount() })
+                }}</mns-badge>
                 @if (wallResolution(); as resolution) {
                   <mns-badge tone="neutral" icon="Screens">{{ resolution }}</mns-badge>
                 }
               </div>
             </div>
-            <mns-btn variant="danger" size="sm" icon="Trash" (mnsClick)="onDelete()"
-              >Delete</mns-btn
-            >
+            <mns-btn variant="danger" size="sm" icon="Trash" (mnsClick)="onDelete()">{{
+              t('screenGroups.detail.delete')
+            }}</mns-btn>
           </div>
         </mns-card>
 
@@ -119,7 +121,11 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
 
         <!-- live preview card -->
         <mns-card class="block mt-[var(--gap)]">
-          <mns-card-head title="Live preview" [sub]="previewSub()" icon="Cast">
+          <mns-card-head
+            [title]="t('screenGroups.detail.livePreview')"
+            [sub]="previewSub()"
+            icon="Cast"
+          >
             <mns-badge slot="right" tone="neutral" icon="Image">{{ contentLabel() }}</mns-badge>
           </mns-card-head>
 
@@ -128,7 +134,7 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
               <div class="mb-3 p-3 rounded-[12px] bg-surface-2 border border-border">
                 <div class="flex items-center gap-2 text-[13px] font-semibold text-muted mb-2">
                   <mns-icon name="Layers" [size]="15" />
-                  Preparing video-wall renditions…
+                  {{ t('screenGroups.detail.preparingRenditions') }}
                   <span class="mono"
                     >{{ ss.completedItems }}/{{ ss.totalItems }} · {{ slicePct() }}%</span
                   >
@@ -145,7 +151,11 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
                 class="mb-3 p-3 rounded-[12px] bg-surface-2 border border-offline/40 text-offline text-[13px] flex items-center gap-2"
               >
                 <mns-icon name="Alert" [size]="15" />
-                Rendition pre-transcoding failed{{ ss.error ? ': ' + ss.error : '' }}
+                {{
+                  t('screenGroups.detail.renditionFailed', {
+                    error: ss.error ? ': ' + ss.error : '',
+                  })
+                }}
               </div>
             }
           }
@@ -165,8 +175,8 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
           <!-- display mode card -->
           <mns-card>
             <mns-card-head
-              title="Display mode"
-              sub="How content is distributed across the group"
+              [title]="t('screenGroups.detail.displayMode')"
+              [sub]="t('screenGroups.detail.displayModeSub')"
               icon="Layers"
             />
             <app-screen-group-mode-toggle [value]="g.mode" (modeChange)="changeMode($event)" />
@@ -174,16 +184,18 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
               <div
                 class="mt-[18px] p-4 rounded-[13px] bg-surface-2 border border-border flex flex-col gap-3.5"
               >
-                <div class="text-[13px] font-bold text-muted">Wall layout</div>
+                <div class="text-[13px] font-bold text-muted">
+                  {{ t('screenGroups.detail.wallLayout') }}
+                </div>
                 <mns-stepper
-                  label="Columns"
+                  [label]="t('screenGroups.detail.columns')"
                   [(value)]="cols"
                   [min]="1"
                   [max]="4"
                   (valueChange)="commitGrid()"
                 />
                 <mns-stepper
-                  label="Rows"
+                  [label]="t('screenGroups.detail.rows')"
                   [(value)]="rows"
                   [min]="1"
                   [max]="4"
@@ -198,7 +210,12 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
                     [name]="assignedCount() >= cellsNeeded() ? 'CheckCircle' : 'Alert'"
                     [size]="15"
                   />
-                  {{ assignedCount() }} of {{ cellsNeeded() }} panels assigned
+                  {{
+                    t('screenGroups.detail.panelsAssigned', {
+                      assigned: assignedCount(),
+                      needed: cellsNeeded(),
+                    })
+                  }}
                 </div>
               </div>
             }
@@ -207,17 +224,19 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
           <!-- group screens card -->
           <mns-card>
             <mns-card-head
-              title="Group screens"
+              [title]="t('screenGroups.detail.groupScreens')"
               [sub]="
                 g.mode === 'split'
-                  ? 'Click a wall panel to place a screen'
-                  : 'All mirror the same output'
+                  ? t('screenGroups.detail.groupScreensSubSplit')
+                  : t('screenGroups.detail.groupScreensSubMirror')
               "
               icon="Screens"
             />
             <div class="flex flex-col gap-[9px]">
               @if (assignedCount() === 0) {
-                <div class="text-[13px] text-muted py-1.5">No screens assigned yet.</div>
+                <div class="text-[13px] text-muted py-1.5">
+                  {{ t('screenGroups.detail.noScreensAssigned') }}
+                </div>
               }
               @for (p of placed(); track p.screen.id) {
                 <div
@@ -238,7 +257,7 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
                   <button
                     type="button"
                     class="grid place-items-center w-7 h-7 rounded-lg border border-border bg-transparent text-faint hover:text-offline transition-colors"
-                    title="Remove"
+                    [title]="t('screenGroups.detail.remove')"
                     [disabled]="operationInProgress()"
                     (click)="removeScreenFromGroup(p.screen.id)"
                   >
@@ -252,7 +271,7 @@ const ALLOWED_ICONS: IconName[] = ['Groups', 'Layers', 'Cast', 'Grid', 'Copy', '
                 <mns-select
                   [options]="availableOptions()"
                   [value]="''"
-                  placeholder="+ Add a screen to this group…"
+                  [placeholder]="t('screenGroups.detail.addScreenPlaceholder')"
                   (changed)="onAddScreenSelect($event)"
                 />
               </div>
@@ -279,6 +298,7 @@ export class ScreenGroupDetail implements OnInit {
   private toast = inject(ToastService);
   private sse = inject(DashboardSseService);
   private destroyRef = inject(DestroyRef);
+  private transloco = inject(TranslocoService);
 
   readonly orgId = signal('');
   readonly group = signal<ScreenGroup | null>(null);
@@ -309,7 +329,12 @@ export class ScreenGroupDetail implements OnInit {
   readonly modeLabel = computed(() => {
     const g = this.group();
     if (!g) return '';
-    return g.mode === 'split' ? `Split · ${g.gridColumns ?? 1}×${g.gridRows ?? 1}` : 'Mirror';
+    return g.mode === 'split'
+      ? this.transloco.translate('screenGroups.detail.modeSplit', {
+          cols: g.gridColumns ?? 1,
+          rows: g.gridRows ?? 1,
+        })
+      : this.transloco.translate('screenGroups.detail.modeMirror');
   });
 
   readonly contentLabel = computed(
@@ -371,7 +396,7 @@ export class ScreenGroupDetail implements OnInit {
   });
 
   readonly availableOptions = computed<SelectOption[]>(() => [
-    { value: '', label: '+ Add a screen to this group…' },
+    { value: '', label: this.transloco.translate('screenGroups.detail.addScreenPlaceholder') },
     ...this.availableScreens().map((s) => ({ value: s.id, label: `${s.name} · ${s.location}` })),
   ]);
 
@@ -425,8 +450,15 @@ export class ScreenGroupDetail implements OnInit {
     const resolution = this.wallResolution();
     const suffix = resolution ? ` · ${resolution}` : '';
     return g.mode === 'split'
-      ? `Video wall · ${g.gridColumns ?? 1} columns × ${g.gridRows ?? 1} rows${suffix}`
-      : `Mirrored to ${this.assignedCount()} screen${this.assignedCount() === 1 ? '' : 's'}${suffix}`;
+      ? this.transloco.translate('screenGroups.detail.previewSplit', {
+          cols: g.gridColumns ?? 1,
+          rows: g.gridRows ?? 1,
+          suffix,
+        })
+      : this.transloco.translate('screenGroups.detail.previewMirror', {
+          count: this.assignedCount(),
+          suffix,
+        });
   });
 
   ngOnInit(): void {
@@ -439,12 +471,12 @@ export class ScreenGroupDetail implements OnInit {
           this.loadGroup();
           this.loadAllScreens();
         } else {
-          this.loadError.set('You are not a member of any organisation.');
+          this.loadError.set(this.transloco.translate('common.errors.noOrgMembership'));
           this.loading.set(false);
         }
       },
       error: () => {
-        this.loadError.set('Failed to load organisation context.');
+        this.loadError.set(this.transloco.translate('common.errors.loadOrgContext'));
         this.loading.set(false);
       },
     });
@@ -510,7 +542,7 @@ export class ScreenGroupDetail implements OnInit {
   private loadGroup(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) {
-      this.loadError.set('No group ID provided.');
+      this.loadError.set(this.transloco.translate('screenGroups.errors.noGroupId'));
       this.loading.set(false);
       return;
     }
@@ -526,7 +558,9 @@ export class ScreenGroupDetail implements OnInit {
       },
       error: (err) => {
         this.loadError.set(
-          err.status === 404 ? 'Screen group not found.' : 'Failed to load screen group.',
+          err.status === 404
+            ? this.transloco.translate('screenGroups.errors.groupNotFound')
+            : this.transloco.translate('screenGroups.errors.loadGroup'),
         );
         this.loading.set(false);
       },
@@ -549,7 +583,8 @@ export class ScreenGroupDetail implements OnInit {
         this.sliceStatus.set(group.sliceStatus ?? null);
         this.loadAllScreens();
       },
-      error: () => this.actionError.set('Failed to refresh group data.'),
+      error: () =>
+        this.actionError.set(this.transloco.translate('screenGroups.errors.refreshGroup')),
     });
   }
 
@@ -579,7 +614,9 @@ export class ScreenGroupDetail implements OnInit {
         },
         error: (err) => {
           this.operationInProgress.set(false);
-          this.actionError.set(err.error?.message || 'Failed to move screen.');
+          this.actionError.set(
+            err.error?.message || this.transloco.translate('screenGroups.errors.moveScreen'),
+          );
         },
       });
       return;
@@ -597,12 +634,14 @@ export class ScreenGroupDetail implements OnInit {
       .subscribe({
         next: () => {
           this.operationInProgress.set(false);
-          this.toast.success('Screen assigned.');
+          this.toast.success(this.transloco.translate('screenGroups.toast.screenAssigned'));
           this.refreshGroup();
         },
         error: (err) => {
           this.operationInProgress.set(false);
-          this.actionError.set(err.error?.message || 'Failed to assign screen.');
+          this.actionError.set(
+            err.error?.message || this.transloco.translate('screenGroups.errors.assignScreen'),
+          );
         },
       });
   }
@@ -613,14 +652,16 @@ export class ScreenGroupDetail implements OnInit {
     if (!g || !screenId || this.operationInProgress()) return;
     const screen = this.allScreens().find((s) => s.id === screenId);
     if (screen && screen.groupId && screen.groupId !== g.id) {
-      this.actionError.set(`Screen "${screen.name}" already belongs to another group.`);
+      this.actionError.set(
+        this.transloco.translate('screenGroups.errors.screenInOtherGroup', { name: screen.name }),
+      );
       return;
     }
 
     if (g.mode === 'split') {
       const cell = this.wallCells().find((c) => !c.screen);
       if (!cell) {
-        this.actionError.set('All wall panels are already assigned.');
+        this.actionError.set(this.transloco.translate('screenGroups.errors.allPanelsAssigned'));
         return;
       }
       this.assignToCell(screenId, cell.row, cell.col);
@@ -632,12 +673,14 @@ export class ScreenGroupDetail implements OnInit {
     this.screenGroupService.assignScreen(this.orgId(), g.id, screenId, {}).subscribe({
       next: () => {
         this.operationInProgress.set(false);
-        this.toast.success('Screen added.');
+        this.toast.success(this.transloco.translate('screenGroups.toast.screenAdded'));
         this.refreshGroup();
       },
       error: (err) => {
         this.operationInProgress.set(false);
-        this.actionError.set(err.error?.message || 'Failed to add screen.');
+        this.actionError.set(
+          err.error?.message || this.transloco.translate('screenGroups.errors.addScreen'),
+        );
       },
     });
   }
@@ -650,12 +693,14 @@ export class ScreenGroupDetail implements OnInit {
     this.screenGroupService.removeScreen(this.orgId(), g.id, screenId).subscribe({
       next: () => {
         this.operationInProgress.set(false);
-        this.toast.success('Screen removed.');
+        this.toast.success(this.transloco.translate('screenGroups.toast.screenRemoved'));
         this.refreshGroup();
       },
       error: (err) => {
         this.operationInProgress.set(false);
-        this.actionError.set(err.error?.message || 'Failed to remove screen.');
+        this.actionError.set(
+          err.error?.message || this.transloco.translate('screenGroups.errors.removeScreen'),
+        );
       },
     });
   }
@@ -669,13 +714,23 @@ export class ScreenGroupDetail implements OnInit {
       dto.gridColumns = this.cols();
       dto.gridRows = this.rows();
     }
-    this.patchGroup(dto, `Switched to ${mode} mode.`);
+    this.patchGroup(
+      dto,
+      this.transloco.translate('screenGroups.toast.modeSwitched', {
+        mode: this.transloco.translate(
+          mode === 'split' ? 'screenGroups.mode.split' : 'screenGroups.mode.mirror',
+        ),
+      }),
+    );
   }
 
   commitGrid(): void {
     const g = this.group();
     if (!g || g.mode !== 'split') return;
-    this.patchGroup({ gridColumns: this.cols(), gridRows: this.rows() }, 'Wall layout updated.');
+    this.patchGroup(
+      { gridColumns: this.cols(), gridRows: this.rows() },
+      this.transloco.translate('screenGroups.toast.wallLayoutUpdated'),
+    );
   }
 
   private patchGroup(dto: UpdateScreenGroupRequest, successMessage: string): void {
@@ -692,7 +747,9 @@ export class ScreenGroupDetail implements OnInit {
       },
       error: (err) => {
         this.operationInProgress.set(false);
-        this.actionError.set(err.error?.message || 'Failed to update group.');
+        this.actionError.set(
+          err.error?.message || this.transloco.translate('screenGroups.errors.updateGroupGeneric'),
+        );
       },
     });
   }
@@ -701,19 +758,21 @@ export class ScreenGroupDetail implements OnInit {
     const g = this.group();
     if (!g || this.operationInProgress()) return;
     if (this.assignedCount() > 0) {
-      this.actionError.set('Remove all screens from the group before deleting it.');
+      this.actionError.set(this.transloco.translate('screenGroups.errors.removeScreensFirst'));
       return;
     }
     this.operationInProgress.set(true);
     this.screenGroupService.delete(this.orgId(), g.id).subscribe({
       next: () => {
         this.operationInProgress.set(false);
-        this.toast.success('Screen group deleted.');
+        this.toast.success(this.transloco.translate('screenGroups.toast.deleted'));
         this.goBack();
       },
       error: (err) => {
         this.operationInProgress.set(false);
-        this.actionError.set(err.error?.message || 'Failed to delete group.');
+        this.actionError.set(
+          err.error?.message || this.transloco.translate('screenGroups.errors.deleteGroup'),
+        );
       },
     });
   }

@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import {
   OverlayComponent,
   ModalComponent,
@@ -31,23 +40,33 @@ const COLORS = ['#6d6cf6', '#0ea5e9', '#ec4899', '#14b8a6', '#10b981', '#f59e0b'
     StatusDotComponent,
     ScreenGroupModeToggle,
     StepperComponent,
+    TranslocoDirective,
   ],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
-      <mns-modal title="New screen group" icon="Groups" [widthPx]="560" (closed)="dismiss.emit()">
+    <mns-overlay (closed)="dismiss.emit()" *transloco="let t">
+      <mns-modal
+        [title]="t('screenGroups.create.title')"
+        icon="Groups"
+        [widthPx]="560"
+        (closed)="dismiss.emit()"
+      >
         <div class="flex flex-col gap-5">
           <label class="block">
-            <span class="block text-[12.5px] font-semibold text-muted mb-2">Group name</span>
+            <span class="block text-[12.5px] font-semibold text-muted mb-2">{{
+              t('screenGroups.create.nameLabel')
+            }}</span>
             <input
               class="w-full px-3 py-2.5 rounded-[10px] text-sm bg-surface-2 border border-border-strong text-text outline-none"
               [value]="name()"
               (input)="name.set($any($event.target).value)"
-              placeholder="e.g. HQ Lobby Wall"
+              [placeholder]="t('screenGroups.create.namePlaceholder')"
             />
           </label>
 
           <div>
-            <span class="block text-[12.5px] font-semibold text-muted mb-2.5">Colour</span>
+            <span class="block text-[12.5px] font-semibold text-muted mb-2.5">{{
+              t('screenGroups.create.colourLabel')
+            }}</span>
             <div class="flex gap-2.5">
               @for (c of colors; track c) {
                 <button
@@ -56,7 +75,7 @@ const COLORS = ['#6d6cf6', '#0ea5e9', '#ec4899', '#14b8a6', '#10b981', '#f59e0b'
                   [style.background]="c"
                   [style.border]="color() === c ? '2px solid #fff' : '2px solid transparent'"
                   [style.box-shadow]="color() === c ? '0 0 0 2px ' + c : 'none'"
-                  [attr.aria-label]="'Colour ' + c"
+                  [attr.aria-label]="t('screenGroups.create.colourAria', { colour: c })"
                   (click)="color.set(c)"
                 ></button>
               }
@@ -64,25 +83,45 @@ const COLORS = ['#6d6cf6', '#0ea5e9', '#ec4899', '#14b8a6', '#10b981', '#f59e0b'
           </div>
 
           <div>
-            <span class="block text-[12.5px] font-semibold text-muted mb-2.5">Display mode</span>
+            <span class="block text-[12.5px] font-semibold text-muted mb-2.5">{{
+              t('screenGroups.create.displayModeLabel')
+            }}</span>
             <app-screen-group-mode-toggle [value]="mode()" (modeChange)="mode.set($event)" />
           </div>
 
           @if (mode() === 'split') {
             <div class="p-4 rounded-[13px] bg-surface-2 border border-border flex flex-col gap-3.5">
-              <mns-stepper label="Columns" [(value)]="cols" [min]="1" [max]="4" />
-              <mns-stepper label="Rows" [(value)]="rows" [min]="1" [max]="4" />
+              <mns-stepper
+                [label]="t('screenGroups.create.columns')"
+                [(value)]="cols"
+                [min]="1"
+                [max]="4"
+              />
+              <mns-stepper
+                [label]="t('screenGroups.create.rows')"
+                [(value)]="rows"
+                [min]="1"
+                [max]="4"
+              />
               <div class="text-xs text-faint">
-                Creates a {{ cols() }}×{{ rows() }} wall ({{ cols() * rows() }} panels).
+                {{
+                  t('screenGroups.create.wallHint', {
+                    cols: cols(),
+                    rows: rows(),
+                    panels: cols() * rows(),
+                  })
+                }}
               </div>
             </div>
           }
 
           <div>
             <span class="block text-[12.5px] font-semibold text-muted mb-2.5">
-              Add screens
+              {{ t('screenGroups.create.addScreens') }}
               @if (selected().length > 0) {
-                <span class="text-accent">· {{ selected().length }} selected</span>
+                <span class="text-accent">{{
+                  t('screenGroups.create.selectedSuffix', { count: selected().length })
+                }}</span>
               }
             </span>
             <div class="flex flex-col gap-[7px] max-h-[188px] overflow-y-auto">
@@ -115,7 +154,9 @@ const COLORS = ['#6d6cf6', '#0ea5e9', '#ec4899', '#14b8a6', '#10b981', '#f59e0b'
                 </button>
               }
               @if (availableScreens().length === 0) {
-                <div class="text-[13px] text-muted py-1.5">No unassigned screens available.</div>
+                <div class="text-[13px] text-muted py-1.5">
+                  {{ t('screenGroups.create.noUnassigned') }}
+                </div>
               }
             </div>
           </div>
@@ -126,14 +167,18 @@ const COLORS = ['#6d6cf6', '#0ea5e9', '#ec4899', '#14b8a6', '#10b981', '#f59e0b'
         </div>
 
         <div slot="footer" class="flex gap-2.5 px-6 py-5 border-t border-border">
-          <mns-btn variant="outline" [full]="true" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn variant="outline" [full]="true" (mnsClick)="dismiss.emit()">{{
+            t('common.actions.cancel')
+          }}</mns-btn>
           <mns-btn
             [variant]="valid() ? 'primary' : 'ghost'"
             [full]="true"
             icon="Plus"
             [disabled]="!valid() || creating()"
             (mnsClick)="onSubmit()"
-            >{{ creating() ? 'Creating…' : 'Create group' }}</mns-btn
+            >{{
+              creating() ? t('screenGroups.create.creating') : t('screenGroups.create.createGroup')
+            }}</mns-btn
           >
         </div>
       </mns-modal>
@@ -147,6 +192,8 @@ export class ScreenGroupCreateModal {
 
   readonly create = output<CreateScreenGroupSubmit>();
   readonly dismiss = output<void>();
+
+  private readonly transloco = inject(TranslocoService);
 
   protected readonly colors = COLORS;
 
@@ -170,7 +217,7 @@ export class ScreenGroupCreateModal {
 
   onSubmit(): void {
     if (!this.valid()) {
-      this.localError.set('Name must be at least 2 characters.');
+      this.localError.set(this.transloco.translate('screenGroups.create.errorNameLength'));
       return;
     }
     this.localError.set('');

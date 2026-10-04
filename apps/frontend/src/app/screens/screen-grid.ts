@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { ScreenListItem } from './screen.model';
 import { ScreenTile } from './screen-tile';
 
@@ -20,10 +21,10 @@ interface StatusCounts {
   selector: 'app-screen-grid',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ScreenTile],
+  imports: [ScreenTile, TranslocoDirective],
   template: `
     <!-- Filter pills -->
-    <div class="flex flex-wrap gap-2 mb-5">
+    <div class="flex flex-wrap gap-2 mb-5" *transloco="let t">
       @for (tab of filterTabs; track tab.value) {
         <button
           type="button"
@@ -39,7 +40,7 @@ interface StatusCounts {
               [attr.title]="tab.value"
             ></span>
           }
-          {{ tab.label }}
+          {{ t(tab.label) }}
           <span class="pill-count">{{ counts()[tab.value] }}</span>
         </button>
       }
@@ -126,9 +127,9 @@ export class ScreenGrid {
   readonly remove = output<ScreenListItem>();
 
   protected readonly filterTabs: { value: StatusFilter; label: string }[] = [
-    { value: 'all', label: 'All' },
-    { value: 'online', label: 'Online' },
-    { value: 'offline', label: 'Offline' },
+    { value: 'all', label: 'screens.grid.filterAll' },
+    { value: 'online', label: 'screens.grid.filterOnline' },
+    { value: 'offline', label: 'screens.grid.filterOffline' },
   ];
 
   protected readonly activeFilter = signal<StatusFilter>('all');

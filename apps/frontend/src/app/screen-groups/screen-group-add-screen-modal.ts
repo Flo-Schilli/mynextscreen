@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import {
   OverlayComponent,
   ModalComponent,
@@ -17,14 +18,26 @@ import { Screen } from '../screens/screen.model';
   selector: 'app-screen-group-add-screen-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayComponent, ModalComponent, BtnComponent, StatusDotComponent, BadgeComponent],
+  imports: [
+    OverlayComponent,
+    ModalComponent,
+    BtnComponent,
+    StatusDotComponent,
+    BadgeComponent,
+    TranslocoDirective,
+  ],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
-      <mns-modal title="Add a screen" icon="Screens" [widthPx]="480" (closed)="dismiss.emit()">
+    <mns-overlay (closed)="dismiss.emit()" *transloco="let t">
+      <mns-modal
+        [title]="t('screenGroups.addScreen.title')"
+        icon="Screens"
+        [widthPx]="480"
+        (closed)="dismiss.emit()"
+      >
         @if (loadingScreens()) {
-          <p class="text-muted text-sm">Loading screens…</p>
+          <p class="text-muted text-sm">{{ t('screenGroups.addScreen.loading') }}</p>
         } @else if (availableScreens().length === 0) {
-          <p class="text-muted text-[13px]">No unassigned screens available.</p>
+          <p class="text-muted text-[13px]">{{ t('screenGroups.addScreen.noUnassigned') }}</p>
         } @else {
           <div class="flex flex-col gap-2 max-h-[20rem] overflow-y-auto">
             @for (screen of availableScreens(); track screen.id) {
@@ -37,7 +50,9 @@ import { Screen } from '../screens/screen.model';
                   <div class="text-[11.5px] text-muted">{{ screen.location }}</div>
                 </div>
                 @if (screen.groupId && screen.groupId !== groupId()) {
-                  <mns-badge tone="warning">In another group</mns-badge>
+                  <mns-badge tone="warning">{{
+                    t('screenGroups.addScreen.inAnotherGroup')
+                  }}</mns-badge>
                 }
                 <mns-status-dot [status]="screen.isOnline ? 'online' : 'offline'" [size]="7" />
                 <mns-btn
@@ -48,7 +63,7 @@ import { Screen } from '../screens/screen.model';
                     operationInProgress() || !!(screen.groupId && screen.groupId !== groupId())
                   "
                   (mnsClick)="add.emit(screen)"
-                  >Add</mns-btn
+                  >{{ t('screenGroups.addScreen.add') }}</mns-btn
                 >
               </div>
             }
@@ -59,7 +74,9 @@ import { Screen } from '../screens/screen.model';
         }
 
         <div slot="footer" class="flex justify-end gap-2.5 px-6 py-5 border-t border-border">
-          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Close</mns-btn>
+          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">{{
+            t('common.actions.close')
+          }}</mns-btn>
         </div>
       </mns-modal>
     </mns-overlay>

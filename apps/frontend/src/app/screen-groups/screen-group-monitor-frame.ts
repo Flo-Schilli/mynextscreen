@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { IconComponent, StatusDotComponent, StatusDotStatus } from '../ui';
 
 /** Visual source for a monitor: a background (image url or CSS gradient) + label + media type. */
@@ -28,13 +29,13 @@ export interface MonitorSlice {
   selector: 'app-screen-group-monitor-frame',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, StatusDotComponent],
+  imports: [IconComponent, StatusDotComponent, TranslocoDirective],
   template: `
-    <div class="monitor-frame" [class.square]="square()">
+    <div class="monitor-frame" [class.square]="square()" *transloco="let t">
       @if (empty()) {
         <div class="empty-state">
           <mns-icon name="Plus" [size]="16" />
-          <span class="empty-label">Empty</span>
+          <span class="empty-label">{{ t('screenGroups.monitor.empty') }}</span>
         </div>
       } @else if (content(); as c) {
         <div class="content-bg" [style.background]="c.bg" [style]="sliceStyle()">

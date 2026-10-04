@@ -1,20 +1,26 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { IconComponent, IconName } from '../ui';
 import { ScreenGroupMode } from './screen-group.model';
 
 interface ModeOption {
   key: ScreenGroupMode;
-  title: string;
-  desc: string;
+  titleKey: string;
+  descKey: string;
   icon: IconName;
 }
 
 const MODES: ModeOption[] = [
-  { key: 'mirror', title: 'Mirror', desc: 'Same content on every screen at once', icon: 'Copy' },
+  {
+    key: 'mirror',
+    titleKey: 'screenGroups.mode.mirror',
+    descKey: 'screenGroups.mode.mirrorDesc',
+    icon: 'Copy',
+  },
   {
     key: 'split',
-    title: 'Split',
-    desc: 'One image or video spread across a video wall',
+    titleKey: 'screenGroups.mode.split',
+    descKey: 'screenGroups.mode.splitDesc',
     icon: 'Grid',
   },
 ];
@@ -27,9 +33,9 @@ const MODES: ModeOption[] = [
   selector: 'app-screen-group-mode-toggle',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent],
+  imports: [IconComponent, TranslocoDirective],
   template: `
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2" *transloco="let t">
       @for (m of modes; track m.key) {
         <button
           type="button"
@@ -51,9 +57,9 @@ const MODES: ModeOption[] = [
             <mns-icon [name]="m.icon" [size]="18" />
           </span>
           <div class="font-bold text-sm" [class.text-accent]="value() === m.key">
-            {{ m.title }}
+            {{ t(m.titleKey) }}
           </div>
-          <div class="text-xs text-muted mt-0.5 leading-[1.4]">{{ m.desc }}</div>
+          <div class="text-xs text-muted mt-0.5 leading-[1.4]">{{ t(m.descKey) }}</div>
         </button>
       }
     </div>

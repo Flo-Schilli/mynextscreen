@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { Screen, ScreenListItem } from './screen.model';
 import { IconComponent } from '../ui';
 import { ContentService } from '../content/content.service';
@@ -39,13 +40,14 @@ export function resolutionLabel(resolution: string): string {
   selector: 'app-screen-tile',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, DatePipe, RouterLink],
+  imports: [IconComponent, DatePipe, RouterLink, TranslocoDirective],
   template: `
     <div
+      *transloco="let t"
       class="screen-card"
       tabindex="0"
       role="button"
-      [attr.aria-label]="'Open ' + screen().name"
+      [attr.aria-label]="t('screens.tile.open', { name: screen().name })"
       (click)="open.emit(screen())"
       (keydown.enter)="open.emit(screen())"
       (keydown.space)="open.emit(screen())"
@@ -66,7 +68,7 @@ export function resolutionLabel(resolution: string): string {
         <!-- Top-left status badge -->
         <span class="status-badge" [class]="status()">
           <span class="status-dot" [class]="status()"></span>
-          {{ statusLabel() }}
+          {{ t(statusLabelKey()) }}
         </span>
 
         <!-- Top-right resolution badge -->
@@ -77,8 +79,8 @@ export function resolutionLabel(resolution: string): string {
           <a
             class="agent-link"
             [routerLink]="['/site-agents', agent]"
-            title="Site agent"
-            aria-label="Open the site agent that looks after this screen"
+            [title]="t('screens.tile.siteAgent')"
+            [attr.aria-label]="t('screens.tile.siteAgentAria')"
             (click)="$event.stopPropagation()"
           >
             <mns-icon name="Cast" [size]="14" />
@@ -90,7 +92,7 @@ export function resolutionLabel(resolution: string): string {
           <button
             type="button"
             class="delete-btn"
-            aria-label="Delete screen"
+            [attr.aria-label]="t('screens.tile.deleteScreen')"
             (click)="onDelete($event)"
           >
             <mns-icon name="Trash" [size]="15" />
@@ -106,7 +108,7 @@ export function resolutionLabel(resolution: string): string {
 
         <div class="location-row">
           <mns-icon name="MapPin" [size]="13" class="location-icon" />
-          <span class="location-text">{{ screen().location || 'No location' }}</span>
+          <span class="location-text">{{ screen().location || t('screens.tile.noLocation') }}</span>
         </div>
 
         <div class="card-sep"></div>
@@ -118,9 +120,11 @@ export function resolutionLabel(resolution: string): string {
               {{ playlistName() }}
             </span>
           } @else if (screen().lastHeartbeat) {
-            <span class="last-seen">Last seen {{ screen().lastHeartbeat | date: 'short' }}</span>
+            <span class="last-seen">{{
+              t('screens.tile.lastSeen', { time: (screen().lastHeartbeat | date: 'short') ?? '' })
+            }}</span>
           } @else {
-            <span class="last-seen">Never connected</span>
+            <span class="last-seen">{{ t('screens.tile.neverConnected') }}</span>
           }
         </div>
       </div>
@@ -427,18 +431,18 @@ export class ScreenTile {
     return s.lastHeartbeat ? 'offline' : 'never';
   });
 
-  protected readonly statusLabel = computed<string>(() => {
+  protected readonly statusLabelKey = computed<string>(() => {
     switch (this.status()) {
       case 'online':
-        return 'Online';
+        return 'screens.tile.status.online';
       case 'app-not-running':
-        return 'App not running';
+        return 'screens.tile.status.appNotRunning';
       case 'tv-unreachable':
-        return 'No answer';
+        return 'screens.tile.status.tvUnreachable';
       case 'offline':
-        return 'Offline';
+        return 'screens.tile.status.offline';
       default:
-        return 'Never';
+        return 'screens.tile.status.never';
     }
   });
 

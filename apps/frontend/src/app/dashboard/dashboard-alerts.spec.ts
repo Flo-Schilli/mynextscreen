@@ -3,6 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideZonelessChangeDetection } from '@angular/core';
 import { DashboardAlerts } from './dashboard-alerts';
 import { DashboardAlert } from './dashboard-summary.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -27,7 +28,10 @@ describe('DashboardAlerts', () => {
 
   async function setup(alerts: DashboardAlert[]): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [DashboardAlerts],
+      imports: [
+        DashboardAlerts,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 
