@@ -1,0 +1,104 @@
+{
+  "common": {
+    "actions": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "edit": "Edit",
+      "create": "Create",
+      "add": "Add",
+      "remove": "Remove",
+      "close": "Close",
+      "confirm": "Confirm",
+      "back": "Back",
+      "next": "Next",
+      "retry": "Retry",
+      "refresh": "Refresh",
+      "search": "Search",
+      "filter": "Filter",
+      "clear": "Clear",
+      "apply": "Apply",
+      "logout": "Log out",
+      "login": "Log in",
+      "copy": "Copy",
+      "copied": "Copied",
+      "download": "Download",
+      "upload": "Upload",
+      "rename": "Rename",
+      "duplicate": "Duplicate",
+      "select": "Select",
+      "selectAll": "Select all",
+      "deselect": "Deselect",
+      "view": "View",
+      "open": "Open",
+      "done": "Done"
+    },
+    "status": {
+      "loading": "Loading…",
+      "saving": "Saving…",
+      "empty": "Nothing here yet",
+      "error": "Something went wrong",
+      "online": "Online",
+      "offline": "Offline",
+      "active": "Active",
+      "inactive": "Inactive",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "labels": {
+      "name": "Name",
+      "description": "Description",
+      "status": "Status",
+      "type": "Type",
+      "actions": "Actions",
+      "created": "Created",
+      "updated": "Updated",
+      "yes": "Yes",
+      "no": "No",
+      "none": "None",
+      "all": "All",
+      "optional": "Optional",
+      "required": "Required"
+    }
+  },
+  "shell": {
+    "nav": {
+      "dashboard": "Dashboard",
+      "screens": "Screens",
+      "screenGroups": "Screen Groups",
+      "siteAgents": "Site Agents",
+      "content": "Content Library",
+      "playlists": "Playlists",
+      "schedules": "Schedules",
+      "liveStreams": "Live Streams",
+      "auditLog": "Audit Log",
+      "settings": "Settings",
+      "instanceAdmin": "Instance Admin"
+    },
+    "sidebar": {
+      "collapse": "Collapse sidebar",
+      "expand": "Expand sidebar"
+    },
+    "topbar": {
+      "openNav": "Open navigation menu",
+      "lightMode": "Switch to light mode",
+      "darkMode": "Switch to dark mode",
+      "currentUser": "Current user",
+      "signedIn": "Signed in",
+      "member": "Member",
+      "currentOrg": "Current organisation",
+      "superuser": "Superuser",
+      "switchOrg": "Switch organisation",
+      "profileSettings": "Profile & settings"
+    },
+    "language": {
+      "label": "Language",
+      "de": "German",
+      "en": "English",
+      "short": {
+        "de": "DE",
+        "en": "EN"
+      }
+    }
+  }
+}

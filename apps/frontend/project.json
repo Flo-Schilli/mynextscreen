@@ -17,9 +17,15 @@
           {
             "glob": "**/*",
             "input": "apps/frontend/public"
+          },
+          {
+            "glob": "**/*",
+            "input": "apps/frontend/src/assets",
+            "output": "assets"
           }
         ],
-        "styles": ["apps/frontend/src/styles.css"]
+        "styles": ["apps/frontend/src/styles.css"],
+        "allowedCommonJsDependencies": ["@messageformat/core"]
       },
       "configurations": {
         "production": {
@@ -88,6 +94,20 @@
       "options": {
         "command": "tsc --noEmit -p tsconfig.app.json",
         "cwd": "apps/frontend"
+      }
+    },
+    "i18n-extract": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "transloco-keys-manager extract",
+        "cwd": "."
+      }
+    },
+    "i18n-find-missing": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "transloco-keys-manager find -i apps/frontend/src -p apps/frontend/src/assets/i18n -l de en",
+        "cwd": "."
       }
     },
     "format": {

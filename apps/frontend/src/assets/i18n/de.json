@@ -1,0 +1,104 @@
+{
+  "common": {
+    "actions": {
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "delete": "Löschen",
+      "edit": "Bearbeiten",
+      "create": "Erstellen",
+      "add": "Hinzufügen",
+      "remove": "Entfernen",
+      "close": "Schließen",
+      "confirm": "Bestätigen",
+      "back": "Zurück",
+      "next": "Weiter",
+      "retry": "Erneut versuchen",
+      "refresh": "Aktualisieren",
+      "search": "Suchen",
+      "filter": "Filtern",
+      "clear": "Leeren",
+      "apply": "Anwenden",
+      "logout": "Abmelden",
+      "login": "Anmelden",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "download": "Herunterladen",
+      "upload": "Hochladen",
+      "rename": "Umbenennen",
+      "duplicate": "Duplizieren",
+      "select": "Auswählen",
+      "selectAll": "Alle auswählen",
+      "deselect": "Abwählen",
+      "view": "Ansehen",
+      "open": "Öffnen",
+      "done": "Fertig"
+    },
+    "status": {
+      "loading": "Wird geladen…",
+      "saving": "Wird gespeichert…",
+      "empty": "Noch nichts vorhanden",
+      "error": "Etwas ist schiefgelaufen",
+      "online": "Online",
+      "offline": "Offline",
+      "active": "Aktiv",
+      "inactive": "Inaktiv",
+      "enabled": "Aktiviert",
+      "disabled": "Deaktiviert"
+    },
+    "labels": {
+      "name": "Name",
+      "description": "Beschreibung",
+      "status": "Status",
+      "type": "Typ",
+      "actions": "Aktionen",
+      "created": "Erstellt",
+      "updated": "Aktualisiert",
+      "yes": "Ja",
+      "no": "Nein",
+      "none": "Keine",
+      "all": "Alle",
+      "optional": "Optional",
+      "required": "Erforderlich"
+    }
+  },
+  "shell": {
+    "nav": {
+      "dashboard": "Dashboard",
+      "screens": "Bildschirme",
+      "screenGroups": "Bildschirmgruppen",
+      "siteAgents": "Standort-Agenten",
+      "content": "Medienbibliothek",
+      "playlists": "Playlists",
+      "schedules": "Zeitpläne",
+      "liveStreams": "Live-Streams",
+      "auditLog": "Audit-Log",
+      "settings": "Einstellungen",
+      "instanceAdmin": "Instanz-Admin"
+    },
+    "sidebar": {
+      "collapse": "Seitenleiste einklappen",
+      "expand": "Seitenleiste ausklappen"
+    },
+    "topbar": {
+      "openNav": "Navigationsmenü öffnen",
+      "lightMode": "Zu hellem Modus wechseln",
+      "darkMode": "Zu dunklem Modus wechseln",
+      "currentUser": "Aktueller Benutzer",
+      "signedIn": "Angemeldet",
+      "member": "Mitglied",
+      "currentOrg": "Aktuelle Organisation",
+      "superuser": "Superuser",
+      "switchOrg": "Organisation wechseln",
+      "profileSettings": "Profil & Einstellungen"
+    },
+    "language": {
+      "label": "Sprache",
+      "de": "Deutsch",
+      "en": "Englisch",
+      "short": {
+        "de": "DE",
+        "en": "EN"
+      }
+    }
+  }
+}

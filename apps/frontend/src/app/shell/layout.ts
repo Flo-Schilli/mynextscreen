@@ -187,16 +187,21 @@ export class Layout implements OnInit {
   });
 
   readonly navItems: NavItem[] = [
-    { label: 'Dashboard', route: '/dashboard', icon: 'Dashboard' },
-    { label: 'Screens', route: '/screens', icon: 'Screens' },
-    { label: 'Screen Groups', route: '/screen-groups', icon: 'Groups' },
-    { label: 'Site Agents', route: '/site-agents', icon: 'Cast' },
-    { label: 'Content Library', route: '/content', icon: 'Content' },
-    { label: 'Playlists', route: '/playlists', icon: 'Playlists' },
-    { label: 'Schedules', route: '/schedules', icon: 'Schedules' },
-    { label: 'Live Streams', route: '/live-streams', icon: 'Stream' },
-    { label: 'Audit Log', route: '/audit-log', icon: 'Audit' },
-    { label: 'Settings', route: '/settings/users', icon: 'Settings', section: '/settings' },
+    { label: 'shell.nav.dashboard', route: '/dashboard', icon: 'Dashboard' },
+    { label: 'shell.nav.screens', route: '/screens', icon: 'Screens' },
+    { label: 'shell.nav.screenGroups', route: '/screen-groups', icon: 'Groups' },
+    { label: 'shell.nav.siteAgents', route: '/site-agents', icon: 'Cast' },
+    { label: 'shell.nav.content', route: '/content', icon: 'Content' },
+    { label: 'shell.nav.playlists', route: '/playlists', icon: 'Playlists' },
+    { label: 'shell.nav.schedules', route: '/schedules', icon: 'Schedules' },
+    { label: 'shell.nav.liveStreams', route: '/live-streams', icon: 'Stream' },
+    { label: 'shell.nav.auditLog', route: '/audit-log', icon: 'Audit' },
+    {
+      label: 'shell.nav.settings',
+      route: '/settings/users',
+      icon: 'Settings',
+      section: '/settings',
+    },
   ];
 
   ngOnInit(): void {

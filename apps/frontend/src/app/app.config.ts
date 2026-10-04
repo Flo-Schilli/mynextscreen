@@ -8,6 +8,7 @@ import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/ht
 
 import { routes } from './app.routes';
 import { authInterceptor } from './auth/auth.interceptor';
+import { provideI18n } from './i18n/i18n.providers';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -23,5 +24,6 @@ export const appConfig: ApplicationConfig = {
       }),
     ),
     provideHttpClient(withXhr(), withInterceptors([authInterceptor])),
+    provideI18n(),
   ],
 };
