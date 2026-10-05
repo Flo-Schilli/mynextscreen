@@ -8,7 +8,6 @@ import { ServerClient } from './connection/server-client.service';
 import { AgentConfigStore, configCachePath } from './config/agent-config.store';
 import { SetupController } from './setup/setup.controller';
 import { SetupService } from './setup/setup.service';
-import { SetupPinService } from './setup/setup-pin.service';
 import { SetupAuthGuard } from './setup/setup-auth.guard';
 import { CommandStreamService } from './connection/command-stream.service';
 import { ReachabilityService } from './probe/reachability.service';
@@ -23,15 +22,20 @@ import { CommandHandlerService } from './supervisor/command-handler.service';
 export const AGENT_VERSION = process.env.APP_VERSION ?? '0.0.0-dev';
 
 /**
- * `MNS_SERVER_URL` in canonical form, or null when it is not set.
+ * `MNS_SERVER_URL` in canonical form.
  *
- * Validated here so a typo fails at boot with a message naming the variable,
- * rather than at the first request with a stack trace.
+ * Mandatory: pinning the address is what closes the rogue-server hole the old
+ * boot PIN used to cover, so there is no unpinned path left. A missing or
+ * malformed value fails at boot with a message naming the variable, rather than
+ * at the first request with a stack trace.
  */
-export function pinnedServerUrl(env: AgentEnv): string | null {
+export function pinnedServerUrl(env: AgentEnv): string {
   const raw = env.serverUrl;
   if (!raw) {
-    return null;
+    throw new Error(
+      'MNS_SERVER_URL is required: set it to the address of the myNextScreen server ' +
+        '(e.g. https://signage.example.com). The agent will not start without it.',
+    );
   }
   try {
     return normaliseBaseUrl(raw);
@@ -52,11 +56,6 @@ export function pinnedServerUrl(env: AgentEnv): string | null {
       provide: AgentEnv,
       useFactory: (config: ConfigService) => new AgentEnv(config),
       inject: [ConfigService],
-    },
-    {
-      provide: SetupPinService,
-      useFactory: (env: AgentEnv) => new SetupPinService(env.setupPin),
-      inject: [AgentEnv],
     },
     {
       provide: ConnectionStore,

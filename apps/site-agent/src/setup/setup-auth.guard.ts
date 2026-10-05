@@ -1,27 +1,32 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { SetupPinService } from './setup-pin.service';
 import { IS_SETUP_PUBLIC_KEY } from './setup-public.decorator';
 
 /** Attempts per window, per process. Enough for a typo, not for a search. */
-const MAX_ATTEMPTS = 5;
+const MAX_ATTEMPTS = 10;
 const WINDOW_MS = 60_000;
 
 /**
- * Requires the setup PIN on anything that changes the agent's identity.
+ * Guards the sensitive setup actions behind a fresh setup code.
  *
- * Reads are open — the status endpoint deliberately returns no secret — so an
- * operator can see whether the agent is connected without hunting for the PIN.
+ * The code itself is verified by the server — it is org-scoped, single-use and
+ * short-lived, and only an OrgAdmin can mint one in a real dashboard session.
+ * This guard only enforces that *a* code was supplied and rate-limits blind
+ * attempts, so the controller never runs a reset with an empty credential.
+ *
+ * Reads stay open: the status endpoint returns no secret, so an operator can see
+ * whether the agent is connected without a code.
+ *
+ * Nothing is persisted here and nothing is written to the log — the old boot PIN
+ * is gone, and with the server address pinned there is no rogue-server hole left
+ * for it to cover.
  */
 @Injectable()
 export class SetupAuthGuard implements CanActivate {
   private attempts = 0;
   private windowStartedAt = 0;
 
-  constructor(
-    private readonly reflector: Reflector,
-    private readonly pins: SetupPinService,
-  ) {}
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_SETUP_PUBLIC_KEY, [
@@ -38,9 +43,10 @@ export class SetupAuthGuard implements CanActivate {
       throw new UnauthorizedException('Too many attempts, try again shortly');
     }
 
-    if (!this.pins.matches(request.headers['x-setup-pin'])) {
+    const code = request.headers['x-setup-code'];
+    if (!code || code.trim() === '') {
       this.recordFailure();
-      throw new UnauthorizedException('Invalid setup PIN');
+      throw new UnauthorizedException('A setup code from the dashboard is required');
     }
 
     this.attempts = 0;

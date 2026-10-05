@@ -13,7 +13,11 @@ export const DEFAULT_SETUP_PORT = 8787;
 export class AgentEnv {
   constructor(private readonly config: ConfigService) {}
 
-  /** Optional: the setup UI is the other way in. */
+  /**
+   * Where this agent belongs. Mandatory: pinning the address closes the
+   * rogue-server hole that the old boot PIN used to cover, so there is no
+   * unpinned path left to support.
+   */
   get serverUrl(): string | null {
     return this.config.get<string>('MNS_SERVER_URL') ?? null;
   }
@@ -29,10 +33,5 @@ export class AgentEnv {
 
   get setupPort(): number {
     return Number(this.config.get<string>('MNS_SETUP_PORT', String(DEFAULT_SETUP_PORT)));
-  }
-
-  /** A fixed PIN for deployments where nobody reads the container log. */
-  get setupPin(): string | null {
-    return this.config.get<string>('MNS_SETUP_PIN') ?? null;
   }
 }

@@ -2,7 +2,6 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule, AGENT_VERSION, pinnedServerUrl } from './app.module';
 import { AgentEnv } from './agent-env';
-import { SetupPinService } from './setup/setup-pin.service';
 import { networkInterfaces } from 'node:os';
 
 async function bootstrap(): Promise<void> {
@@ -17,11 +16,12 @@ async function bootstrap(): Promise<void> {
 
   logger.log(`myNextScreen site agent ${AGENT_VERSION}`);
 
+  // Mandatory and validated here: a missing or malformed MNS_SERVER_URL fails
+  // the boot with a message naming the variable rather than at the first
+  // request. No PIN is printed — pinning the address is what closes the
+  // rogue-server hole the PIN used to cover.
   const pinned = pinnedServerUrl(env);
-  if (pinned) {
-    // Worth one line at boot: it changes what the setup page can do.
-    logger.log(`Server address pinned by MNS_SERVER_URL: ${pinned}`);
-  }
+  logger.log(`Server address pinned by MNS_SERVER_URL: ${pinned}`);
 
   if (env.setupPort === 0) {
     // An agent configured entirely through environment variables has no reason
@@ -32,7 +32,7 @@ async function bootstrap(): Promise<void> {
   }
 
   await app.listen(env.setupPort, '0.0.0.0');
-  app.get(SetupPinService).announce(`http://${primaryAddress()}:${env.setupPort}`);
+  logger.log(`Setup interface: http://${primaryAddress()}:${env.setupPort}`);
 }
 
 /** Best-effort LAN address, only so the log line is something to click. */

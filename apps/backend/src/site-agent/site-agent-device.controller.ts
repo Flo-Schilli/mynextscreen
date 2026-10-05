@@ -23,7 +23,13 @@ import { SiteAgentSseService } from './site-agent-sse.service';
 import { ScreenRemoteCommandService } from './screen-remote-command.service';
 import { AgentMetricsService } from '../observability/agent-metrics.service';
 import type { AgentConfig } from './agent-config.types';
-import { AgentHeartbeatDto, AgentReportDto, EnrolAgentDto, RefreshAgentSessionDto } from './dto';
+import {
+  AgentHeartbeatDto,
+  AgentReportDto,
+  EnrolAgentDto,
+  RefreshAgentSessionDto,
+  ResetAgentDto,
+} from './dto';
 import { AgentAuth } from '../auth/agent-auth.decorator';
 import type { AgentAuthenticatedRequest } from '../auth/agent-auth.guard';
 import { Public } from '../auth/public.decorator';
@@ -175,5 +181,21 @@ export class SiteAgentDeviceController {
     if (dto.metrics) {
       this.agentMetrics.record(req.agentId, dto.metrics);
     }
+  }
+
+  /**
+   * Resets the agent at the operator's request, from its own setup page.
+   *
+   * Gated on a fresh setup code from the dashboard — a browser on the venue LAN
+   * holding only an agent token must not be able to strand the venue by
+   * resetting it. The code is verified against the agent's own organisation and
+   * not consumed, so it is still good for the re-enrolment that follows.
+   */
+  @Post('me/reset')
+  @AgentAuth()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async reset(@Req() req: AgentAuthenticatedRequest, @Body() dto: ResetAgentDto): Promise<void> {
+    await this.siteAgentService.resetFromAgent(req.agentId, req.organisationId, dto.setupCode);
   }
 }

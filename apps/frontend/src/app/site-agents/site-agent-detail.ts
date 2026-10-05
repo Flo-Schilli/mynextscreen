@@ -85,7 +85,7 @@ interface ManagedScreen {
           <mns-btn icon="Plus" [disabled]="unassigned().length === 0" (mnsClick)="openAssign()">
             Add a display
           </mns-btn>
-          <mns-btn variant="outline" icon="Refresh" (mnsClick)="reissue()">New token</mns-btn>
+          <mns-btn variant="outline" icon="Refresh" (mnsClick)="reissue()">New setup code</mns-btn>
           <mns-btn variant="outline" icon="Logout" (mnsClick)="revoke()">Revoke access</mns-btn>
           <mns-btn variant="outline" icon="Trash" (mnsClick)="remove()">Delete agent</mns-btn>
         </div>
@@ -94,7 +94,8 @@ interface ManagedScreen {
           <div class="mt-4 rounded-lg border border-border-strong bg-surface-2 p-3">
             <code class="block break-all font-mono text-[13px]">{{ raw }}</code>
             <p class="text-[13px] text-muted mt-2">
-              Enter this in the agent's setup page. It can only be used once and is not shown again.
+              Enter this setup code on the agent's setup page. It can only be used once, expires
+              shortly and is not shown again.
             </p>
           </div>
         }
@@ -310,8 +311,8 @@ interface ManagedScreen {
           (confirmed)="doRevoke()"
           (dismiss)="closeConfirm()"
         >
-          End every session of this agent? It stops working immediately and needs a new enrolment
-          token to come back. Its displays and their settings are left alone.
+          End every session of this agent? It stops working immediately and needs a new setup code
+          to come back. Its displays and their settings are left alone.
         </app-site-agent-confirm-modal>
       }
 
@@ -592,7 +593,7 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
   protected reissue(): void {
     this.service.reissueEnrolment(this.agentId()).subscribe({
       next: (result) => this.token.set(result.enrolmentToken),
-      error: () => this.toast.error('Could not issue a token'),
+      error: () => this.toast.error('Could not issue a setup code'),
     });
   }
 
