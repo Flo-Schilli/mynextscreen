@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type {
   AgentConfigMessage,
   AgentEnrolmentMessage,
+  AgentMetricsMessage,
   AgentReportMessage,
   AgentSessionMessage,
 } from '../protocol/server-protocol';
@@ -74,11 +75,15 @@ export class ServerClient {
     return this.request<AgentConfigMessage>('/api/agents/me/config');
   }
 
-  async sendHeartbeat(agentVersion: string | null): Promise<void> {
-    await this.request('/api/agents/me/heartbeat', {
-      method: 'POST',
-      body: agentVersion ? { agentVersion } : {},
-    });
+  async sendHeartbeat(agentVersion: string | null, metrics?: AgentMetricsMessage): Promise<void> {
+    const body: { agentVersion?: string; metrics?: AgentMetricsMessage } = {};
+    if (agentVersion) {
+      body.agentVersion = agentVersion;
+    }
+    if (metrics) {
+      body.metrics = metrics;
+    }
+    await this.request('/api/agents/me/heartbeat', { method: 'POST', body });
   }
 
   async sendReports(report: AgentReportMessage): Promise<void> {

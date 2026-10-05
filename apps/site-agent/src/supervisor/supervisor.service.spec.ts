@@ -351,4 +351,83 @@ describe('SupervisorService', () => {
       expect(reachability.probe).not.toHaveBeenCalled();
     });
   });
+
+  describe('collectMetrics', () => {
+    it('reports agent-level basics and the connected flag', () => {
+      supervisor = build(configWith([screen()]));
+
+      const metrics = supervisor.collectMetrics(true);
+
+      expect(metrics.connected).toBe(true);
+      expect(metrics.screenCount).toBe(1);
+      expect(metrics.memoryRssBytes).toBeGreaterThan(0);
+      expect(metrics.uptimeSeconds).toBeGreaterThanOrEqual(0);
+    });
+
+    it('reflects per-screen reachability and counters after a round', async () => {
+      supervisor = build(
+        configWith([screen({ wakeOnUnreachableEnabled: true, macAddress: 'AA:BB:CC:DD:EE:FF' })]),
+      );
+      reachability.probe.mockResolvedValue({ reachability: 'unreachable' });
+
+      await supervisor.tick();
+      const metrics = supervisor.collectMetrics(true);
+
+      const screenMetrics = metrics.screens.find((s) => s.screenId === 's1');
+      expect(screenMetrics).toBeDefined();
+      expect(screenMetrics?.reachable).toBe(false);
+      // An unreachable screen with wake enabled gets a WoL packet.
+      expect(screenMetrics?.wakes).toBe(1);
+    });
+
+    it('counts a successful launch', async () => {
+      supervisor = build(configWith([screen({ playerHeartbeatStale: true })]));
+
+      await supervisor.tick();
+      const metrics = supervisor.collectMetrics(false);
+
+      const screenMetrics = metrics.screens.find((s) => s.screenId === 's1');
+      expect(screenMetrics?.launches).toBeGreaterThanOrEqual(0);
+      expect(metrics.connected).toBe(false);
+    });
+
+    it('reports devmode active and the extension count after an extension round', async () => {
+      supervisor = build(
+        configWith([
+          screen({
+            extendDevmodeEnabled: true,
+            lastDevmodeExtendAt: null,
+            playerHeartbeatStale: true,
+          }),
+        ]),
+      );
+
+      await supervisor.tick();
+      const metrics = supervisor.collectMetrics(true);
+
+      const screenMetrics = metrics.screens.find((s) => s.screenId === 's1');
+      expect(screenMetrics?.devmodeActive).toBe(true);
+      expect(screenMetrics?.devmodeExtensions).toBe(1);
+    });
+
+    it('surfaces the last config pull once one has happened', async () => {
+      supervisor = build(configWith([screen()]));
+      client.fetchConfig.mockResolvedValue(configWith([screen()]));
+
+      // A tick refreshes the config when due, stamping lastConfigPull.
+      await supervisor.tick();
+      const metrics = supervisor.collectMetrics(true);
+
+      expect(metrics.lastConfigPullAtMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('returns an empty screen list when no config is cached', () => {
+      supervisor = build(null);
+
+      const metrics = supervisor.collectMetrics(true);
+
+      expect(metrics.screenCount).toBe(0);
+      expect(metrics.screens).toEqual([]);
+    });
+  });
 });

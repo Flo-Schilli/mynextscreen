@@ -30,6 +30,11 @@ import { ScreenRemoteCommandService } from './screen-remote-command.service';
     SiteAgentSseService,
     ScreenRemoteCommandService,
   ],
-  exports: [SiteAgentService, SiteAgentSessionService, ScreenRemoteControlService],
+  exports: [
+    SiteAgentService,
+    SiteAgentSessionService,
+    ScreenRemoteControlService,
+    SiteAgentSseService,
+  ],
 })
 export class SiteAgentModule {}

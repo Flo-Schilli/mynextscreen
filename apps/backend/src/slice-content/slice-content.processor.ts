@@ -1,4 +1,4 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -16,6 +16,8 @@ import { computeCropParams, buildCropFilter } from './crop-computation.util';
 import { getOriginalPath, getTranscodedPath } from '../content/content-storage.util';
 import { SliceStatusService } from './slice-status.service';
 import { GROUP_SCHEDULE_CHANGED, GroupScheduleChangedEvent } from '../schedule/schedule.event';
+import { JobMetricsService } from '../observability/job-metrics.service';
+import { SLICE_CONTENT_QUEUE } from './slice-content.constants';
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -43,6 +45,7 @@ export class SliceContentProcessor extends WorkerHost {
     private readonly configService: ConfigService,
     private readonly sliceStatus: SliceStatusService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly jobMetrics: JobMetricsService,
   ) {
     super();
     this.mediaBasePath = this.configService.get<string>('MEDIA_BASE_PATH', './media');
@@ -51,6 +54,16 @@ export class SliceContentProcessor extends WorkerHost {
     this.videoPreset = this.configService.get<string>('FFMPEG_VIDEO_PRESET', 'slow');
     this.videoMaxRate = this.configService.get<string>('FFMPEG_VIDEO_MAXRATE', '8M');
     this.videoBufSize = this.configService.get<string>('FFMPEG_VIDEO_BUFSIZE', '16M');
+  }
+
+  @OnWorkerEvent('completed')
+  onCompleted(job: Job): void {
+    this.jobMetrics.recordCompleted(SLICE_CONTENT_QUEUE, job);
+  }
+
+  @OnWorkerEvent('failed')
+  onFailed(job: Job | undefined): void {
+    this.jobMetrics.recordFailed(SLICE_CONTENT_QUEUE, job);
   }
 
   async process(job: Job<SliceContentJobData>): Promise<void> {

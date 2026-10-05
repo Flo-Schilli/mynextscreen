@@ -223,6 +223,34 @@ describe('ServerClient', () => {
       expect(JSON.parse(initOf(1).body as string)).toEqual({});
     });
 
+    it('pushes metrics on the heartbeat when provided', async () => {
+      fetchMock.mockResolvedValueOnce(respond(204));
+
+      await client.sendHeartbeat('1.2.3', {
+        uptimeSeconds: 10,
+        memoryRssBytes: 1000,
+        connected: true,
+        lastConfigPullAtMs: 0,
+        screenCount: 1,
+        screens: [
+          {
+            screenId: 's1',
+            reachable: true,
+            failures: 0,
+            devmodeActive: false,
+            devmodeExtensions: 0,
+            launches: 2,
+            wakes: 1,
+          },
+        ],
+      });
+
+      const body = JSON.parse(initOf(1).body as string);
+      expect(body.agentVersion).toBe('1.2.3');
+      expect(body.metrics.screenCount).toBe(1);
+      expect(body.metrics.screens[0].launches).toBe(2);
+    });
+
     it('posts reports as a batch', async () => {
       fetchMock.mockResolvedValueOnce(respond(204));
 

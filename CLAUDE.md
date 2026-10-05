@@ -299,6 +299,7 @@ format:check / lint typecheck build / test` auf **PRs** bzw. `nx run-many`
 | `MAX_FILE_SIZE_BYTES`                                               | Upload-Limit                                                                   |
 | `FFMPEG_PATH`                                                       | FFmpeg-Binary (default: System-PATH)                                           |
 | `FFMPEG_VIDEO_CRF` / `_PRESET` / `_MAXRATE` / `_BUFSIZE`            | Transcoding-Qualität                                                           |
+| `METRICS_SCRAPE_TOKEN`                                              | Bearer-Token für `GET /api/metrics` (Prometheus); unset = Endpoint 404-disabled, nie öffentlich routen |
 
 ## Deployment (Prod) — GHCR-Pull-Modell
 

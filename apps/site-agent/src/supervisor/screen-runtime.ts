@@ -25,6 +25,14 @@ export interface ScreenRuntime {
   appVersionReadAt: number;
   /** Jitter offset for the Developer Mode extension, stable per screen. */
   devmodeJitterMs: number;
+  /** Monotonic count of successful app launches since start, for metrics. */
+  launchCount: number;
+  /** Monotonic count of Wake-on-LAN packets sent since start, for metrics. */
+  wakeCount: number;
+  /** Monotonic count of successful Developer Mode extensions, for metrics. */
+  devmodeExtendCount: number;
+  /** Last observed network reachability of the TV, for metrics. */
+  reachable: boolean;
 }
 
 export function newRuntime(devmodeJitterMs: number): ScreenRuntime {
@@ -36,5 +44,9 @@ export function newRuntime(devmodeJitterMs: number): ScreenRuntime {
     lastDevmodeExtendAt: 0,
     appVersionReadAt: 0,
     devmodeJitterMs,
+    launchCount: 0,
+    wakeCount: 0,
+    devmodeExtendCount: 0,
+    reachable: false,
   };
 }
