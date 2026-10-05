@@ -28,6 +28,10 @@ export const AGENT_VERSION = process.env.APP_VERSION ?? '0.0.0-dev';
  * boot PIN used to cover, so there is no unpinned path left. A missing or
  * malformed value fails at boot with a message naming the variable, rather than
  * at the first request with a stack trace.
+ *
+ * `https` is part of that: a pin to `http://` still hands the refresh token to
+ * whoever answers the name, which on a venue LAN is not a theoretical attacker.
+ * `MNS_ALLOW_INSECURE_SERVER_URL=true` opts out for local development.
  */
 export function pinnedServerUrl(env: AgentEnv): string {
   const raw = env.serverUrl;
@@ -37,14 +41,25 @@ export function pinnedServerUrl(env: AgentEnv): string {
         '(e.g. https://signage.example.com). The agent will not start without it.',
     );
   }
+  let normalised: string;
   try {
-    return normaliseBaseUrl(raw);
+    normalised = normaliseBaseUrl(raw);
   } catch (error) {
     throw new Error(
       `MNS_SERVER_URL is not usable: ${error instanceof Error ? error.message : String(error)}`,
       { cause: error },
     );
   }
+
+  if (normalised.startsWith('http://') && !env.allowInsecureServerUrl) {
+    throw new Error(
+      'MNS_SERVER_URL must be an https:// address: over plain http the agent would ' +
+        'hand its refresh token to whoever answers that name on the venue network. ' +
+        'Set MNS_ALLOW_INSECURE_SERVER_URL=true only for local development.',
+    );
+  }
+
+  return normalised;
 }
 
 @Module({

@@ -22,6 +22,16 @@ export class AgentEnv {
     return this.config.get<string>('MNS_SERVER_URL') ?? null;
   }
 
+  /**
+   * Lets the pinned address be plain `http://`. Off by default: with the setup
+   * code having replaced the boot PIN, the pin is the only thing left standing
+   * between the agent and a rogue server, and a venue LAN is exactly where DNS
+   * is easiest to bend. Meant for local development against `localhost`.
+   */
+  get allowInsecureServerUrl(): boolean {
+    return this.config.get<string>('MNS_ALLOW_INSECURE_SERVER_URL') === 'true';
+  }
+
   /** Only consulted when no session is stored yet. */
   get enrolmentToken(): string | null {
     return this.config.get<string>('MNS_ENROLMENT_TOKEN') ?? null;

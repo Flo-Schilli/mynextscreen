@@ -95,5 +95,35 @@ describe('AppModule wiring', () => {
         /MNS_SERVER_URL/,
       );
     });
+
+    it('refuses a plain http pin: that address hands the refresh token to whoever answers', () => {
+      expect(() =>
+        pinnedServerUrl({
+          serverUrl: 'http://signage.example.com',
+          allowInsecureServerUrl: false,
+        } as AgentEnv),
+      ).toThrow(/must be an https:\/\/ address/);
+    });
+
+    it('still refuses http when the opt-out was never set, rather than defaulting open', () => {
+      expect(() => pinnedServerUrl({ serverUrl: 'http://localhost:3000' } as AgentEnv)).toThrow(
+        /MNS_ALLOW_INSECURE_SERVER_URL/,
+      );
+    });
+
+    it('allows http for local development when the opt-out is explicit', () => {
+      expect(
+        pinnedServerUrl({
+          serverUrl: 'http://localhost:3000',
+          allowInsecureServerUrl: true,
+        } as AgentEnv),
+      ).toBe('http://localhost:3000');
+    });
+
+    it('accepts an https pin', () => {
+      expect(pinnedServerUrl({ serverUrl: 'https://signage.example.com/' } as AgentEnv)).toBe(
+        'https://signage.example.com',
+      );
+    });
   });
 });

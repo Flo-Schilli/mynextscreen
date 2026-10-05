@@ -50,10 +50,13 @@ podman run -d --name mynextscreen-agent \
 podman logs mynextscreen-agent
 ```
 
-`MNS_SERVER_URL` is **required** — the agent refuses to start without it. Pinning
-the address is what keeps anyone on the venue LAN from redirecting the agent at a
-server of their own, which is why there is no browser-chosen address and no boot
-PIN any more. The log prints where to find the setup page and the pinned server,
+`MNS_SERVER_URL` is **required** — the agent refuses to start without it — and it
+must be an `https://` address. Pinning the address is what keeps anyone on the
+venue LAN from redirecting the agent at a server of their own, which is why there
+is no browser-chosen address and no boot PIN any more. Over plain `http://` that
+pin buys nothing: whoever answers the name receives the agent's refresh token, so
+the agent refuses it unless `MNS_ALLOW_INSECURE_SERVER_URL=true` is set, which is
+meant for a developer pointing an agent at `http://localhost:3000`. The log prints where to find the setup page and the pinned server,
 and nothing secret:
 
 ```
@@ -128,7 +131,8 @@ that disagrees with the pinned one is logged at startup and ignored.
 
 | Variable                | Default                       | What it does                                              |
 | ----------------------- | ----------------------------- | -------------------------------------------------------- |
-| `MNS_SERVER_URL`        | —                             | **Required**; where the agent belongs, shown read-only   |
+| `MNS_SERVER_URL`        | —                             | **Required**; `https://` where the agent belongs, read-only |
+| `MNS_ALLOW_INSECURE_SERVER_URL` | `false`               | Permits an `http://` pin; local development only         |
 | `MNS_ENROLMENT_TOKEN`   | —                             | Optional setup code; only used when no session is stored |
 | `MNS_SETUP_PORT`        | `8787`                        | `0` disables the setup interface entirely                |
 | `MNS_STATE_DIR`         | `/var/lib/mynextscreen-agent` | Session, keys and cached configuration                   |
