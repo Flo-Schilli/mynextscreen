@@ -1,0 +1,39 @@
+[Unit]
+Description=myNextScreen Site Agent
+
+[Container]
+ContainerName=mynextscreen-agent
+Image={{ image_registry }}/site-agent:{{ mynextscreen_image_tag }}
+AutoUpdate=registry
+Pull=newer
+# Host networking, not a mapped port. Wake-on-LAN is a broadcast packet, which
+# a bridge network does not carry to the TVs, and the sets answer SSAP and SSH
+# on the venue LAN. The setup interface rides along on the same stack.
+Network=host
+NoNewPrivileges=true
+DropCapability=ALL
+# The image runs as `node` (uid 1000). Mapping that back to the account this
+# rootless container runs under keeps the state bind mount — owned by
+# {{ service_user }} on the host — writable without chowning anything into the
+# subuid range.
+UserNS=keep-id:uid=1000,gid=1000
+EnvironmentFile=%h/.config/containers/systemd/.env.mynextscreen-agent
+Volume=%h/agent/state:/var/lib/mynextscreen-agent:Z
+{% if (site_agent_setup_port | default(8787) | int) == 0 %}
+# The image's health check probes the setup interface. With the interface off
+# there is nothing to probe, and leaving it in place would mark a healthy agent
+# unhealthy forever.
+HealthCmd=none
+{% else %}
+HealthCmd=node -e "fetch('http://127.0.0.1:{{ site_agent_setup_port | default(8787) }}/api/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=20s
+{% endif %}
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

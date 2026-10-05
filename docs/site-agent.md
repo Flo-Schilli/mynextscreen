@@ -105,7 +105,37 @@ podman run -d --name mynextscreen-agent \
 ```
 
 `MNS_SETUP_PORT=0` leaves no inbound port open at all. `MNS_ENROLMENT_TOKEN`
-carries the same setup code the setup page would ask for.
+carries the same setup code the setup page would ask for: the agent redeems it
+once at boot, while it has no stored session, and logs the agent and
+organisation it joined.
+
+A code that is expired or already spent is logged as an error and nothing else
+happens — the agent keeps running without a session. That is deliberate: a
+deployment variable going stale is not a reason to take a correctly configured
+venue offline, and with the setup interface enabled an operator can still paste
+a fresh code. Issue a new one in the dashboard and restart.
+
+### Unattended rollout with Ansible
+
+`ansible/site-agent.yml` does the above as a rootless Podman Quadlet, separate
+from `deploy.yml` because the agent runs on venue hardware rather than the
+server. Add the host to the `[site_agents]` group (see `hosts.ini.example`),
+then, for the first run only:
+
+```bash
+ansible-playbook -i hosts.ini site-agent.yml -K \
+  -e site_agent_enrolment_token=<setup code from the dashboard>
+```
+
+The code is written to `.env.mynextscreen-agent` on the host with mode `0600`
+and is spent on first boot. Re-running the playbook **without** the variable
+leaves the line out of the file again, so no stale code sits on the machine; the
+agent keeps the session it already has either way.
+
+Set `site_agent_setup_port=0` in the inventory for a venue that should have no
+inbound port at all. The playbook then also drops the image's health check,
+which probes that interface and would otherwise mark a healthy agent unhealthy
+forever.
 
 ### What wins over what
 

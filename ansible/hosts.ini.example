@@ -27,3 +27,22 @@ ffmpeg_video_strip_audio=true
 ffmpeg_video_crf=24
 ffmpeg_video_maxrate=4M
 ffmpeg_video_bufsize=8M
+
+[site_agents]
+# One line per venue. The agent runs inside the venue LAN, not on the server.
+# Example: venue-north.lan ansible_user=ops
+# your-venue-host
+
+[site_agents:vars]
+ansible_become=true
+ansible_become_method=sudo
+# Required: https address of the myNextScreen server. Plain http is refused —
+# the pin is the only thing between the agent and a rogue server on the LAN.
+site_agent_server_url=https://app.mynextscreen.example.com
+# First run only: a setup code from the dashboard (OrgAdmin → "Add a site
+# agent"). Single-use and short-lived, so pass it on the command line instead of
+# storing it here:
+#   ansible-playbook -i hosts.ini site-agent.yml -K -e site_agent_enrolment_token=<code>
+# 0 disables the setup interface entirely — an agent enrolled through the
+# environment has no reason to open an inbound port.
+site_agent_setup_port=8787

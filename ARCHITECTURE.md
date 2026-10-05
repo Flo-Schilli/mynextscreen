@@ -88,7 +88,10 @@ before a schedule begins, and extends Developer Mode over SSH + the Luna bus.
   LAN, and `MNS_SETUP_PORT=0` removes even that. Enrolling and resetting there
   need a **setup code** issued by an OrgAdmin in the dashboard: org-scoped,
   single-use, short-lived. Nothing is printed to the container log for an
-  operator to read.
+  operator to read. A deployment can supply the same code through
+  `MNS_ENROLMENT_TOKEN` and run with `MNS_SETUP_PORT=0`, which leaves no inbound
+  port at all; the variable is consulted only while no session is stored, so a
+  restart does not try to spend a code again.
 - **The TVs' private keys never leave the venue.** The server stores only the
   Developer Mode passphrase, encrypted; the agent fetches each key from the
   set's own key server. That passphrase is the only field in the system that is

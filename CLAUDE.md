@@ -102,7 +102,9 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
   `mynextscreen-agent`. Setup-UI auf Port 8787: Onboarding per **Dashboard-Setup-Code**
   (kein PIN mehr); `MNS_SERVER_URL` ist **Pflicht** und muss `https://` sein (Boot-Fehler sonst;
   `MNS_ALLOW_INSECURE_SERVER_URL=true` nur fuer lokale Entwicklung). Agent-Reset verlangt
-  einen frischen Setup-Code (serverseitig validiert). Tests: **Jest** (Gate 85/75/83/85).
+  einen frischen Setup-Code (serverseitig validiert). Unbeaufsichtigt per
+  `MNS_ENROLMENT_TOKEN` (nur solange keine Session gespeichert ist) plus eigenem
+  Ansible-Playbook `ansible/site-agent.yml`. Tests: **Jest** (Gate 85/75/83/85).
 - **Media:** **FFmpeg** als Child-Process (Transcoding + HLS-Live).
 - **Echtzeit:** **SSE** (Dashboard-Updates + Screen-Pushes).
 - **Runtime:** Node.js 26 (LTS). **Package-Manager: npm** (npm@11.6.2, kein pnpm/yarn).

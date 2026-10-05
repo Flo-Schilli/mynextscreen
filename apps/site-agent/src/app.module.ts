@@ -8,6 +8,7 @@ import { ServerClient } from './connection/server-client.service';
 import { AgentConfigStore, configCachePath } from './config/agent-config.store';
 import { SetupController } from './setup/setup.controller';
 import { SetupService } from './setup/setup.service';
+import { AutoEnrolmentService } from './setup/auto-enrolment.service';
 import { SetupAuthGuard } from './setup/setup-auth.guard';
 import { CommandStreamService } from './connection/command-stream.service';
 import { ReachabilityService } from './probe/reachability.service';
@@ -149,6 +150,12 @@ export function pinnedServerUrl(env: AgentEnv): string {
         env: AgentEnv,
       ) => new SetupService(connections, configs, client, AGENT_VERSION, pinnedServerUrl(env)),
       inject: [ConnectionStore, AgentConfigStore, ServerClient, AgentEnv],
+    },
+    {
+      provide: AutoEnrolmentService,
+      useFactory: (connections: ConnectionStore, setup: SetupService, env: AgentEnv) =>
+        new AutoEnrolmentService(connections, setup, env.enrolmentToken),
+      inject: [ConnectionStore, SetupService, AgentEnv],
     },
   ],
 })
