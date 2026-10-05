@@ -7,13 +7,13 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { AuditEntry } from './audit-log.model';
 import { BadgeComponent, BadgeTone, BtnComponent, EmptyComponent, IconComponent } from '../ui';
 import type { IconName } from '../ui';
 import { AuditLogCard } from './audit-log-card';
 import { LanguageService } from '../i18n/language.service';
+import { LocaleDatePipe } from '../i18n/locale-format.pipes';
 
 // ── action taxonomy ──────────────────────────────────────────────────────────
 
@@ -103,7 +103,7 @@ type TableRow =
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
+    LocaleDatePipe,
     BadgeComponent,
     BtnComponent,
     EmptyComponent,
@@ -189,7 +189,7 @@ type TableRow =
                     <!-- timestamp -->
                     <div class="flex flex-col items-start gap-px min-w-0">
                       <span class="timestamp-cell font-mono text-[13px] font-semibold text-text">
-                        {{ row.entry.timestamp | date: 'HH:mm:ss' }}
+                        {{ row.entry.timestamp | localeDate: 'HH:mm:ss' }}
                       </span>
                       <span class="text-[11.5px] text-faint">{{
                         relativeTime(row.entry.timestamp)
@@ -290,7 +290,7 @@ type TableRow =
                             {{ t('auditLog.table.timestamp') }}
                           </div>
                           <div class="text-[13.5px] font-semibold text-text">
-                            {{ row.entry.timestamp | date: 'medium' }}
+                            {{ row.entry.timestamp | localeDate: 'medium' }}
                           </div>
                         </div>
                         <div class="min-w-0">

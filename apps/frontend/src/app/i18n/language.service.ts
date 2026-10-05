@@ -13,7 +13,9 @@ import {
  * Owns the active UI language: resolves the initial value (localStorage →
  * `navigator.language` → default), persists changes, and keeps Transloco plus
  * the document `lang` attribute in sync. The active locale string
- * ({@link LOCALE_BY_LANG}) drives Angular `DatePipe`/number formatting.
+ * ({@link LOCALE_BY_LANG}) is what `LocaleDatePipe`/`LocaleNumberPipe` read on
+ * every call, which is how formatting follows a switch — Angular's own
+ * `DatePipe` reads `LOCALE_ID`, which is fixed once the injector resolves it.
  *
  * Business logic lives here, not in the switcher component.
  */

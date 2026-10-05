@@ -8,11 +8,11 @@ import {
   signal,
   OnInit,
 } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { Screen, CreateScreenRequest, UpdateScreenRequest } from './screen.model';
 import { ToggleRowComponent, useDialogStack } from '../ui';
+import { LocaleDatePipe } from '../i18n/locale-format.pipes';
 
 const PRESET_RESOLUTIONS = ['1920x1080', '3840x2160', '1280x720', '2560x1440', '1080x1920'];
 
@@ -37,7 +37,7 @@ type ScreenFormMode = 'create' | 'edit';
   selector: 'app-screen-form',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, DatePipe, ToggleRowComponent, TranslocoDirective],
+  imports: [FormsModule, LocaleDatePipe, ToggleRowComponent, TranslocoDirective],
   template: `
     <div
       *transloco="let t"
@@ -293,7 +293,7 @@ type ScreenFormMode = 'create' | 'edit';
                     <span class="info-label">{{ t('screens.form.infoLastSeen') }}</span>
                     <span class="info-value">{{
                       s.lastHeartbeat
-                        ? (s.lastHeartbeat | date: 'medium')
+                        ? (s.lastHeartbeat | localeDate: 'medium')
                         : t('screens.form.infoNever')
                     }}</span>
                   </div>
@@ -305,7 +305,7 @@ type ScreenFormMode = 'create' | 'edit';
                   </div>
                   <div class="info-item">
                     <span class="info-label">{{ t('screens.form.infoRegistered') }}</span>
-                    <span class="info-value">{{ s.createdAt | date: 'mediumDate' }}</span>
+                    <span class="info-value">{{ s.createdAt | localeDate: 'mediumDate' }}</span>
                   </div>
                 </div>
 

@@ -8,7 +8,6 @@ import {
   OnInit,
   signal,
 } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
@@ -39,6 +38,7 @@ import {
   StatusDotComponent,
 } from '../ui';
 import { LanguageService } from '../i18n/language.service';
+import { LocaleNumberPipe } from '../i18n/locale-format.pipes';
 
 interface OnboardingStep {
   key: 'screen' | 'content' | 'playlist' | 'schedule';
@@ -71,7 +71,7 @@ const WARNING_HEARTBEAT_MS = 60_000;
   selector: 'app-dashboard',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DecimalPipe,
+    LocaleNumberPipe,
     DashboardScreenGrid,
     StorageUsageBars,
     DashboardScheduleTimeline,
@@ -429,7 +429,8 @@ const WARNING_HEARTBEAT_MS = 60_000;
                   <mns-ring [value]="storagePercent()" [size]="104" [sw]="11">
                     <div class="text-center">
                       <div class="mono text-[22px] font-bold leading-none">
-                        {{ storagePercent() | number: '1.0-0' }}<span class="text-[13px]">%</span>
+                        {{ storagePercent() | localeNumber: '1.0-0'
+                        }}<span class="text-[13px]">%</span>
                       </div>
                       <div class="text-[11px] text-muted mt-0.5">
                         {{ t('dashboard.cards.used') }}

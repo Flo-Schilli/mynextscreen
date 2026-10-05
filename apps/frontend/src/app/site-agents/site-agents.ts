@@ -6,7 +6,6 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { Subject, takeUntil } from 'rxjs';
@@ -26,6 +25,7 @@ import {
   SInputComponent,
   StatusDotComponent,
 } from '../ui';
+import { LocaleDatePipe } from '../i18n/locale-format.pipes';
 
 /**
  * The venues this organisation has an on-premise agent in.
@@ -38,7 +38,7 @@ import {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
+    LocaleDatePipe,
     RouterLink,
     BadgeComponent,
     BtnComponent,
@@ -103,7 +103,7 @@ import {
                   <dd>
                     {{
                       agent.lastHeartbeat
-                        ? (agent.lastHeartbeat | date: 'short')
+                        ? (agent.lastHeartbeat | localeDate: 'short')
                         : t('siteAgents.list.never')
                     }}
                   </dd>
@@ -129,7 +129,9 @@ import {
                   }}</code>
                 </div>
                 <p class="text-[13px] text-muted">
-                  {{ t('siteAgents.create.tokenHint', { date: code.expiresAt | date: 'short' }) }}
+                  {{
+                    t('siteAgents.create.tokenHint', { date: code.expiresAt | localeDate: 'short' })
+                  }}
                 </p>
                 <div class="flex justify-end gap-2">
                   <mns-btn

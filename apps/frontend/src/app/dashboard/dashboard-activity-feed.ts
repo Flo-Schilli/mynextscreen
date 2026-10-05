@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { ActivityEntry } from './dashboard.model';
 import { IconComponent, IconName } from '../ui';
+import { LocaleDatePipe } from '../i18n/locale-format.pipes';
 
 const CATEGORY_ICON: Record<ActivityEntry['category'], IconName> = {
   screen: 'Screens',
@@ -33,7 +33,7 @@ const CATEGORY_COLOR: Record<ActivityEntry['category'], string> = {
   selector: 'app-dashboard-activity-feed',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, IconComponent],
+  imports: [LocaleDatePipe, IconComponent],
   template: `
     <div class="activity-feed">
       @for (entry of entries(); track entry.timestamp; let last = $last) {
@@ -55,7 +55,7 @@ const CATEGORY_COLOR: Record<ActivityEntry['category'], string> = {
           <!-- text column -->
           <div class="activity-body">
             <span class="activity-text">{{ entry.description }}</span>
-            <span class="activity-time">{{ entry.timestamp | date: 'HH:mm:ss' }}</span>
+            <span class="activity-time">{{ entry.timestamp | localeDate: 'HH:mm:ss' }}</span>
           </div>
         </div>
       }

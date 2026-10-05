@@ -6,7 +6,6 @@ import {
   OnInit,
   signal,
 } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { MemberService } from './member.service';
@@ -27,6 +26,7 @@ import {
   SFieldComponent,
   SInputComponent,
 } from '../../ui';
+import { LocaleDatePipe } from '../../i18n/locale-format.pipes';
 
 /** Pragmatic email check for client-side gating; the server is the source of truth. */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -36,7 +36,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
+    LocaleDatePipe,
     SettingsTabsComponent,
     AvatarComponent,
     BadgeComponent,
@@ -197,7 +197,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                 <span class="min-[880px]:hidden text-faint mr-1 font-sans">{{
                   t('settings.users.table.joinedPrefix')
                 }}</span>
-                {{ member.createdAt | date: 'mediumDate' }}
+                {{ member.createdAt | localeDate: 'mediumDate' }}
               </div>
               <!-- actions -->
               <div class="flex min-[880px]:justify-end min-[880px]:self-center">

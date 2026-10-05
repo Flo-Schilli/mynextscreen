@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Organisation } from './organisation.model';
 import { formatBytes } from '../../shared/format-bytes';
 import { CardComponent, BarComponent, AvatarComponent, BtnComponent } from '../../ui';
+import { LocaleDatePipe } from '../../i18n/locale-format.pipes';
 
 /**
  * Presentational organisations list. Renders one card-grid row per org with a
@@ -16,7 +16,7 @@ import { CardComponent, BarComponent, AvatarComponent, BtnComponent } from '../.
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
+    LocaleDatePipe,
     CardComponent,
     BarComponent,
     AvatarComponent,
@@ -73,7 +73,7 @@ import { CardComponent, BarComponent, AvatarComponent, BtnComponent } from '../.
 
               <!-- created -->
               <div class="mono text-[12.5px] text-muted">
-                {{ org.createdAt | date: 'mediumDate' }}
+                {{ org.createdAt | localeDate: 'mediumDate' }}
               </div>
 
               <!-- actions -->

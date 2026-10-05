@@ -3,6 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideZonelessChangeDetection } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { DashboardActivityFeed } from './dashboard-activity-feed';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 import { ActivityEntry } from './dashboard.model';
 
 try {
@@ -25,7 +26,7 @@ describe('DashboardActivityFeed', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [DashboardActivityFeed],
+      imports: [DashboardActivityFeed, getTranslocoTestingModule()],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

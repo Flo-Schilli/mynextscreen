@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { AuditEntry } from './audit-log.model';
 import { BadgeComponent, BadgeTone, IconComponent } from '../ui';
 import type { IconName } from '../ui';
+import { LocaleDatePipe } from '../i18n/locale-format.pipes';
 
 /**
  * Mobile presentation of a single audit entry as a stacked label→value card.
@@ -16,7 +16,7 @@ import type { IconName } from '../ui';
   selector: 'app-audit-log-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, BadgeComponent, IconComponent, TranslocoDirective],
+  imports: [LocaleDatePipe, BadgeComponent, IconComponent, TranslocoDirective],
   template: `
     <div
       *transloco="let t"
@@ -47,7 +47,7 @@ import type { IconName } from '../ui';
           <!-- time + user -->
           <div class="flex items-center gap-2 text-[12.5px] min-w-0">
             <span class="font-mono font-semibold text-text">{{
-              entry().timestamp | date: 'HH:mm:ss'
+              entry().timestamp | localeDate: 'HH:mm:ss'
             }}</span>
             <span class="text-faint">·</span>
             <span class="truncate font-semibold text-muted">{{ userDisplay() }}</span>
@@ -111,7 +111,7 @@ import type { IconName } from '../ui';
                 {{ t('auditLog.table.timestamp') }}
               </div>
               <div class="text-[13.5px] font-semibold text-text">
-                {{ entry().timestamp | date: 'medium' }}
+                {{ entry().timestamp | localeDate: 'medium' }}
               </div>
             </div>
             @for (kv of detailEntries(); track kv.key) {

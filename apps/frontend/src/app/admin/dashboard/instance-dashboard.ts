@@ -7,7 +7,6 @@ import {
   OnInit,
 } from '@angular/core';
 
-import { DecimalPipe } from '@angular/common';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { InstanceAdminService } from './instance-admin.service';
 import { InstanceAdminSummary, SystemLoad } from './instance-admin.model';
@@ -26,6 +25,7 @@ import {
   AvatarComponent,
 } from '../../ui';
 import { AdminTabsComponent } from '../admin-tabs.component';
+import { LocaleNumberPipe } from '../../i18n/locale-format.pipes';
 
 /**
  * Smart container for the instance-admin overview dashboard.
@@ -39,7 +39,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     AdminTabsComponent,
-    DecimalPipe,
+    LocaleNumberPipe,
     IconComponent,
     CardComponent,
     CardHeadComponent,
@@ -230,7 +230,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
                   </div>
                   <mns-bar [value]="origPct()" color="var(--color-info)" [glow]="true" [h]="9" />
                   <div class="mono text-[11.5px] text-faint mt-[6px]">
-                    {{ origPct() | number: '1.1-1' }}%
+                    {{ origPct() | localeNumber: '1.1-1' }}%
                   </div>
                 </div>
                 <!-- Transcoded -->
@@ -246,7 +246,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
                   </div>
                   <mns-bar [value]="transPct()" color="var(--accent-2)" [glow]="true" [h]="9" />
                   <div class="mono text-[11.5px] text-faint mt-[6px]">
-                    {{ transPct() | number: '1.1-1' }}%
+                    {{ transPct() | localeNumber: '1.1-1' }}%
                   </div>
                 </div>
               </div>
@@ -284,7 +284,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
                   <mns-ring [value]="hostPct()" [size]="104" [sw]="11" color="var(--color-online)">
                     <div class="text-center">
                       <div class="mono text-[22px] font-bold leading-none">
-                        {{ hostPct() | number: '1.0-0' }}<span class="text-[13px]">%</span>
+                        {{ hostPct() | localeNumber: '1.0-0' }}<span class="text-[13px]">%</span>
                       </div>
                       <div class="text-[11px] text-muted mt-[2px]">
                         {{ t('admin.dashboard.hostDisk.used') }}

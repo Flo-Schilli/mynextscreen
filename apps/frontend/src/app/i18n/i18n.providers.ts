@@ -16,8 +16,13 @@ import { LanguageService } from './language.service';
 import { TranslocoHttpLoader } from './transloco-http.loader';
 
 /**
- * `LOCALE_ID` factory — resolves to the active language's Angular locale
- * (e.g. `de-DE`) so `DatePipe`/number pipes format per the chosen language.
+ * `LOCALE_ID` factory — the active language's Angular locale (e.g. `de-DE`) at
+ * bootstrap, for anything that reads the token directly.
+ *
+ * Only the initial value: Angular resolves a provider once per injector, so
+ * this does not follow a later language switch. Templates therefore format
+ * dates and numbers through `LocaleDatePipe`/`LocaleNumberPipe`, which read the
+ * language signal on each call.
  */
 function localeIdFactory(language: LanguageService): string {
   return language.locale();

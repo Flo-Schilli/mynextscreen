@@ -1,5 +1,4 @@
 import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 
 import { AdminUserService } from './admin-user.service';
@@ -16,6 +15,7 @@ import {
 } from '../../ui';
 import type { IconName } from '../../ui';
 import { AdminTabsComponent } from '../admin-tabs.component';
+import { LocaleDatePipe } from '../../i18n/locale-format.pipes';
 
 /**
  * Smart container for the (super-admin) user overview. Owns data loading and the
@@ -27,7 +27,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
   standalone: true,
   imports: [
     AdminTabsComponent,
-    DatePipe,
+    LocaleDatePipe,
     UserDeleteModal,
     CardComponent,
     BadgeComponent,
@@ -186,7 +186,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
                   </div>
                   <!-- created -->
                   <div class="text-[13px] text-muted">
-                    {{ user.createdAt | date: 'mediumDate' }}
+                    {{ user.createdAt | localeDate: 'mediumDate' }}
                   </div>
                   <!-- actions -->
                   <div class="flex justify-end">
@@ -286,7 +286,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
                     t('admin.users.mobile.created')
                   }}</span>
                   <span class="text-[13px] text-muted">{{
-                    user.createdAt | date: 'mediumDate'
+                    user.createdAt | localeDate: 'mediumDate'
                   }}</span>
                 </div>
                 <!-- actions -->

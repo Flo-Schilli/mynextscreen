@@ -7,7 +7,6 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { Subject, forkJoin, of, switchMap, takeUntil } from 'rxjs';
@@ -35,6 +34,7 @@ import {
   StatusDotComponent,
 } from '../ui';
 import { BackLink } from '../shared/back-link';
+import { LocaleDatePipe } from '../i18n/locale-format.pipes';
 
 /** A screen paired with what the agent knows about it. */
 interface ManagedScreen {
@@ -48,7 +48,7 @@ interface ManagedScreen {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     BackLink,
-    DatePipe,
+    LocaleDatePipe,
     BadgeComponent,
     BtnComponent,
     CardComponent,
@@ -90,7 +90,9 @@ interface ManagedScreen {
                 {{ agent.agentVersion || t('siteAgents.detail.versionUnknown') }} ·
                 {{
                   agent.lastHeartbeat
-                    ? t('siteAgents.detail.lastSeen', { date: agent.lastHeartbeat | date: 'short' })
+                    ? t('siteAgents.detail.lastSeen', {
+                        date: agent.lastHeartbeat | localeDate: 'short',
+                      })
                     : t('siteAgents.detail.neverChecked')
                 }}
               </div>
@@ -256,7 +258,11 @@ interface ManagedScreen {
                 <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px] sm:grid-cols-4">
                   <dt class="text-muted">{{ t('siteAgents.detail.lastProbe') }}</dt>
                   <dd>
-                    {{ item.remote.lastProbeAt ? (item.remote.lastProbeAt | date: 'short') : '—' }}
+                    {{
+                      item.remote.lastProbeAt
+                        ? (item.remote.lastProbeAt | localeDate: 'short')
+                        : '—'
+                    }}
                   </dd>
                   <dt class="text-muted">{{ t('siteAgents.detail.developerMode') }}</dt>
                   <dd>{{ devmodeLabel(item) }}</dd>

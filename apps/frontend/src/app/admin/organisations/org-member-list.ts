@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { OrgMember, OrgMemberRole } from './organisation.model';
 import { CardComponent, BtnComponent, SelectComponent, SelectOption } from '../../ui';
+import { LocaleDatePipe } from '../../i18n/locale-format.pipes';
 
 /**
  * Presentational organisation members list. Renders each member as a card-grid
@@ -14,7 +14,7 @@ import { CardComponent, BtnComponent, SelectComponent, SelectOption } from '../.
   selector: 'app-org-member-list',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, CardComponent, BtnComponent, SelectComponent, TranslocoDirective],
+  imports: [LocaleDatePipe, CardComponent, BtnComponent, SelectComponent, TranslocoDirective],
   template: `
     <mns-card [pad]="false" class="block overflow-hidden" *transloco="let t">
       <!-- ── table view (tablet and up) ── -->
@@ -58,7 +58,7 @@ import { CardComponent, BtnComponent, SelectComponent, SelectOption } from '../.
               </div>
               <!-- joined -->
               <div class="text-[12.5px] text-muted">
-                {{ member.createdAt | date: 'mediumDate' }}
+                {{ member.createdAt | localeDate: 'mediumDate' }}
               </div>
               <!-- actions -->
               <div class="flex justify-end">
@@ -108,7 +108,7 @@ import { CardComponent, BtnComponent, SelectComponent, SelectOption } from '../.
                 t('admin.orgMemberList.headers.joined')
               }}</span>
               <span class="text-[12.5px] text-muted">{{
-                member.createdAt | date: 'mediumDate'
+                member.createdAt | localeDate: 'mediumDate'
               }}</span>
             </div>
             <!-- actions -->

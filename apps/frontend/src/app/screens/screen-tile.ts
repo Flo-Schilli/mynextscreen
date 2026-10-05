@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Screen, ScreenListItem } from './screen.model';
 import { IconComponent } from '../ui';
 import { ContentService } from '../content/content.service';
+import { LocaleDatePipe } from '../i18n/locale-format.pipes';
 
 /**
  * `app-not-running` and `tv-unreachable` only exist for a screen a site agent
@@ -40,7 +40,7 @@ export function resolutionLabel(resolution: string): string {
   selector: 'app-screen-tile',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, DatePipe, RouterLink, TranslocoDirective],
+  imports: [IconComponent, LocaleDatePipe, RouterLink, TranslocoDirective],
   template: `
     <div
       *transloco="let t"
@@ -121,7 +121,9 @@ export function resolutionLabel(resolution: string): string {
             </span>
           } @else if (screen().lastHeartbeat) {
             <span class="last-seen">{{
-              t('screens.tile.lastSeen', { time: (screen().lastHeartbeat | date: 'short') ?? '' })
+              t('screens.tile.lastSeen', {
+                time: (screen().lastHeartbeat | localeDate: 'short') ?? '',
+              })
             }}</span>
           } @else {
             <span class="last-seen">{{ t('screens.tile.neverConnected') }}</span>
