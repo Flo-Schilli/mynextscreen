@@ -9,6 +9,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { Subject, takeUntil } from 'rxjs';
 import { SiteAgentService } from './site-agent.service';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
@@ -37,11 +38,6 @@ type StepField = 'agent' | 'address' | 'passphrase';
 
 interface WizardStep {
   step: number;
-  title: string;
-  /** Shown in the left-hand list under the title. */
-  short: string;
-  /** What the operator does, in the right-hand pane. */
-  instruction: string;
   fields: StepField[];
   /** Whether the agent verifies this step by talking to the TV. */
   checkable: boolean;
@@ -49,100 +45,23 @@ interface WizardStep {
    * Optional steps may be skipped. Only the Developer Mode chain is: it exists
    * solely so the agent can keep the session from expiring, and an installation
    * that does not want that does not need any of it.
+   *
+   * Display strings (title/short/instruction) live in the translation files
+   * under `siteAgents.wizard.steps.<step>.*`, keyed by step number.
    */
   optional: boolean;
 }
 
 const STEPS: WizardStep[] = [
-  {
-    step: 1,
-    title: 'Pick the agent',
-    short: 'Agent',
-    instruction:
-      'Which agent in this venue should look after the display. Without one, nothing below can run.',
-    fields: ['agent'],
-    checkable: false,
-    optional: false,
-  },
-  {
-    step: 2,
-    title: 'Address on the venue network',
-    short: 'Network',
-    instruction:
-      "The TV's IP address, from Settings → Network on the set. The MAC address is only needed if the agent should wake it before a schedule; wired and wireless have different ones.",
-    fields: ['address'],
-    checkable: true,
-    optional: false,
-  },
-  {
-    step: 3,
-    title: 'Install the Developer Mode app',
-    short: 'Developer Mode',
-    instruction:
-      'On the TV: sign in with an LG account, install "Developer Mode" from the Content Store, open it and switch Dev Mode Status on. The set restarts.\n\nThis and the three steps after it exist so the agent can keep the session from expiring — when it does, the TV deletes the app. Skip them and the display still works, but someone has to extend it by hand.',
-    fields: [],
-    checkable: false,
-    optional: true,
-  },
-  {
-    step: 4,
-    title: 'Switch the key server on',
-    short: 'Key server',
-    instruction: 'In the Developer Mode app on the TV, turn on "Key Server".',
-    fields: [],
-    checkable: true,
-    optional: true,
-  },
-  {
-    step: 5,
-    title: 'Enter the passphrase',
-    short: 'Passphrase',
-    instruction:
-      'The six characters the Developer Mode app shows as the passphrase. It derives from the set itself and does not change when Developer Mode is switched on again.',
-    fields: ['passphrase'],
-    checkable: true,
-    optional: true,
-  },
-  {
-    step: 6,
-    title: 'Check the connection to the TV',
-    short: 'SSH',
-    instruction:
-      'Nothing to do here — the agent connects with the key it fetched and reports back.',
-    fields: [],
-    checkable: true,
-    optional: true,
-  },
-  {
-    step: 7,
-    title: 'Install the player app',
-    short: 'Install',
-    instruction:
-      'The agent copies the app onto the TV over the connection it just proved. Nothing to do here — the step installs it.',
-    fields: [],
-    checkable: true,
-    optional: false,
-  },
-  {
-    step: 8,
-    title: 'Confirm the pairing prompt',
-    short: 'Pairing',
-    instruction:
-      'The TV shows a prompt asking to allow the connection. Confirm it with the remote. This is needed once per display, and nobody can do it from here.',
-    fields: [],
-    checkable: true,
-    optional: false,
-  },
-  {
-    step: 9,
-    title: 'Start the app',
-    short: 'Finish',
-    instruction:
-      'The agent starts the player and, if Developer Mode is set up, extends the session.',
-    fields: [],
-    checkable: true,
-    optional: false,
-  },
+  { step: 1, fields: ['agent'], checkable: false, optional: false },
+  { step: 2, fields: ['address'], checkable: true, optional: false },
+  { step: 3, fields: [], checkable: false, optional: true },
+  { step: 4, fields: [], checkable: true, optional: true },
+  { step: 5, fields: ['passphrase'], checkable: true, optional: true },
+  { step: 6, fields: [], checkable: true, optional: true },
+  { step: 7, fields: [], checkable: true, optional: false },
+  { step: 8, fields: [], checkable: true, optional: false },
+  { step: 9, fields: [], checkable: true, optional: false },
 ];
 
 /** How many steps the wizard has, for anything outside it that counts them. */
@@ -163,12 +82,13 @@ const DEVMODE_CHAIN_END = 6;
     SFieldComponent,
     SInputComponent,
     SelectComponent,
+    TranslocoDirective,
   ],
   template: `
-    <mns-overlay (closed)="closed.emit()">
+    <mns-overlay (closed)="closed.emit()" *transloco="let t">
       <mns-modal
         [title]="screen().name"
-        sub="Connect this display"
+        [sub]="t('siteAgents.wizard.sub')"
         icon="Cast"
         [widthPx]="880"
         (closed)="closed.emit()"
@@ -210,7 +130,7 @@ const DEVMODE_CHAIN_END = 6;
                       class="block text-[13px] font-semibold leading-tight"
                       [class.text-accent]="item.step === current()"
                     >
-                      {{ item.short }}
+                      {{ t('siteAgents.wizard.steps.' + item.step + '.short') }}
                     </span>
                     <span class="block text-[11px] text-muted leading-tight mt-0.5">
                       {{ stateLabel(item) }}
@@ -224,27 +144,35 @@ const DEVMODE_CHAIN_END = 6;
           <!-- The step itself -->
           @if (step(); as item) {
             <div class="min-w-0">
-              <h3 class="text-[15px] font-bold">{{ item.title }}</h3>
+              <h3 class="text-[15px] font-bold">
+                {{ t('siteAgents.wizard.steps.' + item.step + '.title') }}
+              </h3>
               <p class="mt-1.5 whitespace-pre-line text-[13px] text-muted">
-                {{ item.instruction }}
+                {{ t('siteAgents.wizard.steps.' + item.step + '.instruction') }}
               </p>
 
               <div class="mt-4 flex flex-col gap-4">
                 @if (item.fields.includes('agent')) {
-                  <mns-sfield label="Site agent">
+                  <mns-sfield [label]="t('siteAgents.wizard.agentLabel')">
                     <mns-select
                       [options]="agentOptions()"
                       [(value)]="agentId"
-                      placeholder="Pick an agent"
+                      [placeholder]="t('siteAgents.wizard.agentPlaceholder')"
                     />
                   </mns-sfield>
                 }
 
                 @if (item.fields.includes('address')) {
-                  <mns-sfield label="IP address" hint="e.g. 192.168.1.50">
+                  <mns-sfield
+                    [label]="t('siteAgents.wizard.ipLabel')"
+                    [hint]="t('siteAgents.wizard.ipHint')"
+                  >
                     <mns-sinput [(value)]="localIp" [mono]="true" placeholder="192.168.1.50" />
                   </mns-sfield>
-                  <mns-sfield label="MAC address" hint="Optional — only for Wake-on-LAN">
+                  <mns-sfield
+                    [label]="t('siteAgents.wizard.macLabel')"
+                    [hint]="t('siteAgents.wizard.macHint')"
+                  >
                     <mns-sinput
                       [(value)]="macAddress"
                       [mono]="true"
@@ -255,8 +183,12 @@ const DEVMODE_CHAIN_END = 6;
 
                 @if (item.fields.includes('passphrase')) {
                   <mns-sfield
-                    label="Developer mode passphrase"
-                    [hint]="hasPassphrase() ? 'Saved — leave blank to keep it' : 'Six characters'"
+                    [label]="t('siteAgents.wizard.passphraseLabel')"
+                    [hint]="
+                      hasPassphrase()
+                        ? t('siteAgents.wizard.passphraseHintSaved')
+                        : t('siteAgents.wizard.passphraseHintEmpty')
+                    "
                   >
                     <mns-sinput
                       [(value)]="passphrase"
@@ -273,7 +205,11 @@ const DEVMODE_CHAIN_END = 6;
                   [class.text-offline]="!outcome.ok"
                   [class.text-ok]="outcome.ok"
                 >
-                  {{ outcome.ok ? 'Looks good.' : outcome.detail || 'That did not work.' }}
+                  {{
+                    outcome.ok
+                      ? t('siteAgents.wizard.resultOk')
+                      : outcome.detail || t('siteAgents.wizard.resultFailFallback')
+                  }}
                 </p>
               }
 
@@ -283,11 +219,13 @@ const DEVMODE_CHAIN_END = 6;
                 </mns-btn>
                 @if (item.optional) {
                   <mns-btn variant="outline" [disabled]="busy()" (mnsClick)="skip(item)">
-                    Skip
+                    {{ t('siteAgents.wizard.skip') }}
                   </mns-btn>
                 }
                 @if (item.step > 1) {
-                  <mns-btn variant="outline" [disabled]="busy()" (mnsClick)="back()">Back</mns-btn>
+                  <mns-btn variant="outline" [disabled]="busy()" (mnsClick)="back()">
+                    {{ t('siteAgents.wizard.back') }}
+                  </mns-btn>
                 }
               </div>
             </div>
@@ -300,12 +238,14 @@ const DEVMODE_CHAIN_END = 6;
         >
           <span class="text-[13px] text-muted">
             @if (completed()) {
-              This display is set up. Re-run any step if something changes on the TV.
+              {{ t('siteAgents.wizard.completedNote') }}
             } @else {
-              Step {{ current() }} of {{ steps.length }}
+              {{ t('siteAgents.wizard.stepCounter', { current: current(), total: steps.length }) }}
             }
           </span>
-          <mns-btn variant="outline" (mnsClick)="closed.emit()">Close</mns-btn>
+          <mns-btn variant="outline" (mnsClick)="closed.emit()">
+            {{ t('siteAgents.wizard.close') }}
+          </mns-btn>
         </div>
       </mns-modal>
     </mns-overlay>
@@ -316,6 +256,7 @@ export class ScreenOnboardingWizard implements OnInit, OnDestroy {
   private readonly service = inject(SiteAgentService);
   private readonly sse = inject(DashboardSseService);
   private readonly toast = inject(ToastService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyed$ = new Subject<void>();
 
   readonly screen = input.required<ScreenListItem>();
@@ -368,7 +309,7 @@ export class ScreenOnboardingWizard implements OnInit, OnDestroy {
     this.service.getAll().subscribe({
       next: (agents: SiteAgentListItem[]) =>
         this.agentOptions.set(agents.map((a) => ({ value: a.id, label: a.name }))),
-      error: () => this.toast.error('Could not load the site agents'),
+      error: () => this.toast.error(this.transloco.translate('siteAgents.wizard.loadAgentsFailed')),
     });
 
     // The answer arrives on the stream the dashboard already holds open, not on
@@ -413,13 +354,15 @@ export class ScreenOnboardingWizard implements OnInit, OnDestroy {
   protected stateLabel(item: WizardStep): string {
     switch (this.state(item)) {
       case 'done':
-        return 'Done';
+        return this.transloco.translate('siteAgents.wizard.stateDone');
       case 'skipped':
-        return 'Skipped';
+        return this.transloco.translate('siteAgents.wizard.stateSkipped');
       case 'current':
-        return 'In progress';
+        return this.transloco.translate('siteAgents.wizard.stateInProgress');
       default:
-        return item.optional ? 'Optional' : 'Not yet';
+        return this.transloco.translate(
+          item.optional ? 'siteAgents.wizard.stateOptional' : 'siteAgents.wizard.stateNotYet',
+        );
     }
   }
 
@@ -447,9 +390,21 @@ export class ScreenOnboardingWizard implements OnInit, OnDestroy {
   }
 
   protected actionLabel(item: WizardStep): string {
-    if (this.busy()) return item.checkable ? 'Checking…' : 'Saving…';
-    if (item.fields.length > 0) return item.checkable ? 'Save and check' : 'Save and continue';
-    return item.checkable ? 'Check' : 'Done, next';
+    if (this.busy()) {
+      return this.transloco.translate(
+        item.checkable ? 'siteAgents.wizard.actionChecking' : 'siteAgents.wizard.actionSaving',
+      );
+    }
+    if (item.fields.length > 0) {
+      return this.transloco.translate(
+        item.checkable
+          ? 'siteAgents.wizard.actionSaveCheck'
+          : 'siteAgents.wizard.actionSaveContinue',
+      );
+    }
+    return this.transloco.translate(
+      item.checkable ? 'siteAgents.wizard.actionCheck' : 'siteAgents.wizard.actionDoneNext',
+    );
   }
 
   /** Saves whatever this step collected, then checks it if the agent can. */
@@ -475,7 +430,10 @@ export class ScreenOnboardingWizard implements OnInit, OnDestroy {
       },
       error: (error: { error?: { message?: string } }) => {
         this.busy.set(false);
-        this.result.set({ ok: false, detail: error.error?.message ?? 'Could not save that.' });
+        this.result.set({
+          ok: false,
+          detail: error.error?.message ?? this.transloco.translate('siteAgents.wizard.saveFailed'),
+        });
       },
     });
   }
@@ -527,17 +485,21 @@ export class ScreenOnboardingWizard implements OnInit, OnDestroy {
         this.pendingCommandId = commandId;
         this.timeout = setTimeout(() => {
           this.settle();
-          this.result.set({ ok: false, detail: 'The agent did not answer.' });
+          this.result.set({
+            ok: false,
+            detail: this.transloco.translate('siteAgents.wizard.noAnswer'),
+          });
         }, CHECK_TIMEOUT_MS);
       },
       error: (error: { status?: number }) => {
         this.settle();
         this.result.set({
           ok: false,
-          detail:
+          detail: this.transloco.translate(
             error.status === 409
-              ? 'The agent is not connected right now.'
-              : 'Could not reach the agent.',
+              ? 'siteAgents.wizard.agentOffline'
+              : 'siteAgents.wizard.agentUnreachable',
+          ),
         });
       },
     });

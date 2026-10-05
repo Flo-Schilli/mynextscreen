@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ScreenGroupDeleteModal } from './screen-group-delete-modal';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 import { ScreenGroup, ScreenGroupScreen } from './screen-group.model';
 
 function makeScreen(id: string): ScreenGroupScreen {
@@ -49,7 +50,10 @@ describe('ScreenGroupDeleteModal', () => {
     error = '',
   ): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [ScreenGroupDeleteModal],
+      imports: [
+        ScreenGroupDeleteModal,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

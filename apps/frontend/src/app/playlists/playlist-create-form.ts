@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, input, model, output } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { PLAYLIST_COLORS } from './playlist.model';
 import {
   OverlayComponent,
@@ -17,16 +18,25 @@ import {
   selector: 'app-playlist-create-form',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayComponent, ModalComponent, BtnComponent, SInputComponent, SFieldComponent],
+  imports: [
+    OverlayComponent,
+    ModalComponent,
+    BtnComponent,
+    SInputComponent,
+    SFieldComponent,
+    TranslocoDirective,
+  ],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
-      <mns-modal title="New playlist" icon="Playlists" (closed)="dismiss.emit()">
+    <mns-overlay (closed)="dismiss.emit()" *transloco="let t">
+      <mns-modal [title]="t('playlists.create.title')" icon="Playlists" (closed)="dismiss.emit()">
         <div class="px-6 pt-4 pb-2 flex flex-col gap-5">
-          <mns-sfield label="Playlist name">
-            <mns-sinput [(value)]="name" placeholder="e.g. Lobby Welcome Loop" />
+          <mns-sfield [label]="t('playlists.create.nameLabel')">
+            <mns-sinput [(value)]="name" [placeholder]="t('playlists.create.namePlaceholder')" />
           </mns-sfield>
           <div>
-            <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Accent colour</div>
+            <div class="text-[12.5px] font-semibold text-muted mb-[9px]">
+              {{ t('playlists.create.accentColor') }}
+            </div>
             <div class="flex gap-[9px]">
               @for (c of colors; track c) {
                 <button
@@ -35,7 +45,7 @@ import {
                   [style.background]="c"
                   [style.border]="color() === c ? '2px solid #fff' : '2px solid transparent'"
                   [style.box-shadow]="color() === c ? '0 0 0 2px ' + c : 'none'"
-                  [attr.aria-label]="'Set accent colour ' + c"
+                  [attr.aria-label]="t('playlists.create.setAccentColor', { color: c })"
                   (click)="color.set(c)"
                 ></button>
               }
@@ -46,7 +56,9 @@ import {
           }
         </div>
         <div slot="footer" class="flex gap-2.5 px-6 pb-5">
-          <mns-btn variant="outline" [full]="true" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn variant="outline" [full]="true" (mnsClick)="dismiss.emit()">{{
+            t('common.actions.cancel')
+          }}</mns-btn>
           <mns-btn
             variant="primary"
             [full]="true"
@@ -54,7 +66,7 @@ import {
             [disabled]="creating()"
             (mnsClick)="create.emit()"
           >
-            {{ creating() ? 'Creating…' : 'Create playlist' }}
+            {{ creating() ? t('playlists.create.creating') : t('playlists.create.createPlaylist') }}
           </mns-btn>
         </div>
       </mns-modal>

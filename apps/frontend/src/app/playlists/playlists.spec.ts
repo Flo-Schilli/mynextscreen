@@ -16,6 +16,7 @@ import { Content } from '../content/content.model';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
 import { ToastService, Toast } from '../shared/toast/toast.service';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 const ORG_ID = 'org1';
 
@@ -147,7 +148,7 @@ describe('Playlists', () => {
     routeParams$ = new BehaviorSubject<ParamMap>(convertToParamMap({}));
 
     await TestBed.configureTestingModule({
-      imports: [Playlists],
+      imports: [Playlists, getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
         provideHttpClient(),
@@ -802,7 +803,7 @@ describe('Playlists', () => {
       httpMock.expectOne('/api/playlists').flush([]);
       await promise;
 
-      expect(lastToast()?.message).toContain('2 playlist(s) deleted');
+      expect(lastToast()?.message).toContain('2 playlists deleted');
       expect(lastToast()?.type).toBe('success');
     });
 
@@ -817,13 +818,13 @@ describe('Playlists', () => {
       httpMock.expectOne('/api/playlists').flush([]);
       await promise;
 
-      expect(lastToast()?.message).toContain('1 item(s) could not be found');
+      expect(lastToast()?.message).toContain('1 item could not be found');
       expect(lastToast()?.type).toBe('info');
     });
 
     it('builds the confirmation message from the selection count', () => {
       component.selectionService.selectAll(['p1', 'p2']);
-      expect(component.bulkDeleteMessage()).toContain('2 playlist(s)');
+      expect(component.bulkDeleteMessage()).toContain('2 playlists');
     });
   });
 

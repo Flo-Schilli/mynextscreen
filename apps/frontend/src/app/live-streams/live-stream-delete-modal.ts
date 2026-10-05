@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { BtnComponent, OverlayComponent, ModalComponent } from '../ui';
 import { LiveStream } from './live-stream.model';
 
@@ -11,14 +12,20 @@ import { LiveStream } from './live-stream.model';
   selector: 'app-live-stream-delete-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayComponent, ModalComponent, BtnComponent],
+  imports: [OverlayComponent, ModalComponent, BtnComponent, TranslocoDirective],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
-      <mns-modal title="Delete live stream" icon="Trash" [widthPx]="420" (closed)="dismiss.emit()">
+    <mns-overlay (closed)="dismiss.emit()" *transloco="let t">
+      <mns-modal
+        [title]="t('liveStreams.delete.title')"
+        icon="Trash"
+        [widthPx]="420"
+        (closed)="dismiss.emit()"
+      >
         <div class="flex flex-col gap-4">
           <p class="text-sm text-muted leading-relaxed">
-            Are you sure you want to delete <strong class="text-text">{{ stream().name }}</strong
-            >? This action cannot be undone.
+            {{ t('liveStreams.delete.confirmPrefix') }}
+            <strong class="text-text">{{ stream().name }}</strong
+            >{{ t('liveStreams.delete.confirmSuffix') }}
           </p>
           @if (error()) {
             <p class="error">{{ error() }}</p>
@@ -26,14 +33,16 @@ import { LiveStream } from './live-stream.model';
         </div>
 
         <div slot="footer" class="flex gap-2.5 px-6 pb-5">
-          <mns-btn variant="outline" [full]="true" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn variant="outline" [full]="true" (mnsClick)="dismiss.emit()">
+            {{ t('common.actions.cancel') }}
+          </mns-btn>
           <mns-btn
             variant="danger"
             [full]="true"
             [disabled]="deleting()"
             (mnsClick)="confirm.emit()"
           >
-            {{ deleting() ? 'Deleting…' : 'Delete' }}
+            {{ deleting() ? t('liveStreams.delete.deleting') : t('liveStreams.delete.delete') }}
           </mns-btn>
         </div>
       </mns-modal>

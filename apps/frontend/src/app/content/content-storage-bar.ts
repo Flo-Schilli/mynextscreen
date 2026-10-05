@@ -1,4 +1,5 @@
 import { Component, inject, input, ChangeDetectionStrategy } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { StorageInfo } from './content.model';
 import { ContentFormatService } from './content-format.service';
 
@@ -10,10 +11,11 @@ import { ContentFormatService } from './content-format.service';
 @Component({
   selector: 'app-content-storage-bar',
   standalone: true,
+  imports: [TranslocoDirective],
   template: `
-    <div class="storage-bar-container">
+    <div class="storage-bar-container" *transloco="let t">
       <div class="storage-info">
-        <span class="storage-label">Storage</span>
+        <span class="storage-label">{{ t('content.storage.label') }}</span>
         <span class="storage-values">
           {{ format.formatBytes(storage().originalUsedBytes + storage().transcodedUsedBytes) }}
           @if (storage().originalLimitBytes > 0 || storage().transcodedLimitBytes > 0) {
@@ -37,14 +39,18 @@ import { ContentFormatService } from './content-format.service';
       </div>
       <div class="storage-legend">
         <span class="legend-item"
-          ><span class="legend-dot original"></span> Original ({{
-            format.formatBytes(storage().originalUsedBytes)
-          }})</span
+          ><span class="legend-dot original"></span>
+          {{
+            t('content.storage.original', { size: format.formatBytes(storage().originalUsedBytes) })
+          }}</span
         >
         <span class="legend-item"
-          ><span class="legend-dot transcoded"></span> Transcoded ({{
-            format.formatBytes(storage().transcodedUsedBytes)
-          }})</span
+          ><span class="legend-dot transcoded"></span>
+          {{
+            t('content.storage.transcoded', {
+              size: format.formatBytes(storage().transcodedUsedBytes),
+            })
+          }}</span
         >
       </div>
     </div>

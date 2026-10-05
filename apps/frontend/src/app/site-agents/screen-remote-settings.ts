@@ -7,6 +7,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { SiteAgentService } from './site-agent.service';
 import { ToastService } from '../shared/toast/toast.service';
 import {
@@ -48,43 +49,50 @@ import {
     SInputComponent,
     SelectComponent,
     ToggleRowComponent,
+    TranslocoDirective,
   ],
   template: `
-    <mns-overlay (closed)="closed.emit()">
+    <mns-overlay (closed)="closed.emit()" *transloco="let t">
       <mns-modal
         [title]="screen().name"
-        sub="Remote control"
+        [sub]="t('siteAgents.settings.sub')"
         icon="Cast"
         [widthPx]="620"
         (closed)="closed.emit()"
       >
         <div class="flex flex-col gap-5">
           <mns-sfield
-            label="Site agent"
-            hint="Which venue agent looks after this display. To take it out, use Remove on its row."
+            [label]="t('siteAgents.settings.siteAgentLabel')"
+            [hint]="t('siteAgents.settings.siteAgentHint')"
           >
             <mns-select
               [options]="agentOptions()"
               [(value)]="agentId"
-              placeholder="Pick an agent"
+              [placeholder]="t('siteAgents.settings.agentPlaceholder')"
             />
           </mns-sfield>
 
           <div class="grid gap-4 sm:grid-cols-2">
-            <mns-sfield label="Address on the venue network" hint="e.g. 192.168.1.50">
+            <mns-sfield
+              [label]="t('siteAgents.settings.addressLabel')"
+              [hint]="t('siteAgents.settings.addressHint')"
+            >
               <mns-sinput [(value)]="localIp" [mono]="true" placeholder="192.168.1.50" />
             </mns-sfield>
-            <mns-sfield label="MAC address" hint="Needed for Wake-on-LAN. Wired and Wi-Fi differ.">
+            <mns-sfield
+              [label]="t('siteAgents.settings.macLabel')"
+              [hint]="t('siteAgents.settings.macHint')"
+            >
               <mns-sinput [(value)]="macAddress" [mono]="true" placeholder="AA:BB:CC:DD:EE:FF" />
             </mns-sfield>
           </div>
 
           <mns-sfield
-            label="Developer mode passphrase"
+            [label]="t('siteAgents.settings.passphraseLabel')"
             [hint]="
               hasPassphrase()
-                ? 'Saved — leave blank to keep it'
-                : 'The six characters shown in the Developer Mode app'
+                ? t('siteAgents.settings.passphraseHintSaved')
+                : t('siteAgents.settings.passphraseHintEmpty')
             "
           >
             <mns-sinput
@@ -95,55 +103,68 @@ import {
           </mns-sfield>
 
           <mns-toggle-row
-            label="Start the app automatically"
-            desc="When the TV is on but the player is not reporting"
+            [label]="t('siteAgents.settings.autoLaunchLabel')"
+            [desc]="t('siteAgents.settings.autoLaunchDesc')"
             [(checked)]="autoLaunchEnabled"
           />
 
           <mns-toggle-row
-            label="Keep developer mode alive"
-            desc="Extends the session while the TV is on, so the app is not deleted"
+            [label]="t('siteAgents.settings.extendDevmodeLabel')"
+            [desc]="t('siteAgents.settings.extendDevmodeDesc')"
             [(checked)]="extendDevmodeEnabled"
           />
 
           @if (extendDevmodeEnabled()) {
-            <mns-sfield label="Extend every" [hint]="intervalHint()">
-              <mns-sinput [(value)]="devmodeExtendIntervalDays" type="number" suffix="days" />
+            <mns-sfield [label]="t('siteAgents.settings.extendEveryLabel')" [hint]="intervalHint()">
+              <mns-sinput
+                [(value)]="devmodeExtendIntervalDays"
+                type="number"
+                [suffix]="t('siteAgents.settings.daysSuffix')"
+              />
             </mns-sfield>
           }
 
           <mns-toggle-row
-            label="Wake before a schedule starts"
+            [label]="t('siteAgents.settings.wakeBeforeLabel')"
             [desc]="
               macAddress().trim()
-                ? 'Sends a magic packet shortly before playback is due'
-                : 'Needs a MAC address'
+                ? t('siteAgents.settings.wakeBeforeDescEnabled')
+                : t('siteAgents.settings.wakeNeedsMac')
             "
             [disabled]="!macAddress().trim()"
             [(checked)]="wakeBeforeScheduleEnabled"
           />
 
           @if (wakeBeforeScheduleEnabled()) {
-            <mns-sfield label="Wake this long before" hint="A set needs about 15 seconds to answer">
-              <mns-sinput [(value)]="wakeLeadTimeMinutes" type="number" suffix="minutes" />
+            <mns-sfield
+              [label]="t('siteAgents.settings.wakeLeadLabel')"
+              [hint]="t('siteAgents.settings.wakeLeadHint')"
+            >
+              <mns-sinput
+                [(value)]="wakeLeadTimeMinutes"
+                type="number"
+                [suffix]="t('siteAgents.settings.minutesSuffix')"
+              />
             </mns-sfield>
           }
 
           <mns-toggle-row
-            label="Wake whenever the TV does not answer"
+            [label]="t('siteAgents.settings.wakeUnreachableLabel')"
             [desc]="
               macAddress().trim()
-                ? 'For venues that keep the displays on around the clock'
-                : 'Needs a MAC address'
+                ? t('siteAgents.settings.wakeUnreachableDescEnabled')
+                : t('siteAgents.settings.wakeNeedsMac')
             "
             [disabled]="!macAddress().trim()"
             [(checked)]="wakeOnUnreachableEnabled"
           />
 
           <div class="flex justify-end gap-2 pt-2">
-            <mns-btn variant="outline" (mnsClick)="closed.emit()">Cancel</mns-btn>
+            <mns-btn variant="outline" (mnsClick)="closed.emit()">
+              {{ t('siteAgents.settings.cancel') }}
+            </mns-btn>
             <mns-btn [disabled]="saving()" (mnsClick)="save()">
-              {{ saving() ? 'Saving…' : 'Save' }}
+              {{ saving() ? t('siteAgents.settings.saving') : t('siteAgents.settings.save') }}
             </mns-btn>
           </div>
         </div>
@@ -155,6 +176,7 @@ import {
 export class ScreenRemoteSettings implements OnInit {
   private readonly service = inject(SiteAgentService);
   private readonly toast = inject(ToastService);
+  private readonly transloco = inject(TranslocoService);
 
   readonly screen = input.required<ScreenListItem>();
   readonly remote = input.required<ScreenRemoteControl>();
@@ -200,7 +222,8 @@ export class ScreenRemoteSettings implements OnInit {
     this.service.getAll().subscribe({
       next: (agents: SiteAgentListItem[]) =>
         this.agentOptions.set(agents.map((agent) => ({ value: agent.id, label: agent.name }))),
-      error: () => this.toast.error('Could not load the site agents'),
+      error: () =>
+        this.toast.error(this.transloco.translate('siteAgents.settings.loadAgentsFailed')),
     });
   }
 
@@ -212,9 +235,16 @@ export class ScreenRemoteSettings implements OnInit {
   protected intervalHint(): string {
     const days = Number(this.devmodeExtendIntervalDays());
     if (days > DEVMODE_INTERVAL_WARN_DAYS) {
-      return `${DEVMODE_INTERVAL_MIN_DAYS}–${DEVMODE_INTERVAL_MAX_DAYS} days. Above ${DEVMODE_INTERVAL_WARN_DAYS} only suits a display that runs continuously.`;
+      return this.transloco.translate('siteAgents.settings.intervalHintWarn', {
+        min: DEVMODE_INTERVAL_MIN_DAYS,
+        max: DEVMODE_INTERVAL_MAX_DAYS,
+        warn: DEVMODE_INTERVAL_WARN_DAYS,
+      });
     }
-    return `${DEVMODE_INTERVAL_MIN_DAYS}–${DEVMODE_INTERVAL_MAX_DAYS} days. Seven is a good default.`;
+    return this.transloco.translate('siteAgents.settings.intervalHintNormal', {
+      min: DEVMODE_INTERVAL_MIN_DAYS,
+      max: DEVMODE_INTERVAL_MAX_DAYS,
+    });
   }
 
   protected save(): void {
@@ -242,12 +272,14 @@ export class ScreenRemoteSettings implements OnInit {
     this.service.updateRemoteControl(this.screen().id, payload).subscribe({
       next: (remote) => {
         this.saving.set(false);
-        this.toast.success('Saved');
+        this.toast.success(this.transloco.translate('siteAgents.settings.saved'));
         this.saved.emit(remote);
       },
       error: (error: { error?: { message?: string } }) => {
         this.saving.set(false);
-        this.toast.error(error.error?.message ?? 'Could not save');
+        this.toast.error(
+          error.error?.message ?? this.transloco.translate('siteAgents.settings.saveFailed'),
+        );
       },
     });
   }

@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import {
   AlertRules,
   OrgNotificationConfigFull,
@@ -41,216 +42,256 @@ const DEFAULT_ALERT_RULES: AlertRules = {
     SInputComponent,
     SwitchComponent,
     ToggleRowComponent,
+    TranslocoDirective,
   ],
   template: `
-    <app-settings-tabs />
+    <ng-container *transloco="let t">
+      <app-settings-tabs />
 
-    <mns-page-header
-      title="Notification Config"
-      sub="Email & push delivery settings for your organisation."
-      icon="Bell"
-    />
+      <mns-page-header
+        [title]="t('settings.org.notifications.page.title')"
+        [sub]="t('settings.org.notifications.page.subtitle')"
+        icon="Bell"
+      />
 
-    @if (loading()) {
-      <p class="loading-text text-sm text-muted mt-6">Loading configuration...</p>
-    }
+      @if (loading()) {
+        <p class="loading-text text-sm text-muted mt-6">
+          {{ t('settings.org.notifications.loading') }}
+        </p>
+      }
 
-    @if (loadError()) {
-      <p class="error text-sm text-offline mt-3">{{ loadError() }}</p>
-    }
+      @if (loadError()) {
+        <p class="error text-sm text-offline mt-3">{{ loadError() }}</p>
+      }
 
-    @if (!loading() && !loadError()) {
-      <div
-        class="grid gap-[var(--gap,1.5rem)] [grid-template-columns:minmax(0,1fr)_minmax(0,1fr)] max-[700px]:[grid-template-columns:1fr] items-start"
-      >
-        <!-- SMTP card -->
-        <mns-card [animate]="true">
-          <mns-card-head
-            title="SMTP Email Settings"
-            sub="Configure SMTP to enable email notifications for your organisation."
-            icon="Mail"
-          />
-
-          <div class="grid grid-cols-2 gap-4 mb-4 max-[500px]:grid-cols-1">
-            <mns-sfield label="Host">
-              <mns-sinput [(value)]="smtpHost" placeholder="smtp.example.com" [mono]="true" />
-            </mns-sfield>
-            <mns-sfield label="Port">
-              <mns-sinput [(value)]="smtpPort" placeholder="587" [mono]="true" />
-            </mns-sfield>
-          </div>
-          <div class="grid grid-cols-2 gap-4 mb-4 max-[500px]:grid-cols-1">
-            <mns-sfield label="Username">
-              <mns-sinput [(value)]="smtpUser" placeholder="user@example.com" />
-            </mns-sfield>
-            <mns-sfield label="Password">
-              <mns-sinput
-                [(value)]="smtpPassword"
-                [placeholder]="
-                  hasSmtpPassword() ? 'Saved — leave blank to keep current' : 'Enter password'
-                "
-                type="password"
-                icon="Lock"
-              />
-            </mns-sfield>
-          </div>
-          <mns-sfield label="From address" class="mb-4 block">
-            <mns-sinput [(value)]="smtpFrom" placeholder="noreply@example.com" />
-          </mns-sfield>
-
-          <!-- TLS toggle row -->
-          <div
-            class="flex items-center gap-3 mt-4 px-3.5 py-3 rounded-[12px] bg-surface-2 border border-border"
-          >
-            <mns-switch [(checked)]="smtpSecure" />
-            <div class="flex-1">
-              <div class="text-[13.5px] font-bold">Secure (TLS)</div>
-              <div class="text-xs text-muted">Turn off to use STARTTLS instead</div>
-            </div>
-          </div>
-
-          <div class="flex gap-2.5 mt-5">
-            <mns-btn variant="primary" [disabled]="savingSmtp()" (mnsClick)="saveSmtp()">
-              {{ savingSmtp() ? 'Saving...' : 'Save SMTP settings' }}
-            </mns-btn>
-            <mns-btn
-              variant="outline"
-              icon="Mail"
-              [disabled]="testingEmail()"
-              (mnsClick)="testEmail()"
-            >
-              {{ testingEmail() ? 'Sending...' : 'Send test email' }}
-            </mns-btn>
-          </div>
-        </mns-card>
-
-        <!-- ntfy card -->
-        <mns-card [animate]="true" [delay]="0.05">
-          <mns-card-head
-            title="ntfy Push Notifications"
-            sub="Configure ntfy to enable push notifications for your organisation."
-            icon="Bell"
-          />
-
-          <div class="grid grid-cols-2 gap-4 mb-4 max-[500px]:grid-cols-1">
-            <mns-sfield label="ntfy URL">
-              <mns-sinput
-                [(value)]="ntfyUrl"
-                placeholder="https://ntfy.sh"
-                [mono]="true"
-                icon="Globe"
-              />
-            </mns-sfield>
-            <mns-sfield label="Topic">
-              <mns-sinput [(value)]="ntfyTopic" placeholder="my-org-notifications" [mono]="true" />
-            </mns-sfield>
-          </div>
-          <mns-sfield
-            label="Auth token"
-            hint="Optional — only required for protected topics."
-            class="block mb-4"
-          >
-            <mns-sinput
-              [(value)]="ntfyToken"
-              [placeholder]="
-                hasNtfyToken() ? 'Saved — leave blank to keep current' : 'Enter token (optional)'
-              "
-              type="password"
-              [mono]="true"
-              icon="Lock"
-            />
-          </mns-sfield>
-
-          <!-- Info hint -->
-          <div
-            class="flex items-center gap-3 mt-4 px-3.5 py-3 rounded-[12px] bg-accent-soft border border-border text-[12.5px] text-muted leading-relaxed"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 20 20"
-              fill="none"
-              class="text-accent flex-shrink-0"
-            >
-              <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5" />
-              <path
-                d="M10 9v5M10 7h.01"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-              />
-            </svg>
-            Install the <strong class="text-text mx-0.5">ntfy</strong> app and subscribe to your
-            topic to receive alerts on mobile.
-          </div>
-
-          <div class="flex gap-2.5 mt-5">
-            <mns-btn variant="primary" [disabled]="savingNtfy()" (mnsClick)="saveNtfy()">
-              {{ savingNtfy() ? 'Saving...' : 'Save push settings' }}
-            </mns-btn>
-            <mns-btn
-              variant="outline"
-              icon="Bell"
-              [disabled]="testingNtfy()"
-              (mnsClick)="testNtfy()"
-            >
-              {{ testingNtfy() ? 'Sending...' : 'Send test push' }}
-            </mns-btn>
-          </div>
-        </mns-card>
-
-        <!-- Alert rules — full width -->
-        <div class="col-span-2 max-[700px]:col-span-1">
-          <mns-card [animate]="true" [delay]="0.1">
+      @if (!loading() && !loadError()) {
+        <div
+          class="grid gap-[var(--gap,1.5rem)] [grid-template-columns:minmax(0,1fr)_minmax(0,1fr)] max-[700px]:[grid-template-columns:1fr] items-start"
+        >
+          <!-- SMTP card -->
+          <mns-card [animate]="true">
             <mns-card-head
-              title="Alert rules"
-              sub="Choose which events trigger a notification across email and push."
-              icon="Alert"
+              [title]="t('settings.org.notifications.smtp.title')"
+              [sub]="t('settings.org.notifications.smtp.subtitle')"
+              icon="Mail"
             />
+
+            <div class="grid grid-cols-2 gap-4 mb-4 max-[500px]:grid-cols-1">
+              <mns-sfield [label]="t('settings.org.notifications.smtp.hostLabel')">
+                <mns-sinput [(value)]="smtpHost" placeholder="smtp.example.com" [mono]="true" />
+              </mns-sfield>
+              <mns-sfield [label]="t('settings.org.notifications.smtp.portLabel')">
+                <mns-sinput [(value)]="smtpPort" placeholder="587" [mono]="true" />
+              </mns-sfield>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-4 max-[500px]:grid-cols-1">
+              <mns-sfield [label]="t('settings.org.notifications.smtp.userLabel')">
+                <mns-sinput [(value)]="smtpUser" placeholder="user@example.com" />
+              </mns-sfield>
+              <mns-sfield [label]="t('settings.org.notifications.smtp.passwordLabel')">
+                <mns-sinput
+                  [(value)]="smtpPassword"
+                  [placeholder]="
+                    hasSmtpPassword()
+                      ? t('settings.org.notifications.smtp.passwordSaved')
+                      : t('settings.org.notifications.smtp.passwordEnter')
+                  "
+                  type="password"
+                  icon="Lock"
+                />
+              </mns-sfield>
+            </div>
+            <mns-sfield [label]="t('settings.org.notifications.smtp.fromLabel')" class="mb-4 block">
+              <mns-sinput [(value)]="smtpFrom" placeholder="noreply@example.com" />
+            </mns-sfield>
+
+            <!-- TLS toggle row -->
             <div
-              class="grid gap-x-8 gap-y-1 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]"
+              class="flex items-center gap-3 mt-4 px-3.5 py-3 rounded-[12px] bg-surface-2 border border-border"
             >
-              <mns-toggle-row
-                icon="WifiOff"
-                label="Screen goes offline"
-                desc="Alert after a display is unreachable for 5 minutes"
-                [(checked)]="ruleOffline"
-              />
-              <mns-toggle-row
-                icon="Wifi"
-                label="Screen recovers"
-                desc="Notify when an offline display comes back online"
-                [(checked)]="ruleRecovered"
-              />
-              <mns-toggle-row
-                icon="Video"
-                label="Transcode failure"
-                desc="Alert when uploaded media fails to process"
-                [(checked)]="ruleTranscodeFail"
-              />
-              <mns-toggle-row
-                icon="Storage"
-                label="Storage near limit"
-                desc="Warn when usage passes 90% of the allocation"
-                [(checked)]="ruleStorage"
-              />
-              <mns-toggle-row
-                icon="Calendar"
-                label="Weekly summary"
-                desc="A digest of uptime and activity every Monday"
-                [(checked)]="ruleWeekly"
-              />
+              <mns-switch [(checked)]="smtpSecure" />
+              <div class="flex-1">
+                <div class="text-[13.5px] font-bold">
+                  {{ t('settings.org.notifications.smtp.secureLabel') }}
+                </div>
+                <div class="text-xs text-muted">
+                  {{ t('settings.org.notifications.smtp.secureDesc') }}
+                </div>
+              </div>
             </div>
 
             <div class="flex gap-2.5 mt-5">
-              <mns-btn variant="primary" [disabled]="savingRules()" (mnsClick)="saveAlertRules()">
-                {{ savingRules() ? 'Saving...' : 'Save alert rules' }}
+              <mns-btn variant="primary" [disabled]="savingSmtp()" (mnsClick)="saveSmtp()">
+                {{
+                  savingSmtp()
+                    ? t('settings.org.notifications.smtp.saving')
+                    : t('settings.org.notifications.smtp.save')
+                }}
+              </mns-btn>
+              <mns-btn
+                variant="outline"
+                icon="Mail"
+                [disabled]="testingEmail()"
+                (mnsClick)="testEmail()"
+              >
+                {{
+                  testingEmail()
+                    ? t('settings.org.notifications.smtp.testing')
+                    : t('settings.org.notifications.smtp.test')
+                }}
               </mns-btn>
             </div>
           </mns-card>
+
+          <!-- ntfy card -->
+          <mns-card [animate]="true" [delay]="0.05">
+            <mns-card-head
+              [title]="t('settings.org.notifications.ntfy.title')"
+              [sub]="t('settings.org.notifications.ntfy.subtitle')"
+              icon="Bell"
+            />
+
+            <div class="grid grid-cols-2 gap-4 mb-4 max-[500px]:grid-cols-1">
+              <mns-sfield [label]="t('settings.org.notifications.ntfy.urlLabel')">
+                <mns-sinput
+                  [(value)]="ntfyUrl"
+                  placeholder="https://ntfy.sh"
+                  [mono]="true"
+                  icon="Globe"
+                />
+              </mns-sfield>
+              <mns-sfield [label]="t('settings.org.notifications.ntfy.topicLabel')">
+                <mns-sinput
+                  [(value)]="ntfyTopic"
+                  [placeholder]="t('settings.org.notifications.ntfy.topicPlaceholder')"
+                  [mono]="true"
+                />
+              </mns-sfield>
+            </div>
+            <mns-sfield
+              [label]="t('settings.org.notifications.ntfy.tokenLabel')"
+              [hint]="t('settings.org.notifications.ntfy.tokenHint')"
+              class="block mb-4"
+            >
+              <mns-sinput
+                [(value)]="ntfyToken"
+                [placeholder]="
+                  hasNtfyToken()
+                    ? t('settings.org.notifications.ntfy.tokenSaved')
+                    : t('settings.org.notifications.ntfy.tokenEnter')
+                "
+                type="password"
+                [mono]="true"
+                icon="Lock"
+              />
+            </mns-sfield>
+
+            <!-- Info hint -->
+            <div
+              class="flex items-center gap-3 mt-4 px-3.5 py-3 rounded-[12px] bg-accent-soft border border-border text-[12.5px] text-muted leading-relaxed"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 20 20"
+                fill="none"
+                class="text-accent flex-shrink-0"
+              >
+                <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5" />
+                <path
+                  d="M10 9v5M10 7h.01"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                />
+              </svg>
+              {{ t('settings.org.notifications.ntfy.infoPrefix') }}
+              <strong class="text-text mx-0.5">{{
+                t('settings.org.notifications.ntfy.infoApp')
+              }}</strong>
+              {{ t('settings.org.notifications.ntfy.infoSuffix') }}
+            </div>
+
+            <div class="flex gap-2.5 mt-5">
+              <mns-btn variant="primary" [disabled]="savingNtfy()" (mnsClick)="saveNtfy()">
+                {{
+                  savingNtfy()
+                    ? t('settings.org.notifications.ntfy.saving')
+                    : t('settings.org.notifications.ntfy.save')
+                }}
+              </mns-btn>
+              <mns-btn
+                variant="outline"
+                icon="Bell"
+                [disabled]="testingNtfy()"
+                (mnsClick)="testNtfy()"
+              >
+                {{
+                  testingNtfy()
+                    ? t('settings.org.notifications.ntfy.testing')
+                    : t('settings.org.notifications.ntfy.test')
+                }}
+              </mns-btn>
+            </div>
+          </mns-card>
+
+          <!-- Alert rules — full width -->
+          <div class="col-span-2 max-[700px]:col-span-1">
+            <mns-card [animate]="true" [delay]="0.1">
+              <mns-card-head
+                [title]="t('settings.org.notifications.rules.title')"
+                [sub]="t('settings.org.notifications.rules.subtitle')"
+                icon="Alert"
+              />
+              <div
+                class="grid gap-x-8 gap-y-1 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]"
+              >
+                <mns-toggle-row
+                  icon="WifiOff"
+                  [label]="t('settings.org.notifications.rules.offlineLabel')"
+                  [desc]="t('settings.org.notifications.rules.offlineDesc')"
+                  [(checked)]="ruleOffline"
+                />
+                <mns-toggle-row
+                  icon="Wifi"
+                  [label]="t('settings.org.notifications.rules.recoveredLabel')"
+                  [desc]="t('settings.org.notifications.rules.recoveredDesc')"
+                  [(checked)]="ruleRecovered"
+                />
+                <mns-toggle-row
+                  icon="Video"
+                  [label]="t('settings.org.notifications.rules.transcodeFailLabel')"
+                  [desc]="t('settings.org.notifications.rules.transcodeFailDesc')"
+                  [(checked)]="ruleTranscodeFail"
+                />
+                <mns-toggle-row
+                  icon="Storage"
+                  [label]="t('settings.org.notifications.rules.storageLabel')"
+                  [desc]="t('settings.org.notifications.rules.storageDesc')"
+                  [(checked)]="ruleStorage"
+                />
+                <mns-toggle-row
+                  icon="Calendar"
+                  [label]="t('settings.org.notifications.rules.weeklyLabel')"
+                  [desc]="t('settings.org.notifications.rules.weeklyDesc')"
+                  [(checked)]="ruleWeekly"
+                />
+              </div>
+
+              <div class="flex gap-2.5 mt-5">
+                <mns-btn variant="primary" [disabled]="savingRules()" (mnsClick)="saveAlertRules()">
+                  {{
+                    savingRules()
+                      ? t('settings.org.notifications.rules.saving')
+                      : t('settings.org.notifications.rules.save')
+                  }}
+                </mns-btn>
+              </div>
+            </mns-card>
+          </div>
         </div>
-      </div>
-    }
+      }
+    </ng-container>
   `,
   styles: `
     :host {
@@ -269,6 +310,7 @@ export class OrgNotificationConfig implements OnInit {
   private configService = inject(OrgNotificationConfigService);
   private orgState = inject(OrganisationStateService);
   private toast = inject(ToastService);
+  private transloco = inject(TranslocoService);
 
   // OnPush + zone.js: HTTP callbacks that mutate plain fields do not mark this
   // component dirty, so all callback-set state lives in signals.
@@ -313,7 +355,9 @@ export class OrgNotificationConfig implements OnInit {
   private loadConfig(): void {
     const orgId = this.orgId;
     if (!orgId) {
-      this.loadError.set('No organisation selected.');
+      this.loadError.set(
+        this.transloco.translate('settings.org.notifications.errors.noOrgSelected'),
+      );
       this.loading.set(false);
       return;
     }
@@ -324,7 +368,9 @@ export class OrgNotificationConfig implements OnInit {
         this.loading.set(false);
       },
       error: () => {
-        this.loadError.set('Failed to load notification configuration.');
+        this.loadError.set(
+          this.transloco.translate('settings.org.notifications.errors.loadConfig'),
+        );
         this.loading.set(false);
       },
     });
@@ -375,11 +421,13 @@ export class OrgNotificationConfig implements OnInit {
       next: (config) => {
         this.applyConfig(config);
         this.savingSmtp.set(false);
-        this.toast.success('SMTP settings saved.');
+        this.toast.success(this.transloco.translate('settings.org.notifications.toast.smtpSaved'));
       },
       error: () => {
         this.savingSmtp.set(false);
-        this.toast.error('Failed to save SMTP settings.');
+        this.toast.error(
+          this.transloco.translate('settings.org.notifications.toast.smtpSaveFailed'),
+        );
       },
     });
   }
@@ -401,11 +449,13 @@ export class OrgNotificationConfig implements OnInit {
       next: (config) => {
         this.applyConfig(config);
         this.savingNtfy.set(false);
-        this.toast.success('ntfy settings saved.');
+        this.toast.success(this.transloco.translate('settings.org.notifications.toast.ntfySaved'));
       },
       error: () => {
         this.savingNtfy.set(false);
-        this.toast.error('Failed to save ntfy settings.');
+        this.toast.error(
+          this.transloco.translate('settings.org.notifications.toast.ntfySaveFailed'),
+        );
       },
     });
   }
@@ -429,11 +479,13 @@ export class OrgNotificationConfig implements OnInit {
       next: (config) => {
         this.applyConfig(config);
         this.savingRules.set(false);
-        this.toast.success('Alert rules saved.');
+        this.toast.success(this.transloco.translate('settings.org.notifications.toast.rulesSaved'));
       },
       error: () => {
         this.savingRules.set(false);
-        this.toast.error('Failed to save alert rules.');
+        this.toast.error(
+          this.transloco.translate('settings.org.notifications.toast.rulesSaveFailed'),
+        );
       },
     });
   }
@@ -450,7 +502,9 @@ export class OrgNotificationConfig implements OnInit {
       },
       error: (err) => {
         this.testingEmail.set(false);
-        const msg = err?.error?.message || 'Failed to send test email.';
+        const msg =
+          err?.error?.message ||
+          this.transloco.translate('settings.org.notifications.toast.testEmailFailed');
         this.toast.error(msg);
       },
     });
@@ -468,7 +522,9 @@ export class OrgNotificationConfig implements OnInit {
       },
       error: (err) => {
         this.testingNtfy.set(false);
-        const msg = err?.error?.message || 'Failed to send test notification.';
+        const msg =
+          err?.error?.message ||
+          this.transloco.translate('settings.org.notifications.toast.testNtfyFailed');
         this.toast.error(msg);
       },
     });

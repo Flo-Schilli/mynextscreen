@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ScreenGroupCard } from './screen-group-card';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 import { ScreenGroup, ScreenGroupScreen } from './screen-group.model';
 
 function makeScreen(id: string): ScreenGroupScreen {
@@ -39,7 +40,10 @@ describe('ScreenGroupCard', () => {
 
   async function setUp(group: ScreenGroup): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [ScreenGroupCard],
+      imports: [
+        ScreenGroupCard,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 
@@ -70,7 +74,9 @@ describe('ScreenGroupCard', () => {
 
   it('labels a mirror group as Mirror', async () => {
     await setUp(makeGroup({ mode: 'mirror' }));
-    expect(component.modeLabel()).toBe('Mirror');
+    // Mirror mode is labelled via i18n in the template; modeLabel() only carries
+    // the split grid string, so assert the rendered badge instead.
+    expect(fixture.nativeElement.textContent).toContain('Mirror');
   });
 
   it('builds a gradient from the group colour', async () => {

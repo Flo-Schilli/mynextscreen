@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ScreenGroupWall, WallCell, WallAssignEvent, WallPlaceable } from './screen-group-wall';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 import { ScreenGroupScreen } from './screen-group.model';
 
 function cell(
@@ -36,7 +37,10 @@ describe('ScreenGroupWall', () => {
 
   async function setUp(inputs: Record<string, unknown>): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [ScreenGroupWall],
+      imports: [
+        ScreenGroupWall,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

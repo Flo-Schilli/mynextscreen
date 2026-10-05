@@ -1,5 +1,6 @@
 import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { forkJoin } from 'rxjs';
 import { LiveStreamService } from './live-stream.service';
 import { LiveStream, CreateLiveStreamRequest } from './live-stream.model';
@@ -33,12 +34,15 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
     PageHeaderComponent,
     BtnComponent,
     EmptyComponent,
+    TranslocoDirective,
   ],
   template: `
-    <div class="page">
-      <mns-page-header title="Live Streams" icon="Stream" [sub]="streamSubtitle">
+    <div class="page" *transloco="let t">
+      <mns-page-header [title]="t('liveStreams.list.title')" icon="Stream" [sub]="streamSubtitle">
         @if (!loading && !showCreateForm) {
-          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">New Stream</mns-btn>
+          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">
+            {{ t('liveStreams.list.newStream') }}
+          </mns-btn>
         }
       </mns-page-header>
 
@@ -51,7 +55,7 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
           <span
             class="w-5 h-5 rounded-full border-2 border-border border-t-accent animate-spin mr-3"
           ></span>
-          Loading live streams…
+          {{ t('liveStreams.list.loading') }}
         </div>
       }
 
@@ -84,11 +88,11 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
         <div class="empty-state">
           <mns-empty
             icon="Stream"
-            title="No live streams"
-            desc="Connect an RTMP or RTP source to broadcast live to your network in real time."
+            [title]="t('liveStreams.list.emptyTitle')"
+            [desc]="t('liveStreams.list.emptyDesc')"
           >
             <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">
-              Add a stream source
+              {{ t('liveStreams.list.addFirst') }}
             </mns-btn>
           </mns-empty>
         </div>
@@ -141,6 +145,7 @@ export class LiveStreams implements OnInit {
   private memberService = inject(MemberService);
   private toast = inject(ToastService);
   private router = inject(Router);
+  private transloco = inject(TranslocoService);
 
   orgId = '';
   streams: LiveStream[] = [];
@@ -175,12 +180,12 @@ export class LiveStreams implements OnInit {
           this.orgId = memberships[0].organisationId;
           this.loadData();
         } else {
-          this.loadError = 'You are not a member of any organisation.';
+          this.loadError = this.transloco.translate('common.errors.noOrgMembership');
           this.loading = false;
         }
       },
       error: () => {
-        this.loadError = 'Failed to load organisation context.';
+        this.loadError = this.transloco.translate('common.errors.loadOrgContext');
         this.loading = false;
       },
     });
@@ -202,7 +207,10 @@ export class LiveStreams implements OnInit {
         this.loading = false;
       },
       error: (err) => {
-        this.loadError = err.status === 403 ? 'Access denied.' : 'Failed to load live streams.';
+        this.loadError =
+          err.status === 403
+            ? this.transloco.translate('common.errors.accessDenied')
+            : this.transloco.translate('liveStreams.errors.loadStreams');
         this.loading = false;
       },
     });
@@ -210,10 +218,13 @@ export class LiveStreams implements OnInit {
 
   get streamSubtitle(): string {
     if (this.loading || !this.streams.length) {
-      return 'Ingest a source and override schedules with live video';
+      return this.transloco.translate('liveStreams.list.subtitleDefault');
     }
     const live = this.streams.filter((s) => s.status === 'active').length;
-    return `${live} live · ${this.streams.length} stream${this.streams.length !== 1 ? 's' : ''}`;
+    return this.transloco.translate('liveStreams.list.subtitleCounts', {
+      live,
+      count: this.streams.length,
+    });
   }
 
   // --- Navigation ---
@@ -239,10 +250,11 @@ export class LiveStreams implements OnInit {
         this.creating = false;
         this.showCreateForm = false;
         this.loadData();
-        this.toast.success('Live stream created.');
+        this.toast.success(this.transloco.translate('liveStreams.toast.created'));
       },
       error: (err) => {
-        this.createError = err.error?.message || 'Failed to create live stream.';
+        this.createError =
+          err.error?.message || this.transloco.translate('liveStreams.errors.createStream');
         this.creating = false;
       },
     });
@@ -263,10 +275,11 @@ export class LiveStreams implements OnInit {
     this.liveStreamService.deactivate(this.orgId, stream.id).subscribe({
       next: () => {
         this.loadData();
-        this.toast.success('Stream stopped.');
+        this.toast.success(this.transloco.translate('liveStreams.toast.stopped'));
       },
       error: (err) => {
-        this.actionError = err.error?.message || 'Failed to deactivate live stream.';
+        this.actionError =
+          err.error?.message || this.transloco.translate('liveStreams.errors.deactivateStream');
       },
     });
   }
@@ -292,10 +305,11 @@ export class LiveStreams implements OnInit {
         this.deleting = false;
         this.deletingStream = null;
         this.loadData();
-        this.toast.success('Live stream deleted.');
+        this.toast.success(this.transloco.translate('liveStreams.toast.deleted'));
       },
       error: (err) => {
-        this.deleteError = err.error?.message || 'Failed to delete live stream.';
+        this.deleteError =
+          err.error?.message || this.transloco.translate('liveStreams.errors.deleteStream');
         this.deleting = false;
       },
     });

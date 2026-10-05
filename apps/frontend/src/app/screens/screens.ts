@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { ScreenService } from './screen.service';
 import { ScreenListItem, CreateScreenRequest, UpdateScreenRequest } from './screen.model';
 import { ScreenForm } from './screen-form';
@@ -51,14 +52,15 @@ import {
     OverlayComponent,
     ModalComponent,
     IconComponent,
+    TranslocoDirective,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <div>
+    <div *transloco="let t">
       <!-- Loading -->
       @if (loading) {
         <div class="flex items-center justify-center py-20 text-muted text-sm">
-          Loading screens…
+          {{ t('screens.list.loading') }}
         </div>
       }
 
@@ -106,19 +108,19 @@ import {
 
       <!-- Default view: page header + grid or empty state -->
       @if (!loading) {
-        <mns-page-header title="Screens" icon="Screens" [sub]="screenSubtitle">
+        <mns-page-header [title]="t('screens.list.title')" icon="Screens" [sub]="screenSubtitle">
           <mns-btn variant="outline" icon="Download" (mnsClick)="showPlayerAppsHelp.set(true)">
-            Install Player
+            {{ t('screens.list.installPlayer') }}
           </mns-btn>
           <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">
-            Add screen
+            {{ t('screens.list.addScreen') }}
           </mns-btn>
         </mns-page-header>
 
         <!-- Web Player link -->
         <div class="flex items-center gap-1.5 mt-3 text-xs text-muted">
           <mns-icon name="Globe" [size]="13" />
-          <span>Web Player:</span>
+          <span>{{ t('screens.list.webPlayer') }}</span>
           <a
             [href]="playerUrlHref()"
             target="_blank"
@@ -138,11 +140,11 @@ import {
           <div class="empty-state">
             <mns-empty
               icon="Screens"
-              title="No screens yet"
-              desc="Pair your first display with a one-time code to start broadcasting content."
+              [title]="t('screens.list.emptyTitle')"
+              [desc]="t('screens.list.emptyDesc')"
             >
               <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">
-                Add your first screen
+                {{ t('screens.list.addFirst') }}
               </mns-btn>
             </mns-empty>
           </div>
@@ -160,17 +162,17 @@ import {
       <!-- Delete Confirmation Modal -->
       @if (showDeleteConfirm) {
         <mns-overlay (closed)="cancelDelete()">
-          <mns-modal title="Delete screen" icon="Trash" (closed)="cancelDelete()">
+          <mns-modal [title]="t('screens.delete.title')" icon="Trash" (closed)="cancelDelete()">
             <div class="flex flex-col gap-4">
               <p class="text-sm text-muted leading-relaxed">
-                Are you sure you want to delete
+                {{ t('screens.delete.confirmPrefix') }}
                 <strong class="text-text">{{ deleteTarget?.name }}</strong
-                >? This cannot be undone.
+                >{{ t('screens.delete.confirmSuffix') }}
               </p>
               <div class="flex gap-2 pt-1" slot="footer">
                 <div class="flex gap-2 px-6 pb-5 w-full">
                   <mns-btn variant="outline" [full]="true" (mnsClick)="cancelDelete()">
-                    Cancel
+                    {{ t('common.actions.cancel') }}
                   </mns-btn>
                   <mns-btn
                     variant="danger"
@@ -178,7 +180,7 @@ import {
                     [disabled]="deleting"
                     (mnsClick)="executeDelete()"
                   >
-                    {{ deleting ? 'Deleting…' : 'Delete' }}
+                    {{ deleting ? t('common.actions.deleting') : t('common.actions.delete') }}
                   </mns-btn>
                 </div>
               </div>
@@ -195,6 +197,7 @@ export class Screens implements OnInit, OnDestroy {
   private router = inject(Router);
   private sseService = inject(DashboardSseService);
   private toast = inject(ToastService);
+  private transloco = inject(TranslocoService);
   protected configService = inject(PublicConfigService);
   private subscriptions: Subscription[] = [];
 
@@ -274,12 +277,12 @@ export class Screens implements OnInit, OnDestroy {
           this.orgId = memberships[0].organisationId;
           this.loadScreens();
         } else {
-          this.loadError = 'You are not a member of any organisation.';
+          this.loadError = this.transloco.translate('common.errors.noOrgMembership');
           this.loading = false;
         }
       },
       error: () => {
-        this.loadError = 'Failed to load organisation context.';
+        this.loadError = this.transloco.translate('common.errors.loadOrgContext');
         this.loading = false;
       },
     });
@@ -295,7 +298,10 @@ export class Screens implements OnInit, OnDestroy {
         this.loading = false;
       },
       error: (err) => {
-        this.loadError = err.status === 403 ? 'Access denied.' : 'Failed to load screens.';
+        this.loadError =
+          err.status === 403
+            ? this.transloco.translate('common.errors.accessDenied')
+            : this.transloco.translate('screens.errors.loadScreens');
         this.loading = false;
       },
     });
@@ -318,11 +324,14 @@ export class Screens implements OnInit, OnDestroy {
       next: (screen) => {
         this.creating = false;
         this.showCreateForm = false;
-        this.toast.success(`Screen “${screen.name}” created.`);
+        this.toast.success(
+          this.transloco.translate('screens.toast.created', { name: screen.name }),
+        );
         this.loadScreens();
       },
       error: (err) => {
-        this.createError = err.error?.message || 'Failed to register screen.';
+        this.createError =
+          err.error?.message || this.transloco.translate('screens.errors.registerScreen');
         this.creating = false;
       },
     });
@@ -355,11 +364,14 @@ export class Screens implements OnInit, OnDestroy {
         this.saving = false;
         this.editingScreen = false;
         this.selectedScreen = null;
-        this.toast.success(`Screen “${updated.name}” updated.`);
+        this.toast.success(
+          this.transloco.translate('screens.toast.updated', { name: updated.name }),
+        );
         this.loadScreens();
       },
       error: (err) => {
-        this.editError = err.error?.message || 'Failed to update screen.';
+        this.editError =
+          err.error?.message || this.transloco.translate('screens.errors.updateScreen');
         this.saving = false;
       },
     });
@@ -375,10 +387,11 @@ export class Screens implements OnInit, OnDestroy {
       next: (screen) => {
         this.repairing = false;
         this.selectedScreen = { ...this.selectedScreen!, ...screen };
-        this.toast.success('Re-pairing started. The display will pick up the new key.');
+        this.toast.success(this.transloco.translate('screens.toast.repairStarted'));
       },
       error: (err) => {
-        this.actionError = err.error?.message || 'Failed to re-pair screen.';
+        this.actionError =
+          err.error?.message || this.transloco.translate('screens.errors.repairScreen');
         this.repairing = false;
       },
     });
@@ -393,10 +406,11 @@ export class Screens implements OnInit, OnDestroy {
     this.screenService.refreshPlayer(this.orgId, this.selectedScreen.id).subscribe({
       next: () => {
         this.refreshing = false;
-        this.toast.success('Refresh sent. The player will reload shortly.');
+        this.toast.success(this.transloco.translate('screens.toast.refreshSent'));
       },
       error: (err) => {
-        this.actionError = err.error?.message || 'Failed to refresh player.';
+        this.actionError =
+          err.error?.message || this.transloco.translate('screens.errors.refreshPlayer');
         this.refreshing = false;
       },
     });
@@ -428,13 +442,16 @@ export class Screens implements OnInit, OnDestroy {
           this.selectedScreen = null;
           this.editingScreen = false;
         }
-        this.toast.success(`Screen “${target.name}” deleted.`);
+        this.toast.success(
+          this.transloco.translate('screens.toast.deleted', { name: target.name }),
+        );
         this.loadScreens();
       },
       error: (err) => {
         this.deleting = false;
         this.showDeleteConfirm = false;
-        this.actionError = err.error?.message || 'Failed to delete screen.';
+        this.actionError =
+          err.error?.message || this.transloco.translate('screens.errors.deleteScreen');
       },
     });
   }
@@ -442,8 +459,10 @@ export class Screens implements OnInit, OnDestroy {
   get screenSubtitle(): string {
     const online = this.screens.filter((s) => s.isOnline).length;
     const offline = this.screens.length - online;
-    if (!this.screens.length) return 'Pair and manage every display in your network';
-    return `${online} online · ${offline} offline`;
+    if (!this.screens.length) {
+      return this.transloco.translate('screens.list.subtitleDefault');
+    }
+    return this.transloco.translate('screens.list.subtitleCounts', { online, offline });
   }
 
   goBack(): void {

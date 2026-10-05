@@ -2,6 +2,7 @@ import { TestBed, getTestBed, ComponentFixture } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
 import { BulkConfirmDialogComponent } from './bulk-confirm-dialog';
+import { getTranslocoTestingModule } from '../../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -45,6 +46,7 @@ describe('BulkConfirmDialogComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [provideZonelessChangeDetection()],
     });
     fixture = TestBed.createComponent(TestHostComponent);

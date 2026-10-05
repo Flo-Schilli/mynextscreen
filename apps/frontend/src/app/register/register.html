@@ -1,4 +1,4 @@
-<div class="flex min-h-screen items-center justify-center bg-bg px-4 py-10">
+<div class="flex min-h-screen items-center justify-center bg-bg px-4 py-10" *transloco="let t">
   <div
     class="w-full max-w-[400px]"
     style="animation: fadeUp 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both"
@@ -40,27 +40,26 @@
           >
             <mns-icon name="CheckCircle" [size]="28" class="text-accent" />
           </div>
-          <h1 class="text-xl font-bold tracking-tight">Check your inbox</h1>
+          <h1 class="text-xl font-bold tracking-tight">{{ t('register.success.title') }}</h1>
           <p class="text-[13.5px] leading-relaxed text-muted">
-            Almost there — we sent a verification link to your email. Click it to activate your
-            account and organisation.
+            {{ t('register.success.body') }}
           </p>
           <a
             routerLink="/login"
             class="inline-flex items-center gap-1.5 text-sm font-bold text-accent hover:opacity-80"
           >
-            <mns-icon name="ChevronLeft" [size]="15" />Back to sign in
+            <mns-icon name="ChevronLeft" [size]="15" />{{ t('register.backToSignIn') }}
           </a>
         </div>
       } @else {
-        <h1 class="mb-1.5 text-[22px] font-extrabold tracking-tight">Create your account</h1>
-        <p class="mb-6 text-[13.5px] text-muted">Start managing your screens in minutes.</p>
+        <h1 class="mb-1.5 text-[22px] font-extrabold tracking-tight">{{ t('register.title') }}</h1>
+        <p class="mb-6 text-[13.5px] text-muted">{{ t('register.subtitle') }}</p>
 
         <form [formGroup]="form" (ngSubmit)="submit()" class="flex flex-col gap-4">
           <!-- Email -->
           <div>
             <label for="email" class="mb-2 block text-[13px] font-semibold text-muted">
-              Email <span class="text-accent">*</span>
+              {{ t('register.emailLabel') }} <span class="text-accent">*</span>
             </label>
             <div
               class="flex items-center rounded-[12px] border bg-surface-2 transition-all duration-150"
@@ -75,19 +74,19 @@
                 type="email"
                 formControlName="email"
                 autocomplete="username"
-                placeholder="you@company.com"
+                [placeholder]="t('register.emailPlaceholder')"
                 class="min-w-0 flex-1 bg-transparent py-3 pl-2.5 pr-3.5 text-sm text-text outline-none placeholder:text-faint"
               />
             </div>
             @if (form.controls.email.touched && form.controls.email.invalid) {
-              <p class="mt-1 text-sm text-offline">Enter a valid email address.</p>
+              <p class="mt-1 text-sm text-offline">{{ t('register.emailInvalid') }}</p>
             }
           </div>
 
           <!-- Organisation name -->
           <div>
             <label for="organisationName" class="mb-2 block text-[13px] font-semibold text-muted">
-              Organisation name <span class="text-accent">*</span>
+              {{ t('register.orgNameLabel') }} <span class="text-accent">*</span>
             </label>
             <div
               class="flex items-center rounded-[12px] border bg-surface-2 transition-all duration-150"
@@ -102,19 +101,19 @@
                 type="text"
                 formControlName="organisationName"
                 autocomplete="organization"
-                placeholder="Your company or workspace"
+                [placeholder]="t('register.orgNamePlaceholder')"
                 class="min-w-0 flex-1 bg-transparent py-3 pl-2.5 pr-3.5 text-sm text-text outline-none placeholder:text-faint"
               />
             </div>
             @if (form.controls.organisationName.touched && form.controls.organisationName.invalid) {
-              <p class="mt-1 text-sm text-offline">An organisation name is required.</p>
+              <p class="mt-1 text-sm text-offline">{{ t('register.orgNameRequired') }}</p>
             }
           </div>
 
           <!-- Password -->
           <div>
             <label for="password" class="mb-2 block text-[13px] font-semibold text-muted">
-              Password <span class="text-accent">*</span>
+              {{ t('register.passwordLabel') }} <span class="text-accent">*</span>
             </label>
             <div
               class="flex items-center rounded-[12px] border bg-surface-2 transition-all duration-150"
@@ -134,14 +133,14 @@
               />
             </div>
             @if (form.controls.password.touched && form.controls.password.invalid) {
-              <p class="mt-1 text-sm text-offline">Use at least 8 characters.</p>
+              <p class="mt-1 text-sm text-offline">{{ t('register.passwordMinLength') }}</p>
             }
           </div>
 
           <!-- Confirm password -->
           <div>
             <label for="confirmPassword" class="mb-2 block text-[13px] font-semibold text-muted">
-              Confirm password <span class="text-accent">*</span>
+              {{ t('register.confirmPasswordLabel') }} <span class="text-accent">*</span>
             </label>
             <div
               class="flex items-center rounded-[12px] border bg-surface-2 transition-all duration-150"
@@ -161,7 +160,7 @@
               />
             </div>
             @if (form.touched && form.hasError('mismatch')) {
-              <p class="mt-1 text-sm text-offline">Passwords do not match.</p>
+              <p class="mt-1 text-sm text-offline">{{ t('register.passwordMismatch') }}</p>
             }
           </div>
 
@@ -176,13 +175,15 @@
             [disabled]="submitting()"
             (mnsClick)="submit()"
           >
-            {{ submitting() ? 'Creating…' : 'Create account' }}
+            {{ submitting() ? t('register.submitting') : t('register.submit') }}
           </mns-btn>
         </form>
 
         <p class="mt-5 text-center text-sm text-muted">
-          Already have an account?
-          <a routerLink="/login" class="font-bold text-accent hover:opacity-80">Sign in</a>
+          {{ t('register.haveAccount') }}
+          <a routerLink="/login" class="font-bold text-accent hover:opacity-80">{{
+            t('register.signIn')
+          }}</a>
         </p>
       }
     </div>

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, output, signal } from '@ang
 import { HttpClient } from '@angular/common/http';
 import { SecurityContext } from '@angular/core';
 import { DomSanitizer } from '@angular/platform-browser';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { OverlayComponent, ModalComponent, IconComponent } from '../ui';
 
 interface PlayerApp {
@@ -21,105 +22,107 @@ interface PlayerApp {
   selector: 'app-player-apps-help',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayComponent, ModalComponent, IconComponent],
+  imports: [OverlayComponent, ModalComponent, IconComponent, TranslocoDirective],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
-      <mns-modal
-        title="Player installieren"
-        icon="Download"
-        [widthPx]="680"
-        (closed)="dismiss.emit()"
-      >
-        @if (loading()) {
-          <div class="flex items-center justify-center py-12 text-muted text-sm">
-            Lade Player-Apps…
-          </div>
-        } @else if (loadError()) {
-          <div
-            class="rounded-xl border border-offline-dim bg-offline-dim/30 px-5 py-4 text-sm text-offline"
-          >
-            {{ loadError() }}
-          </div>
-        } @else if (!selectedApp()) {
-          <!-- App list -->
-          <div class="flex flex-col gap-3">
-            <p class="text-sm text-muted mb-1">
-              Wähle eine Plattform für die Installationsanleitung und den Download.
-            </p>
-            @for (app of apps(); track app.slug) {
-              <button
-                type="button"
-                class="flex items-center gap-4 rounded-xl border border-border bg-surface-raised px-5 py-4 text-left transition-colors duration-[120ms] hover:border-accent hover:bg-accent-soft cursor-pointer"
-                (click)="selectApp(app)"
-              >
-                <div
-                  class="w-10 h-10 rounded-[10px] bg-accent-soft text-accent grid place-items-center flex-shrink-0"
+    <ng-container *transloco="let t">
+      <mns-overlay (closed)="dismiss.emit()">
+        <mns-modal
+          [title]="t('screens.playerApps.title')"
+          icon="Download"
+          [widthPx]="680"
+          (closed)="dismiss.emit()"
+        >
+          @if (loading()) {
+            <div class="flex items-center justify-center py-12 text-muted text-sm">
+              {{ t('screens.playerApps.loading') }}
+            </div>
+          } @else if (loadError()) {
+            <div
+              class="rounded-xl border border-offline-dim bg-offline-dim/30 px-5 py-4 text-sm text-offline"
+            >
+              {{ loadError() }}
+            </div>
+          } @else if (!selectedApp()) {
+            <!-- App list -->
+            <div class="flex flex-col gap-3">
+              <p class="text-sm text-muted mb-1">
+                {{ t('screens.playerApps.choosePlatform') }}
+              </p>
+              @for (app of apps(); track app.slug) {
+                <button
+                  type="button"
+                  class="flex items-center gap-4 rounded-xl border border-border bg-surface-raised px-5 py-4 text-left transition-colors duration-[120ms] hover:border-accent hover:bg-accent-soft cursor-pointer"
+                  (click)="selectApp(app)"
                 >
-                  <mns-icon name="Screens" [size]="20" />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <p class="font-semibold text-sm">{{ app.name }}</p>
-                  <p class="text-xs text-muted mt-0.5">
-                    @if (app.downloadAvailable) {
-                      Anleitung + IPK-Binary verfügbar
-                    } @else {
-                      Anleitung verfügbar
-                    }
-                  </p>
-                </div>
-                <mns-icon
-                  name="ChevronLeft"
-                  [size]="16"
-                  class="text-muted"
-                  style="transform: rotate(180deg)"
-                />
-              </button>
-            }
-          </div>
-        } @else {
-          <!-- App detail: guide + download -->
-          <div class="flex flex-col gap-4">
-            <!-- Back + download row -->
-            <div class="flex items-center gap-3">
-              <button
-                type="button"
-                class="flex items-center gap-1.5 text-xs text-muted hover:text-text transition-colors duration-[120ms]"
-                (click)="clearApp()"
-              >
-                <mns-icon name="ChevronLeft" [size]="12" />
-                Alle Plattformen
-              </button>
-              <span class="flex-1"></span>
-              @if (selectedApp()!.downloadAvailable) {
-                <a
-                  [href]="'/api/player-apps/' + selectedApp()!.slug + '/download'"
-                  download
-                  class="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90"
-                >
-                  <mns-icon name="Download" [size]="13" />
-                  IPK herunterladen
-                </a>
+                  <div
+                    class="w-10 h-10 rounded-[10px] bg-accent-soft text-accent grid place-items-center flex-shrink-0"
+                  >
+                    <mns-icon name="Screens" [size]="20" />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-sm">{{ app.name }}</p>
+                    <p class="text-xs text-muted mt-0.5">
+                      @if (app.downloadAvailable) {
+                        {{ t('screens.playerApps.guideAndBinary') }}
+                      } @else {
+                        {{ t('screens.playerApps.guideOnly') }}
+                      }
+                    </p>
+                  </div>
+                  <mns-icon
+                    name="ChevronLeft"
+                    [size]="16"
+                    class="text-muted"
+                    style="transform: rotate(180deg)"
+                  />
+                </button>
               }
             </div>
+          } @else {
+            <!-- App detail: guide + download -->
+            <div class="flex flex-col gap-4">
+              <!-- Back + download row -->
+              <div class="flex items-center gap-3">
+                <button
+                  type="button"
+                  class="flex items-center gap-1.5 text-xs text-muted hover:text-text transition-colors duration-[120ms]"
+                  (click)="clearApp()"
+                >
+                  <mns-icon name="ChevronLeft" [size]="12" />
+                  {{ t('screens.playerApps.allPlatforms') }}
+                </button>
+                <span class="flex-1"></span>
+                @if (selectedApp()!.downloadAvailable) {
+                  <a
+                    [href]="'/api/player-apps/' + selectedApp()!.slug + '/download'"
+                    download
+                    class="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                  >
+                    <mns-icon name="Download" [size]="13" />
+                    {{ t('screens.playerApps.downloadIpk') }}
+                  </a>
+                }
+              </div>
 
-            <!-- Guide content -->
-            @if (guideLoading()) {
-              <div class="flex items-center justify-center py-10 text-muted text-sm">
-                Lade Anleitung…
-              </div>
-            } @else if (guideError()) {
-              <div
-                class="rounded-xl border border-offline-dim bg-offline-dim/30 px-5 py-4 text-sm text-offline"
-              >
-                {{ guideError() }}
-              </div>
-            } @else {
-              <div class="player-guide" [innerHTML]="safeGuideHtml()"></div>
-            }
-          </div>
-        }
-      </mns-modal>
-    </mns-overlay>
+              <!-- Guide content -->
+              @if (guideLoading()) {
+                <div class="flex items-center justify-center py-10 text-muted text-sm">
+                  {{ t('screens.playerApps.loadingGuide') }}
+                </div>
+              } @else if (guideError()) {
+                <div
+                  class="rounded-xl border border-offline-dim bg-offline-dim/30 px-5 py-4 text-sm text-offline"
+                >
+                  {{ guideError() }}
+                </div>
+              } @else {
+                <div class="player-guide" [innerHTML]="safeGuideHtml()"></div>
+              }
+            </div>
+          }
+        </mns-modal>
+      </mns-overlay>
+    </ng-container>
   `,
 })
 export class PlayerAppsHelp {
@@ -127,6 +130,7 @@ export class PlayerAppsHelp {
 
   private readonly http = inject(HttpClient);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly transloco = inject(TranslocoService);
 
   readonly loading = signal(true);
   readonly loadError = signal('');
@@ -148,7 +152,7 @@ export class PlayerAppsHelp {
         this.loading.set(false);
       },
       error: () => {
-        this.loadError.set('Player-Apps konnten nicht geladen werden.');
+        this.loadError.set(this.transloco.translate('screens.playerApps.loadError'));
         this.loading.set(false);
       },
     });
@@ -167,7 +171,7 @@ export class PlayerAppsHelp {
         this.guideLoading.set(false);
       },
       error: () => {
-        this.guideError.set('Anleitung konnte nicht geladen werden.');
+        this.guideError.set(this.transloco.translate('screens.playerApps.guideError'));
         this.guideLoading.set(false);
       },
     });

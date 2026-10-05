@@ -1,4 +1,5 @@
 import { Component, inject, input, output, ChangeDetectionStrategy } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { Content } from './content.model';
 import { ContentFormatService } from './content-format.service';
 import { SelectionService } from '../shared/selection/selection.service';
@@ -15,77 +16,91 @@ import { BulkActionToolbarComponent, BulkAction } from '../shared/selection/bulk
 @Component({
   selector: 'app-content-grid',
   standalone: true,
-  imports: [SelectionCheckboxComponent, SelectAllCheckboxComponent, BulkActionToolbarComponent],
+  imports: [
+    SelectionCheckboxComponent,
+    SelectAllCheckboxComponent,
+    BulkActionToolbarComponent,
+    TranslocoDirective,
+  ],
   template: `
-    <div class="grid-header">
-      <app-select-all-checkbox [allIds]="contentIds()" />
-    </div>
-    <div class="content-grid">
-      @for (item of items(); track item.id; let i = $index) {
-        <div
-          class="content-card"
-          [class.selected]="selectionService.isSelected(item.id)()"
-          (click)="selectItem.emit(item)"
-          tabindex="0"
-          role="button"
-          (keydown.enter)="selectItem.emit(item)"
-          (keydown.space)="selectItem.emit(item)"
-        >
-          <div class="card-thumbnail">
-            <div class="card-checkbox" [class.any-selected]="selectionService.hasSelection()">
-              <app-selection-checkbox
-                [itemId]="item.id"
-                [itemIndex]="i"
-                [orderedIds]="contentIds()"
-                (click)="$event.stopPropagation()"
-              />
-            </div>
-            @if (item.transcodingStatus === 'completed' && thumbUrl()(item); as src) {
-              <img [src]="src" alt="" class="thumb-img" loading="lazy" />
-              @if (item.type === 'video') {
-                <span class="thumb-play-overlay" aria-hidden="true">
-                  <span class="thumb-play-badge">&#9654;</span>
-                </span>
-              }
-            } @else if (item.type === 'video') {
-              <div class="thumb-placeholder video">
-                <span class="thumb-icon">&#9654;</span>
+    <ng-container *transloco="let t">
+      <div class="grid-header">
+        <app-select-all-checkbox [allIds]="contentIds()" />
+      </div>
+      <div class="content-grid">
+        @for (item of items(); track item.id; let i = $index) {
+          <div
+            class="content-card"
+            [class.selected]="selectionService.isSelected(item.id)()"
+            (click)="selectItem.emit(item)"
+            tabindex="0"
+            role="button"
+            (keydown.enter)="selectItem.emit(item)"
+            (keydown.space)="selectItem.emit(item)"
+          >
+            <div class="card-thumbnail">
+              <div class="card-checkbox" [class.any-selected]="selectionService.hasSelection()">
+                <app-selection-checkbox
+                  [itemId]="item.id"
+                  [itemIndex]="i"
+                  [orderedIds]="contentIds()"
+                  (click)="$event.stopPropagation()"
+                />
               </div>
-            } @else {
-              <div class="thumb-placeholder">
-                <span class="thumb-icon">&#128247;</span>
-              </div>
-            }
-            <!-- Transcoding overlay -->
-            @if (item.transcodingStatus !== 'completed') {
-              <div class="transcoding-overlay">
-                @if (item.transcodingStatus === 'pending') {
-                  <span class="overlay-text">Pending</span>
-                } @else if (item.transcodingStatus === 'processing') {
-                  <span class="overlay-text">{{ transcodingProgress()[item.id] ?? 0 }}%</span>
-                  <div class="overlay-bar">
-                    <div
-                      class="overlay-fill"
-                      [style.width.%]="transcodingProgress()[item.id] ?? 0"
-                    ></div>
-                  </div>
-                } @else {
-                  <span class="overlay-text failed">Failed</span>
+              @if (item.transcodingStatus === 'completed' && thumbUrl()(item); as src) {
+                <img [src]="src" alt="" class="thumb-img" loading="lazy" />
+                @if (item.type === 'video') {
+                  <span class="thumb-play-overlay" aria-hidden="true">
+                    <span class="thumb-play-badge">&#9654;</span>
+                  </span>
                 }
-              </div>
-            }
+              } @else if (item.type === 'video') {
+                <div class="thumb-placeholder video">
+                  <span class="thumb-icon">&#9654;</span>
+                </div>
+              } @else {
+                <div class="thumb-placeholder">
+                  <span class="thumb-icon">&#128247;</span>
+                </div>
+              }
+              <!-- Transcoding overlay -->
+              @if (item.transcodingStatus !== 'completed') {
+                <div class="transcoding-overlay">
+                  @if (item.transcodingStatus === 'pending') {
+                    <span class="overlay-text">{{ t('content.grid.pending') }}</span>
+                  } @else if (item.transcodingStatus === 'processing') {
+                    <span class="overlay-text">{{
+                      t('content.transcoding.percent', {
+                        progress: transcodingProgress()[item.id] ?? 0,
+                      })
+                    }}</span>
+                    <div class="overlay-bar">
+                      <div
+                        class="overlay-fill"
+                        [style.width.%]="transcodingProgress()[item.id] ?? 0"
+                      ></div>
+                    </div>
+                  } @else {
+                    <span class="overlay-text failed">{{ t('content.grid.failed') }}</span>
+                  }
+                </div>
+              }
+            </div>
+            <div class="card-info">
+              <span class="card-title">{{ item.title }}</span>
+              <span class="card-meta">{{
+                t('content.grid.meta', {
+                  type: t('content.type.' + item.type),
+                  size: format.formatBytes(item.originalSizeBytes),
+                })
+              }}</span>
+            </div>
           </div>
-          <div class="card-info">
-            <span class="card-title">{{ item.title }}</span>
-            <span class="card-meta"
-              >{{ item.type }} &middot; {{ format.formatBytes(item.originalSizeBytes) }}</span
-            >
-          </div>
-        </div>
-      }
-    </div>
+        }
+      </div>
 
-    <app-bulk-action-toolbar [actions]="bulkActions()" />
+      <app-bulk-action-toolbar [actions]="bulkActions()" />
+    </ng-container>
   `,
   changeDetection: ChangeDetectionStrategy.Eager,
   styles: `

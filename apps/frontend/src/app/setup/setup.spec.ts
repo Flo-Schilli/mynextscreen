@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { vi } from 'vitest';
 import { Setup } from './setup';
 import { SetupService } from './setup.service';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -20,7 +21,7 @@ function configure(createFirstAdmin = vi.fn(() => Promise.resolve())): {
 } {
   const navigateByUrl = vi.fn(() => Promise.resolve(true));
   TestBed.configureTestingModule({
-    imports: [Setup],
+    imports: [Setup, getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
     providers: [
       provideZonelessChangeDetection(),
       { provide: SetupService, useValue: { createFirstAdmin, setupNeeded: () => true } },

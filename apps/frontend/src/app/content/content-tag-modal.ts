@@ -1,5 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, input, model, output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  model,
+  output,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { OverlayComponent, ModalComponent, BtnComponent, SFieldComponent } from '../ui';
 
 /**
@@ -15,17 +24,24 @@ import { OverlayComponent, ModalComponent, BtnComponent, SFieldComponent } from 
   selector: 'app-content-tag-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, OverlayComponent, ModalComponent, BtnComponent, SFieldComponent],
+  imports: [
+    FormsModule,
+    OverlayComponent,
+    ModalComponent,
+    BtnComponent,
+    SFieldComponent,
+    TranslocoDirective,
+  ],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
+    <mns-overlay (closed)="dismiss.emit()" *transloco="let t">
       <mns-modal [title]="title()" icon="Hash" (closed)="dismiss.emit()">
-        <mns-sfield label="Tags (comma-separated)">
+        <mns-sfield [label]="t('content.tagModal.fieldLabel')">
           <input
             id="bulkTagInput"
             type="text"
             [(ngModel)]="value"
             name="bulkTagInput"
-            placeholder="e.g. promo, seasonal"
+            [placeholder]="t('content.tagModal.placeholder')"
             class="w-full px-3 py-2.5 rounded-[10px] bg-surface-2 border border-border-strong text-sm text-text outline-none transition-all duration-150 focus:border-accent placeholder:text-faint"
           />
         </mns-sfield>
@@ -50,7 +66,9 @@ import { OverlayComponent, ModalComponent, BtnComponent, SFieldComponent } from 
         }
 
         <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
-          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">{{
+            t('common.actions.cancel')
+          }}</mns-btn>
           <mns-btn variant="primary" [disabled]="!value().trim()" (mnsClick)="confirm.emit()">
             {{ title() }}
           </mns-btn>
@@ -66,7 +84,13 @@ export class ContentTagModal {
   readonly confirm = output<void>();
   readonly dismiss = output<void>();
 
-  protected readonly title = computed(() => (this.mode() === 'add' ? 'Add Tags' : 'Remove Tags'));
+  private transloco = inject(TranslocoService);
+
+  protected readonly title = computed(() =>
+    this.transloco.translate(
+      this.mode() === 'add' ? 'content.tagModal.addTitle' : 'content.tagModal.removeTitle',
+    ),
+  );
 
   protected selectedTags(): string[] {
     return this.value()

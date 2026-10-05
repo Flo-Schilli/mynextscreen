@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, OnInit, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { ScheduleEntry, SchedulePriority, TargetOption } from './schedule.model';
 import { Playlist } from '../playlists/playlist.model';
 import { ScreenGroup } from '../screen-groups/screen-group.model';
@@ -24,41 +25,32 @@ export const PRESET_COLOURS = [
   '#06b6d4',
 ];
 
-const WEEKDAY_OPTIONS = [
-  { value: 'MO', label: 'Mon' },
-  { value: 'TU', label: 'Tue' },
-  { value: 'WE', label: 'Wed' },
-  { value: 'TH', label: 'Thu' },
-  { value: 'FR', label: 'Fri' },
-  { value: 'SA', label: 'Sat' },
-  { value: 'SU', label: 'Sun' },
-];
+/** Weekday toggle values (labels resolved from `schedules.form.weekday.*`). */
+const WEEKDAY_VALUES = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
 
 /** Quick weekday presets shown alongside the per-day toggles. */
-const WEEKDAY_PRESETS: { label: string; days: string[] }[] = [
-  { label: 'Mon–Fri', days: ['MO', 'TU', 'WE', 'TH', 'FR'] },
-  { label: 'Weekends', days: ['SA', 'SU'] },
-  { label: 'All days', days: ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'] },
+const WEEKDAY_PRESETS: { labelKey: string; days: string[] }[] = [
+  { labelKey: 'schedules.form.weekdayPreset.monFri', days: ['MO', 'TU', 'WE', 'TH', 'FR'] },
+  { labelKey: 'schedules.form.weekdayPreset.weekends', days: ['SA', 'SU'] },
+  {
+    labelKey: 'schedules.form.weekdayPreset.allDays',
+    days: ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'],
+  },
 ];
 
 /** Quick start/end time presets for the time window. */
-const TIME_PRESETS: { label: string; start: string; end: string }[] = [
-  { label: 'Business 09–17', start: '09:00', end: '17:00' },
-  { label: 'Morning 06–12', start: '06:00', end: '12:00' },
-  { label: 'Evening 17–22', start: '17:00', end: '22:00' },
-  { label: 'All day 06–23', start: '06:00', end: '23:00' },
+const TIME_PRESETS: { labelKey: string; start: string; end: string }[] = [
+  { labelKey: 'schedules.form.timePreset.business', start: '09:00', end: '17:00' },
+  { labelKey: 'schedules.form.timePreset.morning', start: '06:00', end: '12:00' },
+  { labelKey: 'schedules.form.timePreset.evening', start: '17:00', end: '22:00' },
+  { labelKey: 'schedules.form.timePreset.allDay', start: '06:00', end: '23:00' },
 ];
 
-const RECURRENCE_OPTIONS: { value: RecurrenceType; label: string }[] = [
-  { value: 'none', label: 'One-off' },
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'weekdays', label: 'Specific days' },
-];
+const RECURRENCE_VALUES: RecurrenceType[] = ['none', 'daily', 'weekly', 'weekdays'];
 
-const PRIORITY_OPTIONS: { value: SchedulePriority; label: string; icon: IconName }[] = [
-  { value: 'normal', label: 'Normal', icon: 'Clock' },
-  { value: 'high', label: 'High', icon: 'Layers' },
+const PRIORITY_OPTIONS: { value: SchedulePriority; icon: IconName }[] = [
+  { value: 'normal', icon: 'Clock' },
+  { value: 'high', icon: 'Layers' },
 ];
 
 /** The raw form values the modal emits; the parent validates and persists them. */
@@ -93,12 +85,13 @@ export interface ScheduleFormResult {
     BtnComponent,
     IconComponent,
     SelectComponent,
+    TranslocoDirective,
   ],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
+    <mns-overlay (closed)="dismiss.emit()" *transloco="let t">
       <mns-modal
-        [title]="editingEntry() ? 'Edit Schedule Entry' : 'Create Schedule Entry'"
-        sub="Decide when a playlist plays — and where"
+        [title]="editingEntry() ? t('schedules.form.editTitle') : t('schedules.form.createTitle')"
+        [sub]="t('schedules.form.sub')"
         icon="Calendar"
         [widthPx]="680"
         (closed)="dismiss.emit()"
@@ -107,13 +100,15 @@ export interface ScheduleFormResult {
           <div class="flex flex-col gap-5">
             <!-- Name -->
             <div>
-              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Schedule name</div>
+              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">
+                {{ t('schedules.form.nameLabel') }}
+              </div>
               <input
                 type="text"
                 [(ngModel)]="name"
                 name="modalName"
                 maxlength="120"
-                placeholder="e.g. Morning Welcome (optional)"
+                [placeholder]="t('schedules.form.namePlaceholder')"
                 class="w-full px-3.5 py-2.5 rounded-[10px] bg-surface-2 border border-border-strong text-text text-sm"
               />
             </div>
@@ -121,11 +116,13 @@ export interface ScheduleFormResult {
             <!-- Target Selector (create only) -->
             @if (!editingEntry()) {
               <div id="modalTarget">
-                <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Target</div>
+                <div class="text-[12.5px] font-semibold text-muted mb-[9px]">
+                  {{ t('schedules.form.targetLabel') }}
+                </div>
                 <mns-select
                   [options]="targetSelectOptions()"
                   [value]="targetId"
-                  placeholder="Select a screen or group"
+                  [placeholder]="t('schedules.form.targetPlaceholder')"
                   (changed)="onTargetChange($event)"
                 />
               </div>
@@ -135,11 +132,19 @@ export interface ScheduleFormResult {
                   class="info-box rounded-[10px] px-3.5 py-2.5 text-[13px] text-muted border"
                   style="background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border-color: color-mix(in srgb, var(--accent) 25%, var(--border))"
                 >
-                  <span class="font-bold text-text">Mode:</span>
-                  {{ targetGroup.mode === 'mirror' ? 'Mirror' : 'Split' }} ({{
+                  <span class="font-bold text-text">{{ t('schedules.form.modeLabel') }}</span>
+                  {{
                     targetGroup.mode === 'mirror'
-                      ? 'all screens show the same content'
-                      : targetGroup.gridColumns + 'x' + targetGroup.gridRows + ' grid'
+                      ? t('schedules.form.modeMirror')
+                      : t('schedules.form.modeSplit')
+                  }}
+                  ({{
+                    targetGroup.mode === 'mirror'
+                      ? t('schedules.form.modeMirrorDesc')
+                      : t('schedules.form.modeSplitDesc', {
+                          columns: targetGroup.gridColumns,
+                          rows: targetGroup.gridRows,
+                        })
                   }})
                 </div>
               }
@@ -149,17 +154,18 @@ export interface ScheduleFormResult {
                   class="info-box info-box-warn rounded-[10px] px-3.5 py-2.5 text-[13px] text-muted border"
                   style="background: color-mix(in srgb, var(--color-warn) 8%, var(--surface)); border-color: color-mix(in srgb, var(--color-warn) 28%, var(--border))"
                 >
-                  Content will be pre-sliced for each screen in the video wall. This may take a
-                  moment to process after saving.
+                  {{ t('schedules.form.splitWarning') }}
                 </div>
               }
             }
 
             <!-- Playlist card grid -->
             <div>
-              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Playlist to play</div>
+              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">
+                {{ t('schedules.form.playlistLabel') }}
+              </div>
               @if (playlists().length === 0) {
-                <div class="text-[13px] text-muted">No playlists yet — create one first.</div>
+                <div class="text-[13px] text-muted">{{ t('schedules.form.noPlaylists') }}</div>
               } @else {
                 <div
                   class="grid gap-2"
@@ -191,9 +197,9 @@ export interface ScheduleFormResult {
                         <span class="block text-[13.5px] font-semibold text-text truncate">{{
                           p.name
                         }}</span>
-                        <span class="block text-[11.5px] text-muted"
-                          >{{ p.items.length }} items</span
-                        >
+                        <span class="block text-[11.5px] text-muted">{{
+                          t('schedules.form.playlistItems', { count: p.items.length })
+                        }}</span>
                       </span>
                       @if (playlistId === p.id) {
                         <mns-icon name="Check" [size]="16" class="text-accent flex-shrink-0" />
@@ -206,22 +212,24 @@ export interface ScheduleFormResult {
 
             <!-- Recurrence -->
             <div>
-              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">When does it run?</div>
+              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">
+                {{ t('schedules.form.whenLabel') }}
+              </div>
               <div
                 class="flex gap-[2px] p-[3px] rounded-[11px] bg-surface-2 border border-border w-fit"
               >
-                @for (r of recurrenceOptions; track r.value) {
+                @for (r of recurrenceValues; track r) {
                   <button
                     type="button"
                     class="recurrence-btn px-3 py-[5px] rounded-lg text-[13px] font-semibold cursor-pointer transition-all duration-[150ms]"
-                    [class.active]="recurrence === r.value"
-                    [class.bg-surface]="recurrence === r.value"
-                    [class.text-text]="recurrence === r.value"
-                    [class.text-muted]="recurrence !== r.value"
-                    [style.box-shadow]="recurrence === r.value ? 'var(--shadow)' : 'none'"
-                    (click)="setRecurrence(r.value)"
+                    [class.active]="recurrence === r"
+                    [class.bg-surface]="recurrence === r"
+                    [class.text-text]="recurrence === r"
+                    [class.text-muted]="recurrence !== r"
+                    [style.box-shadow]="recurrence === r ? 'var(--shadow)' : 'none'"
+                    (click)="setRecurrence(r)"
                   >
-                    {{ r.label }}
+                    {{ t('schedules.form.recurrence.' + r) }}
                   </button>
                 }
               </div>
@@ -229,25 +237,27 @@ export interface ScheduleFormResult {
 
             @if (recurrence === 'weekdays') {
               <div>
-                <span class="text-[12.5px] font-semibold text-muted mb-[9px] block">Days</span>
+                <span class="text-[12.5px] font-semibold text-muted mb-[9px] block">{{
+                  t('schedules.form.daysLabel')
+                }}</span>
                 <div class="flex gap-2 flex-wrap mb-2.5">
-                  @for (wd of weekdayOptions; track wd.value) {
+                  @for (wd of weekdayValues; track wd) {
                     <button
                       type="button"
                       class="weekday-checkbox px-3 py-[6px] rounded-lg text-[13px] font-semibold cursor-pointer transition-all duration-[150ms] border"
-                      [class.border-accent]="weekdays.includes(wd.value)"
-                      [class.text-accent]="weekdays.includes(wd.value)"
-                      [class.bg-accent-soft]="weekdays.includes(wd.value)"
-                      [class.border-border-strong]="!weekdays.includes(wd.value)"
-                      [class.text-muted]="!weekdays.includes(wd.value)"
-                      (click)="toggleWeekday(wd.value)"
+                      [class.border-accent]="weekdays.includes(wd)"
+                      [class.text-accent]="weekdays.includes(wd)"
+                      [class.bg-accent-soft]="weekdays.includes(wd)"
+                      [class.border-border-strong]="!weekdays.includes(wd)"
+                      [class.text-muted]="!weekdays.includes(wd)"
+                      (click)="toggleWeekday(wd)"
                     >
-                      {{ wd.label }}
+                      {{ t('schedules.form.weekday.' + wd) }}
                     </button>
                   }
                 </div>
                 <div class="flex gap-[7px] flex-wrap">
-                  @for (preset of weekdayPresets; track preset.label) {
+                  @for (preset of weekdayPresets; track preset.labelKey) {
                     <button
                       type="button"
                       class="day-preset px-[11px] py-[5px] rounded-full text-xs font-semibold cursor-pointer border transition-colors duration-[120ms]"
@@ -258,7 +268,7 @@ export interface ScheduleFormResult {
                       [class.text-muted]="!isWeekdayPresetActive(preset.days)"
                       (click)="applyWeekdayPreset(preset.days)"
                     >
-                      {{ preset.label }}
+                      {{ t(preset.labelKey) }}
                     </button>
                   }
                 </div>
@@ -269,7 +279,9 @@ export interface ScheduleFormResult {
             <div>
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Start</div>
+                  <div class="text-[12.5px] font-semibold text-muted mb-[9px]">
+                    {{ t('schedules.form.startLabel') }}
+                  </div>
                   <div class="flex gap-2">
                     <input
                       type="date"
@@ -288,7 +300,9 @@ export interface ScheduleFormResult {
                   </div>
                 </div>
                 <div>
-                  <div class="text-[12.5px] font-semibold text-muted mb-[9px]">End</div>
+                  <div class="text-[12.5px] font-semibold text-muted mb-[9px]">
+                    {{ t('schedules.form.endLabel') }}
+                  </div>
                   <div class="flex gap-2">
                     <input
                       type="date"
@@ -313,11 +327,11 @@ export interface ScheduleFormResult {
               </div>
 
               @if (isTimeRangeInvalid()) {
-                <p class="text-xs text-offline mt-[7px]">End must be after the start.</p>
+                <p class="text-xs text-offline mt-[7px]">{{ t('schedules.form.endAfterStart') }}</p>
               }
 
               <div class="flex gap-[7px] flex-wrap mt-2.5">
-                @for (preset of timePresets; track preset.label) {
+                @for (preset of timePresets; track preset.labelKey) {
                   <button
                     type="button"
                     class="time-preset px-[11px] py-[5px] rounded-full text-xs font-semibold cursor-pointer border transition-colors duration-[120ms]"
@@ -328,7 +342,7 @@ export interface ScheduleFormResult {
                     [class.text-muted]="!isTimePresetActive(preset)"
                     (click)="applyTimePreset(preset)"
                   >
-                    {{ preset.label }}
+                    {{ t(preset.labelKey) }}
                   </button>
                 }
               </div>
@@ -337,9 +351,11 @@ export interface ScheduleFormResult {
             <!-- Priority -->
             <div>
               <span class="flex items-center gap-2 text-[12.5px] font-semibold text-muted mb-[9px]">
-                Priority
+                {{ t('schedules.form.priorityLabel') }}
                 @if (priority === 'high') {
-                  <span class="text-accent font-semibold">· wins when schedules overlap</span>
+                  <span class="text-accent font-semibold">{{
+                    t('schedules.form.priorityHint')
+                  }}</span>
                 }
               </span>
               <div class="flex gap-2">
@@ -355,7 +371,7 @@ export interface ScheduleFormResult {
                     (click)="priority = p.value"
                   >
                     <mns-icon [name]="p.icon" [size]="16" />
-                    {{ p.label }}
+                    {{ t('schedules.form.priority.' + p.value) }}
                   </button>
                 }
               </div>
@@ -363,7 +379,9 @@ export interface ScheduleFormResult {
 
             <!-- Colour -->
             <div>
-              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">Colour</div>
+              <div class="text-[12.5px] font-semibold text-muted mb-[9px]">
+                {{ t('schedules.form.colourLabel') }}
+              </div>
               <div class="flex gap-[9px] items-center flex-wrap">
                 @for (c of presetColours; track c) {
                   <button
@@ -372,7 +390,7 @@ export interface ScheduleFormResult {
                     [style.background]="c"
                     [style.border]="colour === c ? '2px solid #fff' : '2px solid transparent'"
                     [style.box-shadow]="colour === c ? '0 0 0 2px ' + c : 'none'"
-                    [attr.aria-label]="'Select colour ' + c"
+                    [attr.aria-label]="t('schedules.form.selectColour', { colour: c })"
                     (click)="colour = c"
                   ></button>
                 }
@@ -380,7 +398,7 @@ export interface ScheduleFormResult {
                   type="color"
                   [(ngModel)]="colour"
                   name="modalColourCustom"
-                  aria-label="Custom colour"
+                  [attr.aria-label]="t('schedules.form.customColour')"
                   class="w-8 h-7 p-0 rounded-[8px] cursor-pointer bg-transparent border border-border-strong"
                 />
               </div>
@@ -394,12 +412,12 @@ export interface ScheduleFormResult {
           <div slot="footer" class="flex items-center gap-2.5 px-6 py-4 border-t border-border">
             @if (editingEntry()) {
               <mns-btn variant="danger" class="btn-danger" (mnsClick)="remove.emit()">
-                Delete
+                {{ t('common.actions.delete') }}
               </mns-btn>
             }
             <div class="flex gap-2.5 ml-auto">
               <mns-btn variant="outline" class="btn-secondary" (mnsClick)="dismiss.emit()">
-                Cancel
+                {{ t('common.actions.cancel') }}
               </mns-btn>
               <button
                 type="submit"
@@ -410,7 +428,13 @@ export interface ScheduleFormResult {
                 @if (!submitting()) {
                   <mns-icon name="Check" [size]="16" />
                 }
-                {{ submitting() ? 'Saving...' : editingEntry() ? 'Update' : 'Create' }}
+                {{
+                  submitting()
+                    ? t('schedules.form.saving')
+                    : editingEntry()
+                      ? t('schedules.form.update')
+                      : t('schedules.form.create')
+                }}
               </button>
             </div>
           </div>
@@ -452,11 +476,13 @@ export class ScheduleFormModal implements OnInit {
   readonly remove = output<void>();
   readonly dismiss = output<void>();
 
+  private readonly transloco = inject(TranslocoService);
+
   readonly presetColours = PRESET_COLOURS;
-  readonly weekdayOptions = WEEKDAY_OPTIONS;
+  readonly weekdayValues = WEEKDAY_VALUES;
   readonly weekdayPresets = WEEKDAY_PRESETS;
   readonly timePresets = TIME_PRESETS;
-  readonly recurrenceOptions = RECURRENCE_OPTIONS;
+  readonly recurrenceValues = RECURRENCE_VALUES;
   readonly priorityOptions = PRIORITY_OPTIONS;
 
   targetId = '';
@@ -490,10 +516,19 @@ export class ScheduleFormModal implements OnInit {
   targetSelectOptions(): SelectOption[] {
     const opts: SelectOption[] = [];
     for (const s of this.screenTargets()) {
-      opts.push({ value: 'screen:' + s.id, label: 'Screen · ' + s.name });
+      opts.push({
+        value: 'screen:' + s.id,
+        label: this.transloco.translate('schedules.form.screenOption', { name: s.name }),
+      });
     }
     for (const g of this.groupTargets()) {
-      opts.push({ value: 'group:' + g.id, label: 'Group · ' + g.name + ' (' + g.mode + ')' });
+      opts.push({
+        value: 'group:' + g.id,
+        label: this.transloco.translate('schedules.form.groupOption', {
+          name: g.name,
+          mode: g.mode,
+        }),
+      });
     }
     return opts;
   }

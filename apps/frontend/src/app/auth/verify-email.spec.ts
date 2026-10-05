@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { vi } from 'vitest';
 import { VerifyEmail } from './verify-email';
 import { AuthService } from './auth.service';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -33,6 +34,7 @@ function setup(
   const route = { snapshot: { queryParamMap: { get: () => token } } };
 
   TestBed.configureTestingModule({
+    imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
     providers: [
       provideZonelessChangeDetection(),
       { provide: AuthService, useValue: auth },

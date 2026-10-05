@@ -1,5 +1,6 @@
 /* eslint-disable @angular-eslint/component-selector */
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 
 export interface LoadData {
   cpu: number[];
@@ -23,13 +24,15 @@ export interface LoadData {
   selector: 'mns-load-graph',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [TranslocoDirective],
   template: `
     <svg
+      *transloco="let t"
       viewBox="0 0 1000 240"
       width="100%"
       style="display:block;height:auto"
       role="img"
-      aria-label="CPU and memory usage over the last 24 hours"
+      [attr.aria-label]="t('admin.dashboard.systemLoad.chartAria')"
     >
       <defs>
         <linearGradient id="lgCpuGrad" x1="0" y1="0" x2="0" y2="1">
@@ -144,6 +147,8 @@ export interface LoadData {
   host: { style: 'display:contents' },
 })
 export class LoadGraphComponent {
+  private readonly transloco = inject(TranslocoService);
+
   readonly load = input.required<LoadData>();
 
   // chart geometry constants
@@ -192,11 +197,11 @@ export class LoadGraphComponent {
   readonly xTicks = computed(() => {
     const n = this.load().cpu.length;
     const ticks: { i: number; label: string }[] = [
-      { i: 0, label: '24h ago' },
+      { i: 0, label: this.transloco.translate('admin.dashboard.systemLoad.ticks.start') },
       { i: Math.round((n - 1) / 4), label: '18h' },
       { i: Math.round((n - 1) / 2), label: '12h' },
       { i: Math.round(((n - 1) * 3) / 4), label: '6h' },
-      { i: n - 1, label: 'now' },
+      { i: n - 1, label: this.transloco.translate('admin.dashboard.systemLoad.ticks.now') },
     ];
     return ticks.map((t) => ({
       label: t.label,

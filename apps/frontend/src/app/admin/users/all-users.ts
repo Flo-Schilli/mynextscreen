@@ -1,5 +1,6 @@
 import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 
 import { AdminUserService } from './admin-user.service';
 import { AdminUser } from './admin-user.model';
@@ -34,9 +35,10 @@ import { AdminTabsComponent } from '../admin-tabs.component';
     AvatarComponent,
     IconComponent,
     EmptyComponent,
+    TranslocoDirective,
   ],
   template: `
-    <div class="page">
+    <div class="page" *transloco="let t">
       <!-- amber page header -->
       <div class="flex items-end justify-between gap-4 flex-wrap mb-[22px]">
         <div class="flex items-center gap-4 min-w-0">
@@ -48,8 +50,10 @@ import { AdminTabsComponent } from '../admin-tabs.component';
               <mns-icon name="User" [size]="23" />
             </span>
             <div class="min-w-0">
-              <h1 class="m-0 text-[27px] font-extrabold tracking-[-0.025em]">Instance Admin</h1>
-              <div class="text-muted text-[14px] mt-[3px]">Users</div>
+              <h1 class="m-0 text-[27px] font-extrabold tracking-[-0.025em]">
+                {{ t('admin.instanceAdmin') }}
+              </h1>
+              <div class="text-muted text-[14px] mt-[3px]">{{ t('admin.users.heading') }}</div>
             </div>
           </div>
         </div>
@@ -62,7 +66,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
         <p class="text-offline text-sm">{{ loadError }}</p>
       }
       @if (loading) {
-        <p class="text-muted text-sm">Loading users…</p>
+        <p class="text-muted text-sm">{{ t('admin.users.loading') }}</p>
       }
 
       @if (!loading && users.length > 0) {
@@ -94,15 +98,12 @@ import { AdminTabsComponent } from '../admin-tabs.component';
                 class="grid gap-4 px-[22px] py-[13px] bg-surface-2 border-b border-border"
                 style="grid-template-columns:2.4fr 1.3fr 132px 138px 118px 92px"
               >
-                @for (
-                  h of ['User', 'Organisation', 'Role', 'Status', 'Created', 'Actions'];
-                  track $index
-                ) {
+                @for (h of headers; track $index) {
                   <div
                     class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint"
                     [class.text-right]="$index === 5"
                   >
-                    {{ h }}
+                    {{ t(h) }}
                   </div>
                 }
               </div>
@@ -122,7 +123,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
                           [class.text-faint]="!user.name"
                           [class.italic]="!user.name"
                         >
-                          {{ user.name || 'Invite pending' }}
+                          {{ user.name || t('admin.users.invitePending') }}
                         </span>
                         @if (user.isSuperAdmin) {
                           <!-- amber superuser badge -->
@@ -130,7 +131,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
                             class="inline-flex items-center gap-1 flex-shrink-0 text-[10.5px] font-bold px-[7px] py-[2px] rounded-[99px]"
                             style="background:var(--elevated-soft);color:var(--color-elevated)"
                           >
-                            <mns-icon name="Settings" [size]="11" />Superuser
+                            <mns-icon name="Settings" [size]="11" />{{ t('admin.users.superuser') }}
                           </span>
                         }
                       </div>
@@ -160,9 +161,13 @@ import { AdminTabsComponent } from '../admin-tabs.component';
                   <!-- role -->
                   <div>
                     @if (user.isSuperAdmin) {
-                      <mns-badge tone="accent" icon="Lock">Instance Admin</mns-badge>
+                      <mns-badge tone="accent" icon="Lock">{{
+                        t('admin.users.instanceAdminBadge')
+                      }}</mns-badge>
                     } @else if (user.memberships.length > 0) {
-                      <mns-badge tone="neutral">{{ user.memberships[0].role }}</mns-badge>
+                      <mns-badge tone="neutral">{{
+                        roleLabel(user.memberships[0].role)
+                      }}</mns-badge>
                     } @else {
                       <span class="text-faint text-[13px]">—</span>
                     }
@@ -170,9 +175,13 @@ import { AdminTabsComponent } from '../admin-tabs.component';
                   <!-- status -->
                   <div>
                     @if (user.emailVerified) {
-                      <mns-badge tone="online" icon="Check">Verified</mns-badge>
+                      <mns-badge tone="online" icon="Check">{{
+                        t('admin.users.verified')
+                      }}</mns-badge>
                     } @else {
-                      <mns-badge tone="warning" icon="Mail">Pending</mns-badge>
+                      <mns-badge tone="warning" icon="Mail">{{
+                        t('admin.users.pending')
+                      }}</mns-badge>
                     }
                   </div>
                   <!-- created -->
@@ -187,7 +196,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
                       icon="Trash"
                       (click)="confirmDelete(user)"
                       [disabled]="deletingUserId === user.id"
-                      >Delete</mns-btn
+                      >{{ t('common.actions.delete') }}</mns-btn
                     >
                   </div>
                 </div>
@@ -209,14 +218,14 @@ import { AdminTabsComponent } from '../admin-tabs.component';
                       class="flex items-center gap-[7px] text-[14px] font-bold min-w-0 flex-wrap"
                     >
                       <span [class.text-faint]="!user.name" [class.italic]="!user.name">
-                        {{ user.name || 'Invite pending' }}
+                        {{ user.name || t('admin.users.invitePending') }}
                       </span>
                       @if (user.isSuperAdmin) {
                         <span
                           class="inline-flex items-center gap-1 flex-shrink-0 text-[10.5px] font-bold px-[7px] py-[2px] rounded-[99px]"
                           style="background:var(--elevated-soft);color:var(--color-elevated)"
                         >
-                          <mns-icon name="Settings" [size]="11" />Superuser
+                          <mns-icon name="Settings" [size]="11" />{{ t('admin.users.superuser') }}
                         </span>
                       }
                     </div>
@@ -227,7 +236,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
                 <div class="flex items-start justify-between gap-3">
                   <span
                     class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint pt-[3px]"
-                    >Organisation</span
+                    >{{ t('admin.users.mobile.organisation') }}</span
                   >
                   @if (user.memberships.length > 0) {
                     <div class="flex flex-wrap justify-end gap-[6px]">
@@ -245,33 +254,37 @@ import { AdminTabsComponent } from '../admin-tabs.component';
                 </div>
                 <!-- role -->
                 <div class="flex items-center justify-between gap-3">
-                  <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint"
-                    >Role</span
-                  >
+                  <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint">{{
+                    t('admin.users.mobile.role')
+                  }}</span>
                   @if (user.isSuperAdmin) {
-                    <mns-badge tone="accent" icon="Lock">Instance Admin</mns-badge>
+                    <mns-badge tone="accent" icon="Lock">{{
+                      t('admin.users.instanceAdminBadge')
+                    }}</mns-badge>
                   } @else if (user.memberships.length > 0) {
-                    <mns-badge tone="neutral">{{ user.memberships[0].role }}</mns-badge>
+                    <mns-badge tone="neutral">{{ roleLabel(user.memberships[0].role) }}</mns-badge>
                   } @else {
                     <span class="text-faint text-[13px]">—</span>
                   }
                 </div>
                 <!-- status -->
                 <div class="flex items-center justify-between gap-3">
-                  <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint"
-                    >Status</span
-                  >
+                  <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint">{{
+                    t('admin.users.mobile.status')
+                  }}</span>
                   @if (user.emailVerified) {
-                    <mns-badge tone="online" icon="Check">Verified</mns-badge>
+                    <mns-badge tone="online" icon="Check">{{
+                      t('admin.users.verified')
+                    }}</mns-badge>
                   } @else {
-                    <mns-badge tone="warning" icon="Mail">Pending</mns-badge>
+                    <mns-badge tone="warning" icon="Mail">{{ t('admin.users.pending') }}</mns-badge>
                   }
                 </div>
                 <!-- created -->
                 <div class="flex items-center justify-between gap-3">
-                  <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint"
-                    >Created</span
-                  >
+                  <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint">{{
+                    t('admin.users.mobile.created')
+                  }}</span>
                   <span class="text-[13px] text-muted">{{
                     user.createdAt | date: 'mediumDate'
                   }}</span>
@@ -284,7 +297,7 @@ import { AdminTabsComponent } from '../admin-tabs.component';
                     icon="Trash"
                     (click)="confirmDelete(user)"
                     [disabled]="deletingUserId === user.id"
-                    >Delete</mns-btn
+                    >{{ t('common.actions.delete') }}</mns-btn
                   >
                 </div>
               </div>
@@ -296,8 +309,8 @@ import { AdminTabsComponent } from '../admin-tabs.component';
       @if (!loading && users.length === 0 && !loadError) {
         <mns-empty
           icon="User"
-          title="No users yet"
-          desc="Platform users appear here once they sign up or get invited to an organisation."
+          [title]="t('admin.users.emptyTitle')"
+          [desc]="t('admin.users.emptyDesc')"
         />
       }
 
@@ -318,10 +331,20 @@ import { AdminTabsComponent } from '../admin-tabs.component';
 export class AllUsers implements OnInit {
   private userService = inject(AdminUserService);
   private toast = inject(ToastService);
+  private transloco = inject(TranslocoService);
 
   users: AdminUser[] = [];
   loading = true;
   loadError = '';
+
+  protected readonly headers = [
+    'admin.users.table.user',
+    'admin.users.table.organisation',
+    'admin.users.table.role',
+    'admin.users.table.status',
+    'admin.users.table.created',
+    'admin.users.table.actions',
+  ];
 
   summaryStats(): {
     label: string;
@@ -335,34 +358,39 @@ export class AllUsers implements OnInit {
     const admins = this.users.filter((u) => u.isSuperAdmin).length;
     return [
       {
-        label: 'Total users',
+        label: this.transloco.translate('admin.users.stats.total'),
         value: this.users.length,
         icon: 'User',
         color: 'var(--accent)',
         dimColor: 'var(--accent-soft)',
       },
       {
-        label: 'Verified',
+        label: this.transloco.translate('admin.users.stats.verified'),
         value: verified,
         icon: 'Check',
         color: 'var(--color-online)',
         dimColor: 'var(--online-dim)',
       },
       {
-        label: 'Pending',
+        label: this.transloco.translate('admin.users.stats.pending'),
         value: pending,
         icon: 'Mail',
         color: 'var(--color-warn)',
         dimColor: 'var(--warn-dim)',
       },
       {
-        label: 'Instance admins',
+        label: this.transloco.translate('admin.users.stats.instanceAdmins'),
         value: admins,
         icon: 'Settings',
         color: 'var(--color-info)',
         dimColor: 'var(--info-dim)',
       },
     ];
+  }
+
+  /** Human-readable, localized label for a membership role. */
+  protected roleLabel(role: string): string {
+    return this.transloco.translate('admin.organisations.roles.' + role);
   }
 
   initials(user: AdminUser): string {
@@ -394,8 +422,8 @@ export class AllUsers implements OnInit {
       error: (err) => {
         this.loadError =
           err.status === 403
-            ? 'Access denied. Instance Admin privileges required.'
-            : 'Failed to load users.';
+            ? this.transloco.translate('admin.users.errors.accessDenied')
+            : this.transloco.translate('admin.users.errors.loadFailed');
         this.loading = false;
       },
     });
@@ -425,10 +453,11 @@ export class AllUsers implements OnInit {
         this.showDeleteModal = false;
         this.deletingUser = null;
         this.loadUsers();
-        this.toast.success('User deleted.');
+        this.toast.success(this.transloco.translate('admin.users.toasts.deleted'));
       },
       error: (err) => {
-        this.deleteError = err.error?.message || 'Failed to delete user.';
+        this.deleteError =
+          err.error?.message || this.transloco.translate('admin.users.errors.delete');
         this.deletingUserId = null;
       },
     });

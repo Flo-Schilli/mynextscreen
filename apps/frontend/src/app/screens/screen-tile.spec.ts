@@ -6,6 +6,7 @@ import { By } from '@angular/platform-browser';
 import { ScreenTile, resolutionLabel } from './screen-tile';
 import { ScreenListItem } from './screen.model';
 import { ContentService } from '../content/content.service';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -72,6 +73,7 @@ describe('ScreenTile', () => {
   beforeEach(() => {
     getStaticThumbnailUrl = vi.fn().mockReturnValue(null);
     TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
         // The tile links to the site agent that looks after the screen. The

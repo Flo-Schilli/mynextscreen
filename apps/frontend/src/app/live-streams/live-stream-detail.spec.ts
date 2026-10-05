@@ -18,6 +18,7 @@ import {
 import { Screen } from '../screens/screen.model';
 import { ScreenGroup } from '../screen-groups/screen-group.model';
 import { MyMembership } from '../settings/users/member.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 const ORG_ID = 'org1';
 const STREAM_ID = 'ls-1';
@@ -185,6 +186,7 @@ describe('LiveStreamDetail', () => {
     toast = new ToastServiceStub();
     navigateSpy = vi.fn().mockResolvedValue(true);
     TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
         { provide: MemberService, useClass: MemberServiceStub },

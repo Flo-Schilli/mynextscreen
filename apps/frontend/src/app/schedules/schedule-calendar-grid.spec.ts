@@ -9,6 +9,7 @@ import {
 } from './schedule-calendar-grid';
 import { ScheduleEntry } from './schedule.model';
 import { CalendarBlock, GapBlock, MonthDayCell } from './schedule-calendar.service';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -83,7 +84,10 @@ describe('ScheduleCalendarGrid', () => {
   }
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
+      providers: [provideZonelessChangeDetection()],
+    });
   });
 
   describe('filtering helpers', () => {

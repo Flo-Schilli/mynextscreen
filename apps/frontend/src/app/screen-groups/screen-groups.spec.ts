@@ -16,6 +16,7 @@ import { Screen } from '../screens/screen.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { ToastService } from '../shared/toast/toast.service';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 function makeGroup(overrides: Partial<ScreenGroup> = {}): ScreenGroup {
   return {
@@ -154,6 +155,7 @@ describe('ScreenGroups', () => {
     groups = new ScreenGroupServiceStub();
     navigateSpy = vi.fn().mockResolvedValue(true);
     TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
         { provide: MemberService, useValue: member },

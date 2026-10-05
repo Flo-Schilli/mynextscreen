@@ -2,6 +2,7 @@ import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideZonelessChangeDetection, WritableSignal } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { OrgAddMemberModal, AddMemberPayload } from './org-add-member-modal';
+import { getTranslocoTestingModule } from '../../i18n/transloco-testing';
 
 interface AddMemberFields {
   email: WritableSignal<string>;
@@ -18,7 +19,10 @@ describe('OrgAddMemberModal', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [OrgAddMemberModal],
+      imports: [
+        OrgAddMemberModal,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

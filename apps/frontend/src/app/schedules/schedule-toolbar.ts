@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { TargetOption } from './schedule.model';
 import { ScheduleViewMode } from './schedule-calendar.service';
 import { BtnComponent, IconComponent, SelectComponent, SelectOption } from '../ui';
@@ -12,17 +13,17 @@ import { BtnComponent, IconComponent, SelectComponent, SelectOption } from '../u
   selector: 'app-schedule-toolbar',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SelectComponent, BtnComponent, IconComponent],
+  imports: [SelectComponent, BtnComponent, IconComponent, TranslocoDirective],
   template: `
-    <div class="flex items-center gap-3 mb-5 flex-wrap">
+    <div class="flex items-center gap-3 mb-5 flex-wrap" *transloco="let t">
       <!-- Target selector — id="targetSelect" preserved for specs -->
       <div id="targetSelect" class="flex items-center gap-2">
-        <span class="text-sm font-semibold text-muted">Target</span>
+        <span class="text-sm font-semibold text-muted">{{ t('schedules.toolbar.target') }}</span>
         <div class="min-w-[14rem]">
           <mns-select
             [options]="targetOptions()"
             [value]="selectedTargetId()"
-            placeholder="No screens or groups"
+            [placeholder]="t('schedules.toolbar.targetPlaceholder')"
             (changed)="targetChange.emit($event)"
           />
         </div>
@@ -30,7 +31,7 @@ import { BtnComponent, IconComponent, SelectComponent, SelectOption } from '../u
 
       <!-- View-mode segmented control -->
       <div class="flex gap-[2px] p-[3px] rounded-[11px] bg-surface-2 border border-border view-seg">
-        @for (v of viewOptions; track v.value) {
+        @for (v of viewOptions(); track v.value) {
           <button
             type="button"
             class="seg-btn px-3 py-[5px] rounded-lg text-[13px] font-semibold cursor-pointer transition-all duration-[150ms]"
@@ -51,18 +52,20 @@ import { BtnComponent, IconComponent, SelectComponent, SelectOption } from '../u
         <button
           type="button"
           class="grid place-items-center w-8 h-8 rounded-lg border border-border-strong bg-surface text-muted cursor-pointer transition-colors duration-[150ms] hover:bg-surface-3 hover:text-text"
-          title="Previous"
+          [title]="t('schedules.toolbar.previous')"
           (click)="prev.emit()"
         >
           <span class="inline-grid place-items-center rotate-180">
             <mns-icon name="Chevron" [size]="16" />
           </span>
         </button>
-        <mns-btn variant="outline" size="sm" (mnsClick)="today.emit()">Today</mns-btn>
+        <mns-btn variant="outline" size="sm" (mnsClick)="today.emit()">{{
+          t('schedules.toolbar.today')
+        }}</mns-btn>
         <button
           type="button"
           class="grid place-items-center w-8 h-8 rounded-lg border border-border-strong bg-surface text-muted cursor-pointer transition-colors duration-[150ms] hover:bg-surface-3 hover:text-text"
-          title="Next"
+          [title]="t('schedules.toolbar.next')"
           (click)="next.emit()"
         >
           <mns-icon name="Chevron" [size]="16" />
@@ -73,7 +76,9 @@ import { BtnComponent, IconComponent, SelectComponent, SelectOption } from '../u
       </div>
 
       <div class="ml-auto">
-        <mns-btn variant="primary" icon="Plus" (mnsClick)="create.emit()">New schedule</mns-btn>
+        <mns-btn variant="primary" icon="Plus" (mnsClick)="create.emit()">{{
+          t('schedules.toolbar.newSchedule')
+        }}</mns-btn>
       </div>
     </div>
   `,
@@ -92,11 +97,13 @@ export class ScheduleToolbar {
   readonly next = output<void>();
   readonly create = output<void>();
 
-  readonly viewOptions: { value: ScheduleViewMode; label: string }[] = [
-    { value: 'day', label: 'Day' },
-    { value: 'week', label: 'Week' },
-    { value: 'month', label: 'Month' },
-  ];
+  private readonly transloco = inject(TranslocoService);
+
+  readonly viewOptions = computed<{ value: ScheduleViewMode; label: string }[]>(() => [
+    { value: 'day', label: this.transloco.translate('schedules.toolbar.viewDay') },
+    { value: 'week', label: this.transloco.translate('schedules.toolbar.viewWeek') },
+    { value: 'month', label: this.transloco.translate('schedules.toolbar.viewMonth') },
+  ]);
 
   /**
    * Flat option list for {@link SelectComponent} (no native optgroup support):
@@ -105,10 +112,19 @@ export class ScheduleToolbar {
   readonly targetOptions = computed<SelectOption[]>(() => {
     const opts: SelectOption[] = [];
     for (const s of this.screenTargets()) {
-      opts.push({ value: 'screen:' + s.id, label: 'Screen · ' + s.name });
+      opts.push({
+        value: 'screen:' + s.id,
+        label: this.transloco.translate('schedules.toolbar.screenOption', { name: s.name }),
+      });
     }
     for (const g of this.groupTargets()) {
-      opts.push({ value: 'group:' + g.id, label: 'Group · ' + g.name + ' (' + g.mode + ')' });
+      opts.push({
+        value: 'group:' + g.id,
+        label: this.transloco.translate('schedules.toolbar.groupOption', {
+          name: g.name,
+          mode: g.mode,
+        }),
+      });
     }
     return opts;
   });

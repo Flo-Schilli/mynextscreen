@@ -7,9 +7,11 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { ReactiveFormsModule } from '@angular/forms';
 import { vi } from 'vitest';
+import { TranslocoService } from '@jsverse/transloco';
 import { Login } from './login';
 import { AuthService } from '../auth/auth.service';
 import { SetupService } from '../setup/setup.service';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -40,7 +42,11 @@ function setup(loginImpl: () => Promise<void> = () => Promise.resolve()): {
   } as unknown as Router;
 
   TestBed.configureTestingModule({
-    imports: [ReactiveFormsModule],
+    // Pin English so the 'Invalid' / 'verify' error-text assertions hold.
+    imports: [
+      ReactiveFormsModule,
+      getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+    ],
     providers: [
       provideZonelessChangeDetection(),
       provideHttpClient(),
@@ -66,6 +72,18 @@ describe('Login', () => {
     expect(fixture.debugElement.query(By.css('input[formControlName="email"]'))).not.toBeNull();
     expect(fixture.debugElement.query(By.css('input[formControlName="password"]'))).not.toBeNull();
     expect(fixture.nativeElement.textContent).toContain('myNextScreen');
+  });
+
+  it('renders English copy and switches to German live on language change', () => {
+    const { fixture } = setup();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Welcome back');
+
+    const transloco = TestBed.inject(TranslocoService);
+    transloco.setActiveLang('de');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Willkommen zurück');
+    expect(fixture.nativeElement.textContent).not.toContain('Welcome back');
   });
 
   it('does not call login when the form is invalid', async () => {

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { IconComponent } from '../ui';
 
 /**
@@ -14,9 +15,9 @@ import { IconComponent } from '../ui';
   selector: 'app-settings-tabs',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, RouterLinkActive, IconComponent],
+  imports: [RouterLink, RouterLinkActive, IconComponent, TranslocoDirective],
   template: `
-    <div class="tabs-wrap relative mb-[var(--gap,1.5rem)]">
+    <div class="tabs-wrap relative mb-[var(--gap,1.5rem)]" *transloco="let t">
       <nav
         class="flex gap-1 border-b border-border overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
@@ -26,7 +27,7 @@ import { IconComponent } from '../ui';
           class="flex shrink-0 items-center gap-2 px-3.5 py-3 -mb-px text-sm font-semibold whitespace-nowrap border-b-2 border-transparent text-muted hover:text-text transition-colors"
         >
           <mns-icon name="User" [size]="16" />
-          User Management
+          {{ t('settings.tabs.users') }}
         </a>
         <a
           routerLink="/settings/org/notifications"
@@ -34,7 +35,7 @@ import { IconComponent } from '../ui';
           class="flex shrink-0 items-center gap-2 px-3.5 py-3 -mb-px text-sm font-semibold whitespace-nowrap border-b-2 border-transparent text-muted hover:text-text transition-colors"
         >
           <mns-icon name="Bell" [size]="16" />
-          Notification Config
+          {{ t('settings.tabs.notificationConfig') }}
         </a>
         <a
           routerLink="/settings/org/storage"
@@ -42,7 +43,7 @@ import { IconComponent } from '../ui';
           class="flex shrink-0 items-center gap-2 px-3.5 py-3 -mb-px text-sm font-semibold whitespace-nowrap border-b-2 border-transparent text-muted hover:text-text transition-colors"
         >
           <mns-icon name="Storage" [size]="16" />
-          Storage
+          {{ t('settings.tabs.storage') }}
         </a>
       </nav>
     </div>

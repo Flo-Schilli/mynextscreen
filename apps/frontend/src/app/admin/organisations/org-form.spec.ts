@@ -3,6 +3,7 @@ import { provideZonelessChangeDetection, WritableSignal } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { OrgForm, OrganisationFormPayload } from './org-form';
 import { Organisation } from './organisation.model';
+import { getTranslocoTestingModule } from '../../i18n/transloco-testing';
 
 function makeOrganisation(overrides: Partial<Organisation> = {}): Organisation {
   return {
@@ -49,7 +50,7 @@ describe('OrgForm', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [OrgForm],
+      imports: [OrgForm, getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

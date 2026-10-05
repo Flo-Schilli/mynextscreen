@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ScreenGroupEditModal } from './screen-group-edit-modal';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 import { ScreenGroup, UpdateScreenGroupRequest } from './screen-group.model';
 
 function makeGroup(overrides: Partial<ScreenGroup> = {}): ScreenGroup {
@@ -30,7 +31,10 @@ describe('ScreenGroupEditModal', () => {
     error = '',
   ): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [ScreenGroupEditModal],
+      imports: [
+        ScreenGroupEditModal,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

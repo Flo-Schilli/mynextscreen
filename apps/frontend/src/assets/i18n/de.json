@@ -1,0 +1,1985 @@
+{
+  "common": {
+    "actions": {
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "delete": "Löschen",
+      "edit": "Bearbeiten",
+      "create": "Erstellen",
+      "add": "Hinzufügen",
+      "remove": "Entfernen",
+      "close": "Schließen",
+      "confirm": "Bestätigen",
+      "back": "Zurück",
+      "next": "Weiter",
+      "retry": "Erneut versuchen",
+      "refresh": "Aktualisieren",
+      "search": "Suchen",
+      "filter": "Filtern",
+      "clear": "Leeren",
+      "apply": "Anwenden",
+      "logout": "Abmelden",
+      "login": "Anmelden",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "download": "Herunterladen",
+      "upload": "Hochladen",
+      "rename": "Umbenennen",
+      "duplicate": "Duplizieren",
+      "select": "Auswählen",
+      "selectAll": "Alle auswählen",
+      "deselect": "Abwählen",
+      "view": "Ansehen",
+      "open": "Öffnen",
+      "done": "Fertig",
+      "deleting": "Wird gelöscht…",
+      "saving": "Wird gespeichert…"
+    },
+    "status": {
+      "loading": "Wird geladen…",
+      "saving": "Wird gespeichert…",
+      "empty": "Noch nichts vorhanden",
+      "error": "Etwas ist schiefgelaufen",
+      "online": "Online",
+      "offline": "Offline",
+      "active": "Aktiv",
+      "inactive": "Inaktiv",
+      "enabled": "Aktiviert",
+      "disabled": "Deaktiviert"
+    },
+    "labels": {
+      "name": "Name",
+      "description": "Beschreibung",
+      "status": "Status",
+      "type": "Typ",
+      "actions": "Aktionen",
+      "created": "Erstellt",
+      "updated": "Aktualisiert",
+      "yes": "Ja",
+      "no": "Nein",
+      "none": "Keine",
+      "all": "Alle",
+      "optional": "Optional",
+      "required": "Erforderlich"
+    },
+    "errors": {
+      "noOrgMembership": "Sie sind kein Mitglied einer Organisation.",
+      "loadOrgContext": "Organisationskontext konnte nicht geladen werden.",
+      "accessDenied": "Zugriff verweigert."
+    }
+  },
+  "auth": {
+    "brand": {
+      "heading": "Jeder Bildschirm,<br />unter einem Dach.",
+      "subtitle": "Der Kontrollraum für Ihre Digital Signage: Displays koppeln, Playlists bauen und Zeitpläne überallhin ausspielen.",
+      "ticks": {
+        "pair": "Jeden Bildschirm in Sekunden koppeln",
+        "schedule": "Inhalte standortübergreifend planen",
+        "monitor": "Jedes Display in Echtzeit überwachen"
+      }
+    },
+    "login": {
+      "title": "Willkommen zurück",
+      "subtitle": "Melden Sie sich bei Ihrem myNextScreen-Arbeitsbereich an.",
+      "emailLabel": "E-Mail",
+      "emailPlaceholder": "sie@firma.com",
+      "emailInvalid": "Geben Sie eine gültige E-Mail-Adresse ein.",
+      "passwordLabel": "Passwort",
+      "passwordRequired": "Passwort ist erforderlich.",
+      "showPassword": "Passwort anzeigen",
+      "hidePassword": "Passwort verbergen",
+      "submit": "Anmelden",
+      "submitting": "Anmeldung läuft…",
+      "resendLink": "Bestätigungs-E-Mail erneut senden",
+      "resending": "Wird gesendet…",
+      "resentNotice": "Ein neuer Bestätigungslink ist unterwegs.",
+      "or": "oder",
+      "noAccount": "Noch kein Konto?",
+      "createAccount": "Konto erstellen"
+    },
+    "notice": {
+      "accountDeleted": "Konto gelöscht."
+    },
+    "errors": {
+      "notVerified": "Bitte bestätigen Sie Ihre E-Mail, bevor Sie sich anmelden.",
+      "invalidCredentials": "Ungültige E-Mail oder ungültiges Passwort."
+    },
+    "setPassword": {
+      "title": "Passwort festlegen",
+      "subtitle": "Wähle ein Passwort für dein Konto. Verwende mindestens 8 Zeichen.",
+      "missingToken": "Aktivierungslink fehlt oder ist ungültig. Bitte eine Administratorin oder einen Administrator um eine neue Einladung.",
+      "newPasswordLabel": "Neues Passwort",
+      "passwordMinLength": "Verwende mindestens 8 Zeichen.",
+      "submit": "Passwort festlegen",
+      "submitting": "Speichern…",
+      "errors": {
+        "invalidLink": "Dieser Link ist ungültig oder abgelaufen. Bitte eine Administratorin oder einen Administrator um eine neue Einladung."
+      }
+    },
+    "verifyEmail": {
+      "title": "E-Mail bestätigen",
+      "verifying": "E-Mail wird bestätigt…",
+      "invalidLink": "Dieser Bestätigungslink ist ungültig oder abgelaufen.",
+      "resentNotice": "Falls dieses Konto bestätigt werden muss, ist ein neuer Link unterwegs.",
+      "resend": "Bestätigungsmail erneut senden",
+      "resending": "Wird gesendet…",
+      "backToSignIn": "Zurück zur Anmeldung",
+      "resendPrompt": "Gib deine E-Mail-Adresse ein, um den Bestätigungslink erneut zu senden:"
+    },
+    "confirmEmailChange": {
+      "title": "E-Mail-Änderung",
+      "confirming": "Deine neue E-Mail-Adresse wird bestätigt…",
+      "doneBody": "Deine E-Mail-Adresse wurde aktualisiert. Verwende sie bei der nächsten Anmeldung.",
+      "goToDashboard": "Zum Dashboard",
+      "invalidLink": "Dieser Bestätigungslink ist ungültig oder abgelaufen."
+    }
+  },
+  "shell": {
+    "nav": {
+      "dashboard": "Dashboard",
+      "screens": "Bildschirme",
+      "screenGroups": "Bildschirmgruppen",
+      "siteAgents": "Standort-Agenten",
+      "content": "Medienbibliothek",
+      "playlists": "Playlists",
+      "schedules": "Zeitpläne",
+      "liveStreams": "Live-Streams",
+      "auditLog": "Audit-Log",
+      "settings": "Einstellungen",
+      "instanceAdmin": "Instanz-Admin"
+    },
+    "sidebar": {
+      "collapse": "Seitenleiste einklappen",
+      "expand": "Seitenleiste ausklappen"
+    },
+    "topbar": {
+      "openNav": "Navigationsmenü öffnen",
+      "lightMode": "Zu hellem Modus wechseln",
+      "darkMode": "Zu dunklem Modus wechseln",
+      "currentUser": "Aktueller Benutzer",
+      "signedIn": "Angemeldet",
+      "member": "Mitglied",
+      "currentOrg": "Aktuelle Organisation",
+      "superuser": "Superuser",
+      "switchOrg": "Organisation wechseln",
+      "profileSettings": "Profil & Einstellungen"
+    },
+    "language": {
+      "label": "Sprache",
+      "de": "Deutsch",
+      "en": "Englisch",
+      "short": {
+        "de": "DE",
+        "en": "EN"
+      }
+    }
+  },
+  "dashboard": {
+    "onboarding": {
+      "title": "Willkommen bei myNextScreen",
+      "subtitle": "Bringen wir Ihr erstes Display live. Vier schnelle Schritte.",
+      "setupTitle": "Richten Sie Ihr Netzwerk ein",
+      "allSetTitle": "Alles bereit!",
+      "progressTitle": "Guter Fortschritt — weiter so",
+      "loadingLive": "Ihr Live-Dashboard wird geladen…",
+      "stepsLeft": "{count, plural, one {# Schritt} other {# Schritte}} bis zur Veröffentlichung Ihres ersten Inhalts.",
+      "screensOnline": "{count, plural, one {# Bildschirm} other {# Bildschirme}} online",
+      "stepBadge": "SCHRITT {number}",
+      "doneBadge": "ERLEDIGT",
+      "complete": "Abgeschlossen",
+      "steps": {
+        "screen": {
+          "title": "Ersten Bildschirm hinzufügen",
+          "desc": "Koppeln Sie ein Display mit einem Einmalcode. Dauert etwa 30 Sekunden.",
+          "cta": "Bildschirm hinzufügen"
+        },
+        "content": {
+          "title": "Inhalte hochladen",
+          "desc": "Bringen Sie Bilder und Videos ein. Wir transkodieren und optimieren automatisch.",
+          "cta": "Medien hochladen"
+        },
+        "playlist": {
+          "title": "Playlist erstellen",
+          "desc": "Reihen Sie Ihre Inhalte und legen Sie Dauer und Übergänge fest.",
+          "cta": "Playlist erstellen"
+        },
+        "schedule": {
+          "title": "Planen & veröffentlichen",
+          "desc": "Wählen Sie, wann und wo es läuft, und schalten Sie es live.",
+          "cta": "Planen"
+        }
+      }
+    },
+    "header": {
+      "title": "Dashboard",
+      "greetingMorning": "Guten Morgen",
+      "greetingAfternoon": "Guten Tag",
+      "greetingEvening": "Guten Abend",
+      "addScreen": "Bildschirm hinzufügen"
+    },
+    "kpi": {
+      "screensOnline": "Bildschirme online",
+      "screensSummary": "{offline} offline · {warning} Warnung",
+      "contentItems": "Inhaltselemente",
+      "libraryUsage": "{gb} GB in der Bibliothek",
+      "activePlaylists": "Aktive Playlists",
+      "scheduledEvents": "{count} geplante Ereignisse",
+      "openAlerts": "Offene Warnungen",
+      "alertsSummary": "{critical} kritisch · {warning} Warnung"
+    },
+    "cards": {
+      "screensTitle": "Bildschirme",
+      "screensSub": "{online} von {total} aktiv",
+      "viewAll": "Alle ansehen",
+      "noScreens": "Noch keine Bildschirme registriert.",
+      "storageTitle": "Speicher",
+      "storageSub": "Nutzung der Medienbibliothek",
+      "loadingStorage": "Speicher wird geladen…",
+      "noStorage": "Keine Speicherdaten verfügbar.",
+      "used": "belegt",
+      "alertsTitle": "Warnungen",
+      "alertsAllClear": "Alles in Ordnung",
+      "alertsNeedAttention": "{count, plural, one {# erfordert Aufmerksamkeit} other {# erfordern Aufmerksamkeit}}",
+      "loadingAlerts": "Warnungen werden geladen…",
+      "noAlerts": "Keine offenen Warnungen — alles sieht gesund aus.",
+      "scheduleTitle": "Anstehender Zeitplan",
+      "scheduleSub": "Nächste 24 Stunden",
+      "scheduleEvents": "{count} Ereignisse",
+      "loadingSchedule": "Zeitplan wird geladen…",
+      "noSchedule": "Keine anstehenden Zeitpläne.",
+      "activityTitle": "Letzte Aktivität",
+      "activitySub": "Team- & Systemereignisse",
+      "noActivity": "Keine aktuelle Aktivität.",
+      "loadingScreens": "Bildschirme werden geladen…"
+    },
+    "activity": {
+      "screenOnline": "Bildschirm online gegangen",
+      "screenOffline": "Bildschirm offline gegangen",
+      "scheduleUpdated": "Zeitplan aktualisiert",
+      "transcodingComplete": "Transkodierung abgeschlossen",
+      "transcodingFailed": "Transkodierung fehlgeschlagen",
+      "transcodingProgress": "Transkodierungsfortschritt: {progress}%"
+    },
+    "alerts": {
+      "justNow": "gerade eben",
+      "minutesAgo": "vor {count} Min.",
+      "hoursAgo": "vor {count} Std.",
+      "daysAgo": "vor {count} T."
+    },
+    "timeline": {
+      "unknownScreen": "Unbekannt",
+      "unknownPlaylist": "Unbekannt"
+    }
+  },
+  "screens": {
+    "list": {
+      "title": "Bildschirme",
+      "subtitleDefault": "Koppeln und verwalten Sie jedes Display in Ihrem Netzwerk",
+      "subtitleCounts": "{online} online · {offline} offline",
+      "installPlayer": "Player installieren",
+      "addScreen": "Bildschirm hinzufügen",
+      "webPlayer": "Web-Player:",
+      "loading": "Bildschirme werden geladen…",
+      "emptyTitle": "Noch keine Bildschirme",
+      "emptyDesc": "Koppeln Sie Ihr erstes Display mit einem Einmalcode, um Inhalte auszuspielen.",
+      "addFirst": "Ersten Bildschirm hinzufügen"
+    },
+    "delete": {
+      "title": "Bildschirm löschen",
+      "confirmPrefix": "Möchten Sie",
+      "confirmSuffix": "wirklich löschen? Dies kann nicht rückgängig gemacht werden."
+    },
+    "errors": {
+      "loadScreens": "Bildschirme konnten nicht geladen werden.",
+      "registerScreen": "Bildschirm konnte nicht registriert werden.",
+      "updateScreen": "Bildschirm konnte nicht aktualisiert werden.",
+      "repairScreen": "Bildschirm konnte nicht erneut gekoppelt werden.",
+      "refreshPlayer": "Player konnte nicht aktualisiert werden.",
+      "deleteScreen": "Bildschirm konnte nicht gelöscht werden."
+    },
+    "toast": {
+      "created": "Bildschirm „{name}“ erstellt.",
+      "updated": "Bildschirm „{name}“ aktualisiert.",
+      "deleted": "Bildschirm „{name}“ gelöscht.",
+      "repairStarted": "Erneute Kopplung gestartet. Das Display übernimmt den neuen Schlüssel.",
+      "refreshSent": "Aktualisierung gesendet. Der Player lädt in Kürze neu."
+    },
+    "tile": {
+      "open": "{name} öffnen",
+      "deleteScreen": "Bildschirm löschen",
+      "siteAgent": "Standort-Agent",
+      "siteAgentAria": "Standort-Agent öffnen, der diesen Bildschirm betreut",
+      "noLocation": "Kein Standort",
+      "lastSeen": "Zuletzt gesehen {time}",
+      "neverConnected": "Nie verbunden",
+      "status": {
+        "online": "Online",
+        "appNotRunning": "App läuft nicht",
+        "tvUnreachable": "Keine Antwort",
+        "offline": "Offline",
+        "never": "Nie"
+      }
+    },
+    "grid": {
+      "filterAll": "Alle",
+      "filterOnline": "Online",
+      "filterOffline": "Offline"
+    },
+    "form": {
+      "createTitle": "Bildschirm hinzufügen",
+      "editTitle": "Bildschirm bearbeiten",
+      "createSub": "Koppeln Sie ein Display mit einem Einmalcode",
+      "editSub": "Aktualisieren Sie die Details dieses Displays",
+      "close": "Schließen",
+      "hintWithUrl": "Öffnen Sie <strong>{url}</strong> auf Ihrem Display — es zeigt einen 6-stelligen Code.",
+      "hintNoUrl": "Öffnen Sie den Player auf Ihrem Display — er zeigt einen 6-stelligen Code. Setzen Sie <strong>PLAYER_BASE_URL</strong> auf dem Server, um die Adresse hier anzuzeigen.",
+      "nameLabel": "Bildschirmname",
+      "namePlaceholder": "z. B. Lobby — Hauptwand",
+      "locationLabel": "Standort",
+      "locationPlaceholder": "HQ · Erdgeschoss",
+      "resolutionLabel": "Display-Auflösung",
+      "resolutionCustom": "Eigene Auflösung…",
+      "customResolutionLabel": "Eigene Auflösung",
+      "customResolutionPlaceholder": "z. B. 1920x1200",
+      "playerOptions": "Player-Optionen",
+      "unmuteLabel": "„Zum Stummschalten aufheben klicken“ anzeigen",
+      "unmuteDesc": "Zeigt das Aufhebe-Overlay bei Videos mit Ton.",
+      "disconnectLabel": "„Trennen“ erlauben",
+      "disconnectDesc": "Im Info-Panel des Players und im webOS-Einstellungs-Overlay anbieten.",
+      "pairingCodeLabel": "Kopplungscode",
+      "pairingCodePlaceholder": "6-stelliger Code vom Display",
+      "submitRegister": "Bildschirm registrieren",
+      "submitRegistering": "Wird registriert…",
+      "submitSave": "Änderungen speichern",
+      "submitSaving": "Wird gespeichert…",
+      "infoStatus": "Status",
+      "infoLastSeen": "Zuletzt gesehen",
+      "infoNever": "Nie",
+      "infoPlayerVersion": "Player-Version",
+      "infoNotReported": "Nicht gemeldet",
+      "infoRegistered": "Registriert",
+      "refreshTitle": "Player aktualisieren",
+      "refreshHint": "Laden Sie den Player des Displays aus der Ferne neu (wie F5). Nützlich nach Einstellungsänderungen oder wenn der Bildschirm hängt.",
+      "refreshButton": "Player aktualisieren",
+      "refreshing": "Wird aktualisiert…",
+      "screenOffline": "Bildschirm ist offline.",
+      "repairTitle": "Display erneut koppeln",
+      "repairHint": "Display erneut verbinden? Öffnen Sie es, um einen neuen 6-stelligen Code anzuzeigen, und geben Sie ihn hier ein, um einen neuen Schlüssel auszustellen. Der aktuelle Schlüssel wird sofort ungültig.",
+      "repairCodePlaceholder": "6-stelliger Code",
+      "repairButton": "Erneut koppeln",
+      "repairing": "Wird erneut gekoppelt…",
+      "errorAllRequired": "Alle Felder sind erforderlich.",
+      "errorPairingDigits": "Kopplungscode muss 6 Ziffern haben."
+    },
+    "playerApps": {
+      "title": "Player installieren",
+      "loading": "Player-Apps werden geladen…",
+      "loadError": "Player-Apps konnten nicht geladen werden.",
+      "choosePlatform": "Wählen Sie eine Plattform für die Installationsanleitung und den Download.",
+      "guideAndBinary": "Anleitung + IPK-Binary verfügbar",
+      "guideOnly": "Anleitung verfügbar",
+      "allPlatforms": "Alle Plattformen",
+      "downloadIpk": "IPK herunterladen",
+      "loadingGuide": "Anleitung wird geladen…",
+      "guideError": "Anleitung konnte nicht geladen werden."
+    }
+  },
+  "screenGroups": {
+    "list": {
+      "title": "Bildschirmgruppen",
+      "subtitle": "{count, plural, one {# Gruppe} other {# Gruppen}}",
+      "newGroup": "Neue Gruppe",
+      "loading": "Bildschirmgruppen werden geladen…",
+      "emptyTitle": "Noch keine Bildschirmgruppen",
+      "emptyDesc": "Erstellen Sie Ihre erste Bildschirmgruppe, um Spiegel-Displays oder Video-Walls aufzubauen.",
+      "createFirst": "Erste Gruppe erstellen"
+    },
+    "errors": {
+      "loadGroups": "Bildschirmgruppen konnten nicht geladen werden.",
+      "loadGroup": "Bildschirmgruppe konnte nicht geladen werden.",
+      "createGroup": "Bildschirmgruppe konnte nicht erstellt werden.",
+      "updateGroup": "Bildschirmgruppe konnte nicht aktualisiert werden.",
+      "deleteGroup": "Bildschirmgruppe konnte nicht gelöscht werden.",
+      "assignScreen": "Bildschirm konnte nicht zugewiesen werden.",
+      "moveScreen": "Bildschirm konnte nicht verschoben werden.",
+      "addScreen": "Bildschirm konnte nicht hinzugefügt werden.",
+      "removeScreen": "Bildschirm konnte nicht entfernt werden.",
+      "updateGroupGeneric": "Gruppe konnte nicht aktualisiert werden.",
+      "refreshGroup": "Gruppendaten konnten nicht aktualisiert werden.",
+      "groupNotFound": "Bildschirmgruppe nicht gefunden.",
+      "noGroupId": "Keine Gruppen-ID angegeben.",
+      "allPanelsAssigned": "Alle Wandpanels sind bereits zugewiesen.",
+      "screenInOtherGroup": "Bildschirm „{name}“ gehört bereits zu einer anderen Gruppe.",
+      "removeScreensFirst": "Entfernen Sie alle Bildschirme aus der Gruppe, bevor Sie sie löschen."
+    },
+    "toast": {
+      "created": "Bildschirmgruppe erstellt.",
+      "updated": "Bildschirmgruppe aktualisiert.",
+      "deleted": "Bildschirmgruppe gelöscht.",
+      "someScreensNotAssigned": "Gruppe erstellt, aber einige Bildschirme konnten nicht zugewiesen werden.",
+      "screenAssigned": "Bildschirm zugewiesen.",
+      "screenAdded": "Bildschirm hinzugefügt.",
+      "screenRemoved": "Bildschirm entfernt.",
+      "modeSwitched": "Zu {mode}-Modus gewechselt.",
+      "wallLayoutUpdated": "Wandlayout aktualisiert."
+    },
+    "mode": {
+      "mirror": "Spiegeln",
+      "mirrorDesc": "Gleicher Inhalt auf jedem Bildschirm gleichzeitig",
+      "split": "Teilen",
+      "splitDesc": "Ein Bild oder Video über eine Video-Wall verteilt"
+    },
+    "card": {
+      "open": "{name} öffnen",
+      "deleteGroup": "{name} löschen",
+      "screens": "{count, plural, one {# Bildschirm} other {# Bildschirme}}",
+      "noScreens": "Keine Bildschirme",
+      "modeMirror": "Spiegeln"
+    },
+    "create": {
+      "title": "Neue Bildschirmgruppe",
+      "nameLabel": "Gruppenname",
+      "namePlaceholder": "z. B. HQ Lobby-Wand",
+      "colourLabel": "Farbe",
+      "colourAria": "Farbe {colour}",
+      "displayModeLabel": "Anzeigemodus",
+      "columns": "Spalten",
+      "rows": "Zeilen",
+      "wallHint": "Erstellt eine {cols}×{rows}-Wand ({panels} Panels).",
+      "addScreens": "Bildschirme hinzufügen",
+      "selectedSuffix": "· {count} ausgewählt",
+      "noUnassigned": "Keine nicht zugewiesenen Bildschirme verfügbar.",
+      "creating": "Wird erstellt…",
+      "createGroup": "Gruppe erstellen",
+      "errorNameLength": "Name muss mindestens 2 Zeichen lang sein."
+    },
+    "edit": {
+      "title": "Bildschirmgruppe bearbeiten",
+      "nameLabel": "Gruppenname",
+      "colourLabel": "Farbe",
+      "colourAria": "Farbe {colour}",
+      "displayModeLabel": "Anzeigemodus",
+      "columns": "Spalten",
+      "rows": "Zeilen",
+      "saving": "Wird gespeichert…",
+      "saveChanges": "Änderungen speichern",
+      "errorNameRequired": "Name ist erforderlich."
+    },
+    "deleteModal": {
+      "title": "Bildschirmgruppe löschen",
+      "blocked": "„{name}“ kann nicht gelöscht werden, da ihr noch {count} Bildschirm(e) zugewiesen sind. Entfernen Sie alle Bildschirme aus der Gruppe, bevor Sie sie löschen.",
+      "confirmPrefix": "Möchten Sie die Bildschirmgruppe",
+      "confirmSuffix": "wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "deleting": "Wird gelöscht…"
+    },
+    "addScreen": {
+      "title": "Bildschirm hinzufügen",
+      "loading": "Bildschirme werden geladen…",
+      "noUnassigned": "Keine nicht zugewiesenen Bildschirme verfügbar.",
+      "inAnotherGroup": "In einer anderen Gruppe",
+      "add": "Hinzufügen",
+      "close": "Schließen"
+    },
+    "detail": {
+      "loading": "Gruppendetails werden geladen…",
+      "delete": "Löschen",
+      "modeSplit": "Teilen · {cols}×{rows}",
+      "modeMirror": "Spiegeln",
+      "screens": "{count, plural, one {# Bildschirm} other {# Bildschirme}}",
+      "livePreview": "Live-Vorschau",
+      "previewSplit": "Video-Wall · {cols} Spalten × {rows} Zeilen{suffix}",
+      "previewMirror": "Gespiegelt auf {count, plural, one {# Bildschirm} other {# Bildschirme}}{suffix}",
+      "preparingRenditions": "Video-Wall-Renditionen werden vorbereitet…",
+      "renditionFailed": "Vorab-Transkodierung der Renditionen fehlgeschlagen{error}",
+      "displayMode": "Anzeigemodus",
+      "displayModeSub": "Wie Inhalte über die Gruppe verteilt werden",
+      "wallLayout": "Wandlayout",
+      "columns": "Spalten",
+      "rows": "Zeilen",
+      "panelsAssigned": "{assigned} von {needed} Panels zugewiesen",
+      "groupScreens": "Gruppen-Bildschirme",
+      "groupScreensSubSplit": "Klicken Sie auf ein Wandpanel, um einen Bildschirm zu platzieren",
+      "groupScreensSubMirror": "Alle spiegeln dieselbe Ausgabe",
+      "noScreensAssigned": "Noch keine Bildschirme zugewiesen.",
+      "remove": "Entfernen",
+      "addScreenPlaceholder": "+ Einen Bildschirm zu dieser Gruppe hinzufügen…"
+    },
+    "wall": {
+      "noScreensYet": "Noch keine Bildschirme",
+      "mirrorCaption": "Jeder Bildschirm spiegelt denselben Inhalt, perfekt synchron.",
+      "splitCaption": "Eine Quelle über eine {cols}×{rows}-Wand verteilt — klicken Sie auf ein Panel, um dessen Bildschirm zu platzieren.",
+      "assignPanel": "Einen Bildschirm diesem Panel zuweisen",
+      "assignPanelAria": "Einen Bildschirm Panel {panel} zuweisen",
+      "closeMenu": "Menü schließen",
+      "panelHead": "Panel {panel} · Zeile {row} · Spalte {col}",
+      "leaveEmpty": "Leer lassen",
+      "allPlaced": "Alle Bildschirme sind bereits platziert."
+    },
+    "monitor": {
+      "empty": "Leer"
+    }
+  },
+  "content": {
+    "library": {
+      "title": "Content-Bibliothek",
+      "browseFiles": "Dateien durchsuchen",
+      "loading": "Inhalte werden geladen…",
+      "dropTitle": "Dateien zum Hochladen ablegen",
+      "dropSub": "Bilder und Videos",
+      "emptyTitle": "Noch keine Inhalte",
+      "emptyDesc": "Ziehen Sie Dateien an eine beliebige Stelle dieser Seite oder nutzen Sie „Dateien durchsuchen“, um zu beginnen.",
+      "clearTags": "Leeren"
+    },
+    "filter": {
+      "all": "Alle",
+      "images": "Bilder",
+      "videos": "Videos"
+    },
+    "type": {
+      "image": "Bild",
+      "video": "Video"
+    },
+    "transcoding": {
+      "label": "Transkodierung",
+      "pending": "Ausstehend",
+      "processing": "Wird verarbeitet",
+      "processingPercent": "Wird verarbeitet {progress}%",
+      "completed": "Abgeschlossen",
+      "failed": "Fehlgeschlagen",
+      "percent": "{progress}%"
+    },
+    "detail": {
+      "reupload": "Erneut hochladen",
+      "copyLink": "Link kopieren",
+      "previewAlt": "Vorschau",
+      "titleLabel": "Titel",
+      "descriptionLabel": "Beschreibung",
+      "tagsLabel": "Tags (kommagetrennt)",
+      "saveChanges": "Änderungen speichern",
+      "saving": "Wird gespeichert…",
+      "changesSaved": "Änderungen gespeichert.",
+      "infoType": "Typ",
+      "infoOriginalFile": "Originaldatei",
+      "infoOriginalSize": "Originalgröße",
+      "infoTranscodedSize": "Transkodierte Größe",
+      "infoMimeType": "MIME-Typ",
+      "infoUploaded": "Hochgeladen"
+    },
+    "grid": {
+      "pending": "Ausstehend",
+      "failed": "Fehlgeschlagen",
+      "meta": "{type} · {size}"
+    },
+    "upload": {
+      "done": "Fertig",
+      "error": "Fehler"
+    },
+    "storage": {
+      "label": "Speicher",
+      "unlimited": "Unbegrenzt",
+      "original": "Original ({size})",
+      "transcoded": "Transkodiert ({size})"
+    },
+    "tagModal": {
+      "addTitle": "Tags hinzufügen",
+      "removeTitle": "Tags entfernen",
+      "fieldLabel": "Tags (kommagetrennt)",
+      "placeholder": "z. B. promo, saisonal"
+    },
+    "playlistModal": {
+      "title": "Zur Playlist hinzufügen",
+      "loading": "Playlists werden geladen…",
+      "empty": "Keine Playlists verfügbar.",
+      "confirm": "Zur Playlist hinzufügen"
+    },
+    "delete": {
+      "title": "Inhalt löschen",
+      "confirmPrefix": "Möchten Sie",
+      "confirmSuffix": "wirklich löschen? Dadurch werden die Original- und die transkodierten Dateien dauerhaft entfernt."
+    },
+    "bulk": {
+      "deleteTitle": "Inhalt löschen",
+      "deleteSelected": "Auswahl löschen",
+      "addTags": "Tags hinzufügen",
+      "removeTags": "Tags entfernen",
+      "addToPlaylist": "Zur Playlist hinzufügen",
+      "deleteMessage": "Sie sind dabei, {count} {count, plural, one {Element} other {Elemente}} dauerhaft zu löschen. Dadurch werden alle Original- und transkodierten Dateien entfernt. Dies kann nicht rückgängig gemacht werden.",
+      "deleted": "{count} {count, plural, one {Element} other {Elemente}} gelöscht",
+      "tagged": "{count} {count, plural, one {Element} other {Elemente}} getaggt",
+      "untagged": "{count} {count, plural, one {Element} other {Elemente}} Tags entfernt",
+      "addedToPlaylist": "{count} {count, plural, one {Element} other {Elemente}} zu {playlist} hinzugefügt",
+      "alreadyPresent": " ({count} bereits in der Playlist)",
+      "notFound": "{count} {count, plural, one {Element konnte} other {Elemente konnten}} nicht gefunden werden und {count, plural, one {wurde} other {wurden}} übersprungen",
+      "selectedPlaylist": "ausgewählte Playlist"
+    },
+    "toast": {
+      "uploadComplete": "Upload abgeschlossen.",
+      "reuploadComplete": "Erneuter Upload abgeschlossen.",
+      "updated": "Inhalt aktualisiert.",
+      "deleted": "Inhalt gelöscht.",
+      "linkCopied": "Link in die Zwischenablage kopiert.",
+      "linkCopyFailed": "Link konnte nicht kopiert werden.",
+      "openFailed": "Dieses Inhaltselement konnte nicht geöffnet werden."
+    },
+    "errors": {
+      "loadContent": "Inhalte konnten nicht geladen werden.",
+      "accessDenied": "Zugriff verweigert.",
+      "uploadFailed": "Upload fehlgeschlagen",
+      "reuploadFailed": "Erneuter Upload fehlgeschlagen",
+      "saveChanges": "Änderungen konnten nicht gespeichert werden.",
+      "deleteContent": "Inhalt konnte nicht gelöscht werden.",
+      "loadPlaylists": "Playlists konnten nicht geladen werden."
+    }
+  },
+  "playlists": {
+    "list": {
+      "title": "Playlists",
+      "count": "{count, plural, one {# Playlist} other {# Playlists}}",
+      "newPlaylist": "Neue Playlist",
+      "loading": "Playlists werden geladen…",
+      "selectAll": "Alle auswählen",
+      "emptyTitle": "Noch keine Playlists",
+      "emptyDesc": "Es wurden noch keine Playlists erstellt.",
+      "createFirst": "Erste Playlist erstellen",
+      "items": "{count, plural, one {# Element} other {# Elemente}}",
+      "default": "Standard",
+      "emptyPlaylist": "Leere Playlist"
+    },
+    "create": {
+      "title": "Neue Playlist",
+      "nameLabel": "Playlist-Name",
+      "namePlaceholder": "z. B. Lobby-Willkommensschleife",
+      "accentColor": "Akzentfarbe",
+      "setAccentColor": "Akzentfarbe {color} setzen",
+      "creating": "Wird erstellt…",
+      "createPlaylist": "Playlist erstellen"
+    },
+    "delete": {
+      "title": "Playlist löschen",
+      "confirmPrefix": "Möchten Sie",
+      "confirmSuffix": "wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "defaultWarning": "Diese Playlist ist derzeit als Standard der Organisation festgelegt. Beim Löschen wird die Standard-Playlist-Einstellung zurückgesetzt."
+    },
+    "editor": {
+      "untitled": "Ohne Titel",
+      "unknown": "Unbekannt",
+      "default": "Standard",
+      "reslicing": "Video-Wall wird neu gerendert…",
+      "removeAsDefault": "Als Standard entfernen",
+      "setAsDefault": "Als Standard festlegen",
+      "copyLink": "Link kopieren",
+      "accentColor": "Akzentfarbe",
+      "setAccentColor": "Akzentfarbe {color} setzen",
+      "sequenceTitle": "Sequenz",
+      "sequenceSub": "Zum Neuordnen ziehen · Dauer & Übergang pro Element festlegen",
+      "addContent": "Inhalt hinzufügen",
+      "noItems": "Noch keine Elemente — fügen Sie Inhalt hinzu, um die Schleife aufzubauen",
+      "dragToReorder": "Zum Neuordnen ziehen",
+      "previewItemAria": "Element-Vorschau",
+      "itemType": "{type}",
+      "playsFullVideo": "Spielt die volle Videolänge",
+      "decreaseDuration": "Dauer verringern",
+      "increaseDuration": "Dauer erhöhen",
+      "durationSeconds": "{seconds}s",
+      "transitionOnEnter": "Übergang beim Erscheinen — wird abgespielt, wenn dieses Element erscheint",
+      "transitionDuration": "Übergangsdauer (ms)",
+      "decreaseTransitionMs": "Übergang (ms) verringern",
+      "increaseTransitionMs": "Übergang (ms) erhöhen",
+      "transitionMs": "{ms}ms",
+      "removeFromPlaylist": "Aus Playlist entfernen",
+      "previewTitle": "Vorschau: {title}",
+      "previewAlt": "Vorschau"
+    },
+    "transition": {
+      "cut": "Hart",
+      "fade": "Überblendung",
+      "slide-left": "Nach links schieben",
+      "slide-right": "Nach rechts schieben",
+      "slide-up": "Nach oben schieben",
+      "slide-down": "Nach unten schieben",
+      "zoom-in": "Hineinzoomen",
+      "zoom-out": "Herauszoomen"
+    },
+    "loopPreview": {
+      "title": "Schleifen-Vorschau",
+      "emptySub": "Inhalt hinzufügen, um die Schleife vorzuschauen",
+      "emptyPlaylist": "Leere Playlist",
+      "sub": "{count, plural, one {# Element} other {# Elemente}} · {duration} gesamt · Schleife",
+      "playing": "Wird abgespielt",
+      "paused": "Pausiert",
+      "unmute": "Ton einschalten",
+      "untitled": "Ohne Titel",
+      "previous": "Zurück",
+      "play": "Abspielen",
+      "pause": "Pausieren",
+      "next": "Weiter",
+      "nowPlaying": "Jetzt läuft · Element {index}",
+      "jumpToItem": "Zu Element {index} springen"
+    },
+    "addContent": {
+      "title": "Inhalt hinzufügen",
+      "searchPlaceholder": "Inhalt suchen…",
+      "all": "Alle",
+      "images": "Bilder",
+      "videos": "Videos",
+      "loading": "Content-Bibliothek wird geladen…",
+      "empty": "Kein Inhalt verfügbar. Laden Sie zuerst Inhalt hoch.",
+      "noMatches": "Kein Inhalt entspricht Ihrer Suche."
+    },
+    "assignScreen": {
+      "title": "Bildschirm zuweisen",
+      "prompt": "Wählen Sie einen Bildschirm, dem {count, plural, one {# Playlist} other {# Playlists}} zugewiesen werden soll:",
+      "screenLabel": "Bildschirm",
+      "selectPlaceholder": "-- Bildschirm auswählen --",
+      "loading": "Wird geladen…",
+      "assign": "Zuweisen"
+    },
+    "bulk": {
+      "deleteTitle": "Playlists löschen",
+      "deleteSelected": "Auswahl löschen",
+      "assignToScreen": "Bildschirm(en) zuweisen",
+      "deleteMessage": "Sie sind dabei, {count, plural, one {# Playlist} other {# Playlists}} dauerhaft zu löschen. Dies kann nicht rückgängig gemacht werden.",
+      "deleted": "{count, plural, one {# Playlist} other {# Playlists}} gelöscht",
+      "assigned": "{count, plural, one {# Playlist} other {# Playlists}} zu {screen} zugewiesen",
+      "notFound": "{count} {count, plural, one {Element konnte} other {Elemente konnten}} nicht gefunden werden und {count, plural, one {wurde} other {wurden}} übersprungen",
+      "selectedScreen": "ausgewählter Bildschirm"
+    },
+    "toast": {
+      "created": "Playlist erstellt.",
+      "renamed": "Playlist umbenannt.",
+      "colorUpdated": "Akzentfarbe aktualisiert.",
+      "deleted": "Playlist gelöscht.",
+      "setDefault": "Als Standard-Playlist festgelegt.",
+      "clearedDefault": "Standard-Playlist zurückgesetzt.",
+      "itemAdded": "Element zur Playlist hinzugefügt.",
+      "itemRemoved": "Element aus Playlist entfernt.",
+      "orderSaved": "Playlist-Reihenfolge gespeichert.",
+      "linkCopied": "Link in die Zwischenablage kopiert.",
+      "linkCopyFailed": "Link konnte nicht kopiert werden."
+    },
+    "errors": {
+      "loadPlaylists": "Playlists konnten nicht geladen werden.",
+      "accessDenied": "Zugriff verweigert.",
+      "loadDetails": "Playlist-Details konnten nicht geladen werden.",
+      "nameRequired": "Name ist erforderlich.",
+      "createPlaylist": "Playlist konnte nicht erstellt werden.",
+      "renamePlaylist": "Playlist konnte nicht umbenannt werden.",
+      "updateColor": "Farbe konnte nicht aktualisiert werden.",
+      "deletePlaylist": "Playlist konnte nicht gelöscht werden.",
+      "setDefault": "Standard-Playlist konnte nicht festgelegt werden.",
+      "addItem": "Element konnte nicht hinzugefügt werden.",
+      "removeItem": "Element konnte nicht entfernt werden.",
+      "reorderItems": "Elemente konnten nicht neu geordnet werden.",
+      "loadScreens": "Bildschirme konnten nicht geladen werden."
+    }
+  },
+  "schedules": {
+    "page": {
+      "title": "Zeitpläne",
+      "subtitleDefault": "Planen Sie Playlists über Bildschirme und Gruppen hinweg im Kalender",
+      "subtitleCount": "{count, plural, one {# geplanter Block} other {# geplante Blöcke}}",
+      "loading": "Zeitpläne werden geladen…"
+    },
+    "toolbar": {
+      "target": "Ziel",
+      "targetPlaceholder": "Keine Bildschirme oder Gruppen",
+      "screenOption": "Bildschirm · {name}",
+      "groupOption": "Gruppe · {name} ({mode})",
+      "today": "Heute",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "newSchedule": "Neuer Zeitplan",
+      "viewDay": "Tag",
+      "viewWeek": "Woche",
+      "viewMonth": "Monat"
+    },
+    "grid": {
+      "monthTitle": "Monatsplan",
+      "dayTitle": "Tagesplan",
+      "weekTitle": "Wochenplan",
+      "cardSub": "Klicken Sie auf einen Block, um ihn zu bearbeiten",
+      "fallbackPlaylist": "Fallback-Playlist",
+      "groupBadge": "Gruppe",
+      "oneOff": "1×",
+      "resizeTop": "Oben anpassen",
+      "resizeBottom": "Unten anpassen",
+      "preparingRenditions": "Wall-Renditionen werden vorbereitet… {percent}%",
+      "renditionFailed": "Vorab-Transkodierung der Rendition fehlgeschlagen",
+      "playlistFallback": "Playlist"
+    },
+    "sidePanel": {
+      "today": "Heute",
+      "headSub": "{date} · {count, plural, one {# geplant} other {# geplant}}",
+      "empty": "Keine Zeitplaneinträge für diesen Tag."
+    },
+    "agenda": {
+      "previousDay": "Vorheriger Tag",
+      "nextDay": "Nächster Tag",
+      "empty": "Keine Zeitplaneinträge für diesen Tag.",
+      "group": "Gruppe",
+      "addSlot": "Zeitfenster hinzufügen",
+      "playlistFallback": "Playlist"
+    },
+    "slice": {
+      "failedTitle": "Vorab-Transkodierung der Rendition fehlgeschlagen",
+      "readyTitle": "Renditionen bereit",
+      "preparingTitle": "Video-Wall-Renditionen werden vorbereitet…",
+      "failedBody": "{error} Die Wall zeigt weiterhin den vorherigen Inhalt, bis Sie neu zuweisen oder neu slicen.",
+      "failedFallback": "Slicing fehlgeschlagen.",
+      "completedBody": "Die Video-Wall wurde aktualisiert.",
+      "processingBody": "Die Wall zeigt weiterhin den vorherigen Inhalt und wechselt automatisch, sobald das Slicing abgeschlossen ist.",
+      "runInBackground": "Im Hintergrund ausführen"
+    },
+    "form": {
+      "editTitle": "Zeitplaneintrag bearbeiten",
+      "createTitle": "Zeitplaneintrag erstellen",
+      "sub": "Legen Sie fest, wann eine Playlist läuft — und wo",
+      "nameLabel": "Name des Zeitplans",
+      "namePlaceholder": "z. B. Morgen-Willkommen (optional)",
+      "targetLabel": "Ziel",
+      "targetPlaceholder": "Bildschirm oder Gruppe auswählen",
+      "screenOption": "Bildschirm · {name}",
+      "groupOption": "Gruppe · {name} ({mode})",
+      "modeLabel": "Modus:",
+      "modeMirror": "Mirror",
+      "modeSplit": "Split",
+      "modeMirrorDesc": "alle Bildschirme zeigen denselben Inhalt",
+      "modeSplitDesc": "{columns}x{rows}-Raster",
+      "splitWarning": "Der Inhalt wird für jeden Bildschirm der Video-Wall vorab zerteilt. Dies kann nach dem Speichern einen Moment dauern.",
+      "playlistLabel": "Abzuspielende Playlist",
+      "noPlaylists": "Noch keine Playlists — erstellen Sie zuerst eine.",
+      "playlistItems": "{count, plural, one {# Element} other {# Elemente}}",
+      "whenLabel": "Wann läuft es?",
+      "daysLabel": "Tage",
+      "startLabel": "Start",
+      "endLabel": "Ende",
+      "endAfterStart": "Ende muss nach dem Start liegen.",
+      "priorityLabel": "Priorität",
+      "priorityHint": "· gewinnt bei sich überschneidenden Zeitplänen",
+      "colourLabel": "Farbe",
+      "selectColour": "Farbe {colour} auswählen",
+      "customColour": "Eigene Farbe",
+      "saving": "Wird gespeichert…",
+      "update": "Aktualisieren",
+      "create": "Erstellen",
+      "recurrence": {
+        "none": "Einmalig",
+        "daily": "Täglich",
+        "weekly": "Wöchentlich",
+        "weekdays": "Bestimmte Tage"
+      },
+      "weekday": {
+        "MO": "Mo",
+        "TU": "Di",
+        "WE": "Mi",
+        "TH": "Do",
+        "FR": "Fr",
+        "SA": "Sa",
+        "SU": "So"
+      },
+      "weekdayPreset": {
+        "monFri": "Mo–Fr",
+        "weekends": "Wochenende",
+        "allDays": "Alle Tage"
+      },
+      "timePreset": {
+        "business": "Geschäft 09–17",
+        "morning": "Morgen 06–12",
+        "evening": "Abend 17–22",
+        "allDay": "Ganztags 06–23"
+      },
+      "priority": {
+        "normal": "Normal",
+        "high": "Hoch"
+      }
+    },
+    "toast": {
+      "created": "Zeitplan erstellt.",
+      "createdPreparing": "Zeitplan erstellt. Video-Wall-Renditionen werden vorbereitet…",
+      "updated": "Zeitplan aktualisiert.",
+      "updatedPreparing": "Zeitplan aktualisiert. Video-Wall-Renditionen werden vorbereitet…",
+      "deleted": "Zeitplan gelöscht.",
+      "overlapReverted": "Überschneidung erkannt. Verschieben wurde rückgängig gemacht.",
+      "moveFailed": "Eintrag konnte nicht verschoben werden."
+    },
+    "errors": {
+      "loadScreens": "Bildschirme konnten nicht geladen werden.",
+      "loadEntries": "Zeitplaneinträge konnten nicht geladen werden.",
+      "endAfterStart": "Die Endzeit muss nach der Startzeit liegen.",
+      "selectPlaylist": "Bitte wählen Sie eine Playlist.",
+      "selectTarget": "Bitte wählen Sie einen Ziel-Bildschirm oder eine Gruppe.",
+      "overlap": "Dieses Zeitfenster überschneidet sich mit einem bestehenden Eintrag.",
+      "createEntry": "Eintrag konnte nicht erstellt werden.",
+      "updateEntry": "Eintrag konnte nicht aktualisiert werden.",
+      "deleteEntry": "Eintrag konnte nicht gelöscht werden."
+    }
+  },
+  "liveStreams": {
+    "list": {
+      "title": "Live-Streams",
+      "newStream": "Neuer Stream",
+      "loading": "Live-Streams werden geladen…",
+      "subtitleDefault": "Quelle einbinden und Zeitpläne mit Live-Video überschreiben",
+      "subtitleCounts": "{live} live · {count, plural, one {# Stream} other {# Streams}}",
+      "emptyTitle": "Keine Live-Streams",
+      "emptyDesc": "Binden Sie eine RTMP- oder RTP-Quelle ein, um in Echtzeit live in Ihr Netzwerk zu senden.",
+      "addFirst": "Streamquelle hinzufügen"
+    },
+    "preset": {
+      "low_480p": "Niedrig (480p)",
+      "medium_720p": "Mittel (720p)",
+      "high_1080p": "Hoch (1080p)",
+      "full_hd_plus_1440p": "Full HD+ (1440p)",
+      "passthrough": "Durchleiten (ohne Neucodierung)"
+    },
+    "status": {
+      "live": "Live",
+      "offline": "Offline"
+    },
+    "card": {
+      "openAria": "{name} öffnen",
+      "actions": "Aktionen",
+      "streamActions": "Stream-Aktionen",
+      "closeMenu": "Menü schließen",
+      "openConsole": "Konsole öffnen",
+      "stopStream": "Stream stoppen",
+      "goLive": "Live gehen",
+      "delete": "Löschen",
+      "errorHint": "Der Stream hat einen Fehler gemeldet",
+      "stop": "Stoppen"
+    },
+    "monitor": {
+      "streamError": "STREAM-FEHLER",
+      "noSignal": "KEIN SIGNAL",
+      "live": "LIVE",
+      "muted": "STUMM"
+    },
+    "create": {
+      "title": "Neuer Live-Stream",
+      "nameLabel": "Name",
+      "namePlaceholder": "z. B. Lobby-Kamera",
+      "protocolLabel": "Protokoll",
+      "sourceUrlLabel": "Quell-URL",
+      "sourceHintRtmp": "rtmp://example.com/live/stream-key",
+      "sourceHintRtp": "rtp://example.com:5004",
+      "qualityLabel": "Qualitätsvorgabe",
+      "enableAudioLabel": "Audio aktivieren",
+      "enableAudioDesc": "Die Audiospur der Quelle an die Bildschirme durchreichen",
+      "creating": "Wird erstellt…",
+      "createStream": "Stream erstellen",
+      "errorNameRequired": "Name ist erforderlich.",
+      "errorSourceRequired": "Quell-URL ist erforderlich."
+    },
+    "delete": {
+      "title": "Live-Stream löschen",
+      "confirmPrefix": "Möchten Sie wirklich löschen:",
+      "confirmSuffix": "? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "deleting": "Wird gelöscht…",
+      "delete": "Löschen"
+    },
+    "detail": {
+      "loading": "Stream wird geladen…",
+      "notFound": "Live-Stream nicht gefunden.",
+      "nameAria": "Streamname",
+      "delete": "Löschen",
+      "stopStream": "Stream stoppen",
+      "goLive": "Live gehen",
+      "restart": "Neu starten",
+      "audioTooltipLocked": "Stoppen Sie den Stream, um das Audio zu ändern",
+      "audioTooltipToggle": "Audio umschalten",
+      "audioOn": "Audio an",
+      "muted": "Stumm",
+      "healthTitle": "Streamzustand",
+      "healthSubLive": "Live · Vorgabeziele unten dargestellt",
+      "healthSubIdle": "Kein aktiver Feed",
+      "status": "Status",
+      "qualityTarget": "Qualität (Ziel)",
+      "protocol": "Protokoll",
+      "liveSince": "Live seit",
+      "sourceTitle": "Quelle",
+      "sourceSub": "Eingangs-Endpunkt & Codierung",
+      "sourceUrl": "Quell-URL",
+      "copyUrl": "URL kopieren",
+      "copyUrlAria": "Quell-URL kopieren",
+      "quality": "Qualität",
+      "audio": "Audio",
+      "audioEnabled": "Aktiviert",
+      "health": "Zustand",
+      "broadcastTitle": "Senden an",
+      "broadcastReaching": "Erreicht {count, plural, one {# Bildschirm} other {# Bildschirme}}",
+      "broadcastNoScreens": "Keine Bildschirme ausgewählt",
+      "changeTargetsLocked": "Stoppen Sie den Stream, um die Ziele zu ändern.",
+      "specificScreens": "Bestimmte Bildschirme",
+      "screenGroup": "Bildschirmgruppe",
+      "noScreensAvailable": "Keine Bildschirme verfügbar.",
+      "noGroupsYet": "Noch keine Bildschirmgruppen — erstellen Sie eine auf der Seite Bildschirmgruppen.",
+      "overridePrefix": "Live hat Vorrang.",
+      "overrideBody": "Solange dieser Stream live ist, überschreibt er jede geplante Playlist auf den ausgewählten Bildschirmen.",
+      "healthHealthy": "Gesund",
+      "healthStopped": "Gestoppt",
+      "healthNoFeed": "Kein Feed",
+      "targetGroupSummary": "1 Gruppe · {count}",
+      "targetNoGroup": "Keine Gruppe",
+      "targetScreenSummary": "{count, plural, one {# Bildschirm} other {# Bildschirme}}",
+      "targetNoScreens": "Keine Bildschirme",
+      "screenSub": "{resolution} · {location}",
+      "groupSub": "{mode} · {count, plural, one {# Bildschirm} other {# Bildschirme}}"
+    },
+    "errors": {
+      "loadStreams": "Live-Streams konnten nicht geladen werden.",
+      "createStream": "Live-Stream konnte nicht erstellt werden.",
+      "deactivateStream": "Live-Stream konnte nicht deaktiviert werden.",
+      "deleteStream": "Live-Stream konnte nicht gelöscht werden.",
+      "noStreamId": "Keine Stream-ID angegeben.",
+      "selectGroupFirst": "Wählen Sie zuerst eine Bildschirmgruppe.",
+      "selectScreenFirst": "Wählen Sie zuerst mindestens einen Bildschirm.",
+      "startStream": "Stream konnte nicht gestartet werden.",
+      "stopStream": "Stream konnte nicht gestoppt werden.",
+      "restartStream": "Stream konnte nicht neu gestartet werden.",
+      "renameStream": "Stream konnte nicht umbenannt werden.",
+      "updateAudio": "Audio konnte nicht aktualisiert werden.",
+      "copyUrl": "URL konnte nicht kopiert werden."
+    },
+    "toast": {
+      "created": "Live-Stream erstellt.",
+      "deleted": "Live-Stream gelöscht.",
+      "stopped": "Stream gestoppt.",
+      "started": "Stream gestartet.",
+      "restarted": "Stream neu gestartet.",
+      "renamed": "Stream umbenannt.",
+      "audioEnabled": "Audio aktiviert.",
+      "audioMuted": "Audio stummgeschaltet.",
+      "urlCopied": "Quell-URL kopiert."
+    }
+  },
+  "siteAgents": {
+    "list": {
+      "title": "Site-Agents",
+      "subtitle": "Dienste in Ihren Standorten, die sich um die Displays kümmern",
+      "addAgent": "Agent hinzufügen",
+      "loading": "Wird geladen…",
+      "emptyTitle": "Noch keine Site-Agents",
+      "emptyDesc": "Ein Site-Agent läuft in einem Standort, startet die Displays, weckt sie vor einem Zeitplan und hält ihren Entwicklermodus am Leben.",
+      "noLocation": "Kein Standort festgelegt",
+      "connected": "verbunden",
+      "offline": "offline",
+      "displays": "Displays",
+      "version": "Version",
+      "lastSeen": "Zuletzt gesehen",
+      "never": "nie"
+    },
+    "create": {
+      "title": "Site-Agent hinzufügen",
+      "readyPrefix": "ist bereit. Starten Sie den Agent im Standort und geben Sie diesen Setup-Code auf dessen Einrichtungsseite ein.",
+      "tokenHint": "Er kann nur einmal verwendet werden und läuft am {date} ab. Kopieren Sie ihn jetzt — er kann nicht erneut angezeigt werden, aber Sie können einen neuen ausstellen.",
+      "copy": "Kopieren",
+      "done": "Fertig",
+      "nameLabel": "Name",
+      "nameHint": "Woran Sie diesen Standort in der Liste erkennen",
+      "namePlaceholder": "Standort Nord",
+      "locationLabel": "Standort",
+      "locationHint": "Optional, z. B. wo die Maschine steht",
+      "locationPlaceholder": "Serverraum",
+      "cancel": "Abbrechen",
+      "creating": "Wird erstellt…",
+      "create": "Erstellen"
+    },
+    "toast": {
+      "createFailed": "Der Agent konnte nicht erstellt werden",
+      "tokenCopied": "Setup-Code kopiert",
+      "tokenCopyFailed": "Kopieren fehlgeschlagen — markieren Sie den Setup-Code und kopieren Sie ihn von Hand",
+      "loadFailed": "Die Site-Agents konnten nicht geladen werden"
+    },
+    "detail": {
+      "siteAgentFallback": "Site-Agent",
+      "connected": "Verbunden",
+      "notConnected": "Nicht verbunden",
+      "versionUnknown": "Version unbekannt",
+      "lastSeen": "zuletzt gesehen {date}",
+      "neverChecked": "nie gemeldet",
+      "addDisplay": "Display hinzufügen",
+      "newToken": "Neuer Setup-Code",
+      "revokeAccess": "Zugriff widerrufen",
+      "deleteAgent": "Agent löschen",
+      "tokenHint": "Geben Sie diesen Setup-Code auf der Einrichtungsseite des Agents ein. Er kann nur einmal verwendet werden, läuft kurzfristig ab und wird nicht erneut angezeigt.",
+      "staleWarning": "Dieser Agent ist nicht verbunden, daher ist alles unten der zuletzt gemeldete Stand, nicht der aktuelle.",
+      "displaysHeading": "Displays ({count})",
+      "noDisplaysTitle": "Keine Displays zugewiesen",
+      "emptyDescAssignable": "Verwenden Sie oben „Display hinzufügen“, damit dieser Agent sich um eines kümmert.",
+      "emptyDescAllAssigned": "Jedes Display wird bereits von einem Agent betreut.",
+      "noAddress": "keine Adresse",
+      "setupBadge": "Einrichtung {step}/{total}",
+      "appUpdateBadge": "App {installed} → {available}",
+      "appBadge": "App {version}",
+      "continueSetup": "Einrichtung fortsetzen",
+      "startApp": "App starten",
+      "wake": "Aufwecken",
+      "standby": "Standby",
+      "updateApp": "App aktualisieren",
+      "installApp": "App installieren",
+      "extendDevmode": "Entwicklermodus verlängern",
+      "settings": "Einstellungen",
+      "remove": "Entfernen",
+      "lastProbe": "Letzte Prüfung",
+      "developerMode": "Entwicklermodus",
+      "key": "Schlüssel",
+      "remote": "Fernsteuerung",
+      "loading": "Wird geladen…",
+      "statusPlaying": "spielt ab",
+      "statusAppNotRunning": "TV ist an, App läuft nicht",
+      "statusUnreachable": "TV antwortet nicht",
+      "statusNotReported": "noch nicht gemeldet",
+      "devmodeOff": "aus",
+      "devmodeNeverExtended": "nie verlängert",
+      "devmodeLastFailed": "letzter Versuch fehlgeschlagen",
+      "devmodeExtended": "verlängert",
+      "assignTitle": "Display hinzufügen",
+      "assignHint": "Der Agent beginnt sofort mit der Prüfung. Adresse und Entwicklermodus-Passphrase werden danach in den Einstellungen des Displays gesetzt.",
+      "assignPlaceholder": "Display auswählen",
+      "cancel": "Abbrechen",
+      "add": "Hinzufügen",
+      "standbyTitle": "Standby",
+      "standbyConfirmLabel": "In Standby versetzen",
+      "standbyBusyLabel": "Wird gesendet…",
+      "standbyBodyPrefix": "Soll",
+      "standbyBodyMiddle": "in Standby versetzt werden? Es kann danach nur über das Netzwerk geweckt werden, was",
+      "standbyQuickStart": "Quick Start+",
+      "standbyBodySuffix": "am TV aktiviert erfordert (Einstellungen → Allgemein → Energie sparen). Ohne das muss jemand die Fernbedienung benutzen.",
+      "removeTitle": "Display entfernen",
+      "removeConfirmLabel": "Entfernen",
+      "removeBusyLabel": "Wird entfernt…",
+      "removeBodyPrefix": "Soll",
+      "removeBodySuffix": "von diesem Agent entfernt werden? Adresse, Entwicklermodus-Passphrase und Einrichtungsfortschritt werden vergessen, sodass das erneute Hinzufügen die Einrichtung von vorn beginnt.",
+      "deleteTitle": "Agent löschen",
+      "deleteConfirmLabel": "Löschen",
+      "deleteBusyLabel": "Wird gelöscht…",
+      "deleteBodyPrefix": "Soll gelöscht werden:",
+      "deleteBodyReleases": "Die {count} betreuten Display(s) werden freigegeben und ihre Einrichtung wird vergessen.",
+      "deleteBodySuffix": "Dies kann nicht rückgängig gemacht werden.",
+      "revokeTitle": "Zugriff widerrufen",
+      "revokeConfirmLabel": "Widerrufen",
+      "revokeBusyLabel": "Wird widerrufen…",
+      "revokeBody": "Alle Sitzungen dieses Agents beenden? Er funktioniert sofort nicht mehr und braucht einen neuen Setup-Code, um zurückzukommen. Seine Displays und deren Einstellungen bleiben unberührt."
+    },
+    "detailToast": {
+      "loadAgentFailed": "Dieser Agent konnte nicht geladen werden",
+      "loadDisplaysFailed": "Die Displays konnten nicht geladen werden",
+      "commandSent": "An den Agent gesendet",
+      "agentOffline": "Der Agent ist gerade nicht verbunden",
+      "commandFailed": "Der Agent konnte nicht erreicht werden",
+      "added": "Diesem Agent hinzugefügt",
+      "addFailed": "Dieses Display konnte nicht hinzugefügt werden",
+      "removed": "Von diesem Agent entfernt",
+      "removeFailed": "Dieses Display konnte nicht entfernt werden.",
+      "deleted": "Agent gelöscht",
+      "deleteFailed": "Dieser Agent konnte nicht gelöscht werden.",
+      "tokenFailed": "Es konnte kein Setup-Code ausgestellt werden",
+      "revoked": "Zugriff widerrufen",
+      "revokeFailed": "Der Zugriff konnte nicht widerrufen werden."
+    },
+    "settings": {
+      "sub": "Fernsteuerung",
+      "siteAgentLabel": "Site-Agent",
+      "siteAgentHint": "Welcher Standort-Agent sich um dieses Display kümmert. Zum Herausnehmen verwenden Sie Entfernen in dessen Zeile.",
+      "agentPlaceholder": "Agent auswählen",
+      "addressLabel": "Adresse im Standortnetzwerk",
+      "addressHint": "z. B. 192.168.1.50",
+      "macLabel": "MAC-Adresse",
+      "macHint": "Für Wake-on-LAN nötig. Kabel und WLAN unterscheiden sich.",
+      "passphraseLabel": "Entwicklermodus-Passphrase",
+      "passphraseHintSaved": "Gespeichert — leer lassen, um sie zu behalten",
+      "passphraseHintEmpty": "Die sechs Zeichen, die die Entwicklermodus-App anzeigt",
+      "autoLaunchLabel": "App automatisch starten",
+      "autoLaunchDesc": "Wenn der TV an ist, der Player aber nichts meldet",
+      "extendDevmodeLabel": "Entwicklermodus am Leben halten",
+      "extendDevmodeDesc": "Verlängert die Sitzung, während der TV an ist, damit die App nicht gelöscht wird",
+      "extendEveryLabel": "Verlängern alle",
+      "daysSuffix": "Tage",
+      "wakeBeforeLabel": "Vor Beginn eines Zeitplans aufwecken",
+      "wakeBeforeDescEnabled": "Sendet kurz vor der fälligen Wiedergabe ein Magic Packet",
+      "wakeNeedsMac": "Benötigt eine MAC-Adresse",
+      "wakeLeadLabel": "So lange vorher aufwecken",
+      "wakeLeadHint": "Ein Gerät braucht etwa 15 Sekunden, um zu antworten",
+      "minutesSuffix": "Minuten",
+      "wakeUnreachableLabel": "Aufwecken, wann immer der TV nicht antwortet",
+      "wakeUnreachableDescEnabled": "Für Standorte, die die Displays rund um die Uhr anlassen",
+      "cancel": "Abbrechen",
+      "saving": "Wird gespeichert…",
+      "save": "Speichern",
+      "intervalHintWarn": "{min}–{max} Tage. Über {warn} eignet sich nur für ein Display, das durchgehend läuft.",
+      "intervalHintNormal": "{min}–{max} Tage. Sieben ist ein guter Standard.",
+      "loadAgentsFailed": "Die Site-Agents konnten nicht geladen werden",
+      "saved": "Gespeichert",
+      "saveFailed": "Speichern fehlgeschlagen"
+    },
+    "wizard": {
+      "sub": "Dieses Display verbinden",
+      "agentLabel": "Site-Agent",
+      "agentPlaceholder": "Agent auswählen",
+      "ipLabel": "IP-Adresse",
+      "ipHint": "z. B. 192.168.1.50",
+      "macLabel": "MAC-Adresse",
+      "macHint": "Optional — nur für Wake-on-LAN",
+      "passphraseLabel": "Entwicklermodus-Passphrase",
+      "passphraseHintSaved": "Gespeichert — leer lassen, um sie zu behalten",
+      "passphraseHintEmpty": "Sechs Zeichen",
+      "skip": "Überspringen",
+      "back": "Zurück",
+      "close": "Schließen",
+      "resultOk": "Sieht gut aus.",
+      "resultFailFallback": "Das hat nicht funktioniert.",
+      "completedNote": "Dieses Display ist eingerichtet. Führen Sie einen Schritt erneut aus, wenn sich am TV etwas ändert.",
+      "stepCounter": "Schritt {current} von {total}",
+      "stateDone": "Fertig",
+      "stateSkipped": "Übersprungen",
+      "stateInProgress": "In Bearbeitung",
+      "stateOptional": "Optional",
+      "stateNotYet": "Noch nicht",
+      "actionChecking": "Wird geprüft…",
+      "actionSaving": "Wird gespeichert…",
+      "actionSaveCheck": "Speichern und prüfen",
+      "actionSaveContinue": "Speichern und fortfahren",
+      "actionCheck": "Prüfen",
+      "actionDoneNext": "Fertig, weiter",
+      "loadAgentsFailed": "Die Site-Agents konnten nicht geladen werden",
+      "saveFailed": "Das konnte nicht gespeichert werden.",
+      "noAnswer": "Der Agent hat nicht geantwortet.",
+      "agentOffline": "Der Agent ist gerade nicht verbunden.",
+      "agentUnreachable": "Der Agent konnte nicht erreicht werden.",
+      "steps": {
+        "1": {
+          "title": "Agent auswählen",
+          "short": "Agent",
+          "instruction": "Welcher Agent in diesem Standort sich um das Display kümmern soll. Ohne einen kann nichts darunter laufen."
+        },
+        "2": {
+          "title": "Adresse im Standortnetzwerk",
+          "short": "Netzwerk",
+          "instruction": "Die IP-Adresse des TVs, aus Einstellungen → Netzwerk am Gerät. Die MAC-Adresse wird nur benötigt, wenn der Agent ihn vor einem Zeitplan aufwecken soll; Kabel und WLAN haben unterschiedliche."
+        },
+        "3": {
+          "title": "Entwicklermodus-App installieren",
+          "short": "Entwicklermodus",
+          "instruction": "Am TV: mit einem LG-Konto anmelden, „Developer Mode“ aus dem Content Store installieren, öffnen und Dev Mode Status einschalten. Das Gerät startet neu.\n\nDieser und die drei folgenden Schritte existieren, damit der Agent die Sitzung vor dem Ablauf bewahren kann — wenn sie abläuft, löscht der TV die App. Überspringen Sie sie, funktioniert das Display weiterhin, aber jemand muss sie von Hand verlängern."
+        },
+        "4": {
+          "title": "Key-Server einschalten",
+          "short": "Key-Server",
+          "instruction": "Schalten Sie in der Entwicklermodus-App am TV „Key Server“ ein."
+        },
+        "5": {
+          "title": "Passphrase eingeben",
+          "short": "Passphrase",
+          "instruction": "Die sechs Zeichen, die die Entwicklermodus-App als Passphrase anzeigt. Sie leitet sich vom Gerät selbst ab und ändert sich nicht, wenn der Entwicklermodus erneut eingeschaltet wird."
+        },
+        "6": {
+          "title": "Verbindung zum TV prüfen",
+          "short": "SSH",
+          "instruction": "Hier ist nichts zu tun — der Agent verbindet sich mit dem abgerufenen Schlüssel und meldet sich zurück."
+        },
+        "7": {
+          "title": "Player-App installieren",
+          "short": "Installieren",
+          "instruction": "Der Agent kopiert die App über die soeben nachgewiesene Verbindung auf den TV. Hier ist nichts zu tun — der Schritt installiert sie."
+        },
+        "8": {
+          "title": "Kopplungsaufforderung bestätigen",
+          "short": "Kopplung",
+          "instruction": "Der TV zeigt eine Aufforderung, die Verbindung zuzulassen. Bestätigen Sie sie mit der Fernbedienung. Dies ist einmal pro Display nötig, und niemand kann es von hier aus tun."
+        },
+        "9": {
+          "title": "App starten",
+          "short": "Abschluss",
+          "instruction": "Der Agent startet den Player und verlängert, falls der Entwicklermodus eingerichtet ist, die Sitzung."
+        }
+      }
+    },
+    "confirm": {
+      "cancel": "Abbrechen",
+      "working": "Wird ausgeführt…"
+    }
+  },
+  "auditLog": {
+    "page": {
+      "title": "Audit-Log",
+      "subtitle": "Jede Aktion über Bildschirme, Inhalte, Personen und Einstellungen",
+      "refresh": "Aktualisieren",
+      "exportCsv": "CSV exportieren",
+      "accessDenied": "Zugriff verweigert. Org-Admin-Rechte erforderlich.",
+      "eventsAll": "Ereignisse",
+      "eventsOf": "von {total} Ereignissen",
+      "loading": "Audit-Log wird geladen…",
+      "emptyTitle": "Keine Audit-Log-Einträge gefunden",
+      "emptyDesc": "Sobald Sie Bildschirme und Inhalte verwalten, erscheint hier jede Aktion.",
+      "emptyText": "Keine Audit-Log-Einträge gefunden."
+    },
+    "errors": {
+      "noOrgSelected": "Keine Organisation ausgewählt.",
+      "loadAuditLog": "Audit-Log konnte nicht geladen werden.",
+      "loadMore": "Weitere Einträge konnten nicht geladen werden.",
+      "accessDenied": "Zugriff verweigert. Org-Admin-Rechte erforderlich."
+    },
+    "filters": {
+      "searchPlaceholder": "Ressourcen, Personen, Details suchen…",
+      "reset": "Zurücksetzen",
+      "action": "Aktion",
+      "allActions": "Alle Aktionen",
+      "user": "Benutzer",
+      "allUsers": "Alle Benutzer",
+      "resourceType": "Ressourcentyp",
+      "allTypes": "Alle Typen",
+      "from": "Von",
+      "to": "Bis"
+    },
+    "table": {
+      "headerTimestamp": "Zeitstempel",
+      "headerUser": "Benutzer",
+      "headerAction": "Aktion",
+      "headerType": "Typ",
+      "headerResource": "Ressource",
+      "headerDetails": "Details",
+      "noMatchTitle": "Keine passenden Einträge",
+      "noMatchDesc": "Entfernen Sie einen Filter oder erweitern Sie den Datumsbereich.",
+      "eventId": "Ereignis-ID",
+      "resourceId": "Ressourcen-ID",
+      "timestamp": "Zeitstempel",
+      "actor": "Akteur",
+      "resourceType": "Ressourcentyp",
+      "showing": "{shown} von {total} Einträgen angezeigt",
+      "loadingMore": "Wird geladen…",
+      "loadMore": "Mehr laden",
+      "system": "System",
+      "instance": "Instanz",
+      "today": "Heute",
+      "yesterday": "Gestern",
+      "justNow": "gerade eben",
+      "minutesAgo": "vor {count} Min.",
+      "hoursAgo": "vor {count, plural, one {# Stunde} other {# Stunden}}",
+      "daysAgo": "vor {count, plural, one {# Tag} other {# Tagen}}"
+    },
+    "actions": {
+      "content.upload": "Inhalt hochgeladen",
+      "content.delete": "Inhalt gelöscht",
+      "content.reupload": "Inhalt erneut hochgeladen",
+      "playlist.create": "Playlist erstellt",
+      "playlist.update": "Playlist aktualisiert",
+      "playlist.delete": "Playlist gelöscht",
+      "schedule.create": "Zeitplan erstellt",
+      "schedule.update": "Zeitplan aktualisiert",
+      "schedule.delete": "Zeitplan gelöscht",
+      "screen.register": "Bildschirm registriert",
+      "screen.update": "Bildschirm aktualisiert",
+      "screen.key_regenerated": "Bildschirmschlüssel neu generiert",
+      "screen.online": "Bildschirm online gegangen",
+      "screen.offline": "Bildschirm offline gegangen",
+      "user.invited": "Benutzer eingeladen",
+      "user.role_changed": "Benutzerrolle geändert",
+      "user.removed": "Benutzer entfernt",
+      "organisation.created": "Organisation erstellt",
+      "organisation.updated": "Organisation aktualisiert",
+      "group.created": "Bildschirmgruppe erstellt",
+      "group.updated": "Bildschirmgruppe aktualisiert",
+      "group.deleted": "Bildschirmgruppe gelöscht",
+      "group.screen_added": "Bildschirm zur Gruppe hinzugefügt",
+      "group.screen_removed": "Bildschirm aus Gruppe entfernt",
+      "group.mode_changed": "Gruppenmodus geändert",
+      "live_stream.created": "Live-Stream erstellt",
+      "live_stream.updated": "Live-Stream aktualisiert",
+      "live_stream.deleted": "Live-Stream gelöscht",
+      "live_stream.activated": "Live-Stream aktiviert",
+      "live_stream.deactivated": "Live-Stream deaktiviert",
+      "live_stream.failed": "Live-Stream fehlgeschlagen",
+      "screen.bulk_deleted": "Bildschirm gelöscht (Sammel)",
+      "screen.bulk_group_assigned": "Bildschirmgruppe zugewiesen (Sammel)",
+      "content.bulk_deleted": "Inhalt gelöscht (Sammel)",
+      "content.bulk_tagged": "Inhalt getaggt (Sammel)",
+      "content.bulk_untagged": "Inhalt-Tags entfernt (Sammel)",
+      "content.bulk_added_to_playlist": "Inhalt zur Playlist hinzugefügt (Sammel)",
+      "playlist.bulk_deleted": "Playlist gelöscht (Sammel)",
+      "playlist.bulk_screen_assigned": "Playlist Bildschirm zugewiesen (Sammel)",
+      "auth.user_registered": "Benutzer registriert",
+      "auth.email_verified": "E-Mail bestätigt",
+      "auth.email_change_requested": "E-Mail-Änderung angefordert",
+      "auth.email_changed": "E-Mail geändert",
+      "auth.password_reset_requested": "Passwort-Zurücksetzung angefordert",
+      "auth.password_changed": "Passwort geändert",
+      "auth.super_admin_setup": "Instanz-Einrichtung (Super-Admin)",
+      "email.sent": "E-Mail gesendet",
+      "email.send_failed": "E-Mail-Versand fehlgeschlagen"
+    }
+  },
+  "notifications": {
+    "ariaLabel": "Benachrichtigungen",
+    "title": "Benachrichtigungen",
+    "markAllRead": "Alle als gelesen markieren",
+    "loading": "Wird geladen…",
+    "empty": "Noch keine Benachrichtigungen",
+    "time": {
+      "justNow": "gerade eben",
+      "minutesAgo": "vor {minutes}m",
+      "hoursAgo": "vor {hours}h",
+      "daysAgo": "vor {days}d"
+    }
+  },
+  "search": {
+    "placeholder": "Suchen…",
+    "shortcut": "Strg+K",
+    "noResults": "Keine Ergebnisse gefunden",
+    "sections": {
+      "screens": "Bildschirme",
+      "content": "Inhalte",
+      "playlists": "Playlists",
+      "schedules": "Zeitpläne"
+    }
+  },
+  "settings": {
+    "tabs": {
+      "users": "Benutzerverwaltung",
+      "notificationConfig": "Benachrichtigungen",
+      "storage": "Speicher"
+    },
+    "user": {
+      "page": {
+        "title": "Benutzereinstellungen",
+        "subtitle": "Verwalten Sie Ihr persönliches Konto über alle Organisationen hinweg."
+      },
+      "profile": {
+        "title": "Profil",
+        "subtitle": "Ihre Kontodaten und Ihr Anzeigename.",
+        "avatarAlt": "Ihr Avatar",
+        "gravatarLabel": "Gravatar verwenden",
+        "gravatarDesc": "Den mit Ihrer E-Mail verknüpften Gravatar-Avatar anzeigen",
+        "gravatarHint": "Wenn deaktiviert, wird kein E-Mail-Hash an gravatar.com gesendet",
+        "emailLabel": "E-Mail",
+        "emailHint": "Ändern Sie Ihre E-Mail unten; wir senden zuerst einen Bestätigungslink.",
+        "displayNameLabel": "Anzeigename",
+        "displayNamePlaceholder": "Ihr Name",
+        "nameTooLong": "Der Name darf höchstens 255 Zeichen lang sein.",
+        "save": "Profil speichern",
+        "saving": "Wird gespeichert…"
+      },
+      "channels": {
+        "title": "Benachrichtigungskanäle",
+        "subtitle": "Wählen Sie, wie Sie Benachrichtigungen erhalten. Diese gelten für alle Organisationen, denen Sie angehören.",
+        "loading": "Einstellungen werden geladen…",
+        "inAppLabel": "In-App",
+        "inAppDesc": "Benachrichtigungen im Dashboard erhalten",
+        "emailLabel": "E-Mail",
+        "emailDesc": "Benachrichtigungen per E-Mail erhalten — für Organisationen mit konfigurierter E-Mail",
+        "ntfyLabel": "ntfy",
+        "ntfyDesc": "Benachrichtigungen via ntfy erhalten — für Organisationen mit konfiguriertem ntfy"
+      },
+      "appearance": {
+        "title": "Darstellung",
+        "subtitle": "Passen Sie Akzentfarbe und Oberflächendichte an.",
+        "accentLabel": "Akzentfarbe",
+        "densityLabel": "Oberflächendichte",
+        "accent": {
+          "indigo": "Indigo",
+          "teal": "Türkis",
+          "amber": "Bernstein",
+          "blue": "Blau"
+        },
+        "density": {
+          "compactLabel": "Kompakt",
+          "compactDesc": "Engere Abstände",
+          "regularLabel": "Standard",
+          "regularDesc": "Standardabstände",
+          "comfyLabel": "Weit",
+          "comfyDesc": "Mehr Platz zum Atmen"
+        }
+      },
+      "password": {
+        "title": "Passwort ändern",
+        "subtitle": "Aktualisieren Sie das Passwort für die Anmeldung.",
+        "currentLabel": "Aktuelles Passwort",
+        "newLabel": "Neues Passwort",
+        "newHint": "Mindestens 8 Zeichen verwenden.",
+        "confirmLabel": "Neues Passwort bestätigen",
+        "mismatch": "Passwörter stimmen nicht überein.",
+        "save": "Passwort aktualisieren",
+        "saving": "Wird gespeichert…"
+      },
+      "email": {
+        "title": "E-Mail ändern",
+        "subtitle": "Wir senden einen Bestätigungslink an die neue Adresse; die Änderung wird nach Ihrer Bestätigung wirksam.",
+        "newLabel": "Neue E-Mail",
+        "newPlaceholder": "neu@beispiel.de",
+        "invalid": "Geben Sie eine gültige E-Mail-Adresse ein.",
+        "currentPasswordLabel": "Aktuelles Passwort",
+        "save": "Bestätigungslink senden",
+        "saving": "Wird gesendet…"
+      },
+      "danger": {
+        "title": "Gefahrenzone",
+        "subtitle": "Löschen Sie Ihr Konto dauerhaft. Dadurch werden Ihre Organisationsmitgliedschaften entfernt. Dies kann nicht rückgängig gemacht werden.",
+        "deleteAccount": "Konto löschen"
+      },
+      "deleteModal": {
+        "title": "Konto löschen",
+        "desc": "Dadurch wird Ihr Konto dauerhaft gelöscht und kann nicht wiederhergestellt werden. Geben Sie Ihr aktuelles Passwort zur Bestätigung ein.",
+        "currentPasswordLabel": "Aktuelles Passwort",
+        "cancel": "Abbrechen",
+        "confirm": "Konto löschen",
+        "deleting": "Wird gelöscht…"
+      },
+      "toast": {
+        "profileSaved": "Profil gespeichert.",
+        "profileSaveFailed": "Profil konnte nicht gespeichert werden.",
+        "preferencesSaved": "Einstellungen gespeichert.",
+        "preferencesSaveFailed": "Einstellungen konnten nicht gespeichert werden.",
+        "passwordUpdated": "Passwort aktualisiert.",
+        "passwordUpdateFailed": "Passwort konnte nicht aktualisiert werden. Prüfen Sie Ihr aktuelles Passwort.",
+        "emailLinkSent": "Bestätigungslink an die neue Adresse gesendet.",
+        "emailChangeFailed": "E-Mail konnte nicht geändert werden. Prüfen Sie Ihr Passwort."
+      },
+      "errors": {
+        "loadPreferences": "Benachrichtigungseinstellungen konnten nicht geladen werden.",
+        "deleteAccount": "Konto konnte nicht gelöscht werden. Prüfen Sie Ihr aktuelles Passwort."
+      }
+    },
+    "org": {
+      "notifications": {
+        "page": {
+          "title": "Benachrichtigungen",
+          "subtitle": "E-Mail- und Push-Zustellungseinstellungen für Ihre Organisation."
+        },
+        "loading": "Konfiguration wird geladen…",
+        "smtp": {
+          "title": "SMTP-E-Mail-Einstellungen",
+          "subtitle": "Konfigurieren Sie SMTP, um E-Mail-Benachrichtigungen für Ihre Organisation zu aktivieren.",
+          "hostLabel": "Host",
+          "portLabel": "Port",
+          "userLabel": "Benutzername",
+          "passwordLabel": "Passwort",
+          "passwordSaved": "Gespeichert — leer lassen, um aktuelles zu behalten",
+          "passwordEnter": "Passwort eingeben",
+          "fromLabel": "Absenderadresse",
+          "secureLabel": "Sicher (TLS)",
+          "secureDesc": "Deaktivieren, um stattdessen STARTTLS zu verwenden",
+          "save": "SMTP-Einstellungen speichern",
+          "saving": "Wird gespeichert…",
+          "test": "Test-E-Mail senden",
+          "testing": "Wird gesendet…"
+        },
+        "ntfy": {
+          "title": "ntfy-Push-Benachrichtigungen",
+          "subtitle": "Konfigurieren Sie ntfy, um Push-Benachrichtigungen für Ihre Organisation zu aktivieren.",
+          "urlLabel": "ntfy-URL",
+          "topicLabel": "Thema",
+          "topicPlaceholder": "meine-org-benachrichtigungen",
+          "tokenLabel": "Auth-Token",
+          "tokenHint": "Optional — nur für geschützte Themen erforderlich.",
+          "tokenSaved": "Gespeichert — leer lassen, um aktuelles zu behalten",
+          "tokenEnter": "Token eingeben (optional)",
+          "infoPrefix": "Installieren Sie die",
+          "infoApp": "ntfy",
+          "infoSuffix": "-App und abonnieren Sie Ihr Thema, um Benachrichtigungen mobil zu erhalten.",
+          "save": "Push-Einstellungen speichern",
+          "saving": "Wird gespeichert…",
+          "test": "Test-Push senden",
+          "testing": "Wird gesendet…"
+        },
+        "rules": {
+          "title": "Alarmregeln",
+          "subtitle": "Wählen Sie, welche Ereignisse eine Benachrichtigung per E-Mail und Push auslösen.",
+          "offlineLabel": "Bildschirm wird offline",
+          "offlineDesc": "Alarm, wenn ein Display 5 Minuten lang nicht erreichbar ist",
+          "recoveredLabel": "Bildschirm erholt sich",
+          "recoveredDesc": "Benachrichtigen, wenn ein offline-Display wieder online ist",
+          "transcodeFailLabel": "Transcoding-Fehler",
+          "transcodeFailDesc": "Alarm, wenn hochgeladene Medien nicht verarbeitet werden können",
+          "storageLabel": "Speicher nahe Limit",
+          "storageDesc": "Warnen, wenn die Nutzung 90 % der Zuteilung überschreitet",
+          "weeklyLabel": "Wochenzusammenfassung",
+          "weeklyDesc": "Eine Übersicht über Verfügbarkeit und Aktivität jeden Montag",
+          "save": "Alarmregeln speichern",
+          "saving": "Wird gespeichert…"
+        },
+        "toast": {
+          "smtpSaved": "SMTP-Einstellungen gespeichert.",
+          "smtpSaveFailed": "SMTP-Einstellungen konnten nicht gespeichert werden.",
+          "ntfySaved": "ntfy-Einstellungen gespeichert.",
+          "ntfySaveFailed": "ntfy-Einstellungen konnten nicht gespeichert werden.",
+          "rulesSaved": "Alarmregeln gespeichert.",
+          "rulesSaveFailed": "Alarmregeln konnten nicht gespeichert werden.",
+          "testEmailFailed": "Test-E-Mail konnte nicht gesendet werden.",
+          "testNtfyFailed": "Test-Benachrichtigung konnte nicht gesendet werden."
+        },
+        "errors": {
+          "noOrgSelected": "Keine Organisation ausgewählt.",
+          "loadConfig": "Benachrichtigungskonfiguration konnte nicht geladen werden."
+        }
+      },
+      "storage": {
+        "page": {
+          "title": "Speicher",
+          "subtitle": "Verfolgen Sie die Medien-Nutzung gegenüber Ihren zugewiesenen Limits."
+        },
+        "loading": "Speichernutzung wird geladen…",
+        "card": {
+          "title": "Speichernutzung",
+          "subtitle": "Die Nutzung Ihrer Organisation gegenüber den zugewiesenen Limits. Wenden Sie sich an einen Instanz-Administrator, um diese Limits zu ändern."
+        },
+        "errors": {
+          "noOrgSelected": "Keine Organisation ausgewählt.",
+          "accessDenied": "Zugriff verweigert.",
+          "loadStorage": "Speichernutzung konnte nicht geladen werden."
+        }
+      }
+    },
+    "users": {
+      "page": {
+        "title": "Benutzerverwaltung",
+        "subtitle": "Verwalten Sie, wer Zugriff auf Ihre Organisation hat und was er tun darf.",
+        "invite": "Benutzer einladen"
+      },
+      "loading": "Mitglieder werden geladen…",
+      "summary": {
+        "members": "Mitglieder",
+        "pending": "Ausstehend"
+      },
+      "table": {
+        "name": "Name",
+        "email": "E-Mail",
+        "role": "Rolle",
+        "status": "Status",
+        "joined": "Beigetreten",
+        "actions": "Aktionen",
+        "emailPrefix": "E-Mail:",
+        "joinedPrefix": "Beigetreten:",
+        "invitePending": "Einladung ausstehend",
+        "statusPending": "Einladung ausstehend",
+        "statusActive": "Aktiv",
+        "revoke": "Widerrufen",
+        "remove": "Entfernen"
+      },
+      "roles": {
+        "orgAdmin": "Org-Admin",
+        "editor": "Editor",
+        "viewer": "Betrachter"
+      },
+      "empty": {
+        "title": "Noch keine Mitglieder",
+        "desc": "Keine Mitglieder gefunden. Laden Sie Ihren ersten Teamkollegen ein, um ihm Zugriff zu geben."
+      },
+      "inviteModal": {
+        "title": "Benutzer einladen",
+        "emailLabel": "E-Mail-Adresse",
+        "emailPlaceholder": "name@firma.de",
+        "roleLabel": "Rolle",
+        "cancel": "Abbrechen",
+        "submit": "Einladung senden",
+        "submitting": "Wird eingeladen…"
+      },
+      "removeModal": {
+        "title": "Mitglied entfernen",
+        "cancel": "Abbrechen",
+        "remove": "Entfernen",
+        "removing": "Wird entfernt…"
+      },
+      "removeConfirm": {
+        "prefix": "Möchten Sie",
+        "suffix": "wirklich aus dieser Organisation entfernen?"
+      },
+      "toast": {
+        "invited": "Mitglied eingeladen.",
+        "roleUpdated": "Rolle aktualisiert.",
+        "removed": "Mitglied entfernt."
+      },
+      "errors": {
+        "noOrgAdmin": "Sie haben keinen Org-Admin-Zugriff auf eine Organisation.",
+        "noMembership": "Sie sind kein Mitglied einer Organisation.",
+        "loadOrgContext": "Organisationskontext konnte nicht geladen werden.",
+        "accessDenied": "Zugriff verweigert. Org-Admin-Berechtigungen erforderlich.",
+        "loadMembers": "Mitglieder konnten nicht geladen werden.",
+        "invalidEmail": "Eine gültige E-Mail ist erforderlich.",
+        "inviteFailed": "Benutzer konnte nicht eingeladen werden.",
+        "updateRole": "Rolle konnte nicht aktualisiert werden.",
+        "removeMember": "Mitglied konnte nicht entfernt werden."
+      }
+    }
+  },
+  "register": {
+    "title": "Konto erstellen",
+    "subtitle": "Verwalte deine Screens in wenigen Minuten.",
+    "emailLabel": "E-Mail",
+    "emailPlaceholder": "du@firma.com",
+    "emailInvalid": "Gib eine gültige E-Mail-Adresse ein.",
+    "orgNameLabel": "Organisationsname",
+    "orgNamePlaceholder": "Dein Unternehmen oder Workspace",
+    "orgNameRequired": "Ein Organisationsname ist erforderlich.",
+    "passwordLabel": "Passwort",
+    "passwordMinLength": "Verwende mindestens 8 Zeichen.",
+    "confirmPasswordLabel": "Passwort bestätigen",
+    "passwordMismatch": "Die Passwörter stimmen nicht überein.",
+    "submit": "Konto erstellen",
+    "submitting": "Wird erstellt…",
+    "haveAccount": "Bereits ein Konto?",
+    "signIn": "Anmelden",
+    "backToSignIn": "Zurück zur Anmeldung",
+    "success": {
+      "title": "Prüfe dein Postfach",
+      "body": "Fast geschafft — wir haben einen Bestätigungslink an deine E-Mail-Adresse gesendet. Klicke darauf, um dein Konto und deine Organisation zu aktivieren."
+    },
+    "errors": {
+      "conflict": "Diese E-Mail-Adresse oder dieser Organisationsname ist bereits vergeben.",
+      "disabled": "Die Selbstregistrierung ist derzeit deaktiviert.",
+      "generic": "Dein Konto konnte nicht erstellt werden. Bitte versuche es erneut."
+    }
+  },
+  "setup": {
+    "title": "Willkommen",
+    "subtitle": "Lege das erste Administratorkonto an.",
+    "nameLabel": "Name",
+    "nameOptional": "(optional)",
+    "namePlaceholder": "Erika Mustermann",
+    "emailLabel": "E-Mail",
+    "emailPlaceholder": "admin@firma.com",
+    "emailInvalid": "Gib eine gültige E-Mail-Adresse ein.",
+    "passwordLabel": "Passwort",
+    "passwordMinLength": "Das Passwort muss mindestens 8 Zeichen lang sein.",
+    "confirmPasswordLabel": "Passwort bestätigen",
+    "passwordMismatch": "Die Passwörter stimmen nicht überein.",
+    "submit": "Administratorkonto erstellen",
+    "submitting": "Konto wird erstellt…",
+    "errors": {
+      "generic": "Setup konnte nicht abgeschlossen werden. Möglicherweise ist es bereits erfolgt — versuche, dich anzumelden."
+    }
+  },
+  "ui": {
+    "select": {
+      "placeholder": "Auswählen…",
+      "searchPlaceholder": "Suchen…",
+      "noMatch": "Kein Treffer für „{query}“"
+    },
+    "stepper": {
+      "decrease": "Verringern",
+      "increase": "Erhöhen"
+    },
+    "selection": {
+      "selectAll": "Alle Elemente auswählen",
+      "bulkActions": "Sammelaktionen",
+      "clearSelection": "Auswahl aufheben",
+      "selectedCount": "{count, plural, one {# Element ausgewählt} other {# Elemente ausgewählt}}"
+    },
+    "toast": {
+      "dismiss": "Schließen"
+    }
+  },
+  "admin": {
+    "instanceAdmin": "Instanz-Admin",
+    "tabs": {
+      "dashboard": "Dashboard",
+      "organisations": "Organisationen",
+      "users": "Benutzer",
+      "auditLog": "Audit-Log"
+    },
+    "dashboard": {
+      "subtitle": "Verwalte jede Organisation, jeden Benutzer und jede Ressource dieser Instanz",
+      "loading": "Instanzübersicht wird geladen…",
+      "diskUnavailable": "Speicherplatznutzung auf diesem Host nicht verfügbar.",
+      "errors": {
+        "accessDenied": "Zugriff verweigert. Instanz-Admin-Rechte erforderlich.",
+        "loadFailed": "Instanzübersicht konnte nicht geladen werden."
+      },
+      "kpi": {
+        "organisations": "Organisationen",
+        "activeTenants": "Aktive Mandanten",
+        "users": "Benutzer",
+        "verified": "Bestätigt",
+        "pending": "Ausstehend",
+        "total": "{count} gesamt",
+        "storageUsed": "Belegter Speicher",
+        "ofAllocated": "von {limit} zugeteilt",
+        "hostDiskFree": "Freier Host-Speicher",
+        "ofUsed": "von {total} · {pct}% belegt"
+      },
+      "storageAllocated": {
+        "title": "Speicher — zugeteilt vs. belegt",
+        "allOrganisations": "Alle Organisationen",
+        "originals": "Originale",
+        "transcoded": "Transkodiert"
+      },
+      "orgLegend": {
+        "usedOf": "{used} belegt · {limit}"
+      },
+      "hostDisk": {
+        "title": "Host-Speicher",
+        "used": "belegt",
+        "usedLabel": "Belegt",
+        "freeLabel": "Frei",
+        "freeOf": "{free} frei von {total}"
+      },
+      "systemLoad": {
+        "title": "Systemlast",
+        "subtitle": "CPU & Arbeitsspeicher · letzte 24 Stunden",
+        "hourlyAverage": "Stundenmittel",
+        "cpuCores": "CPU · {cores} Kerne",
+        "memoryTotal": "Arbeitsspeicher · {total} GB",
+        "peak": "Spitze {pct}%",
+        "memoryReadout": "{used} GB · Spitze {peak} GB",
+        "collecting": "Systemlast-Verlauf wird gesammelt — das Diagramm erscheint, sobald genügend Daten vorliegen.",
+        "chartAria": "CPU- und Arbeitsspeichernutzung der letzten 24 Stunden",
+        "ticks": {
+          "start": "vor 24 Std.",
+          "now": "jetzt"
+        }
+      },
+      "orgSnapshot": {
+        "title": "Organisationen",
+        "subtitle": "Nutzung auf einen Blick"
+      }
+    },
+    "organisations": {
+      "heading": "Organisationen",
+      "new": "Neue Organisation",
+      "loading": "Organisationen werden geladen…",
+      "emptyTitle": "Noch keine Organisationen",
+      "emptyDesc": "Erstelle deine erste Organisation, um Screens und Inhalte bereitzustellen.",
+      "storageUsage": "Speichernutzung",
+      "members": "Mitglieder",
+      "addMember": "Mitglied hinzufügen",
+      "loadingMembers": "Mitglieder werden geladen…",
+      "noMembersTitle": "Noch keine Mitglieder",
+      "noMembersDesc": "Nutze oben „Mitglied hinzufügen“, um Personen Zugriff auf diese Organisation zu geben.",
+      "roles": {
+        "org_admin": "Org-Admin",
+        "editor": "Editor",
+        "viewer": "Betrachter"
+      },
+      "toasts": {
+        "created": "Organisation „{name}“ erstellt.",
+        "updated": "Organisation „{name}“ aktualisiert.",
+        "deleted": "Organisation gelöscht.",
+        "memberAdded": "Mitglied hinzugefügt.",
+        "memberRemoved": "Mitglied entfernt.",
+        "roleUpdated": "Rolle auf {role} aktualisiert."
+      },
+      "errors": {
+        "accessDenied": "Zugriff verweigert. Instanz-Admin-Rechte erforderlich.",
+        "loadFailed": "Organisationen konnten nicht geladen werden.",
+        "loadMembers": "Mitglieder konnten nicht geladen werden.",
+        "addMember": "Mitglied konnte nicht hinzugefügt werden.",
+        "removeMember": "Mitglied konnte nicht entfernt werden.",
+        "updateRole": "Rolle konnte nicht aktualisiert werden.",
+        "delete": "Organisation konnte nicht gelöscht werden.",
+        "generic": "Ein Fehler ist aufgetreten. Bitte versuche es erneut."
+      }
+    },
+    "orgTable": {
+      "manage": "Verwalten",
+      "headers": {
+        "organisation": "Organisation",
+        "users": "Benutzer",
+        "storage": "Speicher",
+        "created": "Erstellt",
+        "actions": "Aktionen"
+      }
+    },
+    "orgMemberList": {
+      "noName": "(kein Name)",
+      "headers": {
+        "name": "Name",
+        "email": "E-Mail",
+        "role": "Rolle",
+        "joined": "Beigetreten",
+        "actions": "Aktionen"
+      }
+    },
+    "orgForm": {
+      "createTitle": "Organisation erstellen",
+      "editTitle": "Organisation bearbeiten",
+      "nameLabel": "Name",
+      "namePlaceholder": "Organisationsname",
+      "timeZoneLabel": "Zeitzone",
+      "timeZonePlaceholder": "Zeitzone auswählen",
+      "originalStorageLimit": "Speicherlimit Originale",
+      "transcodedStorageLimit": "Speicherlimit Transkodiert",
+      "saveChanges": "Änderungen speichern",
+      "validationRequired": "Name und Zeitzone sind erforderlich."
+    },
+    "addMemberModal": {
+      "title": "Mitglied hinzufügen",
+      "emailLabel": "E-Mail",
+      "emailPlaceholder": "benutzer@beispiel.com",
+      "roleLabel": "Rolle",
+      "adding": "Wird hinzugefügt…",
+      "emailRequired": "E-Mail ist erforderlich."
+    },
+    "removeMemberModal": {
+      "title": "Mitglied entfernen",
+      "confirmPrefix": "Möchtest du",
+      "confirmSuffix": " wirklich aus dieser Organisation entfernen?",
+      "removing": "Wird entfernt…"
+    },
+    "deleteOrgModal": {
+      "title": "Organisation löschen",
+      "confirmPrefix": "Möchtest du",
+      "confirmSuffix": " wirklich löschen? Dadurch werden alle zugehörigen Screens, Inhalte, Playlists und Zeitpläne dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "deleting": "Wird gelöscht…"
+    },
+    "users": {
+      "heading": "Benutzer",
+      "loading": "Benutzer werden geladen…",
+      "invitePending": "Einladung ausstehend",
+      "superuser": "Superuser",
+      "instanceAdminBadge": "Instanz-Admin",
+      "verified": "Bestätigt",
+      "pending": "Ausstehend",
+      "emptyTitle": "Noch keine Benutzer",
+      "emptyDesc": "Plattformbenutzer erscheinen hier, sobald sie sich registrieren oder in eine Organisation eingeladen werden.",
+      "table": {
+        "user": "Benutzer",
+        "organisation": "Organisation",
+        "role": "Rolle",
+        "status": "Status",
+        "created": "Erstellt",
+        "actions": "Aktionen"
+      },
+      "mobile": {
+        "organisation": "Organisation",
+        "role": "Rolle",
+        "status": "Status",
+        "created": "Erstellt"
+      },
+      "stats": {
+        "total": "Benutzer gesamt",
+        "verified": "Bestätigt",
+        "pending": "Ausstehend",
+        "instanceAdmins": "Instanz-Admins"
+      },
+      "toasts": {
+        "deleted": "Benutzer gelöscht."
+      },
+      "errors": {
+        "accessDenied": "Zugriff verweigert. Instanz-Admin-Rechte erforderlich.",
+        "loadFailed": "Benutzer konnten nicht geladen werden.",
+        "delete": "Benutzer konnte nicht gelöscht werden."
+      }
+    },
+    "deleteUserModal": {
+      "title": "Benutzer löschen",
+      "confirmPrefix": "Möchtest du",
+      "confirmSuffix": " wirklich löschen? Dadurch werden der Benutzer und alle seine Organisationsmitgliedschaften entfernt. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "deleting": "Wird gelöscht…"
+    },
+    "auditLog": {
+      "heading": "Audit-Log",
+      "exportCsv": "CSV exportieren",
+      "loading": "Audit-Log wird geladen…",
+      "emptyTitle": "Keine Audit-Log-Einträge gefunden",
+      "emptyDesc": "Instanzweite Aktivitäten über alle Organisationen hinweg erscheinen hier.",
+      "filters": {
+        "organisation": "Organisation",
+        "allOrganisations": "Alle Organisationen",
+        "clear": "Filter zurücksetzen"
+      },
+      "errors": {
+        "accessDenied": "Zugriff verweigert. Instanz-Admin-Rechte erforderlich.",
+        "loadFailed": "Audit-Log konnte nicht geladen werden.",
+        "loadMoreFailed": "Weitere Einträge konnten nicht geladen werden."
+      }
+    }
+  }
+}

@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, input, output, signal, OnInit } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  input,
+  output,
+  signal,
+  OnInit,
+} from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { Organisation } from './organisation.model';
 import { IANA_TIME_ZONES } from './timezones';
 import {
@@ -38,33 +47,34 @@ const TIME_ZONE_OPTIONS: SelectOption[] = IANA_TIME_ZONES.map((tz) => ({ value: 
     SFieldComponent,
     SInputComponent,
     SelectComponent,
+    TranslocoDirective,
   ],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
+    <mns-overlay (closed)="dismiss.emit()" *transloco="let t">
       <mns-modal
-        [title]="org() ? 'Edit Organisation' : 'Create Organisation'"
+        [title]="org() ? t('admin.orgForm.editTitle') : t('admin.orgForm.createTitle')"
         icon="Building"
         [widthPx]="560"
         (closed)="dismiss.emit()"
       >
         <div class="flex flex-col gap-4">
-          <mns-sfield label="Name">
-            <mns-sinput placeholder="Organisation name" [(value)]="name" />
+          <mns-sfield [label]="t('admin.orgForm.nameLabel')">
+            <mns-sinput [placeholder]="t('admin.orgForm.namePlaceholder')" [(value)]="name" />
           </mns-sfield>
 
-          <mns-sfield label="Time Zone">
+          <mns-sfield [label]="t('admin.orgForm.timeZoneLabel')">
             <mns-select
               [options]="timeZoneOptions"
-              placeholder="Select a time zone"
+              [placeholder]="t('admin.orgForm.timeZonePlaceholder')"
               [(value)]="timeZone"
             />
           </mns-sfield>
 
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <mns-sfield label="Original Storage Limit">
+            <mns-sfield [label]="t('admin.orgForm.originalStorageLimit')">
               <mns-sinput type="number" [mono]="true" suffix="MB" [(value)]="storageOriginalMB" />
             </mns-sfield>
-            <mns-sfield label="Transcoded Storage Limit">
+            <mns-sfield [label]="t('admin.orgForm.transcodedStorageLimit')">
               <mns-sinput type="number" [mono]="true" suffix="MB" [(value)]="storageTranscodedMB" />
             </mns-sfield>
           </div>
@@ -75,9 +85,11 @@ const TIME_ZONE_OPTIONS: SelectOption[] = IANA_TIME_ZONES.map((tz) => ({ value: 
         </div>
 
         <div slot="footer" class="flex justify-end gap-2 px-6 pb-5 pt-1">
-          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">{{
+            t('common.actions.cancel')
+          }}</mns-btn>
           <mns-btn variant="primary" [disabled]="submitting()" (mnsClick)="onSubmit()">
-            {{ org() ? 'Save Changes' : 'Create' }}
+            {{ org() ? t('admin.orgForm.saveChanges') : t('common.actions.create') }}
           </mns-btn>
         </div>
       </mns-modal>
@@ -85,6 +97,8 @@ const TIME_ZONE_OPTIONS: SelectOption[] = IANA_TIME_ZONES.map((tz) => ({ value: 
   `,
 })
 export class OrgForm implements OnInit {
+  private readonly transloco = inject(TranslocoService);
+
   readonly org = input.required<Organisation | null>();
   readonly submitting = input.required<boolean>();
   readonly error = input.required<string>();
@@ -114,7 +128,7 @@ export class OrgForm implements OnInit {
 
   onSubmit(): void {
     if (!this.name() || !this.timeZone()) {
-      this.localError.set('Name and time zone are required.');
+      this.localError.set(this.transloco.translate('admin.orgForm.validationRequired'));
       return;
     }
 

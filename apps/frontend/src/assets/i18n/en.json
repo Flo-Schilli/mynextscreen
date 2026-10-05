@@ -1,0 +1,1985 @@
+{
+  "common": {
+    "actions": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "edit": "Edit",
+      "create": "Create",
+      "add": "Add",
+      "remove": "Remove",
+      "close": "Close",
+      "confirm": "Confirm",
+      "back": "Back",
+      "next": "Next",
+      "retry": "Retry",
+      "refresh": "Refresh",
+      "search": "Search",
+      "filter": "Filter",
+      "clear": "Clear",
+      "apply": "Apply",
+      "logout": "Log out",
+      "login": "Log in",
+      "copy": "Copy",
+      "copied": "Copied",
+      "download": "Download",
+      "upload": "Upload",
+      "rename": "Rename",
+      "duplicate": "Duplicate",
+      "select": "Select",
+      "selectAll": "Select all",
+      "deselect": "Deselect",
+      "view": "View",
+      "open": "Open",
+      "done": "Done",
+      "deleting": "Deleting…",
+      "saving": "Saving…"
+    },
+    "status": {
+      "loading": "Loading…",
+      "saving": "Saving…",
+      "empty": "Nothing here yet",
+      "error": "Something went wrong",
+      "online": "Online",
+      "offline": "Offline",
+      "active": "Active",
+      "inactive": "Inactive",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "labels": {
+      "name": "Name",
+      "description": "Description",
+      "status": "Status",
+      "type": "Type",
+      "actions": "Actions",
+      "created": "Created",
+      "updated": "Updated",
+      "yes": "Yes",
+      "no": "No",
+      "none": "None",
+      "all": "All",
+      "optional": "Optional",
+      "required": "Required"
+    },
+    "errors": {
+      "noOrgMembership": "You are not a member of any organisation.",
+      "loadOrgContext": "Failed to load organisation context.",
+      "accessDenied": "Access denied."
+    }
+  },
+  "auth": {
+    "brand": {
+      "heading": "Every screen,<br />under one roof.",
+      "subtitle": "The control room for your digital signage: pair displays, build playlists and broadcast schedules everywhere.",
+      "ticks": {
+        "pair": "Pair any screen in seconds",
+        "schedule": "Schedule content across locations",
+        "monitor": "Monitor every display in real time"
+      }
+    },
+    "login": {
+      "title": "Welcome back",
+      "subtitle": "Sign in to your myNextScreen workspace.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "you@company.com",
+      "emailInvalid": "Enter a valid email address.",
+      "passwordLabel": "Password",
+      "passwordRequired": "Password is required.",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "resendLink": "Resend verification email",
+      "resending": "Sending…",
+      "resentNotice": "A new verification link is on its way.",
+      "or": "or",
+      "noAccount": "No account yet?",
+      "createAccount": "Create account"
+    },
+    "notice": {
+      "accountDeleted": "Account deleted."
+    },
+    "errors": {
+      "notVerified": "Please verify your email before signing in.",
+      "invalidCredentials": "Invalid email or password."
+    },
+    "setPassword": {
+      "title": "Set your password",
+      "subtitle": "Choose a password for your account. Use at least 8 characters.",
+      "missingToken": "Missing or invalid activation link. Ask an administrator to re-invite you.",
+      "newPasswordLabel": "New password",
+      "passwordMinLength": "Use at least 8 characters.",
+      "submit": "Set password",
+      "submitting": "Saving…",
+      "errors": {
+        "invalidLink": "This link is invalid or has expired. Ask an administrator to re-invite you."
+      }
+    },
+    "verifyEmail": {
+      "title": "Verify your email",
+      "verifying": "Verifying your email…",
+      "invalidLink": "This verification link is invalid or has expired.",
+      "resentNotice": "If that account needs verifying, a new link is on its way.",
+      "resend": "Resend verification email",
+      "resending": "Sending…",
+      "backToSignIn": "Back to sign in",
+      "resendPrompt": "Enter your email to resend the verification link:"
+    },
+    "confirmEmailChange": {
+      "title": "Email change",
+      "confirming": "Confirming your new email address…",
+      "doneBody": "Your email address has been updated. Use it the next time you sign in.",
+      "goToDashboard": "Go to dashboard",
+      "invalidLink": "This confirmation link is invalid or has expired."
+    }
+  },
+  "shell": {
+    "nav": {
+      "dashboard": "Dashboard",
+      "screens": "Screens",
+      "screenGroups": "Screen Groups",
+      "siteAgents": "Site Agents",
+      "content": "Content Library",
+      "playlists": "Playlists",
+      "schedules": "Schedules",
+      "liveStreams": "Live Streams",
+      "auditLog": "Audit Log",
+      "settings": "Settings",
+      "instanceAdmin": "Instance Admin"
+    },
+    "sidebar": {
+      "collapse": "Collapse sidebar",
+      "expand": "Expand sidebar"
+    },
+    "topbar": {
+      "openNav": "Open navigation menu",
+      "lightMode": "Switch to light mode",
+      "darkMode": "Switch to dark mode",
+      "currentUser": "Current user",
+      "signedIn": "Signed in",
+      "member": "Member",
+      "currentOrg": "Current organisation",
+      "superuser": "Superuser",
+      "switchOrg": "Switch organisation",
+      "profileSettings": "Profile & settings"
+    },
+    "language": {
+      "label": "Language",
+      "de": "German",
+      "en": "English",
+      "short": {
+        "de": "DE",
+        "en": "EN"
+      }
+    }
+  },
+  "dashboard": {
+    "onboarding": {
+      "title": "Welcome to myNextScreen",
+      "subtitle": "Let's get your first display live. Four quick steps.",
+      "setupTitle": "Set up your network",
+      "allSetTitle": "You're all set!",
+      "progressTitle": "Nice progress — keep going",
+      "loadingLive": "Loading your live dashboard…",
+      "stepsLeft": "{count, plural, one {# step} other {# steps}} left to publish your first content.",
+      "screensOnline": "{count, plural, one {# screen} other {# screens}} online",
+      "stepBadge": "STEP {number}",
+      "doneBadge": "DONE",
+      "complete": "Complete",
+      "steps": {
+        "screen": {
+          "title": "Add your first screen",
+          "desc": "Pair a display with a one-time code. Takes about 30 seconds.",
+          "cta": "Add screen"
+        },
+        "content": {
+          "title": "Upload content",
+          "desc": "Bring in images and video. We transcode and optimise automatically.",
+          "cta": "Upload media"
+        },
+        "playlist": {
+          "title": "Build a playlist",
+          "desc": "Sequence your content and set durations and transitions.",
+          "cta": "Create playlist"
+        },
+        "schedule": {
+          "title": "Schedule & publish",
+          "desc": "Choose when and where it plays, then push it live.",
+          "cta": "Schedule"
+        }
+      }
+    },
+    "header": {
+      "title": "Dashboard",
+      "greetingMorning": "Good morning",
+      "greetingAfternoon": "Good afternoon",
+      "greetingEvening": "Good evening",
+      "addScreen": "Add screen"
+    },
+    "kpi": {
+      "screensOnline": "Screens online",
+      "screensSummary": "{offline} offline · {warning} warning",
+      "contentItems": "Content items",
+      "libraryUsage": "{gb} GB in library",
+      "activePlaylists": "Active playlists",
+      "scheduledEvents": "{count} scheduled events",
+      "openAlerts": "Open alerts",
+      "alertsSummary": "{critical} critical · {warning} warning"
+    },
+    "cards": {
+      "screensTitle": "Screens",
+      "screensSub": "{online} of {total} active",
+      "viewAll": "View all",
+      "noScreens": "No screens registered yet.",
+      "storageTitle": "Storage",
+      "storageSub": "Media library usage",
+      "loadingStorage": "Loading storage…",
+      "noStorage": "No storage data available.",
+      "used": "used",
+      "alertsTitle": "Alerts",
+      "alertsAllClear": "All clear",
+      "alertsNeedAttention": "{count, plural, one {# needs attention} other {# need attention}}",
+      "loadingAlerts": "Loading alerts…",
+      "noAlerts": "No open alerts — everything looks healthy.",
+      "scheduleTitle": "Upcoming Schedule",
+      "scheduleSub": "Next 24 hours",
+      "scheduleEvents": "{count} events",
+      "loadingSchedule": "Loading schedule…",
+      "noSchedule": "No upcoming schedules.",
+      "activityTitle": "Recent Activity",
+      "activitySub": "Team & system events",
+      "noActivity": "No recent activity.",
+      "loadingScreens": "Loading screens…"
+    },
+    "activity": {
+      "screenOnline": "Screen came online",
+      "screenOffline": "Screen went offline",
+      "scheduleUpdated": "Schedule updated",
+      "transcodingComplete": "Transcoding completed",
+      "transcodingFailed": "Transcoding failed",
+      "transcodingProgress": "Transcoding progress: {progress}%"
+    },
+    "alerts": {
+      "justNow": "just now",
+      "minutesAgo": "{count} min ago",
+      "hoursAgo": "{count} h ago",
+      "daysAgo": "{count} d ago"
+    },
+    "timeline": {
+      "unknownScreen": "Unknown",
+      "unknownPlaylist": "Unknown"
+    }
+  },
+  "screens": {
+    "list": {
+      "title": "Screens",
+      "subtitleDefault": "Pair and manage every display in your network",
+      "subtitleCounts": "{online} online · {offline} offline",
+      "installPlayer": "Install Player",
+      "addScreen": "Add screen",
+      "webPlayer": "Web Player:",
+      "loading": "Loading screens…",
+      "emptyTitle": "No screens yet",
+      "emptyDesc": "Pair your first display with a one-time code to start broadcasting content.",
+      "addFirst": "Add your first screen"
+    },
+    "delete": {
+      "title": "Delete screen",
+      "confirmPrefix": "Are you sure you want to delete",
+      "confirmSuffix": "? This cannot be undone."
+    },
+    "errors": {
+      "loadScreens": "Failed to load screens.",
+      "registerScreen": "Failed to register screen.",
+      "updateScreen": "Failed to update screen.",
+      "repairScreen": "Failed to re-pair screen.",
+      "refreshPlayer": "Failed to refresh player.",
+      "deleteScreen": "Failed to delete screen."
+    },
+    "toast": {
+      "created": "Screen “{name}” created.",
+      "updated": "Screen “{name}” updated.",
+      "deleted": "Screen “{name}” deleted.",
+      "repairStarted": "Re-pairing started. The display will pick up the new key.",
+      "refreshSent": "Refresh sent. The player will reload shortly."
+    },
+    "tile": {
+      "open": "Open {name}",
+      "deleteScreen": "Delete screen",
+      "siteAgent": "Site agent",
+      "siteAgentAria": "Open the site agent that looks after this screen",
+      "noLocation": "No location",
+      "lastSeen": "Last seen {time}",
+      "neverConnected": "Never connected",
+      "status": {
+        "online": "Online",
+        "appNotRunning": "App not running",
+        "tvUnreachable": "No answer",
+        "offline": "Offline",
+        "never": "Never"
+      }
+    },
+    "grid": {
+      "filterAll": "All",
+      "filterOnline": "Online",
+      "filterOffline": "Offline"
+    },
+    "form": {
+      "createTitle": "Add a screen",
+      "editTitle": "Edit screen",
+      "createSub": "Pair a display with a one-time code",
+      "editSub": "Update this display's details",
+      "close": "Close",
+      "hintWithUrl": "Open <strong>{url}</strong> on your display — it shows a 6-digit code.",
+      "hintNoUrl": "Open the player on your display — it shows a 6-digit code. Set <strong>PLAYER_BASE_URL</strong> on the server to show its address here.",
+      "nameLabel": "Screen name",
+      "namePlaceholder": "e.g. Lobby — Main Wall",
+      "locationLabel": "Location",
+      "locationPlaceholder": "HQ · Ground Floor",
+      "resolutionLabel": "Display resolution",
+      "resolutionCustom": "Custom resolution…",
+      "customResolutionLabel": "Custom resolution",
+      "customResolutionPlaceholder": "e.g. 1920x1200",
+      "playerOptions": "Player options",
+      "unmuteLabel": "Show “Click to unmute”",
+      "unmuteDesc": "Display the unmute overlay on videos with sound.",
+      "disconnectLabel": "Allow “Disconnect”",
+      "disconnectDesc": "Offer it in the player's info panel and the webOS settings overlay.",
+      "pairingCodeLabel": "Pairing code",
+      "pairingCodePlaceholder": "6-digit code from the display",
+      "submitRegister": "Register screen",
+      "submitRegistering": "Registering…",
+      "submitSave": "Save changes",
+      "submitSaving": "Saving…",
+      "infoStatus": "Status",
+      "infoLastSeen": "Last seen",
+      "infoNever": "Never",
+      "infoPlayerVersion": "Player version",
+      "infoNotReported": "Not reported",
+      "infoRegistered": "Registered",
+      "refreshTitle": "Refresh player",
+      "refreshHint": "Reload the display's player remotely (like pressing F5). Useful after changing settings or if the screen looks stuck.",
+      "refreshButton": "Refresh player",
+      "refreshing": "Refreshing…",
+      "screenOffline": "Screen is offline.",
+      "repairTitle": "Re-pair display",
+      "repairHint": "Reconnecting a display? Open it to show a fresh 6-digit code, then enter it here to issue a new key. The current key is invalidated immediately.",
+      "repairCodePlaceholder": "6-digit code",
+      "repairButton": "Re-pair",
+      "repairing": "Re-pairing…",
+      "errorAllRequired": "All fields are required.",
+      "errorPairingDigits": "Pairing code must be 6 digits."
+    },
+    "playerApps": {
+      "title": "Install Player",
+      "loading": "Loading player apps…",
+      "loadError": "Failed to load player apps.",
+      "choosePlatform": "Choose a platform for the installation guide and download.",
+      "guideAndBinary": "Guide + IPK binary available",
+      "guideOnly": "Guide available",
+      "allPlatforms": "All platforms",
+      "downloadIpk": "Download IPK",
+      "loadingGuide": "Loading guide…",
+      "guideError": "Failed to load guide."
+    }
+  },
+  "screenGroups": {
+    "list": {
+      "title": "Screen Groups",
+      "subtitle": "{count, plural, one {# group} other {# groups}}",
+      "newGroup": "New Group",
+      "loading": "Loading screen groups…",
+      "emptyTitle": "No screen groups yet",
+      "emptyDesc": "Create your first screen group to start building mirror displays or video walls.",
+      "createFirst": "Create Your First Group"
+    },
+    "errors": {
+      "loadGroups": "Failed to load screen groups.",
+      "loadGroup": "Failed to load screen group.",
+      "createGroup": "Failed to create screen group.",
+      "updateGroup": "Failed to update screen group.",
+      "deleteGroup": "Failed to delete screen group.",
+      "assignScreen": "Failed to assign screen.",
+      "moveScreen": "Failed to move screen.",
+      "addScreen": "Failed to add screen.",
+      "removeScreen": "Failed to remove screen.",
+      "updateGroupGeneric": "Failed to update group.",
+      "refreshGroup": "Failed to refresh group data.",
+      "groupNotFound": "Screen group not found.",
+      "noGroupId": "No group ID provided.",
+      "allPanelsAssigned": "All wall panels are already assigned.",
+      "screenInOtherGroup": "Screen \"{name}\" already belongs to another group.",
+      "removeScreensFirst": "Remove all screens from the group before deleting it."
+    },
+    "toast": {
+      "created": "Screen group created.",
+      "updated": "Screen group updated.",
+      "deleted": "Screen group deleted.",
+      "someScreensNotAssigned": "Group created, but some screens could not be assigned.",
+      "screenAssigned": "Screen assigned.",
+      "screenAdded": "Screen added.",
+      "screenRemoved": "Screen removed.",
+      "modeSwitched": "Switched to {mode} mode.",
+      "wallLayoutUpdated": "Wall layout updated."
+    },
+    "mode": {
+      "mirror": "Mirror",
+      "mirrorDesc": "Same content on every screen at once",
+      "split": "Split",
+      "splitDesc": "One image or video spread across a video wall"
+    },
+    "card": {
+      "open": "Open {name}",
+      "deleteGroup": "Delete {name}",
+      "screens": "{count, plural, one {# screen} other {# screens}}",
+      "noScreens": "No screens",
+      "modeMirror": "Mirror"
+    },
+    "create": {
+      "title": "New screen group",
+      "nameLabel": "Group name",
+      "namePlaceholder": "e.g. HQ Lobby Wall",
+      "colourLabel": "Colour",
+      "colourAria": "Colour {colour}",
+      "displayModeLabel": "Display mode",
+      "columns": "Columns",
+      "rows": "Rows",
+      "wallHint": "Creates a {cols}×{rows} wall ({panels} panels).",
+      "addScreens": "Add screens",
+      "selectedSuffix": "· {count} selected",
+      "noUnassigned": "No unassigned screens available.",
+      "creating": "Creating…",
+      "createGroup": "Create group",
+      "errorNameLength": "Name must be at least 2 characters."
+    },
+    "edit": {
+      "title": "Edit screen group",
+      "nameLabel": "Group name",
+      "colourLabel": "Colour",
+      "colourAria": "Colour {colour}",
+      "displayModeLabel": "Display mode",
+      "columns": "Columns",
+      "rows": "Rows",
+      "saving": "Saving…",
+      "saveChanges": "Save changes",
+      "errorNameRequired": "Name is required."
+    },
+    "deleteModal": {
+      "title": "Delete screen group",
+      "blocked": "Cannot delete \"{name}\" because it still has {count} assigned screen(s). Remove all screens from the group before deleting it.",
+      "confirmPrefix": "Are you sure you want to delete the screen group",
+      "confirmSuffix": "? This action cannot be undone.",
+      "deleting": "Deleting…"
+    },
+    "addScreen": {
+      "title": "Add a screen",
+      "loading": "Loading screens…",
+      "noUnassigned": "No unassigned screens available.",
+      "inAnotherGroup": "In another group",
+      "add": "Add",
+      "close": "Close"
+    },
+    "detail": {
+      "loading": "Loading group details…",
+      "delete": "Delete",
+      "modeSplit": "Split · {cols}×{rows}",
+      "modeMirror": "Mirror",
+      "screens": "{count, plural, one {# screen} other {# screens}}",
+      "livePreview": "Live preview",
+      "previewSplit": "Video wall · {cols} columns × {rows} rows{suffix}",
+      "previewMirror": "Mirrored to {count, plural, one {# screen} other {# screens}}{suffix}",
+      "preparingRenditions": "Preparing video-wall renditions…",
+      "renditionFailed": "Rendition pre-transcoding failed{error}",
+      "displayMode": "Display mode",
+      "displayModeSub": "How content is distributed across the group",
+      "wallLayout": "Wall layout",
+      "columns": "Columns",
+      "rows": "Rows",
+      "panelsAssigned": "{assigned} of {needed} panels assigned",
+      "groupScreens": "Group screens",
+      "groupScreensSubSplit": "Click a wall panel to place a screen",
+      "groupScreensSubMirror": "All mirror the same output",
+      "noScreensAssigned": "No screens assigned yet.",
+      "remove": "Remove",
+      "addScreenPlaceholder": "+ Add a screen to this group…"
+    },
+    "wall": {
+      "noScreensYet": "No screens yet",
+      "mirrorCaption": "Every screen mirrors the same content, perfectly in sync.",
+      "splitCaption": "One source split across a {cols}×{rows} wall — click any panel to place its screen.",
+      "assignPanel": "Assign a screen to this panel",
+      "assignPanelAria": "Assign a screen to panel {panel}",
+      "closeMenu": "Close menu",
+      "panelHead": "Panel {panel} · Row {row} · Col {col}",
+      "leaveEmpty": "Leave empty",
+      "allPlaced": "All screens are already placed."
+    },
+    "monitor": {
+      "empty": "Empty"
+    }
+  },
+  "content": {
+    "library": {
+      "title": "Content Library",
+      "browseFiles": "Browse files",
+      "loading": "Loading content…",
+      "dropTitle": "Drop files to upload",
+      "dropSub": "Images and videos",
+      "emptyTitle": "No content yet",
+      "emptyDesc": "Drag files anywhere onto this page or use Browse files to get started.",
+      "clearTags": "Clear"
+    },
+    "filter": {
+      "all": "All",
+      "images": "Images",
+      "videos": "Videos"
+    },
+    "type": {
+      "image": "Image",
+      "video": "Video"
+    },
+    "transcoding": {
+      "label": "Transcoding",
+      "pending": "Pending",
+      "processing": "Processing",
+      "processingPercent": "Processing {progress}%",
+      "completed": "Completed",
+      "failed": "Failed",
+      "percent": "{progress}%"
+    },
+    "detail": {
+      "reupload": "Re-upload",
+      "copyLink": "Copy link",
+      "previewAlt": "Preview",
+      "titleLabel": "Title",
+      "descriptionLabel": "Description",
+      "tagsLabel": "Tags (comma-separated)",
+      "saveChanges": "Save Changes",
+      "saving": "Saving…",
+      "changesSaved": "Changes saved.",
+      "infoType": "Type",
+      "infoOriginalFile": "Original File",
+      "infoOriginalSize": "Original Size",
+      "infoTranscodedSize": "Transcoded Size",
+      "infoMimeType": "MIME Type",
+      "infoUploaded": "Uploaded"
+    },
+    "grid": {
+      "pending": "Pending",
+      "failed": "Failed",
+      "meta": "{type} · {size}"
+    },
+    "upload": {
+      "done": "Done",
+      "error": "Error"
+    },
+    "storage": {
+      "label": "Storage",
+      "unlimited": "Unlimited",
+      "original": "Original ({size})",
+      "transcoded": "Transcoded ({size})"
+    },
+    "tagModal": {
+      "addTitle": "Add Tags",
+      "removeTitle": "Remove Tags",
+      "fieldLabel": "Tags (comma-separated)",
+      "placeholder": "e.g. promo, seasonal"
+    },
+    "playlistModal": {
+      "title": "Add to Playlist",
+      "loading": "Loading playlists…",
+      "empty": "No playlists available.",
+      "confirm": "Add to Playlist"
+    },
+    "delete": {
+      "title": "Delete Content",
+      "confirmPrefix": "Are you sure you want to delete",
+      "confirmSuffix": "? This will permanently remove the original and transcoded files."
+    },
+    "bulk": {
+      "deleteTitle": "Delete Content",
+      "deleteSelected": "Delete selected",
+      "addTags": "Add tags",
+      "removeTags": "Remove tags",
+      "addToPlaylist": "Add to playlist",
+      "deleteMessage": "You are about to permanently delete {count} {count, plural, one {item} other {items}}. This will remove all original and transcoded files. This cannot be undone.",
+      "deleted": "{count} {count, plural, one {item} other {items}} deleted",
+      "tagged": "{count} {count, plural, one {item} other {items}} tagged",
+      "untagged": "{count} {count, plural, one {item} other {items}} untagged",
+      "addedToPlaylist": "{count} {count, plural, one {item} other {items}} added to {playlist}",
+      "alreadyPresent": " ({count} were already in the playlist)",
+      "notFound": "{count} {count, plural, one {item} other {items}} could not be found and {count, plural, one {was} other {were}} skipped",
+      "selectedPlaylist": "selected playlist"
+    },
+    "toast": {
+      "uploadComplete": "Upload complete.",
+      "reuploadComplete": "Re-upload complete.",
+      "updated": "Content updated.",
+      "deleted": "Content deleted.",
+      "linkCopied": "Link copied to clipboard.",
+      "linkCopyFailed": "Could not copy link.",
+      "openFailed": "Could not open that content item."
+    },
+    "errors": {
+      "loadContent": "Failed to load content.",
+      "accessDenied": "Access denied.",
+      "uploadFailed": "Upload failed",
+      "reuploadFailed": "Re-upload failed",
+      "saveChanges": "Failed to save changes.",
+      "deleteContent": "Failed to delete content.",
+      "loadPlaylists": "Failed to load playlists."
+    }
+  },
+  "playlists": {
+    "list": {
+      "title": "Playlists",
+      "count": "{count, plural, one {# playlist} other {# playlists}}",
+      "newPlaylist": "New playlist",
+      "loading": "Loading playlists…",
+      "selectAll": "Select all",
+      "emptyTitle": "No playlists yet",
+      "emptyDesc": "No playlists created yet.",
+      "createFirst": "Create Your First Playlist",
+      "items": "{count, plural, one {# item} other {# items}}",
+      "default": "Default",
+      "emptyPlaylist": "Empty playlist"
+    },
+    "create": {
+      "title": "New playlist",
+      "nameLabel": "Playlist name",
+      "namePlaceholder": "e.g. Lobby Welcome Loop",
+      "accentColor": "Accent colour",
+      "setAccentColor": "Set accent colour {color}",
+      "creating": "Creating…",
+      "createPlaylist": "Create playlist"
+    },
+    "delete": {
+      "title": "Delete Playlist",
+      "confirmPrefix": "Are you sure you want to delete",
+      "confirmSuffix": "? This action cannot be undone.",
+      "defaultWarning": "This playlist is currently set as the organisation's default. Deleting it will clear the default playlist setting."
+    },
+    "editor": {
+      "untitled": "Untitled",
+      "unknown": "unknown",
+      "default": "Default",
+      "reslicing": "Re-rendering video wall…",
+      "removeAsDefault": "Remove as default",
+      "setAsDefault": "Set as default",
+      "copyLink": "Copy link",
+      "accentColor": "Accent colour",
+      "setAccentColor": "Set accent colour {color}",
+      "sequenceTitle": "Sequence",
+      "sequenceSub": "Drag to reorder · set duration & the transition each item enters with",
+      "addContent": "Add content",
+      "noItems": "No items yet — add content to build the loop",
+      "dragToReorder": "Drag to reorder",
+      "previewItemAria": "Preview item",
+      "itemType": "{type}",
+      "playsFullVideo": "Plays the full video length",
+      "decreaseDuration": "Decrease duration",
+      "increaseDuration": "Increase duration",
+      "durationSeconds": "{seconds}s",
+      "transitionOnEnter": "Transition on enter — plays when this item appears",
+      "transitionDuration": "Transition duration (ms)",
+      "decreaseTransitionMs": "Decrease transition ms",
+      "increaseTransitionMs": "Increase transition ms",
+      "transitionMs": "{ms}ms",
+      "removeFromPlaylist": "Remove from playlist",
+      "previewTitle": "Preview: {title}",
+      "previewAlt": "Preview"
+    },
+    "transition": {
+      "cut": "Cut",
+      "fade": "Fade",
+      "slide-left": "Slide Left",
+      "slide-right": "Slide Right",
+      "slide-up": "Slide Up",
+      "slide-down": "Slide Down",
+      "zoom-in": "Zoom In",
+      "zoom-out": "Zoom Out"
+    },
+    "loopPreview": {
+      "title": "Loop preview",
+      "emptySub": "Add content to preview the loop",
+      "emptyPlaylist": "Empty playlist",
+      "sub": "{count, plural, one {# item} other {# items}} · {duration} total · loops",
+      "playing": "Playing",
+      "paused": "Paused",
+      "unmute": "Unmute",
+      "untitled": "Untitled",
+      "previous": "Previous",
+      "play": "Play",
+      "pause": "Pause",
+      "next": "Next",
+      "nowPlaying": "Now playing · item {index}",
+      "jumpToItem": "Jump to item {index}"
+    },
+    "addContent": {
+      "title": "Add content",
+      "searchPlaceholder": "Search content…",
+      "all": "All",
+      "images": "Images",
+      "videos": "Videos",
+      "loading": "Loading content library…",
+      "empty": "No content available. Upload content first.",
+      "noMatches": "No content matches your search."
+    },
+    "assignScreen": {
+      "title": "Assign to screen",
+      "prompt": "Select a screen to assign {count, plural, one {# playlist} other {# playlists}} to:",
+      "screenLabel": "Screen",
+      "selectPlaceholder": "-- Select a screen --",
+      "loading": "Loading…",
+      "assign": "Assign"
+    },
+    "bulk": {
+      "deleteTitle": "Delete Playlists",
+      "deleteSelected": "Delete selected",
+      "assignToScreen": "Assign to screen(s)",
+      "deleteMessage": "You are about to permanently delete {count, plural, one {# playlist} other {# playlists}}. This cannot be undone.",
+      "deleted": "{count, plural, one {# playlist} other {# playlists}} deleted",
+      "assigned": "{count, plural, one {# playlist} other {# playlists}} assigned to {screen}",
+      "notFound": "{count} {count, plural, one {item} other {items}} could not be found and {count, plural, one {was} other {were}} skipped",
+      "selectedScreen": "selected screen"
+    },
+    "toast": {
+      "created": "Playlist created.",
+      "renamed": "Playlist renamed.",
+      "colorUpdated": "Accent colour updated.",
+      "deleted": "Playlist deleted.",
+      "setDefault": "Set as default playlist.",
+      "clearedDefault": "Default playlist cleared.",
+      "itemAdded": "Item added to playlist.",
+      "itemRemoved": "Item removed from playlist.",
+      "orderSaved": "Playlist order saved.",
+      "linkCopied": "Link copied to clipboard.",
+      "linkCopyFailed": "Could not copy link."
+    },
+    "errors": {
+      "loadPlaylists": "Failed to load playlists.",
+      "accessDenied": "Access denied.",
+      "loadDetails": "Failed to load playlist details.",
+      "nameRequired": "Name is required.",
+      "createPlaylist": "Failed to create playlist.",
+      "renamePlaylist": "Failed to rename playlist.",
+      "updateColor": "Failed to update colour.",
+      "deletePlaylist": "Failed to delete playlist.",
+      "setDefault": "Failed to set default playlist.",
+      "addItem": "Failed to add item.",
+      "removeItem": "Failed to remove item.",
+      "reorderItems": "Failed to reorder items.",
+      "loadScreens": "Failed to load screens."
+    }
+  },
+  "schedules": {
+    "page": {
+      "title": "Schedules",
+      "subtitleDefault": "Plan playlists across screens and groups by the calendar",
+      "subtitleCount": "{count, plural, one {# scheduled block} other {# scheduled blocks}}",
+      "loading": "Loading schedules…"
+    },
+    "toolbar": {
+      "target": "Target",
+      "targetPlaceholder": "No screens or groups",
+      "screenOption": "Screen · {name}",
+      "groupOption": "Group · {name} ({mode})",
+      "today": "Today",
+      "previous": "Previous",
+      "next": "Next",
+      "newSchedule": "New schedule",
+      "viewDay": "Day",
+      "viewWeek": "Week",
+      "viewMonth": "Month"
+    },
+    "grid": {
+      "monthTitle": "Month schedule",
+      "dayTitle": "Day schedule",
+      "weekTitle": "Week schedule",
+      "cardSub": "Click any block to edit",
+      "fallbackPlaylist": "Fallback playlist",
+      "groupBadge": "Group",
+      "oneOff": "1×",
+      "resizeTop": "Resize top",
+      "resizeBottom": "Resize bottom",
+      "preparingRenditions": "Preparing wall renditions… {percent}%",
+      "renditionFailed": "Rendition pre-transcoding failed",
+      "playlistFallback": "Playlist"
+    },
+    "sidePanel": {
+      "today": "Today",
+      "headSub": "{date} · {count, plural, one {# scheduled} other {# scheduled}}",
+      "empty": "No schedule entries for this day."
+    },
+    "agenda": {
+      "previousDay": "Previous day",
+      "nextDay": "Next day",
+      "empty": "No schedule entries for this day.",
+      "group": "Group",
+      "addSlot": "Add slot",
+      "playlistFallback": "Playlist"
+    },
+    "slice": {
+      "failedTitle": "Rendition pre-transcoding failed",
+      "readyTitle": "Renditions ready",
+      "preparingTitle": "Preparing video-wall renditions…",
+      "failedBody": "{error} The wall keeps showing the previous content until you re-assign or re-slice.",
+      "failedFallback": "Slicing failed.",
+      "completedBody": "The video wall has been updated.",
+      "processingBody": "The wall keeps showing the previous content and switches automatically when slicing completes.",
+      "runInBackground": "Run in background"
+    },
+    "form": {
+      "editTitle": "Edit Schedule Entry",
+      "createTitle": "Create Schedule Entry",
+      "sub": "Decide when a playlist plays — and where",
+      "nameLabel": "Schedule name",
+      "namePlaceholder": "e.g. Morning Welcome (optional)",
+      "targetLabel": "Target",
+      "targetPlaceholder": "Select a screen or group",
+      "screenOption": "Screen · {name}",
+      "groupOption": "Group · {name} ({mode})",
+      "modeLabel": "Mode:",
+      "modeMirror": "Mirror",
+      "modeSplit": "Split",
+      "modeMirrorDesc": "all screens show the same content",
+      "modeSplitDesc": "{columns}x{rows} grid",
+      "splitWarning": "Content will be pre-sliced for each screen in the video wall. This may take a moment to process after saving.",
+      "playlistLabel": "Playlist to play",
+      "noPlaylists": "No playlists yet — create one first.",
+      "playlistItems": "{count, plural, one {# item} other {# items}}",
+      "whenLabel": "When does it run?",
+      "daysLabel": "Days",
+      "startLabel": "Start",
+      "endLabel": "End",
+      "endAfterStart": "End must be after the start.",
+      "priorityLabel": "Priority",
+      "priorityHint": "· wins when schedules overlap",
+      "colourLabel": "Colour",
+      "selectColour": "Select colour {colour}",
+      "customColour": "Custom colour",
+      "saving": "Saving…",
+      "update": "Update",
+      "create": "Create",
+      "recurrence": {
+        "none": "One-off",
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "weekdays": "Specific days"
+      },
+      "weekday": {
+        "MO": "Mon",
+        "TU": "Tue",
+        "WE": "Wed",
+        "TH": "Thu",
+        "FR": "Fri",
+        "SA": "Sat",
+        "SU": "Sun"
+      },
+      "weekdayPreset": {
+        "monFri": "Mon–Fri",
+        "weekends": "Weekends",
+        "allDays": "All days"
+      },
+      "timePreset": {
+        "business": "Business 09–17",
+        "morning": "Morning 06–12",
+        "evening": "Evening 17–22",
+        "allDay": "All day 06–23"
+      },
+      "priority": {
+        "normal": "Normal",
+        "high": "High"
+      }
+    },
+    "toast": {
+      "created": "Schedule created.",
+      "createdPreparing": "Schedule created. Preparing video-wall renditions…",
+      "updated": "Schedule updated.",
+      "updatedPreparing": "Schedule updated. Preparing video-wall renditions…",
+      "deleted": "Schedule deleted.",
+      "overlapReverted": "Overlap detected. Move was reverted.",
+      "moveFailed": "Failed to move entry."
+    },
+    "errors": {
+      "loadScreens": "Failed to load screens.",
+      "loadEntries": "Failed to load schedule entries.",
+      "endAfterStart": "End time must be after start time.",
+      "selectPlaylist": "Please select a playlist.",
+      "selectTarget": "Please select a target screen or group.",
+      "overlap": "This time slot overlaps with an existing entry.",
+      "createEntry": "Failed to create entry.",
+      "updateEntry": "Failed to update entry.",
+      "deleteEntry": "Failed to delete entry."
+    }
+  },
+  "liveStreams": {
+    "list": {
+      "title": "Live Streams",
+      "newStream": "New Stream",
+      "loading": "Loading live streams…",
+      "subtitleDefault": "Ingest a source and override schedules with live video",
+      "subtitleCounts": "{live} live · {count, plural, one {# stream} other {# streams}}",
+      "emptyTitle": "No live streams",
+      "emptyDesc": "Connect an RTMP or RTP source to broadcast live to your network in real time.",
+      "addFirst": "Add a stream source"
+    },
+    "preset": {
+      "low_480p": "Low (480p)",
+      "medium_720p": "Medium (720p)",
+      "high_1080p": "High (1080p)",
+      "full_hd_plus_1440p": "Full HD+ (1440p)",
+      "passthrough": "Passthrough (no re-encode)"
+    },
+    "status": {
+      "live": "Live",
+      "offline": "Offline"
+    },
+    "card": {
+      "openAria": "Open {name}",
+      "actions": "Actions",
+      "streamActions": "Stream actions",
+      "closeMenu": "Close menu",
+      "openConsole": "Open console",
+      "stopStream": "Stop stream",
+      "goLive": "Go live",
+      "delete": "Delete",
+      "errorHint": "Stream reported an error",
+      "stop": "Stop"
+    },
+    "monitor": {
+      "streamError": "STREAM ERROR",
+      "noSignal": "NO SIGNAL",
+      "live": "LIVE",
+      "muted": "MUTED"
+    },
+    "create": {
+      "title": "New live stream",
+      "nameLabel": "Name",
+      "namePlaceholder": "e.g. Lobby Camera",
+      "protocolLabel": "Protocol",
+      "sourceUrlLabel": "Source URL",
+      "sourceHintRtmp": "rtmp://example.com/live/stream-key",
+      "sourceHintRtp": "rtp://example.com:5004",
+      "qualityLabel": "Quality preset",
+      "enableAudioLabel": "Enable audio",
+      "enableAudioDesc": "Pass the source audio track through to screens",
+      "creating": "Creating…",
+      "createStream": "Create stream",
+      "errorNameRequired": "Name is required.",
+      "errorSourceRequired": "Source URL is required."
+    },
+    "delete": {
+      "title": "Delete live stream",
+      "confirmPrefix": "Are you sure you want to delete",
+      "confirmSuffix": "? This action cannot be undone.",
+      "deleting": "Deleting…",
+      "delete": "Delete"
+    },
+    "detail": {
+      "loading": "Loading stream…",
+      "notFound": "Live stream not found.",
+      "nameAria": "Stream name",
+      "delete": "Delete",
+      "stopStream": "Stop stream",
+      "goLive": "Go live",
+      "restart": "Restart",
+      "audioTooltipLocked": "Stop the stream to change audio",
+      "audioTooltipToggle": "Toggle audio",
+      "audioOn": "Audio on",
+      "muted": "Muted",
+      "healthTitle": "Stream health",
+      "healthSubLive": "Live · preset targets shown below",
+      "healthSubIdle": "No active feed",
+      "status": "Status",
+      "qualityTarget": "Quality (target)",
+      "protocol": "Protocol",
+      "liveSince": "Live since",
+      "sourceTitle": "Source",
+      "sourceSub": "Ingest endpoint & encoding",
+      "sourceUrl": "Source URL",
+      "copyUrl": "Copy URL",
+      "copyUrlAria": "Copy source URL",
+      "quality": "Quality",
+      "audio": "Audio",
+      "audioEnabled": "Enabled",
+      "health": "Health",
+      "broadcastTitle": "Broadcast to",
+      "broadcastReaching": "Reaching {count, plural, one {# screen} other {# screens}}",
+      "broadcastNoScreens": "No screens targeted",
+      "changeTargetsLocked": "Stop the stream to change targets.",
+      "specificScreens": "Specific screens",
+      "screenGroup": "Screen group",
+      "noScreensAvailable": "No screens available.",
+      "noGroupsYet": "No screen groups yet — create one on the Screen Groups page.",
+      "overridePrefix": "Live takes priority.",
+      "overrideBody": "While this stream is live it overrides any scheduled playlist on the targeted screens.",
+      "healthHealthy": "Healthy",
+      "healthStopped": "Stopped",
+      "healthNoFeed": "No feed",
+      "targetGroupSummary": "1 group · {count}",
+      "targetNoGroup": "No group",
+      "targetScreenSummary": "{count, plural, one {# screen} other {# screens}}",
+      "targetNoScreens": "No screens",
+      "screenSub": "{resolution} · {location}",
+      "groupSub": "{mode} · {count, plural, one {# screen} other {# screens}}"
+    },
+    "errors": {
+      "loadStreams": "Failed to load live streams.",
+      "createStream": "Failed to create live stream.",
+      "deactivateStream": "Failed to deactivate live stream.",
+      "deleteStream": "Failed to delete live stream.",
+      "noStreamId": "No stream ID provided.",
+      "selectGroupFirst": "Select a screen group first.",
+      "selectScreenFirst": "Select at least one screen first.",
+      "startStream": "Failed to start stream.",
+      "stopStream": "Failed to stop stream.",
+      "restartStream": "Failed to restart stream.",
+      "renameStream": "Failed to rename stream.",
+      "updateAudio": "Failed to update audio.",
+      "copyUrl": "Failed to copy URL."
+    },
+    "toast": {
+      "created": "Live stream created.",
+      "deleted": "Live stream deleted.",
+      "stopped": "Stream stopped.",
+      "started": "Stream started.",
+      "restarted": "Stream restarted.",
+      "renamed": "Stream renamed.",
+      "audioEnabled": "Audio enabled.",
+      "audioMuted": "Audio muted.",
+      "urlCopied": "Source URL copied."
+    }
+  },
+  "siteAgents": {
+    "list": {
+      "title": "Site Agents",
+      "subtitle": "Services inside your venues that look after the displays",
+      "addAgent": "Add an agent",
+      "loading": "Loading…",
+      "emptyTitle": "No site agents yet",
+      "emptyDesc": "A site agent runs inside a venue and starts the displays, wakes them before a schedule and keeps their developer mode alive.",
+      "noLocation": "No location set",
+      "connected": "connected",
+      "offline": "offline",
+      "displays": "Displays",
+      "version": "Version",
+      "lastSeen": "Last seen",
+      "never": "never"
+    },
+    "create": {
+      "title": "Add a site agent",
+      "readyPrefix": "is ready. Start the agent in the venue and enter this setup code on its setup page.",
+      "tokenHint": "It can only be used once and expires {date}. Copy it now — it cannot be shown again, but you can issue a new one.",
+      "copy": "Copy",
+      "done": "Done",
+      "nameLabel": "Name",
+      "nameHint": "How you will recognise this venue in the list",
+      "namePlaceholder": "Venue North",
+      "locationLabel": "Location",
+      "locationHint": "Optional, e.g. where the machine stands",
+      "locationPlaceholder": "Server room",
+      "cancel": "Cancel",
+      "creating": "Creating…",
+      "create": "Create"
+    },
+    "toast": {
+      "createFailed": "Could not create the agent",
+      "tokenCopied": "Setup code copied",
+      "tokenCopyFailed": "Could not copy — select the setup code and copy it by hand",
+      "loadFailed": "Could not load the site agents"
+    },
+    "detail": {
+      "siteAgentFallback": "Site agent",
+      "connected": "Connected",
+      "notConnected": "Not connected",
+      "versionUnknown": "version unknown",
+      "lastSeen": "last seen {date}",
+      "neverChecked": "never checked in",
+      "addDisplay": "Add a display",
+      "newToken": "New setup code",
+      "revokeAccess": "Revoke access",
+      "deleteAgent": "Delete agent",
+      "tokenHint": "Enter this setup code on the agent's setup page. It can only be used once, expires shortly and is not shown again.",
+      "staleWarning": "This agent is not connected, so everything below is the last thing it reported, not the current state.",
+      "displaysHeading": "Displays ({count})",
+      "noDisplaysTitle": "No displays assigned",
+      "emptyDescAssignable": "Use 'Add a display' above to have this agent look after one.",
+      "emptyDescAllAssigned": "Every display is already looked after by an agent.",
+      "noAddress": "no address",
+      "setupBadge": "Setup {step}/{total}",
+      "appUpdateBadge": "App {installed} → {available}",
+      "appBadge": "App {version}",
+      "continueSetup": "Continue setup",
+      "startApp": "Start app",
+      "wake": "Wake",
+      "standby": "Standby",
+      "updateApp": "Update app",
+      "installApp": "Install app",
+      "extendDevmode": "Extend Dev Mode",
+      "settings": "Settings",
+      "remove": "Remove",
+      "lastProbe": "Last probe",
+      "developerMode": "Developer mode",
+      "key": "Key",
+      "remote": "Remote",
+      "loading": "Loading…",
+      "statusPlaying": "playing",
+      "statusAppNotRunning": "TV is on, app is not running",
+      "statusUnreachable": "TV does not answer",
+      "statusNotReported": "not reported yet",
+      "devmodeOff": "off",
+      "devmodeNeverExtended": "never extended",
+      "devmodeLastFailed": "last attempt failed",
+      "devmodeExtended": "extended",
+      "assignTitle": "Add a display",
+      "assignHint": "The agent will start probing it straight away. Its address and developer-mode passphrase are set afterwards, in the display's settings.",
+      "assignPlaceholder": "Pick a display",
+      "cancel": "Cancel",
+      "add": "Add",
+      "standbyTitle": "Standby",
+      "standbyConfirmLabel": "Send to standby",
+      "standbyBusyLabel": "Sending…",
+      "standbyBodyPrefix": "Put",
+      "standbyBodyMiddle": "into standby? It can only be woken over the network afterwards, which needs",
+      "standbyQuickStart": "Quick Start+",
+      "standbyBodySuffix": "enabled on the TV (Settings → General → Energy Saving). Without it, someone has to use the remote.",
+      "removeTitle": "Remove display",
+      "removeConfirmLabel": "Remove",
+      "removeBusyLabel": "Removing…",
+      "removeBodyPrefix": "Remove",
+      "removeBodySuffix": "from this agent? Its address, developer-mode passphrase and setup progress are forgotten, so adding it again starts the setup from the beginning.",
+      "deleteTitle": "Delete agent",
+      "deleteConfirmLabel": "Delete",
+      "deleteBusyLabel": "Deleting…",
+      "deleteBodyPrefix": "Delete",
+      "deleteBodyReleases": "The {count} display(s) it looks after are released and their setup is forgotten.",
+      "deleteBodySuffix": "This cannot be undone.",
+      "revokeTitle": "Revoke access",
+      "revokeConfirmLabel": "Revoke",
+      "revokeBusyLabel": "Revoking…",
+      "revokeBody": "End every session of this agent? It stops working immediately and needs a new setup code to come back. Its displays and their settings are left alone."
+    },
+    "detailToast": {
+      "loadAgentFailed": "Could not load this agent",
+      "loadDisplaysFailed": "Could not load the displays",
+      "commandSent": "Sent to the agent",
+      "agentOffline": "The agent is not connected right now",
+      "commandFailed": "Could not reach the agent",
+      "added": "Added to this agent",
+      "addFailed": "Could not add that display",
+      "removed": "Removed from this agent",
+      "removeFailed": "Could not remove that display.",
+      "deleted": "Agent deleted",
+      "deleteFailed": "Could not delete this agent.",
+      "tokenFailed": "Could not issue a setup code",
+      "revoked": "Access revoked",
+      "revokeFailed": "Could not revoke access."
+    },
+    "settings": {
+      "sub": "Remote control",
+      "siteAgentLabel": "Site agent",
+      "siteAgentHint": "Which venue agent looks after this display. To take it out, use Remove on its row.",
+      "agentPlaceholder": "Pick an agent",
+      "addressLabel": "Address on the venue network",
+      "addressHint": "e.g. 192.168.1.50",
+      "macLabel": "MAC address",
+      "macHint": "Needed for Wake-on-LAN. Wired and Wi-Fi differ.",
+      "passphraseLabel": "Developer mode passphrase",
+      "passphraseHintSaved": "Saved — leave blank to keep it",
+      "passphraseHintEmpty": "The six characters shown in the Developer Mode app",
+      "autoLaunchLabel": "Start the app automatically",
+      "autoLaunchDesc": "When the TV is on but the player is not reporting",
+      "extendDevmodeLabel": "Keep developer mode alive",
+      "extendDevmodeDesc": "Extends the session while the TV is on, so the app is not deleted",
+      "extendEveryLabel": "Extend every",
+      "daysSuffix": "days",
+      "wakeBeforeLabel": "Wake before a schedule starts",
+      "wakeBeforeDescEnabled": "Sends a magic packet shortly before playback is due",
+      "wakeNeedsMac": "Needs a MAC address",
+      "wakeLeadLabel": "Wake this long before",
+      "wakeLeadHint": "A set needs about 15 seconds to answer",
+      "minutesSuffix": "minutes",
+      "wakeUnreachableLabel": "Wake whenever the TV does not answer",
+      "wakeUnreachableDescEnabled": "For venues that keep the displays on around the clock",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "save": "Save",
+      "intervalHintWarn": "{min}–{max} days. Above {warn} only suits a display that runs continuously.",
+      "intervalHintNormal": "{min}–{max} days. Seven is a good default.",
+      "loadAgentsFailed": "Could not load the site agents",
+      "saved": "Saved",
+      "saveFailed": "Could not save"
+    },
+    "wizard": {
+      "sub": "Connect this display",
+      "agentLabel": "Site agent",
+      "agentPlaceholder": "Pick an agent",
+      "ipLabel": "IP address",
+      "ipHint": "e.g. 192.168.1.50",
+      "macLabel": "MAC address",
+      "macHint": "Optional — only for Wake-on-LAN",
+      "passphraseLabel": "Developer mode passphrase",
+      "passphraseHintSaved": "Saved — leave blank to keep it",
+      "passphraseHintEmpty": "Six characters",
+      "skip": "Skip",
+      "back": "Back",
+      "close": "Close",
+      "resultOk": "Looks good.",
+      "resultFailFallback": "That did not work.",
+      "completedNote": "This display is set up. Re-run any step if something changes on the TV.",
+      "stepCounter": "Step {current} of {total}",
+      "stateDone": "Done",
+      "stateSkipped": "Skipped",
+      "stateInProgress": "In progress",
+      "stateOptional": "Optional",
+      "stateNotYet": "Not yet",
+      "actionChecking": "Checking…",
+      "actionSaving": "Saving…",
+      "actionSaveCheck": "Save and check",
+      "actionSaveContinue": "Save and continue",
+      "actionCheck": "Check",
+      "actionDoneNext": "Done, next",
+      "loadAgentsFailed": "Could not load the site agents",
+      "saveFailed": "Could not save that.",
+      "noAnswer": "The agent did not answer.",
+      "agentOffline": "The agent is not connected right now.",
+      "agentUnreachable": "Could not reach the agent.",
+      "steps": {
+        "1": {
+          "title": "Pick the agent",
+          "short": "Agent",
+          "instruction": "Which agent in this venue should look after the display. Without one, nothing below can run."
+        },
+        "2": {
+          "title": "Address on the venue network",
+          "short": "Network",
+          "instruction": "The TV's IP address, from Settings → Network on the set. The MAC address is only needed if the agent should wake it before a schedule; wired and wireless have different ones."
+        },
+        "3": {
+          "title": "Install the Developer Mode app",
+          "short": "Developer Mode",
+          "instruction": "On the TV: sign in with an LG account, install \"Developer Mode\" from the Content Store, open it and switch Dev Mode Status on. The set restarts.\n\nThis and the three steps after it exist so the agent can keep the session from expiring — when it does, the TV deletes the app. Skip them and the display still works, but someone has to extend it by hand."
+        },
+        "4": {
+          "title": "Switch the key server on",
+          "short": "Key server",
+          "instruction": "In the Developer Mode app on the TV, turn on \"Key Server\"."
+        },
+        "5": {
+          "title": "Enter the passphrase",
+          "short": "Passphrase",
+          "instruction": "The six characters the Developer Mode app shows as the passphrase. It derives from the set itself and does not change when Developer Mode is switched on again."
+        },
+        "6": {
+          "title": "Check the connection to the TV",
+          "short": "SSH",
+          "instruction": "Nothing to do here — the agent connects with the key it fetched and reports back."
+        },
+        "7": {
+          "title": "Install the player app",
+          "short": "Install",
+          "instruction": "The agent copies the app onto the TV over the connection it just proved. Nothing to do here — the step installs it."
+        },
+        "8": {
+          "title": "Confirm the pairing prompt",
+          "short": "Pairing",
+          "instruction": "The TV shows a prompt asking to allow the connection. Confirm it with the remote. This is needed once per display, and nobody can do it from here."
+        },
+        "9": {
+          "title": "Start the app",
+          "short": "Finish",
+          "instruction": "The agent starts the player and, if Developer Mode is set up, extends the session."
+        }
+      }
+    },
+    "confirm": {
+      "cancel": "Cancel",
+      "working": "Working…"
+    }
+  },
+  "auditLog": {
+    "page": {
+      "title": "Audit Log",
+      "subtitle": "Every action across screens, content, people and settings",
+      "refresh": "Refresh",
+      "exportCsv": "Export CSV",
+      "accessDenied": "Access denied. Org Admin privileges required.",
+      "eventsAll": "events",
+      "eventsOf": "of {total} events",
+      "loading": "Loading audit log…",
+      "emptyTitle": "No audit log entries found",
+      "emptyDesc": "Once you start managing screens and content, every action shows up here.",
+      "emptyText": "No audit log entries found."
+    },
+    "errors": {
+      "noOrgSelected": "No organisation selected.",
+      "loadAuditLog": "Failed to load audit log.",
+      "loadMore": "Failed to load more entries.",
+      "accessDenied": "Access denied. Org Admin privileges required."
+    },
+    "filters": {
+      "searchPlaceholder": "Search resources, people, details…",
+      "reset": "Reset",
+      "action": "Action",
+      "allActions": "All actions",
+      "user": "User",
+      "allUsers": "All users",
+      "resourceType": "Resource type",
+      "allTypes": "All types",
+      "from": "From",
+      "to": "To"
+    },
+    "table": {
+      "headerTimestamp": "Timestamp",
+      "headerUser": "User",
+      "headerAction": "Action",
+      "headerType": "Type",
+      "headerResource": "Resource",
+      "headerDetails": "Details",
+      "noMatchTitle": "No matching entries",
+      "noMatchDesc": "Try clearing a filter or widening the date range.",
+      "eventId": "Event ID",
+      "resourceId": "Resource ID",
+      "timestamp": "Timestamp",
+      "actor": "Actor",
+      "resourceType": "Resource type",
+      "showing": "Showing {shown} of {total} entries",
+      "loadingMore": "Loading…",
+      "loadMore": "Load more",
+      "system": "System",
+      "instance": "Instance",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "justNow": "just now",
+      "minutesAgo": "{count} min ago",
+      "hoursAgo": "{count, plural, one {# hour} other {# hours}} ago",
+      "daysAgo": "{count, plural, one {# day} other {# days}} ago"
+    },
+    "actions": {
+      "content.upload": "Content uploaded",
+      "content.delete": "Content deleted",
+      "content.reupload": "Content re-uploaded",
+      "playlist.create": "Playlist created",
+      "playlist.update": "Playlist updated",
+      "playlist.delete": "Playlist deleted",
+      "schedule.create": "Schedule created",
+      "schedule.update": "Schedule updated",
+      "schedule.delete": "Schedule deleted",
+      "screen.register": "Screen registered",
+      "screen.update": "Screen updated",
+      "screen.key_regenerated": "Screen key regenerated",
+      "screen.online": "Screen came online",
+      "screen.offline": "Screen went offline",
+      "user.invited": "User invited",
+      "user.role_changed": "User role changed",
+      "user.removed": "User removed",
+      "organisation.created": "Organisation created",
+      "organisation.updated": "Organisation updated",
+      "group.created": "Screen group created",
+      "group.updated": "Screen group updated",
+      "group.deleted": "Screen group deleted",
+      "group.screen_added": "Screen added to group",
+      "group.screen_removed": "Screen removed from group",
+      "group.mode_changed": "Group mode changed",
+      "live_stream.created": "Live stream created",
+      "live_stream.updated": "Live stream updated",
+      "live_stream.deleted": "Live stream deleted",
+      "live_stream.activated": "Live stream activated",
+      "live_stream.deactivated": "Live stream deactivated",
+      "live_stream.failed": "Live stream failed",
+      "screen.bulk_deleted": "Screen deleted (bulk)",
+      "screen.bulk_group_assigned": "Screen group assigned (bulk)",
+      "content.bulk_deleted": "Content deleted (bulk)",
+      "content.bulk_tagged": "Content tagged (bulk)",
+      "content.bulk_untagged": "Content untagged (bulk)",
+      "content.bulk_added_to_playlist": "Content added to playlist (bulk)",
+      "playlist.bulk_deleted": "Playlist deleted (bulk)",
+      "playlist.bulk_screen_assigned": "Playlist assigned to screen (bulk)",
+      "auth.user_registered": "User registered",
+      "auth.email_verified": "Email verified",
+      "auth.email_change_requested": "Email change requested",
+      "auth.email_changed": "Email changed",
+      "auth.password_reset_requested": "Password reset requested",
+      "auth.password_changed": "Password changed",
+      "auth.super_admin_setup": "Instance setup (super-admin)",
+      "email.sent": "Email sent",
+      "email.send_failed": "Email send failed"
+    }
+  },
+  "notifications": {
+    "ariaLabel": "Notifications",
+    "title": "Notifications",
+    "markAllRead": "Mark all as read",
+    "loading": "Loading...",
+    "empty": "No notifications yet",
+    "time": {
+      "justNow": "just now",
+      "minutesAgo": "{minutes}m ago",
+      "hoursAgo": "{hours}h ago",
+      "daysAgo": "{days}d ago"
+    }
+  },
+  "search": {
+    "placeholder": "Search…",
+    "shortcut": "Ctrl+K",
+    "noResults": "No results found",
+    "sections": {
+      "screens": "Screens",
+      "content": "Content",
+      "playlists": "Playlists",
+      "schedules": "Schedules"
+    }
+  },
+  "settings": {
+    "tabs": {
+      "users": "User Management",
+      "notificationConfig": "Notification Config",
+      "storage": "Storage"
+    },
+    "user": {
+      "page": {
+        "title": "User Settings",
+        "subtitle": "Manage your personal account across every organisation."
+      },
+      "profile": {
+        "title": "Profile",
+        "subtitle": "Your account details and display name.",
+        "avatarAlt": "Your avatar",
+        "gravatarLabel": "Use Gravatar",
+        "gravatarDesc": "Show the avatar linked to your email via Gravatar",
+        "gravatarHint": "When off, no email hash is sent to gravatar.com",
+        "emailLabel": "Email",
+        "emailHint": "Change your email below; we'll send a confirmation link first.",
+        "displayNameLabel": "Display name",
+        "displayNamePlaceholder": "Your name",
+        "nameTooLong": "Name must be 255 characters or fewer.",
+        "save": "Save profile",
+        "saving": "Saving…"
+      },
+      "channels": {
+        "title": "Notification Channels",
+        "subtitle": "Choose how you receive notifications. These apply across all organisations you belong to.",
+        "loading": "Loading preferences...",
+        "inAppLabel": "In-app",
+        "inAppDesc": "Receive notifications in the dashboard",
+        "emailLabel": "Email",
+        "emailDesc": "Receive notifications by email — sent for orgs that have email configured",
+        "ntfyLabel": "ntfy",
+        "ntfyDesc": "Receive notifications via ntfy — sent for orgs that have ntfy configured"
+      },
+      "appearance": {
+        "title": "Appearance",
+        "subtitle": "Customise the colour accent and interface density.",
+        "accentLabel": "Accent colour",
+        "densityLabel": "Interface density",
+        "accent": {
+          "indigo": "Indigo",
+          "teal": "Teal",
+          "amber": "Amber",
+          "blue": "Blue"
+        },
+        "density": {
+          "compactLabel": "Compact",
+          "compactDesc": "Tighter spacing",
+          "regularLabel": "Regular",
+          "regularDesc": "Default spacing",
+          "comfyLabel": "Comfy",
+          "comfyDesc": "More breathing room"
+        }
+      },
+      "password": {
+        "title": "Change password",
+        "subtitle": "Update the password you use to sign in.",
+        "currentLabel": "Current password",
+        "newLabel": "New password",
+        "newHint": "Use at least 8 characters.",
+        "confirmLabel": "Confirm new password",
+        "mismatch": "Passwords do not match.",
+        "save": "Update password",
+        "saving": "Saving…"
+      },
+      "email": {
+        "title": "Change email",
+        "subtitle": "We'll send a confirmation link to the new address; the change applies once you confirm it.",
+        "newLabel": "New email",
+        "newPlaceholder": "new@example.com",
+        "invalid": "Enter a valid email address.",
+        "currentPasswordLabel": "Current password",
+        "save": "Send confirmation link",
+        "saving": "Sending…"
+      },
+      "danger": {
+        "title": "Danger Zone",
+        "subtitle": "Permanently delete your account. This removes your organisation memberships and cannot be undone.",
+        "deleteAccount": "Delete account"
+      },
+      "deleteModal": {
+        "title": "Delete account",
+        "desc": "This permanently deletes your account and cannot be undone. Enter your current password to confirm.",
+        "currentPasswordLabel": "Current password",
+        "cancel": "Cancel",
+        "confirm": "Delete account",
+        "deleting": "Deleting…"
+      },
+      "toast": {
+        "profileSaved": "Profile saved.",
+        "profileSaveFailed": "Could not save profile.",
+        "preferencesSaved": "Preferences saved.",
+        "preferencesSaveFailed": "Failed to save preferences.",
+        "passwordUpdated": "Password updated.",
+        "passwordUpdateFailed": "Could not update password. Check your current password.",
+        "emailLinkSent": "Confirmation link sent to the new address.",
+        "emailChangeFailed": "Could not change email. Check your password."
+      },
+      "errors": {
+        "loadPreferences": "Failed to load notification preferences.",
+        "deleteAccount": "Could not delete account. Check your current password."
+      }
+    },
+    "org": {
+      "notifications": {
+        "page": {
+          "title": "Notification Config",
+          "subtitle": "Email & push delivery settings for your organisation."
+        },
+        "loading": "Loading configuration...",
+        "smtp": {
+          "title": "SMTP Email Settings",
+          "subtitle": "Configure SMTP to enable email notifications for your organisation.",
+          "hostLabel": "Host",
+          "portLabel": "Port",
+          "userLabel": "Username",
+          "passwordLabel": "Password",
+          "passwordSaved": "Saved — leave blank to keep current",
+          "passwordEnter": "Enter password",
+          "fromLabel": "From address",
+          "secureLabel": "Secure (TLS)",
+          "secureDesc": "Turn off to use STARTTLS instead",
+          "save": "Save SMTP settings",
+          "saving": "Saving...",
+          "test": "Send test email",
+          "testing": "Sending..."
+        },
+        "ntfy": {
+          "title": "ntfy Push Notifications",
+          "subtitle": "Configure ntfy to enable push notifications for your organisation.",
+          "urlLabel": "ntfy URL",
+          "topicLabel": "Topic",
+          "topicPlaceholder": "my-org-notifications",
+          "tokenLabel": "Auth token",
+          "tokenHint": "Optional — only required for protected topics.",
+          "tokenSaved": "Saved — leave blank to keep current",
+          "tokenEnter": "Enter token (optional)",
+          "infoPrefix": "Install the",
+          "infoApp": "ntfy",
+          "infoSuffix": "app and subscribe to your topic to receive alerts on mobile.",
+          "save": "Save push settings",
+          "saving": "Saving...",
+          "test": "Send test push",
+          "testing": "Sending..."
+        },
+        "rules": {
+          "title": "Alert rules",
+          "subtitle": "Choose which events trigger a notification across email and push.",
+          "offlineLabel": "Screen goes offline",
+          "offlineDesc": "Alert after a display is unreachable for 5 minutes",
+          "recoveredLabel": "Screen recovers",
+          "recoveredDesc": "Notify when an offline display comes back online",
+          "transcodeFailLabel": "Transcode failure",
+          "transcodeFailDesc": "Alert when uploaded media fails to process",
+          "storageLabel": "Storage near limit",
+          "storageDesc": "Warn when usage passes 90% of the allocation",
+          "weeklyLabel": "Weekly summary",
+          "weeklyDesc": "A digest of uptime and activity every Monday",
+          "save": "Save alert rules",
+          "saving": "Saving..."
+        },
+        "toast": {
+          "smtpSaved": "SMTP settings saved.",
+          "smtpSaveFailed": "Failed to save SMTP settings.",
+          "ntfySaved": "ntfy settings saved.",
+          "ntfySaveFailed": "Failed to save ntfy settings.",
+          "rulesSaved": "Alert rules saved.",
+          "rulesSaveFailed": "Failed to save alert rules.",
+          "testEmailFailed": "Failed to send test email.",
+          "testNtfyFailed": "Failed to send test notification."
+        },
+        "errors": {
+          "noOrgSelected": "No organisation selected.",
+          "loadConfig": "Failed to load notification configuration."
+        }
+      },
+      "storage": {
+        "page": {
+          "title": "Storage",
+          "subtitle": "Track media usage against your allocated limits."
+        },
+        "loading": "Loading storage usage...",
+        "card": {
+          "title": "Storage usage",
+          "subtitle": "Your organisation's usage against its allocated limits. Contact an instance administrator to change these limits."
+        },
+        "errors": {
+          "noOrgSelected": "No organisation selected.",
+          "accessDenied": "Access denied.",
+          "loadStorage": "Failed to load storage usage."
+        }
+      }
+    },
+    "users": {
+      "page": {
+        "title": "User Management",
+        "subtitle": "Manage who has access to your organisation and what they can do.",
+        "invite": "Invite User"
+      },
+      "loading": "Loading members...",
+      "summary": {
+        "members": "Members",
+        "pending": "Pending"
+      },
+      "table": {
+        "name": "Name",
+        "email": "Email",
+        "role": "Role",
+        "status": "Status",
+        "joined": "Joined",
+        "actions": "Actions",
+        "emailPrefix": "Email:",
+        "joinedPrefix": "Joined:",
+        "invitePending": "Invite pending",
+        "statusPending": "Pending invite",
+        "statusActive": "Active",
+        "revoke": "Revoke",
+        "remove": "Remove"
+      },
+      "roles": {
+        "orgAdmin": "Org Admin",
+        "editor": "Editor",
+        "viewer": "Viewer"
+      },
+      "empty": {
+        "title": "No members yet",
+        "desc": "No members found. Invite your first teammate to give them access."
+      },
+      "inviteModal": {
+        "title": "Invite a user",
+        "emailLabel": "Email address",
+        "emailPlaceholder": "name@company.com",
+        "roleLabel": "Role",
+        "cancel": "Cancel",
+        "submit": "Send invite",
+        "submitting": "Inviting..."
+      },
+      "removeModal": {
+        "title": "Remove member",
+        "cancel": "Cancel",
+        "remove": "Remove",
+        "removing": "Removing..."
+      },
+      "removeConfirm": {
+        "prefix": "Are you sure you want to remove",
+        "suffix": "from this organisation?"
+      },
+      "toast": {
+        "invited": "Member invited.",
+        "roleUpdated": "Role updated.",
+        "removed": "Member removed."
+      },
+      "errors": {
+        "noOrgAdmin": "You do not have Org Admin access to any organisation.",
+        "noMembership": "You are not a member of any organisation.",
+        "loadOrgContext": "Failed to load organisation context.",
+        "accessDenied": "Access denied. Org Admin privileges required.",
+        "loadMembers": "Failed to load members.",
+        "invalidEmail": "A valid email is required.",
+        "inviteFailed": "Failed to invite user.",
+        "updateRole": "Failed to update role.",
+        "removeMember": "Failed to remove member."
+      }
+    }
+  },
+  "register": {
+    "title": "Create your account",
+    "subtitle": "Start managing your screens in minutes.",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@company.com",
+    "emailInvalid": "Enter a valid email address.",
+    "orgNameLabel": "Organisation name",
+    "orgNamePlaceholder": "Your company or workspace",
+    "orgNameRequired": "An organisation name is required.",
+    "passwordLabel": "Password",
+    "passwordMinLength": "Use at least 8 characters.",
+    "confirmPasswordLabel": "Confirm password",
+    "passwordMismatch": "Passwords do not match.",
+    "submit": "Create account",
+    "submitting": "Creating…",
+    "haveAccount": "Already have an account?",
+    "signIn": "Sign in",
+    "backToSignIn": "Back to sign in",
+    "success": {
+      "title": "Check your inbox",
+      "body": "Almost there — we sent a verification link to your email. Click it to activate your account and organisation."
+    },
+    "errors": {
+      "conflict": "That email or organisation name is already taken.",
+      "disabled": "Self-signup is currently disabled.",
+      "generic": "Could not create your account. Please try again."
+    }
+  },
+  "setup": {
+    "title": "Welcome",
+    "subtitle": "Create the first administrator account.",
+    "nameLabel": "Name",
+    "nameOptional": "(optional)",
+    "namePlaceholder": "Jane Doe",
+    "emailLabel": "Email",
+    "emailPlaceholder": "admin@company.com",
+    "emailInvalid": "Enter a valid email address.",
+    "passwordLabel": "Password",
+    "passwordMinLength": "Password must be at least 8 characters.",
+    "confirmPasswordLabel": "Confirm password",
+    "passwordMismatch": "Passwords do not match.",
+    "submit": "Create admin account",
+    "submitting": "Creating account…",
+    "errors": {
+      "generic": "Could not complete setup. It may already be done — try signing in."
+    }
+  },
+  "ui": {
+    "select": {
+      "placeholder": "Select…",
+      "searchPlaceholder": "Search…",
+      "noMatch": "No match for “{query}”"
+    },
+    "stepper": {
+      "decrease": "Decrease",
+      "increase": "Increase"
+    },
+    "selection": {
+      "selectAll": "Select all items",
+      "bulkActions": "Bulk actions",
+      "clearSelection": "Clear selection",
+      "selectedCount": "{count, plural, one {# item selected} other {# items selected}}"
+    },
+    "toast": {
+      "dismiss": "Dismiss"
+    }
+  },
+  "admin": {
+    "instanceAdmin": "Instance Admin",
+    "tabs": {
+      "dashboard": "Dashboard",
+      "organisations": "Organisations",
+      "users": "Users",
+      "auditLog": "Audit Log"
+    },
+    "dashboard": {
+      "subtitle": "Manage every organisation, user and resource on this instance",
+      "loading": "Loading instance overview…",
+      "diskUnavailable": "Disk usage unavailable on this host.",
+      "errors": {
+        "accessDenied": "Access denied. Instance Admin privileges required.",
+        "loadFailed": "Failed to load instance overview."
+      },
+      "kpi": {
+        "organisations": "Organisations",
+        "activeTenants": "Active tenants",
+        "users": "Users",
+        "verified": "Verified",
+        "pending": "Pending",
+        "total": "{count} total",
+        "storageUsed": "Storage Used",
+        "ofAllocated": "of {limit} allocated",
+        "hostDiskFree": "Host Disk Free",
+        "ofUsed": "of {total} · {pct}% used"
+      },
+      "storageAllocated": {
+        "title": "Storage — Allocated vs Used",
+        "allOrganisations": "All organisations",
+        "originals": "Originals",
+        "transcoded": "Transcoded"
+      },
+      "orgLegend": {
+        "usedOf": "{used} used · {limit}"
+      },
+      "hostDisk": {
+        "title": "Host Disk",
+        "used": "used",
+        "usedLabel": "Used",
+        "freeLabel": "Free",
+        "freeOf": "{free} free of {total}"
+      },
+      "systemLoad": {
+        "title": "System load",
+        "subtitle": "CPU & memory · last 24 hours",
+        "hourlyAverage": "Hourly average",
+        "cpuCores": "CPU · {cores} cores",
+        "memoryTotal": "Memory · {total} GB",
+        "peak": "peak {pct}%",
+        "memoryReadout": "{used} GB · peak {peak} GB",
+        "collecting": "Collecting system-load history — the chart appears once enough data has been recorded.",
+        "chartAria": "CPU and memory usage over the last 24 hours",
+        "ticks": {
+          "start": "24h ago",
+          "now": "now"
+        }
+      },
+      "orgSnapshot": {
+        "title": "Organisations",
+        "subtitle": "Usage at a glance"
+      }
+    },
+    "organisations": {
+      "heading": "Organisations",
+      "new": "New Organisation",
+      "loading": "Loading organisations…",
+      "emptyTitle": "No organisations yet",
+      "emptyDesc": "Create your first organisation to start provisioning screens and content.",
+      "storageUsage": "Storage Usage",
+      "members": "Members",
+      "addMember": "Add Member",
+      "loadingMembers": "Loading members…",
+      "noMembersTitle": "No members yet",
+      "noMembersDesc": "Use “Add Member” above to give people access to this organisation.",
+      "roles": {
+        "org_admin": "Org Admin",
+        "editor": "Editor",
+        "viewer": "Viewer"
+      },
+      "toasts": {
+        "created": "Organisation “{name}” created.",
+        "updated": "Organisation “{name}” updated.",
+        "deleted": "Organisation deleted.",
+        "memberAdded": "Member added.",
+        "memberRemoved": "Member removed.",
+        "roleUpdated": "Role updated to {role}."
+      },
+      "errors": {
+        "accessDenied": "Access denied. Instance Admin privileges required.",
+        "loadFailed": "Failed to load organisations.",
+        "loadMembers": "Failed to load members.",
+        "addMember": "Failed to add member.",
+        "removeMember": "Failed to remove member.",
+        "updateRole": "Failed to update role.",
+        "delete": "Failed to delete organisation.",
+        "generic": "An error occurred. Please try again."
+      }
+    },
+    "orgTable": {
+      "manage": "Manage",
+      "headers": {
+        "organisation": "Organisation",
+        "users": "Users",
+        "storage": "Storage",
+        "created": "Created",
+        "actions": "Actions"
+      }
+    },
+    "orgMemberList": {
+      "noName": "(no name)",
+      "headers": {
+        "name": "Name",
+        "email": "Email",
+        "role": "Role",
+        "joined": "Joined",
+        "actions": "Actions"
+      }
+    },
+    "orgForm": {
+      "createTitle": "Create Organisation",
+      "editTitle": "Edit Organisation",
+      "nameLabel": "Name",
+      "namePlaceholder": "Organisation name",
+      "timeZoneLabel": "Time Zone",
+      "timeZonePlaceholder": "Select a time zone",
+      "originalStorageLimit": "Original Storage Limit",
+      "transcodedStorageLimit": "Transcoded Storage Limit",
+      "saveChanges": "Save Changes",
+      "validationRequired": "Name and time zone are required."
+    },
+    "addMemberModal": {
+      "title": "Add Member",
+      "emailLabel": "Email",
+      "emailPlaceholder": "user@example.com",
+      "roleLabel": "Role",
+      "adding": "Adding…",
+      "emailRequired": "Email is required."
+    },
+    "removeMemberModal": {
+      "title": "Remove Member",
+      "confirmPrefix": "Are you sure you want to remove",
+      "confirmSuffix": " from this organisation?",
+      "removing": "Removing…"
+    },
+    "deleteOrgModal": {
+      "title": "Delete Organisation",
+      "confirmPrefix": "Are you sure you want to delete",
+      "confirmSuffix": "? This permanently deletes all of its screens, content, playlists and schedules. This action cannot be undone.",
+      "deleting": "Deleting…"
+    },
+    "users": {
+      "heading": "Users",
+      "loading": "Loading users…",
+      "invitePending": "Invite pending",
+      "superuser": "Superuser",
+      "instanceAdminBadge": "Instance Admin",
+      "verified": "Verified",
+      "pending": "Pending",
+      "emptyTitle": "No users yet",
+      "emptyDesc": "Platform users appear here once they sign up or get invited to an organisation.",
+      "table": {
+        "user": "User",
+        "organisation": "Organisation",
+        "role": "Role",
+        "status": "Status",
+        "created": "Created",
+        "actions": "Actions"
+      },
+      "mobile": {
+        "organisation": "Organisation",
+        "role": "Role",
+        "status": "Status",
+        "created": "Created"
+      },
+      "stats": {
+        "total": "Total users",
+        "verified": "Verified",
+        "pending": "Pending",
+        "instanceAdmins": "Instance admins"
+      },
+      "toasts": {
+        "deleted": "User deleted."
+      },
+      "errors": {
+        "accessDenied": "Access denied. Instance Admin privileges required.",
+        "loadFailed": "Failed to load users.",
+        "delete": "Failed to delete user."
+      }
+    },
+    "deleteUserModal": {
+      "title": "Delete User",
+      "confirmPrefix": "Are you sure you want to delete",
+      "confirmSuffix": "? This removes the user and all of their organisation memberships. This action cannot be undone.",
+      "deleting": "Deleting…"
+    },
+    "auditLog": {
+      "heading": "Audit Log",
+      "exportCsv": "Export CSV",
+      "loading": "Loading audit log…",
+      "emptyTitle": "No audit log entries found",
+      "emptyDesc": "Instance-wide activity across every organisation will show up here.",
+      "filters": {
+        "organisation": "Organisation",
+        "allOrganisations": "All organisations",
+        "clear": "Clear filters"
+      },
+      "errors": {
+        "accessDenied": "Access denied. Instance Admin privileges required.",
+        "loadFailed": "Failed to load audit log.",
+        "loadMoreFailed": "Failed to load more entries."
+      }
+    }
+  }
+}

@@ -3,6 +3,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { LiveStreamCard } from './live-stream-card';
 import { LiveStream } from './live-stream.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 function makeStream(overrides: Partial<LiveStream> = {}): LiveStream {
   return {
@@ -26,7 +27,10 @@ describe('LiveStreamCard', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [LiveStreamCard],
+      imports: [
+        LiveStreamCard,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

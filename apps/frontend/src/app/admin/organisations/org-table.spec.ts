@@ -3,6 +3,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { OrgTable } from './org-table';
 import { Organisation } from './organisation.model';
+import { getTranslocoTestingModule } from '../../i18n/transloco-testing';
 
 function makeOrganisation(overrides: Partial<Organisation> = {}): Organisation {
   return {
@@ -33,7 +34,7 @@ describe('OrgTable', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [OrgTable],
+      imports: [OrgTable, getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

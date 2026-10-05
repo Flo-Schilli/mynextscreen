@@ -1,24 +1,28 @@
 import { Component, inject, output, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { NotificationService } from './notification.service';
 import { Notification, NotificationEventType } from './notification.model';
 
 @Component({
   selector: 'app-notification-dropdown',
+  imports: [TranslocoDirective],
   template: `
-    <div class="dropdown">
+    <div class="dropdown" *transloco="let t">
       <div class="dropdown-header">
-        <span class="dropdown-title">Notifications</span>
+        <span class="dropdown-title">{{ t('notifications.title') }}</span>
         @if (notificationService.notifications().some((n) => !n.read)) {
-          <button class="mark-all-btn" (click)="onMarkAllRead()">Mark all as read</button>
+          <button class="mark-all-btn" (click)="onMarkAllRead()">
+            {{ t('notifications.markAllRead') }}
+          </button>
         }
       </div>
 
       <div class="dropdown-list">
         @if (notificationService.loading()) {
-          <div class="empty-state">Loading...</div>
+          <div class="empty-state">{{ t('notifications.loading') }}</div>
         } @else if (notificationService.notifications().length === 0) {
-          <div class="empty-state">No notifications yet</div>
+          <div class="empty-state">{{ t('notifications.empty') }}</div>
         } @else {
           @for (notification of notificationService.notifications(); track notification.id) {
             <button
@@ -184,6 +188,7 @@ import { Notification, NotificationEventType } from './notification.model';
 export class NotificationDropdown implements OnInit {
   readonly notificationService = inject(NotificationService);
   private router = inject(Router);
+  private transloco = inject(TranslocoService);
   readonly closed = output<void>();
 
   ngOnInit(): void {
@@ -214,13 +219,15 @@ export class NotificationDropdown implements OnInit {
     const then = new Date(dateStr).getTime();
     const diffMs = now - then;
     const diffSec = Math.floor(diffMs / 1000);
-    if (diffSec < 60) return 'just now';
+    if (diffSec < 60) return this.transloco.translate('notifications.time.justNow');
     const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffMin < 60)
+      return this.transloco.translate('notifications.time.minutesAgo', { minutes: diffMin });
     const diffHr = Math.floor(diffMin / 60);
-    if (diffHr < 24) return `${diffHr}h ago`;
+    if (diffHr < 24)
+      return this.transloco.translate('notifications.time.hoursAgo', { hours: diffHr });
     const diffDay = Math.floor(diffHr / 24);
-    return `${diffDay}d ago`;
+    return this.transloco.translate('notifications.time.daysAgo', { days: diffDay });
   }
 
   getEventColor(eventType: NotificationEventType): string {

@@ -17,6 +17,7 @@ import {
 } from './audit-log.model';
 import { Membership } from '../settings/users/member.model';
 import { OrgWithRole } from '../shell/organisation-state.service';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -123,6 +124,7 @@ describe('AuditLog (smart container)', () => {
     selectedOrg = org('org_admin');
 
     TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
         { provide: AuditLogService, useValue: auditService },

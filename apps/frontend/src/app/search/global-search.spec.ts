@@ -8,6 +8,7 @@ import { vi } from 'vitest';
 import { GlobalSearch } from './global-search';
 import { SearchService } from './search.service';
 import { SearchResults } from './search.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -53,6 +54,7 @@ function setup(): Setup {
   } as unknown as Router;
 
   TestBed.configureTestingModule({
+    imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
     providers: [
       provideZonelessChangeDetection(),
       { provide: SearchService, useValue: searchStub },

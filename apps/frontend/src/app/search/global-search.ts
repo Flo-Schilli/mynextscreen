@@ -10,6 +10,7 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { Router, NavigationStart } from '@angular/router';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { SearchService } from './search.service';
 import { SearchResults, SearchResultItem } from './search.model';
 import {
@@ -25,12 +26,13 @@ import {
 
 interface ResultSection {
   key: keyof SearchResults;
-  heading: string;
+  headingKey: string;
   items: SearchResultItem[];
 }
 
 @Component({
   selector: 'app-global-search',
+  imports: [TranslocoPipe],
   template: `
     <div class="search-wrapper">
       <div class="search-box" [class.focused]="focused()">
@@ -53,7 +55,7 @@ interface ResultSection {
           #searchInput
           type="text"
           class="search-input"
-          placeholder="Search…"
+          [placeholder]="'search.placeholder' | transloco"
           [value]="query()"
           (input)="onInput($event)"
           (focus)="focused.set(true)"
@@ -62,7 +64,9 @@ interface ResultSection {
           (keydown.arrowUp)="onArrowUp($event)"
           (keydown.enter)="onEnter($event)"
         />
-        <kbd class="shortcut-hint" [class.hidden]="focused()">Ctrl+K</kbd>
+        <kbd class="shortcut-hint" [class.hidden]="focused()">{{
+          'search.shortcut' | transloco
+        }}</kbd>
       </div>
 
       @if (dropdownOpen()) {
@@ -70,7 +74,7 @@ interface ResultSection {
           @if (hasResults()) {
             @for (section of sections(); track section.key) {
               <div class="dropdown-section">
-                <div class="section-heading">{{ section.heading }}</div>
+                <div class="section-heading">{{ section.headingKey | transloco }}</div>
                 @for (item of section.items; track item.id) {
                   <button
                     class="result-item"
@@ -84,7 +88,7 @@ interface ResultSection {
               </div>
             }
           } @else {
-            <div class="empty-state">No results found</div>
+            <div class="empty-state">{{ 'search.noResults' | transloco }}</div>
           }
         </div>
       }
@@ -242,11 +246,11 @@ export class GlobalSearch implements OnInit, OnDestroy {
   readonly results = signal<SearchResults | null>(null);
   readonly activeIndex = signal(-1);
 
-  private static readonly SECTION_ORDER: { key: keyof SearchResults; heading: string }[] = [
-    { key: 'screens', heading: 'Screens' },
-    { key: 'content', heading: 'Content' },
-    { key: 'playlists', heading: 'Playlists' },
-    { key: 'schedules', heading: 'Schedules' },
+  private static readonly SECTION_ORDER: { key: keyof SearchResults; headingKey: string }[] = [
+    { key: 'screens', headingKey: 'search.sections.screens' },
+    { key: 'content', headingKey: 'search.sections.content' },
+    { key: 'playlists', headingKey: 'search.sections.playlists' },
+    { key: 'schedules', headingKey: 'search.sections.schedules' },
   ];
 
   readonly sections = computed<ResultSection[]>(() => {

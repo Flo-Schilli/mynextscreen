@@ -9,6 +9,7 @@ import { SiteAgentService } from './site-agent.service';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { ToastService } from '../shared/toast/toast.service';
 import type { CreatedSiteAgent, SiteAgentListItem } from './site-agent.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -55,7 +56,7 @@ describe('SiteAgents', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [SiteAgents],
+      imports: [SiteAgents, getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
         provideRouter([]),

@@ -9,6 +9,7 @@ import { ContentService } from '../../content/content.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
 import { StorageUsageBars } from '../../shared/storage-usage-bars';
 import { StorageInfo } from '../../content/content.model';
+import { getTranslocoTestingModule } from '../../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -32,7 +33,7 @@ describe('OrgStorage', () => {
 
   async function setup(): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [OrgStorage],
+      imports: [OrgStorage, getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
         provideRouter([]),

@@ -8,17 +8,18 @@ import {
   HostListener,
   ChangeDetectionStrategy,
 } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { NotificationService } from './notification.service';
 import { NotificationDropdown } from './notification-dropdown';
 
 @Component({
   selector: 'app-notification-bell',
-  imports: [NotificationDropdown],
+  imports: [NotificationDropdown, TranslocoDirective],
   template: `
-    <div class="bell-wrapper">
+    <div class="bell-wrapper" *transloco="let t">
       <button
         class="topbar-btn notification-btn"
-        aria-label="Notifications"
+        [attr.aria-label]="t('notifications.ariaLabel')"
         (click)="toggleDropdown()"
       >
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
