@@ -1765,6 +1765,19 @@
     },
     "toast": {
       "dismiss": "Schließen"
+    },
+    "dateInput": {
+      "placeholder": "TT.MM.JJJJ",
+      "invalid": "Kein gültiges Datum",
+      "openCalendar": "Kalender öffnen",
+      "previousMonth": "Vorheriger Monat",
+      "nextMonth": "Nächster Monat",
+      "today": "Heute",
+      "clear": "Leeren"
+    },
+    "timeInput": {
+      "placeholder": "HH:MM",
+      "invalid": "Keine gültige Uhrzeit"
     }
   },
   "admin": {

@@ -13,6 +13,8 @@ import {
   IconName,
   SelectComponent,
   SelectOption,
+  DateInputComponent,
+  TimeInputComponent,
 } from '../ui';
 
 export const PRESET_COLOURS = [
@@ -85,6 +87,8 @@ export interface ScheduleFormResult {
     BtnComponent,
     IconComponent,
     SelectComponent,
+    DateInputComponent,
+    TimeInputComponent,
     TranslocoDirective,
   ],
   template: `
@@ -283,19 +287,17 @@ export interface ScheduleFormResult {
                     {{ t('schedules.form.startLabel') }}
                   </div>
                   <div class="flex gap-2">
-                    <input
-                      type="date"
+                    <mns-date-input
                       [(ngModel)]="startDate"
                       name="modalStartDate"
                       required
-                      class="flex-1 min-w-0 px-3 py-2 rounded-[10px] bg-surface border border-border-strong text-text text-sm"
+                      class="flex-1 min-w-0"
                     />
-                    <input
-                      type="time"
+                    <mns-time-input
                       [(ngModel)]="startTime"
                       name="modalStartTime"
                       required
-                      class="w-[5.5rem] px-2 py-2 rounded-[10px] bg-surface border border-border-strong text-text text-sm font-mono"
+                      class="w-[6.5rem]"
                     />
                   </div>
                 </div>
@@ -304,23 +306,19 @@ export interface ScheduleFormResult {
                     {{ t('schedules.form.endLabel') }}
                   </div>
                   <div class="flex gap-2">
-                    <input
-                      type="date"
+                    <mns-date-input
                       [(ngModel)]="endDate"
                       name="modalEndDate"
                       required
-                      class="flex-1 min-w-0 px-3 py-2 rounded-[10px] bg-surface border text-text text-sm"
-                      [class.border-border-strong]="!isTimeRangeInvalid()"
-                      [class.border-offline]="isTimeRangeInvalid()"
+                      class="flex-1 min-w-0"
+                      [invalid]="isTimeRangeInvalid()"
                     />
-                    <input
-                      type="time"
+                    <mns-time-input
                       [(ngModel)]="endTime"
                       name="modalEndTime"
                       required
-                      class="w-[5.5rem] px-2 py-2 rounded-[10px] bg-surface border text-text text-sm font-mono"
-                      [class.border-border-strong]="!isTimeRangeInvalid()"
-                      [class.border-offline]="isTimeRangeInvalid()"
+                      class="w-[6.5rem]"
+                      [invalid]="isTimeRangeInvalid()"
                     />
                   </div>
                 </div>

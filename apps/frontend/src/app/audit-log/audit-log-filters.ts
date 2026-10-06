@@ -3,7 +3,7 @@ import { TitleCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { Membership } from '../settings/users/member.model';
-import { IconComponent } from '../ui';
+import { DateInputComponent, IconComponent } from '../ui';
 
 /**
  * Presentational audit-log filter bar. Owns the action/user/resource/date
@@ -14,7 +14,7 @@ import { IconComponent } from '../ui';
   selector: 'app-audit-log-filters',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TitleCasePipe, FormsModule, IconComponent, TranslocoDirective],
+  imports: [TitleCasePipe, FormsModule, IconComponent, DateInputComponent, TranslocoDirective],
   template: `
     <ng-container *transloco="let t">
       <!-- search row -->
@@ -127,12 +127,12 @@ import { IconComponent } from '../ui';
           <span class="field-label text-[10.5px] font-bold tracking-[.07em] uppercase text-faint">
             {{ t('auditLog.filters.from') }}
           </span>
-          <input
-            id="filterFrom"
-            type="date"
+          <mns-date-input
+            inputId="filterFrom"
+            tone="raised"
+            class="w-[150px]"
             [(ngModel)]="from"
             (ngModelChange)="apply.emit()"
-            class="w-[150px] px-3 py-[10px] rounded-[10px] text-[13.5px] font-semibold bg-surface-2 border border-border-strong text-text focus:outline-none focus:border-accent focus:ring-[3px] focus:ring-accent-soft transition-all duration-[180ms] [color-scheme:inherit]"
           />
         </div>
 
@@ -141,12 +141,12 @@ import { IconComponent } from '../ui';
           <span class="field-label text-[10.5px] font-bold tracking-[.07em] uppercase text-faint">
             {{ t('auditLog.filters.to') }}
           </span>
-          <input
-            id="filterTo"
-            type="date"
+          <mns-date-input
+            inputId="filterTo"
+            tone="raised"
+            class="w-[150px]"
             [(ngModel)]="to"
             (ngModelChange)="apply.emit()"
-            class="w-[150px] px-3 py-[10px] rounded-[10px] text-[13.5px] font-semibold bg-surface-2 border border-border-strong text-text focus:outline-none focus:border-accent focus:ring-[3px] focus:ring-accent-soft transition-all duration-[180ms] [color-scheme:inherit]"
           />
         </div>
       </div>

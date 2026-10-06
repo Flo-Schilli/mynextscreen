@@ -6,6 +6,7 @@ import {
   signal,
   ChangeDetectionStrategy,
 } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 
@@ -22,8 +23,8 @@ import {
   BtnComponent,
   IconComponent,
   EmptyComponent,
+  DateInputComponent,
   SFieldComponent,
-  SInputComponent,
   SelectComponent,
   SelectOption,
 } from '../../ui';
@@ -53,7 +54,8 @@ const titleCase = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slic
     IconComponent,
     EmptyComponent,
     SFieldComponent,
-    SInputComponent,
+    DateInputComponent,
+    FormsModule,
     SelectComponent,
     TranslocoDirective,
   ],
@@ -130,13 +132,13 @@ const titleCase = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slic
 
         <div class="min-w-[9rem]">
           <mns-sfield [label]="t('auditLog.filters.from')">
-            <mns-sinput type="date" [(value)]="filterFrom" (valueChange)="applyFilters()" />
+            <mns-date-input [(ngModel)]="filterFrom" (ngModelChange)="applyFilters()" />
           </mns-sfield>
         </div>
 
         <div class="min-w-[9rem]">
           <mns-sfield [label]="t('auditLog.filters.to')">
-            <mns-sinput type="date" [(value)]="filterTo" (valueChange)="applyFilters()" />
+            <mns-date-input [(ngModel)]="filterTo" (ngModelChange)="applyFilters()" />
           </mns-sfield>
         </div>
 
