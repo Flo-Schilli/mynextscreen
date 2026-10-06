@@ -1072,7 +1072,6 @@
       "title": "Site-Agent hinzufügen",
       "readyPrefix": "ist bereit. Starte den Agenten am Standort und gib diesen Setup-Code auf dessen Einrichtungsseite ein.",
       "tokenHint": "Er kann nur einmal verwendet werden und läuft am {date} ab. Kopiere ihn jetzt — er kann nicht erneut angezeigt werden, aber du kannst einen neuen ausstellen.",
-      "copy": "Kopieren",
       "done": "Fertig",
       "nameLabel": "Name",
       "nameHint": "Woran du diesen Standort in der Liste erkennst",
