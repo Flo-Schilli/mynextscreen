@@ -4,6 +4,36 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.19.0
+
+### Added — how a site agent is connected
+
+The agent's card and page show how its machine reaches the venue network:
+**LAN** or **Wi-Fi** with the network name, and the address the interface holds.
+The agent reads this on every heartbeat from the interface carrying the default
+route; the SSID comes from `iw`, which is now part of the agent image and needs
+no capability. A bridge, VPN tunnel or bond shows as "network unknown" rather
+than as LAN. Whether the address came from DHCP cannot be told from inside the
+container and is not shown.
+
+### Added — update hint for site agents
+
+An agent running an older release than the server is flagged with
+**Update available** on its card and page, together with how to update it.
+Server and agent ship from the same release, so the server's own version is the
+reference; no registry or GitHub call is involved.
+
+**Operator action:** update the server first, then the agents by re-running
+`ansible/site-agent.yml`. The backend migration (`0023`) adds four columns to
+`site_agents` and runs on start. An agent that reaches a server older than
+itself still checks in; it just drops the network report until the server is
+updated.
+
+### Changed — smaller things
+
+- `smol-toml` 1.9.0 under nx (GHSA-r4xh-jqrq-34v2).
+- Development dependencies: `eslint`, `@types/node`.
+
 ## 0.18.0
 
 ### Added — Prometheus metrics
