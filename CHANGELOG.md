@@ -4,6 +4,32 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.20.0
+
+### Added — check interval and "Check now" for site agents
+
+How often an agent checks its displays is now set per agent on its page
+(**Check interval**, 1–10 minutes, default 1). The agent applies a change
+straight away, without a restart. **Check now** runs a round immediately and
+clears every backoff, for example right after switching a set back on.
+
+### Changed — a TV that comes back is noticed within one interval
+
+The agent used to stop probing a display while it backed off after failures,
+which doubled up to 30 minutes. A set switched on after a long time off could
+go unnoticed for that long. The probe now runs every interval. Only the actions
+(app launch, Developer Mode extension, wake) back off. A display that does not
+answer no longer counts as a failure, and a display that comes back gets a fresh
+start.
+
+**Operator action:** update the server first, then the agents by re-running
+`ansible/site-agent.yml`. The backend migration (`0024`) adds
+`site_agents.probe_interval_minutes` and runs on start. `SITE_AGENT_PROBE_INTERVAL_MS`
+is no longer read; remove it from the backend environment. `MNS_PROBE_INTERVAL_MS`
+was never read by the agent and is gone from the Ansible template. An agent older
+than this release ignores **Check now** and picks up a changed interval only
+after a restart.
+
 ## 0.19.0
 
 ### Added — how a site agent is connected
