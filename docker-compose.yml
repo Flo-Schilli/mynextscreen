@@ -6,9 +6,9 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./apps/backend/src:/app/apps/backend/src
-      - ./test-data/media:/app/media
-      - ./player-applications:/app/apps/backend/player-applications:ro
+      - ./apps/backend/src:/app/apps/backend/src:z
+      - ./test-data/media:/app/media:z
+      - ./player-applications:/app/apps/backend/player-applications:ro,z
     environment:
       - DATABASE_URL=postgres://mynextscreen:mynextscreen@postgres:5432/mynextscreen
       - REDIS_URL=redis://redis:6379
@@ -44,8 +44,8 @@ services:
     ports:
       - "4200:4200"
     volumes:
-      - ./apps/frontend/src:/app/apps/frontend/src
-      - ./apps/frontend/proxy.conf.docker.json:/app/apps/frontend/proxy.conf.docker.json
+      - ./apps/frontend/src:/app/apps/frontend/src:z
+      - ./apps/frontend/proxy.conf.docker.json:/app/apps/frontend/proxy.conf.docker.json:z
 
   player:
     build:
@@ -54,18 +54,18 @@ services:
     ports:
       - "4300:4300"
     volumes:
-      - ./apps/player/src:/app/apps/player/src
-      - ./apps/player/proxy.conf.docker.json:/app/apps/player/proxy.conf.docker.json
+      - ./apps/player/src:/app/apps/player/src:z
+      - ./apps/player/proxy.conf.docker.json:/app/apps/player/proxy.conf.docker.json:z
 
   redis:
-    image: redis:7-alpine
+    image: docker.io/library/redis:7-alpine
     ports:
       # Loopback only: an unauthenticated Redis on 0.0.0.0 is reachable from
       # the whole network, and it holds the refresh tokens.
       - "127.0.0.1:6379:6379"
 
   mailpit:
-    image: axllent/mailpit
+    image: docker.io/axllent/mailpit
     ports:
       # Loopback only: an open relay and every captured mail otherwise.
       - "127.0.0.1:1025:1025" # SMTP ingest
@@ -74,7 +74,7 @@ services:
       - MP_MAX_MESSAGES=500
 
   postgres:
-    image: postgres:16-alpine
+    image: docker.io/library/postgres:16-alpine
     ports:
       # Loopback only: the dev database has the default password.
       - "127.0.0.1:5432:5432"
