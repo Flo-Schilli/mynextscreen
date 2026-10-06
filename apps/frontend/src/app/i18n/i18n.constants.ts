@@ -22,6 +22,12 @@ export const LOCALE_BY_LANG: Record<AppLang, string> = {
   en: 'en-US',
 };
 
+/** First day of the week in the date picker: Monday (1) for de, Sunday (0) for en. */
+export const WEEK_START_BY_LANG: Record<AppLang, number> = {
+  de: 1,
+  en: 0,
+};
+
 /** Type guard narrowing an arbitrary string to a supported {@link AppLang}. */
 export function isAppLang(value: string | null | undefined): value is AppLang {
   return value === 'de' || value === 'en';
