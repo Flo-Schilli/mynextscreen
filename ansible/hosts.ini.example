@@ -21,6 +21,9 @@ domain_name=mynextscreen.example.com
 # vault_mynextscreen_postgres_password="{{ vault_mynextscreen_postgres_password }}"
 # The first super-admin is created via the UI first-run setup after deploy
 # (no env seeding) — open the app while no user exists yet.
+# Optional: enables the Prometheus endpoint /api/metrics (openssl rand -base64 32).
+# Unset keeps it disabled. Caddy blocks it publicly; scrape localhost:50002.
+# metrics_scrape_token="{{ vault_metrics_scrape_token }}"
 caddy_site_prefix=70
 
 ffmpeg_video_strip_audio=true

@@ -3,6 +3,12 @@
 
 # ─── Frontend (Admin Panel) ─────────────────────────────────
 app.{{ domain_name }} {
+	# Prometheus scrape endpoint: internal only (scrape localhost:50002 directly).
+	# The frontend's nginx proxies /api/* to the backend, so block it here too.
+	handle /api/metrics* {
+		respond 404
+	}
+
 	# Dashboard SSE stream — disable response buffering so events flush live.
 	# Same-origin (app.{domain}/api/*) so the httpOnly access cookie is sent.
 	handle /api/dashboard/events {
@@ -89,6 +95,11 @@ player.{{ domain_name }} {
 api.{{ domain_name }} {
 	# Block API docs in production
 	handle /api/docs* {
+		respond 404
+	}
+
+	# Prometheus scrape endpoint: internal only (scrape localhost:50002 directly)
+	handle /api/metrics* {
 		respond 404
 	}
 
