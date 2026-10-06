@@ -1,0 +1,1 @@
+ALTER TABLE "site_agents" ADD COLUMN "subnet_sweep_enabled" boolean DEFAULT false NOT NULL;

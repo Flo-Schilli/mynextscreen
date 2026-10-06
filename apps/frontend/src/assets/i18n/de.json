@@ -1165,7 +1165,9 @@
       "updateHint": "Zum Aktualisieren das Ansible-Playbook site-agent.yml erneut ausführen oder das neue Image auf dem Agent-Host ziehen und den Dienst neu starten.",
       "probeInterval": "Prüfintervall",
       "probeIntervalOption": "{minutes} min",
-      "probeNow": "Jetzt prüfen"
+      "probeNow": "Jetzt prüfen",
+      "subnetSweepLabel": "Subnetz-Suche erlauben",
+      "subnetSweepDesc": "Findet der Agent ein Display nach einem IP-Wechsel nicht per SSDP, spricht er jede Adresse im Subnetz auf Port 3001 an. Das kann als Port-Scan auffallen."
     },
     "detailToast": {
       "loadAgentFailed": "Dieser Agent konnte nicht geladen werden",
@@ -1185,7 +1187,10 @@
       "probeIntervalSaved": "Prüfintervall gespeichert. Der Agent übernimmt es sofort.",
       "probeIntervalFailed": "Prüfintervall konnte nicht gespeichert werden.",
       "probeStarted": "Der Agent prüft jetzt alle Displays.",
-      "probeFailed": "Prüfung konnte nicht gestartet werden."
+      "probeFailed": "Prüfung konnte nicht gestartet werden.",
+      "subnetSweepOn": "Subnetz-Suche aktiviert.",
+      "subnetSweepOff": "Subnetz-Suche deaktiviert.",
+      "subnetSweepFailed": "Einstellung konnte nicht gespeichert werden."
     },
     "settings": {
       "sub": "Fernsteuerung",

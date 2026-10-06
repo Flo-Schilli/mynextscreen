@@ -13,6 +13,7 @@ import { DevmodeKeyStatus } from './devmode-key-status.enum';
 import { SshStatus } from './ssh-status.enum';
 import { SCREEN_ONBOARDING_CHECKED, SCREEN_REACHABILITY_CHANGED } from './screen-onboarding.event';
 import {
+  AUDIT_SCREEN_REMOTE_ADDRESS_CHANGED,
   AUDIT_SCREEN_REMOTE_COMMAND,
   AUDIT_SCREEN_REMOTE_ONBOARDED,
 } from '../audit-log/audit.events';
@@ -205,6 +206,77 @@ describe('ScreenRemoteCommandService', () => {
         reachability: ScreenReachability.Reachable,
       });
       expect((await remoteRow()).lastProbeError).toBeNull();
+    });
+
+    describe('a set found under a new address', () => {
+      async function withMac(localIp = '192.168.1.50') {
+        await remoteControls.upsert(
+          orgId,
+          screenId,
+          { agentId, localIp, macAddress: 'AA:BB:CC:DD:EE:FF' },
+          userId,
+        );
+        emitter.emit.mockClear();
+      }
+
+      it('stores the new address, audits the move and tells the dashboard', async () => {
+        await withMac();
+
+        await service.applyReport(agentId, orgId, {
+          screenId,
+          reachability: ScreenReachability.Reachable,
+          localIp: '192.168.1.77',
+        });
+
+        expect((await remoteRow()).localIp).toBe('192.168.1.77');
+        expect(emitted(AUDIT_SCREEN_REMOTE_ADDRESS_CHANGED)).toEqual([
+          expect.objectContaining({
+            screenId,
+            details: { from: '192.168.1.50', to: '192.168.1.77', origin: 'agent' },
+          }),
+        ]);
+        expect(emitted(SCREEN_REACHABILITY_CHANGED)).toEqual([
+          expect.objectContaining({ localIp: '192.168.1.77' }),
+        ]);
+      });
+
+      it('ignores an address for a screen without a MAC', async () => {
+        await remoteControls.upsert(orgId, screenId, { agentId, localIp: '192.168.1.50' }, userId);
+
+        await service.applyReport(agentId, orgId, { screenId, localIp: '192.168.1.77' });
+
+        expect((await remoteRow()).localIp).toBe('192.168.1.50');
+        expect(emitted(AUDIT_SCREEN_REMOTE_ADDRESS_CHANGED)).toEqual([]);
+      });
+
+      it.each(['127.0.0.1', '169.254.10.2', '239.255.255.250', '0.0.0.0'])(
+        'refuses %s as a display address',
+        async (address) => {
+          await withMac();
+
+          await service.applyReport(agentId, orgId, { screenId, localIp: address });
+
+          expect((await remoteRow()).localIp).toBe('192.168.1.50');
+        },
+      );
+
+      it('tells the dashboard about a move reported without a probe result', async () => {
+        await withMac();
+
+        await service.applyReport(agentId, orgId, { screenId, localIp: '192.168.1.77' });
+
+        expect(emitted(SCREEN_REACHABILITY_CHANGED)).toEqual([
+          expect.objectContaining({ localIp: '192.168.1.77', reachability: 'reachable' }),
+        ]);
+      });
+
+      it('does not audit an address that did not change', async () => {
+        await withMac('192.168.1.77');
+
+        await service.applyReport(agentId, orgId, { screenId, localIp: '192.168.1.77' });
+
+        expect(emitted(AUDIT_SCREEN_REMOTE_ADDRESS_CHANGED)).toEqual([]);
+      });
     });
 
     it('records the version the TV reports as installed', async () => {

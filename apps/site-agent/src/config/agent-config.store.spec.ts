@@ -39,6 +39,31 @@ describe('AgentConfigStore', () => {
     expect(await reopened.load()).toEqual(config);
   });
 
+  describe('updateScreenAddress', () => {
+    it('replaces one screen address and keeps it across a restart', async () => {
+      await store.save(config);
+
+      await store.updateScreenAddress('s1', '192.168.1.77');
+
+      const reopened = await new AgentConfigStore(configCachePath(stateDir)).load();
+      expect(reopened?.screens[0]).toMatchObject({ screenId: 's1', localIp: '192.168.1.77' });
+    });
+
+    it('does not mutate the config it was given', async () => {
+      await store.save(config);
+
+      await store.updateScreenAddress('s1', '192.168.1.77');
+
+      expect(config.screens[0]).not.toHaveProperty('localIp');
+    });
+
+    it('does nothing before a config was pulled', async () => {
+      await store.updateScreenAddress('s1', '192.168.1.77');
+
+      expect(store.current()).toBeNull();
+    });
+  });
+
   it('holds the passphrases owner-readable only', async () => {
     await store.save(config);
 

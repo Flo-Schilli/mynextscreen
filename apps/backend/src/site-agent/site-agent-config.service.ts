@@ -51,6 +51,7 @@ export class SiteAgentConfigService {
       .select({
         organisationId: siteAgents.organisationId,
         probeIntervalMinutes: siteAgents.probeIntervalMinutes,
+        subnetSweepEnabled: siteAgents.subnetSweepEnabled,
       })
       .from(siteAgents)
       .where(eq(siteAgents.id, agentId))
@@ -84,6 +85,7 @@ export class SiteAgentConfigService {
       agentId,
       organisationId: agent?.organisationId ?? '',
       probeIntervalMs: (agent?.probeIntervalMinutes ?? DEFAULT_PROBE_INTERVAL_MINUTES) * 60_000,
+      subnetSweepEnabled: agent?.subnetSweepEnabled ?? false,
       appId: this.appId,
       screens: screenConfigs,
     };

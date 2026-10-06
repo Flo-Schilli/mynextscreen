@@ -39,7 +39,12 @@ describe('SupervisorService', () => {
   let supervisor: SupervisorService;
   let connections: { load: jest.Mock };
   let client: { fetchConfig: jest.Mock; sendHeartbeat: jest.Mock; sendReports: jest.Mock };
-  let configs: { load: jest.Mock; save: jest.Mock; current: jest.Mock };
+  let configs: {
+    load: jest.Mock;
+    save: jest.Mock;
+    current: jest.Mock;
+    updateScreenAddress: jest.Mock;
+  };
   let setup: { recordConfigPull: jest.Mock; onEnrolled: jest.Mock };
   let reachability: { probe: jest.Mock };
   let devmodeKeys: { obtain: jest.Mock; forget: jest.Mock };
@@ -47,6 +52,7 @@ describe('SupervisorService', () => {
   let wol: { wake: jest.Mock };
   let ssapKeys: { load: jest.Mock; save: jest.Mock };
   let network: { collect: jest.Mock };
+  let discovery: { locate: jest.Mock };
 
   function build(config: AgentConfigMessage | null) {
     configs.current.mockReturnValue(config);
@@ -62,6 +68,7 @@ describe('SupervisorService', () => {
       wol as never,
       ssapKeys as never,
       network as never,
+      discovery as never,
       '1.2.3',
     );
   }
@@ -87,7 +94,12 @@ describe('SupervisorService', () => {
       sendHeartbeat: jest.fn(),
       sendReports: jest.fn().mockResolvedValue(undefined),
     };
-    configs = { load: jest.fn(), save: jest.fn(), current: jest.fn() };
+    configs = {
+      load: jest.fn(),
+      save: jest.fn(),
+      current: jest.fn(),
+      updateScreenAddress: jest.fn(),
+    } as typeof configs;
     setup = { recordConfigPull: jest.fn(), onEnrolled: jest.fn() };
     reachability = { probe: jest.fn().mockResolvedValue({ reachability: 'reachable' }) };
     devmodeKeys = {
@@ -101,6 +113,7 @@ describe('SupervisorService', () => {
     wol = { wake: jest.fn().mockResolvedValue(undefined) };
     ssapKeys = { load: jest.fn().mockResolvedValue('client-key'), save: jest.fn() };
     network = { collect: jest.fn().mockResolvedValue(WIRED) };
+    discovery = { locate: jest.fn().mockResolvedValue(null) };
   });
 
   describe('start-up heartbeat', () => {
@@ -242,6 +255,155 @@ describe('SupervisorService', () => {
       await supervisor.tick();
 
       expect(ssh.extendDevmode).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('a set that changed its address', () => {
+    const MAC = 'AA:BB:CC:DD:EE:FF';
+
+    function unreachableAt(ip: string): void {
+      reachability.probe.mockImplementation(async (host: string) =>
+        host === ip ? { reachability: 'unreachable' } : { reachability: 'reachable' },
+      );
+    }
+
+    it('finds it by its MAC, adopts the new address and reports it', async () => {
+      unreachableAt('192.168.1.50');
+      discovery.locate.mockResolvedValue('192.168.1.77');
+      supervisor = build(configWith([screen({ macAddress: MAC })]));
+
+      await supervisor.tick();
+
+      expect(discovery.locate).toHaveBeenCalledWith(MAC, '192.168.1.50', false);
+      expect(configs.updateScreenAddress).toHaveBeenCalledWith('s1', '192.168.1.77');
+      expect(reported()).toMatchObject({ reachability: 'reachable', localIp: '192.168.1.77' });
+    });
+
+    it('acts on the set at its new address in the same round', async () => {
+      unreachableAt('192.168.1.50');
+      discovery.locate.mockResolvedValue('192.168.1.77');
+      supervisor = build(
+        configWith([
+          screen({ macAddress: MAC, extendDevmodeEnabled: true, lastDevmodeExtendAt: null }),
+        ]),
+      );
+
+      await supervisor.tick();
+
+      expect(ssh.extendDevmode).toHaveBeenCalledWith(
+        expect.objectContaining({ host: '192.168.1.77' }),
+      );
+    });
+
+    // A neighbour entry can outlive the device that left it.
+    it('ignores an address the set does not answer on', async () => {
+      reachability.probe.mockResolvedValue({ reachability: 'unreachable' });
+      discovery.locate.mockResolvedValue('192.168.1.77');
+      supervisor = build(configWith([screen({ macAddress: MAC })]));
+
+      await supervisor.tick();
+
+      expect(configs.updateScreenAddress).not.toHaveBeenCalled();
+      expect(reported()).not.toHaveProperty('localIp');
+    });
+
+    it('does not search without a MAC to search for', async () => {
+      reachability.probe.mockResolvedValue({ reachability: 'unreachable' });
+      supervisor = build(configWith([screen({ macAddress: null })]));
+
+      await supervisor.tick();
+
+      expect(discovery.locate).not.toHaveBeenCalled();
+    });
+
+    it('searches at most once per cooldown while the set stays off', async () => {
+      reachability.probe.mockResolvedValue({ reachability: 'unreachable' });
+      supervisor = build(configWith([screen({ macAddress: MAC })]));
+
+      await supervisor.tick();
+      await supervisor.tick();
+
+      expect(discovery.locate).toHaveBeenCalledTimes(1);
+    });
+
+    it('searches again right away when someone presses check now', async () => {
+      reachability.probe.mockResolvedValue({ reachability: 'unreachable' });
+      supervisor = build(configWith([screen({ macAddress: MAC })]));
+      await supervisor.tick();
+
+      await supervisor.probeNow();
+
+      expect(discovery.locate).toHaveBeenCalledTimes(2);
+    });
+
+    it('searches ever less often while the set stays missing', async () => {
+      jest.useFakeTimers({ now: Date.now(), doNotFake: ['setImmediate', 'nextTick'] });
+      try {
+        reachability.probe.mockResolvedValue({ reachability: 'unreachable' });
+        supervisor = build(configWith([screen({ macAddress: MAC })]));
+
+        await supervisor.tick();
+        jest.setSystemTime(Date.now() + 2 * 60_000);
+        await supervisor.tick();
+        jest.setSystemTime(Date.now() + 2 * 60_000);
+        await supervisor.tick();
+
+        // First miss doubles the wait to four minutes.
+        expect(discovery.locate).toHaveBeenCalledTimes(2);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('keeps reporting the new address until the server has taken it', async () => {
+      unreachableAt('192.168.1.50');
+      discovery.locate.mockResolvedValue('192.168.1.77');
+      client.sendReports.mockRejectedValueOnce(new ServerUnreachableError(new Error('down')));
+      supervisor = build(configWith([screen({ macAddress: MAC })]));
+
+      await supervisor.tick();
+      configs.current.mockReturnValue(
+        configWith([screen({ macAddress: MAC, localIp: '192.168.1.77' })]),
+      );
+      await supervisor.tick();
+      await supervisor.tick();
+
+      const sent = client.sendReports.mock.calls.map((call) => call[0].screens[0].localIp);
+      expect(sent).toEqual(['192.168.1.77', '192.168.1.77', undefined]);
+    });
+
+    it('does not let a config pull hand the old address back before the server has the new one', async () => {
+      unreachableAt('192.168.1.50');
+      discovery.locate.mockResolvedValue('192.168.1.77');
+      client.sendReports.mockRejectedValue(new ServerUnreachableError(new Error('down')));
+      supervisor = build(configWith([screen({ macAddress: MAC })]));
+      await supervisor.tick();
+      client.fetchConfig.mockResolvedValue(configWith([screen({ macAddress: MAC })]));
+
+      await supervisor.refreshConfigIfDue(true);
+
+      const saved = configs.save.mock.calls.at(-1)?.[0] as AgentConfigMessage;
+      expect(saved.screens[0].localIp).toBe('192.168.1.77');
+    });
+
+    it('passes the operator switch for the subnet sweep through', async () => {
+      unreachableAt('192.168.1.50');
+      supervisor = build({
+        ...configWith([screen({ macAddress: MAC })]),
+        subnetSweepEnabled: true,
+      });
+
+      await supervisor.tick();
+
+      expect(discovery.locate).toHaveBeenCalledWith(MAC, '192.168.1.50', true);
+    });
+
+    it('does not search for a set that answers', async () => {
+      supervisor = build(configWith([screen({ macAddress: MAC })]));
+
+      await supervisor.tick();
+
+      expect(discovery.locate).not.toHaveBeenCalled();
     });
   });
 

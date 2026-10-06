@@ -94,6 +94,7 @@ export const AUDIT_SCREEN_REMOTE_CONTROL_UPDATED = 'audit.screen.remote_control_
 export const AUDIT_SCREEN_REMOTE_CONTROL_REMOVED = 'audit.screen.remote_control_removed';
 export const AUDIT_SCREEN_REMOTE_COMMAND = 'audit.screen.remote_command';
 export const AUDIT_SCREEN_REMOTE_ONBOARDED = 'audit.screen.remote_onboarded';
+export const AUDIT_SCREEN_REMOTE_ADDRESS_CHANGED = 'audit.screen.remote_address_changed';
 
 /**
  * Remote-control changes to a screen. `details` must never carry the Developer

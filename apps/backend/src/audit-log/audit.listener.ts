@@ -44,6 +44,7 @@ import {
   AUDIT_SCREEN_REMOTE_CONTROL_REMOVED,
   AUDIT_SCREEN_REMOTE_COMMAND,
   AUDIT_SCREEN_REMOTE_ONBOARDED,
+  AUDIT_SCREEN_REMOTE_ADDRESS_CHANGED,
   AuditScreenRemoteEvent,
   AUDIT_USER_INVITED,
   AUDIT_USER_ROLE_CHANGED,
@@ -753,6 +754,11 @@ export class AuditListener {
   @OnEvent(AUDIT_SCREEN_REMOTE_ONBOARDED, { async: true })
   handleScreenRemoteOnboarded(event: AuditScreenRemoteEvent): void {
     this.recordScreenRemote(AuditAction.ScreenRemoteOnboarded, event);
+  }
+
+  @OnEvent(AUDIT_SCREEN_REMOTE_ADDRESS_CHANGED, { async: true })
+  handleScreenRemoteAddressChanged(event: AuditScreenRemoteEvent): void {
+    this.recordScreenRemote(AuditAction.ScreenRemoteAddressChanged, event);
   }
 
   private recordSiteAgent(action: AuditAction, event: AuditSiteAgentEvent): void {

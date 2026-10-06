@@ -204,6 +204,24 @@ describe('SiteAgentService', () => {
       );
     });
 
+    it('makes the agent re-pull when the subnet sweep is switched', async () => {
+      const agent = await makeAgent();
+      expect(agent.subnetSweepEnabled).toBe(false);
+
+      const updated = await service.updateAgent(
+        orgId,
+        agent.id,
+        { subnetSweepEnabled: true },
+        userId,
+      );
+
+      expect(updated.subnetSweepEnabled).toBe(true);
+      expect(emitter.emit).toHaveBeenCalledWith(
+        SCREEN_REMOTE_CONFIG_CHANGED,
+        expect.objectContaining({ agentIds: [agent.id] }),
+      );
+    });
+
     it('does not make the agent re-pull for a rename', async () => {
       const agent = await makeAgent();
 

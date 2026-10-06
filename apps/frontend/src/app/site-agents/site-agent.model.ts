@@ -29,6 +29,8 @@ export interface SiteAgent {
   updateAvailable?: boolean;
   /** How often the agent probes its displays, in minutes (1–10). */
   probeIntervalMinutes: number;
+  /** Whether the agent may sweep its subnet to find a display that moved. Off by default. */
+  subnetSweepEnabled: boolean;
   lastHeartbeat: string | null;
   isOnline: boolean;
   createdAt: string;
@@ -57,6 +59,7 @@ export interface CreateSiteAgentRequest {
 
 export interface UpdateSiteAgentRequest extends Partial<CreateSiteAgentRequest> {
   probeIntervalMinutes?: number;
+  subnetSweepEnabled?: boolean;
 }
 
 /** Bounds the backend enforces for {@link SiteAgent.probeIntervalMinutes}. */

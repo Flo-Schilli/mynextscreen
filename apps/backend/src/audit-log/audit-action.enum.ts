@@ -53,6 +53,7 @@ export enum AuditAction {
   ScreenRemoteControlRemoved = 'screen.remote_control_removed',
   ScreenRemoteCommand = 'screen.remote_command',
   ScreenRemoteOnboarded = 'screen.remote_onboarded',
+  ScreenRemoteAddressChanged = 'screen.remote_address_changed',
   // Auth / account (instance-level — organisationId is null for self-signup/setup)
   UserRegistered = 'auth.user_registered',
   EmailVerified = 'auth.email_verified',

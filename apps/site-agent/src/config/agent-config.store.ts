@@ -54,6 +54,26 @@ export class AgentConfigStore {
     this.cached = config;
   }
 
+  /**
+   * Replaces one screen's address in the cached config.
+   *
+   * Written through to disk so a restart does not go back to knocking on the
+   * old address until the next pull. The server learns the address from the
+   * report, so the next pull agrees with this.
+   */
+  async updateScreenAddress(screenId: string, localIp: string): Promise<void> {
+    const config = this.cached;
+    if (!config) {
+      return;
+    }
+    await this.save({
+      ...config,
+      screens: config.screens.map((screen) =>
+        screen.screenId === screenId ? { ...screen, localIp } : screen,
+      ),
+    });
+  }
+
   async clear(): Promise<void> {
     this.cached = null;
     await rm(this.filePath, { force: true });

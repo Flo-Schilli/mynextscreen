@@ -176,6 +176,13 @@
       "when": 1791300584170,
       "tag": "0024_site_agent_probe_interval",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791315950423,
+      "tag": "0025_site_agent_subnet_sweep",
+      "breakpoints": true
     }
   ]
 }

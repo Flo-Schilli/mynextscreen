@@ -27,6 +27,8 @@ export class ScreenReachabilityChangedEvent {
     public readonly organisationId: string,
     public readonly reachability: string,
     public readonly lastProbeAt: Date,
+    /** Set only when the agent found the set under a new address this round. */
+    public readonly localIp: string | null = null,
   ) {}
 }
 

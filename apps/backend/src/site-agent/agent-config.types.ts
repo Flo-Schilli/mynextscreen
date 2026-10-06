@@ -52,6 +52,8 @@ export interface AgentConfig {
   agentId: string;
   organisationId: string;
   probeIntervalMs: number;
+  /** Whether the agent may sweep its subnet to find a display that moved. */
+  subnetSweepEnabled: boolean;
   /** The webOS application the agent keeps in the foreground. */
   appId: string;
   screens: AgentScreenConfig[];
