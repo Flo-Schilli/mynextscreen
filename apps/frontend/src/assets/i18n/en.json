@@ -1165,7 +1165,9 @@
       "updateHint": "To update, re-run the site-agent.yml Ansible playbook, or pull the new image on the agent host and restart the service.",
       "probeInterval": "Check interval",
       "probeIntervalOption": "{minutes} min",
-      "probeNow": "Check now"
+      "probeNow": "Check now",
+      "subnetSweepLabel": "Allow subnet sweep",
+      "subnetSweepDesc": "If SSDP does not find a display after its address changed, the agent contacts every address in the subnet on port 3001. This can show up as a port scan."
     },
     "detailToast": {
       "loadAgentFailed": "Could not load this agent",
@@ -1185,7 +1187,10 @@
       "probeIntervalSaved": "Check interval saved. The agent applies it right away.",
       "probeIntervalFailed": "Could not save the check interval.",
       "probeStarted": "The agent is checking all displays now.",
-      "probeFailed": "Could not start the check."
+      "probeFailed": "Could not start the check.",
+      "subnetSweepOn": "Subnet sweep enabled.",
+      "subnetSweepOff": "Subnet sweep disabled.",
+      "subnetSweepFailed": "Could not save the setting."
     },
     "settings": {
       "sub": "Remote control",

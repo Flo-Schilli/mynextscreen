@@ -73,7 +73,12 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
   async updateAgent(
     organisationId: string,
     id: string,
-    data: { name?: string; location?: string | null; probeIntervalMinutes?: number },
+    data: {
+      name?: string;
+      location?: string | null;
+      probeIntervalMinutes?: number;
+      subnetSweepEnabled?: boolean;
+    },
     userId: string | null,
   ): Promise<SiteAgent> {
     const agent = await this.update(organisationId, id, data);
@@ -81,8 +86,8 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
       AUDIT_SITE_AGENT_UPDATED,
       new AuditSiteAgentEvent(id, organisationId, userId, { ...data }),
     );
-    if (data.probeIntervalMinutes !== undefined) {
-      // The interval travels in the agent's config, so it has to re-pull.
+    if (data.probeIntervalMinutes !== undefined || data.subnetSweepEnabled !== undefined) {
+      // Both travel in the agent's config, so it has to re-pull.
       this.eventEmitter.emit(
         SCREEN_REMOTE_CONFIG_CHANGED,
         new ScreenRemoteConfigChangedEvent([id]),

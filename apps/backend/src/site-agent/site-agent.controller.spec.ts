@@ -28,6 +28,7 @@ describe('SiteAgentController', () => {
     networkIp: null,
     lastHeartbeat: null,
     probeIntervalMinutes: 1,
+    subnetSweepEnabled: false,
     isOnline: false,
     createdAt: new Date(),
     updatedAt: new Date(),

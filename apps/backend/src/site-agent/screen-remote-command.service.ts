@@ -6,6 +6,7 @@ import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { screenRemoteControls } from '../db/schema';
 import {
+  AUDIT_SCREEN_REMOTE_ADDRESS_CHANGED,
   AUDIT_SCREEN_REMOTE_COMMAND,
   AUDIT_SCREEN_REMOTE_ONBOARDED,
   AuditScreenRemoteEvent,
@@ -154,19 +155,37 @@ export class ScreenRemoteCommandService {
       }
     }
 
+    const moved = report.localIp ? await this.addressChange(report.screenId, report.localIp) : null;
+    if (moved) {
+      updates.localIp = moved.to;
+    }
+
     await this.db
       .update(screenRemoteControls)
       .set(updates)
       .where(eq(screenRemoteControls.screenId, report.screenId));
 
-    if (report.reachability) {
+    if (moved) {
+      this.eventEmitter.emit(
+        AUDIT_SCREEN_REMOTE_ADDRESS_CHANGED,
+        new AuditScreenRemoteEvent(report.screenId, organisationId, null, {
+          from: moved.from,
+          to: moved.to,
+          origin: 'agent',
+        }),
+      );
+    }
+
+    if (report.reachability || moved) {
       this.eventEmitter.emit(
         SCREEN_REACHABILITY_CHANGED,
         new ScreenReachabilityChangedEvent(
           report.screenId,
           organisationId,
-          report.reachability,
+          // An address is only reported for a set that answered there.
+          report.reachability ?? ScreenReachability.Reachable,
           now,
+          moved?.to ?? null,
         ),
       );
     }
@@ -232,6 +251,39 @@ export class ScreenRemoteCommandService {
     );
   }
 
+  /**
+   * Whether an address the agent reports is a real move to apply.
+   *
+   * The agent finds a moved set only by its MAC, so a screen without one has no
+   * business reporting a new address — refusing it keeps a confused or
+   * compromised agent from re-pointing a display it was never told how to find.
+   */
+  private async addressChange(
+    screenId: string,
+    reported: string,
+  ): Promise<{ from: string | null; to: string } | null> {
+    const [row] = await this.db
+      .select({
+        localIp: screenRemoteControls.localIp,
+        macAddress: screenRemoteControls.macAddress,
+      })
+      .from(screenRemoteControls)
+      .where(eq(screenRemoteControls.screenId, screenId))
+      .limit(1);
+    if (!row?.macAddress) {
+      this.logger.warn(`Ignoring a new address for screen ${screenId}, which has no MAC stored`);
+      return null;
+    }
+    if (!isLanAddress(reported)) {
+      this.logger.warn(`Ignoring ${reported} for screen ${screenId}: not a usable LAN address`);
+      return null;
+    }
+    if (row.localIp === reported) {
+      return null;
+    }
+    return { from: row.localIp, to: reported };
+  }
+
   /** A check passed when nothing it reported is a failure state. */
   private isCheckOk(report: AgentScreenReportDto): boolean {
     if (report.reachability === ScreenReachability.Unreachable) return false;
@@ -265,4 +317,16 @@ export class ScreenRemoteCommandService {
     }
     return commandId;
   }
+}
+
+/**
+ * A unicast address a TV could hold on a venue LAN. Loopback, link-local,
+ * multicast and the reserved ranges are refused; public unicast is allowed,
+ * because some networks use it internally.
+ */
+export function isLanAddress(ip: string): boolean {
+  const [a, b] = ip.split('.').map(Number);
+  if (a === 0 || a === 127 || a >= 224) return false;
+  if (a === 169 && b === 254) return false;
+  return true;
 }

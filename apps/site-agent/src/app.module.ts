@@ -12,6 +12,7 @@ import { AutoEnrolmentService } from './setup/auto-enrolment.service';
 import { SetupAuthGuard } from './setup/setup-auth.guard';
 import { CommandStreamService } from './connection/command-stream.service';
 import { ReachabilityService } from './probe/reachability.service';
+import { DiscoveryService } from './probe/discovery.service';
 import { DevmodeKeyService, devmodeKeyDir } from './tv/devmode-key.service';
 import { SshService } from './tv/ssh.service';
 import { WolService } from './tv/wol.service';
@@ -93,6 +94,7 @@ export function pinnedServerUrl(env: AgentEnv): string {
     // Factory, not a class provider: the constructor takes the host seam as an
     // interface, which Nest cannot resolve by type.
     { provide: NetworkInfoService, useFactory: () => new NetworkInfoService() },
+    { provide: DiscoveryService, useFactory: () => new DiscoveryService() },
     CommandHandlerService,
     {
       provide: DevmodeKeyService,
@@ -117,6 +119,7 @@ export function pinnedServerUrl(env: AgentEnv): string {
         wol: WolService,
         ssapKeys: SsapKeyStore,
         network: NetworkInfoService,
+        discovery: DiscoveryService,
       ) =>
         new SupervisorService(
           connections,
@@ -129,6 +132,7 @@ export function pinnedServerUrl(env: AgentEnv): string {
           wol,
           ssapKeys,
           network,
+          discovery,
           AGENT_VERSION,
         ),
       inject: [
@@ -142,6 +146,7 @@ export function pinnedServerUrl(env: AgentEnv): string {
         WolService,
         SsapKeyStore,
         NetworkInfoService,
+        DiscoveryService,
       ],
     },
     {

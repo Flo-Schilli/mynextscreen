@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsIn,
   IsInt,
+  IsIP,
   IsOptional,
   IsString,
   IsUUID,
@@ -104,6 +105,15 @@ export class AgentScreenReportDto {
   @IsString()
   @MaxLength(64)
   installedAppVersion?: string;
+
+  /**
+   * The set's new address, found by its MAC after the old one stopped
+   * answering. Only taken for a screen that has a MAC stored, because that is
+   * the only way the agent could have found it.
+   */
+  @IsOptional()
+  @IsIP(4)
+  localIp?: string;
 }
 
 /** Batched because an agent reports for every screen it looks after each round. */

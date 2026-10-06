@@ -266,6 +266,41 @@ someone presses **Check now**.
 
 ---
 
+## When a display's address changes
+
+Where the router cannot be configured, every DHCP lease renewal may move a TV to
+a new address. The agent follows it by its **MAC address**, so store the MAC of
+the interface the set actually uses (wired and wireless have different ones).
+The IP is still entered once during setup; the network step checks the set
+there.
+
+When a display with a MAC stops answering, the agent searches for it. The
+first search follows straight away; while the set stays missing — typically
+off overnight — the wait doubles from two minutes up to 30.
+
+1. It asks every webOS set to announce itself over SSDP and reads the kernel's
+   neighbour table (`/proc/net/arp`) for the MAC.
+2. Only if **Allow subnet sweep** is switched on for the agent (off by default):
+   if SSDP did not find it, it touches every address of the subnet the set was
+   last seen in (up to a /22) on port 3001 and reads the table again. Container,
+   VM and VPN interfaces are never swept. An intrusion detection system on the
+   venue network may see this as a small port scan, which is why it needs an
+   explicit opt-in. With it off, the agent contacts only sets that answered
+   SSDP themselves.
+3. It adopts the new address only when the set answers there, uses it in the
+   same round and reports it. The server stores it, writes
+   `screen.remote_address_changed` to the audit log and the dashboard updates
+   the row.
+
+A set in standby answers neither SSDP nor ARP, so it is found once it is on
+again — Wake-on-LAN still reaches it, because the magic packet is broadcast to
+the MAC. **Check now** skips the two-minute wait. The server takes a new
+address only for a display that has a MAC stored, and only a unicast LAN
+address. Until the server has confirmed it, the agent keeps reporting the new
+address and holds on to it across config pulls.
+
+---
+
 ## Developer Mode
 
 A Developer-Mode session lasts roughly 1000 hours (about 41 days), and when it

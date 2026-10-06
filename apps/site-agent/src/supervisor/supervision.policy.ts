@@ -17,6 +17,19 @@ export const WAKE_COOLDOWN_MS = 5 * 60_000;
 /** Backoff after a failed round: 1x, 2x, 4x … capped. */
 export const BACKOFF_CAP_MS = 30 * 60_000;
 
+/**
+ * Minimum gap between two searches for a set that stopped answering. A search
+ * can sweep the subnet, and a TV that is simply off will not be found anyway.
+ */
+export const DISCOVERY_COOLDOWN_MS = 2 * 60_000;
+
+/** A set that stays missing (off overnight) is searched for ever less often. */
+export const DISCOVERY_COOLDOWN_CAP_MS = 30 * 60_000;
+
+export function discoveryCooldownFor(misses: number): number {
+  return Math.min(DISCOVERY_COOLDOWN_MS * 2 ** misses, DISCOVERY_COOLDOWN_CAP_MS);
+}
+
 /** Spread the Developer Mode extensions so twenty TVs do not all get SSH at once. */
 export const DEVMODE_JITTER_MAX_MS = 30 * 60_000;
 

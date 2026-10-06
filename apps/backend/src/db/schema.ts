@@ -601,6 +601,12 @@ export const siteAgents = pgTable(
      * so even the shortest interval is cheap for the TVs.
      */
     probeIntervalMinutes: integer().notNull().default(1),
+    /**
+     * Whether the agent may sweep its subnet to find a display that changed
+     * its address. Off by default: it touches every address on the LAN, which
+     * an operator has to opt into. SSDP discovery runs regardless.
+     */
+    subnetSweepEnabled: boolean().notNull().default(false),
     lastHeartbeat: timestamp({ withTimezone: true }),
     isOnline: boolean().notNull().default(false),
     ...timestamps,

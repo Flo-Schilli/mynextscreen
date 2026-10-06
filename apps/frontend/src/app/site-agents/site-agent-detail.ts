@@ -41,6 +41,7 @@ import {
   PageHeaderComponent,
   SelectComponent,
   StatusDotComponent,
+  ToggleRowComponent,
 } from '../ui';
 import { BackLink } from '../shared/back-link';
 import { LocaleDatePipe } from '../i18n/locale-format.pipes';
@@ -69,6 +70,7 @@ interface ManagedScreen {
     PageHeaderComponent,
     SelectComponent,
     StatusDotComponent,
+    ToggleRowComponent,
     ScreenRemoteSettings,
     ScreenOnboardingWizard,
     SiteAgentConfirmModal,
@@ -142,6 +144,15 @@ interface ManagedScreen {
             <mns-btn variant="outline" icon="Trash" (mnsClick)="remove()">
               {{ t('siteAgents.detail.deleteAgent') }}
             </mns-btn>
+          </div>
+
+          <div class="mt-4 border-t border-border pt-4" data-testid="subnet-sweep">
+            <mns-toggle-row
+              [label]="t('siteAgents.detail.subnetSweepLabel')"
+              [desc]="t('siteAgents.detail.subnetSweepDesc')"
+              [checked]="agent.subnetSweepEnabled"
+              (toggled)="setSubnetSweep($event)"
+            />
           </div>
 
           @if (token(); as raw) {
@@ -507,7 +518,13 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
     });
 
     this.sse.screenReachability$.pipe(takeUntil(this.destroyed$)).subscribe((event) => {
-      const data = event.data as { screenId: string; reachability: string; lastProbeAt: string };
+      const data = event.data as {
+        screenId: string;
+        reachability: string;
+        lastProbeAt: string;
+        /** Only present when the agent found the set under a new address. */
+        localIp?: string;
+      };
       this.managed.update((items) =>
         items.map((item) =>
           item.screen.id === data.screenId
@@ -517,6 +534,7 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
                   ...item.remote,
                   reachability: data.reachability as ScreenRemoteControl['reachability'],
                   lastProbeAt: data.lastProbeAt,
+                  ...(data.localIp ? { localIp: data.localIp } : {}),
                 },
               }
             : item,
@@ -699,6 +717,33 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
         // A fresh object puts the select back on the stored value.
         this.agent.update((current) => (current ? { ...current } : current));
         this.toast.error(this.transloco.translate('siteAgents.detailToast.probeIntervalFailed'));
+      },
+    });
+  }
+
+  /** Saved straight away; the backend tells the agent to re-pull its config. */
+  protected setSubnetSweep(enabled: boolean): void {
+    const agent = this.agent();
+    if (!agent || enabled === agent.subnetSweepEnabled) {
+      return;
+    }
+    this.service.update(agent.id, { subnetSweepEnabled: enabled }).subscribe({
+      next: (updated) => {
+        this.agent.update((current) =>
+          current ? { ...current, subnetSweepEnabled: updated.subnetSweepEnabled } : current,
+        );
+        this.toast.success(
+          this.transloco.translate(
+            enabled
+              ? 'siteAgents.detailToast.subnetSweepOn'
+              : 'siteAgents.detailToast.subnetSweepOff',
+          ),
+        );
+      },
+      error: () => {
+        // A fresh object puts the switch back on the stored value.
+        this.agent.update((current) => (current ? { ...current } : current));
+        this.toast.error(this.transloco.translate('siteAgents.detailToast.subnetSweepFailed'));
       },
     });
   }

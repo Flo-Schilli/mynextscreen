@@ -8,7 +8,8 @@ import {
 } from '../connection/server-client.service';
 import { ConnectionStore } from '../connection/connection.store';
 import { SetupService } from '../setup/setup.service';
-import { ReachabilityService } from '../probe/reachability.service';
+import { ReachabilityService, type ProbeResult } from '../probe/reachability.service';
+import { DiscoveryService } from '../probe/discovery.service';
 import { DevmodeKeyService } from '../tv/devmode-key.service';
 import { SshService } from '../tv/ssh.service';
 import { WolService } from '../tv/wol.service';
@@ -16,8 +17,14 @@ import { SsapClient } from '../tv/ssap-client';
 import { SsapKeyStore } from '../tv/ssap-key.store';
 import { NetworkInfoService } from '../network/network-info.service';
 import { newRuntime, type ScreenRuntime } from './screen-runtime';
-import { DEVMODE_JITTER_MAX_MS, backoffFor, decideAction } from './supervision.policy';
+import {
+  DEVMODE_JITTER_MAX_MS,
+  backoffFor,
+  decideAction,
+  discoveryCooldownFor,
+} from './supervision.policy';
 import type {
+  AgentConfigMessage,
   AgentScreenConfigMessage,
   AgentScreenReportMessage,
   AgentMetricsMessage,
@@ -69,6 +76,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     private readonly wol: WolService,
     private readonly ssapKeys: SsapKeyStore,
     private readonly network: NetworkInfoService,
+    private readonly discovery: DiscoveryService,
     private readonly agentVersion: string,
   ) {}
 
@@ -119,6 +127,8 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     for (const runtime of this.runtimes.values()) {
       runtime.failures = 0;
       runtime.nextAttemptAt = 0;
+      runtime.lastDiscoveryAt = 0;
+      runtime.discoveryMisses = 0;
     }
     if (this.running) {
       this.rerunRequested = true;
@@ -143,16 +153,20 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
       reports.push(await this.visit(screen, config.appId));
     }
 
-    if (reports.length > 0) {
-      await this.send(reports);
+    if (reports.length > 0 && (await this.send(reports))) {
+      for (const report of reports) {
+        if (report.localIp) {
+          this.runtimeFor(report.screenId).pendingLocalIp = null;
+        }
+      }
     }
   }
 
   /** Runs one screen immediately, out of band, for an operator command. */
   async runNow(screenId: string): Promise<void> {
     const report = await this.visitNow(screenId);
-    if (report) {
-      await this.send([report]);
+    if (report && (await this.send([report])) && report.localIp) {
+      this.runtimeFor(screenId).pendingLocalIp = null;
     }
   }
 
@@ -250,14 +264,30 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
    * it on. The backoff only holds back the actions that can hammer a set.
    */
   private async visit(
-    screen: AgentScreenConfigMessage,
+    configured: AgentScreenConfigMessage,
     appId: string,
   ): Promise<AgentScreenReportMessage> {
-    const runtime = this.runtimeFor(screen.screenId);
+    const runtime = this.runtimeFor(configured.screenId);
     const now = Date.now();
 
-    const probe = await this.reachability.probe(screen.localIp, screen.ssapPort);
+    let screen = configured;
+    let probe = await this.reachability.probe(screen.localIp, screen.ssapPort);
+    let movedTo: string | null = null;
+    if (probe.reachability === 'unreachable') {
+      const relocated = await this.relocate(screen, runtime, now);
+      if (relocated) {
+        ({ screen, probe } = relocated);
+        movedTo = screen.localIp;
+      }
+    }
     const reachable = probe.reachability === 'reachable';
+    if (reachable) {
+      runtime.discoveryMisses = 0;
+    }
+    if (movedTo) {
+      runtime.pendingLocalIp = movedTo;
+    }
+    const reportedIp = runtime.pendingLocalIp;
     if (reachable && !runtime.reachable) {
       // Back from being off or disconnected: whatever failed before happened to
       // a set in a different state, so it gets a fresh start.
@@ -269,6 +299,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
       screenId: screen.screenId,
       reachability: probe.reachability,
       ...(probe.detail ? { detail: probe.detail } : {}),
+      ...(reportedIp ? { localIp: reportedIp } : {}),
     };
 
     if (now < runtime.nextAttemptAt) {
@@ -302,6 +333,49 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
 
     this.recordOutcome(runtime, ok, screen);
     return report;
+  }
+
+  /**
+   * Looks for a set that stopped answering under a new address, by its MAC.
+   *
+   * Only adopts an address the set actually answers on: a neighbour entry can
+   * outlive the device that left it. Rate-limited per screen, because a TV that
+   * is off cannot be found and the search may sweep the whole subnet.
+   */
+  private async relocate(
+    screen: AgentScreenConfigMessage,
+    runtime: ScreenRuntime,
+    now: number,
+  ): Promise<{ screen: AgentScreenConfigMessage; probe: ProbeResult } | null> {
+    if (
+      !screen.macAddress ||
+      now - runtime.lastDiscoveryAt < discoveryCooldownFor(runtime.discoveryMisses)
+    ) {
+      return null;
+    }
+    runtime.lastDiscoveryAt = now;
+
+    const found = await this.discovery.locate(
+      screen.macAddress,
+      screen.localIp,
+      this.configs.current()?.subnetSweepEnabled === true,
+    );
+    const probe = found ? await this.reachability.probe(found, screen.ssapPort) : null;
+    if (!found || probe?.reachability !== 'reachable') {
+      runtime.discoveryMisses += 1;
+      return null;
+    }
+
+    this.logger.log(`Screen ${screen.name} moved from ${screen.localIp ?? 'nowhere'} to ${found}`);
+    try {
+      await this.configs.updateScreenAddress(screen.screenId, found);
+    } catch (error) {
+      // Still used for this round and reported; the server's copy then brings
+      // it back on the next pull.
+      this.logger.warn(`Could not cache the new address: ${describe(error)}`);
+    }
+    runtime.discoveryMisses = 0;
+    return { screen: { ...screen, localIp: found }, probe };
   }
 
   private async doWake(
@@ -502,7 +576,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     try {
-      const config = await this.client.fetchConfig();
+      const config = this.withPendingAddresses(await this.client.fetchConfig());
       await this.configs.save(config);
       this.lastConfigPull = Date.now();
       this.setup.recordConfigPull();
@@ -560,15 +634,30 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private async send(screens: AgentScreenReportMessage[]): Promise<void> {
+  /** True when the server took the reports. */
+  private async send(screens: AgentScreenReportMessage[]): Promise<boolean> {
     try {
       await this.client.sendReports({ screens });
+      return true;
     } catch (error) {
       // Dropped on the floor on purpose. The next round re-observes everything
       // these reports described, so buffering them would only replay stale
-      // state once the link comes back.
+      // state once the link comes back. A moved address is the exception and
+      // is kept on the runtime instead.
       this.reportConnectionFailure(error, 'send reports');
+      return false;
     }
+  }
+
+  /** A pulled config still carries the old address until the server has the new one. */
+  private withPendingAddresses(config: AgentConfigMessage): AgentConfigMessage {
+    return {
+      ...config,
+      screens: config.screens.map((screen) => {
+        const pending = this.runtimes.get(screen.screenId)?.pendingLocalIp;
+        return pending ? { ...screen, localIp: pending } : screen;
+      }),
+    };
   }
 
   private reportConnectionFailure(error: unknown, what: string): void {

@@ -74,6 +74,11 @@ export interface AgentConfigMessage {
   agentId: string;
   organisationId: string;
   probeIntervalMs: number;
+  /**
+   * Whether discovery may sweep the subnet. Optional because an older server
+   * does not send it, and absent means off.
+   */
+  subnetSweepEnabled?: boolean;
   appId: string;
   screens: AgentScreenConfigMessage[];
 }
@@ -99,6 +104,8 @@ export interface AgentScreenReportMessage {
   standby?: boolean;
   /** Outcome of an install attempt. */
   installStatus?: 'ok' | 'failed';
+  /** The set's new address, found by its MAC after the old one stopped answering. */
+  localIp?: string;
 }
 
 export interface AgentReportMessage {

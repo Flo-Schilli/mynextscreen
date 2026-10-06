@@ -33,6 +33,16 @@ export interface ScreenRuntime {
   devmodeExtendCount: number;
   /** Last observed network reachability of the TV, for metrics. */
   reachable: boolean;
+  /** When the set was last searched for under a new address, 0 if never. */
+  lastDiscoveryAt: number;
+  /** Consecutive searches that did not find the set, for their own backoff. */
+  discoveryMisses: number;
+  /**
+   * A new address the server has not confirmed yet. Re-sent with every report
+   * until one is delivered, and laid over pulled configs until then, so a lost
+   * report cannot hand the old address back.
+   */
+  pendingLocalIp: string | null;
 }
 
 export function newRuntime(devmodeJitterMs: number): ScreenRuntime {
@@ -48,5 +58,8 @@ export function newRuntime(devmodeJitterMs: number): ScreenRuntime {
     wakeCount: 0,
     devmodeExtendCount: 0,
     reachable: false,
+    lastDiscoveryAt: 0,
+    discoveryMisses: 0,
+    pendingLocalIp: null,
   };
 }

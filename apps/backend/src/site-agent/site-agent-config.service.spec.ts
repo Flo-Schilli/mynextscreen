@@ -97,6 +97,17 @@ describe('SiteAgentConfigService', () => {
       expect(config.appId).toBe('com.mynextscreen.webos');
     });
 
+    it('leaves the subnet sweep off unless the operator switched it on', async () => {
+      expect((await service.buildAgentConfig(agentId)).subnetSweepEnabled).toBe(false);
+
+      await db
+        .update(siteAgents)
+        .set({ subnetSweepEnabled: true })
+        .where(eq(siteAgents.id, agentId));
+
+      expect((await service.buildAgentConfig(agentId)).subnetSweepEnabled).toBe(true);
+    });
+
     it('converts the agent-wide probe interval from minutes to milliseconds', async () => {
       await db
         .update(siteAgents)
