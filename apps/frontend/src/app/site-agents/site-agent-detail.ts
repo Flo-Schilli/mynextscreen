@@ -25,6 +25,7 @@ import {
   BadgeComponent,
   BtnComponent,
   CardComponent,
+  CopyButtonComponent,
   EmptyComponent,
   IconComponent,
   ModalComponent,
@@ -52,6 +53,7 @@ interface ManagedScreen {
     BadgeComponent,
     BtnComponent,
     CardComponent,
+    CopyButtonComponent,
     EmptyComponent,
     IconComponent,
     ModalComponent,
@@ -113,7 +115,14 @@ interface ManagedScreen {
 
           @if (token(); as raw) {
             <div class="mt-4 rounded-lg border border-border-strong bg-surface-2 p-3">
-              <code class="block break-all font-mono text-[13px]">{{ raw }}</code>
+              <div class="flex items-center gap-2">
+                <code class="min-w-0 flex-1 break-all font-mono text-[13px]">{{ raw }}</code>
+                <mns-copy-button
+                  [text]="raw"
+                  (copied)="onTokenCopied()"
+                  (copyFailed)="onTokenCopyFailed()"
+                />
+              </div>
               <p class="text-[13px] text-muted mt-2">
                 {{ t('siteAgents.detail.tokenHint') }}
               </p>
@@ -660,6 +669,14 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
     this.load();
   }
 
+  protected onTokenCopied(): void {
+    this.toast.success(this.transloco.translate('siteAgents.toast.tokenCopied'));
+  }
+
+  /** The code is on screen either way, so this is a convenience, not a failure. */
+  protected onTokenCopyFailed(): void {
+    this.toast.error(this.transloco.translate('siteAgents.toast.tokenCopyFailed'));
+  }
   protected reissue(): void {
     this.service.reissueEnrolment(this.agentId()).subscribe({
       next: (result) => this.token.set(result.enrolmentToken),
