@@ -215,6 +215,51 @@ describe('ServerClient', () => {
       expect(JSON.parse(initOf(1).body as string)).toEqual({ agentVersion: '1.2.3' });
     });
 
+    it('pushes the network attachment on the heartbeat when provided', async () => {
+      fetchMock.mockResolvedValueOnce(respond(204));
+      const network = {
+        interfaceName: 'wlan0',
+        kind: 'wifi' as const,
+        ssid: 'VenueNet',
+        ipAddress: '10.0.0.23',
+      };
+
+      await client.sendHeartbeat('1.2.3', undefined, network);
+
+      expect(JSON.parse(initOf(1).body as string)).toEqual({ agentVersion: '1.2.3', network });
+    });
+
+    // A new agent may reach a server that has not been updated yet; its
+    // validation rejects the unknown field, and the agent must still check in.
+    it('retries without the network field when an older server rejects it', async () => {
+      fetchMock.mockResolvedValueOnce(respond(400)).mockResolvedValueOnce(respond(204));
+      const network = {
+        interfaceName: 'eth0',
+        kind: 'ethernet' as const,
+        ssid: null,
+        ipAddress: '192.168.1.5',
+      };
+
+      await client.sendHeartbeat('1.2.3', undefined, network);
+
+      expect(JSON.parse(initOf(1).body as string)).toEqual({ agentVersion: '1.2.3', network });
+      expect(JSON.parse(initOf(2).body as string)).toEqual({ agentVersion: '1.2.3' });
+    });
+
+    it('does not retry on other failures', async () => {
+      fetchMock.mockResolvedValueOnce(respond(500));
+      const network = {
+        interfaceName: 'eth0',
+        kind: 'ethernet' as const,
+        ssid: null,
+        ipAddress: '192.168.1.5',
+      };
+
+      await expect(client.sendHeartbeat('1.2.3', undefined, network)).rejects.toThrow(/500/);
+      // The token refresh plus the one heartbeat, no second attempt.
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
     it('still checks in when it has no version to report', async () => {
       fetchMock.mockResolvedValueOnce(respond(204));
 

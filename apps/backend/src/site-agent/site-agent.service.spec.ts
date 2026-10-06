@@ -437,6 +437,65 @@ describe('SiteAgentService', () => {
       expect(row.agentVersion).toBe('1.2.3');
     });
 
+    it('stores how the agent is attached to the network', async () => {
+      const agent = await makeAgent();
+
+      await service.recordHeartbeat(agent.id, '1.2.3', {
+        interfaceName: 'wlan0',
+        kind: 'wifi',
+        ssid: 'VenueNet',
+        ipAddress: '10.0.0.23',
+      });
+
+      const [row] = await db.select().from(siteAgents).where(eq(siteAgents.id, agent.id));
+      expect(row).toMatchObject({
+        networkInterface: 'wlan0',
+        networkKind: 'wifi',
+        networkSsid: 'VenueNet',
+        networkIp: '10.0.0.23',
+      });
+    });
+
+    it('drops the SSID when the agent moves from Wi-Fi to cable', async () => {
+      const agent = await makeAgent();
+      await service.recordHeartbeat(agent.id, '1.2.3', {
+        interfaceName: 'wlan0',
+        kind: 'wifi',
+        ssid: 'VenueNet',
+        ipAddress: '10.0.0.23',
+      });
+
+      await service.recordHeartbeat(agent.id, '1.2.3', {
+        interfaceName: 'eth0',
+        kind: 'ethernet',
+        ssid: 'stale',
+        ipAddress: '192.168.1.5',
+      });
+
+      const [row] = await db.select().from(siteAgents).where(eq(siteAgents.id, agent.id));
+      expect(row).toMatchObject({
+        networkInterface: 'eth0',
+        networkKind: 'ethernet',
+        networkSsid: null,
+        networkIp: '192.168.1.5',
+      });
+    });
+
+    it('keeps the last known network when an older agent omits it', async () => {
+      const agent = await makeAgent();
+      await service.recordHeartbeat(agent.id, '1.2.3', {
+        interfaceName: 'eth0',
+        kind: 'ethernet',
+        ssid: null,
+        ipAddress: '192.168.1.5',
+      });
+
+      await service.recordHeartbeat(agent.id, '1.2.3');
+
+      const [row] = await db.select().from(siteAgents).where(eq(siteAgents.id, agent.id));
+      expect(row.networkIp).toBe('192.168.1.5');
+    });
+
     it('ignores a heartbeat for an agent that no longer exists', async () => {
       await expect(
         service.recordHeartbeat('00000000-0000-0000-0000-000000000000', '1.0.0'),

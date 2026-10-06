@@ -19,6 +19,7 @@ import { ToastService } from '../shared/toast/toast.service';
 import { ScreenRemoteSettings } from './screen-remote-settings';
 import { ScreenOnboardingWizard, ONBOARDING_STEP_COUNT } from './screen-onboarding-wizard';
 import { SiteAgentConfirmModal } from './site-agent-confirm-modal';
+import { SiteAgentNetwork } from './site-agent-network';
 import type {
   RemoteCommandType,
   ScreenRemoteControl,
@@ -69,6 +70,7 @@ interface ManagedScreen {
     ScreenRemoteSettings,
     ScreenOnboardingWizard,
     SiteAgentConfirmModal,
+    SiteAgentNetwork,
     TranslocoDirective,
   ],
   template: `
@@ -103,6 +105,9 @@ interface ManagedScreen {
                     : t('siteAgents.detail.neverChecked')
                 }}
               </div>
+              <div class="mt-1 text-[13px] text-muted">
+                <app-site-agent-network [agent]="agent" />
+              </div>
             </div>
             <mns-btn icon="Plus" [disabled]="unassigned().length === 0" (mnsClick)="openAssign()">
               {{ t('siteAgents.detail.addDisplay') }}
@@ -134,6 +139,26 @@ interface ManagedScreen {
             </div>
           }
         </mns-card>
+
+        @if (agent.updateAvailable) {
+          <!-- Server and agent ship from one release; an agent behind the server
+               has an update waiting. Updating is a redeploy on the venue host. -->
+          <div
+            class="mt-4 flex items-start gap-2 rounded-lg border border-border bg-surface-2 p-3 text-[13px]"
+            data-testid="agent-update-hint"
+          >
+            <mns-icon name="Download" [size]="16" class="text-warn mt-0.5" />
+            <span>
+              <strong>{{
+                t('siteAgents.detail.updateAvailable', {
+                  installed: agent.agentVersion,
+                  latest: agent.latestAgentVersion,
+                })
+              }}</strong>
+              {{ t('siteAgents.detail.updateHint') }}
+            </span>
+          </div>
+        }
 
         @if (!agent.isOnline && managed().length > 0) {
           <!-- A green "reachable" from two days ago is worse than no answer. -->

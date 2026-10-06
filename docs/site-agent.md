@@ -20,6 +20,23 @@ the agent makes possible — two playing, one whose **TV is on with no app
 running** (the agent will start it), and one that **does not answer at all**,
 still half-way through setup because its key server is switched off.
 
+The agent's card also shows how its machine reaches the venue network, as of
+its last heartbeat: **LAN** or **Wi-Fi** with the network name (SSID), and the
+address the interface holds. The agent reads this from the interface carrying
+the default route — `/proc/net/route`, `/sys/class/net` and `iw` for the SSID.
+Host networking makes those describe the host, and none of them needs a
+capability. A driver without nl80211 support shows Wi-Fi without a name. Whether
+the address came from DHCP or is static cannot be told from inside the
+container and is not shown. Under the Docker development setup, where the agent
+is not on host networking, the card shows the container's own interface.
+
+When the agent runs an older release than the server, the dashboard flags it
+with **Update available**. Server and agent ship from the same release, so the
+server's own version is the reference — no registry or GitHub call is involved,
+and a development build on either side never raises the hint. Updating is a
+redeploy on the venue host: re-run `ansible/site-agent.yml`, or pull the new
+image and restart the service.
+
 `isOnline` on a screen still means only "the player checked in". Everything that
 tells you _why_ it did not is what the agent adds.
 

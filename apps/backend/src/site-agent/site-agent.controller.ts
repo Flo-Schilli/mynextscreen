@@ -17,6 +17,7 @@ import { CurrentOrganisation } from '../organisation/current-organisation.decora
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import type { SiteAgent } from '../db/schema';
+import { withUpdateInfo, type AgentUpdateInfo } from './agent-update';
 
 /** What the dashboard gets back when a token is issued. Shown exactly once. */
 interface EnrolmentTokenResponse {
@@ -50,17 +51,20 @@ export class SiteAgentController {
 
   @Get()
   @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
-  findAll(@CurrentOrganisation() organisationId: string): Promise<SiteAgentListItem[]> {
-    return this.siteAgentService.listWithScreenCounts(organisationId);
+  async findAll(
+    @CurrentOrganisation() organisationId: string,
+  ): Promise<(SiteAgentListItem & AgentUpdateInfo)[]> {
+    const agents = await this.siteAgentService.listWithScreenCounts(organisationId);
+    return agents.map((agent) => withUpdateInfo(agent));
   }
 
   @Get(':id')
   @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
-  findOne(
+  async findOne(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<SiteAgent> {
-    return this.siteAgentService.findOne(organisationId, id);
+  ): Promise<SiteAgent & AgentUpdateInfo> {
+    return withUpdateInfo(await this.siteAgentService.findOne(organisationId, id));
   }
 
   @Patch(':id')

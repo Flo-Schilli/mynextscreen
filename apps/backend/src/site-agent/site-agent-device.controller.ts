@@ -177,7 +177,11 @@ export class SiteAgentDeviceController {
     @Req() req: AgentAuthenticatedRequest,
     @Body() dto: AgentHeartbeatDto,
   ): Promise<void> {
-    await this.siteAgentService.recordHeartbeat(req.agentId, dto.agentVersion ?? null);
+    await this.siteAgentService.recordHeartbeat(
+      req.agentId,
+      dto.agentVersion ?? null,
+      dto.network ?? null,
+    );
     if (dto.metrics) {
       this.agentMetrics.record(req.agentId, dto.metrics);
     }

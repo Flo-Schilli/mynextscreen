@@ -33,7 +33,10 @@ RUN echo "alpine package refresh: ${ALPINE_REFRESH}" \
 # tini as PID 1 for clean signal handling. Deliberately no openssh-client: the
 # agent speaks SSH through the `ssh2` library, which also means the host's
 # OpenSSL crypto policy cannot break it against a TV's OpenSSH 6.1.
-RUN apk add --no-cache tini
+#
+# iw reads the Wi-Fi network name over nl80211 for the dashboard. It needs no
+# capability, so it works under DropCapability=ALL with host networking.
+RUN apk add --no-cache tini iw
 
 WORKDIR /app
 

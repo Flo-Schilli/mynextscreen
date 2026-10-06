@@ -1066,7 +1066,9 @@
       "displays": "Displays",
       "version": "Version",
       "lastSeen": "Last seen",
-      "never": "never"
+      "never": "never",
+      "network": "Network",
+      "updateBadge": "Update {version}"
     },
     "create": {
       "title": "Add a site agent",
@@ -1158,7 +1160,9 @@
       "revokeTitle": "Revoke access",
       "revokeConfirmLabel": "Revoke",
       "revokeBusyLabel": "Revoking…",
-      "revokeBody": "End every session of this agent? It stops working immediately and needs a new setup code to come back. Its displays and their settings are left alone."
+      "revokeBody": "End every session of this agent? It stops working immediately and needs a new setup code to come back. Its displays and their settings are left alone.",
+      "updateAvailable": "Update available: {installed} → {latest}.",
+      "updateHint": "To update, re-run the site-agent.yml Ansible playbook, or pull the new image on the agent host and restart the service."
     },
     "detailToast": {
       "loadAgentFailed": "Could not load this agent",
@@ -1296,6 +1300,13 @@
     "confirm": {
       "cancel": "Cancel",
       "working": "Working…"
+    },
+    "network": {
+      "wifi": "Wi-Fi",
+      "wifiSsid": "Wi-Fi “{ssid}”",
+      "ethernet": "LAN",
+      "unknown": "Network unknown",
+      "notReported": "Network not reported"
     }
   },
   "auditLog": {

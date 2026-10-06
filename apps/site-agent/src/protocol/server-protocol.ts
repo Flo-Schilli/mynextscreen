@@ -130,6 +130,23 @@ export interface AgentMetricsMessage {
   screens: AgentScreenMetricsMessage[];
 }
 
+export type AgentNetworkKindValue = 'ethernet' | 'wifi' | 'unknown';
+
+/**
+ * How the agent's machine is attached to the venue network, pushed on
+ * heartbeat and shown in the dashboard. Every field may be unknown: it is read
+ * best-effort from the host.
+ */
+export interface AgentNetworkMessage {
+  /** Interface carrying the default route, e.g. `eth0` or `wlan0`. */
+  interfaceName: string | null;
+  kind: AgentNetworkKindValue;
+  /** Only on Wi-Fi, and only when `iw` could read it. */
+  ssid: string | null;
+  /** IPv4 address of that interface, or a global IPv6 one on an IPv6-only link. */
+  ipAddress: string | null;
+}
+
 export interface AgentSessionMessage {
   accessToken: string;
   refreshToken: string;

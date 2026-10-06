@@ -30,6 +30,8 @@ function screen(overrides: Partial<AgentScreenConfigMessage> = {}): AgentScreenC
   };
 }
 
+const WIRED = { interfaceName: 'eth0', kind: 'ethernet', ssid: null, ipAddress: '192.168.1.5' };
+
 /** Lets the fire-and-forget heartbeat promise chain settle. */
 const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
@@ -44,6 +46,7 @@ describe('SupervisorService', () => {
   let ssh: { extendDevmode: jest.Mock; run: jest.Mock };
   let wol: { wake: jest.Mock };
   let ssapKeys: { load: jest.Mock; save: jest.Mock };
+  let network: { collect: jest.Mock };
 
   function build(config: AgentConfigMessage | null) {
     configs.current.mockReturnValue(config);
@@ -58,6 +61,7 @@ describe('SupervisorService', () => {
       ssh as never,
       wol as never,
       ssapKeys as never,
+      network as never,
       '1.2.3',
     );
   }
@@ -96,6 +100,7 @@ describe('SupervisorService', () => {
     };
     wol = { wake: jest.fn().mockResolvedValue(undefined) };
     ssapKeys = { load: jest.fn().mockResolvedValue('client-key'), save: jest.fn() };
+    network = { collect: jest.fn().mockResolvedValue(WIRED) };
   });
 
   describe('start-up heartbeat', () => {
@@ -108,6 +113,15 @@ describe('SupervisorService', () => {
       await flush();
 
       expect(client.sendHeartbeat).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports how the machine is attached to the network', async () => {
+      supervisor = build(configWith([]));
+
+      await supervisor.onModuleInit();
+      await flush();
+
+      expect(client.sendHeartbeat).toHaveBeenCalledWith('1.2.3', expect.any(Object), WIRED);
     });
 
     it('sends nothing at start-up before enrolment', async () => {

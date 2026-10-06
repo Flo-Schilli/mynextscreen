@@ -27,6 +27,7 @@ import {
   StatusDotComponent,
 } from '../ui';
 import { LocaleDatePipe } from '../i18n/locale-format.pipes';
+import { SiteAgentNetwork } from './site-agent-network';
 
 /**
  * The venues this organisation has an on-premise agent in.
@@ -52,6 +53,7 @@ import { LocaleDatePipe } from '../i18n/locale-format.pipes';
     SFieldComponent,
     SInputComponent,
     StatusDotComponent,
+    SiteAgentNetwork,
     TranslocoDirective,
   ],
   template: `
@@ -99,8 +101,19 @@ import { LocaleDatePipe } from '../i18n/locale-format.pipes';
                 <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
                   <dt class="text-muted">{{ t('siteAgents.list.displays') }}</dt>
                   <dd>{{ agent.screenCount }}</dd>
+                  <dt class="text-muted">{{ t('siteAgents.list.network') }}</dt>
+                  <dd class="min-w-0"><app-site-agent-network [agent]="agent" /></dd>
                   <dt class="text-muted">{{ t('siteAgents.list.version') }}</dt>
-                  <dd>{{ agent.agentVersion || '—' }}</dd>
+                  <dd class="flex flex-wrap items-center gap-1.5">
+                    {{ agent.agentVersion || '—' }}
+                    @if (agent.updateAvailable) {
+                      <mns-badge tone="warning" data-testid="agent-update-badge">
+                        {{
+                          t('siteAgents.list.updateBadge', { version: agent.latestAgentVersion })
+                        }}
+                      </mns-badge>
+                    }
+                  </dd>
                   <dt class="text-muted">{{ t('siteAgents.list.lastSeen') }}</dt>
                   <dd>
                     {{
