@@ -15,8 +15,8 @@ export const DEFAULT_SITE_AGENT_APP_ID = 'com.mynextscreen.webos';
 export const SITE_AGENT_APP_SLUG = 'lg-tvos';
 const DEFAULT_APP_ID = DEFAULT_SITE_AGENT_APP_ID;
 
-/** How often the agent probes its TVs, unless overridden. */
-const DEFAULT_PROBE_INTERVAL_MS = 60_000;
+/** Matches the column default, for an agent row that vanished mid-request. */
+const DEFAULT_PROBE_INTERVAL_MINUTES = 1;
 
 /**
  * Assembles what a site agent needs to do its job.
@@ -27,7 +27,6 @@ const DEFAULT_PROBE_INTERVAL_MS = 60_000;
  */
 @Injectable()
 export class SiteAgentConfigService {
-  private readonly probeIntervalMs: number;
   private readonly appId: string;
 
   private readonly screenOfflineThresholdMs: number;
@@ -38,10 +37,6 @@ export class SiteAgentConfigService {
     private readonly scheduleBoundaries: ScheduleBoundaryService,
     config: ConfigService,
   ) {
-    this.probeIntervalMs = config.get<number>(
-      'SITE_AGENT_PROBE_INTERVAL_MS',
-      DEFAULT_PROBE_INTERVAL_MS,
-    );
     this.appId = config.get<string>('SITE_AGENT_APP_ID', DEFAULT_APP_ID);
     this.screenOfflineThresholdMs = config.get<number>('SCREEN_OFFLINE_THRESHOLD_MS', 120_000);
   }
@@ -53,7 +48,10 @@ export class SiteAgentConfigService {
 
   async buildAgentConfig(agentId: string): Promise<AgentConfig> {
     const [agent] = await this.db
-      .select({ organisationId: siteAgents.organisationId })
+      .select({
+        organisationId: siteAgents.organisationId,
+        probeIntervalMinutes: siteAgents.probeIntervalMinutes,
+      })
       .from(siteAgents)
       .where(eq(siteAgents.id, agentId))
       .limit(1);
@@ -85,7 +83,7 @@ export class SiteAgentConfigService {
     return {
       agentId,
       organisationId: agent?.organisationId ?? '',
-      probeIntervalMs: this.probeIntervalMs,
+      probeIntervalMs: (agent?.probeIntervalMinutes ?? DEFAULT_PROBE_INTERVAL_MINUTES) * 60_000,
       appId: this.appId,
       screens: screenConfigs,
     };

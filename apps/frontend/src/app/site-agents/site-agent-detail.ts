@@ -20,11 +20,13 @@ import { ScreenRemoteSettings } from './screen-remote-settings';
 import { ScreenOnboardingWizard, ONBOARDING_STEP_COUNT } from './screen-onboarding-wizard';
 import { SiteAgentConfirmModal } from './site-agent-confirm-modal';
 import { SiteAgentNetwork } from './site-agent-network';
-import type {
-  RemoteCommandType,
-  ScreenRemoteControl,
-  SiteAgent,
-  SiteAgentStatusEvent,
+import {
+  PROBE_INTERVAL_MAX_MINUTES,
+  PROBE_INTERVAL_MIN_MINUTES,
+  type RemoteCommandType,
+  type ScreenRemoteControl,
+  type SiteAgent,
+  type SiteAgentStatusEvent,
 } from './site-agent.model';
 import type { ScreenListItem } from '../screens/screen.model';
 import {
@@ -108,6 +110,25 @@ interface ManagedScreen {
               <div class="mt-1 text-[13px] text-muted">
                 <app-site-agent-network [agent]="agent" />
               </div>
+            </div>
+            <div class="flex items-center gap-2" data-testid="probe-interval">
+              <span class="text-[13px] text-muted">{{ t('siteAgents.detail.probeInterval') }}</span>
+              <mns-select
+                class="w-28"
+                [options]="probeIntervalOptions()"
+                [value]="'' + agent.probeIntervalMinutes"
+                [ariaLabel]="t('siteAgents.detail.probeInterval')"
+                [searchable]="false"
+                (changed)="setProbeInterval($event)"
+              />
+              <mns-btn
+                variant="outline"
+                icon="Refresh"
+                [disabled]="!agent.isOnline || probing()"
+                (mnsClick)="probeNow()"
+              >
+                {{ t('siteAgents.detail.probeNow') }}
+              </mns-btn>
             </div>
             <mns-btn icon="Plus" [disabled]="unassigned().length === 0" (mnsClick)="openAssign()">
               {{ t('siteAgents.detail.addDisplay') }}
@@ -469,6 +490,7 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
   protected readonly busy = signal(false);
   protected readonly confirmError = signal('');
   protected readonly wizardFor = signal<ManagedScreen | null>(null);
+  protected readonly probing = signal(false);
 
   private readonly agentId = computed(() => this.route.snapshot.paramMap.get('id') ?? '');
 
@@ -641,6 +663,64 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
               : 'siteAgents.detailToast.commandFailed',
           ),
         ),
+    });
+  }
+
+  protected probeIntervalOptions(): { value: string; label: string }[] {
+    const options: { value: string; label: string }[] = [];
+    for (
+      let minutes = PROBE_INTERVAL_MIN_MINUTES;
+      minutes <= PROBE_INTERVAL_MAX_MINUTES;
+      minutes++
+    ) {
+      options.push({
+        value: String(minutes),
+        label: this.transloco.translate('siteAgents.detail.probeIntervalOption', { minutes }),
+      });
+    }
+    return options;
+  }
+
+  /** Saved straight away; the backend tells the agent to re-pull its config. */
+  protected setProbeInterval(value: string): void {
+    const agent = this.agent();
+    const minutes = Number(value);
+    if (!agent || !Number.isInteger(minutes) || minutes === agent.probeIntervalMinutes) {
+      return;
+    }
+    this.service.update(agent.id, { probeIntervalMinutes: minutes }).subscribe({
+      next: (updated) => {
+        this.agent.update((current) =>
+          current ? { ...current, probeIntervalMinutes: updated.probeIntervalMinutes } : current,
+        );
+        this.toast.success(this.transloco.translate('siteAgents.detailToast.probeIntervalSaved'));
+      },
+      error: () => {
+        // A fresh object puts the select back on the stored value.
+        this.agent.update((current) => (current ? { ...current } : current));
+        this.toast.error(this.transloco.translate('siteAgents.detailToast.probeIntervalFailed'));
+      },
+    });
+  }
+
+  /** The results come back as reachability events, which update the list in place. */
+  protected probeNow(): void {
+    this.probing.set(true);
+    this.service.probeNow(this.agentId()).subscribe({
+      next: () => {
+        this.probing.set(false);
+        this.toast.success(this.transloco.translate('siteAgents.detailToast.probeStarted'));
+      },
+      error: (error: { status?: number }) => {
+        this.probing.set(false);
+        this.toast.error(
+          this.transloco.translate(
+            error.status === 409
+              ? 'siteAgents.detailToast.agentOffline'
+              : 'siteAgents.detailToast.probeFailed',
+          ),
+        );
+      },
     });
   }
 

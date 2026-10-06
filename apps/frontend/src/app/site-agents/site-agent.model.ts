@@ -27,6 +27,8 @@ export interface SiteAgent {
    */
   latestAgentVersion?: string | null;
   updateAvailable?: boolean;
+  /** How often the agent probes its displays, in minutes (1–10). */
+  probeIntervalMinutes: number;
   lastHeartbeat: string | null;
   isOnline: boolean;
   createdAt: string;
@@ -52,6 +54,14 @@ export interface CreateSiteAgentRequest {
   name: string;
   location?: string | null;
 }
+
+export interface UpdateSiteAgentRequest extends Partial<CreateSiteAgentRequest> {
+  probeIntervalMinutes?: number;
+}
+
+/** Bounds the backend enforces for {@link SiteAgent.probeIntervalMinutes}. */
+export const PROBE_INTERVAL_MIN_MINUTES = 1;
+export const PROBE_INTERVAL_MAX_MINUTES = 10;
 
 /** Shown exactly once, when the agent is created or a token is reissued. */
 export interface EnrolmentTokenResponse {

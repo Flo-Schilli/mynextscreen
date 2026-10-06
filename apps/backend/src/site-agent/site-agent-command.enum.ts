@@ -27,6 +27,13 @@ export enum SiteAgentCommandType {
   RefetchKey = 'refetch_key',
   /** Re-pull `/api/agents/me/config`. Carries no payload on purpose. */
   ReloadConfig = 'reload_config',
+  /**
+   * Probe every display now instead of at the next interval. Agent-wide, and
+   * it also clears the backoff, so a TV that was just switched back on is
+   * picked up straight away. The launch and wake cooldowns still apply; the
+   * per-screen "start app" command is what overrides those.
+   */
+  ProbeNow = 'probe_now',
   /** Run one onboarding check; carries the step number. */
   Check = 'check',
 }

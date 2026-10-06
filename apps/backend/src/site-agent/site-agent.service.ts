@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { and, count, eq, lt, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
@@ -21,6 +22,12 @@ import {
 } from './site-agent-enrolment.service';
 import { SiteAgentSessionService } from './site-agent-session.service';
 import { ScreenRemoteControlService } from './screen-remote-control.service';
+import { SiteAgentSseService } from './site-agent-sse.service';
+import { SiteAgentCommandType } from './site-agent-command.enum';
+import {
+  SCREEN_REMOTE_CONFIG_CHANGED,
+  ScreenRemoteConfigChangedEvent,
+} from './screen-onboarding.event';
 import type { AgentNetworkDto } from './dto';
 
 /** A site agent plus the count of screens assigned to it. */
@@ -41,6 +48,7 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
     private readonly enrolments: SiteAgentEnrolmentService,
     private readonly sessions: SiteAgentSessionService,
     private readonly remoteControls: ScreenRemoteControlService,
+    private readonly sse: SiteAgentSseService,
     private readonly eventEmitter: EventEmitter2,
   ) {
     super(db, siteAgents, 'Site agent');
@@ -65,7 +73,7 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
   async updateAgent(
     organisationId: string,
     id: string,
-    data: { name?: string; location?: string | null },
+    data: { name?: string; location?: string | null; probeIntervalMinutes?: number },
     userId: string | null,
   ): Promise<SiteAgent> {
     const agent = await this.update(organisationId, id, data);
@@ -73,7 +81,30 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
       AUDIT_SITE_AGENT_UPDATED,
       new AuditSiteAgentEvent(id, organisationId, userId, { ...data }),
     );
+    if (data.probeIntervalMinutes !== undefined) {
+      // The interval travels in the agent's config, so it has to re-pull.
+      this.eventEmitter.emit(
+        SCREEN_REMOTE_CONFIG_CHANGED,
+        new ScreenRemoteConfigChangedEvent([id]),
+      );
+    }
     return agent;
+  }
+
+  /**
+   * Asks the agent to probe every display now and forget its backoff.
+   *
+   * 409 when the agent is offline, like every other operator command: a check
+   * queued until the venue reconnects would answer a question nobody is
+   * still asking.
+   */
+  async probeNow(organisationId: string, id: string): Promise<{ commandId: string }> {
+    await this.findOne(organisationId, id);
+    const commandId = randomUUID();
+    if (!this.sse.push(id, { commandId, type: SiteAgentCommandType.ProbeNow })) {
+      throw new ConflictException('Site agent is offline');
+    }
+    return { commandId };
   }
 
   /**

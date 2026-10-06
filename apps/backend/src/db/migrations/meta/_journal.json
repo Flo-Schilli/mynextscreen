@@ -169,6 +169,13 @@
       "when": 1791297307204,
       "tag": "0023_site_agent_network",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791300584170,
+      "tag": "0024_site_agent_probe_interval",
+      "breakpoints": true
     }
   ]
 }

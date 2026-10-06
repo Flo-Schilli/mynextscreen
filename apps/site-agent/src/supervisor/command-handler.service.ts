@@ -58,6 +58,11 @@ export class CommandHandlerService implements OnModuleInit {
       return;
     }
 
+    if (command.type === 'probe_now') {
+      await this.supervisor.probeNow();
+      return;
+    }
+
     if (!command.screenId) {
       return;
     }

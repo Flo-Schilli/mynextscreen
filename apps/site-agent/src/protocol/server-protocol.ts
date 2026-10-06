@@ -29,13 +29,14 @@ export type SiteAgentCommandTypeValue =
   | 'install_app'
   | 'refetch_key'
   | 'reload_config'
+  | 'probe_now'
   | 'check';
 
 /** One instruction pushed down the agent's SSE channel. */
 export interface SiteAgentCommandMessage {
   commandId: string;
   type: SiteAgentCommandTypeValue;
-  /** Absent for agent-wide commands such as `reload_config`. */
+  /** Absent for agent-wide commands such as `reload_config` and `probe_now`. */
   screenId?: string;
   /** Only for `check`: which onboarding step to run. */
   step?: number;

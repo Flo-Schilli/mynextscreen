@@ -595,6 +595,12 @@ export const siteAgents = pgTable(
     networkKind: text(),
     networkSsid: text(),
     networkIp: text(),
+    /**
+     * How often the agent probes its displays, in minutes (1–10). Agent-wide on
+     * purpose: one venue, one network, one cadence. The probe is a TCP connect,
+     * so even the shortest interval is cheap for the TVs.
+     */
+    probeIntervalMinutes: integer().notNull().default(1),
     lastHeartbeat: timestamp({ withTimezone: true }),
     isOnline: boolean().notNull().default(false),
     ...timestamps,

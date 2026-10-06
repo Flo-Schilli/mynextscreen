@@ -11,6 +11,7 @@ import {
   SiteAgent,
   SiteAgentListItem,
   UpdateScreenRemoteControlRequest,
+  UpdateSiteAgentRequest,
 } from './site-agent.model';
 
 @Injectable({ providedIn: 'root' })
@@ -31,7 +32,7 @@ export class SiteAgentService {
     return this.http.post<CreatedSiteAgent>('/api/site-agents', dto);
   }
 
-  update(id: string, dto: Partial<CreateSiteAgentRequest>): Observable<SiteAgent> {
+  update(id: string, dto: UpdateSiteAgentRequest): Observable<SiteAgent> {
     return this.http.patch<SiteAgent>(`/api/site-agents/${id}`, dto);
   }
 
@@ -42,6 +43,15 @@ export class SiteAgentService {
   /** Issues a fresh token. Does not disconnect the agent that is running. */
   reissueEnrolment(id: string): Observable<EnrolmentTokenResponse> {
     return this.http.post<EnrolmentTokenResponse>(`/api/site-agents/${id}/enrolment-token`, {});
+  }
+
+  /**
+   * Asks the agent to probe all of its displays now. Answers 202; the results
+   * arrive as reachability events on the dashboard SSE stream. 409 when the
+   * agent is not connected.
+   */
+  probeNow(id: string): Observable<DispatchedCommand> {
+    return this.http.post<DispatchedCommand>(`/api/site-agents/${id}/probe`, {});
   }
 
   /** Ends every session; the agent has to be enrolled again to come back. */

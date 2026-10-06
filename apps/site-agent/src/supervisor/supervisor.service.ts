@@ -29,6 +29,15 @@ const HEARTBEAT_INTERVAL_MS = 60_000;
 /** How often the config is re-pulled even without a push telling it to. */
 const CONFIG_REFRESH_INTERVAL_MS = 60 * 60_000;
 
+/** Used until a config says otherwise, and for a config with a nonsensical value. */
+const DEFAULT_PROBE_INTERVAL_MS = 60_000;
+
+/**
+ * Floor for whatever the server sends. The dashboard only offers 1–10 minutes;
+ * this guards a hand-edited row or a bug from turning the loop into a busy one.
+ */
+const MIN_PROBE_INTERVAL_MS = 10_000;
+
 /**
  * The loop.
  *
@@ -42,9 +51,12 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SupervisorService.name);
   private readonly runtimes = new Map<string, ScreenRuntime>();
   private timer: ReturnType<typeof setInterval> | null = null;
+  private scheduledIntervalMs = 0;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private lastConfigPull = 0;
   private running = false;
+  /** Set when a "probe now" arrives during a round, so one more follows it. */
+  private rerunRequested = false;
 
   constructor(
     private readonly connections: ConnectionStore,
@@ -62,7 +74,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     await this.configs.load();
-    this.timer = setInterval(() => void this.tick(), await this.probeInterval());
+    this.scheduleRounds(await this.probeInterval());
     this.heartbeatTimer = setInterval(() => void this.heartbeat(), HEARTBEAT_INTERVAL_MS);
     // Check in now rather than a full interval from now: the server shows the
     // agent online only from its first heartbeat, after a restart as much as
@@ -83,31 +95,56 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
       // top of it and send two launches to the same set.
       return;
     }
+
+    this.running = true;
+    try {
+      do {
+        this.rerunRequested = false;
+        await this.round();
+      } while (this.rerunRequested);
+    } finally {
+      this.running = false;
+    }
+  }
+
+  /**
+   * Probes every screen now, for an operator who does not want to wait out the
+   * interval — typically right after switching a set back on.
+   *
+   * Clears every backoff first, so the round acts on what it finds instead of
+   * skipping a screen that failed a while ago. A round already in progress is
+   * not interrupted; one more is queued behind it.
+   */
+  async probeNow(): Promise<void> {
+    for (const runtime of this.runtimes.values()) {
+      runtime.failures = 0;
+      runtime.nextAttemptAt = 0;
+    }
+    if (this.running) {
+      this.rerunRequested = true;
+      return;
+    }
+    await this.tick();
+  }
+
+  private async round(): Promise<void> {
     if (!(await this.connections.load())) {
       return;
     }
 
-    this.running = true;
-    try {
-      await this.refreshConfigIfDue();
-      const config = this.configs.current();
-      if (!config) {
-        return;
-      }
+    await this.refreshConfigIfDue();
+    const config = this.configs.current();
+    if (!config) {
+      return;
+    }
 
-      const reports: AgentScreenReportMessage[] = [];
-      for (const screen of config.screens) {
-        const report = await this.visit(screen, config.appId);
-        if (report) {
-          reports.push(report);
-        }
-      }
+    const reports: AgentScreenReportMessage[] = [];
+    for (const screen of config.screens) {
+      reports.push(await this.visit(screen, config.appId));
+    }
 
-      if (reports.length > 0) {
-        await this.send(reports);
-      }
-    } finally {
-      this.running = false;
+    if (reports.length > 0) {
+      await this.send(reports);
     }
   }
 
@@ -204,26 +241,44 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     return this.visit(screen, this.configs.current()?.appId ?? '');
   }
 
+  /**
+   * Probes one screen and, unless it is backing off, acts on the result.
+   *
+   * The probe itself is never skipped. It is a TCP connect, cheap for the TV,
+   * and skipping it meant a set that had been off for a while was only noticed
+   * again once its backoff ran out — up to half an hour after someone switched
+   * it on. The backoff only holds back the actions that can hammer a set.
+   */
   private async visit(
     screen: AgentScreenConfigMessage,
     appId: string,
-  ): Promise<AgentScreenReportMessage | null> {
+  ): Promise<AgentScreenReportMessage> {
     const runtime = this.runtimeFor(screen.screenId);
     const now = Date.now();
-    if (now < runtime.nextAttemptAt) {
-      return null;
-    }
 
     const probe = await this.reachability.probe(screen.localIp, screen.ssapPort);
-    runtime.reachable = probe.reachability === 'reachable';
+    const reachable = probe.reachability === 'reachable';
+    if (reachable && !runtime.reachable) {
+      // Back from being off or disconnected: whatever failed before happened to
+      // a set in a different state, so it gets a fresh start.
+      runtime.failures = 0;
+      runtime.nextAttemptAt = 0;
+    }
+    runtime.reachable = reachable;
     const report: AgentScreenReportMessage = {
       screenId: screen.screenId,
       reachability: probe.reachability,
       ...(probe.detail ? { detail: probe.detail } : {}),
     };
 
-    const action = decideAction(screen, probe.reachability === 'reachable', runtime, now);
-    let ok = probe.reachability !== 'unreachable';
+    if (now < runtime.nextAttemptAt) {
+      return report;
+    }
+
+    const action = decideAction(screen, reachable, runtime, now);
+    // A set that does not answer is not a failure of this loop: it is probed
+    // again next interval anyway, and backing off would only delay noticing it.
+    let ok = true;
 
     switch (action.kind) {
       case 'wake':
@@ -241,7 +296,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
 
     // Only when the round had nothing else to do: a launch already read it on
     // the session it opened, and a failing screen has worse problems.
-    if (ok && action.kind === 'none' && runtime.appVersionReadAt === 0) {
+    if (ok && reachable && action.kind === 'none' && runtime.appVersionReadAt === 0) {
       await this.readAppVersionOnce(screen, appId, runtime, report);
     }
 
@@ -423,7 +478,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     runtime.failures += 1;
-    const probeIntervalMs = this.configs.current()?.probeIntervalMs ?? 60_000;
+    const probeIntervalMs = sanitizeProbeInterval(this.configs.current()?.probeIntervalMs);
     runtime.nextAttemptAt = Date.now() + backoffFor(runtime.failures, probeIntervalMs);
     this.logger.debug(
       `Screen ${screen.name} failed ${runtime.failures}x, next attempt in ${
@@ -451,6 +506,11 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
       await this.configs.save(config);
       this.lastConfigPull = Date.now();
       this.setup.recordConfigPull();
+      // Only re-arms a loop that is already running; before start-up there is
+      // nothing to re-arm, and start-up reads the interval itself.
+      if (this.timer) {
+        this.scheduleRounds(sanitizeProbeInterval(config.probeIntervalMs));
+      }
     } catch (error) {
       this.reportConnectionFailure(error, 'fetch configuration');
     }
@@ -524,8 +584,29 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async probeInterval(): Promise<number> {
-    return (await this.configs.load())?.probeIntervalMs ?? 60_000;
+    return sanitizeProbeInterval((await this.configs.load())?.probeIntervalMs);
   }
+
+  /** (Re)starts the round timer, but only when the interval actually changed. */
+  private scheduleRounds(intervalMs: number): void {
+    if (this.timer && intervalMs === this.scheduledIntervalMs) {
+      return;
+    }
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.logger.log(`Probe interval changed to ${Math.round(intervalMs / 1000)}s`);
+    }
+    this.scheduledIntervalMs = intervalMs;
+    this.timer = setInterval(() => void this.tick(), intervalMs);
+  }
+}
+
+/** The configured interval, or the default when it is missing or implausible. */
+export function sanitizeProbeInterval(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) {
+    return DEFAULT_PROBE_INTERVAL_MS;
+  }
+  return Math.max(value, MIN_PROBE_INTERVAL_MS);
 }
 
 export function classifySsap(error: unknown): 'awaiting_pairing' | 'rejected' | 'unreachable' {

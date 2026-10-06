@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { eq } from 'drizzle-orm';
@@ -7,6 +7,9 @@ import { SiteAgentService } from './site-agent.service';
 import { SiteAgentEnrolmentService } from './site-agent-enrolment.service';
 import { SiteAgentSessionService } from './site-agent-session.service';
 import { ScreenRemoteControlService } from './screen-remote-control.service';
+import { SiteAgentSseService } from './site-agent-sse.service';
+import { SiteAgentCommandType } from './site-agent-command.enum';
+import { SCREEN_REMOTE_CONFIG_CHANGED } from './screen-onboarding.event';
 import { SecretCipher } from '../common/secret-cipher.service';
 import { SITE_AGENT_STATUS_CHANGED } from './site-agent-status.event';
 import {
@@ -35,6 +38,7 @@ describe('SiteAgentService', () => {
   let sessions: SiteAgentSessionService;
   let enrolments: SiteAgentEnrolmentService;
   let emitter: { emit: jest.Mock };
+  let sse: { push: jest.Mock };
   let orgId: string;
   let otherOrgId: string;
 
@@ -61,6 +65,7 @@ describe('SiteAgentService', () => {
     await truncateAll();
     jest.clearAllMocks();
     emitter = { emit: jest.fn() };
+    sse = { push: jest.fn().mockReturnValue(true) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -72,6 +77,7 @@ describe('SiteAgentService', () => {
         { provide: DRIZZLE, useValue: db },
         { provide: TokenService, useValue: tokens },
         { provide: EventEmitter2, useValue: emitter },
+        { provide: SiteAgentSseService, useValue: sse },
         { provide: ConfigService, useValue: { get: jest.fn(() => undefined) } },
       ],
     }).compile();
@@ -173,6 +179,68 @@ describe('SiteAgentService', () => {
       const [row] = await db.select().from(siteAgents).where(eq(siteAgents.id, agent.id));
       expect(row.isOnline).toBe(true);
       expect(row.agentVersion).toBe('1.0.0');
+    });
+
+    it('defaults the probe interval to one minute', async () => {
+      const agent = await makeAgent();
+
+      expect(agent.probeIntervalMinutes).toBe(1);
+    });
+
+    it('stores a new probe interval and tells the agent to re-pull its config', async () => {
+      const agent = await makeAgent();
+
+      const updated = await service.updateAgent(
+        orgId,
+        agent.id,
+        { probeIntervalMinutes: 5 },
+        userId,
+      );
+
+      expect(updated.probeIntervalMinutes).toBe(5);
+      expect(emitter.emit).toHaveBeenCalledWith(
+        SCREEN_REMOTE_CONFIG_CHANGED,
+        expect.objectContaining({ agentIds: [agent.id] }),
+      );
+    });
+
+    it('does not make the agent re-pull for a rename', async () => {
+      const agent = await makeAgent();
+
+      await service.updateAgent(orgId, agent.id, { name: 'Renamed' }, userId);
+
+      expect(emitter.emit).not.toHaveBeenCalledWith(
+        SCREEN_REMOTE_CONFIG_CHANGED,
+        expect.anything(),
+      );
+    });
+  });
+
+  describe('probeNow', () => {
+    it('pushes an agent-wide probe command and returns its id', async () => {
+      const agent = await makeAgent();
+
+      const result = await service.probeNow(orgId, agent.id);
+
+      expect(result.commandId).toEqual(expect.any(String));
+      expect(sse.push).toHaveBeenCalledWith(agent.id, {
+        commandId: result.commandId,
+        type: SiteAgentCommandType.ProbeNow,
+      });
+    });
+
+    it('rejects with 409 when the agent is not connected', async () => {
+      const agent = await makeAgent();
+      sse.push.mockReturnValue(false);
+
+      await expect(service.probeNow(orgId, agent.id)).rejects.toThrow(ConflictException);
+    });
+
+    it('does not reach an agent of another organisation', async () => {
+      const foreign = await makeAgent(otherOrgId);
+
+      await expect(service.probeNow(orgId, foreign.id)).rejects.toThrow(NotFoundException);
+      expect(sse.push).not.toHaveBeenCalled();
     });
   });
 
