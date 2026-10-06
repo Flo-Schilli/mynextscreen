@@ -62,6 +62,11 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     await this.configs.load();
     this.timer = setInterval(() => void this.tick(), await this.probeInterval());
     this.heartbeatTimer = setInterval(() => void this.heartbeat(), HEARTBEAT_INTERVAL_MS);
+    // Check in now rather than a full interval from now: the server shows the
+    // agent online only from its first heartbeat, after a restart as much as
+    // after the setup page says it is connected.
+    this.setup.onEnrolled(() => void this.heartbeat());
+    void this.heartbeat();
   }
 
   onModuleDestroy(): void {

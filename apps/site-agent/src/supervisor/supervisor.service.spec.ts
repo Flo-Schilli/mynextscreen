@@ -30,12 +30,15 @@ function screen(overrides: Partial<AgentScreenConfigMessage> = {}): AgentScreenC
   };
 }
 
+/** Lets the fire-and-forget heartbeat promise chain settle. */
+const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
 describe('SupervisorService', () => {
   let supervisor: SupervisorService;
   let connections: { load: jest.Mock };
   let client: { fetchConfig: jest.Mock; sendHeartbeat: jest.Mock; sendReports: jest.Mock };
   let configs: { load: jest.Mock; save: jest.Mock; current: jest.Mock };
-  let setup: { recordConfigPull: jest.Mock };
+  let setup: { recordConfigPull: jest.Mock; onEnrolled: jest.Mock };
   let reachability: { probe: jest.Mock };
   let devmodeKeys: { obtain: jest.Mock; forget: jest.Mock };
   let ssh: { extendDevmode: jest.Mock; run: jest.Mock };
@@ -81,7 +84,7 @@ describe('SupervisorService', () => {
       sendReports: jest.fn().mockResolvedValue(undefined),
     };
     configs = { load: jest.fn(), save: jest.fn(), current: jest.fn() };
-    setup = { recordConfigPull: jest.fn() };
+    setup = { recordConfigPull: jest.fn(), onEnrolled: jest.fn() };
     reachability = { probe: jest.fn().mockResolvedValue({ reachability: 'reachable' }) };
     devmodeKeys = {
       obtain: jest.fn().mockResolvedValue({ status: 'ok', privateKey: 'PEM' }),
@@ -93,6 +96,43 @@ describe('SupervisorService', () => {
     };
     wol = { wake: jest.fn().mockResolvedValue(undefined) };
     ssapKeys = { load: jest.fn().mockResolvedValue('client-key'), save: jest.fn() };
+  });
+
+  describe('start-up heartbeat', () => {
+    afterEach(() => supervisor.onModuleDestroy());
+
+    it('checks in straight away instead of a full interval later', async () => {
+      supervisor = build(configWith([]));
+
+      await supervisor.onModuleInit();
+      await flush();
+
+      expect(client.sendHeartbeat).toHaveBeenCalledTimes(1);
+    });
+
+    it('sends nothing at start-up before enrolment', async () => {
+      connections.load.mockResolvedValue(null);
+      supervisor = build(null);
+
+      await supervisor.onModuleInit();
+      await flush();
+
+      expect(client.sendHeartbeat).not.toHaveBeenCalled();
+    });
+
+    it('checks in as soon as the setup page enrols the agent', async () => {
+      connections.load.mockResolvedValue(null);
+      supervisor = build(null);
+      await supervisor.onModuleInit();
+      await flush();
+      connections.load.mockResolvedValue({ agentId: 'agent-1' });
+
+      const onEnrolled = setup.onEnrolled.mock.calls[0][0] as () => void;
+      onEnrolled();
+      await flush();
+
+      expect(client.sendHeartbeat).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('tick', () => {

@@ -3,10 +3,10 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideZonelessChangeDetection } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
-import { EMPTY, Observable, of } from 'rxjs';
+import { Observable, Subject, of } from 'rxjs';
 import { SiteAgents } from './site-agents';
 import { SiteAgentService } from './site-agent.service';
-import { DashboardSseService } from '../dashboard/dashboard-sse.service';
+import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
 import { ToastService } from '../shared/toast/toast.service';
 import type { CreatedSiteAgent, SiteAgentListItem } from './site-agent.model';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
@@ -17,9 +17,22 @@ try {
   // already initialized
 }
 
+const LISTED_AGENT: SiteAgentListItem = {
+  id: 'agent-1',
+  organisationId: 'org-1',
+  name: 'Venue North',
+  location: null,
+  agentVersion: null,
+  lastHeartbeat: null,
+  isOnline: false,
+  createdAt: '2026-10-01T10:00:00.000Z',
+  updatedAt: '2026-10-01T10:00:00.000Z',
+  screenCount: 0,
+};
+
 class SiteAgentServiceStub {
   getAll(): Observable<SiteAgentListItem[]> {
-    return of([]);
+    return of([LISTED_AGENT]);
   }
 
   create(): Observable<CreatedSiteAgent> {
@@ -42,7 +55,7 @@ class SiteAgentServiceStub {
 }
 
 class DashboardSseServiceStub {
-  siteAgentStatus$ = EMPTY;
+  siteAgentStatus$ = new Subject<DashboardEvent>();
 }
 
 class ToastServiceStub {
@@ -69,6 +82,28 @@ describe('SiteAgents', () => {
     fixture = TestBed.createComponent(SiteAgents);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  // The first heartbeat flips the agent online; "last seen" has to move with it
+  // or the card reads "online, never seen" until a reload.
+  it('takes the online status and last check-in from the status event', () => {
+    const sse = TestBed.inject(DashboardSseService) as unknown as DashboardSseServiceStub;
+
+    sse.siteAgentStatus$.next({
+      type: 'site-agent.status',
+      data: {
+        agentId: 'agent-1',
+        name: 'Venue North',
+        isOnline: true,
+        lastHeartbeat: '2026-10-06T11:04:00.000Z',
+      },
+      timestamp: '2026-10-06T11:04:00.000Z',
+    });
+
+    expect(component['agents']()[0]).toMatchObject({
+      isOnline: true,
+      lastHeartbeat: '2026-10-06T11:04:00.000Z',
+    });
   });
 
   it('shows the freshly created setup code exactly once', () => {
