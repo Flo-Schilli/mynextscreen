@@ -210,13 +210,26 @@ describe('SiteAgentDeviceController', () => {
     it('records the reported version', async () => {
       await controller.heartbeat(agentReq, { agentVersion: '1.2.3' });
 
-      expect(siteAgentService.recordHeartbeat).toHaveBeenCalledWith(agentId, '1.2.3');
+      expect(siteAgentService.recordHeartbeat).toHaveBeenCalledWith(agentId, '1.2.3', null);
     });
 
     it('accepts a heartbeat without a version, as an older agent sends', async () => {
       await controller.heartbeat(agentReq, {});
 
-      expect(siteAgentService.recordHeartbeat).toHaveBeenCalledWith(agentId, null);
+      expect(siteAgentService.recordHeartbeat).toHaveBeenCalledWith(agentId, null, null);
+    });
+
+    it('passes the reported network attachment on', async () => {
+      const network = {
+        interfaceName: 'wlan0',
+        kind: 'wifi' as const,
+        ssid: 'VenueNet',
+        ipAddress: '10.0.0.23',
+      };
+
+      await controller.heartbeat(agentReq, { agentVersion: '1.2.3', network });
+
+      expect(siteAgentService.recordHeartbeat).toHaveBeenCalledWith(agentId, '1.2.3', network);
     });
 
     // The agent id comes from the verified token, never from the body — an
@@ -226,7 +239,7 @@ describe('SiteAgentDeviceController', () => {
         agentVersion: '1.0.0',
       });
 
-      expect(siteAgentService.recordHeartbeat).toHaveBeenCalledWith(agentId, '1.0.0');
+      expect(siteAgentService.recordHeartbeat).toHaveBeenCalledWith(agentId, '1.0.0', null);
     });
   });
 

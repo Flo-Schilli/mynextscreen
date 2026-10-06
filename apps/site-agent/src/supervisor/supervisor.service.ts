@@ -14,6 +14,7 @@ import { SshService } from '../tv/ssh.service';
 import { WolService } from '../tv/wol.service';
 import { SsapClient } from '../tv/ssap-client';
 import { SsapKeyStore } from '../tv/ssap-key.store';
+import { NetworkInfoService } from '../network/network-info.service';
 import { newRuntime, type ScreenRuntime } from './screen-runtime';
 import { DEVMODE_JITTER_MAX_MS, backoffFor, decideAction } from './supervision.policy';
 import type {
@@ -55,6 +56,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     private readonly ssh: SshService,
     private readonly wol: WolService,
     private readonly ssapKeys: SsapKeyStore,
+    private readonly network: NetworkInfoService,
     private readonly agentVersion: string,
   ) {}
 
@@ -460,7 +462,11 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     try {
-      await this.client.sendHeartbeat(this.agentVersion, this.collectMetrics(true));
+      await this.client.sendHeartbeat(
+        this.agentVersion,
+        this.collectMetrics(true),
+        await this.network.collect(),
+      );
     } catch (error) {
       this.reportConnectionFailure(error, 'send heartbeat');
     }

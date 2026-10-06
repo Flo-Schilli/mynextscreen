@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
 import { AgentMetricsDto } from './agent-metrics.dto';
+import { AgentNetworkDto } from './agent-network.dto';
 
 export class AgentHeartbeatDto {
   /**
@@ -21,4 +22,13 @@ export class AgentHeartbeatDto {
   @ValidateNested()
   @Type(() => AgentMetricsDto)
   metrics?: AgentMetricsDto;
+
+  /**
+   * How the machine is attached to the venue network, shown in the dashboard.
+   * Optional: an older agent omits it and the last known values stay.
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AgentNetworkDto)
+  network?: AgentNetworkDto;
 }

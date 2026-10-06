@@ -23,6 +23,10 @@ const LISTED_AGENT: SiteAgentListItem = {
   name: 'Venue North',
   location: null,
   agentVersion: null,
+  networkInterface: null,
+  networkKind: null,
+  networkSsid: null,
+  networkIp: null,
   lastHeartbeat: null,
   isOnline: false,
   createdAt: '2026-10-01T10:00:00.000Z',
@@ -43,6 +47,10 @@ class SiteAgentServiceStub {
         name: 'Venue North',
         location: null,
         agentVersion: null,
+        networkInterface: null,
+        networkKind: null,
+        networkSsid: null,
+        networkIp: null,
         lastHeartbeat: null,
         isOnline: false,
         createdAt: '2026-10-01T10:00:00.000Z',
@@ -129,5 +137,52 @@ describe('SiteAgents', () => {
 
     expect(component['issued']()).toBeNull();
     expect(fixture.debugElement.query(By.css('[data-testid="setup-code"]'))).toBeNull();
+  });
+
+  it('shows how the agent is attached to the network', () => {
+    component['agents'].set([
+      {
+        ...LISTED_AGENT,
+        networkInterface: 'wlan0',
+        networkKind: 'wifi',
+        networkSsid: 'VenueNet',
+        networkIp: '10.0.0.23',
+      },
+    ]);
+    fixture.detectChanges();
+
+    const network = fixture.debugElement.query(By.css('[data-testid="agent-network"]'));
+    const text = (network.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Wi-Fi “VenueNet”');
+    expect(text).toContain('10.0.0.23');
+  });
+
+  it('flags an agent with an update waiting', () => {
+    component['agents'].set([
+      {
+        ...LISTED_AGENT,
+        agentVersion: '0.17.2',
+        latestAgentVersion: '0.18.0',
+        updateAvailable: true,
+      },
+    ]);
+    fixture.detectChanges();
+
+    const badge = fixture.debugElement.query(By.css('[data-testid="agent-update-badge"]'));
+    expect((badge.nativeElement as HTMLElement).textContent).toContain('Update 0.18.0');
+  });
+
+  it('shows no update badge for an agent on the current release', () => {
+    component['agents'].set([
+      {
+        ...LISTED_AGENT,
+        agentVersion: '0.18.0',
+        latestAgentVersion: '0.18.0',
+        updateAvailable: false,
+      },
+    ]);
+    fixture.detectChanges();
+
+    expect(fixture.debugElement.query(By.css('[data-testid="agent-update-badge"]'))).toBeNull();
   });
 });

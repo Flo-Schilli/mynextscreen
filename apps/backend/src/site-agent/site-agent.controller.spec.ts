@@ -22,6 +22,10 @@ describe('SiteAgentController', () => {
     name: 'Venue North',
     location: 'Server room',
     agentVersion: null,
+    networkInterface: null,
+    networkKind: null,
+    networkSsid: null,
+    networkIp: null,
     lastHeartbeat: null,
     isOnline: false,
     createdAt: new Date(),
@@ -101,8 +105,35 @@ describe('SiteAgentController', () => {
 
       const result = await controller.findAll(orgId);
 
-      expect(result).toEqual([{ ...mockAgent, screenCount: 3 }]);
+      expect(result).toEqual([expect.objectContaining({ ...mockAgent, screenCount: 3 })]);
       expect(service.listWithScreenCounts).toHaveBeenCalledWith(orgId);
+    });
+
+    describe('update hint', () => {
+      const original = process.env.APP_VERSION;
+      afterEach(() => {
+        process.env.APP_VERSION = original;
+      });
+
+      it('flags an agent behind the server release', async () => {
+        process.env.APP_VERSION = '0.18.0';
+        service.listWithScreenCounts.mockResolvedValue([
+          { ...mockAgent, agentVersion: '0.17.2', screenCount: 1 },
+        ]);
+
+        const [agent] = await controller.findAll(orgId);
+
+        expect(agent).toMatchObject({ latestAgentVersion: '0.18.0', updateAvailable: true });
+      });
+
+      it('does not flag an agent on the server release', async () => {
+        process.env.APP_VERSION = '0.18.0';
+        service.findOne.mockResolvedValue({ ...mockAgent, agentVersion: '0.18.0' });
+
+        const agent = await controller.findOne(orgId, agentId);
+
+        expect(agent).toMatchObject({ latestAgentVersion: '0.18.0', updateAvailable: false });
+      });
     });
   });
 

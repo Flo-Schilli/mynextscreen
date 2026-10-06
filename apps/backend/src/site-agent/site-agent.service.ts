@@ -21,6 +21,7 @@ import {
 } from './site-agent-enrolment.service';
 import { SiteAgentSessionService } from './site-agent-session.service';
 import { ScreenRemoteControlService } from './screen-remote-control.service';
+import type { AgentNetworkDto } from './dto';
 
 /** A site agent plus the count of screens assigned to it. */
 export interface SiteAgentListItem extends SiteAgent {
@@ -174,7 +175,11 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
    * Records a heartbeat. Emits a status event only on the offline→online edge,
    * so a healthy agent does not push an event every interval.
    */
-  async recordHeartbeat(agentId: string, agentVersion: string | null): Promise<void> {
+  async recordHeartbeat(
+    agentId: string,
+    agentVersion: string | null,
+    network: AgentNetworkDto | null = null,
+  ): Promise<void> {
     const [row] = await this.db
       .select({
         organisationId: siteAgents.organisationId,
@@ -195,6 +200,16 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
         lastHeartbeat: now,
         isOnline: true,
         ...(agentVersion ? { agentVersion } : {}),
+        // Replaced as a whole when reported, so a switch from Wi-Fi to cable
+        // does not leave the old SSID behind; kept when an older agent omits it.
+        ...(network
+          ? {
+              networkInterface: network.interfaceName,
+              networkKind: network.kind,
+              networkSsid: network.kind === 'wifi' ? network.ssid : null,
+              networkIp: network.ipAddress,
+            }
+          : {}),
       })
       .where(eq(siteAgents.id, agentId));
 

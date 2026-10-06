@@ -585,6 +585,16 @@ export const siteAgents = pgTable(
     location: text(),
     /** Reported on heartbeat; null until the agent has enrolled and checked in. */
     agentVersion: text(),
+    /**
+     * How the agent's machine reaches the venue network, as of its last
+     * heartbeat: interface of the default route, `ethernet`/`wifi`/`unknown`,
+     * the SSID on Wi-Fi and the address it holds. Null until an agent that
+     * reports it has checked in.
+     */
+    networkInterface: text(),
+    networkKind: text(),
+    networkSsid: text(),
+    networkIp: text(),
     lastHeartbeat: timestamp({ withTimezone: true }),
     isOnline: boolean().notNull().default(false),
     ...timestamps,

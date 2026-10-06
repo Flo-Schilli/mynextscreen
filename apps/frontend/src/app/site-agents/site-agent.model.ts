@@ -8,12 +8,25 @@ export type SshStatus = 'unknown' | 'ok' | 'auth_failed' | 'host_key_mismatch' |
 
 export type SsapStatus = 'unknown' | 'ok' | 'awaiting_pairing' | 'rejected' | 'unreachable';
 
+export type AgentNetworkKind = 'ethernet' | 'wifi' | 'unknown';
+
 export interface SiteAgent {
   id: string;
   organisationId: string;
   name: string;
   location: string | null;
   agentVersion: string | null;
+  /** How the agent's machine reaches the venue network, as of its last heartbeat. */
+  networkInterface: string | null;
+  networkKind: AgentNetworkKind | null;
+  networkSsid: string | null;
+  networkIp: string | null;
+  /**
+   * The server's release, which every agent should run. Only on the list and
+   * detail responses; null on a dev build.
+   */
+  latestAgentVersion?: string | null;
+  updateAvailable?: boolean;
   lastHeartbeat: string | null;
   isOnline: boolean;
   createdAt: string;

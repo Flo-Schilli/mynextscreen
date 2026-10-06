@@ -1066,7 +1066,9 @@
       "displays": "Displays",
       "version": "Version",
       "lastSeen": "Zuletzt gesehen",
-      "never": "nie"
+      "never": "nie",
+      "network": "Netzwerk",
+      "updateBadge": "Update {version}"
     },
     "create": {
       "title": "Site-Agent hinzufügen",
@@ -1158,7 +1160,9 @@
       "revokeTitle": "Zugriff widerrufen",
       "revokeConfirmLabel": "Widerrufen",
       "revokeBusyLabel": "Wird widerrufen…",
-      "revokeBody": "Alle Sitzungen dieses Agenten beenden? Er funktioniert sofort nicht mehr und braucht einen neuen Setup-Code, um zurückzukommen. Seine Displays und deren Einstellungen bleiben unberührt."
+      "revokeBody": "Alle Sitzungen dieses Agenten beenden? Er funktioniert sofort nicht mehr und braucht einen neuen Setup-Code, um zurückzukommen. Seine Displays und deren Einstellungen bleiben unberührt.",
+      "updateAvailable": "Update verfügbar: {installed} → {latest}.",
+      "updateHint": "Zum Aktualisieren das Ansible-Playbook site-agent.yml erneut ausführen oder das neue Image auf dem Agent-Host ziehen und den Dienst neu starten."
     },
     "detailToast": {
       "loadAgentFailed": "Dieser Agent konnte nicht geladen werden",
@@ -1296,6 +1300,13 @@
     "confirm": {
       "cancel": "Abbrechen",
       "working": "Wird ausgeführt…"
+    },
+    "network": {
+      "wifi": "WLAN",
+      "wifiSsid": "WLAN „{ssid}“",
+      "ethernet": "LAN",
+      "unknown": "Netzwerk unbekannt",
+      "notReported": "Netzwerk nicht gemeldet"
     }
   },
   "auditLog": {

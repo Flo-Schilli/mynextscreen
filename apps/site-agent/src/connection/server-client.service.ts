@@ -3,6 +3,7 @@ import type {
   AgentConfigMessage,
   AgentEnrolmentMessage,
   AgentMetricsMessage,
+  AgentNetworkMessage,
   AgentReportMessage,
   AgentSessionMessage,
 } from '../protocol/server-protocol';
@@ -22,6 +23,17 @@ export class ServerUnreachableError extends Error {
   constructor(cause: unknown) {
     super(`Server unreachable: ${cause instanceof Error ? cause.message : String(cause)}`);
     this.name = 'ServerUnreachableError';
+  }
+}
+
+/** Raised when the server answered, but with a status the call cannot use. */
+export class UnexpectedStatusError extends Error {
+  constructor(
+    path: string,
+    readonly status: number,
+  ) {
+    super(`${path} returned ${status}`);
+    this.name = 'UnexpectedStatusError';
   }
 }
 
@@ -87,15 +99,40 @@ export class ServerClient {
     await this.request('/api/agents/me/reset', { method: 'POST', body: { setupCode } });
   }
 
-  async sendHeartbeat(agentVersion: string | null, metrics?: AgentMetricsMessage): Promise<void> {
-    const body: { agentVersion?: string; metrics?: AgentMetricsMessage } = {};
+  async sendHeartbeat(
+    agentVersion: string | null,
+    metrics?: AgentMetricsMessage,
+    network?: AgentNetworkMessage,
+  ): Promise<void> {
+    const body: {
+      agentVersion?: string;
+      metrics?: AgentMetricsMessage;
+      network?: AgentNetworkMessage;
+    } = {};
     if (agentVersion) {
       body.agentVersion = agentVersion;
     }
     if (metrics) {
       body.metrics = metrics;
     }
-    await this.request('/api/agents/me/heartbeat', { method: 'POST', body });
+    if (!network) {
+      await this.request('/api/agents/me/heartbeat', { method: 'POST', body });
+      return;
+    }
+    try {
+      await this.request('/api/agents/me/heartbeat', {
+        method: 'POST',
+        body: { ...body, network },
+      });
+    } catch (error) {
+      // A server older than this agent rejects the unknown `network` field
+      // (its validation forbids non-whitelisted properties). Checking in
+      // matters more than the diagnostic, so try once more without it.
+      if (!(error instanceof UnexpectedStatusError) || error.status !== 400) {
+        throw error;
+      }
+      await this.request('/api/agents/me/heartbeat', { method: 'POST', body });
+    }
   }
 
   async sendReports(report: AgentReportMessage): Promise<void> {
@@ -228,7 +265,7 @@ export class ServerClient {
       throw new SessionRejectedError(`${path} returned ${response.status}`);
     }
     if (!response.ok) {
-      throw new Error(`${path} returned ${response.status}`);
+      throw new UnexpectedStatusError(path, response.status);
     }
     if (response.status === 204) {
       return undefined as T;

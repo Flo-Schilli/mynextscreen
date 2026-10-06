@@ -17,6 +17,7 @@ import { SshService } from './tv/ssh.service';
 import { WolService } from './tv/wol.service';
 import { SsapKeyStore, ssapKeyDir } from './tv/ssap-key.store';
 import { SupervisorService } from './supervisor/supervisor.service';
+import { NetworkInfoService } from './network/network-info.service';
 import { CommandHandlerService } from './supervisor/command-handler.service';
 
 /** Reported on heartbeat and shown on the setup page. Injected at build time. */
@@ -89,6 +90,9 @@ export function pinnedServerUrl(env: AgentEnv): string {
     ReachabilityService,
     SshService,
     WolService,
+    // Factory, not a class provider: the constructor takes the host seam as an
+    // interface, which Nest cannot resolve by type.
+    { provide: NetworkInfoService, useFactory: () => new NetworkInfoService() },
     CommandHandlerService,
     {
       provide: DevmodeKeyService,
@@ -112,6 +116,7 @@ export function pinnedServerUrl(env: AgentEnv): string {
         ssh: SshService,
         wol: WolService,
         ssapKeys: SsapKeyStore,
+        network: NetworkInfoService,
       ) =>
         new SupervisorService(
           connections,
@@ -123,6 +128,7 @@ export function pinnedServerUrl(env: AgentEnv): string {
           ssh,
           wol,
           ssapKeys,
+          network,
           AGENT_VERSION,
         ),
       inject: [
@@ -135,6 +141,7 @@ export function pinnedServerUrl(env: AgentEnv): string {
         SshService,
         WolService,
         SsapKeyStore,
+        NetworkInfoService,
       ],
     },
     {

@@ -58,7 +58,7 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
   ├── Playlist        └── PlaylistItem { contentId, durationMs (für Bilder) }
   ├── Schedule        { screen|group, playlist, start/end, RRULE(recurring), color }
   ├── LiveStream      { sourceUrl, target screen(s)/group, ffmpeg lifecycle → HLS }
-  ├── SiteAgent       { name, location, version, heartbeat; Enrolment + rotierende Sessions }
+  ├── SiteAgent       { name, location, version, network(kind/ssid/ip), heartbeat; Enrolment + rotierende Sessions }
   │     └── ScreenRemoteControl { screenId 1:1, agentId, localIp, mac, devmodePassphrase(enc), Toggles, Telemetrie }
   ├── AuditEntry      { timestamp, userId, organisationId, action, resourceType/Id, details }
   └── Notification    { channel(inapp|email|ntfy), userPrefs }

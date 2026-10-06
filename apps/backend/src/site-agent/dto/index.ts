@@ -5,6 +5,8 @@ export { ResetAgentDto } from './reset-agent.dto';
 export { RefreshAgentSessionDto } from './refresh-agent-session.dto';
 export { AgentHeartbeatDto } from './agent-heartbeat.dto';
 export { AgentMetricsDto, AgentScreenMetricsDto } from './agent-metrics.dto';
+export { AgentNetworkDto, AGENT_NETWORK_KINDS } from './agent-network.dto';
+export type { AgentNetworkKind } from './agent-network.dto';
 export { UpdateScreenRemoteControlDto } from './update-screen-remote-control.dto';
 export { ScreenRemoteCommandDto, MANUAL_COMMANDS } from './screen-remote-command.dto';
 export type { ManualCommandType } from './screen-remote-command.dto';
