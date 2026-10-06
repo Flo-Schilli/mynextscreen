@@ -41,7 +41,13 @@ export class SiteAgentScheduler {
     for (const agent of offline) {
       this.eventEmitter.emit(
         SITE_AGENT_STATUS_CHANGED,
-        new SiteAgentStatusChangedEvent(agent.id, agent.organisationId, agent.name, false),
+        new SiteAgentStatusChangedEvent(
+          agent.id,
+          agent.organisationId,
+          agent.name,
+          false,
+          agent.lastHeartbeat,
+        ),
       );
       this.eventEmitter.emit(
         AUDIT_SITE_AGENT_OFFLINE,

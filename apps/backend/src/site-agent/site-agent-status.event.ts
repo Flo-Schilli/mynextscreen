@@ -10,5 +10,7 @@ export class SiteAgentStatusChangedEvent {
     public readonly organisationId: string,
     public readonly name: string,
     public readonly isOnline: boolean,
+    /** Last check-in, so the dashboard's "last seen" moves with the status. */
+    public readonly lastHeartbeat: Date | null,
   ) {}
 }

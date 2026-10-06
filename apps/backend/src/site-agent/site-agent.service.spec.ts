@@ -415,6 +415,18 @@ describe('SiteAgentService', () => {
       );
     });
 
+    it('puts the stored heartbeat time on the online event', async () => {
+      const agent = await makeAgent();
+
+      await service.recordHeartbeat(agent.id, '1.0.0');
+
+      const [row] = await db.select().from(siteAgents).where(eq(siteAgents.id, agent.id));
+      expect(emitter.emit).toHaveBeenCalledWith(
+        SITE_AGENT_STATUS_CHANGED,
+        expect.objectContaining({ isOnline: true, lastHeartbeat: row.lastHeartbeat }),
+      );
+    });
+
     it('keeps the stored version when the agent reports none', async () => {
       const agent = await makeAgent();
       await service.recordHeartbeat(agent.id, '1.2.3');

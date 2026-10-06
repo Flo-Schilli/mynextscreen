@@ -19,7 +19,12 @@ import { ToastService } from '../shared/toast/toast.service';
 import { ScreenRemoteSettings } from './screen-remote-settings';
 import { ScreenOnboardingWizard, ONBOARDING_STEP_COUNT } from './screen-onboarding-wizard';
 import { SiteAgentConfirmModal } from './site-agent-confirm-modal';
-import type { RemoteCommandType, ScreenRemoteControl, SiteAgent } from './site-agent.model';
+import type {
+  RemoteCommandType,
+  ScreenRemoteControl,
+  SiteAgent,
+  SiteAgentStatusEvent,
+} from './site-agent.model';
 import type { ScreenListItem } from '../screens/screen.model';
 import {
   BadgeComponent,
@@ -446,9 +451,11 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
     this.load();
 
     this.sse.siteAgentStatus$.pipe(takeUntil(this.destroyed$)).subscribe((event) => {
-      const data = event.data as { agentId: string; isOnline: boolean };
+      const data = event.data as SiteAgentStatusEvent;
       if (data.agentId === this.agentId()) {
-        this.agent.update((agent) => (agent ? { ...agent, isOnline: data.isOnline } : agent));
+        this.agent.update((agent) =>
+          agent ? { ...agent, isOnline: data.isOnline, lastHeartbeat: data.lastHeartbeat } : agent,
+        );
       }
     });
 
