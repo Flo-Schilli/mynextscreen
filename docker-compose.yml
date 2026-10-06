@@ -32,6 +32,8 @@ services:
       - SMTP_SECURE=${SMTP_SECURE:-false}
       - SMTP_FROM=${SMTP_FROM:-myNextScreen <noreply@mynextscreen.local>}
       - SIGNUP_ENABLED=${SIGNUP_ENABLED:-true}
+      # Prometheus scrape endpoint /api/metrics; empty keeps it disabled (404).
+      - METRICS_SCRAPE_TOKEN=${METRICS_SCRAPE_TOKEN:-}
     depends_on:
       - redis
       - postgres
