@@ -28,7 +28,8 @@
               "**/*.config.ts",
               "**/main.ts",
               "**/environments/**"
-            ]
+            ],
+            "setupFiles": ["src/test-setup.ts"]
           }
         },
         "build": {
