@@ -196,11 +196,26 @@ describe('DashboardSseService', () => {
     });
 
     it('should emit site-agent.status when a venue agent connects', () => {
-      const event = new SiteAgentStatusChangedEvent('agent-1', orgId, 'Venue North', true);
+      const seenAt = new Date('2026-10-06T11:04:00.000Z');
+      const event = new SiteAgentStatusChangedEvent('agent-1', orgId, 'Venue North', true, seenAt);
       return expectOrgEvent(
         () => service.handleSiteAgentStatusChanged(event),
         'site-agent.status',
-        { agentId: 'agent-1', name: 'Venue North', isOnline: true },
+        {
+          agentId: 'agent-1',
+          name: 'Venue North',
+          isOnline: true,
+          lastHeartbeat: '2026-10-06T11:04:00.000Z',
+        },
+      );
+    });
+
+    it('should send a null lastHeartbeat for an agent that never checked in', () => {
+      const event = new SiteAgentStatusChangedEvent('agent-1', orgId, 'Venue North', false, null);
+      return expectOrgEvent(
+        () => service.handleSiteAgentStatusChanged(event),
+        'site-agent.status',
+        { agentId: 'agent-1', name: 'Venue North', isOnline: false, lastHeartbeat: null },
       );
     });
 

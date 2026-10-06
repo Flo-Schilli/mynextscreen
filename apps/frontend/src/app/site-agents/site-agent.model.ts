@@ -20,6 +20,17 @@ export interface SiteAgent {
   updatedAt: string;
 }
 
+/**
+ * Payload of the dashboard SSE `site-agent.status` event. Extends the record
+ * type so `DashboardEvent.data` (a `Record<string, unknown>`) narrows to it.
+ */
+export interface SiteAgentStatusEvent extends Record<string, unknown> {
+  agentId: string;
+  name: string;
+  isOnline: boolean;
+  lastHeartbeat: string | null;
+}
+
 export interface SiteAgentListItem extends SiteAgent {
   screenCount: number;
 }

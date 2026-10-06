@@ -74,7 +74,11 @@ describe('SiteAgentScheduler', () => {
 
       expect(emitter.emit).toHaveBeenCalledWith(
         SITE_AGENT_STATUS_CHANGED,
-        expect.objectContaining({ agentId: agent.id, isOnline: false }),
+        expect.objectContaining({
+          agentId: agent.id,
+          isOnline: false,
+          lastHeartbeat: agent.lastHeartbeat,
+        }),
       );
       expect(emitter.emit).toHaveBeenCalledWith(
         AUDIT_SITE_AGENT_OFFLINE,
