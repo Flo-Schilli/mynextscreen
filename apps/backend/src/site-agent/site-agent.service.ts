@@ -188,10 +188,11 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
       return;
     }
 
+    const now = new Date();
     await this.db
       .update(siteAgents)
       .set({
-        lastHeartbeat: new Date(),
+        lastHeartbeat: now,
         isOnline: true,
         ...(agentVersion ? { agentVersion } : {}),
       })
@@ -200,7 +201,7 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
     if (!row.isOnline) {
       this.eventEmitter.emit(
         SITE_AGENT_STATUS_CHANGED,
-        new SiteAgentStatusChangedEvent(agentId, row.organisationId, row.name, true),
+        new SiteAgentStatusChangedEvent(agentId, row.organisationId, row.name, true, now),
       );
       this.eventEmitter.emit(
         AUDIT_SITE_AGENT_ONLINE,
@@ -238,11 +239,17 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
       .update(siteAgents)
       .set({ isOnline: false })
       .where(and(eq(siteAgents.id, agentId), sql`${siteAgents.isOnline} = true`))
-      .returning({ name: siteAgents.name });
+      .returning({ name: siteAgents.name, lastHeartbeat: siteAgents.lastHeartbeat });
     if (row) {
       this.eventEmitter.emit(
         SITE_AGENT_STATUS_CHANGED,
-        new SiteAgentStatusChangedEvent(agentId, organisationId, row.name, false),
+        new SiteAgentStatusChangedEvent(
+          agentId,
+          organisationId,
+          row.name,
+          false,
+          row.lastHeartbeat,
+        ),
       );
     }
   }

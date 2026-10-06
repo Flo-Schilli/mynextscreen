@@ -10,7 +10,7 @@ import { RouterLink } from '@angular/router';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { Subject, takeUntil } from 'rxjs';
 import { SiteAgentService } from './site-agent.service';
-import type { CreatedSiteAgent, SiteAgentListItem } from './site-agent.model';
+import type { CreatedSiteAgent, SiteAgentListItem, SiteAgentStatusEvent } from './site-agent.model';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { ToastService } from '../shared/toast/toast.service';
 import {
@@ -207,10 +207,12 @@ export class SiteAgents implements OnInit, OnDestroy {
     // An agent going offline is the thing an operator most wants to see without
     // reloading, so the list follows the stream it already has open.
     this.sse.siteAgentStatus$.pipe(takeUntil(this.destroyed$)).subscribe((event) => {
-      const data = event.data as { agentId: string; isOnline: boolean };
+      const data = event.data as SiteAgentStatusEvent;
       this.agents.update((agents) =>
         agents.map((agent) =>
-          agent.id === data.agentId ? { ...agent, isOnline: data.isOnline } : agent,
+          agent.id === data.agentId
+            ? { ...agent, isOnline: data.isOnline, lastHeartbeat: data.lastHeartbeat }
+            : agent,
         ),
       );
     });

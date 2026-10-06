@@ -138,6 +138,26 @@ describe('SetupService', () => {
       });
     });
 
+    it('tells enrolment listeners once the agent is enrolled', async () => {
+      client.enrol.mockResolvedValue(connection);
+      const listener = jest.fn();
+      service.onEnrolled(listener);
+
+      await service.enrol('https://signage.example.com', 'token');
+
+      expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not tell enrolment listeners when enrolment fails', async () => {
+      client.enrol.mockRejectedValue(new Error('/api/agents/enrol returned 410'));
+      const listener = jest.fn();
+      service.onEnrolled(listener);
+
+      await expect(service.enrol('https://signage.example.com', 'token')).rejects.toThrow();
+
+      expect(listener).not.toHaveBeenCalled();
+    });
+
     // The operator is standing at the machine with the token in hand; a generic
     // failure would send them looking in the wrong place.
     it.each([

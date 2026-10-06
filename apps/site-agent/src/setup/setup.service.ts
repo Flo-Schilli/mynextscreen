@@ -20,6 +20,7 @@ export interface SetupStatus {
 export class SetupService {
   private readonly logger = new Logger(SetupService.name);
   private lastConfigPullAt: Date | null = null;
+  private readonly enrolledListeners: Array<() => void> = [];
 
   constructor(
     private readonly connections: ConnectionStore,
@@ -29,6 +30,16 @@ export class SetupService {
     /** From `MNS_SERVER_URL`, already normalised; null when the file decides. */
     private readonly pinnedServerUrl: string | null = null,
   ) {}
+
+  /**
+   * Lets the supervisor check in right after enrolment. Without it the server
+   * learns of the agent only on the next heartbeat tick, up to a minute after
+   * this page already said "connected". A listener here rather than injecting
+   * the supervisor, which already depends on this service.
+   */
+  onEnrolled(listener: () => void): void {
+    this.enrolledListeners.push(listener);
+  }
 
   /** Called by the supervisor so the page can show how fresh the config is. */
   recordConfigPull(at: Date = new Date()): void {
@@ -62,6 +73,7 @@ export class SetupService {
     try {
       const connection = await this.client.enrol(target, enrolmentToken);
       this.logger.log(`Enrolled as agent ${connection.agentId}`);
+      this.enrolledListeners.forEach((listener) => listener());
     } catch (error) {
       // The operator is standing at the machine with the token in hand; a
       // generic failure would send them looking in the wrong place.

@@ -164,6 +164,7 @@ export class DashboardSseService implements OnModuleDestroy {
       agentId: event.agentId,
       name: event.name,
       isOnline: event.isOnline,
+      lastHeartbeat: event.lastHeartbeat?.toISOString() ?? null,
     });
   }
 
