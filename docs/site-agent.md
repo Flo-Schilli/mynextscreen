@@ -183,7 +183,6 @@ that disagrees with the pinned one is logged at startup and ignored.
 | `MNS_ENROLMENT_TOKEN`   | —                             | Optional setup code; only used when no session is stored |
 | `MNS_SETUP_PORT`        | `8787`                        | `0` disables the setup interface entirely                |
 | `MNS_STATE_DIR`         | `/var/lib/mynextscreen-agent` | Session, keys and cached configuration                   |
-| `MNS_PROBE_INTERVAL_MS` | `60000`                       | How often the displays are checked                       |
 | `MNS_LOG_LEVEL`         | `log`                         |                                                          |
 
 ---
@@ -247,6 +246,23 @@ displays on around the clock.
 
 > **Trap:** after a set has been fully disconnected from power, Wake-on-LAN
 > stays dead until it is switched on once with the remote.
+
+---
+
+## How often displays are checked
+
+The agent probes every display it looks after once per **check interval**,
+1 minute by default. Set it per agent on the agent page (**Check interval**,
+1–10 minutes); the agent picks up a change straight away. **Check now** runs a
+round immediately, for example right after switching a set back on.
+
+The probe is a plain TCP connect, so it runs every interval no matter how long
+a set has been off: a TV switched on after two days is noticed, and its app
+started, within one interval. What backs off after repeated failures are the
+actions — a launch, a Developer Mode extension — so a set that keeps refusing
+them is not hammered. That backoff doubles from one interval up to 30 minutes
+and is cleared as soon as the set comes back after being unreachable, or when
+someone presses **Check now**.
 
 ---
 

@@ -1,0 +1,1 @@
+ALTER TABLE "site_agents" ADD COLUMN "probe_interval_minutes" integer DEFAULT 1 NOT NULL;

@@ -182,6 +182,27 @@ describe('SiteAgentService', () => {
     });
   });
 
+  describe('probe interval and probe now', () => {
+    it('saves the probe interval through the agent update', () => {
+      service.update(AGENT_ID, { probeIntervalMinutes: 5 }).subscribe();
+
+      const req = http.expectOne(`/api/site-agents/${AGENT_ID}`);
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual({ probeIntervalMinutes: 5 });
+      req.flush({});
+    });
+
+    it('asks the agent to probe all displays now', () => {
+      service.probeNow(AGENT_ID).subscribe((result) => {
+        expect(result.commandId).toBe('cmd-3');
+      });
+
+      const req = http.expectOne(`/api/site-agents/${AGENT_ID}/probe`);
+      expect(req.request.method).toBe('POST');
+      req.flush({ commandId: 'cmd-3' });
+    });
+  });
+
   describe('commands', () => {
     it('dispatches a manual action', () => {
       service.sendCommand(SCREEN_ID, 'launch').subscribe((result) => {

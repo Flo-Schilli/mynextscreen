@@ -1162,7 +1162,10 @@
       "revokeBusyLabel": "Revoking…",
       "revokeBody": "End every session of this agent? It stops working immediately and needs a new setup code to come back. Its displays and their settings are left alone.",
       "updateAvailable": "Update available: {installed} → {latest}.",
-      "updateHint": "To update, re-run the site-agent.yml Ansible playbook, or pull the new image on the agent host and restart the service."
+      "updateHint": "To update, re-run the site-agent.yml Ansible playbook, or pull the new image on the agent host and restart the service.",
+      "probeInterval": "Check interval",
+      "probeIntervalOption": "{minutes} min",
+      "probeNow": "Check now"
     },
     "detailToast": {
       "loadAgentFailed": "Could not load this agent",
@@ -1178,7 +1181,11 @@
       "deleteFailed": "Could not delete this agent.",
       "tokenFailed": "Could not issue a setup code",
       "revoked": "Access revoked",
-      "revokeFailed": "Could not revoke access."
+      "revokeFailed": "Could not revoke access.",
+      "probeIntervalSaved": "Check interval saved. The agent applies it right away.",
+      "probeIntervalFailed": "Could not save the check interval.",
+      "probeStarted": "The agent is checking all displays now.",
+      "probeFailed": "Could not start the check."
     },
     "settings": {
       "sub": "Remote control",

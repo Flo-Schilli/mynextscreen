@@ -97,6 +97,17 @@ describe('SiteAgentConfigService', () => {
       expect(config.appId).toBe('com.mynextscreen.webos');
     });
 
+    it('converts the agent-wide probe interval from minutes to milliseconds', async () => {
+      await db
+        .update(siteAgents)
+        .set({ probeIntervalMinutes: 5 })
+        .where(eq(siteAgents.id, agentId));
+
+      const config = await service.buildAgentConfig(agentId);
+
+      expect(config.probeIntervalMs).toBe(300_000);
+    });
+
     it('includes the screens assigned to it, with their name', async () => {
       await remoteControls.upsert(orgId, screenId, { agentId, localIp: '192.168.1.50' }, userId);
 

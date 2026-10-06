@@ -11,7 +11,7 @@ import type { SiteAgentCommandType } from './site-agent-command.enum';
 export interface SiteAgentCommand {
   commandId: string;
   type: SiteAgentCommandType;
-  /** Absent for agent-wide commands such as `reload_config`. */
+  /** Absent for agent-wide commands such as `reload_config` and `probe_now`. */
   screenId?: string;
   /** Only for `check`: which onboarding step to run. */
   step?: number;

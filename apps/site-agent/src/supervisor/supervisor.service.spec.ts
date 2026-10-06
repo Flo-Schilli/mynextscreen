@@ -1,4 +1,4 @@
-import { SupervisorService } from './supervisor.service';
+import { SupervisorService, sanitizeProbeInterval } from './supervisor.service';
 import { ServerUnreachableError } from '../connection/server-client.service';
 import type { AgentConfigMessage, AgentScreenConfigMessage } from '../protocol/server-protocol';
 
@@ -197,6 +197,149 @@ describe('SupervisorService', () => {
       await first;
 
       expect(reachability.probe).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('probing while backing off', () => {
+    const due = screen({ extendDevmodeEnabled: true, lastDevmodeExtendAt: null });
+
+    // A TV that was off for two days must be noticed within one interval of
+    // being switched on, not after its backoff has run out.
+    it('probes an unreachable set every round', async () => {
+      reachability.probe.mockResolvedValue({ reachability: 'unreachable' });
+      supervisor = build(configWith([screen()]));
+
+      await supervisor.tick();
+      await supervisor.tick();
+      await supervisor.tick();
+
+      expect(reachability.probe).toHaveBeenCalledTimes(3);
+      expect(client.sendReports).toHaveBeenCalledTimes(3);
+    });
+
+    it('keeps reporting reachability but holds back the failing action', async () => {
+      ssh.extendDevmode.mockResolvedValue({ status: 'auth_failed', extended: false });
+      supervisor = build(configWith([due]));
+
+      await supervisor.tick();
+      await supervisor.tick();
+
+      expect(reachability.probe).toHaveBeenCalledTimes(2);
+      expect(ssh.extendDevmode).toHaveBeenCalledTimes(1);
+      expect(client.sendReports.mock.calls[1][0].screens[0]).toMatchObject({
+        screenId: 's1',
+        reachability: 'reachable',
+      });
+    });
+
+    it('acts straight away on a set that comes back', async () => {
+      ssh.extendDevmode.mockResolvedValueOnce({ status: 'auth_failed', extended: false });
+      supervisor = build(configWith([due]));
+      await supervisor.tick();
+
+      reachability.probe.mockResolvedValueOnce({ reachability: 'unreachable' });
+      await supervisor.tick();
+      await supervisor.tick();
+
+      expect(ssh.extendDevmode).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('probeNow', () => {
+    it('clears the backoff so the failing action is retried', async () => {
+      ssh.extendDevmode.mockResolvedValueOnce({ status: 'auth_failed', extended: false });
+      supervisor = build(configWith([due()]));
+      await supervisor.tick();
+
+      await supervisor.probeNow();
+
+      expect(ssh.extendDevmode).toHaveBeenCalledTimes(2);
+    });
+
+    it('queues one more round behind a running one instead of dropping the request', async () => {
+      let release!: (value: { reachability: string }) => void;
+      const entered = new Promise<void>((resolve) => {
+        reachability.probe.mockImplementationOnce(() => {
+          resolve();
+          return new Promise((done) => {
+            release = done;
+          });
+        });
+      });
+      supervisor = build(configWith([screen()]));
+
+      const first = supervisor.tick();
+      await entered;
+      await supervisor.probeNow();
+      release({ reachability: 'reachable' });
+      await first;
+
+      expect(reachability.probe).toHaveBeenCalledTimes(2);
+    });
+
+    function due(): AgentScreenConfigMessage {
+      return screen({ extendDevmodeEnabled: true, lastDevmodeExtendAt: null });
+    }
+  });
+
+  describe('probe interval', () => {
+    let setIntervalSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      setIntervalSpy = jest.spyOn(global, 'setInterval');
+    });
+
+    afterEach(() => {
+      supervisor.onModuleDestroy();
+      setIntervalSpy.mockRestore();
+    });
+
+    function roundIntervals(): unknown[] {
+      return setIntervalSpy.mock.calls.map((call) => call[1]).filter((ms) => ms !== 60_000);
+    }
+
+    it('starts the rounds at the configured interval', async () => {
+      supervisor = build({ ...configWith([]), probeIntervalMs: 300_000 });
+
+      await supervisor.onModuleInit();
+
+      expect(roundIntervals()).toEqual([300_000]);
+    });
+
+    it('re-arms the timer when a pulled config changes the interval', async () => {
+      supervisor = build(configWith([]));
+      await supervisor.onModuleInit();
+      client.fetchConfig.mockResolvedValue({ ...configWith([]), probeIntervalMs: 600_000 });
+
+      await supervisor.refreshConfigIfDue(true);
+
+      expect(roundIntervals()).toEqual([600_000]);
+    });
+
+    it('leaves the timer alone when the interval did not change', async () => {
+      supervisor = build(configWith([]));
+      await supervisor.onModuleInit();
+      const before = setIntervalSpy.mock.calls.length;
+      client.fetchConfig.mockResolvedValue(configWith([]));
+
+      await supervisor.refreshConfigIfDue(true);
+
+      expect(setIntervalSpy.mock.calls.length).toBe(before);
+    });
+  });
+
+  describe('sanitizeProbeInterval', () => {
+    it('falls back to a minute when nothing usable is configured', () => {
+      expect(sanitizeProbeInterval(undefined)).toBe(60_000);
+      expect(sanitizeProbeInterval(Number.NaN)).toBe(60_000);
+    });
+
+    it('refuses an interval short enough to turn the loop into a busy one', () => {
+      expect(sanitizeProbeInterval(0)).toBe(10_000);
+    });
+
+    it('passes a sensible interval through', () => {
+      expect(sanitizeProbeInterval(300_000)).toBe(300_000);
     });
   });
 

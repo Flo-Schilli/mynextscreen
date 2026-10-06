@@ -36,6 +36,7 @@ describe('CommandHandlerService', () => {
     runAction: jest.Mock;
     readInstalledVersion: jest.Mock;
     refreshConfigIfDue: jest.Mock;
+    probeNow: jest.Mock;
   };
   let configs: { current: jest.Mock };
   let client: { sendReports: jest.Mock; fetchAppPackage: jest.Mock };
@@ -64,6 +65,7 @@ describe('CommandHandlerService', () => {
       runAction: jest.fn(),
       readInstalledVersion: jest.fn().mockResolvedValue('0.15.0'),
       refreshConfigIfDue: jest.fn(),
+      probeNow: jest.fn(),
     };
     configs = { current: jest.fn().mockReturnValue(config([screen()])) };
     client = {
@@ -111,6 +113,15 @@ describe('CommandHandlerService', () => {
       await handler.handle({ commandId: 'c1', type: 'reload_config' });
 
       expect(supervisor.refreshConfigIfDue).toHaveBeenCalledWith(true);
+    });
+  });
+
+  describe('probe_now', () => {
+    it('runs a round over every screen without needing a screen id', async () => {
+      await handler.handle({ commandId: 'c1', type: 'probe_now' });
+
+      expect(supervisor.probeNow).toHaveBeenCalledTimes(1);
+      expect(supervisor.runNow).not.toHaveBeenCalled();
     });
   });
 

@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -107,6 +109,22 @@ export class SiteAgentController {
       req.user.userId,
     );
     return { enrolmentToken: enrolment.token, expiresAt: enrolment.expiresAt };
+  }
+
+  /**
+   * Probes every display of the agent now. Answers 202; the results arrive on
+   * the dashboard SSE stream as the usual reachability events. 409 when the
+   * agent is offline.
+   */
+  @Post(':id/probe')
+  @Roles(OrganisationRole.OrgAdmin)
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  probeNow(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ commandId: string }> {
+    return this.siteAgentService.probeNow(organisationId, id);
   }
 
   /** Ends every session; the agent has to be enrolled again to come back. */

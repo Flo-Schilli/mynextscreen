@@ -27,6 +27,7 @@ describe('SiteAgentController', () => {
     networkSsid: null,
     networkIp: null,
     lastHeartbeat: null,
+    probeIntervalMinutes: 1,
     isOnline: false,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -41,6 +42,7 @@ describe('SiteAgentController', () => {
       removeAgent: jest.fn(),
       reissueEnrolment: jest.fn(),
       revokeAccess: jest.fn(),
+      probeNow: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -63,6 +65,7 @@ describe('SiteAgentController', () => {
       ['remove', [OrganisationRole.OrgAdmin]],
       ['reissueEnrolment', [OrganisationRole.OrgAdmin]],
       ['revoke', [OrganisationRole.OrgAdmin]],
+      ['probeNow', [OrganisationRole.OrgAdmin]],
     ])('restricts %s to org admins', (method, expected) => {
       const roles = reflector.get<string[]>(
         ROLES_KEY,
@@ -180,6 +183,17 @@ describe('SiteAgentController', () => {
       const result = await controller.reissueEnrolment(orgId, agentId, mockReq);
 
       expect(result).toEqual({ enrolmentToken: 'fresh', expiresAt });
+    });
+  });
+
+  describe('probeNow', () => {
+    it('hands the request to the service, scoped to the organisation', async () => {
+      service.probeNow.mockResolvedValue({ commandId: 'cmd-1' });
+
+      const result = await controller.probeNow(orgId, agentId);
+
+      expect(result).toEqual({ commandId: 'cmd-1' });
+      expect(service.probeNow).toHaveBeenCalledWith(orgId, agentId);
     });
   });
 
