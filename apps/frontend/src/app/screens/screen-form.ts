@@ -2,15 +2,17 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
   output,
   signal,
   OnInit,
 } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { Screen, CreateScreenRequest, UpdateScreenRequest } from './screen.model';
 import { ToggleRowComponent, useDialogStack } from '../ui';
+import { LocaleDatePipe } from '../i18n/locale-format.pipes';
 
 const PRESET_RESOLUTIONS = ['1920x1080', '3840x2160', '1280x720', '2560x1440', '1080x1920'];
 
@@ -35,9 +37,10 @@ type ScreenFormMode = 'create' | 'edit';
   selector: 'app-screen-form',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, DatePipe, ToggleRowComponent],
+  imports: [FormsModule, LocaleDatePipe, ToggleRowComponent, TranslocoDirective],
   template: `
     <div
+      *transloco="let t"
       class="pairing-overlay"
       role="dialog"
       aria-modal="true"
@@ -88,7 +91,12 @@ type ScreenFormMode = 'create' | 'edit';
             <div class="panel-title">{{ panelTitle() }}</div>
             <div class="panel-sub">{{ panelSub() }}</div>
           </div>
-          <button type="button" class="panel-close" aria-label="Close" (click)="dismiss.emit()">
+          <button
+            type="button"
+            class="panel-close"
+            [attr.aria-label]="t('screens.form.close')"
+            (click)="dismiss.emit()"
+          >
             <svg
               width="16"
               height="16"
@@ -128,10 +136,9 @@ type ScreenFormMode = 'create' | 'edit';
               </svg>
               <p class="hint-text">
                 @if (playerUrl()) {
-                  Open <strong>{{ playerUrl() }}</strong> on your display — it shows a 6-digit code.
+                  <span [innerHTML]="t('screens.form.hintWithUrl', { url: playerUrl() })"></span>
                 } @else {
-                  Open the player on your display — it shows a 6-digit code. Set
-                  <strong>PLAYER_BASE_URL</strong> on the server to show its address here.
+                  <span [innerHTML]="t('screens.form.hintNoUrl')"></span>
                 }
               </p>
             </div>
@@ -143,28 +150,32 @@ type ScreenFormMode = 'create' | 'edit';
               <div class="form-row">
                 <!-- Name -->
                 <div class="form-group">
-                  <label class="field-label" for="screenName">Screen name</label>
+                  <label class="field-label" for="screenName">{{
+                    t('screens.form.nameLabel')
+                  }}</label>
                   <input
                     id="screenName"
                     type="text"
                     [(ngModel)]="name"
                     name="screenName"
                     required
-                    placeholder="e.g. Lobby — Main Wall"
+                    [placeholder]="t('screens.form.namePlaceholder')"
                     class="field-input"
                   />
                 </div>
 
                 <!-- Location -->
                 <div class="form-group">
-                  <label class="field-label" for="screenLocation">Location</label>
+                  <label class="field-label" for="screenLocation">{{
+                    t('screens.form.locationLabel')
+                  }}</label>
                   <input
                     id="screenLocation"
                     type="text"
                     [(ngModel)]="location"
                     name="screenLocation"
                     required
-                    placeholder="HQ · Ground Floor"
+                    [placeholder]="t('screens.form.locationPlaceholder')"
                     class="field-input"
                   />
                 </div>
@@ -172,7 +183,9 @@ type ScreenFormMode = 'create' | 'edit';
 
               <!-- Resolution -->
               <div class="form-group">
-                <label class="field-label" for="screenResolution">Display resolution</label>
+                <label class="field-label" for="screenResolution">{{
+                  t('screens.form.resolutionLabel')
+                }}</label>
                 <select
                   id="screenResolution"
                   [(ngModel)]="resolution"
@@ -185,20 +198,22 @@ type ScreenFormMode = 'create' | 'edit';
                   <option value="1280x720">1280 × 720 · HD</option>
                   <option value="2560x1440">2560 × 1440 · QHD</option>
                   <option value="1080x1920">1080 × 1920 · Full HD Portrait</option>
-                  <option value="custom">Custom resolution…</option>
+                  <option value="custom">{{ t('screens.form.resolutionCustom') }}</option>
                 </select>
               </div>
 
               @if (resolution === 'custom') {
                 <div class="form-group">
-                  <label class="field-label" for="screenCustomRes">Custom resolution</label>
+                  <label class="field-label" for="screenCustomRes">{{
+                    t('screens.form.customResolutionLabel')
+                  }}</label>
                   <input
                     id="screenCustomRes"
                     type="text"
                     [(ngModel)]="customResolution"
                     name="screenCustomResolution"
                     required
-                    placeholder="e.g. 1920x1200"
+                    [placeholder]="t('screens.form.customResolutionPlaceholder')"
                     class="field-input mono"
                   />
                 </div>
@@ -207,18 +222,18 @@ type ScreenFormMode = 'create' | 'edit';
               <!-- Player options (edit only) -->
               @if (mode() === 'edit') {
                 <div class="form-group">
-                  <span class="field-label">Player options</span>
+                  <span class="field-label">{{ t('screens.form.playerOptions') }}</span>
                   <div class="toggle-card">
                     <mns-toggle-row
                       icon="Video"
-                      label="Show “Click to unmute”"
-                      desc="Display the unmute overlay on videos with sound."
+                      [label]="t('screens.form.unmuteLabel')"
+                      [desc]="t('screens.form.unmuteDesc')"
                       [(checked)]="showUnmuteButton"
                     />
                     <mns-toggle-row
                       icon="Power"
-                      label="Allow “Disconnect”"
-                      desc="Offer it in the player’s info panel and the webOS settings overlay."
+                      [label]="t('screens.form.disconnectLabel')"
+                      [desc]="t('screens.form.disconnectDesc')"
                       [(checked)]="showDisconnectButton"
                     />
                   </div>
@@ -228,7 +243,9 @@ type ScreenFormMode = 'create' | 'edit';
               <!-- Pairing code (create only) -->
               @if (mode() === 'create') {
                 <div class="form-group">
-                  <label class="field-label" for="screenPairingCode">Pairing code</label>
+                  <label class="field-label" for="screenPairingCode">{{
+                    t('screens.form.pairingCodeLabel')
+                  }}</label>
                   <input
                     id="screenPairingCode"
                     type="text"
@@ -238,7 +255,7 @@ type ScreenFormMode = 'create' | 'edit';
                     [(ngModel)]="pairingCode"
                     name="screenPairingCode"
                     required
-                    placeholder="6-digit code from the display"
+                    [placeholder]="t('screens.form.pairingCodePlaceholder')"
                     class="field-input mono pairing-input"
                   />
                 </div>
@@ -249,7 +266,9 @@ type ScreenFormMode = 'create' | 'edit';
               }
 
               <div class="form-actions">
-                <button type="button" class="btn-cancel" (click)="dismiss.emit()">Cancel</button>
+                <button type="button" class="btn-cancel" (click)="dismiss.emit()">
+                  {{ t('common.actions.cancel') }}
+                </button>
                 <button type="submit" class="btn-submit" [disabled]="saving()">
                   {{ submitLabel() }}
                 </button>
@@ -261,37 +280,38 @@ type ScreenFormMode = 'create' | 'edit';
               <div class="info-section">
                 <div class="info-grid">
                   <div class="info-item">
-                    <span class="info-label">Status</span>
+                    <span class="info-label">{{ t('screens.form.infoStatus') }}</span>
                     <span
                       class="status-badge"
                       [class.online]="s.isOnline"
                       [class.offline]="!s.isOnline"
                     >
-                      {{ s.isOnline ? 'Online' : 'Offline' }}
+                      {{ s.isOnline ? t('common.status.online') : t('common.status.offline') }}
                     </span>
                   </div>
                   <div class="info-item">
-                    <span class="info-label">Last seen</span>
+                    <span class="info-label">{{ t('screens.form.infoLastSeen') }}</span>
                     <span class="info-value">{{
-                      s.lastHeartbeat ? (s.lastHeartbeat | date: 'medium') : 'Never'
+                      s.lastHeartbeat
+                        ? (s.lastHeartbeat | localeDate: 'medium')
+                        : t('screens.form.infoNever')
                     }}</span>
                   </div>
                   <div class="info-item">
-                    <span class="info-label">Player version</span>
-                    <span class="info-value">{{ s.playerVersion ?? 'Not reported' }}</span>
+                    <span class="info-label">{{ t('screens.form.infoPlayerVersion') }}</span>
+                    <span class="info-value">{{
+                      s.playerVersion ?? t('screens.form.infoNotReported')
+                    }}</span>
                   </div>
                   <div class="info-item">
-                    <span class="info-label">Registered</span>
-                    <span class="info-value">{{ s.createdAt | date: 'mediumDate' }}</span>
+                    <span class="info-label">{{ t('screens.form.infoRegistered') }}</span>
+                    <span class="info-value">{{ s.createdAt | localeDate: 'mediumDate' }}</span>
                   </div>
                 </div>
 
                 <div class="repair-block">
-                  <h3 class="repair-title">Refresh player</h3>
-                  <p class="repair-hint">
-                    Reload the display's player remotely (like pressing F5). Useful after changing
-                    settings or if the screen looks stuck.
-                  </p>
+                  <h3 class="repair-title">{{ t('screens.form.refreshTitle') }}</h3>
+                  <p class="repair-hint">{{ t('screens.form.refreshHint') }}</p>
                   <div class="repair-row">
                     <button
                       type="button"
@@ -299,20 +319,21 @@ type ScreenFormMode = 'create' | 'edit';
                       (click)="refresh.emit()"
                       [disabled]="refreshing() || !s.isOnline"
                     >
-                      {{ refreshing() ? 'Refreshing…' : 'Refresh player' }}
+                      {{
+                        refreshing()
+                          ? t('screens.form.refreshing')
+                          : t('screens.form.refreshButton')
+                      }}
                     </button>
                     @if (!s.isOnline) {
-                      <span class="repair-hint">Screen is offline.</span>
+                      <span class="repair-hint">{{ t('screens.form.screenOffline') }}</span>
                     }
                   </div>
                 </div>
 
                 <div class="repair-block">
-                  <h3 class="repair-title">Re-pair display</h3>
-                  <p class="repair-hint">
-                    Reconnecting a display? Open it to show a fresh 6-digit code, then enter it here
-                    to issue a new key. The current key is invalidated immediately.
-                  </p>
+                  <h3 class="repair-title">{{ t('screens.form.repairTitle') }}</h3>
+                  <p class="repair-hint">{{ t('screens.form.repairHint') }}</p>
                   <div class="repair-row">
                     <input
                       id="repairPairingCode"
@@ -322,7 +343,7 @@ type ScreenFormMode = 'create' | 'edit';
                       maxlength="6"
                       [(ngModel)]="repairCode"
                       name="repairPairingCode"
-                      placeholder="6-digit code"
+                      [placeholder]="t('screens.form.repairCodePlaceholder')"
                       class="field-input mono pairing-input repair-input"
                     />
                     <button
@@ -331,7 +352,9 @@ type ScreenFormMode = 'create' | 'edit';
                       (click)="onRepair()"
                       [disabled]="repairing()"
                     >
-                      {{ repairing() ? 'Re-pairing…' : 'Re-pair' }}
+                      {{
+                        repairing() ? t('screens.form.repairing') : t('screens.form.repairButton')
+                      }}
                     </button>
                   </div>
                   @if (repairError()) {
@@ -735,6 +758,7 @@ export class ScreenForm implements OnInit {
   readonly dismiss = output<void>();
 
   private readonly isInnermost = useDialogStack();
+  private readonly transloco = inject(TranslocoService);
 
   /** Only the innermost open dialog answers Escape. */
   onEscape(): void {
@@ -764,16 +788,24 @@ export class ScreenForm implements OnInit {
   protected readonly repairError = signal('');
 
   protected readonly panelTitle = computed(() =>
-    this.mode() === 'create' ? 'Add a screen' : 'Edit screen',
+    this.transloco.translate(
+      this.mode() === 'create' ? 'screens.form.createTitle' : 'screens.form.editTitle',
+    ),
   );
   protected readonly panelSub = computed(() =>
-    this.mode() === 'create'
-      ? 'Pair a display with a one-time code'
-      : "Update this display's details",
+    this.transloco.translate(
+      this.mode() === 'create' ? 'screens.form.createSub' : 'screens.form.editSub',
+    ),
   );
   protected readonly submitLabel = computed(() => {
-    if (this.saving()) return this.mode() === 'create' ? 'Registering…' : 'Saving…';
-    return this.mode() === 'create' ? 'Register screen' : 'Save changes';
+    if (this.saving()) {
+      return this.transloco.translate(
+        this.mode() === 'create' ? 'screens.form.submitRegistering' : 'screens.form.submitSaving',
+      );
+    }
+    return this.transloco.translate(
+      this.mode() === 'create' ? 'screens.form.submitRegister' : 'screens.form.submitSave',
+    );
   });
 
   ngOnInit(): void {
@@ -800,11 +832,11 @@ export class ScreenForm implements OnInit {
     if (this.mode() === 'create') {
       const pairingCode = this.pairingCode.trim();
       if (!this.name || !this.location || !resolution || !pairingCode) {
-        this.localError.set('All fields are required.');
+        this.localError.set(this.transloco.translate('screens.form.errorAllRequired'));
         return;
       }
       if (!/^\d{6}$/.test(pairingCode)) {
-        this.localError.set('Pairing code must be 6 digits.');
+        this.localError.set(this.transloco.translate('screens.form.errorPairingDigits'));
         return;
       }
       this.localError.set('');
@@ -835,7 +867,7 @@ export class ScreenForm implements OnInit {
   onRepair(): void {
     const code = this.repairCode.trim();
     if (!/^\d{6}$/.test(code)) {
-      this.repairError.set('Pairing code must be 6 digits.');
+      this.repairError.set(this.transloco.translate('screens.form.errorPairingDigits'));
       return;
     }
     this.repairError.set('');

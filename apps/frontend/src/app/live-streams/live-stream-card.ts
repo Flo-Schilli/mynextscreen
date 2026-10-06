@@ -1,6 +1,15 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { BadgeComponent, BtnComponent, IconComponent } from '../ui';
-import { LiveStream, TRANSCODING_PRESET_LABELS } from './live-stream.model';
+import { LiveStream } from './live-stream.model';
 import { LiveStreamMonitor } from './live-stream-monitor';
 
 /**
@@ -16,14 +25,14 @@ import { LiveStreamMonitor } from './live-stream-monitor';
   selector: 'app-live-stream-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, BadgeComponent, BtnComponent, LiveStreamMonitor],
+  imports: [IconComponent, BadgeComponent, BtnComponent, LiveStreamMonitor, TranslocoDirective],
   template: `
-    <div class="card">
+    <div class="card" *transloco="let t">
       <div
         class="band"
         role="button"
         tabindex="0"
-        [attr.aria-label]="'Open ' + stream().name"
+        [attr.aria-label]="t('liveStreams.card.openAria', { name: stream().name })"
         (click)="open.emit(stream())"
         (keydown.enter)="open.emit(stream())"
       >
@@ -41,7 +50,7 @@ import { LiveStreamMonitor } from './live-stream-monitor';
             class="title-col"
             role="button"
             tabindex="0"
-            [attr.aria-label]="'Open ' + stream().name"
+            [attr.aria-label]="t('liveStreams.card.openAria', { name: stream().name })"
             (click)="open.emit(stream())"
             (keydown.enter)="open.emit(stream())"
           >
@@ -53,8 +62,8 @@ import { LiveStreamMonitor } from './live-stream-monitor';
             <button
               type="button"
               class="menu-btn"
-              title="Actions"
-              aria-label="Stream actions"
+              [title]="t('liveStreams.card.actions')"
+              [attr.aria-label]="t('liveStreams.card.streamActions')"
               [class.active]="menuOpen()"
               (click)="toggleMenu($event)"
             >
@@ -64,23 +73,26 @@ import { LiveStreamMonitor } from './live-stream-monitor';
               <button
                 type="button"
                 class="menu-scrim"
-                aria-label="Close menu"
+                [attr.aria-label]="t('liveStreams.card.closeMenu')"
                 (click)="closeMenu($event)"
               ></button>
               <div class="menu">
                 <button type="button" class="menu-item" (click)="onOpen($event)">
-                  <mns-icon name="Eye" [size]="16" class="menu-icon" /> Open console
+                  <mns-icon name="Eye" [size]="16" class="menu-icon" />
+                  {{ t('liveStreams.card.openConsole') }}
                 </button>
                 <button type="button" class="menu-item" (click)="onToggle($event)">
                   @if (live()) {
-                    <mns-icon name="Power" [size]="16" class="menu-icon" /> Stop stream
+                    <mns-icon name="Power" [size]="16" class="menu-icon" />
+                    {{ t('liveStreams.card.stopStream') }}
                   } @else {
-                    <mns-icon name="Play" [size]="15" class="menu-icon online" /> Go live
+                    <mns-icon name="Play" [size]="15" class="menu-icon online" />
+                    {{ t('liveStreams.card.goLive') }}
                   }
                 </button>
                 <div class="menu-sep"></div>
                 <button type="button" class="menu-item danger" (click)="onDelete($event)">
-                  <mns-icon name="Trash" [size]="15" /> Delete
+                  <mns-icon name="Trash" [size]="15" /> {{ t('liveStreams.card.delete') }}
                 </button>
               </div>
             }
@@ -97,7 +109,7 @@ import { LiveStreamMonitor } from './live-stream-monitor';
 
         @if (stream().status === 'error') {
           <div class="error-hint">
-            <mns-icon name="Alert" [size]="14" /> Stream reported an error
+            <mns-icon name="Alert" [size]="14" /> {{ t('liveStreams.card.errorHint') }}
           </div>
         }
 
@@ -109,7 +121,7 @@ import { LiveStreamMonitor } from './live-stream-monitor';
             [icon]="live() ? 'Power' : 'Play'"
             (mnsClick)="goToggle.emit(stream())"
           >
-            {{ live() ? 'Stop' : 'Go live' }}
+            {{ live() ? t('liveStreams.card.stop') : t('liveStreams.card.goLive') }}
           </mns-btn>
         </div>
       </div>
@@ -290,17 +302,22 @@ export class LiveStreamCard {
   readonly goToggle = output<LiveStream>();
   readonly delete = output<LiveStream>();
 
+  private readonly transloco = inject(TranslocoService);
+
   protected readonly menuOpen = signal(false);
 
   protected readonly live = computed(() => this.stream().status === 'active');
 
-  protected readonly statusLabel = computed(() => (this.live() ? 'Live' : 'Offline'));
+  protected readonly statusLabel = computed(() =>
+    this.transloco.translate(
+      this.live() ? 'liveStreams.status.live' : 'liveStreams.status.offline',
+    ),
+  );
 
   protected readonly protocolLabel = computed(() => this.stream().protocol.toUpperCase());
 
-  protected readonly presetLabel = computed(
-    () =>
-      TRANSCODING_PRESET_LABELS[this.stream().transcodingPreset] ?? this.stream().transcodingPreset,
+  protected readonly presetLabel = computed(() =>
+    this.transloco.translate('liveStreams.preset.' + this.stream().transcodingPreset),
   );
 
   protected toggleMenu(event: Event): void {

@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import {
   BtnComponent,
   OverlayComponent,
@@ -11,7 +12,6 @@ import {
   CreateLiveStreamRequest,
   LiveStreamProtocol,
   TranscodingPreset,
-  TRANSCODING_PRESET_LABELS,
   TRANSCODING_PRESETS,
 } from './live-stream.model';
 
@@ -39,17 +39,23 @@ const PROTOCOLS: readonly LiveStreamProtocol[] = ['rtmp', 'rtp'];
     SFieldComponent,
     ToggleRowComponent,
     BtnComponent,
+    TranslocoDirective,
   ],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
-      <mns-modal title="New live stream" icon="Stream" [widthPx]="480" (closed)="dismiss.emit()">
+    <mns-overlay (closed)="dismiss.emit()" *transloco="let t">
+      <mns-modal
+        [title]="t('liveStreams.create.title')"
+        icon="Stream"
+        [widthPx]="480"
+        (closed)="dismiss.emit()"
+      >
         <div class="flex flex-col gap-5">
-          <mns-sfield label="Name">
-            <mns-sinput [(value)]="name" placeholder="e.g. Lobby Camera" />
+          <mns-sfield [label]="t('liveStreams.create.nameLabel')">
+            <mns-sinput [(value)]="name" [placeholder]="t('liveStreams.create.namePlaceholder')" />
           </mns-sfield>
 
           <div>
-            <span class="seg-label">Protocol</span>
+            <span class="seg-label">{{ t('liveStreams.create.protocolLabel') }}</span>
             <div class="seg-row">
               @for (p of protocols; track p) {
                 <button
@@ -64,12 +70,12 @@ const PROTOCOLS: readonly LiveStreamProtocol[] = ['rtmp', 'rtp'];
             </div>
           </div>
 
-          <mns-sfield label="Source URL">
+          <mns-sfield [label]="t('liveStreams.create.sourceUrlLabel')">
             <mns-sinput [(value)]="sourceUrl" [mono]="true" [placeholder]="sourceHint()" />
           </mns-sfield>
 
           <div>
-            <span class="seg-label">Quality preset</span>
+            <span class="seg-label">{{ t('liveStreams.create.qualityLabel') }}</span>
             <div class="seg-grid">
               @for (preset of presets; track preset) {
                 <button
@@ -78,7 +84,7 @@ const PROTOCOLS: readonly LiveStreamProtocol[] = ['rtmp', 'rtp'];
                   [class.active]="quality() === preset"
                   (click)="quality.set(preset)"
                 >
-                  {{ presetLabel(preset) }}
+                  {{ t('liveStreams.preset.' + preset) }}
                 </button>
               }
             </div>
@@ -86,8 +92,8 @@ const PROTOCOLS: readonly LiveStreamProtocol[] = ['rtmp', 'rtp'];
 
           <mns-toggle-row
             icon="Wifi"
-            label="Enable audio"
-            desc="Pass the source audio track through to screens"
+            [label]="t('liveStreams.create.enableAudioLabel')"
+            [desc]="t('liveStreams.create.enableAudioDesc')"
             [(checked)]="audioEnabled"
           />
 
@@ -97,7 +103,9 @@ const PROTOCOLS: readonly LiveStreamProtocol[] = ['rtmp', 'rtp'];
         </div>
 
         <div slot="footer" class="flex gap-2.5 px-6 pb-5">
-          <mns-btn variant="outline" [full]="true" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn variant="outline" [full]="true" (mnsClick)="dismiss.emit()">
+            {{ t('common.actions.cancel') }}
+          </mns-btn>
           <mns-btn
             variant="primary"
             icon="Stream"
@@ -105,7 +113,9 @@ const PROTOCOLS: readonly LiveStreamProtocol[] = ['rtmp', 'rtp'];
             [disabled]="creating()"
             (mnsClick)="onSubmit()"
           >
-            {{ creating() ? 'Creating…' : 'Create stream' }}
+            {{
+              creating() ? t('liveStreams.create.creating') : t('liveStreams.create.createStream')
+            }}
           </mns-btn>
         </div>
       </mns-modal>
@@ -172,6 +182,8 @@ export class LiveStreamCreateModal {
   readonly create = output<CreateLiveStreamRequest>();
   readonly dismiss = output<void>();
 
+  private readonly transloco = inject(TranslocoService);
+
   protected readonly protocols = PROTOCOLS;
   protected readonly presets = TRANSCODING_PRESETS;
 
@@ -182,23 +194,19 @@ export class LiveStreamCreateModal {
   protected readonly audioEnabled = signal(true);
   protected readonly localError = signal('');
 
-  protected presetLabel(preset: TranscodingPreset): string {
-    return TRANSCODING_PRESET_LABELS[preset] ?? preset;
-  }
-
   protected sourceHint(): string {
     return this.protocol() === 'rtmp'
-      ? 'rtmp://example.com/live/stream-key'
-      : 'rtp://example.com:5004';
+      ? this.transloco.translate('liveStreams.create.sourceHintRtmp')
+      : this.transloco.translate('liveStreams.create.sourceHintRtp');
   }
 
   onSubmit(): void {
     if (!this.name().trim()) {
-      this.localError.set('Name is required.');
+      this.localError.set(this.transloco.translate('liveStreams.create.errorNameRequired'));
       return;
     }
     if (!this.sourceUrl().trim()) {
-      this.localError.set('Source URL is required.');
+      this.localError.set(this.transloco.translate('liveStreams.create.errorSourceRequired'));
       return;
     }
 

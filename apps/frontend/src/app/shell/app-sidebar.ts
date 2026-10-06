@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, output } f
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map } from 'rxjs/operators';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { IconComponent, IconName } from '../ui/icon.component';
 
 export interface NavItem {
@@ -29,9 +30,14 @@ const ADMIN_SECTION = '/admin';
   selector: 'app-sidebar',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, IconComponent],
+  imports: [RouterLink, IconComponent, TranslocoDirective],
   template: `
-    <aside class="sidebar" [class.collapsed]="collapsed()" [class.mobile-open]="mobileOpen()">
+    <aside
+      *transloco="let t"
+      class="sidebar"
+      [class.collapsed]="collapsed()"
+      [class.mobile-open]="mobileOpen()"
+    >
       <!-- ── Header ── -->
       <div class="sidebar-header">
         <!-- Logo tile + wordmark -->
@@ -53,7 +59,7 @@ const ADMIN_SECTION = '/admin';
           <button
             class="collapse-btn desktop-only"
             (click)="toggleCollapse.emit()"
-            [attr.aria-label]="'Collapse sidebar'"
+            [attr.aria-label]="t('shell.sidebar.collapse')"
           >
             <mns-icon name="ChevronLeft" [size]="17" />
           </button>
@@ -66,7 +72,7 @@ const ADMIN_SECTION = '/admin';
           <button
             class="collapse-btn"
             (click)="toggleCollapse.emit()"
-            [attr.aria-label]="'Expand sidebar'"
+            [attr.aria-label]="t('shell.sidebar.expand')"
           >
             <mns-icon name="Chevron" [size]="17" />
           </button>
@@ -81,13 +87,13 @@ const ADMIN_SECTION = '/admin';
             [routerLink]="item.route"
             [class.active]="isActive(item.section ?? item.route)"
             (click)="closeMobile.emit()"
-            [attr.title]="collapsed() ? item.label : null"
+            [attr.title]="collapsed() ? t(item.label) : null"
           >
             <!-- Active gradient pill -->
             <span class="active-pill" aria-hidden="true"></span>
             <mns-icon [name]="item.icon" [size]="20" class="nav-icon-el" />
             @if (!collapsed()) {
-              <span class="nav-label">{{ item.label }}</span>
+              <span class="nav-label">{{ t(item.label) }}</span>
             }
           </a>
         }
@@ -100,12 +106,12 @@ const ADMIN_SECTION = '/admin';
             routerLink="/admin/dashboard"
             [class.active]="isActive(adminSection)"
             (click)="closeMobile.emit()"
-            [attr.title]="collapsed() ? 'Instance Admin' : null"
+            [attr.title]="collapsed() ? t('shell.nav.instanceAdmin') : null"
           >
             <span class="active-pill" aria-hidden="true"></span>
             <mns-icon name="Settings" [size]="20" class="nav-icon-el" />
             @if (!collapsed()) {
-              <span class="nav-label">Instance Admin</span>
+              <span class="nav-label">{{ t('shell.nav.instanceAdmin') }}</span>
             }
           </a>
         }
@@ -116,12 +122,12 @@ const ADMIN_SECTION = '/admin';
         <button
           class="nav-item"
           (click)="logout.emit()"
-          [attr.title]="collapsed() ? 'Logout' : null"
+          [attr.title]="collapsed() ? t('common.actions.logout') : null"
         >
           <span class="active-pill" aria-hidden="true"></span>
           <mns-icon name="Logout" [size]="20" class="nav-icon-el" />
           @if (!collapsed()) {
-            <span class="nav-label">Logout</span>
+            <span class="nav-label">{{ t('common.actions.logout') }}</span>
           }
         </button>
       </div>

@@ -7,6 +7,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { AuthService } from '../auth/auth.service';
 import { BtnComponent, IconComponent } from '../ui';
 
@@ -23,13 +24,14 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
  */
 @Component({
   selector: 'app-register',
-  imports: [ReactiveFormsModule, RouterLink, BtnComponent, IconComponent],
+  imports: [ReactiveFormsModule, RouterLink, BtnComponent, IconComponent, TranslocoDirective],
   templateUrl: './register.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Register {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
+  private readonly transloco = inject(TranslocoService);
 
   readonly submitting = signal(false);
   readonly error = signal<string | null>(null);
@@ -66,11 +68,11 @@ export class Register {
   private messageFor(err: unknown): string {
     const status = (err as { status?: number })?.status;
     if (status === 409) {
-      return 'That email or organisation name is already taken.';
+      return this.transloco.translate('register.errors.conflict');
     }
     if (status === 403) {
-      return 'Self-signup is currently disabled.';
+      return this.transloco.translate('register.errors.disabled');
     }
-    return 'Could not create your account. Please try again.';
+    return this.transloco.translate('register.errors.generic');
   }
 }

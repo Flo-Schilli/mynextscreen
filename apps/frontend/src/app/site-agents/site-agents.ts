@@ -6,17 +6,18 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { Subject, takeUntil } from 'rxjs';
 import { SiteAgentService } from './site-agent.service';
-import type { CreatedSiteAgent, SiteAgentListItem } from './site-agent.model';
+import type { CreatedSiteAgent, SiteAgentListItem, SiteAgentStatusEvent } from './site-agent.model';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { ToastService } from '../shared/toast/toast.service';
 import {
   BadgeComponent,
   BtnComponent,
   CardComponent,
+  CopyButtonComponent,
   EmptyComponent,
   ModalComponent,
   OverlayComponent,
@@ -25,6 +26,7 @@ import {
   SInputComponent,
   StatusDotComponent,
 } from '../ui';
+import { LocaleDatePipe } from '../i18n/locale-format.pipes';
 
 /**
  * The venues this organisation has an on-premise agent in.
@@ -37,11 +39,12 @@ import {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
+    LocaleDatePipe,
     RouterLink,
     BadgeComponent,
     BtnComponent,
     CardComponent,
+    CopyButtonComponent,
     EmptyComponent,
     ModalComponent,
     OverlayComponent,
@@ -49,109 +52,136 @@ import {
     SFieldComponent,
     SInputComponent,
     StatusDotComponent,
+    TranslocoDirective,
   ],
   template: `
-    <mns-page-header
-      title="Site Agents"
-      sub="Services inside your venues that look after the displays"
-      icon="Cast"
-    >
-      <mns-btn icon="Plus" (mnsClick)="openCreate()">Add an agent</mns-btn>
-    </mns-page-header>
-
-    @if (loading()) {
-      <div class="text-sm text-muted py-8 text-center">Loading…</div>
-    } @else if (agents().length === 0) {
-      <mns-empty
+    <ng-container *transloco="let t">
+      <mns-page-header
+        [title]="t('siteAgents.list.title')"
+        [sub]="t('siteAgents.list.subtitle')"
         icon="Cast"
-        title="No site agents yet"
-        desc="A site agent runs inside a venue and starts the displays, wakes them before a schedule and keeps their developer mode alive."
       >
-        <mns-btn icon="Plus" (mnsClick)="openCreate()">Add an agent</mns-btn>
-      </mns-empty>
-    } @else {
-      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        @for (agent of agents(); track agent.id) {
-          <a [routerLink]="['/site-agents', agent.id]" class="block">
-            <mns-card>
-              <div class="flex items-start gap-3">
-                <mns-status-dot [status]="agent.isOnline ? 'online' : 'offline'" />
-                <div class="flex-1 min-w-0">
-                  <div class="font-bold truncate">{{ agent.name }}</div>
-                  <div class="text-[13px] text-muted truncate">
-                    {{ agent.location || 'No location set' }}
+        <mns-btn icon="Plus" (mnsClick)="openCreate()">{{ t('siteAgents.list.addAgent') }}</mns-btn>
+      </mns-page-header>
+
+      @if (loading()) {
+        <div class="text-sm text-muted py-8 text-center">{{ t('siteAgents.list.loading') }}</div>
+      } @else if (agents().length === 0) {
+        <mns-empty
+          icon="Cast"
+          [title]="t('siteAgents.list.emptyTitle')"
+          [desc]="t('siteAgents.list.emptyDesc')"
+        >
+          <mns-btn icon="Plus" (mnsClick)="openCreate()">{{
+            t('siteAgents.list.addAgent')
+          }}</mns-btn>
+        </mns-empty>
+      } @else {
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          @for (agent of agents(); track agent.id) {
+            <a [routerLink]="['/site-agents', agent.id]" class="block">
+              <mns-card>
+                <div class="flex items-start gap-3">
+                  <mns-status-dot [status]="agent.isOnline ? 'online' : 'offline'" />
+                  <div class="flex-1 min-w-0">
+                    <div class="font-bold truncate">{{ agent.name }}</div>
+                    <div class="text-[13px] text-muted truncate">
+                      {{ agent.location || t('siteAgents.list.noLocation') }}
+                    </div>
                   </div>
+                  <mns-badge [tone]="agent.isOnline ? 'online' : 'offline'">
+                    {{
+                      agent.isOnline ? t('siteAgents.list.connected') : t('siteAgents.list.offline')
+                    }}
+                  </mns-badge>
                 </div>
-                <mns-badge [tone]="agent.isOnline ? 'online' : 'offline'">
-                  {{ agent.isOnline ? 'connected' : 'offline' }}
-                </mns-badge>
-              </div>
 
-              <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
-                <dt class="text-muted">Displays</dt>
-                <dd>{{ agent.screenCount }}</dd>
-                <dt class="text-muted">Version</dt>
-                <dd>{{ agent.agentVersion || '—' }}</dd>
-                <dt class="text-muted">Last seen</dt>
-                <dd>
-                  {{ agent.lastHeartbeat ? (agent.lastHeartbeat | date: 'short') : 'never' }}
-                </dd>
-              </dl>
-            </mns-card>
-          </a>
-        }
-      </div>
-    }
-
-    @if (createOpen()) {
-      <mns-overlay (closed)="closeCreate()">
-        <mns-modal title="Add a site agent" icon="Cast" (closed)="closeCreate()">
-          @if (issued(); as token) {
-            <div class="space-y-4">
-              <p class="text-sm">
-                <strong>{{ token.agent.name }}</strong> is ready. Start the agent in the venue and
-                enter this token in its setup page.
-              </p>
-              <!-- Shown once and never again: the server stores only its hash. -->
-              <div class="rounded-lg border border-border-strong bg-surface-2 p-3">
-                <code class="block break-all font-mono text-[13px]">{{
-                  token.enrolmentToken
-                }}</code>
-              </div>
-              <p class="text-[13px] text-muted">
-                It can only be used once and expires {{ token.expiresAt | date: 'short' }}. Copy it
-                now — it cannot be shown again, but you can issue a new one.
-              </p>
-              <div class="flex justify-end gap-2">
-                <mns-btn
-                  variant="outline"
-                  icon="Check"
-                  (mnsClick)="copyToken(token.enrolmentToken)"
-                >
-                  Copy
-                </mns-btn>
-                <mns-btn (mnsClick)="closeCreate()">Done</mns-btn>
-              </div>
-            </div>
-          } @else {
-            <div class="flex flex-col gap-4">
-              <mns-sfield label="Name" hint="How you will recognise this venue in the list">
-                <mns-sinput [(value)]="newName" placeholder="Venue North" />
-              </mns-sfield>
-              <mns-sfield label="Location" hint="Optional, e.g. where the machine stands">
-                <mns-sinput [(value)]="newLocation" placeholder="Server room" />
-              </mns-sfield>
-              <div class="flex justify-end gap-2">
-                <mns-btn variant="outline" (mnsClick)="closeCreate()">Cancel</mns-btn>
-                <mns-btn [disabled]="creating() || !newName().trim()" (mnsClick)="create()">
-                  {{ creating() ? 'Creating…' : 'Create' }}
-                </mns-btn>
-              </div>
-            </div>
+                <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
+                  <dt class="text-muted">{{ t('siteAgents.list.displays') }}</dt>
+                  <dd>{{ agent.screenCount }}</dd>
+                  <dt class="text-muted">{{ t('siteAgents.list.version') }}</dt>
+                  <dd>{{ agent.agentVersion || '—' }}</dd>
+                  <dt class="text-muted">{{ t('siteAgents.list.lastSeen') }}</dt>
+                  <dd>
+                    {{
+                      agent.lastHeartbeat
+                        ? (agent.lastHeartbeat | localeDate: 'short')
+                        : t('siteAgents.list.never')
+                    }}
+                  </dd>
+                </dl>
+              </mns-card>
+            </a>
           }
-        </mns-modal>
-      </mns-overlay>
-    }
+        </div>
+      }
+
+      @if (createOpen()) {
+        <mns-overlay (closed)="closeCreate()">
+          <mns-modal [title]="t('siteAgents.create.title')" icon="Cast" (closed)="closeCreate()">
+            @if (issued(); as code) {
+              <div class="space-y-4" data-testid="setup-code">
+                <p class="text-sm">
+                  <strong>{{ code.agent.name }}</strong> {{ t('siteAgents.create.readyPrefix') }}
+                </p>
+                <!-- Shown once and never again: the server stores only its hash. -->
+                <div
+                  class="flex items-center gap-2 rounded-lg border border-border-strong bg-surface-2 py-1.5 pl-3 pr-1.5"
+                >
+                  <code class="min-w-0 flex-1 break-all font-mono text-[13px]">{{
+                    code.enrolmentToken
+                  }}</code>
+                  <mns-copy-button
+                    [text]="code.enrolmentToken"
+                    (copied)="onTokenCopied()"
+                    (copyFailed)="onTokenCopyFailed()"
+                  />
+                </div>
+                <p class="text-[13px] text-muted">
+                  {{
+                    t('siteAgents.create.tokenHint', { date: code.expiresAt | localeDate: 'short' })
+                  }}
+                </p>
+                <div class="flex justify-end gap-2">
+                  <mns-btn (mnsClick)="closeCreate()">{{ t('siteAgents.create.done') }}</mns-btn>
+                </div>
+              </div>
+            } @else {
+              <div class="flex flex-col gap-4">
+                <mns-sfield
+                  [label]="t('siteAgents.create.nameLabel')"
+                  [hint]="t('siteAgents.create.nameHint')"
+                >
+                  <mns-sinput
+                    [(value)]="newName"
+                    [placeholder]="t('siteAgents.create.namePlaceholder')"
+                  />
+                </mns-sfield>
+                <mns-sfield
+                  [label]="t('siteAgents.create.locationLabel')"
+                  [hint]="t('siteAgents.create.locationHint')"
+                >
+                  <mns-sinput
+                    [(value)]="newLocation"
+                    [placeholder]="t('siteAgents.create.locationPlaceholder')"
+                  />
+                </mns-sfield>
+                <div class="flex justify-end gap-2">
+                  <mns-btn variant="outline" (mnsClick)="closeCreate()">
+                    {{ t('siteAgents.create.cancel') }}
+                  </mns-btn>
+                  <mns-btn [disabled]="creating() || !newName().trim()" (mnsClick)="create()">
+                    {{
+                      creating() ? t('siteAgents.create.creating') : t('siteAgents.create.create')
+                    }}
+                  </mns-btn>
+                </div>
+              </div>
+            }
+          </mns-modal>
+        </mns-overlay>
+      }
+    </ng-container>
   `,
   host: { class: 'block' },
 })
@@ -159,6 +189,7 @@ export class SiteAgents implements OnInit, OnDestroy {
   private readonly service = inject(SiteAgentService);
   private readonly sse = inject(DashboardSseService);
   private readonly toast = inject(ToastService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyed$ = new Subject<void>();
 
   // OnPush plus zone.js does not mark this component dirty when an HTTP
@@ -176,10 +207,12 @@ export class SiteAgents implements OnInit, OnDestroy {
     // An agent going offline is the thing an operator most wants to see without
     // reloading, so the list follows the stream it already has open.
     this.sse.siteAgentStatus$.pipe(takeUntil(this.destroyed$)).subscribe((event) => {
-      const data = event.data as { agentId: string; isOnline: boolean };
+      const data = event.data as SiteAgentStatusEvent;
       this.agents.update((agents) =>
         agents.map((agent) =>
-          agent.id === data.agentId ? { ...agent, isOnline: data.isOnline } : agent,
+          agent.id === data.agentId
+            ? { ...agent, isOnline: data.isOnline, lastHeartbeat: data.lastHeartbeat }
+            : agent,
         ),
       );
     });
@@ -214,20 +247,18 @@ export class SiteAgents implements OnInit, OnDestroy {
         },
         error: () => {
           this.creating.set(false);
-          this.toast.error('Could not create the agent');
+          this.toast.error(this.transloco.translate('siteAgents.toast.createFailed'));
         },
       });
   }
 
-  protected async copyToken(token: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(token);
-      this.toast.success('Token copied');
-    } catch {
-      // Clipboard access is denied in plenty of contexts; the token is on
-      // screen either way, so this is a convenience, not a failure.
-      this.toast.error('Could not copy — select the token and copy it by hand');
-    }
+  protected onTokenCopied(): void {
+    this.toast.success(this.transloco.translate('siteAgents.toast.tokenCopied'));
+  }
+
+  /** The code is on screen either way, so this is a convenience, not a failure. */
+  protected onTokenCopyFailed(): void {
+    this.toast.error(this.transloco.translate('siteAgents.toast.tokenCopyFailed'));
   }
 
   private load(): void {
@@ -238,7 +269,7 @@ export class SiteAgents implements OnInit, OnDestroy {
       },
       error: () => {
         this.loading.set(false);
-        this.toast.error('Could not load the site agents');
+        this.toast.error(this.transloco.translate('siteAgents.toast.loadFailed'));
       },
     });
   }

@@ -1,4 +1,6 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { AgentMetricsDto } from './agent-metrics.dto';
 
 export class AgentHeartbeatDto {
   /**
@@ -9,4 +11,14 @@ export class AgentHeartbeatDto {
   @IsString()
   @MaxLength(64)
   agentVersion?: string;
+
+  /**
+   * Prometheus metrics the agent collected locally, pushed on the heartbeat so
+   * no scrape port is opened in the venue network. Optional: an older agent that
+   * omits it still checks in and simply has no mirrored series.
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AgentMetricsDto)
+  metrics?: AgentMetricsDto;
 }

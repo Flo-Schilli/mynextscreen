@@ -9,6 +9,7 @@ import {
   AUDIT_SITE_AGENT_CREATED,
   AUDIT_SITE_AGENT_DELETED,
   AUDIT_SITE_AGENT_ONLINE,
+  AUDIT_SITE_AGENT_RESET,
   AUDIT_SITE_AGENT_REVOKED,
   AUDIT_SITE_AGENT_UPDATED,
   AuditSiteAgentEvent,
@@ -132,6 +133,27 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
     return enrolment;
   }
 
+  /**
+   * Resets an agent at the operator's own request, from the agent's setup page.
+   *
+   * Gated on a fresh setup code from the dashboard — proof the caller holds an
+   * authenticated dashboard session for this organisation, not merely a browser
+   * on the venue LAN. Without the gate, anyone who could reach the agent's setup
+   * port could strand the venue by resetting it.
+   *
+   * The code is verified, not consumed: the operator still needs it to re-enrol
+   * the agent immediately afterwards.
+   */
+  async resetFromAgent(agentId: string, organisationId: string, setupCode: string): Promise<void> {
+    await this.enrolments.verifyFresh(setupCode, organisationId);
+    await this.sessions.revokeForAgent(agentId);
+    await this.markOffline(agentId, organisationId);
+    this.eventEmitter.emit(
+      AUDIT_SITE_AGENT_RESET,
+      new AuditSiteAgentEvent(agentId, organisationId, null, { origin: 'agent' }),
+    );
+  }
+
   /** Ends every session of an agent; it has to be enrolled again to come back. */
   async revokeAccess(
     organisationId: string,
@@ -166,10 +188,11 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
       return;
     }
 
+    const now = new Date();
     await this.db
       .update(siteAgents)
       .set({
-        lastHeartbeat: new Date(),
+        lastHeartbeat: now,
         isOnline: true,
         ...(agentVersion ? { agentVersion } : {}),
       })
@@ -178,7 +201,7 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
     if (!row.isOnline) {
       this.eventEmitter.emit(
         SITE_AGENT_STATUS_CHANGED,
-        new SiteAgentStatusChangedEvent(agentId, row.organisationId, row.name, true),
+        new SiteAgentStatusChangedEvent(agentId, row.organisationId, row.name, true, now),
       );
       this.eventEmitter.emit(
         AUDIT_SITE_AGENT_ONLINE,
@@ -216,11 +239,17 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
       .update(siteAgents)
       .set({ isOnline: false })
       .where(and(eq(siteAgents.id, agentId), sql`${siteAgents.isOnline} = true`))
-      .returning({ name: siteAgents.name });
+      .returning({ name: siteAgents.name, lastHeartbeat: siteAgents.lastHeartbeat });
     if (row) {
       this.eventEmitter.emit(
         SITE_AGENT_STATUS_CHANGED,
-        new SiteAgentStatusChangedEvent(agentId, organisationId, row.name, false),
+        new SiteAgentStatusChangedEvent(
+          agentId,
+          organisationId,
+          row.name,
+          false,
+          row.lastHeartbeat,
+        ),
       );
     }
   }

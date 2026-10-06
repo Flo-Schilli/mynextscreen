@@ -1,18 +1,20 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { IconComponent, IconName } from '../ui';
 
 interface AdminTab {
-  label: string;
+  /** i18n key resolved in the template. */
+  labelKey: string;
   route: string;
   icon: IconName;
 }
 
 const ADMIN_TABS: AdminTab[] = [
-  { label: 'Dashboard', route: '/admin/dashboard', icon: 'Dashboard' },
-  { label: 'Organisations', route: '/admin/organisations', icon: 'Building' },
-  { label: 'Users', route: '/admin/users', icon: 'User' },
-  { label: 'Audit Log', route: '/admin/audit-log', icon: 'Audit' },
+  { labelKey: 'admin.tabs.dashboard', route: '/admin/dashboard', icon: 'Dashboard' },
+  { labelKey: 'admin.tabs.organisations', route: '/admin/organisations', icon: 'Building' },
+  { labelKey: 'admin.tabs.users', route: '/admin/users', icon: 'User' },
+  { labelKey: 'admin.tabs.auditLog', route: '/admin/audit-log', icon: 'Audit' },
 ];
 
 /**
@@ -29,9 +31,9 @@ const ADMIN_TABS: AdminTab[] = [
   selector: 'app-admin-tabs',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, RouterLinkActive, IconComponent],
+  imports: [RouterLink, RouterLinkActive, IconComponent, TranslocoDirective],
   template: `
-    <div class="tabs-wrap relative mb-[var(--gap)]">
+    <div class="tabs-wrap relative mb-[var(--gap)]" *transloco="let t">
       <nav
         class="flex gap-1 border-b border-border overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
@@ -43,7 +45,7 @@ const ADMIN_TABS: AdminTab[] = [
             [routerLinkActiveOptions]="{ exact: true }"
           >
             <mns-icon [name]="tab.icon" [size]="16" />
-            {{ tab.label }}
+            {{ t(tab.labelKey) }}
           </a>
         }
       </nav>

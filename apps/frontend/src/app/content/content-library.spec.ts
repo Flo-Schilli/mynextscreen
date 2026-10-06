@@ -16,6 +16,7 @@ import { Playlist } from '../playlists/playlist.model';
 import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
 import { MetadataUpdate } from './content-detail';
 import { ToastService, Toast } from '../shared/toast/toast.service';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -142,7 +143,10 @@ describe('ContentLibrary', () => {
     sse = makeSseStub();
 
     TestBed.configureTestingModule({
-      imports: [ContentLibrary],
+      imports: [
+        ContentLibrary,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [
         provideZonelessChangeDetection(),
         provideHttpClient(),
@@ -534,7 +538,7 @@ describe('ContentLibrary', () => {
     await promise;
 
     // Assert
-    expect(lastToast()?.message).toContain('2 item(s) deleted');
+    expect(lastToast()?.message).toContain('2 items deleted');
     expect(lastToast()?.type).toBe('success');
   });
 
@@ -570,7 +574,7 @@ describe('ContentLibrary', () => {
     await promise;
 
     // Assert
-    expect(lastToast()?.message).toContain('1 item(s) tagged');
+    expect(lastToast()?.message).toContain('1 item tagged');
     expect(lastToast()?.type).toBe('success');
   });
 
@@ -621,7 +625,7 @@ describe('ContentLibrary', () => {
     await promise;
 
     // Assert
-    expect(lastToast()?.message).toContain('1 item(s) added to Lobby');
+    expect(lastToast()?.message).toContain('1 item added to Lobby');
     expect(lastToast()?.type).toBe('success');
   });
 

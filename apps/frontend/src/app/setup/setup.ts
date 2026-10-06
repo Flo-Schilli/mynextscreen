@@ -7,6 +7,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { Router } from '@angular/router';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { SetupService } from './setup.service';
 import { BtnComponent, IconComponent } from '../ui';
 
@@ -23,7 +24,7 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
  */
 @Component({
   selector: 'app-setup',
-  imports: [ReactiveFormsModule, BtnComponent, IconComponent],
+  imports: [ReactiveFormsModule, BtnComponent, IconComponent, TranslocoDirective],
   templateUrl: './setup.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -31,6 +32,7 @@ export class Setup {
   private readonly fb = inject(FormBuilder);
   private readonly setup = inject(SetupService);
   private readonly router = inject(Router);
+  private readonly transloco = inject(TranslocoService);
 
   readonly submitting = signal(false);
   readonly error = signal<string | null>(null);
@@ -57,7 +59,7 @@ export class Setup {
       await this.setup.createFirstAdmin(email, password, name || undefined);
       await this.router.navigateByUrl('/');
     } catch {
-      this.error.set('Could not complete setup. It may already be done — try signing in.');
+      this.error.set(this.transloco.translate('setup.errors.generic'));
     } finally {
       this.submitting.set(false);
     }

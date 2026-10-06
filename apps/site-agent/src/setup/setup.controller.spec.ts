@@ -40,18 +40,20 @@ describe('SetupController', () => {
   describe('access', () => {
     const reflector = new Reflector();
 
-    // These two carry no secret, and requiring the PIN for them would stop an
-    // operator seeing whether the agent is connected at all.
-    it.each(['page', 'status'] as const)('%s needs no PIN', (method) => {
+    // These carry no secret, so requiring a code for them would stop an operator
+    // seeing whether the agent is connected. Enrol is public too: its own
+    // single-use token is the credential, so there is no second gate to add.
+    it.each(['page', 'status', 'enrol'] as const)('%s needs no setup code', (method) => {
       expect(reflector.get<boolean>(IS_SETUP_PUBLIC_KEY, SetupController.prototype[method])).toBe(
         true,
       );
     });
 
-    // These change where the agent points, which is the thing worth guarding.
-    it.each(['enrol', 'reset'] as const)('%s requires the PIN', (method) => {
+    // Reset ends a running agent's session, which is the thing worth guarding
+    // behind a fresh dashboard-issued code.
+    it('reset requires a setup code', () => {
       expect(
-        reflector.get<boolean>(IS_SETUP_PUBLIC_KEY, SetupController.prototype[method]),
+        reflector.get<boolean>(IS_SETUP_PUBLIC_KEY, SetupController.prototype.reset),
       ).toBeUndefined();
     });
   });
@@ -91,10 +93,10 @@ describe('SetupController', () => {
   });
 
   describe('reset', () => {
-    it('delegates to the service', async () => {
-      await controller.reset();
+    it('passes the setup code from the header through to the service', async () => {
+      await controller.reset('fresh-code');
 
-      expect(setup.reset).toHaveBeenCalled();
+      expect(setup.reset).toHaveBeenCalledWith('fresh-code');
     });
   });
 });

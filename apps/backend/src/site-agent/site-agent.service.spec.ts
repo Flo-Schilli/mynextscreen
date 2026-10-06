@@ -13,6 +13,7 @@ import {
   AUDIT_SITE_AGENT_CREATED,
   AUDIT_SITE_AGENT_DELETED,
   AUDIT_SITE_AGENT_ONLINE,
+  AUDIT_SITE_AGENT_RESET,
   AUDIT_SITE_AGENT_REVOKED,
   AUDIT_SITE_AGENT_UPDATED,
 } from '../audit-log/audit.events';
@@ -32,6 +33,7 @@ describe('SiteAgentService', () => {
   let db: DrizzleDB;
   let service: SiteAgentService;
   let sessions: SiteAgentSessionService;
+  let enrolments: SiteAgentEnrolmentService;
   let emitter: { emit: jest.Mock };
   let orgId: string;
   let otherOrgId: string;
@@ -75,6 +77,7 @@ describe('SiteAgentService', () => {
     }).compile();
     service = module.get(SiteAgentService);
     sessions = module.get(SiteAgentSessionService);
+    enrolments = module.get(SiteAgentEnrolmentService);
 
     const [org] = await db
       .insert(organisations)
@@ -318,6 +321,68 @@ describe('SiteAgentService', () => {
     });
   });
 
+  describe('resetFromAgent', () => {
+    it('ends the sessions when given a fresh setup code for the org', async () => {
+      const agent = await makeAgent();
+      const session = await sessions.createSession(agent.id, orgId);
+      const code = await enrolments.issue(agent.id, orgId);
+
+      await service.resetFromAgent(agent.id, orgId, code.token);
+
+      expect((await sessions.refresh(session.refreshToken)).status).toBe('unknown');
+    });
+
+    it('does not consume the code, so it is still good for re-enrolment', async () => {
+      const agent = await makeAgent();
+      await sessions.createSession(agent.id, orgId);
+      const code = await enrolments.issue(agent.id, orgId);
+
+      await service.resetFromAgent(agent.id, orgId, code.token);
+
+      const [row] = await db
+        .select()
+        .from(siteAgentEnrolments)
+        .where(eq(siteAgentEnrolments.agentId, agent.id));
+      expect(row.consumedAt).toBeNull();
+    });
+
+    it('audits the reset as agent-originated', async () => {
+      const agent = await makeAgent();
+      const code = await enrolments.issue(agent.id, orgId);
+
+      await service.resetFromAgent(agent.id, orgId, code.token);
+
+      expect(emitter.emit).toHaveBeenCalledWith(
+        AUDIT_SITE_AGENT_RESET,
+        expect.objectContaining({
+          agentId: agent.id,
+          organisationId: orgId,
+          details: expect.objectContaining({ origin: 'agent' }),
+        }),
+      );
+    });
+
+    it('refuses without a fresh code and leaves the session intact', async () => {
+      const agent = await makeAgent();
+      const session = await sessions.createSession(agent.id, orgId);
+
+      await expect(service.resetFromAgent(agent.id, orgId, 'never-issued')).rejects.toThrow();
+
+      expect((await sessions.refresh(session.refreshToken)).status).toBe('ok');
+    });
+
+    it('refuses a code issued for another organisation', async () => {
+      const agent = await makeAgent();
+      const foreign = await makeAgent(otherOrgId);
+      const foreignCode = await enrolments.issue(foreign.id, otherOrgId);
+      const session = await sessions.createSession(agent.id, orgId);
+
+      await expect(service.resetFromAgent(agent.id, orgId, foreignCode.token)).rejects.toThrow();
+
+      expect((await sessions.refresh(session.refreshToken)).status).toBe('ok');
+    });
+  });
+
   describe('recordHeartbeat', () => {
     it('marks the agent online and stores the version', async () => {
       const agent = await makeAgent();
@@ -347,6 +412,18 @@ describe('SiteAgentService', () => {
       expect(emitter.emit).toHaveBeenCalledWith(
         AUDIT_SITE_AGENT_ONLINE,
         expect.objectContaining({ agentId: agent.id }),
+      );
+    });
+
+    it('puts the stored heartbeat time on the online event', async () => {
+      const agent = await makeAgent();
+
+      await service.recordHeartbeat(agent.id, '1.0.0');
+
+      const [row] = await db.select().from(siteAgents).where(eq(siteAgents.id, agent.id));
+      expect(emitter.emit).toHaveBeenCalledWith(
+        SITE_AGENT_STATUS_CHANGED,
+        expect.objectContaining({ isOnline: true, lastHeartbeat: row.lastHeartbeat }),
       );
     });
 

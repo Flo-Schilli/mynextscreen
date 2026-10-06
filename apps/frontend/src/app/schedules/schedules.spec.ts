@@ -23,6 +23,7 @@ import { ScreenGroup } from '../screen-groups/screen-group.model';
 import { CalendarBlock } from './schedule-calendar.service';
 import { ScheduleFormResult } from './schedule-form-modal';
 import { ToastService, Toast } from '../shared/toast/toast.service';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -236,6 +237,7 @@ describe('Schedules', () => {
     member = new MemberServiceStub();
     screenGroupStub = new ScreenGroupServiceStub();
     TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
         { provide: ScheduleService, useValue: schedule },

@@ -10,6 +10,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { PlaylistItem } from './playlist.model';
 import { PlaylistFormatService } from './playlist-format.service';
 import { CardComponent, CardHeadComponent, BadgeComponent, IconComponent } from '../ui';
@@ -28,21 +29,27 @@ import { CardComponent, CardHeadComponent, BadgeComponent, IconComponent } from 
   selector: 'app-playlist-loop-preview',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CardComponent, CardHeadComponent, BadgeComponent, IconComponent],
+  imports: [CardComponent, CardHeadComponent, BadgeComponent, IconComponent, TranslocoDirective],
   template: `
-    <mns-card>
+    <mns-card *transloco="let t">
       @if (items().length === 0) {
-        <mns-card-head title="Loop preview" sub="Add content to preview the loop" icon="Eye" />
+        <mns-card-head
+          [title]="t('playlists.loopPreview.title')"
+          [sub]="t('playlists.loopPreview.emptySub')"
+          icon="Eye"
+        />
         <div
           class="grid place-items-center py-10 px-5 rounded-[12px] border-[1.5px] border-dashed border-border-strong bg-surface-2 text-faint gap-2"
         >
           <mns-icon name="Playlists" [size]="26" />
-          <span class="text-[13px] font-semibold">Empty playlist</span>
+          <span class="text-[13px] font-semibold">{{
+            t('playlists.loopPreview.emptyPlaylist')
+          }}</span>
         </div>
       } @else {
-        <mns-card-head title="Loop preview" [sub]="subText()" icon="Eye">
+        <mns-card-head [title]="t('playlists.loopPreview.title')" [sub]="subText()" icon="Eye">
           <mns-badge slot="right" [tone]="playing() ? 'online' : 'neutral'">
-            {{ playing() ? 'Playing' : 'Paused' }}
+            {{ playing() ? t('playlists.loopPreview.playing') : t('playlists.loopPreview.paused') }}
           </mns-badge>
         </mns-card-head>
 
@@ -72,12 +79,12 @@ import { CardComponent, CardHeadComponent, BadgeComponent, IconComponent } from 
                 @if (muted()) {
                   <button
                     type="button"
-                    title="Unmute"
+                    [title]="t('playlists.loopPreview.unmute')"
                     class="absolute right-2 top-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[99px] text-[11px] font-semibold text-white cursor-pointer"
                     style="background: rgba(4,6,11,.6); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,.13)"
                     (click)="unmute()"
                   >
-                    <span aria-hidden="true">🔇</span> Unmute
+                    <span aria-hidden="true">🔇</span> {{ t('playlists.loopPreview.unmute') }}
                   </button>
                 }
               } @else {
@@ -93,7 +100,7 @@ import { CardComponent, CardHeadComponent, BadgeComponent, IconComponent } from 
                 class="absolute left-2 bottom-2 max-w-[calc(100%-16px)] px-2.5 py-[3px] rounded-[99px] text-[11px] font-semibold text-white truncate"
                 style="background: rgba(4,6,11,.6); backdrop-filter: blur(4px)"
               >
-                {{ current()?.content?.title || 'Untitled' }}
+                {{ current()?.content?.title || t('playlists.loopPreview.untitled') }}
               </div>
             </div>
           </div>
@@ -103,7 +110,7 @@ import { CardComponent, CardHeadComponent, BadgeComponent, IconComponent } from 
             <div class="flex items-center gap-2.5">
               <button
                 type="button"
-                title="Previous"
+                [title]="t('playlists.loopPreview.previous')"
                 class="grid place-items-center w-[38px] h-[38px] rounded-[10px] border border-border-strong bg-surface text-muted"
                 (click)="prev()"
               >
@@ -111,7 +118,9 @@ import { CardComponent, CardHeadComponent, BadgeComponent, IconComponent } from 
               </button>
               <button
                 type="button"
-                [title]="playing() ? 'Pause' : 'Play'"
+                [title]="
+                  playing() ? t('playlists.loopPreview.pause') : t('playlists.loopPreview.play')
+                "
                 class="grid place-items-center w-[52px] h-[52px] rounded-[99px] text-white play-btn"
                 (click)="toggle()"
               >
@@ -126,7 +135,7 @@ import { CardComponent, CardHeadComponent, BadgeComponent, IconComponent } from 
               </button>
               <button
                 type="button"
-                title="Next"
+                [title]="t('playlists.loopPreview.next')"
                 class="grid place-items-center w-[38px] h-[38px] rounded-[10px] border border-border-strong bg-surface text-muted"
                 (click)="next()"
               >
@@ -134,7 +143,9 @@ import { CardComponent, CardHeadComponent, BadgeComponent, IconComponent } from 
               </button>
             </div>
             <div>
-              <div class="text-[11.5px] text-muted mb-1">Now playing · item {{ idx() + 1 }}</div>
+              <div class="text-[11.5px] text-muted mb-1">
+                {{ t('playlists.loopPreview.nowPlaying', { index: idx() + 1 }) }}
+              </div>
               <div class="text-[14.5px] font-bold truncate">
                 {{ current()?.content?.title || '—' }}
               </div>
@@ -151,7 +162,7 @@ import { CardComponent, CardHeadComponent, BadgeComponent, IconComponent } from 
           @for (item of items(); track item.id; let i = $index) {
             <button
               type="button"
-              [title]="'Jump to item ' + (i + 1)"
+              [title]="t('playlists.loopPreview.jumpToItem', { index: i + 1 })"
               class="relative h-[7px] rounded-[99px] overflow-hidden min-w-[8px] cursor-pointer p-0 border-0 bg-[var(--track)]"
               [style.flex]="item.durationSeconds || 1"
               (click)="seek(i)"
@@ -186,6 +197,7 @@ export class PlaylistLoopPreview {
   readonly mediaUrl = input.required<(item: PlaylistItem) => string>();
 
   protected readonly format = inject(PlaylistFormatService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly videoRef = viewChild<ElementRef<HTMLVideoElement>>('previewVideo');
 
@@ -208,7 +220,10 @@ export class PlaylistLoopPreview {
   protected readonly subText = computed(() => {
     const count = this.items().length;
     const total = this.format.totalDurationSeconds(this.items());
-    return `${count} items · ${this.format.formatDuration(total)} total · loops`;
+    return this.transloco.translate('playlists.loopPreview.sub', {
+      count,
+      duration: this.format.formatDuration(total),
+    });
   });
 
   constructor() {

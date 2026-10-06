@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { AuthService } from './auth.service';
 import { BtnComponent, IconComponent } from '../ui';
 
 @Component({
   selector: 'app-set-password',
-  imports: [ReactiveFormsModule, BtnComponent, IconComponent],
+  imports: [ReactiveFormsModule, BtnComponent, IconComponent, TranslocoDirective],
   templateUrl: './set-password.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -15,6 +16,7 @@ export class SetPassword {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly transloco = inject(TranslocoService);
 
   private readonly token = this.route.snapshot.queryParamMap.get('t') ?? '';
 
@@ -39,7 +41,7 @@ export class SetPassword {
       this.done.set(true);
       await this.router.navigateByUrl('/login');
     } catch {
-      this.error.set('This link is invalid or has expired. Ask an administrator to re-invite you.');
+      this.error.set(this.transloco.translate('auth.setPassword.errors.invalidLink'));
     } finally {
       this.submitting.set(false);
     }

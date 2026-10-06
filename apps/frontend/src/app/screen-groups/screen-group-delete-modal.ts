@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { OverlayComponent, ModalComponent, BtnComponent } from '../ui';
 import { ScreenGroup } from './screen-group.model';
 
@@ -11,23 +12,31 @@ import { ScreenGroup } from './screen-group.model';
   selector: 'app-screen-group-delete-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayComponent, ModalComponent, BtnComponent],
+  imports: [OverlayComponent, ModalComponent, BtnComponent, TranslocoDirective],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
-      <mns-modal title="Delete screen group" icon="Trash" [widthPx]="460" (closed)="dismiss.emit()">
+    <mns-overlay (closed)="dismiss.emit()" *transloco="let t">
+      <mns-modal
+        [title]="t('screenGroups.deleteModal.title')"
+        icon="Trash"
+        [widthPx]="460"
+        (closed)="dismiss.emit()"
+      >
         @if (blocked()) {
           <div
             class="text-[13px] leading-relaxed text-warn bg-warn-dim border border-warn/40 rounded-[10px] px-4 py-3"
           >
-            Cannot delete "{{ group().name }}" because it still has
-            {{ group().screens.length }} assigned screen(s). Remove all screens from the group
-            before deleting it.
+            {{
+              t('screenGroups.deleteModal.blocked', {
+                name: group().name,
+                count: group().screens.length,
+              })
+            }}
           </div>
         } @else {
           <p class="text-sm text-muted leading-relaxed">
-            Are you sure you want to delete the screen group
+            {{ t('screenGroups.deleteModal.confirmPrefix') }}
             <strong class="text-text">{{ group().name }}</strong
-            >? This action cannot be undone.
+            >{{ t('screenGroups.deleteModal.confirmSuffix') }}
           </p>
           @if (error()) {
             <p class="text-offline text-sm mt-3">{{ error() }}</p>
@@ -36,15 +45,21 @@ import { ScreenGroup } from './screen-group.model';
 
         <div slot="footer" class="flex justify-end gap-2.5 px-6 py-5 border-t border-border">
           @if (blocked()) {
-            <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Close</mns-btn>
+            <mns-btn variant="outline" (mnsClick)="dismiss.emit()">{{
+              t('common.actions.close')
+            }}</mns-btn>
           } @else {
-            <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+            <mns-btn variant="outline" (mnsClick)="dismiss.emit()">{{
+              t('common.actions.cancel')
+            }}</mns-btn>
             <mns-btn
               variant="danger"
               icon="Trash"
               [disabled]="deleting()"
               (mnsClick)="confirm.emit()"
-              >{{ deleting() ? 'Deleting…' : 'Delete' }}</mns-btn
+              >{{
+                deleting() ? t('screenGroups.deleteModal.deleting') : t('common.actions.delete')
+              }}</mns-btn
             >
           }
         </div>

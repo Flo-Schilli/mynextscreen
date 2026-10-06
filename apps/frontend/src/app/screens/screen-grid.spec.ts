@@ -4,6 +4,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { ScreenGrid } from './screen-grid';
 import { ScreenListItem } from './screen.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -44,7 +45,10 @@ describe('ScreenGrid', () => {
   }
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
+      providers: [provideZonelessChangeDetection()],
+    });
   });
 
   it('renders one tile per screen', async () => {

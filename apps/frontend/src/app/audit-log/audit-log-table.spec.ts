@@ -4,6 +4,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { AuditLogTable } from './audit-log-table';
 import { AuditEntry } from './audit-log.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -30,7 +31,10 @@ describe('AuditLogTable', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [AuditLogTable],
+      imports: [
+        AuditLogTable,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

@@ -114,6 +114,21 @@ export class EnvironmentVariables {
   @Min(1)
   @IsOptional()
   SIGNUP_UNVERIFIED_TTL_HOURS = 24;
+
+  // ── Observability / Prometheus ──────────────────────────────────────────────
+
+  /**
+   * Bearer token Prometheus must present to scrape `GET /api/metrics`.
+   *
+   * Optional: when empty the endpoint is disabled (returns 404) rather than
+   * exposed unauthenticated — a metrics endpoint is an information-disclosure
+   * surface (route templates, queue depths, pool state), so it must never be
+   * reachable without a credential. Set a long random value in production and
+   * keep `/api/metrics` off any public Caddy route.
+   */
+  @IsString()
+  @IsOptional()
+  METRICS_SCRAPE_TOKEN = '';
 }
 
 /**

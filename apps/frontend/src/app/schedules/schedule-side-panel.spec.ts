@@ -3,6 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ScheduleSidePanel } from './schedule-side-panel';
 import { DayTimeline } from './schedule-calendar.service';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -35,7 +36,10 @@ describe('ScheduleSidePanel', () => {
   }
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
+      providers: [provideZonelessChangeDetection()],
+    });
   });
 
   it('renders the date label and scheduled count in the card-head sub', async () => {

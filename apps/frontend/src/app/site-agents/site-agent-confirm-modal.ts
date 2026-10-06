@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, output } from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { BtnComponent, ModalComponent, OverlayComponent } from '../ui';
 import type { IconName } from '../ui';
 
@@ -15,9 +16,9 @@ import type { IconName } from '../ui';
   selector: 'app-site-agent-confirm-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayComponent, ModalComponent, BtnComponent],
+  imports: [OverlayComponent, ModalComponent, BtnComponent, TranslocoDirective],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
+    <mns-overlay (closed)="dismiss.emit()" *transloco="let t">
       <mns-modal [title]="title()" [icon]="icon()" [widthPx]="460" (closed)="dismiss.emit()">
         <div class="text-sm leading-relaxed text-muted"><ng-content /></div>
 
@@ -26,14 +27,16 @@ import type { IconName } from '../ui';
         }
 
         <div slot="footer" class="flex justify-end gap-2.5 px-6 py-5 border-t border-border">
-          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">
+            {{ t('siteAgents.confirm.cancel') }}
+          </mns-btn>
           <mns-btn
             variant="danger"
             [icon]="icon()"
             [disabled]="busy()"
             (mnsClick)="confirmed.emit()"
           >
-            {{ busy() ? busyLabel() : confirmLabel() }}
+            {{ busy() ? resolvedBusyLabel() : confirmLabel() }}
           </mns-btn>
         </div>
       </mns-modal>
@@ -41,13 +44,19 @@ import type { IconName } from '../ui';
   `,
 })
 export class SiteAgentConfirmModal {
+  private readonly transloco = inject(TranslocoService);
+
   readonly title = input.required<string>();
   readonly confirmLabel = input.required<string>();
-  readonly busyLabel = input<string>('Working…');
+  readonly busyLabel = input<string>('');
   readonly icon = input<IconName>('Trash');
   readonly busy = input<boolean>(false);
   readonly error = input<string>('');
 
   readonly confirmed = output<void>();
   readonly dismiss = output<void>();
+
+  protected resolvedBusyLabel(): string {
+    return this.busyLabel() || this.transloco.translate('siteAgents.confirm.working');
+  }
 }

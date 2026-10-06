@@ -7,6 +7,7 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { ScheduleService } from './schedule.service';
 import {
   ScheduleEntry,
@@ -40,7 +41,7 @@ import { ScheduleCalendarGrid } from './schedule-calendar-grid';
 import { ScheduleFormModal, ScheduleFormResult, PRESET_COLOURS } from './schedule-form-modal';
 import { ToastService } from '../shared/toast/toast.service';
 import { PageHeaderComponent, OverlayComponent, ModalComponent } from '../ui';
-import { UI_LOCALE } from '../shared/locale';
+import { LanguageService } from '../i18n/language.service';
 
 const HOUR_HEIGHT = 60;
 
@@ -55,10 +56,15 @@ const HOUR_HEIGHT = 60;
     PageHeaderComponent,
     OverlayComponent,
     ModalComponent,
+    TranslocoDirective,
   ],
   template: `
-    <div class="page">
-      <mns-page-header title="Schedules" icon="Schedules" [sub]="scheduleSubtitle" />
+    <div class="page" *transloco="let t">
+      <mns-page-header
+        [title]="t('schedules.page.title')"
+        icon="Schedules"
+        [sub]="scheduleSubtitle"
+      />
 
       @if (loadError) {
         <p
@@ -73,7 +79,7 @@ const HOUR_HEIGHT = 60;
           <span
             class="w-5 h-5 rounded-full border-2 border-border border-t-accent animate-spin mr-3"
           ></span>
-          Loading schedules…
+          {{ t('schedules.page.loading') }}
         </div>
       }
 
@@ -157,18 +163,20 @@ const HOUR_HEIGHT = 60;
           >
             @if (ss.status === 'failed') {
               <p class="text-[13px] text-muted leading-relaxed">
-                {{ ss.error || 'Slicing failed.' }} The wall keeps showing the previous content
-                until you re-assign or re-slice.
+                {{
+                  t('schedules.slice.failedBody', {
+                    error: ss.error || t('schedules.slice.failedFallback'),
+                  })
+                }}
               </p>
             } @else if (ss.status === 'completed') {
-              <p class="text-[13px] text-muted mb-3">The video wall has been updated.</p>
+              <p class="text-[13px] text-muted mb-3">{{ t('schedules.slice.completedBody') }}</p>
               <div class="h-1.5 rounded-full bg-surface-3 overflow-hidden">
                 <div class="h-full bg-accent" style="width: 100%"></div>
               </div>
             } @else {
               <p class="text-[13px] text-muted mb-3 leading-relaxed">
-                The wall keeps showing the previous content and switches automatically when slicing
-                completes.
+                {{ t('schedules.slice.processingBody') }}
               </p>
               <div class="flex justify-between text-[12px] text-muted mb-1.5">
                 <span class="tabular-nums">{{ ss.completedItems }}/{{ ss.totalItems }}</span>
@@ -189,8 +197,8 @@ const HOUR_HEIGHT = 60;
               >
                 {{
                   ss.status === 'queued' || ss.status === 'processing'
-                    ? 'Run in background'
-                    : 'Close'
+                    ? t('schedules.slice.runInBackground')
+                    : t('common.actions.close')
                 }}
               </button>
             </div>
@@ -222,6 +230,8 @@ export class Schedules implements OnInit, OnDestroy {
   private recurrence = inject(ScheduleRecurrenceService);
   private calendar = inject(ScheduleCalendarService);
   private toast = inject(ToastService);
+  private transloco = inject(TranslocoService);
+  private language = inject(LanguageService);
   private sse = inject(DashboardSseService);
   private destroyRef = inject(DestroyRef);
 
@@ -292,10 +302,11 @@ export class Schedules implements OnInit, OnDestroy {
   private boundMouseUp = this.onMouseUp.bind(this);
 
   get scheduleSubtitle(): string {
-    if (this.loading) return 'Plan playlists across screens and groups by the calendar';
     const count = this.entries.length;
-    if (!count) return 'Plan playlists across screens and groups by the calendar';
-    return `${count} scheduled ${count === 1 ? 'block' : 'blocks'}`;
+    if (this.loading || !count) {
+      return this.transloco.translate('schedules.page.subtitleDefault');
+    }
+    return this.transloco.translate('schedules.page.subtitleCount', { count });
   }
 
   get screenTargets(): TargetOption[] {
@@ -320,9 +331,10 @@ export class Schedules implements OnInit, OnDestroy {
   }
 
   get currentRangeLabel(): string {
+    const locale = this.language.locale();
     const opts: Intl.DateTimeFormatOptions = { timeZone: this.orgTimeZone };
     if (this.viewMode === 'day') {
-      return this.currentDate.toLocaleDateString(UI_LOCALE, {
+      return this.currentDate.toLocaleDateString(locale, {
         ...opts,
         weekday: 'long',
         month: 'long',
@@ -334,12 +346,12 @@ export class Schedules implements OnInit, OnDestroy {
       const days = this.visibleDays;
       const first = days[0];
       const last = days[6];
-      const fmtStart = first.toLocaleDateString(UI_LOCALE, {
+      const fmtStart = first.toLocaleDateString(locale, {
         ...opts,
         month: 'short',
         day: 'numeric',
       });
-      const fmtEnd = last.toLocaleDateString(UI_LOCALE, {
+      const fmtEnd = last.toLocaleDateString(locale, {
         ...opts,
         month: 'short',
         day: 'numeric',
@@ -347,7 +359,7 @@ export class Schedules implements OnInit, OnDestroy {
       });
       return `${fmtStart} - ${fmtEnd}`;
     }
-    return this.currentDate.toLocaleDateString(UI_LOCALE, {
+    return this.currentDate.toLocaleDateString(locale, {
       ...opts,
       month: 'long',
       year: 'numeric',
@@ -442,9 +454,10 @@ export class Schedules implements OnInit, OnDestroy {
 
   /** Heading for the slice progress overlay by status. */
   sliceModalTitle(status: SliceJobStatus): string {
-    if (status.status === 'failed') return 'Rendition pre-transcoding failed';
-    if (status.status === 'completed') return 'Renditions ready';
-    return 'Preparing video-wall renditions…';
+    if (status.status === 'failed') return this.transloco.translate('schedules.slice.failedTitle');
+    if (status.status === 'completed')
+      return this.transloco.translate('schedules.slice.readyTitle');
+    return this.transloco.translate('schedules.slice.preparingTitle');
   }
 
   /** Dismiss the overlay and keep tracking via calendar badges ("run in background"). */
@@ -463,7 +476,7 @@ export class Schedules implements OnInit, OnDestroy {
         } else if (memberships.length > 0) {
           this.orgId = memberships[0].organisationId;
         } else {
-          this.loadError = 'You are not a member of any organisation.';
+          this.loadError = this.transloco.translate('common.errors.noOrgMembership');
           this.loading = false;
           return;
         }
@@ -473,7 +486,7 @@ export class Schedules implements OnInit, OnDestroy {
         this.loadPlaylists();
       },
       error: () => {
-        this.loadError = 'Failed to load organisation context.';
+        this.loadError = this.transloco.translate('common.errors.loadOrgContext');
         this.loading = false;
       },
     });
@@ -503,7 +516,7 @@ export class Schedules implements OnInit, OnDestroy {
         }
       },
       error: () => {
-        this.loadError = 'Failed to load screens.';
+        this.loadError = this.transloco.translate('schedules.errors.loadScreens');
         this.loading = false;
       },
     });
@@ -562,7 +575,7 @@ export class Schedules implements OnInit, OnDestroy {
             this.rebuildCalendar();
           },
           error: () => {
-            this.loadError = 'Failed to load schedule entries.';
+            this.loadError = this.transloco.translate('schedules.errors.loadEntries');
             this.loading = false;
           },
         });
@@ -779,11 +792,11 @@ export class Schedules implements OnInit, OnDestroy {
     const end = new Date(endStr);
 
     if (end <= start) {
-      this.modalError = 'End time must be after start time.';
+      this.modalError = this.transloco.translate('schedules.errors.endAfterStart');
       return;
     }
     if (!result.playlistId) {
-      this.modalError = 'Please select a playlist.';
+      this.modalError = this.transloco.translate('schedules.errors.selectPlaylist');
       return;
     }
 
@@ -813,23 +826,24 @@ export class Schedules implements OnInit, OnDestroy {
           this.loadEntries();
           if (editIsSplit && editEntry.groupId) {
             this.openSliceModal(editEntry.groupId, result.playlistId);
-            this.toast.success('Schedule updated. Preparing video-wall renditions…');
+            this.toast.success(this.transloco.translate('schedules.toast.updatedPreparing'));
           } else {
-            this.toast.success('Schedule updated.');
+            this.toast.success(this.transloco.translate('schedules.toast.updated'));
           }
         },
         error: (err) => {
           this.submitting = false;
           if (err.status === 409) {
-            this.modalError = 'This time slot overlaps with an existing entry.';
+            this.modalError = this.transloco.translate('schedules.errors.overlap');
           } else {
-            this.modalError = err.error?.message || 'Failed to update entry.';
+            this.modalError =
+              err.error?.message || this.transloco.translate('schedules.errors.updateEntry');
           }
         },
       });
     } else {
       if (!result.targetId) {
-        this.modalError = 'Please select a target screen or group.';
+        this.modalError = this.transloco.translate('schedules.errors.selectTarget');
         this.submitting = false;
         return;
       }
@@ -864,17 +878,18 @@ export class Schedules implements OnInit, OnDestroy {
 
           if (isSplitGroup) {
             this.openSliceModal(targetId, result.playlistId);
-            this.toast.success('Schedule created. Preparing video-wall renditions…');
+            this.toast.success(this.transloco.translate('schedules.toast.createdPreparing'));
           } else {
-            this.toast.success('Schedule created.');
+            this.toast.success(this.transloco.translate('schedules.toast.created'));
           }
         },
         error: (err) => {
           this.submitting = false;
           if (err.status === 409) {
-            this.modalError = 'This time slot overlaps with an existing entry.';
+            this.modalError = this.transloco.translate('schedules.errors.overlap');
           } else {
-            this.modalError = err.error?.message || 'Failed to create entry.';
+            this.modalError =
+              err.error?.message || this.transloco.translate('schedules.errors.createEntry');
           }
         },
       });
@@ -902,11 +917,12 @@ export class Schedules implements OnInit, OnDestroy {
         this.submitting = false;
         this.closeModal();
         this.loadEntries();
-        this.toast.success('Schedule deleted.');
+        this.toast.success(this.transloco.translate('schedules.toast.deleted'));
       },
       error: (err) => {
         this.submitting = false;
-        this.modalError = err.error?.message || 'Failed to delete entry.';
+        this.modalError =
+          err.error?.message || this.transloco.translate('schedules.errors.deleteEntry');
       },
     });
   }
@@ -1023,13 +1039,13 @@ export class Schedules implements OnInit, OnDestroy {
     this.scheduleService.update(this.orgId, block.entry.id, dto).subscribe({
       next: () => {
         this.loadEntries();
-        this.toast.success('Schedule updated.');
+        this.toast.success(this.transloco.translate('schedules.toast.updated'));
       },
       error: (err) => {
         if (err.status === 409) {
-          this.toast.error('Overlap detected. Move was reverted.');
+          this.toast.error(this.transloco.translate('schedules.toast.overlapReverted'));
         } else {
-          this.toast.error('Failed to move entry.');
+          this.toast.error(this.transloco.translate('schedules.toast.moveFailed'));
         }
         this.loadEntries(); // Revert visual
       },
@@ -1037,7 +1053,7 @@ export class Schedules implements OnInit, OnDestroy {
   }
 
   formatSidePanelDate(date: Date): string {
-    return date.toLocaleDateString(UI_LOCALE, {
+    return date.toLocaleDateString(this.language.locale(), {
       timeZone: this.orgTimeZone,
       weekday: 'long',
       month: 'long',

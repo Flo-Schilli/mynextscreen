@@ -85,19 +85,28 @@ before a schedule begins, and extends Developer Mode over SSH + the Luna bus.
 
 - **Outbound only to the server**: an HTTPS config pull plus an SSE channel for
   operator commands. The one inbound port is its own setup page on the venue
-  LAN, guarded by a PIN printed to the container log, and `MNS_SETUP_PORT=0`
-  removes even that.
+  LAN, and `MNS_SETUP_PORT=0` removes even that. Enrolling and resetting there
+  need a **setup code** issued by an OrgAdmin in the dashboard: org-scoped,
+  single-use, short-lived. Nothing is printed to the container log for an
+  operator to read. A deployment can supply the same code through
+  `MNS_ENROLMENT_TOKEN` and run with `MNS_SETUP_PORT=0`, which leaves no inbound
+  port at all; the variable is consulted only while no session is stored, so a
+  restart does not try to spend a code again.
 - **The TVs' private keys never leave the venue.** The server stores only the
   Developer Mode passphrase, encrypted; the agent fetches each key from the
   set's own key server. That passphrase is the only field in the system that is
   delivered to one caller in the clear and masked for another, which is why the
   agent's payload and the dashboard's are separate types.
-- **The address can be pinned.** `MNS_SERVER_URL`, when set, wins over the one
-  in the agent's state file and the setup page cannot change it. Without it an
-  edited state file would have the agent present its real refresh token to an
-  address of the attacker's choosing — not an escalation, since that file is
-  readable by anyone who can write it, but the pin means a restored backup or a
-  loose host mount cannot quietly move an agent.
+- **The address is pinned, not configured.** `MNS_SERVER_URL` is required: the
+  agent refuses to boot without it, and the setup page cannot change it. Without
+  the pin an edited state file would have the agent present its real refresh
+  token to an address of the attacker's choosing — not an escalation, since that
+  file is readable by anyone who can write it, but the pin means a restored
+  backup or a loose host mount cannot quietly move an agent. Since the setup
+  code replaced the log PIN, this pin is the only thing standing between the
+  agent and a rogue server, so it must be an `https://` address; `http://` is
+  refused unless `MNS_ALLOW_INSECURE_SERVER_URL=true` is set for local
+  development.
 - **It works from cache.** The configuration is held on disk, so a venue keeps
   being looked after — including waking a set before a schedule — when the
   uplink is down.

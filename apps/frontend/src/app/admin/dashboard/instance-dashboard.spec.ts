@@ -7,6 +7,7 @@ import { InstanceDashboard } from './instance-dashboard';
 import { InstanceAdminService } from './instance-admin.service';
 import { InstanceAdminSummary } from './instance-admin.model';
 import { OrganisationService } from '../organisations/organisation.service';
+import { getTranslocoTestingModule } from '../../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -45,7 +46,10 @@ describe('InstanceDashboard', () => {
 
   async function setup(): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [InstanceDashboard],
+      imports: [
+        InstanceDashboard,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [
         provideZonelessChangeDetection(),
         provideRouter([]),

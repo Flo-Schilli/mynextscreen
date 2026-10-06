@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { UploadItem } from './content.model';
 
 /**
@@ -14,20 +15,21 @@ import { UploadItem } from './content.model';
   selector: 'app-content-upload-progress',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [TranslocoDirective],
   template: `
     @if (uploads().length > 0) {
-      <div class="upload-list">
+      <div class="upload-list" *transloco="let t">
         @for (item of uploads(); track item.file.name) {
           <div class="upload-item">
             <div class="upload-item-info">
               <span class="upload-item-name">{{ item.file.name }}</span>
               <span class="upload-item-status" [class.error]="item.status === 'error'">
                 @if (item.status === 'uploading') {
-                  {{ item.progress }}%
+                  {{ t('content.transcoding.percent', { progress: item.progress }) }}
                 } @else if (item.status === 'done') {
-                  Done
+                  {{ t('content.upload.done') }}
                 } @else {
-                  {{ item.error || 'Error' }}
+                  {{ item.error || t('content.upload.error') }}
                 }
               </span>
             </div>

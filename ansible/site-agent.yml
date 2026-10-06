@@ -1,0 +1,149 @@
+---
+# myNextScreen — Site Agent Deployment (GHCR pull model)
+# Usage: ansible-playbook -i hosts.ini site-agent.yml -K \
+#          -e site_agent_enrolment_token=<setup code from the dashboard>
+#
+# Separate from deploy.yml on purpose: the agent runs inside a venue's LAN, on
+# hardware that is not the server, and is brought up and replaced on its own
+# schedule. It is the only part of the system that reaches the TVs.
+#
+# The setup code is single-use and only consulted while the agent has no stored
+# session. Pass it on the first run; leave it off afterwards and the variable is
+# not written to the host at all.
+#
+# Required variables (set in hosts.ini, group_vars, or -e):
+#   site_agent_server_url:      https:// address of the myNextScreen server
+#   site_agent_enrolment_token: setup code — first run only (vault or -e)
+#   ghcr_username / ghcr_token: only if the GHCR packages are private
+
+- name: Deploy site agent to a venue
+  hosts: site_agents
+  become: true
+  vars:
+    service_user: mynextscreen-agent
+    service_user_home: "/home/{{ service_user }}"
+    quadlet_dir: "{{ service_user_home }}/.config/containers/systemd"
+    image_registry: "ghcr.io/flo-schilli/mynextscreen"
+    # Pinned to the version of the checkout being deployed, as in deploy.yml:
+    # a moving tag plus AutoUpdate=registry means no reproducible rollback.
+    mynextscreen_image_tag: "{{ (lookup('file', playbook_dir + '/../package.json') | from_json).version }}"
+    ghcr_username: flo-schilli
+    site_agent_image: "{{ image_registry }}/site-agent:{{ mynextscreen_image_tag }}"
+
+  tasks:
+    - name: Require an https server address
+      ansible.builtin.assert:
+        that:
+          - site_agent_server_url is defined
+          - site_agent_server_url is match('^https://')
+            or (site_agent_allow_insecure_server_url | default(false) | bool)
+        fail_msg: >-
+          site_agent_server_url must be set and start with https://. Over plain
+          http the agent hands its refresh token to whoever answers that name on
+          the venue network. Set site_agent_allow_insecure_server_url=true only
+          when pointing a development agent at localhost.
+
+    - name: Install Podman
+      ansible.builtin.package:
+        name:
+          - podman
+        state: present
+
+    - name: Create service user
+      ansible.builtin.user:
+        name: "{{ service_user }}"
+        system: false
+        create_home: true
+        shell: /bin/bash
+
+    - name: Enable linger for service user
+      ansible.builtin.command: "loginctl enable-linger {{ service_user }}"
+      args:
+        creates: "/var/lib/systemd/linger/{{ service_user }}"
+
+    - name: Create Quadlet directory
+      ansible.builtin.file:
+        path: "{{ quadlet_dir }}"
+        state: directory
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
+        mode: "0755"
+
+    - name: Create agent state directory
+      ansible.builtin.file:
+        path: "{{ service_user_home }}/agent/state"
+        state: directory
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
+        # Owner only: this holds the agent's refresh token, the TVs' keys and
+        # their Developer Mode passphrases.
+        mode: "0700"
+
+    - name: Generate agent environment file
+      ansible.builtin.template:
+        src: env.mynextscreen-agent.j2
+        dest: "{{ quadlet_dir }}/.env.mynextscreen-agent"
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
+        mode: "0600"
+      register: agent_env
+
+    - name: Template agent Quadlet file
+      ansible.builtin.template:
+        src: mynextscreen-agent.container.j2
+        dest: "{{ quadlet_dir }}/mynextscreen-agent.container"
+        owner: "{{ service_user }}"
+        group: "{{ service_user }}"
+        mode: "0644"
+      register: agent_quadlet
+
+    - name: Get service user UID
+      ansible.builtin.command: "id -u {{ service_user }}"
+      register: service_user_id
+      changed_when: false
+
+    - name: Log in to GHCR
+      ansible.builtin.command: >-
+        podman login ghcr.io -u {{ ghcr_username }} --password-stdin
+      args:
+        stdin: "{{ ghcr_token }}"
+      become_user: "{{ service_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ service_user_id.stdout }}"
+      when: ghcr_token is defined and ghcr_token
+      changed_when: false
+      no_log: true
+
+    - name: Pull site agent image from GHCR
+      ansible.builtin.command: "podman pull {{ site_agent_image }}"
+      become_user: "{{ service_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ service_user_id.stdout }}"
+      register: agent_pull
+      changed_when: "'Storing signatures' in agent_pull.stdout"
+
+    - name: Reload systemd user daemon
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+        scope: user
+      become_user: "{{ service_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ service_user_id.stdout }}"
+
+    - name: Enable and (re)start the site agent
+      ansible.builtin.systemd_service:
+        name: mynextscreen-agent.service
+        scope: user
+        enabled: true
+        state: "{{ 'restarted' if (agent_env.changed or agent_quadlet.changed or agent_pull.changed) else 'started' }}"
+      become_user: "{{ service_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ service_user_id.stdout }}"
+
+    - name: Report how to check the result
+      ansible.builtin.debug:
+        msg: >-
+          Agent started. Enrolment is visible in the log:
+          `sudo -u {{ service_user }} XDG_RUNTIME_DIR=/run/user/{{ service_user_id.stdout }}
+          podman logs mynextscreen-agent`. Once it reports a session, drop
+          site_agent_enrolment_token from the inventory — the code is spent.

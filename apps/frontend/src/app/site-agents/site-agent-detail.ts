@@ -7,8 +7,8 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { Subject, forkJoin, of, switchMap, takeUntil } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { SiteAgentService } from './site-agent.service';
@@ -19,12 +19,18 @@ import { ToastService } from '../shared/toast/toast.service';
 import { ScreenRemoteSettings } from './screen-remote-settings';
 import { ScreenOnboardingWizard, ONBOARDING_STEP_COUNT } from './screen-onboarding-wizard';
 import { SiteAgentConfirmModal } from './site-agent-confirm-modal';
-import type { RemoteCommandType, ScreenRemoteControl, SiteAgent } from './site-agent.model';
+import type {
+  RemoteCommandType,
+  ScreenRemoteControl,
+  SiteAgent,
+  SiteAgentStatusEvent,
+} from './site-agent.model';
 import type { ScreenListItem } from '../screens/screen.model';
 import {
   BadgeComponent,
   BtnComponent,
   CardComponent,
+  CopyButtonComponent,
   EmptyComponent,
   IconComponent,
   ModalComponent,
@@ -34,6 +40,7 @@ import {
   StatusDotComponent,
 } from '../ui';
 import { BackLink } from '../shared/back-link';
+import { LocaleDatePipe } from '../i18n/locale-format.pipes';
 
 /** A screen paired with what the agent knows about it. */
 interface ManagedScreen {
@@ -47,10 +54,11 @@ interface ManagedScreen {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     BackLink,
-    DatePipe,
+    LocaleDatePipe,
     BadgeComponent,
     BtnComponent,
     CardComponent,
+    CopyButtonComponent,
     EmptyComponent,
     IconComponent,
     ModalComponent,
@@ -61,280 +69,350 @@ interface ManagedScreen {
     ScreenRemoteSettings,
     ScreenOnboardingWizard,
     SiteAgentConfirmModal,
+    TranslocoDirective,
   ],
   template: `
-    @if (agent(); as agent) {
-      <mns-page-header [title]="agent.name" [sub]="agent.location || 'Site agent'" icon="Cast">
-        <app-back-link route="/site-agents" />
-      </mns-page-header>
+    <ng-container *transloco="let t">
+      @if (agent(); as agent) {
+        <mns-page-header
+          [title]="agent.name"
+          [sub]="agent.location || t('siteAgents.detail.siteAgentFallback')"
+          icon="Cast"
+        >
+          <app-back-link route="/site-agents" />
+        </mns-page-header>
 
-      <mns-card>
-        <div class="flex flex-wrap items-center gap-4">
-          <mns-status-dot [status]="agent.isOnline ? 'online' : 'offline'" />
-          <div class="flex-1 min-w-[200px]">
-            <div class="font-bold">{{ agent.isOnline ? 'Connected' : 'Not connected' }}</div>
-            <div class="text-[13px] text-muted">
-              {{ agent.agentVersion || 'version unknown' }} ·
-              {{
-                agent.lastHeartbeat
-                  ? 'last seen ' + (agent.lastHeartbeat | date: 'short')
-                  : 'never checked in'
-              }}
+        <mns-card>
+          <div class="flex flex-wrap items-center gap-4">
+            <mns-status-dot [status]="agent.isOnline ? 'online' : 'offline'" />
+            <div class="flex-1 min-w-[200px]">
+              <div class="font-bold">
+                {{
+                  agent.isOnline
+                    ? t('siteAgents.detail.connected')
+                    : t('siteAgents.detail.notConnected')
+                }}
+              </div>
+              <div class="text-[13px] text-muted">
+                {{ agent.agentVersion || t('siteAgents.detail.versionUnknown') }} ·
+                {{
+                  agent.lastHeartbeat
+                    ? t('siteAgents.detail.lastSeen', {
+                        date: agent.lastHeartbeat | localeDate: 'short',
+                      })
+                    : t('siteAgents.detail.neverChecked')
+                }}
+              </div>
             </div>
+            <mns-btn icon="Plus" [disabled]="unassigned().length === 0" (mnsClick)="openAssign()">
+              {{ t('siteAgents.detail.addDisplay') }}
+            </mns-btn>
+            <mns-btn variant="outline" icon="Refresh" (mnsClick)="reissue()">
+              {{ t('siteAgents.detail.newToken') }}
+            </mns-btn>
+            <mns-btn variant="outline" icon="Logout" (mnsClick)="revoke()">
+              {{ t('siteAgents.detail.revokeAccess') }}
+            </mns-btn>
+            <mns-btn variant="outline" icon="Trash" (mnsClick)="remove()">
+              {{ t('siteAgents.detail.deleteAgent') }}
+            </mns-btn>
           </div>
-          <mns-btn icon="Plus" [disabled]="unassigned().length === 0" (mnsClick)="openAssign()">
-            Add a display
-          </mns-btn>
-          <mns-btn variant="outline" icon="Refresh" (mnsClick)="reissue()">New token</mns-btn>
-          <mns-btn variant="outline" icon="Logout" (mnsClick)="revoke()">Revoke access</mns-btn>
-          <mns-btn variant="outline" icon="Trash" (mnsClick)="remove()">Delete agent</mns-btn>
-        </div>
 
-        @if (token(); as raw) {
-          <div class="mt-4 rounded-lg border border-border-strong bg-surface-2 p-3">
-            <code class="block break-all font-mono text-[13px]">{{ raw }}</code>
-            <p class="text-[13px] text-muted mt-2">
-              Enter this in the agent's setup page. It can only be used once and is not shown again.
-            </p>
+          @if (token(); as raw) {
+            <div class="mt-4 rounded-lg border border-border-strong bg-surface-2 p-3">
+              <div class="flex items-center gap-2">
+                <code class="min-w-0 flex-1 break-all font-mono text-[13px]">{{ raw }}</code>
+                <mns-copy-button
+                  [text]="raw"
+                  (copied)="onTokenCopied()"
+                  (copyFailed)="onTokenCopyFailed()"
+                />
+              </div>
+              <p class="text-[13px] text-muted mt-2">
+                {{ t('siteAgents.detail.tokenHint') }}
+              </p>
+            </div>
+          }
+        </mns-card>
+
+        @if (!agent.isOnline && managed().length > 0) {
+          <!-- A green "reachable" from two days ago is worse than no answer. -->
+          <div
+            class="mt-4 flex items-start gap-2 rounded-lg border border-border bg-surface-2 p-3 text-[13px]"
+          >
+            <mns-icon name="Alert" [size]="16" class="text-warn mt-0.5" />
+            <span>
+              {{ t('siteAgents.detail.staleWarning') }}
+            </span>
           </div>
         }
-      </mns-card>
 
-      @if (!agent.isOnline && managed().length > 0) {
-        <!-- A green "reachable" from two days ago is worse than no answer. -->
-        <div
-          class="mt-4 flex items-start gap-2 rounded-lg border border-border bg-surface-2 p-3 text-[13px]"
-        >
-          <mns-icon name="Alert" [size]="16" class="text-warn mt-0.5" />
-          <span>
-            This agent is not connected, so everything below is the last thing it reported, not the
-            current state.
-          </span>
-        </div>
-      }
+        <h2 class="mt-8 mb-3 text-[15px] font-bold">
+          {{ t('siteAgents.detail.displaysHeading', { count: managed().length }) }}
+        </h2>
 
-      <h2 class="mt-8 mb-3 text-[15px] font-bold">Displays ({{ managed().length }})</h2>
-
-      @if (managed().length === 0) {
-        <mns-empty icon="Screens" title="No displays assigned" [desc]="emptyDesc()" />
-      } @else {
-        <div class="flex flex-col gap-3">
-          @for (item of managed(); track item.screen.id) {
-            <mns-card>
-              <div class="flex flex-wrap items-start gap-3">
-                <mns-status-dot [status]="dotFor(item)" />
-                <div class="flex-1 min-w-[180px]">
-                  <div class="font-bold truncate">{{ item.screen.name }}</div>
-                  <div class="text-[13px] text-muted">
-                    {{ item.remote.localIp || 'no address' }} · {{ statusLabel(item) }}
+        @if (managed().length === 0) {
+          <mns-empty
+            icon="Screens"
+            [title]="t('siteAgents.detail.noDisplaysTitle')"
+            [desc]="emptyDesc()"
+          />
+        } @else {
+          <div class="flex flex-col gap-3">
+            @for (item of managed(); track item.screen.id) {
+              <mns-card>
+                <div class="flex flex-wrap items-start gap-3">
+                  <mns-status-dot [status]="dotFor(item)" />
+                  <div class="flex-1 min-w-[180px]">
+                    <div class="font-bold truncate">{{ item.screen.name }}</div>
+                    <div class="text-[13px] text-muted">
+                      {{ item.remote.localIp || t('siteAgents.detail.noAddress') }} ·
+                      {{ statusLabel(item) }}
+                    </div>
                   </div>
-                </div>
 
-                @if (!item.remote.onboardingCompletedAt) {
-                  <mns-badge tone="warning">
-                    Setup {{ item.remote.onboardingStep }}/{{ onboardingSteps }}
-                  </mns-badge>
-                }
-                @if (appUpdateAvailable(item)) {
-                  <mns-badge tone="warning">
-                    App {{ item.remote.installedAppVersion }} →
-                    {{ item.remote.availableAppVersion }}
-                  </mns-badge>
-                } @else if (item.remote.installedAppVersion) {
-                  <mns-badge tone="neutral">App {{ item.remote.installedAppVersion }}</mns-badge>
-                }
-
-                <div class="flex flex-wrap gap-2">
                   @if (!item.remote.onboardingCompletedAt) {
-                    <mns-btn size="sm" (mnsClick)="openWizard(item)">Continue setup</mns-btn>
-                  } @else {
-                    <mns-btn size="sm" variant="outline" (mnsClick)="command(item, 'launch')">
-                      Start app
-                    </mns-btn>
-                    @if (item.remote.macAddress) {
-                      <mns-btn size="sm" variant="outline" (mnsClick)="command(item, 'wake')">
-                        Wake
+                    <mns-badge tone="warning">
+                      {{
+                        t('siteAgents.detail.setupBadge', {
+                          step: item.remote.onboardingStep,
+                          total: onboardingSteps,
+                        })
+                      }}
+                    </mns-badge>
+                  }
+                  @if (appUpdateAvailable(item)) {
+                    <mns-badge tone="warning">
+                      {{
+                        t('siteAgents.detail.appUpdateBadge', {
+                          installed: item.remote.installedAppVersion,
+                          available: item.remote.availableAppVersion,
+                        })
+                      }}
+                    </mns-badge>
+                  } @else if (item.remote.installedAppVersion) {
+                    <mns-badge tone="neutral">
+                      {{
+                        t('siteAgents.detail.appBadge', {
+                          version: item.remote.installedAppVersion,
+                        })
+                      }}
+                    </mns-badge>
+                  }
+
+                  <div class="flex flex-wrap gap-2">
+                    @if (!item.remote.onboardingCompletedAt) {
+                      <mns-btn size="sm" (mnsClick)="openWizard(item)">
+                        {{ t('siteAgents.detail.continueSetup') }}
                       </mns-btn>
-                    }
-                    <!--
+                    } @else {
+                      <mns-btn size="sm" variant="outline" (mnsClick)="command(item, 'launch')">
+                        {{ t('siteAgents.detail.startApp') }}
+                      </mns-btn>
+                      @if (item.remote.macAddress) {
+                        <mns-btn size="sm" variant="outline" (mnsClick)="command(item, 'wake')">
+                          {{ t('siteAgents.detail.wake') }}
+                        </mns-btn>
+                      }
+                      <!--
                       Shown only where it can work: the extension runs over SSH,
                       which needs the Developer Mode passphrase stored.
                     -->
-                    @if (item.remote.macAddress) {
-                      <mns-btn size="sm" variant="outline" (mnsClick)="standby(item)">
-                        Standby
-                      </mns-btn>
-                    }
-                    <!--
+                      @if (item.remote.macAddress) {
+                        <mns-btn size="sm" variant="outline" (mnsClick)="standby(item)">
+                          {{ t('siteAgents.detail.standby') }}
+                        </mns-btn>
+                      }
+                      <!--
                       The install goes over SSH, so it needs the same thing the
                       Developer Mode extension does: a stored passphrase.
                     -->
-                    @if (item.remote.devmodePassphrase) {
-                      <mns-btn
-                        size="sm"
-                        [variant]="appUpdateAvailable(item) ? 'soft' : 'outline'"
-                        (mnsClick)="command(item, 'install_app')"
-                      >
-                        {{ item.remote.installedAppVersion ? 'Update app' : 'Install app' }}
-                      </mns-btn>
+                      @if (item.remote.devmodePassphrase) {
+                        <mns-btn
+                          size="sm"
+                          [variant]="appUpdateAvailable(item) ? 'soft' : 'outline'"
+                          (mnsClick)="command(item, 'install_app')"
+                        >
+                          {{
+                            item.remote.installedAppVersion
+                              ? t('siteAgents.detail.updateApp')
+                              : t('siteAgents.detail.installApp')
+                          }}
+                        </mns-btn>
+                      }
+                      @if (item.remote.extendDevmodeEnabled && item.remote.devmodePassphrase) {
+                        <mns-btn
+                          size="sm"
+                          variant="outline"
+                          (mnsClick)="command(item, 'extend_devmode')"
+                        >
+                          {{ t('siteAgents.detail.extendDevmode') }}
+                        </mns-btn>
+                      }
                     }
-                    @if (item.remote.extendDevmodeEnabled && item.remote.devmodePassphrase) {
-                      <mns-btn
-                        size="sm"
-                        variant="outline"
-                        (mnsClick)="command(item, 'extend_devmode')"
-                      >
-                        Extend Dev Mode
-                      </mns-btn>
-                    }
-                  }
-                  <mns-btn
-                    size="sm"
-                    variant="outline"
-                    icon="Settings"
-                    (mnsClick)="openSettings(item)"
-                  >
-                    Settings
+                    <mns-btn
+                      size="sm"
+                      variant="outline"
+                      icon="Settings"
+                      (mnsClick)="openSettings(item)"
+                    >
+                      {{ t('siteAgents.detail.settings') }}
+                    </mns-btn>
+                    <mns-btn
+                      size="sm"
+                      variant="outline"
+                      icon="Trash"
+                      (mnsClick)="removeScreen(item)"
+                    >
+                      {{ t('siteAgents.detail.remove') }}
+                    </mns-btn>
+                  </div>
+                </div>
+
+                <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px] sm:grid-cols-4">
+                  <dt class="text-muted">{{ t('siteAgents.detail.lastProbe') }}</dt>
+                  <dd>
+                    {{
+                      item.remote.lastProbeAt
+                        ? (item.remote.lastProbeAt | localeDate: 'short')
+                        : '—'
+                    }}
+                  </dd>
+                  <dt class="text-muted">{{ t('siteAgents.detail.developerMode') }}</dt>
+                  <dd>{{ devmodeLabel(item) }}</dd>
+                  <dt class="text-muted">{{ t('siteAgents.detail.key') }}</dt>
+                  <dd>{{ item.remote.keyStatus }}</dd>
+                  <dt class="text-muted">{{ t('siteAgents.detail.remote') }}</dt>
+                  <dd>{{ item.remote.ssapStatus }}</dd>
+                </dl>
+
+                @if (item.remote.lastProbeError) {
+                  <p class="mt-2 text-[13px] text-danger">{{ item.remote.lastProbeError }}</p>
+                }
+              </mns-card>
+            }
+          </div>
+        }
+
+        @if (assignOpen()) {
+          <mns-overlay (closed)="closeAssign()">
+            <mns-modal
+              [title]="t('siteAgents.detail.assignTitle')"
+              icon="Screens"
+              (closed)="closeAssign()"
+            >
+              <div class="flex flex-col gap-4">
+                <p class="text-[13px] text-muted">
+                  {{ t('siteAgents.detail.assignHint') }}
+                </p>
+                <mns-select
+                  [options]="unassignedOptions()"
+                  [(value)]="assigning"
+                  [placeholder]="t('siteAgents.detail.assignPlaceholder')"
+                />
+                <div class="flex justify-end gap-2">
+                  <mns-btn variant="outline" (mnsClick)="closeAssign()">
+                    {{ t('siteAgents.detail.cancel') }}
                   </mns-btn>
-                  <mns-btn size="sm" variant="outline" icon="Trash" (mnsClick)="removeScreen(item)">
-                    Remove
+                  <mns-btn [disabled]="!assigning()" (mnsClick)="assign()">
+                    {{ t('siteAgents.detail.add') }}
                   </mns-btn>
                 </div>
               </div>
+            </mns-modal>
+          </mns-overlay>
+        }
 
-              <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px] sm:grid-cols-4">
-                <dt class="text-muted">Last probe</dt>
-                <dd>
-                  {{ item.remote.lastProbeAt ? (item.remote.lastProbeAt | date: 'short') : '—' }}
-                </dd>
-                <dt class="text-muted">Developer mode</dt>
-                <dd>{{ devmodeLabel(item) }}</dd>
-                <dt class="text-muted">Key</dt>
-                <dd>{{ item.remote.keyStatus }}</dd>
-                <dt class="text-muted">Remote</dt>
-                <dd>{{ item.remote.ssapStatus }}</dd>
-              </dl>
+        @if (standbyScreen(); as item) {
+          <app-site-agent-confirm-modal
+            [title]="t('siteAgents.detail.standbyTitle')"
+            [confirmLabel]="t('siteAgents.detail.standbyConfirmLabel')"
+            [busyLabel]="t('siteAgents.detail.standbyBusyLabel')"
+            [busy]="busy()"
+            [error]="confirmError()"
+            (confirmed)="doStandby(item)"
+            (dismiss)="closeConfirm()"
+          >
+            {{ t('siteAgents.detail.standbyBodyPrefix') }}
+            <strong class="text-text">{{ item.screen.name }}</strong>
+            {{ t('siteAgents.detail.standbyBodyMiddle') }}
+            <strong class="text-text">{{ t('siteAgents.detail.standbyQuickStart') }}</strong>
+            {{ t('siteAgents.detail.standbyBodySuffix') }}
+          </app-site-agent-confirm-modal>
+        }
 
-              @if (item.remote.lastProbeError) {
-                <p class="mt-2 text-[13px] text-danger">{{ item.remote.lastProbeError }}</p>
-              }
-            </mns-card>
-          }
-        </div>
+        @if (removingScreen(); as item) {
+          <app-site-agent-confirm-modal
+            [title]="t('siteAgents.detail.removeTitle')"
+            [confirmLabel]="t('siteAgents.detail.removeConfirmLabel')"
+            [busyLabel]="t('siteAgents.detail.removeBusyLabel')"
+            [busy]="busy()"
+            [error]="confirmError()"
+            (confirmed)="doRemoveScreen(item)"
+            (dismiss)="closeConfirm()"
+          >
+            {{ t('siteAgents.detail.removeBodyPrefix') }}
+            <strong class="text-text">{{ item.screen.name }}</strong>
+            {{ t('siteAgents.detail.removeBodySuffix') }}
+          </app-site-agent-confirm-modal>
+        }
+
+        @if (confirmingDelete()) {
+          <app-site-agent-confirm-modal
+            [title]="t('siteAgents.detail.deleteTitle')"
+            [confirmLabel]="t('siteAgents.detail.deleteConfirmLabel')"
+            [busyLabel]="t('siteAgents.detail.deleteBusyLabel')"
+            [busy]="busy()"
+            [error]="confirmError()"
+            (confirmed)="doRemove()"
+            (dismiss)="closeConfirm()"
+          >
+            {{ t('siteAgents.detail.deleteBodyPrefix') }}
+            <strong class="text-text">{{ agent.name }}</strong
+            >?
+            @if (managed().length > 0) {
+              {{ t('siteAgents.detail.deleteBodyReleases', { count: managed().length }) }}
+            }
+            {{ t('siteAgents.detail.deleteBodySuffix') }}
+          </app-site-agent-confirm-modal>
+        }
+
+        @if (confirmingRevoke()) {
+          <app-site-agent-confirm-modal
+            [title]="t('siteAgents.detail.revokeTitle')"
+            [confirmLabel]="t('siteAgents.detail.revokeConfirmLabel')"
+            [busyLabel]="t('siteAgents.detail.revokeBusyLabel')"
+            icon="Logout"
+            [busy]="busy()"
+            [error]="confirmError()"
+            (confirmed)="doRevoke()"
+            (dismiss)="closeConfirm()"
+          >
+            {{ t('siteAgents.detail.revokeBody') }}
+          </app-site-agent-confirm-modal>
+        }
+
+        @if (settingsFor(); as item) {
+          <app-screen-remote-settings
+            [screen]="item.screen"
+            [remote]="item.remote"
+            (closed)="closeSettings()"
+            (saved)="onSaved($event)"
+          />
+        }
+
+        @if (wizardFor(); as item) {
+          <app-screen-onboarding-wizard
+            [screen]="item.screen"
+            [remote]="item.remote"
+            (closed)="closeWizard()"
+            (changed)="load()"
+          />
+        }
+      } @else {
+        <div class="text-sm text-muted py-8 text-center">{{ t('siteAgents.detail.loading') }}</div>
       }
-
-      @if (assignOpen()) {
-        <mns-overlay (closed)="closeAssign()">
-          <mns-modal title="Add a display" icon="Screens" (closed)="closeAssign()">
-            <div class="flex flex-col gap-4">
-              <p class="text-[13px] text-muted">
-                The agent will start probing it straight away. Its address and developer-mode
-                passphrase are set afterwards, in the display's settings.
-              </p>
-              <mns-select
-                [options]="unassignedOptions()"
-                [(value)]="assigning"
-                placeholder="Pick a display"
-              />
-              <div class="flex justify-end gap-2">
-                <mns-btn variant="outline" (mnsClick)="closeAssign()">Cancel</mns-btn>
-                <mns-btn [disabled]="!assigning()" (mnsClick)="assign()">Add</mns-btn>
-              </div>
-            </div>
-          </mns-modal>
-        </mns-overlay>
-      }
-
-      @if (standbyScreen(); as item) {
-        <app-site-agent-confirm-modal
-          title="Standby"
-          confirmLabel="Send to standby"
-          busyLabel="Sending…"
-          [busy]="busy()"
-          [error]="confirmError()"
-          (confirmed)="doStandby(item)"
-          (dismiss)="closeConfirm()"
-        >
-          Put <strong class="text-text">{{ item.screen.name }}</strong> into standby? It can only be
-          woken over the network afterwards, which needs
-          <strong class="text-text">Quick Start+</strong>
-          enabled on the TV (Settings → General → Energy Saving). Without it, someone has to use the
-          remote.
-        </app-site-agent-confirm-modal>
-      }
-
-      @if (removingScreen(); as item) {
-        <app-site-agent-confirm-modal
-          title="Remove display"
-          confirmLabel="Remove"
-          busyLabel="Removing…"
-          [busy]="busy()"
-          [error]="confirmError()"
-          (confirmed)="doRemoveScreen(item)"
-          (dismiss)="closeConfirm()"
-        >
-          Remove <strong class="text-text">{{ item.screen.name }}</strong> from this agent? Its
-          address, developer-mode passphrase and setup progress are forgotten, so adding it again
-          starts the setup from the beginning.
-        </app-site-agent-confirm-modal>
-      }
-
-      @if (confirmingDelete()) {
-        <app-site-agent-confirm-modal
-          title="Delete agent"
-          confirmLabel="Delete"
-          busyLabel="Deleting…"
-          [busy]="busy()"
-          [error]="confirmError()"
-          (confirmed)="doRemove()"
-          (dismiss)="closeConfirm()"
-        >
-          Delete <strong class="text-text">{{ agent.name }}</strong
-          >?
-          @if (managed().length > 0) {
-            The {{ managed().length }} display(s) it looks after are released and their setup is
-            forgotten.
-          }
-          This cannot be undone.
-        </app-site-agent-confirm-modal>
-      }
-
-      @if (confirmingRevoke()) {
-        <app-site-agent-confirm-modal
-          title="Revoke access"
-          confirmLabel="Revoke"
-          busyLabel="Revoking…"
-          icon="Logout"
-          [busy]="busy()"
-          [error]="confirmError()"
-          (confirmed)="doRevoke()"
-          (dismiss)="closeConfirm()"
-        >
-          End every session of this agent? It stops working immediately and needs a new enrolment
-          token to come back. Its displays and their settings are left alone.
-        </app-site-agent-confirm-modal>
-      }
-
-      @if (settingsFor(); as item) {
-        <app-screen-remote-settings
-          [screen]="item.screen"
-          [remote]="item.remote"
-          (closed)="closeSettings()"
-          (saved)="onSaved($event)"
-        />
-      }
-
-      @if (wizardFor(); as item) {
-        <app-screen-onboarding-wizard
-          [screen]="item.screen"
-          [remote]="item.remote"
-          (closed)="closeWizard()"
-          (changed)="load()"
-        />
-      }
-    } @else {
-      <div class="text-sm text-muted py-8 text-center">Loading…</div>
-    }
+    </ng-container>
   `,
   host: { class: 'block' },
 })
@@ -346,6 +424,7 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
   private readonly orgState = inject(OrganisationStateService);
   private readonly sse = inject(DashboardSseService);
   private readonly toast = inject(ToastService);
+  private readonly transloco = inject(TranslocoService);
   private readonly destroyed$ = new Subject<void>();
 
   protected readonly agent = signal<SiteAgent | null>(null);
@@ -372,9 +451,11 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
     this.load();
 
     this.sse.siteAgentStatus$.pipe(takeUntil(this.destroyed$)).subscribe((event) => {
-      const data = event.data as { agentId: string; isOnline: boolean };
+      const data = event.data as SiteAgentStatusEvent;
       if (data.agentId === this.agentId()) {
-        this.agent.update((agent) => (agent ? { ...agent, isOnline: data.isOnline } : agent));
+        this.agent.update((agent) =>
+          agent ? { ...agent, isOnline: data.isOnline, lastHeartbeat: data.lastHeartbeat } : agent,
+        );
       }
     });
 
@@ -412,7 +493,7 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
     this.service.getOne(id).subscribe({
       next: (agent) => this.agent.set(agent),
       error: () => {
-        this.toast.error('Could not load this agent');
+        this.toast.error(this.transloco.translate('siteAgents.detailToast.loadAgentFailed'));
         void this.router.navigate(['/site-agents']);
       },
     });
@@ -451,7 +532,8 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
             pairs.filter((item) => item.remote.agentId === null).map((item) => item.screen),
           );
         },
-        error: () => this.toast.error('Could not load the displays'),
+        error: () =>
+          this.toast.error(this.transloco.translate('siteAgents.detailToast.loadDisplaysFailed')),
       });
   }
 
@@ -468,26 +550,28 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
    */
   protected statusLabel(item: ManagedScreen): string {
     if (item.screen.isOnline) {
-      return 'playing';
+      return this.transloco.translate('siteAgents.detail.statusPlaying');
     }
     switch (item.remote.reachability) {
       case 'reachable':
-        return 'TV is on, app is not running';
+        return this.transloco.translate('siteAgents.detail.statusAppNotRunning');
       case 'unreachable':
-        return 'TV does not answer';
+        return this.transloco.translate('siteAgents.detail.statusUnreachable');
       default:
-        return 'not reported yet';
+        return this.transloco.translate('siteAgents.detail.statusNotReported');
     }
   }
 
   protected devmodeLabel(item: ManagedScreen): string {
     if (!item.remote.extendDevmodeEnabled) {
-      return 'off';
+      return this.transloco.translate('siteAgents.detail.devmodeOff');
     }
     if (!item.remote.lastDevmodeExtendAt) {
-      return 'never extended';
+      return this.transloco.translate('siteAgents.detail.devmodeNeverExtended');
     }
-    return item.remote.lastDevmodeExtendOk === false ? 'last attempt failed' : 'extended';
+    return item.remote.lastDevmodeExtendOk === false
+      ? this.transloco.translate('siteAgents.detail.devmodeLastFailed')
+      : this.transloco.translate('siteAgents.detail.devmodeExtended');
   }
 
   /**
@@ -522,20 +606,23 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
 
   protected command(item: ManagedScreen, type: RemoteCommandType): void {
     this.service.sendCommand(item.screen.id, type).subscribe({
-      next: () => this.toast.success('Sent to the agent'),
+      next: () =>
+        this.toast.success(this.transloco.translate('siteAgents.detailToast.commandSent')),
       error: (error: { status?: number }) =>
         this.toast.error(
-          error.status === 409
-            ? 'The agent is not connected right now'
-            : 'Could not reach the agent',
+          this.transloco.translate(
+            error.status === 409
+              ? 'siteAgents.detailToast.agentOffline'
+              : 'siteAgents.detailToast.commandFailed',
+          ),
         ),
     });
   }
 
   protected emptyDesc(): string {
     return this.unassigned().length > 0
-      ? "Use 'Add a display' above to have this agent look after one."
-      : 'Every display is already looked after by an agent.';
+      ? this.transloco.translate('siteAgents.detail.emptyDescAssignable')
+      : this.transloco.translate('siteAgents.detail.emptyDescAllAssigned');
   }
 
   protected unassignedOptions(): { value: string; label: string }[] {
@@ -556,10 +643,10 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
     this.service.updateRemoteControl(screenId, { agentId: this.agentId() }).subscribe({
       next: () => {
         this.closeAssign();
-        this.toast.success('Added to this agent');
+        this.toast.success(this.transloco.translate('siteAgents.detailToast.added'));
         this.load();
       },
-      error: () => this.toast.error('Could not add that display'),
+      error: () => this.toast.error(this.transloco.translate('siteAgents.detailToast.addFailed')),
     });
   }
 
@@ -589,10 +676,18 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
     this.load();
   }
 
+  protected onTokenCopied(): void {
+    this.toast.success(this.transloco.translate('siteAgents.toast.tokenCopied'));
+  }
+
+  /** The code is on screen either way, so this is a convenience, not a failure. */
+  protected onTokenCopyFailed(): void {
+    this.toast.error(this.transloco.translate('siteAgents.toast.tokenCopyFailed'));
+  }
   protected reissue(): void {
     this.service.reissueEnrolment(this.agentId()).subscribe({
       next: (result) => this.token.set(result.enrolmentToken),
-      error: () => this.toast.error('Could not issue a token'),
+      error: () => this.toast.error(this.transloco.translate('siteAgents.detailToast.tokenFailed')),
     });
   }
 
@@ -612,12 +707,12 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
       next: () => {
         this.busy.set(false);
         this.closeConfirm();
-        this.toast.success('Removed from this agent');
+        this.toast.success(this.transloco.translate('siteAgents.detailToast.removed'));
         this.load();
       },
       error: () => {
         this.busy.set(false);
-        this.confirmError.set('Could not remove that display.');
+        this.confirmError.set(this.transloco.translate('siteAgents.detailToast.removeFailed'));
       },
     });
   }
@@ -633,12 +728,12 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
       next: () => {
         this.busy.set(false);
         this.closeConfirm();
-        this.toast.success('Agent deleted');
+        this.toast.success(this.transloco.translate('siteAgents.detailToast.deleted'));
         void this.router.navigate(['/site-agents']);
       },
       error: () => {
         this.busy.set(false);
-        this.confirmError.set('Could not delete this agent.');
+        this.confirmError.set(this.transloco.translate('siteAgents.detailToast.deleteFailed'));
       },
     });
   }
@@ -654,12 +749,12 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
       next: () => {
         this.busy.set(false);
         this.closeConfirm();
-        this.toast.success('Access revoked');
+        this.toast.success(this.transloco.translate('siteAgents.detailToast.revoked'));
         this.load();
       },
       error: () => {
         this.busy.set(false);
-        this.confirmError.set('Could not revoke access.');
+        this.confirmError.set(this.transloco.translate('siteAgents.detailToast.revokeFailed'));
       },
     });
   }

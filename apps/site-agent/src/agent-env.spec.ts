@@ -10,12 +10,11 @@ describe('AgentEnv', () => {
   }
 
   describe('defaults', () => {
-    it('needs no variables at all — the setup UI is the other way in', () => {
+    it('reports no server address until MNS_SERVER_URL is set', () => {
       const env = envWith({});
 
       expect(env.serverUrl).toBeNull();
       expect(env.enrolmentToken).toBeNull();
-      expect(env.setupPin).toBeNull();
     });
 
     it('uses the documented state directory and port', () => {
@@ -48,10 +47,6 @@ describe('AgentEnv', () => {
 
     it('parses the port as a number, since the environment gives strings', () => {
       expect(envWith({ MNS_SETUP_PORT: '9999' }).setupPort).toBe(9999);
-    });
-
-    it('takes a fixed PIN for deployments where nobody reads the log', () => {
-      expect(envWith({ MNS_SETUP_PIN: 'fixed' }).setupPin).toBe('fixed');
     });
   });
 });

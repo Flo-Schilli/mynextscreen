@@ -1,5 +1,6 @@
 /* eslint-disable @angular-eslint/component-selector */
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { useDialogStack } from './dialog-stack';
 import { IconComponent, IconName } from './icon.component';
 
@@ -80,9 +81,10 @@ export class OverlayComponent {
   selector: 'mns-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent],
+  imports: [IconComponent, TranslocoDirective],
   template: `
     <div
+      *transloco="let t"
       class="relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-xl border border-border-strong bg-surface"
       [style.maxWidth.px]="widthPx()"
       style="box-shadow: var(--shadow-lg); animation: fadeUp .3s cubic-bezier(.22,.61,.36,1) both"
@@ -105,7 +107,7 @@ export class OverlayComponent {
         <button
           type="button"
           class="w-8 h-8 rounded-lg grid place-items-center text-muted transition-colors duration-[120ms] hover:bg-hover hover:text-text"
-          aria-label="Close"
+          [attr.aria-label]="t('common.actions.close')"
           (click)="closed.emit()"
         >
           <mns-icon name="X" [size]="16" />

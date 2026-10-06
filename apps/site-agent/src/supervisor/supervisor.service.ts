@@ -19,6 +19,7 @@ import { DEVMODE_JITTER_MAX_MS, backoffFor, decideAction } from './supervision.p
 import type {
   AgentScreenConfigMessage,
   AgentScreenReportMessage,
+  AgentMetricsMessage,
 } from '../protocol/server-protocol';
 
 /** How often the agent checks in, independent of the probe interval. */
@@ -61,6 +62,11 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     await this.configs.load();
     this.timer = setInterval(() => void this.tick(), await this.probeInterval());
     this.heartbeatTimer = setInterval(() => void this.heartbeat(), HEARTBEAT_INTERVAL_MS);
+    // Check in now rather than a full interval from now: the server shows the
+    // agent online only from its first heartbeat, after a restart as much as
+    // after the setup page says it is connected.
+    this.setup.onEnrolled(() => void this.heartbeat());
+    void this.heartbeat();
   }
 
   onModuleDestroy(): void {
@@ -207,6 +213,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     }
 
     const probe = await this.reachability.probe(screen.localIp, screen.ssapPort);
+    runtime.reachable = probe.reachability === 'reachable';
     const report: AgentScreenReportMessage = {
       screenId: screen.screenId,
       reachability: probe.reachability,
@@ -248,6 +255,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.wol.wake(screen.macAddress as string, screen.localIp);
       runtime.lastWakeAt = Date.now();
+      runtime.wakeCount += 1;
       report.woken = true;
       return true;
     } catch (error) {
@@ -298,6 +306,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     // due again and relaunch the Developer Mode app a minute later.
     if (result.extended) {
       runtime.lastDevmodeExtendAt = Date.now();
+      runtime.devmodeExtendCount += 1;
     }
 
     // The TV's own displayed countdown updates with a long delay, so it is not
@@ -386,6 +395,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
         const serverUrl = (await this.connections.load())?.serverUrl;
         await client.launch(appId, serverUrl ? { serverUrl } : undefined);
         runtime.lastLaunchAt = Date.now();
+        runtime.launchCount += 1;
         report.launched = true;
       }
       await this.readAppVersion(client, appId, runtime, report);
@@ -445,14 +455,43 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async heartbeat(): Promise<void> {
-    if (!(await this.connections.load())) {
+    const connection = await this.connections.load();
+    if (!connection) {
       return;
     }
     try {
-      await this.client.sendHeartbeat(this.agentVersion);
+      await this.client.sendHeartbeat(this.agentVersion, this.collectMetrics(true));
     } catch (error) {
       this.reportConnectionFailure(error, 'send heartbeat');
     }
+  }
+
+  /**
+   * A snapshot of this agent's runtime state for Prometheus, pushed on the
+   * heartbeat. Reads only in-memory state the loop already maintains — collecting
+   * metrics never probes a TV or opens a session of its own.
+   */
+  collectMetrics(connected: boolean): AgentMetricsMessage {
+    const screens = this.configs.current()?.screens ?? [];
+    return {
+      uptimeSeconds: Math.round(process.uptime()),
+      memoryRssBytes: process.memoryUsage().rss,
+      connected,
+      lastConfigPullAtMs: this.lastConfigPull,
+      screenCount: screens.length,
+      screens: screens.map((screen) => {
+        const runtime = this.runtimeFor(screen.screenId);
+        return {
+          screenId: screen.screenId,
+          reachable: runtime.reachable,
+          failures: runtime.failures,
+          devmodeActive: runtime.lastDevmodeExtendAt > 0,
+          devmodeExtensions: runtime.devmodeExtendCount,
+          launches: runtime.launchCount,
+          wakes: runtime.wakeCount,
+        };
+      }),
+    };
   }
 
   private async send(screens: AgentScreenReportMessage[]): Promise<void> {

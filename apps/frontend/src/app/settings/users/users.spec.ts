@@ -7,6 +7,7 @@ import { of, throwError } from 'rxjs';
 import { Users } from './users';
 import { MemberService } from './member.service';
 import { Membership, MyMembership, OrganisationRole } from './member.model';
+import { getTranslocoTestingModule } from '../../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -68,7 +69,7 @@ describe('Users', () => {
     };
 
     TestBed.configureTestingModule({
-      imports: [Users],
+      imports: [Users, getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
         provideRouter([]),

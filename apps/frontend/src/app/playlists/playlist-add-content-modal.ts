@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { Content } from '../content/content.model';
 import {
   OverlayComponent,
@@ -18,41 +19,52 @@ import {
   selector: 'app-playlist-add-content-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayComponent, ModalComponent, BtnComponent, SInputComponent, IconComponent],
+  imports: [
+    OverlayComponent,
+    ModalComponent,
+    BtnComponent,
+    SInputComponent,
+    IconComponent,
+    TranslocoDirective,
+  ],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
-      <mns-modal title="Add content" icon="Plus" (closed)="dismiss.emit()">
+    <mns-overlay (closed)="dismiss.emit()" *transloco="let t">
+      <mns-modal [title]="t('playlists.addContent.title')" icon="Plus" (closed)="dismiss.emit()">
         <div class="px-6 pt-4 pb-2">
-          <mns-sinput [(value)]="query" placeholder="Search content…" icon="Search" />
+          <mns-sinput
+            [(value)]="query"
+            [placeholder]="t('playlists.addContent.searchPlaceholder')"
+            icon="Search"
+          />
           <div class="flex gap-1.5 mt-3">
             <mns-btn
               [variant]="!filter() ? 'soft' : 'ghost'"
               size="sm"
               (mnsClick)="filter.set(undefined)"
-              >All</mns-btn
+              >{{ t('playlists.addContent.all') }}</mns-btn
             >
             <mns-btn
               [variant]="filter() === 'image' ? 'soft' : 'ghost'"
               size="sm"
               (mnsClick)="filter.set('image')"
-              >Images</mns-btn
+              >{{ t('playlists.addContent.images') }}</mns-btn
             >
             <mns-btn
               [variant]="filter() === 'video' ? 'soft' : 'ghost'"
               size="sm"
               (mnsClick)="filter.set('video')"
-              >Videos</mns-btn
+              >{{ t('playlists.addContent.videos') }}</mns-btn
             >
           </div>
         </div>
 
         <div class="px-6 pb-4 max-h-[50vh] overflow-y-auto">
           @if (loading()) {
-            <p class="text-sm text-muted py-4">Loading content library…</p>
+            <p class="text-sm text-muted py-4">{{ t('playlists.addContent.loading') }}</p>
           } @else if (availableContent().length === 0) {
-            <p class="text-sm text-muted py-4">No content available. Upload content first.</p>
+            <p class="text-sm text-muted py-4">{{ t('playlists.addContent.empty') }}</p>
           } @else if (filteredContent().length === 0) {
-            <p class="text-sm text-muted py-4">No content matches your search.</p>
+            <p class="text-sm text-muted py-4">{{ t('playlists.addContent.noMatches') }}</p>
           } @else {
             <div class="flex flex-col gap-1.5">
               @for (content of filteredContent(); track content.id) {
@@ -79,7 +91,9 @@ import {
                     <span class="block text-[13px] font-semibold truncate">{{
                       content.title
                     }}</span>
-                    <span class="block text-[11px] text-muted">{{ content.type }}</span>
+                    <span class="block text-[11px] text-muted">{{
+                      t('content.type.' + content.type)
+                    }}</span>
                   </span>
                   <mns-icon name="Plus" [size]="15" class="text-accent flex-shrink-0" />
                 </button>
@@ -89,7 +103,9 @@ import {
         </div>
 
         <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
-          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Close</mns-btn>
+          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">{{
+            t('common.actions.close')
+          }}</mns-btn>
         </div>
       </mns-modal>
     </mns-overlay>

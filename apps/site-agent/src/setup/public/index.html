@@ -24,17 +24,32 @@
           --muted: #5d6471;
         }
       }
-      * { box-sizing: border-box; }
+      * {
+        box-sizing: border-box;
+      }
       body {
         margin: 0;
         padding: 32px 16px;
         background: var(--bg);
         color: var(--text);
-        font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        font:
+          15px/1.5 system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
       }
-      main { max-width: 520px; margin: 0 auto; }
-      h1 { font-size: 20px; margin: 0 0 4px; }
-      .sub { color: var(--muted); margin: 0 0 24px; }
+      main {
+        max-width: 520px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 4px;
+      }
+      .sub {
+        color: var(--muted);
+        margin: 0 0 24px;
+      }
       .card {
         background: var(--card);
         border: 1px solid var(--line);
@@ -42,7 +57,11 @@
         padding: 20px;
         margin-bottom: 16px;
       }
-      label { display: block; font-weight: 600; margin: 14px 0 6px; }
+      label {
+        display: block;
+        font-weight: 600;
+        margin: 14px 0 6px;
+      }
       input {
         width: 100%;
         padding: 9px 11px;
@@ -52,8 +71,15 @@
         color: var(--text);
         font: inherit;
       }
-      input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-      .hint { color: var(--muted); font-size: 13px; margin-top: 5px; }
+      input:focus {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+      }
+      .hint {
+        color: var(--muted);
+        font-size: 13px;
+        margin-top: 5px;
+      }
       button {
         margin-top: 18px;
         padding: 9px 16px;
@@ -65,18 +91,54 @@
         font-weight: 600;
         cursor: pointer;
       }
-      button.secondary { background: transparent; border: 1px solid var(--line); color: var(--text); }
-      button:disabled { opacity: 0.55; cursor: default; }
-      dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; }
-      dt { color: var(--muted); }
-      dd { margin: 0; overflow-wrap: anywhere; }
-      .pill { font-weight: 600; }
-      .pill.on { color: var(--ok); }
-      .pill.off { color: var(--bad); }
-      .msg { margin-top: 14px; padding: 10px 12px; border-radius: 7px; font-size: 14px; }
-      .msg.err { background: rgba(248, 81, 73, 0.14); color: var(--bad); }
-      .msg.ok { background: rgba(63, 185, 80, 0.14); color: var(--ok); }
-      [hidden] { display: none !important; }
+      button.secondary {
+        background: transparent;
+        border: 1px solid var(--line);
+        color: var(--text);
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
+      dl {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 8px 16px;
+        margin: 0;
+      }
+      dt {
+        color: var(--muted);
+      }
+      dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .pill {
+        font-weight: 600;
+      }
+      .pill.on {
+        color: var(--ok);
+      }
+      .pill.off {
+        color: var(--bad);
+      }
+      .msg {
+        margin-top: 14px;
+        padding: 10px 12px;
+        border-radius: 7px;
+        font-size: 14px;
+      }
+      .msg.err {
+        background: rgba(248, 81, 73, 0.14);
+        color: var(--bad);
+      }
+      .msg.ok {
+        background: rgba(63, 185, 80, 0.14);
+        color: var(--ok);
+      }
+      [hidden] {
+        display: none !important;
+      }
     </style>
   </head>
   <body>
@@ -103,18 +165,22 @@
         <strong id="connect-title">Connect this agent</strong>
         <form id="connect-form">
           <label for="serverUrl">Server address</label>
-          <input id="serverUrl" name="serverUrl" placeholder="https://signage.example.com" required />
-          <p class="hint" id="serverUrl-pinned" hidden>
+          <input
+            id="serverUrl"
+            name="serverUrl"
+            placeholder="https://signage.example.com"
+            readonly
+          />
+          <p class="hint">
             Fixed by MNS_SERVER_URL in this deployment, so it cannot be changed here.
           </p>
 
-          <label for="enrolmentToken">Enrolment token</label>
-          <input id="enrolmentToken" name="enrolmentToken" autocomplete="off" required />
-          <p class="hint">Create the agent in the dashboard under Site Agents; the token is shown once.</p>
-
-          <label for="pin">Setup PIN</label>
-          <input id="pin" name="pin" autocomplete="off" required />
-          <p class="hint">Printed in this container's log when the agent started.</p>
+          <label for="setupCode">Setup code</label>
+          <input id="setupCode" name="setupCode" autocomplete="off" required />
+          <p class="hint" id="code-hint">
+            In the dashboard, open Site Agents and "Add an agent" to get a setup code. It is shown
+            once and is valid for a short time.
+          </p>
 
           <button type="submit" id="connect-btn">Connect</button>
           <button type="button" id="reset-btn" class="secondary" hidden>Disconnect</button>
@@ -143,15 +209,18 @@
           : 'never';
         $('version').textContent = status.agentVersion || '—';
 
-        // A deployment that pinned the address must not be talked out of it by
-        // this page: enrolling elsewhere would reopen the hole the pin closes.
-        $('serverUrl').readOnly = !!status.serverUrlPinned;
-        $('serverUrl-pinned').hidden = !status.serverUrlPinned;
+        // The server address is pinned by MNS_SERVER_URL and cannot be changed
+        // here; the field only shows where this agent belongs.
+        if (status.serverUrl) $('serverUrl').value = status.serverUrl;
 
-        $('connect-title').textContent = status.connected ? 'Reconnect this agent' : 'Connect this agent';
+        $('connect-title').textContent = status.connected
+          ? 'Reconnect this agent'
+          : 'Connect this agent';
         $('connect-btn').textContent = status.connected ? 'Reconnect' : 'Connect';
         $('reset-btn').hidden = !status.connected;
-        if (status.serverUrl) $('serverUrl').value = status.serverUrl;
+        $('code-hint').textContent = status.connected
+          ? 'To disconnect, paste a fresh setup code from the dashboard, then Disconnect.'
+          : 'In the dashboard, open Site Agents and "Add an agent" to get a setup code. It is shown once and is valid for a short time.';
       }
 
       async function refresh() {
@@ -162,10 +231,14 @@
         }
       }
 
-      async function send(path, body) {
+      async function send(path, { body, setupCode } = {}) {
+        const headers = { 'Content-Type': 'application/json' };
+        // The setup code only gates the reset; enrolment's own single-use token
+        // in the body is its credential.
+        if (setupCode) headers['X-Setup-Code'] = setupCode;
         const res = await fetch(path, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Setup-Pin': $('pin').value },
+          headers,
           body: JSON.stringify(body ?? {}),
         });
         const payload = await res.json().catch(() => ({}));
@@ -179,11 +252,12 @@
         try {
           render(
             await send('api/enrol', {
-              serverUrl: $('serverUrl').value.trim(),
-              enrolmentToken: $('enrolmentToken').value.trim(),
+              // The server address is decided by the pinned MNS_SERVER_URL, so
+              // the body leaves it out.
+              body: { enrolmentToken: $('setupCode').value.trim() },
             }),
           );
-          $('enrolmentToken').value = '';
+          $('setupCode').value = '';
           say('Connected. The agent is now looking after this venue.', 'ok');
         } catch (error) {
           say(error.message, 'err');
@@ -193,9 +267,15 @@
       });
 
       $('reset-btn').addEventListener('click', async () => {
-        if (!confirm('Disconnect this agent? It will need a new enrolment token to come back.')) return;
+        const code = $('setupCode').value.trim();
+        if (!code) {
+          say('Paste a fresh setup code from the dashboard to disconnect.', 'err');
+          return;
+        }
+        if (!confirm('Disconnect this agent? It will need a new setup code to come back.')) return;
         try {
-          render(await send('api/reset'));
+          render(await send('api/reset', { setupCode: code }));
+          $('setupCode').value = '';
           say('Disconnected.', 'ok');
         } catch (error) {
           say(error.message, 'err');

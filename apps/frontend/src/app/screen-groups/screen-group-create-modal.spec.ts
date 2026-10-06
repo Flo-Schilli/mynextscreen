@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ScreenGroupCreateModal } from './screen-group-create-modal';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 import { CreateScreenGroupSubmit } from './screen-group.model';
 import { Screen } from '../screens/screen.model';
 
@@ -28,7 +29,10 @@ describe('ScreenGroupCreateModal', () => {
 
   async function setUp(screens: Screen[] = [], creating = false, error = ''): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [ScreenGroupCreateModal],
+      imports: [
+        ScreenGroupCreateModal,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

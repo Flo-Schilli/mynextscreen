@@ -51,6 +51,11 @@ export class SiteAgentSseService implements OnModuleDestroy {
     this.connections.clear();
   }
 
+  /** Number of open agent SSE connections. Read by observability. */
+  activeConnectionCount(): number {
+    return this.connections.size;
+  }
+
   subscribe(agentId: string): Observable<MessageEvent> {
     let conn = this.connections.get(agentId);
     if (!conn) {

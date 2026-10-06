@@ -6,6 +6,7 @@
 | [Configuration](configuration.md) | Every environment variable, and which ones a production instance must set  |
 | [Screens](screens.md)             | Pairing, re-pairing, video walls, and the LG webOS app                     |
 | [Site Agent](site-agent.md)       | The on-premise service that starts, wakes and maintains a venue's displays |
+| [Observability](observability.md) | Prometheus scrape endpoint, metrics exported, and example scrape config    |
 
 For how the system is put together, see [ARCHITECTURE.md](../ARCHITECTURE.md).
 For what changed and what each release asks an operator to do, see

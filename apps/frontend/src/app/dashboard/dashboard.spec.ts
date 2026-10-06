@@ -18,6 +18,7 @@ import { StorageUsageBars } from '../shared/storage-usage-bars';
 import { DashboardScheduleTimeline } from './dashboard-schedule-timeline';
 import { DashboardActivityFeed } from './dashboard-activity-feed';
 import { DashboardAlerts } from './dashboard-alerts';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -146,7 +147,7 @@ describe('Dashboard', () => {
     sse = makeSseStub();
 
     await TestBed.configureTestingModule({
-      imports: [Dashboard],
+      imports: [Dashboard, getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
         { provide: Router, useValue: { navigate } },

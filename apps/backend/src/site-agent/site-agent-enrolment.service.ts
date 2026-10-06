@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { GoneException, Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
@@ -8,11 +9,18 @@ import { hashToken } from '../auth/token-hash.util';
 import { SiteAgentSessionService, type SiteAgentSessionTokens } from './site-agent-session.service';
 
 /**
- * How long a freshly issued enrolment token stays usable. Long enough to carry
- * it to the venue machine, short enough that one forgotten in a chat log is not
- * a standing invitation.
+ * How long a freshly issued setup code stays usable by default.
+ *
+ * Short on purpose: the code is created in a live dashboard session and carried
+ * straight to the venue machine, so fifteen minutes is enough to type it in
+ * while being too short for one forgotten in a chat log to be a standing
+ * invitation. Overridable with `SITE_AGENT_ENROLMENT_TTL_MS` for deployments
+ * where the walk to the machine is longer.
  */
-export const ENROLMENT_TTL_MS = 24 * 60 * 60 * 1000;
+export const DEFAULT_ENROLMENT_TTL_MS = 15 * 60 * 1000;
+
+/** Lower bound: a code that cannot survive the walk to the machine is useless. */
+const MIN_ENROLMENT_TTL_MS = 60 * 1000;
 
 export interface IssuedEnrolmentToken {
   /** Raw token — returned to the dashboard once and never stored. */
@@ -42,16 +50,38 @@ export interface EnroledAgent {
 @Injectable()
 export class SiteAgentEnrolmentService {
   private readonly logger = new Logger(SiteAgentEnrolmentService.name);
+  private readonly ttlMs: number;
 
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly sessions: SiteAgentSessionService,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.ttlMs = SiteAgentEnrolmentService.resolveTtlMs(
+      config.get<string>('SITE_AGENT_ENROLMENT_TTL_MS'),
+    );
+  }
 
   /**
-   * Issues a token for an agent, invalidating any earlier unredeemed one.
+   * Parses the configured TTL, falling back to the default on anything that is
+   * not a usable positive number. A typo must not silently produce a zero-TTL
+   * code that is expired the instant it is issued.
+   */
+  private static resolveTtlMs(raw: string | undefined): number {
+    if (raw === undefined || raw === '') {
+      return DEFAULT_ENROLMENT_TTL_MS;
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed < MIN_ENROLMENT_TTL_MS) {
+      return DEFAULT_ENROLMENT_TTL_MS;
+    }
+    return Math.floor(parsed);
+  }
+
+  /**
+   * Issues a setup code for an agent, invalidating any earlier unredeemed one.
    *
-   * Superseding rather than accumulating: two valid tokens for one agent means
+   * Superseding rather than accumulating: two valid codes for one agent means
    * the operator cannot tell which of them is the live one, and revoking the
    * wrong one feels like it worked.
    */
@@ -61,7 +91,7 @@ export class SiteAgentEnrolmentService {
       .where(and(eq(siteAgentEnrolments.agentId, agentId), isNull(siteAgentEnrolments.consumedAt)));
 
     const token = randomBytes(32).toString('base64url');
-    const expiresAt = new Date(Date.now() + ENROLMENT_TTL_MS);
+    const expiresAt = new Date(Date.now() + this.ttlMs);
 
     await this.db.insert(siteAgentEnrolments).values({
       agentId,
@@ -122,6 +152,47 @@ export class SiteAgentEnrolmentService {
     }
 
     throw new UnauthorizedException('Invalid or expired enrolment token');
+  }
+
+  /**
+   * Confirms a fresh setup code exists for the given organisation without
+   * consuming it.
+   *
+   * Used to gate a sensitive post-enrolment action (an agent-side reset) on a
+   * fresh code from the dashboard, which keeps anyone on the venue LAN from
+   * resetting a running agent. The code is *not* consumed: the operator still
+   * needs it to re-enrol afterwards, and consuming it here would force a second
+   * trip to the dashboard for every reset.
+   *
+   * The code must be unconsumed, unexpired and scoped to this organisation; a
+   * valid code for a different tenant does not open this one.
+   *
+   * - unknown or wrong-org code → 401, with no hint which
+   * - already consumed → 410
+   */
+  async verifyFresh(rawToken: string, organisationId: string): Promise<void> {
+    const tokenHash = hashToken(rawToken);
+
+    const [row] = await this.db
+      .select({
+        organisationId: siteAgentEnrolments.organisationId,
+        consumedAt: siteAgentEnrolments.consumedAt,
+        expiresAt: siteAgentEnrolments.expiresAt,
+      })
+      .from(siteAgentEnrolments)
+      .where(eq(siteAgentEnrolments.tokenHash, tokenHash))
+      .limit(1);
+
+    if (row && row.organisationId === organisationId) {
+      if (row.consumedAt) {
+        throw new GoneException('Setup code has already been used');
+      }
+      if (row.expiresAt.getTime() > Date.now()) {
+        return;
+      }
+    }
+
+    throw new UnauthorizedException('Invalid or expired setup code');
   }
 
   /** Drops spent and expired rows. */

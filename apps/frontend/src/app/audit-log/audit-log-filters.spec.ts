@@ -5,6 +5,7 @@ import { By } from '@angular/platform-browser';
 import { AuditLogFilters } from './audit-log-filters';
 import { AUDIT_ACTIONS, RESOURCE_TYPES } from './audit-log.model';
 import { Membership } from '../settings/users/member.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -37,7 +38,10 @@ describe('AuditLogFilters', () => {
 
   async function setUp(members: Membership[] = []): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [AuditLogFilters],
+      imports: [
+        AuditLogFilters,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 
@@ -65,10 +69,9 @@ describe('AuditLogFilters', () => {
       expect(uploadOption?.nativeElement.textContent.trim()).toBe('Content uploaded');
     });
 
-    it('falls back to the raw action key when no label is registered', () => {
+    it('falls back to the raw action key when no label is registered', async () => {
       // Arrange
-      fixture = TestBed.createComponent(AuditLogFilters);
-      component = fixture.componentInstance;
+      await setUp();
 
       // Act
       const label = (component as unknown as { actionLabel(a: string): string }).actionLabel(
@@ -115,13 +118,16 @@ describe('AuditLogFilters', () => {
   });
 
   describe('date inputs', () => {
-    it('renders date-typed from and to inputs', async () => {
+    it('renders app-locale date fields instead of the browser-locale native picker', async () => {
       // Arrange / Act
       await setUp();
 
       // Assert
-      expect(fixture.debugElement.query(By.css('#filterFrom')).nativeElement.type).toBe('date');
-      expect(fixture.debugElement.query(By.css('#filterTo')).nativeElement.type).toBe('date');
+      for (const id of ['#filterFrom', '#filterTo']) {
+        const input = fixture.debugElement.query(By.css(id)).nativeElement as HTMLInputElement;
+        expect(input.type).toBe('text');
+        expect(input.closest('mns-date-input')).not.toBeNull();
+      }
     });
   });
 
@@ -153,6 +159,7 @@ describe('AuditLogFilters', () => {
       const input = fixture.debugElement.query(By.css('#filterFrom')).nativeElement;
       input.value = '2026-01-01';
       input.dispatchEvent(new Event('input'));
+      input.dispatchEvent(new Event('blur'));
       await fixture.whenStable();
 
       // Assert

@@ -8,6 +8,7 @@ import { Router } from '@angular/router';
 import { from, Observable, Subject } from 'rxjs';
 import { Screens } from './screens';
 import { ScreenListItem } from './screen.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
@@ -92,6 +93,11 @@ describe('Screens', () => {
   let screenOffline$: Subject<DashboardEvent>;
 
   function configure(memberships: MyMembership[]): void {
+    // The Transloco testing module eagerly instantiates the injector (preloaded
+    // langs), so reset any module left configured by the previous test before
+    // reconfiguring — otherwise configureTestingModule throws "already
+    // instantiated".
+    TestBed.resetTestingModule();
     // Resolve memberships on a microtask so the subscription callback (which
     // mutates orgId/loading) never runs during the initial detectChanges pass,
     // which would otherwise trip NG0100 under zoneless dev-mode checks.
@@ -104,6 +110,7 @@ describe('Screens', () => {
     const sseStub = { screenOnline$, screenOffline$ };
 
     TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
         provideHttpClient(),

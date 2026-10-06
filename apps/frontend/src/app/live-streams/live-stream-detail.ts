@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { forkJoin, of } from 'rxjs';
 import { catchError, concatMap } from 'rxjs/operators';
 import {
@@ -22,8 +23,8 @@ import {
   ActivateStreamResponse,
   LiveStream,
   StreamHealthState,
-  TRANSCODING_PRESET_LABELS,
 } from './live-stream.model';
+import { LanguageService } from '../i18n/language.service';
 import { LiveStreamService } from './live-stream.service';
 import { LiveStreamMonitor } from './live-stream-monitor';
 import { ScreenService } from '../screens/screen.service';
@@ -63,9 +64,10 @@ type TargetMode = 'screens' | 'group';
     CardComponent,
     CardHeadComponent,
     LiveStreamMonitor,
+    TranslocoDirective,
   ],
   template: `
-    <div class="page">
+    <div class="page" *transloco="let t">
       <div class="mb-4"><app-back-link route="/live-streams" /></div>
 
       @if (loadError()) {
@@ -73,7 +75,7 @@ type TargetMode = 'screens' | 'group';
       }
 
       @if (loading()) {
-        <p class="loading-text">Loading stream…</p>
+        <p class="loading-text">{{ t('liveStreams.detail.loading') }}</p>
       }
 
       @if (stream(); as s) {
@@ -90,7 +92,7 @@ type TargetMode = 'screens' | 'group';
                 (blur)="commitName()"
                 (keydown.enter)="commitName(); $any($event.target).blur()"
                 (keydown.escape)="resetName(); $any($event.target).blur()"
-                aria-label="Stream name"
+                [attr.aria-label]="t('liveStreams.detail.nameAria')"
               />
               <div class="badges">
                 <mns-badge [tone]="live() ? 'offline' : 'neutral'" icon="Cast">
@@ -103,7 +105,7 @@ type TargetMode = 'screens' | 'group';
               </div>
             </div>
             <mns-btn variant="danger" size="sm" icon="Trash" (mnsClick)="emitDelete()">
-              Delete
+              {{ t('liveStreams.detail.delete') }}
             </mns-btn>
           </div>
         </mns-card>
@@ -124,11 +126,11 @@ type TargetMode = 'screens' | 'group';
               <div class="transport">
                 @if (live()) {
                   <mns-btn variant="danger" icon="Power" [disabled]="busy()" (mnsClick)="stop()">
-                    Stop stream
+                    {{ t('liveStreams.detail.stopStream') }}
                   </mns-btn>
                 } @else {
                   <mns-btn variant="primary" icon="Play" [disabled]="busy()" (mnsClick)="goLive()">
-                    Go live
+                    {{ t('liveStreams.detail.goLive') }}
                   </mns-btn>
                 }
                 <mns-btn
@@ -137,18 +139,24 @@ type TargetMode = 'screens' | 'group';
                   [disabled]="!live() || busy()"
                   (mnsClick)="restart()"
                 >
-                  Restart
+                  {{ t('liveStreams.detail.restart') }}
                 </mns-btn>
                 <button
                   type="button"
                   class="audio-btn"
                   [class.off]="!s.audioEnabled"
                   [disabled]="live() || busy()"
-                  [title]="live() ? 'Stop the stream to change audio' : 'Toggle audio'"
+                  [title]="
+                    live()
+                      ? t('liveStreams.detail.audioTooltipLocked')
+                      : t('liveStreams.detail.audioTooltipToggle')
+                  "
                   (click)="toggleAudio()"
                 >
                   <mns-icon [name]="s.audioEnabled ? 'Wifi' : 'WifiOff'" [size]="16" />
-                  {{ s.audioEnabled ? 'Audio on' : 'Muted' }}
+                  {{
+                    s.audioEnabled ? t('liveStreams.detail.audioOn') : t('liveStreams.detail.muted')
+                  }}
                 </button>
                 <div class="health-inline">
                   <span class="bars" aria-hidden="true">
@@ -163,25 +171,29 @@ type TargetMode = 'screens' | 'group';
 
             <mns-card>
               <mns-card-head
-                title="Stream health"
-                [sub]="live() ? 'Live · preset targets shown below' : 'No active feed'"
+                [title]="t('liveStreams.detail.healthTitle')"
+                [sub]="
+                  live()
+                    ? t('liveStreams.detail.healthSubLive')
+                    : t('liveStreams.detail.healthSubIdle')
+                "
                 icon="Stream"
               />
               <div class="tiles">
                 <div class="tile">
-                  <div class="tile-label">Status</div>
+                  <div class="tile-label">{{ t('liveStreams.detail.status') }}</div>
                   <div class="tile-value">{{ healthStatusLabel() }}</div>
                 </div>
                 <div class="tile">
-                  <div class="tile-label">Quality (target)</div>
+                  <div class="tile-label">{{ t('liveStreams.detail.qualityTarget') }}</div>
                   <div class="tile-value">{{ presetLabel() }}</div>
                 </div>
                 <div class="tile">
-                  <div class="tile-label">Protocol</div>
+                  <div class="tile-label">{{ t('liveStreams.detail.protocol') }}</div>
                   <div class="tile-value">{{ s.protocol.toUpperCase() }}</div>
                 </div>
                 <div class="tile">
-                  <div class="tile-label">Live since</div>
+                  <div class="tile-label">{{ t('liveStreams.detail.liveSince') }}</div>
                   <div class="tile-value">{{ liveSince() }}</div>
                 </div>
               </div>
@@ -191,16 +203,20 @@ type TargetMode = 'screens' | 'group';
           <!-- Right: source + broadcast -->
           <div class="col">
             <mns-card>
-              <mns-card-head title="Source" sub="Ingest endpoint & encoding" icon="Cast" />
-              <div class="src-label">Source URL</div>
+              <mns-card-head
+                [title]="t('liveStreams.detail.sourceTitle')"
+                [sub]="t('liveStreams.detail.sourceSub')"
+                icon="Cast"
+              />
+              <div class="src-label">{{ t('liveStreams.detail.sourceUrl') }}</div>
               <div class="src-row">
                 <div class="src-url">{{ s.sourceUrl }}</div>
                 <button
                   type="button"
                   class="copy-btn"
                   [class.copied]="copied()"
-                  title="Copy URL"
-                  aria-label="Copy source URL"
+                  [title]="t('liveStreams.detail.copyUrl')"
+                  [attr.aria-label]="t('liveStreams.detail.copyUrlAria')"
                   (click)="copyUrl()"
                 >
                   <mns-icon [name]="copied() ? 'Check' : 'Copy'" [size]="16" />
@@ -208,19 +224,25 @@ type TargetMode = 'screens' | 'group';
               </div>
               <div class="tiles">
                 <div class="tile">
-                  <div class="tile-label">Protocol</div>
+                  <div class="tile-label">{{ t('liveStreams.detail.protocol') }}</div>
                   <div class="tile-value">{{ s.protocol.toUpperCase() }}</div>
                 </div>
                 <div class="tile">
-                  <div class="tile-label">Quality</div>
+                  <div class="tile-label">{{ t('liveStreams.detail.quality') }}</div>
                   <div class="tile-value">{{ presetLabel() }}</div>
                 </div>
                 <div class="tile">
-                  <div class="tile-label">Audio</div>
-                  <div class="tile-value">{{ s.audioEnabled ? 'Enabled' : 'Muted' }}</div>
+                  <div class="tile-label">{{ t('liveStreams.detail.audio') }}</div>
+                  <div class="tile-value">
+                    {{
+                      s.audioEnabled
+                        ? t('liveStreams.detail.audioEnabled')
+                        : t('liveStreams.detail.muted')
+                    }}
+                  </div>
                 </div>
                 <div class="tile">
-                  <div class="tile-label">Health</div>
+                  <div class="tile-label">{{ t('liveStreams.detail.health') }}</div>
                   <div class="tile-value">{{ healthStatusLabel() }}</div>
                 </div>
               </div>
@@ -228,16 +250,19 @@ type TargetMode = 'screens' | 'group';
 
             <mns-card>
               <mns-card-head
-                title="Broadcast to"
+                [title]="t('liveStreams.detail.broadcastTitle')"
                 [sub]="
-                  targetCount() ? 'Reaching ' + targetCount() + ' screen(s)' : 'No screens targeted'
+                  targetCount()
+                    ? t('liveStreams.detail.broadcastReaching', { count: targetCount() })
+                    : t('liveStreams.detail.broadcastNoScreens')
                 "
                 icon="Screens"
               />
 
               @if (live()) {
                 <p class="readonly-note">
-                  <mns-icon name="Lock" [size]="14" /> Stop the stream to change targets.
+                  <mns-icon name="Lock" [size]="14" />
+                  {{ t('liveStreams.detail.changeTargetsLocked') }}
                 </p>
               }
 
@@ -249,7 +274,8 @@ type TargetMode = 'screens' | 'group';
                   [disabled]="live()"
                   (click)="targetMode.set('screens')"
                 >
-                  <mns-icon name="Screens" [size]="14" /> Specific screens
+                  <mns-icon name="Screens" [size]="14" />
+                  {{ t('liveStreams.detail.specificScreens') }}
                 </button>
                 <button
                   type="button"
@@ -258,7 +284,7 @@ type TargetMode = 'screens' | 'group';
                   [disabled]="live()"
                   (click)="targetMode.set('group')"
                 >
-                  <mns-icon name="Groups" [size]="14" /> Screen group
+                  <mns-icon name="Groups" [size]="14" /> {{ t('liveStreams.detail.screenGroup') }}
                 </button>
               </div>
 
@@ -274,7 +300,14 @@ type TargetMode = 'screens' | 'group';
                     >
                       <div class="pick-body">
                         <div class="pick-name">{{ sc.name }}</div>
-                        <div class="pick-sub">{{ sc.resolution }} · {{ sc.location || '—' }}</div>
+                        <div class="pick-sub">
+                          {{
+                            t('liveStreams.detail.screenSub', {
+                              resolution: sc.resolution,
+                              location: sc.location || '—',
+                            })
+                          }}
+                        </div>
                       </div>
                       <span class="check" [class.on]="selectedScreenIds().includes(sc.id)">
                         @if (selectedScreenIds().includes(sc.id)) {
@@ -284,7 +317,7 @@ type TargetMode = 'screens' | 'group';
                     </button>
                   }
                   @if (screens().length === 0) {
-                    <div class="pick-empty">No screens available.</div>
+                    <div class="pick-empty">{{ t('liveStreams.detail.noScreensAvailable') }}</div>
                   }
                 </div>
               } @else {
@@ -299,7 +332,14 @@ type TargetMode = 'screens' | 'group';
                     >
                       <div class="pick-body">
                         <div class="pick-name">{{ g.name }}</div>
-                        <div class="pick-sub">{{ g.mode }} · {{ g.screens.length }} screen(s)</div>
+                        <div class="pick-sub">
+                          {{
+                            t('liveStreams.detail.groupSub', {
+                              mode: g.mode,
+                              count: g.screens.length,
+                            })
+                          }}
+                        </div>
                       </div>
                       <span class="check" [class.on]="selectedGroupId() === g.id">
                         @if (selectedGroupId() === g.id) {
@@ -309,9 +349,7 @@ type TargetMode = 'screens' | 'group';
                     </button>
                   }
                   @if (groups().length === 0) {
-                    <div class="pick-empty">
-                      No screen groups yet — create one on the Screen Groups page.
-                    </div>
+                    <div class="pick-empty">{{ t('liveStreams.detail.noGroupsYet') }}</div>
                   }
                 </div>
               }
@@ -320,8 +358,10 @@ type TargetMode = 'screens' | 'group';
                 <div class="override">
                   <mns-icon name="Alert" [size]="16" class="override-icon" />
                   <div>
-                    <span class="override-strong">Live takes priority.</span> While this stream is
-                    live it overrides any scheduled playlist on the targeted screens.
+                    <span class="override-strong">{{
+                      t('liveStreams.detail.overridePrefix')
+                    }}</span>
+                    {{ t('liveStreams.detail.overrideBody') }}
                   </div>
                 </div>
               }
@@ -665,6 +705,8 @@ export class LiveStreamDetail implements OnInit {
   private screenGroupService = inject(ScreenGroupService);
   private memberService = inject(MemberService);
   private toast = inject(ToastService);
+  private transloco = inject(TranslocoService);
+  private language = inject(LanguageService);
 
   protected readonly stream = signal<LiveStream | null>(null);
   protected readonly screens = signal<Screen[]>([]);
@@ -686,12 +728,16 @@ export class LiveStreamDetail implements OnInit {
   private orgId = '';
 
   protected readonly live = computed(() => this.stream()?.status === 'active');
-  protected readonly statusLabel = computed(() => (this.live() ? 'Live' : 'Offline'));
+  protected readonly statusLabel = computed(() =>
+    this.transloco.translate(
+      this.live() ? 'liveStreams.status.live' : 'liveStreams.status.offline',
+    ),
+  );
 
   protected readonly presetLabel = computed(() => {
     const s = this.stream();
     if (!s) return '';
-    return TRANSCODING_PRESET_LABELS[s.transcodingPreset] ?? s.transcodingPreset;
+    return this.transloco.translate('liveStreams.preset.' + s.transcodingPreset);
   });
 
   protected readonly targetCount = computed(() => {
@@ -706,25 +752,35 @@ export class LiveStreamDetail implements OnInit {
   protected readonly targetSummary = computed(() => {
     const count = this.targetCount();
     if (this.targetMode() === 'group') {
-      return this.selectedGroupId() ? `1 group · ${count}` : 'No group';
+      return this.selectedGroupId()
+        ? this.transloco.translate('liveStreams.detail.targetGroupSummary', { count })
+        : this.transloco.translate('liveStreams.detail.targetNoGroup');
     }
-    return count ? `${count} screen(s)` : 'No screens';
+    return count
+      ? this.transloco.translate('liveStreams.detail.targetScreenSummary', { count })
+      : this.transloco.translate('liveStreams.detail.targetNoScreens');
   });
 
   protected readonly healthStatusLabel = computed(() => {
     const h = this.health();
     if (h?.health) return h.health;
-    return this.live() ? 'Healthy' : 'Stopped';
+    return this.transloco.translate(
+      this.live() ? 'liveStreams.detail.healthHealthy' : 'liveStreams.detail.healthStopped',
+    );
   });
 
   protected readonly healthBars = computed(() => (this.live() ? 4 : 0));
 
-  protected readonly healthInlineText = computed(() => (this.live() ? 'Healthy' : 'No feed'));
+  protected readonly healthInlineText = computed(() =>
+    this.transloco.translate(
+      this.live() ? 'liveStreams.detail.healthHealthy' : 'liveStreams.detail.healthNoFeed',
+    ),
+  );
 
   protected readonly liveSince = computed(() => {
     const s = this.stream();
     if (!s || !this.live()) return '—';
-    return new Date(s.updatedAt).toLocaleString();
+    return new Date(s.updatedAt).toLocaleString(this.language.locale());
   });
 
   ngOnInit(): void {
@@ -735,12 +791,12 @@ export class LiveStreamDetail implements OnInit {
           this.orgId = m.organisationId;
           this.loadData();
         } else {
-          this.loadError.set('You are not a member of any organisation.');
+          this.loadError.set(this.transloco.translate('common.errors.noOrgMembership'));
           this.loading.set(false);
         }
       },
       error: () => {
-        this.loadError.set('Failed to load organisation context.');
+        this.loadError.set(this.transloco.translate('common.errors.loadOrgContext'));
         this.loading.set(false);
       },
     });
@@ -749,7 +805,7 @@ export class LiveStreamDetail implements OnInit {
   private loadData(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) {
-      this.loadError.set('No stream ID provided.');
+      this.loadError.set(this.transloco.translate('liveStreams.errors.noStreamId'));
       this.loading.set(false);
       return;
     }
@@ -770,7 +826,9 @@ export class LiveStreamDetail implements OnInit {
       },
       error: (err) => {
         this.loadError.set(
-          err.status === 404 ? 'Live stream not found.' : 'Failed to load live stream.',
+          err.status === 404
+            ? this.transloco.translate('liveStreams.detail.notFound')
+            : this.transloco.translate('liveStreams.errors.loadStreams'),
         );
         this.loading.set(false);
       },
@@ -801,11 +859,13 @@ export class LiveStreamDetail implements OnInit {
     this.liveStreamService.update(this.orgId, s.id, { name: next }).subscribe({
       next: (updated) => {
         this.applyStream(updated);
-        this.toast.success('Stream renamed.');
+        this.toast.success(this.transloco.translate('liveStreams.toast.renamed'));
       },
       error: (err) => {
         this.nameDraft = s.name;
-        this.toast.error(err.error?.message || 'Failed to rename stream.');
+        this.toast.error(
+          err.error?.message || this.transloco.translate('liveStreams.errors.renameStream'),
+        );
       },
     });
   }
@@ -821,9 +881,18 @@ export class LiveStreamDetail implements OnInit {
     this.liveStreamService.update(this.orgId, s.id, { audioEnabled: !s.audioEnabled }).subscribe({
       next: (updated) => {
         this.applyStream(updated);
-        this.toast.success(updated.audioEnabled ? 'Audio enabled.' : 'Audio muted.');
+        this.toast.success(
+          this.transloco.translate(
+            updated.audioEnabled
+              ? 'liveStreams.toast.audioEnabled'
+              : 'liveStreams.toast.audioMuted',
+          ),
+        );
       },
-      error: (err) => this.toast.error(err.error?.message || 'Failed to update audio.'),
+      error: (err) =>
+        this.toast.error(
+          err.error?.message || this.transloco.translate('liveStreams.errors.updateAudio'),
+        ),
     });
   }
 
@@ -841,14 +910,14 @@ export class LiveStreamDetail implements OnInit {
     if (!s || this.busy()) return;
     const dto = this.buildActivateDto();
     if (this.targetMode() === 'group' && !dto.targetGroupId) {
-      this.toast.error('Select a screen group first.');
+      this.toast.error(this.transloco.translate('liveStreams.errors.selectGroupFirst'));
       return;
     }
     if (
       this.targetMode() === 'screens' &&
       (!dto.targetScreenIds || dto.targetScreenIds.length === 0)
     ) {
-      this.toast.error('Select at least one screen first.');
+      this.toast.error(this.transloco.translate('liveStreams.errors.selectScreenFirst'));
       return;
     }
 
@@ -860,11 +929,13 @@ export class LiveStreamDetail implements OnInit {
         if (res.warnings?.length) {
           res.warnings.forEach((w) => this.toast.info(w));
         }
-        this.toast.success('Stream started.');
+        this.toast.success(this.transloco.translate('liveStreams.toast.started'));
       },
       error: (err) => {
         this.busy.set(false);
-        this.toast.error(err.error?.message || 'Failed to start stream.');
+        this.toast.error(
+          err.error?.message || this.transloco.translate('liveStreams.errors.startStream'),
+        );
       },
     });
   }
@@ -877,11 +948,13 @@ export class LiveStreamDetail implements OnInit {
       next: (updated) => {
         this.busy.set(false);
         this.applyStream(updated);
-        this.toast.success('Stream stopped.');
+        this.toast.success(this.transloco.translate('liveStreams.toast.stopped'));
       },
       error: (err) => {
         this.busy.set(false);
-        this.toast.error(err.error?.message || 'Failed to stop stream.');
+        this.toast.error(
+          err.error?.message || this.transloco.translate('liveStreams.errors.stopStream'),
+        );
       },
     });
   }
@@ -898,11 +971,13 @@ export class LiveStreamDetail implements OnInit {
         next: (res: ActivateStreamResponse) => {
           this.busy.set(false);
           this.applyStream(res.stream);
-          this.toast.success('Stream restarted.');
+          this.toast.success(this.transloco.translate('liveStreams.toast.restarted'));
         },
         error: (err) => {
           this.busy.set(false);
-          this.toast.error(err.error?.message || 'Failed to restart stream.');
+          this.toast.error(
+            err.error?.message || this.transloco.translate('liveStreams.errors.restartStream'),
+          );
         },
       });
   }
@@ -928,10 +1003,10 @@ export class LiveStreamDetail implements OnInit {
       .writeText(s.sourceUrl)
       .then(() => {
         this.copied.set(true);
-        this.toast.success('Source URL copied.');
+        this.toast.success(this.transloco.translate('liveStreams.toast.urlCopied'));
         setTimeout(() => this.copied.set(false), 1600);
       })
-      .catch(() => this.toast.error('Failed to copy URL.'));
+      .catch(() => this.toast.error(this.transloco.translate('liveStreams.errors.copyUrl')));
   }
 
   // --- Delete ---
@@ -942,12 +1017,14 @@ export class LiveStreamDetail implements OnInit {
     this.liveStreamService.delete(this.orgId, s.id).subscribe({
       next: () => {
         this.busy.set(false);
-        this.toast.success('Live stream deleted.');
+        this.toast.success(this.transloco.translate('liveStreams.toast.deleted'));
         this.goBack();
       },
       error: (err) => {
         this.busy.set(false);
-        this.toast.error(err.error?.message || 'Failed to delete stream.');
+        this.toast.error(
+          err.error?.message || this.transloco.translate('liveStreams.errors.deleteStream'),
+        );
       },
     });
   }

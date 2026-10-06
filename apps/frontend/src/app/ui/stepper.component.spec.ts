@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { StepperComponent } from './stepper.component';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 describe('StepperComponent', () => {
   let fixture: ComponentFixture<StepperComponent>;
@@ -8,7 +9,10 @@ describe('StepperComponent', () => {
 
   async function setUp(value = 2, min = 1, max = 4): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [StepperComponent],
+      imports: [
+        StepperComponent,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ScreenGroupModeToggle } from './screen-group-mode-toggle';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 import { ScreenGroupMode } from './screen-group.model';
 
 describe('ScreenGroupModeToggle', () => {
@@ -9,7 +10,10 @@ describe('ScreenGroupModeToggle', () => {
 
   async function setUp(value: ScreenGroupMode = 'mirror'): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [ScreenGroupModeToggle],
+      imports: [
+        ScreenGroupModeToggle,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

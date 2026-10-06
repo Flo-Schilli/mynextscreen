@@ -7,6 +7,7 @@ import { Router, provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { vi } from 'vitest';
 import { AppSidebar, NavItem } from './app-sidebar';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -35,7 +36,8 @@ async function createFixture(
   } = {},
 ): Promise<ComponentFixture<AppSidebar>> {
   await TestBed.configureTestingModule({
-    imports: [AppSidebar],
+    // Pin English so the existing English text/aria assertions below hold.
+    imports: [AppSidebar, getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
     providers: [
       provideZonelessChangeDetection(),
       provideHttpClient(),

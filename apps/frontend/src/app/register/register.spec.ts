@@ -5,6 +5,7 @@ import { provideRouter } from '@angular/router';
 import { vi } from 'vitest';
 import { Register } from './register';
 import { AuthService } from '../auth/auth.service';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -22,6 +23,7 @@ function setup(registerImpl: () => Promise<void> = () => Promise.resolve()): {
 } {
   const auth: AuthStub = { register: vi.fn(registerImpl) };
   TestBed.configureTestingModule({
+    imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
     providers: [
       provideZonelessChangeDetection(),
       provideRouter([]),

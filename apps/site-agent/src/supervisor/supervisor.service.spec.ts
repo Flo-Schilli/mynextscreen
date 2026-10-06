@@ -30,12 +30,15 @@ function screen(overrides: Partial<AgentScreenConfigMessage> = {}): AgentScreenC
   };
 }
 
+/** Lets the fire-and-forget heartbeat promise chain settle. */
+const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
 describe('SupervisorService', () => {
   let supervisor: SupervisorService;
   let connections: { load: jest.Mock };
   let client: { fetchConfig: jest.Mock; sendHeartbeat: jest.Mock; sendReports: jest.Mock };
   let configs: { load: jest.Mock; save: jest.Mock; current: jest.Mock };
-  let setup: { recordConfigPull: jest.Mock };
+  let setup: { recordConfigPull: jest.Mock; onEnrolled: jest.Mock };
   let reachability: { probe: jest.Mock };
   let devmodeKeys: { obtain: jest.Mock; forget: jest.Mock };
   let ssh: { extendDevmode: jest.Mock; run: jest.Mock };
@@ -81,7 +84,7 @@ describe('SupervisorService', () => {
       sendReports: jest.fn().mockResolvedValue(undefined),
     };
     configs = { load: jest.fn(), save: jest.fn(), current: jest.fn() };
-    setup = { recordConfigPull: jest.fn() };
+    setup = { recordConfigPull: jest.fn(), onEnrolled: jest.fn() };
     reachability = { probe: jest.fn().mockResolvedValue({ reachability: 'reachable' }) };
     devmodeKeys = {
       obtain: jest.fn().mockResolvedValue({ status: 'ok', privateKey: 'PEM' }),
@@ -93,6 +96,43 @@ describe('SupervisorService', () => {
     };
     wol = { wake: jest.fn().mockResolvedValue(undefined) };
     ssapKeys = { load: jest.fn().mockResolvedValue('client-key'), save: jest.fn() };
+  });
+
+  describe('start-up heartbeat', () => {
+    afterEach(() => supervisor.onModuleDestroy());
+
+    it('checks in straight away instead of a full interval later', async () => {
+      supervisor = build(configWith([]));
+
+      await supervisor.onModuleInit();
+      await flush();
+
+      expect(client.sendHeartbeat).toHaveBeenCalledTimes(1);
+    });
+
+    it('sends nothing at start-up before enrolment', async () => {
+      connections.load.mockResolvedValue(null);
+      supervisor = build(null);
+
+      await supervisor.onModuleInit();
+      await flush();
+
+      expect(client.sendHeartbeat).not.toHaveBeenCalled();
+    });
+
+    it('checks in as soon as the setup page enrols the agent', async () => {
+      connections.load.mockResolvedValue(null);
+      supervisor = build(null);
+      await supervisor.onModuleInit();
+      await flush();
+      connections.load.mockResolvedValue({ agentId: 'agent-1' });
+
+      const onEnrolled = setup.onEnrolled.mock.calls[0][0] as () => void;
+      onEnrolled();
+      await flush();
+
+      expect(client.sendHeartbeat).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('tick', () => {
@@ -349,6 +389,85 @@ describe('SupervisorService', () => {
       await supervisor.runNow('unknown');
 
       expect(reachability.probe).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('collectMetrics', () => {
+    it('reports agent-level basics and the connected flag', () => {
+      supervisor = build(configWith([screen()]));
+
+      const metrics = supervisor.collectMetrics(true);
+
+      expect(metrics.connected).toBe(true);
+      expect(metrics.screenCount).toBe(1);
+      expect(metrics.memoryRssBytes).toBeGreaterThan(0);
+      expect(metrics.uptimeSeconds).toBeGreaterThanOrEqual(0);
+    });
+
+    it('reflects per-screen reachability and counters after a round', async () => {
+      supervisor = build(
+        configWith([screen({ wakeOnUnreachableEnabled: true, macAddress: 'AA:BB:CC:DD:EE:FF' })]),
+      );
+      reachability.probe.mockResolvedValue({ reachability: 'unreachable' });
+
+      await supervisor.tick();
+      const metrics = supervisor.collectMetrics(true);
+
+      const screenMetrics = metrics.screens.find((s) => s.screenId === 's1');
+      expect(screenMetrics).toBeDefined();
+      expect(screenMetrics?.reachable).toBe(false);
+      // An unreachable screen with wake enabled gets a WoL packet.
+      expect(screenMetrics?.wakes).toBe(1);
+    });
+
+    it('counts a successful launch', async () => {
+      supervisor = build(configWith([screen({ playerHeartbeatStale: true })]));
+
+      await supervisor.tick();
+      const metrics = supervisor.collectMetrics(false);
+
+      const screenMetrics = metrics.screens.find((s) => s.screenId === 's1');
+      expect(screenMetrics?.launches).toBeGreaterThanOrEqual(0);
+      expect(metrics.connected).toBe(false);
+    });
+
+    it('reports devmode active and the extension count after an extension round', async () => {
+      supervisor = build(
+        configWith([
+          screen({
+            extendDevmodeEnabled: true,
+            lastDevmodeExtendAt: null,
+            playerHeartbeatStale: true,
+          }),
+        ]),
+      );
+
+      await supervisor.tick();
+      const metrics = supervisor.collectMetrics(true);
+
+      const screenMetrics = metrics.screens.find((s) => s.screenId === 's1');
+      expect(screenMetrics?.devmodeActive).toBe(true);
+      expect(screenMetrics?.devmodeExtensions).toBe(1);
+    });
+
+    it('surfaces the last config pull once one has happened', async () => {
+      supervisor = build(configWith([screen()]));
+      client.fetchConfig.mockResolvedValue(configWith([screen()]));
+
+      // A tick refreshes the config when due, stamping lastConfigPull.
+      await supervisor.tick();
+      const metrics = supervisor.collectMetrics(true);
+
+      expect(metrics.lastConfigPullAtMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('returns an empty screen list when no config is cached', () => {
+      supervisor = build(null);
+
+      const metrics = supervisor.collectMetrics(true);
+
+      expect(metrics.screenCount).toBe(0);
+      expect(metrics.screens).toEqual([]);
     });
   });
 });

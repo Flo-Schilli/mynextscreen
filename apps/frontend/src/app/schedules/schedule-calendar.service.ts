@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
+import { TranslocoService } from '@jsverse/transloco';
 import { ScheduleEntry } from './schedule.model';
 import { ScheduleRecurrenceService } from './schedule-recurrence.service';
-import { UI_LOCALE } from '../shared/locale';
+import { LanguageService } from '../i18n/language.service';
 
 export type ScheduleViewMode = 'day' | 'week' | 'month';
 
@@ -62,6 +63,8 @@ const GAP_THRESHOLD_PX = 5;
 @Injectable({ providedIn: 'root' })
 export class ScheduleCalendarService {
   private recurrence = inject(ScheduleRecurrenceService);
+  private transloco = inject(TranslocoService);
+  private language = inject(LanguageService);
 
   /** Monday-based start of the week containing `date`, at 00:00 local. */
   getWeekStart(date: Date): Date {
@@ -248,7 +251,8 @@ export class ScheduleCalendarService {
           targetName = entry.screen.name;
         }
         items.push({
-          playlistName: entry.playlist?.name || 'Playlist',
+          playlistName:
+            entry.playlist?.name || this.transloco.translate('schedules.grid.playlistFallback'),
           colour: entry.colour,
           startTime: this.formatTimeInTz(occ.start, orgTimeZone),
           endTime: this.formatTimeInTz(occ.end, orgTimeZone),
@@ -284,7 +288,7 @@ export class ScheduleCalendarService {
   }
 
   private formatTimeInTz(date: Date, orgTimeZone: string): string {
-    return date.toLocaleTimeString(UI_LOCALE, {
+    return date.toLocaleTimeString(this.language.locale(), {
       timeZone: orgTimeZone,
       hour: '2-digit',
       minute: '2-digit',

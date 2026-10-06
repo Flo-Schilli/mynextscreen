@@ -2,6 +2,7 @@ import { TestBed, getTestBed, ComponentFixture } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ContentTagModal } from './content-tag-modal';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -46,7 +47,10 @@ describe('ContentTagModal', () => {
   }
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
+      providers: [provideZonelessChangeDetection()],
+    });
   });
 
   it('renders the add-mode heading and confirm label', () => {

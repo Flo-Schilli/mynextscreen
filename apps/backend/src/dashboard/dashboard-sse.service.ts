@@ -69,6 +69,11 @@ export class DashboardSseService implements OnModuleDestroy {
     }
   }
 
+  /** Number of open dashboard SSE connections. Read by observability. */
+  activeConnectionCount(): number {
+    return this.connections.size;
+  }
+
   subscribe(organisationId: string, userId: string): Observable<MessageEvent> {
     const connectionId = randomUUID();
     const events = new Subject<DashboardEventPayload>();
@@ -159,6 +164,7 @@ export class DashboardSseService implements OnModuleDestroy {
       agentId: event.agentId,
       name: event.name,
       isOnline: event.isOnline,
+      lastHeartbeat: event.lastHeartbeat?.toISOString() ?? null,
     });
   }
 

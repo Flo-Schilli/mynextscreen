@@ -3,6 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ContentStorageBar } from './content-storage-bar';
 import { StorageInfo } from './content.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -38,7 +39,10 @@ describe('ContentStorageBar', () => {
   }
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
+      providers: [provideZonelessChangeDetection()],
+    });
   });
 
   it('renders combined used bytes without a limit suffix when no limits are set', () => {

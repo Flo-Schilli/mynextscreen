@@ -3,6 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ScheduleCalendarService } from './schedule-calendar.service';
 import { ScheduleEntry } from './schedule.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -36,6 +37,7 @@ describe('ScheduleCalendarService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [provideZonelessChangeDetection(), ScheduleCalendarService],
     });
     service = TestBed.inject(ScheduleCalendarService);

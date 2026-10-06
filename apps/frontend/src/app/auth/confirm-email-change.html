@@ -1,4 +1,4 @@
-<div class="flex min-h-screen items-center justify-center bg-bg px-4 py-10">
+<div class="flex min-h-screen items-center justify-center bg-bg px-4 py-10" *transloco="let t">
   <div
     class="w-full max-w-[400px]"
     style="animation: fadeUp 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both"
@@ -31,7 +31,9 @@
       class="w-full rounded-xl border border-border bg-surface p-8"
       style="box-shadow: var(--shadow)"
     >
-      <h1 class="mb-4 text-[22px] font-extrabold tracking-tight">Email change</h1>
+      <h1 class="mb-4 text-[22px] font-extrabold tracking-tight">
+        {{ t('auth.confirmEmailChange.title') }}
+      </h1>
 
       @switch (state()) {
         @case ('confirming') {
@@ -39,7 +41,7 @@
             <div
               class="h-10 w-10 animate-spin rounded-full border-2 border-border border-t-accent"
             ></div>
-            <p class="text-[13.5px] text-muted">Confirming your new email address…</p>
+            <p class="text-[13.5px] text-muted">{{ t('auth.confirmEmailChange.confirming') }}</p>
           </div>
         }
         @case ('done') {
@@ -51,13 +53,13 @@
               <mns-icon name="CheckCircle" [size]="28" class="text-accent" />
             </div>
             <p class="text-[13.5px] leading-relaxed text-muted">
-              Your email address has been updated. Use it the next time you sign in.
+              {{ t('auth.confirmEmailChange.doneBody') }}
             </p>
             <a
               href="/"
               class="inline-flex items-center gap-1.5 text-sm font-bold text-accent hover:opacity-80"
             >
-              <mns-icon name="Arrow" [size]="15" />Go to dashboard
+              <mns-icon name="Arrow" [size]="15" />{{ t('auth.confirmEmailChange.goToDashboard') }}
             </a>
           </div>
         }
@@ -70,13 +72,13 @@
               <mns-icon name="Alert" [size]="26" class="text-offline" />
             </div>
             <p class="text-[13.5px] text-offline" role="alert">
-              This confirmation link is invalid or has expired.
+              {{ t('auth.confirmEmailChange.invalidLink') }}
             </p>
             <a
               href="/"
               class="inline-flex items-center gap-1.5 text-sm font-bold text-accent hover:opacity-80"
             >
-              <mns-icon name="Arrow" [size]="15" />Go to dashboard
+              <mns-icon name="Arrow" [size]="15" />{{ t('auth.confirmEmailChange.goToDashboard') }}
             </a>
           </div>
         }

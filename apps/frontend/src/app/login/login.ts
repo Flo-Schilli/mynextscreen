@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { AuthService } from '../auth/auth.service';
 import { SetupService } from '../setup/setup.service';
 import { VersionBadge } from '../shared/version-badge';
@@ -8,7 +9,14 @@ import { BtnComponent, IconComponent } from '../ui';
 
 @Component({
   selector: 'app-login',
-  imports: [ReactiveFormsModule, RouterLink, VersionBadge, BtnComponent, IconComponent],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    VersionBadge,
+    BtnComponent,
+    IconComponent,
+    TranslocoDirective,
+  ],
   templateUrl: './login.html',
   styleUrl: './login.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -19,11 +27,12 @@ export class Login {
   private readonly setup = inject(SetupService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly transloco = inject(TranslocoService);
 
   /** Notice shown after redirect (e.g. account deletion). */
   readonly notice = signal<string | null>(
     this.route.snapshot.queryParamMap.get('notice') === 'account-deleted'
-      ? 'Account gelöscht.'
+      ? this.transloco.translate('auth.notice.accountDeleted')
       : null,
   );
 
@@ -31,10 +40,11 @@ export class Login {
   readonly error = signal<string | null>(null);
   readonly showPassword = signal(false);
 
+  /** i18n keys for the brand-panel feature ticks. */
   readonly ticks = [
-    'Pair any screen in seconds',
-    'Schedule content across locations',
-    'Monitor every display in real time',
+    'auth.brand.ticks.pair',
+    'auth.brand.ticks.schedule',
+    'auth.brand.ticks.monitor',
   ] as const;
 
   /** Set when the backend rejects login with 403 "Email not verified". */
@@ -66,9 +76,9 @@ export class Login {
     } catch (err: unknown) {
       if ((err as { status?: number })?.status === 403) {
         this.needsVerification.set(true);
-        this.error.set('Please verify your email before signing in.');
+        this.error.set(this.transloco.translate('auth.errors.notVerified'));
       } else {
-        this.error.set('Invalid email or password.');
+        this.error.set(this.transloco.translate('auth.errors.invalidCredentials'));
       }
     } finally {
       this.submitting.set(false);

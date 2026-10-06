@@ -10,11 +10,13 @@ import {
   signal,
   computed,
 } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { NotificationBell } from '../notifications/notification-bell';
 import { GlobalSearch } from '../search/global-search';
 import { OrgWithRole } from './organisation-state.service';
 import { formatRole } from './format-role';
 import { IconComponent } from '../ui/icon.component';
+import { LanguageSwitcher } from './language-switcher';
 
 /**
  * Presentational app top bar — Phase 2 reskin.
@@ -30,15 +32,15 @@ import { IconComponent } from '../ui/icon.component';
   selector: 'app-topbar',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NotificationBell, GlobalSearch, IconComponent],
+  imports: [NotificationBell, GlobalSearch, IconComponent, TranslocoDirective, LanguageSwitcher],
   template: `
-    <header class="topbar">
+    <header class="topbar" *transloco="let t">
       <!-- Hamburger — mobile only, opens the sidebar drawer -->
       <button
         type="button"
         class="topbar-btn hamburger-btn"
         (click)="openMobile.emit()"
-        aria-label="Open navigation menu"
+        [attr.aria-label]="t('shell.topbar.openNav')"
       >
         <mns-icon name="Menu" [size]="20" />
       </button>
@@ -54,11 +56,14 @@ import { IconComponent } from '../ui/icon.component';
 
       <div class="spacer"></div>
 
+      <!-- Language switcher (DE / EN) -->
+      <app-language-switcher class="hidden sm:inline-flex" />
+
       <!-- Theme toggle 40×40 -->
       <button
         class="topbar-btn"
         (click)="toggleTheme.emit()"
-        [attr.aria-label]="isDark() ? 'Switch to light mode' : 'Switch to dark mode'"
+        [attr.aria-label]="isDark() ? t('shell.topbar.lightMode') : t('shell.topbar.darkMode')"
       >
         @if (isDark()) {
           <mns-icon name="Sun" [size]="19" />
@@ -81,7 +86,9 @@ import { IconComponent } from '../ui/icon.component';
           type="button"
           class="user-trigger"
           [class.open]="menuOpen()"
-          [attr.aria-label]="isSuperAdmin() ? 'Instance Admin' : 'Current user'"
+          [attr.aria-label]="
+            isSuperAdmin() ? t('shell.nav.instanceAdmin') : t('shell.topbar.currentUser')
+          "
           [attr.aria-expanded]="menuOpen()"
           aria-haspopup="menu"
           (click)="toggleMenu($event)"
@@ -107,7 +114,7 @@ import { IconComponent } from '../ui/icon.component';
               <mns-icon name="User" [size]="18" />
             }
             @if (isSuperAdmin()) {
-              <span class="admin-badge" title="Instance Admin">
+              <span class="admin-badge" [attr.title]="t('shell.nav.instanceAdmin')">
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
                   <path
                     d="M5 0.5L6.1 3.5H9.3L6.6 5.3L7.7 8.5L5 6.5L2.3 8.5L3.4 5.3L0.7 3.5H3.9L5 0.5Z"
@@ -134,15 +141,17 @@ import { IconComponent } from '../ui/icon.component';
                 }
               </span>
               <div class="identity-text">
-                <span class="user-email">{{ userEmail() ?? 'Signed in' }}</span>
-                <span class="user-role">{{ isSuperAdmin() ? 'Instance Admin' : 'Member' }}</span>
+                <span class="user-email">{{ userEmail() ?? t('shell.topbar.signedIn') }}</span>
+                <span class="user-role">{{
+                  isSuperAdmin() ? t('shell.nav.instanceAdmin') : t('shell.topbar.member')
+                }}</span>
               </div>
             </div>
 
             <!-- Current org chip -->
             @if (selectedOrg(); as org) {
               <div class="org-section">
-                <div class="org-label">Current organisation</div>
+                <div class="org-label">{{ t('shell.topbar.currentOrg') }}</div>
                 <div class="org-chip">
                   <span class="org-chip-avatar">{{ org.name.slice(0, 1) }}</span>
                   <div class="org-chip-text">
@@ -164,8 +173,8 @@ import { IconComponent } from '../ui/icon.component';
                   (click)="onInstanceAdmin()"
                 >
                   <mns-icon name="Settings" [size]="18" class="item-icon item-icon-admin" />
-                  Instance Admin
-                  <span class="superuser-chip">Superuser</span>
+                  {{ t('shell.nav.instanceAdmin') }}
+                  <span class="superuser-chip">{{ t('shell.topbar.superuser') }}</span>
                 </button>
               }
 
@@ -178,14 +187,14 @@ import { IconComponent } from '../ui/icon.component';
                   (click)="onSwitchOrg()"
                 >
                   <mns-icon name="Building" [size]="18" class="item-icon" />
-                  Switch organisation
+                  {{ t('shell.topbar.switchOrg') }}
                 </button>
               }
 
               <!-- Profile & settings -->
               <button type="button" class="dropdown-item" role="menuitem" (click)="onProfile()">
                 <mns-icon name="Settings" [size]="18" class="item-icon" />
-                Profile &amp; settings
+                {{ t('shell.topbar.profileSettings') }}
               </button>
 
               <div class="dropdown-sep" role="separator"></div>
@@ -198,7 +207,7 @@ import { IconComponent } from '../ui/icon.component';
                 (click)="onLogout()"
               >
                 <mns-icon name="Logout" [size]="18" class="item-icon" />
-                Log out
+                {{ t('common.actions.logout') }}
               </button>
             </div>
           </div>

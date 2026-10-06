@@ -3,6 +3,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { PlaylistCreateForm } from './playlist-create-form';
 import { BtnComponent } from '../ui';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 function btnByText(fixture: ComponentFixture<PlaylistCreateForm>, text: string) {
   return fixture.debugElement
@@ -16,7 +17,10 @@ describe('PlaylistCreateForm', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PlaylistCreateForm],
+      imports: [
+        PlaylistCreateForm,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

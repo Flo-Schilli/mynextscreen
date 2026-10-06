@@ -6,6 +6,7 @@ import { By } from '@angular/platform-browser';
 import { NotificationBell } from './notification-bell';
 import { NotificationService } from './notification.service';
 import { Notification } from './notification.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -41,7 +42,10 @@ describe('NotificationBell', () => {
     };
 
     await TestBed.configureTestingModule({
-      imports: [NotificationBell],
+      imports: [
+        NotificationBell,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [
         provideZonelessChangeDetection(),
         provideRouter([]),

@@ -8,7 +8,7 @@ import { ServerClient } from './connection/server-client.service';
 import { AgentConfigStore, configCachePath } from './config/agent-config.store';
 import { SetupController } from './setup/setup.controller';
 import { SetupService } from './setup/setup.service';
-import { SetupPinService } from './setup/setup-pin.service';
+import { AutoEnrolmentService } from './setup/auto-enrolment.service';
 import { SetupAuthGuard } from './setup/setup-auth.guard';
 import { CommandStreamService } from './connection/command-stream.service';
 import { ReachabilityService } from './probe/reachability.service';
@@ -23,24 +23,44 @@ import { CommandHandlerService } from './supervisor/command-handler.service';
 export const AGENT_VERSION = process.env.APP_VERSION ?? '0.0.0-dev';
 
 /**
- * `MNS_SERVER_URL` in canonical form, or null when it is not set.
+ * `MNS_SERVER_URL` in canonical form.
  *
- * Validated here so a typo fails at boot with a message naming the variable,
- * rather than at the first request with a stack trace.
+ * Mandatory: pinning the address is what closes the rogue-server hole the old
+ * boot PIN used to cover, so there is no unpinned path left. A missing or
+ * malformed value fails at boot with a message naming the variable, rather than
+ * at the first request with a stack trace.
+ *
+ * `https` is part of that: a pin to `http://` still hands the refresh token to
+ * whoever answers the name, which on a venue LAN is not a theoretical attacker.
+ * `MNS_ALLOW_INSECURE_SERVER_URL=true` opts out for local development.
  */
-export function pinnedServerUrl(env: AgentEnv): string | null {
+export function pinnedServerUrl(env: AgentEnv): string {
   const raw = env.serverUrl;
   if (!raw) {
-    return null;
+    throw new Error(
+      'MNS_SERVER_URL is required: set it to the address of the myNextScreen server ' +
+        '(e.g. https://signage.example.com). The agent will not start without it.',
+    );
   }
+  let normalised: string;
   try {
-    return normaliseBaseUrl(raw);
+    normalised = normaliseBaseUrl(raw);
   } catch (error) {
     throw new Error(
       `MNS_SERVER_URL is not usable: ${error instanceof Error ? error.message : String(error)}`,
       { cause: error },
     );
   }
+
+  if (normalised.startsWith('http://') && !env.allowInsecureServerUrl) {
+    throw new Error(
+      'MNS_SERVER_URL must be an https:// address: over plain http the agent would ' +
+        'hand its refresh token to whoever answers that name on the venue network. ' +
+        'Set MNS_ALLOW_INSECURE_SERVER_URL=true only for local development.',
+    );
+  }
+
+  return normalised;
 }
 
 @Module({
@@ -52,11 +72,6 @@ export function pinnedServerUrl(env: AgentEnv): string | null {
       provide: AgentEnv,
       useFactory: (config: ConfigService) => new AgentEnv(config),
       inject: [ConfigService],
-    },
-    {
-      provide: SetupPinService,
-      useFactory: (env: AgentEnv) => new SetupPinService(env.setupPin),
-      inject: [AgentEnv],
     },
     {
       provide: ConnectionStore,
@@ -135,6 +150,12 @@ export function pinnedServerUrl(env: AgentEnv): string | null {
         env: AgentEnv,
       ) => new SetupService(connections, configs, client, AGENT_VERSION, pinnedServerUrl(env)),
       inject: [ConnectionStore, AgentConfigStore, ServerClient, AgentEnv],
+    },
+    {
+      provide: AutoEnrolmentService,
+      useFactory: (connections: ConnectionStore, setup: SetupService, env: AgentEnv) =>
+        new AutoEnrolmentService(connections, setup, env.enrolmentToken),
+      inject: [ConnectionStore, SetupService, AgentEnv],
     },
   ],
 })

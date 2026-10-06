@@ -11,6 +11,7 @@ import {
 } from './org-notification-config.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
 import { ToastService, Toast } from '../../shared/toast/toast.service';
+import { getTranslocoTestingModule } from '../../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -71,7 +72,10 @@ describe('OrgNotificationConfig', () => {
     };
 
     TestBed.configureTestingModule({
-      imports: [OrgNotificationConfig],
+      imports: [
+        OrgNotificationConfig,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [
         provideZonelessChangeDetection(),
         provideRouter([]),

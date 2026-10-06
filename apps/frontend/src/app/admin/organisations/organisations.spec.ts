@@ -6,6 +6,7 @@ import { Organisations } from './organisations';
 import { OrganisationService } from './organisation.service';
 import { Organisation, OrgMember } from './organisation.model';
 import { OrganisationFormPayload } from './org-form';
+import { getTranslocoTestingModule } from '../../i18n/transloco-testing';
 
 function makeOrganisation(overrides: Partial<Organisation> = {}): Organisation {
   return {
@@ -71,7 +72,10 @@ describe('Organisations', () => {
     };
 
     await TestBed.configureTestingModule({
-      imports: [Organisations],
+      imports: [
+        Organisations,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [
         provideZonelessChangeDetection(),
         provideRouter([]),

@@ -8,6 +8,7 @@ import { UserSettings } from './user-settings';
 import { NotificationPreferences } from './notification-preferences.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
 import { ToastService, Toast } from '../../shared/toast/toast.service';
+import { getTranslocoTestingModule } from '../../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -47,6 +48,7 @@ describe('UserSettings', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
+      imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
         provideHttpClient(),

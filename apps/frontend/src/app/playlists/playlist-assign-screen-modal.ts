@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, model, output } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { Screen } from '../screens/screen.model';
 import {
   OverlayComponent,
@@ -18,20 +19,30 @@ import {
   selector: 'app-playlist-assign-screen-modal',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OverlayComponent, ModalComponent, BtnComponent, SelectComponent, SFieldComponent],
+  imports: [
+    OverlayComponent,
+    ModalComponent,
+    BtnComponent,
+    SelectComponent,
+    SFieldComponent,
+    TranslocoDirective,
+  ],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
-      <mns-modal title="Assign to screen" icon="Screens" (closed)="dismiss.emit()">
+    <mns-overlay (closed)="dismiss.emit()" *transloco="let t">
+      <mns-modal
+        [title]="t('playlists.assignScreen.title')"
+        icon="Screens"
+        (closed)="dismiss.emit()"
+      >
         <div class="px-6 pt-4 pb-2">
           <p class="text-sm text-muted mb-4">
-            Select a screen to assign
-            <strong class="text-text">{{ count() }} playlist(s)</strong> to:
+            {{ t('playlists.assignScreen.prompt', { count: count() }) }}
           </p>
-          <mns-sfield label="Screen">
+          <mns-sfield [label]="t('playlists.assignScreen.screenLabel')">
             <mns-select
               [options]="screenOptions()"
               [(value)]="selectedScreenId"
-              placeholder="-- Select a screen --"
+              [placeholder]="t('playlists.assignScreen.selectPlaceholder')"
             />
           </mns-sfield>
           @if (loadError()) {
@@ -39,13 +50,17 @@ import {
           }
         </div>
         <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
-          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn variant="outline" (mnsClick)="dismiss.emit()">{{
+            t('common.actions.cancel')
+          }}</mns-btn>
           <mns-btn
             variant="primary"
             [disabled]="loading() || !selectedScreenId()"
             (mnsClick)="confirm.emit()"
           >
-            {{ loading() ? 'Loading…' : 'Assign' }}
+            {{
+              loading() ? t('playlists.assignScreen.loading') : t('playlists.assignScreen.assign')
+            }}
           </mns-btn>
         </div>
       </mns-modal>

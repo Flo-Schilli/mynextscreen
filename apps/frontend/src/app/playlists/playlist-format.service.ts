@@ -1,6 +1,6 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { PlaylistItem } from './playlist.model';
-import { UI_LOCALE } from '../shared/locale';
+import { LanguageService } from '../i18n/language.service';
 
 /**
  * Pure formatting and duration helpers for the playlists feature. Extracted
@@ -9,6 +9,8 @@ import { UI_LOCALE } from '../shared/locale';
  */
 @Injectable({ providedIn: 'root' })
 export class PlaylistFormatService {
+  private language = inject(LanguageService);
+
   /** Sum of the per-item durations (seconds) of a playlist's items. */
   totalDurationSeconds(items: readonly PlaylistItem[] | undefined): number {
     if (!items) return 0;
@@ -27,6 +29,6 @@ export class PlaylistFormatService {
   }
 
   formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString(UI_LOCALE);
+    return new Date(dateStr).toLocaleDateString(this.language.locale());
   }
 }

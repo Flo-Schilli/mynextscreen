@@ -99,7 +99,12 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
   bleibt nur für **Org-Notifications** (`EmailNotificationChannel`). Dev: **Mailpit** (`:8025`).
 - **Site Agent:** eigene NestJS-App (`apps/site-agent/`), laeuft im Venue-Netz. `ws` (SSAP),
   `ssh2` (Devmode-Verlaengerung ueber Luna), `dgram` (Wake-on-LAN). Eigene JWT-Audience
-  `mynextscreen-agent`. Setup-UI mit PIN auf Port 8787. Tests: **Jest** (Gate 85/75/83/85).
+  `mynextscreen-agent`. Setup-UI auf Port 8787: Onboarding per **Dashboard-Setup-Code**
+  (kein PIN mehr); `MNS_SERVER_URL` ist **Pflicht** und muss `https://` sein (Boot-Fehler sonst;
+  `MNS_ALLOW_INSECURE_SERVER_URL=true` nur fuer lokale Entwicklung). Agent-Reset verlangt
+  einen frischen Setup-Code (serverseitig validiert). Unbeaufsichtigt per
+  `MNS_ENROLMENT_TOKEN` (nur solange keine Session gespeichert ist) plus eigenem
+  Ansible-Playbook `ansible/site-agent.yml`. Tests: **Jest** (Gate 85/75/83/85).
 - **Media:** **FFmpeg** als Child-Process (Transcoding + HLS-Live).
 - **Echtzeit:** **SSE** (Dashboard-Updates + Screen-Pushes).
 - **Runtime:** Node.js 26 (LTS). **Package-Manager: npm** (npm@11.6.2, kein pnpm/yarn).
@@ -296,9 +301,11 @@ format:check / lint typecheck build / test` auf **PRs** bzw. `nx run-many`
 | `SIGNUP_ENABLED`                                                    | Feature-Flag Self-Signup (default `true`)                                      |
 | `SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES` / `_TRANSCODED_BYTES`       | Default-Storage-Limits einer self-created Org (default 5 GiB)                  |
 | `SIGNUP_UNVERIFIED_TTL_HOURS`                                       | Frist bis Cleanup-Cron nie-verifizierte Signups löscht (default 24)            |
+| `SITE_AGENT_ENROLMENT_TTL_MS`                                       | TTL des Site-Agent-Setup-Codes (default 900000 = 15 min; < 60 s wird ignoriert) |
 | `MAX_FILE_SIZE_BYTES`                                               | Upload-Limit                                                                   |
 | `FFMPEG_PATH`                                                       | FFmpeg-Binary (default: System-PATH)                                           |
 | `FFMPEG_VIDEO_CRF` / `_PRESET` / `_MAXRATE` / `_BUFSIZE`            | Transcoding-Qualität                                                           |
+| `METRICS_SCRAPE_TOKEN`                                              | Bearer-Token für `GET /api/metrics` (Prometheus); unset = Endpoint 404-disabled, nie öffentlich routen |
 
 ## Deployment (Prod) — GHCR-Pull-Modell
 

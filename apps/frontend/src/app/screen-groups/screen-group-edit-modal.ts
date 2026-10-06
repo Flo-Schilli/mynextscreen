@@ -2,11 +2,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
   output,
   signal,
   OnInit,
 } from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { OverlayComponent, ModalComponent, BtnComponent, StepperComponent } from '../ui';
 import { ScreenGroup, ScreenGroupMode, UpdateScreenGroupRequest } from './screen-group.model';
 import { ScreenGroupModeToggle } from './screen-group-mode-toggle';
@@ -28,13 +30,21 @@ const COLORS = ['#6d6cf6', '#0ea5e9', '#ec4899', '#14b8a6', '#10b981', '#f59e0b'
     BtnComponent,
     StepperComponent,
     ScreenGroupModeToggle,
+    TranslocoDirective,
   ],
   template: `
-    <mns-overlay (closed)="dismiss.emit()">
-      <mns-modal title="Edit screen group" icon="Pencil" [widthPx]="560" (closed)="dismiss.emit()">
+    <mns-overlay (closed)="dismiss.emit()" *transloco="let t">
+      <mns-modal
+        [title]="t('screenGroups.edit.title')"
+        icon="Pencil"
+        [widthPx]="560"
+        (closed)="dismiss.emit()"
+      >
         <div class="flex flex-col gap-5">
           <label class="block">
-            <span class="block text-[12.5px] font-semibold text-muted mb-2">Group name</span>
+            <span class="block text-[12.5px] font-semibold text-muted mb-2">{{
+              t('screenGroups.edit.nameLabel')
+            }}</span>
             <input
               class="w-full px-3 py-2.5 rounded-[10px] text-sm bg-surface-2 border border-border-strong text-text outline-none"
               [value]="name()"
@@ -43,7 +53,9 @@ const COLORS = ['#6d6cf6', '#0ea5e9', '#ec4899', '#14b8a6', '#10b981', '#f59e0b'
           </label>
 
           <div>
-            <span class="block text-[12.5px] font-semibold text-muted mb-2.5">Colour</span>
+            <span class="block text-[12.5px] font-semibold text-muted mb-2.5">{{
+              t('screenGroups.edit.colourLabel')
+            }}</span>
             <div class="flex gap-2.5">
               @for (c of colors; track c) {
                 <button
@@ -52,7 +64,7 @@ const COLORS = ['#6d6cf6', '#0ea5e9', '#ec4899', '#14b8a6', '#10b981', '#f59e0b'
                   [style.background]="c"
                   [style.border]="color() === c ? '2px solid #fff' : '2px solid transparent'"
                   [style.box-shadow]="color() === c ? '0 0 0 2px ' + c : 'none'"
-                  [attr.aria-label]="'Colour ' + c"
+                  [attr.aria-label]="t('screenGroups.edit.colourAria', { colour: c })"
                   (click)="color.set(c)"
                 ></button>
               }
@@ -60,14 +72,26 @@ const COLORS = ['#6d6cf6', '#0ea5e9', '#ec4899', '#14b8a6', '#10b981', '#f59e0b'
           </div>
 
           <div>
-            <span class="block text-[12.5px] font-semibold text-muted mb-2.5">Display mode</span>
+            <span class="block text-[12.5px] font-semibold text-muted mb-2.5">{{
+              t('screenGroups.edit.displayModeLabel')
+            }}</span>
             <app-screen-group-mode-toggle [value]="mode()" (modeChange)="mode.set($event)" />
           </div>
 
           @if (mode() === 'split') {
             <div class="p-4 rounded-[13px] bg-surface-2 border border-border flex flex-col gap-3.5">
-              <mns-stepper label="Columns" [(value)]="cols" [min]="1" [max]="4" />
-              <mns-stepper label="Rows" [(value)]="rows" [min]="1" [max]="4" />
+              <mns-stepper
+                [label]="t('screenGroups.edit.columns')"
+                [(value)]="cols"
+                [min]="1"
+                [max]="4"
+              />
+              <mns-stepper
+                [label]="t('screenGroups.edit.rows')"
+                [(value)]="rows"
+                [min]="1"
+                [max]="4"
+              />
             </div>
           }
 
@@ -77,14 +101,18 @@ const COLORS = ['#6d6cf6', '#0ea5e9', '#ec4899', '#14b8a6', '#10b981', '#f59e0b'
         </div>
 
         <div slot="footer" class="flex gap-2.5 px-6 py-5 border-t border-border">
-          <mns-btn variant="outline" [full]="true" (mnsClick)="dismiss.emit()">Cancel</mns-btn>
+          <mns-btn variant="outline" [full]="true" (mnsClick)="dismiss.emit()">{{
+            t('common.actions.cancel')
+          }}</mns-btn>
           <mns-btn
             variant="primary"
             [full]="true"
             icon="Check"
             [disabled]="saving()"
             (mnsClick)="onSubmit()"
-            >{{ saving() ? 'Saving…' : 'Save changes' }}</mns-btn
+            >{{
+              saving() ? t('screenGroups.edit.saving') : t('screenGroups.edit.saveChanges')
+            }}</mns-btn
           >
         </div>
       </mns-modal>
@@ -98,6 +126,8 @@ export class ScreenGroupEditModal implements OnInit {
 
   readonly save = output<UpdateScreenGroupRequest>();
   readonly dismiss = output<void>();
+
+  private readonly transloco = inject(TranslocoService);
 
   protected readonly colors = COLORS;
 
@@ -121,7 +151,7 @@ export class ScreenGroupEditModal implements OnInit {
 
   onSubmit(): void {
     if (!this.valid()) {
-      this.localError.set('Name is required.');
+      this.localError.set(this.transloco.translate('screenGroups.edit.errorNameRequired'));
       return;
     }
     this.localError.set('');

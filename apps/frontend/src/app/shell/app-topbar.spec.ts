@@ -7,6 +7,8 @@ import { AppTopbar } from './app-topbar';
 import { NotificationBell } from '../notifications/notification-bell';
 import { GlobalSearch } from '../search/global-search';
 import { OrgWithRole } from './organisation-state.service';
+import { LanguageSwitcher } from './language-switcher';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -21,6 +23,9 @@ class StubNotificationBell {}
 
 @Component({ selector: 'app-global-search', template: '' })
 class StubGlobalSearch {}
+
+@Component({ selector: 'app-language-switcher', template: '' })
+class StubLanguageSwitcher {}
 
 const ORGS: OrgWithRole[] = [
   { id: 'org-1', name: 'Venue One', timeZone: 'Europe/Vienna', role: 'org_admin' },
@@ -39,12 +44,13 @@ async function createFixture(
   } = {},
 ): Promise<ComponentFixture<AppTopbar>> {
   await TestBed.configureTestingModule({
-    imports: [AppTopbar],
+    // Pin English so the existing English text assertions below hold.
+    imports: [AppTopbar, getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
     providers: [provideZonelessChangeDetection()],
   })
     .overrideComponent(AppTopbar, {
-      remove: { imports: [NotificationBell, GlobalSearch] },
-      add: { imports: [StubNotificationBell, StubGlobalSearch] },
+      remove: { imports: [NotificationBell, GlobalSearch, LanguageSwitcher] },
+      add: { imports: [StubNotificationBell, StubGlobalSearch, StubLanguageSwitcher] },
     })
     .compileComponents();
 

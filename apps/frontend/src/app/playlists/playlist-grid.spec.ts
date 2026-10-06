@@ -5,6 +5,7 @@ import { PlaylistGrid } from './playlist-grid';
 import { Playlist, PlaylistItem } from './playlist.model';
 import { SelectionService } from '../shared/selection/selection.service';
 import { BulkAction } from '../shared/selection/bulk-action-toolbar';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 function buildPlaylist(overrides: Partial<Playlist> = {}): Playlist {
   return {
@@ -29,7 +30,10 @@ describe('PlaylistGrid', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PlaylistGrid],
+      imports: [
+        PlaylistGrid,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection(), SelectionService],
     }).compileComponents();
 
@@ -94,7 +98,7 @@ describe('PlaylistGrid', () => {
     fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('1 items');
+    expect(text).toContain('1 item');
     expect(text).toContain('1m 30s');
   });
 

@@ -37,24 +37,32 @@ this existed.
 
 ## Install
 
-The agent starts knowing nothing and is configured from a browser, so no
-variables are needed:
+The agent is told once where it belongs through `MNS_SERVER_URL`, then connected
+from a browser with a short-lived **setup code** from the dashboard:
 
 ```bash
 podman run -d --name mynextscreen-agent \
   --network host \
   -v mynextscreen-agent-state:/var/lib/mynextscreen-agent:Z \
+  -e MNS_SERVER_URL=https://signage.example.com \
   ghcr.io/flo-schilli/mynextscreen/site-agent:latest
 
 podman logs mynextscreen-agent
 ```
 
-The log prints where to find it and the PIN you will need:
+`MNS_SERVER_URL` is **required** — the agent refuses to start without it — and it
+must be an `https://` address. Pinning the address is what keeps anyone on the
+venue LAN from redirecting the agent at a server of their own, which is why there
+is no browser-chosen address and no boot PIN any more. Over plain `http://` that
+pin buys nothing: whoever answers the name receives the agent's refresh token, so
+the agent refuses it unless `MNS_ALLOW_INSECURE_SERVER_URL=true` is set, which is
+meant for a developer pointing an agent at `http://localhost:3000`. The log prints where to find the setup page and the pinned server,
+and nothing secret:
 
 ```
-[SiteAgent]      myNextScreen site agent 1.0.0
-[SetupPinService] Setup interface: http://192.168.1.20:8787
-[SetupPinService] Setup PIN: 4817-2093
+[SiteAgent] myNextScreen site agent 1.0.0
+[SiteAgent] Server address pinned by MNS_SERVER_URL: https://signage.example.com
+[SiteAgent] Setup interface: http://192.168.1.20:8787
 ```
 
 **Host networking is required.** Wake-on-LAN is a broadcast packet, which a
@@ -62,13 +70,25 @@ bridged network does not carry to the LAN.
 
 ### Connect it
 
-1. In the dashboard, open **Site Agents → Add an agent** and copy the enrolment
-   token. It is shown once.
-2. Open the setup page from the log, enter the server address, the token and
-   the PIN.
+1. In the dashboard, open **Site Agents → Add an agent**. The server shows a
+   **setup code** once. It is org-scoped, single-use and valid for about fifteen
+   minutes (see `SITE_AGENT_ENROLMENT_TTL_MS`).
+2. Open the setup page from the log and paste the setup code. The server address
+   is already fixed and shown read-only.
 
 That is all that is stored: from then on the agent holds a rotating session and
-re-reads its configuration from the server.
+re-reads its configuration from the server. Only an **org admin** of the target
+organisation can mint a setup code, so no dashboard credentials ever travel to
+the venue LAN.
+
+### Reconnecting or resetting
+
+Disconnecting a running agent from its own setup page needs a **fresh setup
+code** too — the server verifies it (against the agent's own organisation)
+before it ends the session. That keeps a passer-by on the venue LAN from
+stranding the venue by hitting the agent's setup port. Mint a new code in the
+dashboard with **Site Agents → (your venue) → New setup code**, then use it on
+the agent's page.
 
 ### Unattended rollout
 
@@ -79,43 +99,75 @@ podman run -d --name mynextscreen-agent \
   --network host \
   -v mynextscreen-agent-state:/var/lib/mynextscreen-agent:Z \
   -e MNS_SERVER_URL=https://signage.example.com \
-  -e MNS_ENROLMENT_TOKEN=<from the dashboard> \
+  -e MNS_ENROLMENT_TOKEN=<setup code from the dashboard> \
   -e MNS_SETUP_PORT=0 \
   ghcr.io/flo-schilli/mynextscreen/site-agent:latest
 ```
 
-`MNS_SETUP_PORT=0` leaves no inbound port open at all.
+`MNS_SETUP_PORT=0` leaves no inbound port open at all. `MNS_ENROLMENT_TOKEN`
+carries the same setup code the setup page would ask for: the agent redeems it
+once at boot, while it has no stored session, and logs the agent and
+organisation it joined.
+
+A code that is expired or already spent is logged as an error and nothing else
+happens — the agent keeps running without a session. That is deliberate: a
+deployment variable going stale is not a reason to take a correctly configured
+venue offline, and with the setup interface enabled an operator can still paste
+a fresh code. Issue a new one in the dashboard and restart.
+
+### Unattended rollout with Ansible
+
+`ansible/site-agent.yml` does the above as a rootless Podman Quadlet, separate
+from `deploy.yml` because the agent runs on venue hardware rather than the
+server. Add the host to the `[site_agents]` group (see `hosts.ini.example`),
+then, for the first run only:
+
+```bash
+ansible-playbook -i hosts.ini site-agent.yml -K \
+  -e site_agent_enrolment_token=<setup code from the dashboard>
+```
+
+The code is written to `.env.mynextscreen-agent` on the host with mode `0600`
+and is spent on first boot. Re-running the playbook **without** the variable
+leaves the line out of the file again, so no stale code sits on the machine; the
+agent keeps the session it already has either way.
+
+Set `site_agent_setup_port=0` in the inventory for a venue that should have no
+inbound port at all. The playbook then also drops the image's health check,
+which probes that interface and would otherwise mark a healthy agent unhealthy
+forever.
 
 ### What wins over what
 
 `MNS_ENROLMENT_TOKEN` is only consulted when no session is stored, so a
-container restarted with a spent token keeps the session it already has rather
+container restarted with a spent code keeps the session it already has rather
 than trying to redeem it again.
 
-`MNS_SERVER_URL` works the other way round: **when it is set, it wins over the
-stored address**, and the setup page shows that field read-only. This is worth
-setting on any agent you care about. Without it, the address lives only in
-`connection.json`, and anyone able to edit that file could point the agent at a
-server of their choosing — at which point the agent presents its real refresh
-token to that address on its very next request, and whatever configuration
-comes back decides which hosts on the venue network it connects to.
+`MNS_SERVER_URL` is mandatory and **wins over the stored address**; the setup
+page shows that field read-only. If it were ever absent the address would live
+only in `connection.json`, and anyone able to edit that file could point the
+agent at a server of their choosing — at which point the agent would present its
+real refresh token to that address on its next request, and whatever
+configuration came back would decide which hosts on the venue network it
+connects to. Requiring the variable closes that off at the source: a _restored
+backup from the wrong venue_, a configuration-management run, or a volume with
+loose permissions on the host cannot quietly move the agent. A stored address
+that disagrees with the pinned one is logged at startup and ignored.
 
-That is not an escalation on its own: the same file is readable by anyone who
-can write it, and the refresh token, the TVs' keys and their passphrases all
-sit beside it. What the pin buys is that a _restored backup from the wrong
-venue_, a configuration-management run, or a volume with loose permissions on
-the host cannot quietly move the agent. The deployment decides, and a stored
-address that disagrees is logged at startup.
+> **Upgrading an existing deployment:** set `MNS_SERVER_URL` on every agent
+> before updating to this version. An agent updated without it will not start,
+> by design. The old `MNS_SETUP_PIN` variable and the boot-time PIN are gone;
+> remove `MNS_SETUP_PIN` from any compose files or quadlets.
 
-| Variable                | Default                       | What it does                                            |
-| ----------------------- | ----------------------------- | ------------------------------------------------------- |
-| `MNS_SERVER_URL`        | —                             | Optional; the setup page is the other way in            |
-| `MNS_ENROLMENT_TOKEN`   | —                             | Optional; only used when no session is stored           |
-| `MNS_SETUP_PORT`        | `8787`                        | `0` disables the setup interface entirely               |
-| `MNS_SETUP_PIN`         | generated                     | A fixed PIN, for deployments where nobody reads the log |
-| `MNS_STATE_DIR`         | `/var/lib/mynextscreen-agent` | Session, keys and cached configuration                  |
-| `MNS_PROBE_INTERVAL_MS` | `60000`                       | How often the displays are checked                      |
-| `MNS_LOG_LEVEL`         | `log`                         |                                                         |
+| Variable                | Default                       | What it does                                              |
+| ----------------------- | ----------------------------- | -------------------------------------------------------- |
+| `MNS_SERVER_URL`        | —                             | **Required**; `https://` where the agent belongs, read-only |
+| `MNS_ALLOW_INSECURE_SERVER_URL` | `false`               | Permits an `http://` pin; local development only         |
+| `MNS_ENROLMENT_TOKEN`   | —                             | Optional setup code; only used when no session is stored |
+| `MNS_SETUP_PORT`        | `8787`                        | `0` disables the setup interface entirely                |
+| `MNS_STATE_DIR`         | `/var/lib/mynextscreen-agent` | Session, keys and cached configuration                   |
+| `MNS_PROBE_INTERVAL_MS` | `60000`                       | How often the displays are checked                       |
+| `MNS_LOG_LEVEL`         | `log`                         |                                                          |
 
 ---
 

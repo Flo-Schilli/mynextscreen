@@ -5,6 +5,7 @@ import { SliceStatusService } from './slice-status.service';
 import { eq } from 'drizzle-orm';
 import { Job } from 'bullmq';
 import { SliceContentProcessor, SliceContentJobData } from './slice-content.processor';
+import { JobMetricsService } from '../observability/job-metrics.service';
 import { DRIZZLE } from '../db/database.constants';
 import {
   organisations,
@@ -135,6 +136,10 @@ describe('SliceContentProcessor', () => {
         SliceStatusService,
         { provide: DRIZZLE, useValue: db },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        {
+          provide: JobMetricsService,
+          useValue: { recordCompleted: jest.fn(), recordFailed: jest.fn() },
+        },
         {
           provide: ConfigService,
           useValue: {

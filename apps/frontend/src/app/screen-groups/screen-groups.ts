@@ -1,5 +1,6 @@
 import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { ScreenGroupService } from './screen-group.service';
 import { forkJoin } from 'rxjs';
 import {
@@ -35,13 +36,16 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
     PageHeaderComponent,
     BtnComponent,
     EmptyComponent,
+    TranslocoDirective,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <div class="page">
-      <mns-page-header title="Screen Groups" icon="Groups" [sub]="headerSub()">
+    <div class="page" *transloco="let t">
+      <mns-page-header [title]="t('screenGroups.list.title')" icon="Groups" [sub]="headerSub()">
         @if (!loading && !showCreateForm) {
-          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">New Group</mns-btn>
+          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">{{
+            t('screenGroups.list.newGroup')
+          }}</mns-btn>
         }
       </mns-page-header>
 
@@ -50,7 +54,7 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
       }
 
       @if (loading) {
-        <p class="text-muted text-sm">Loading screen groups…</p>
+        <p class="text-muted text-sm">{{ t('screenGroups.list.loading') }}</p>
       }
 
       <!-- Create Group Modal -->
@@ -84,12 +88,12 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
       @if (!loading && groups.length === 0 && !loadError) {
         <mns-empty
           icon="Groups"
-          title="No screen groups yet"
-          desc="Create your first screen group to start building mirror displays or video walls."
+          [title]="t('screenGroups.list.emptyTitle')"
+          [desc]="t('screenGroups.list.emptyDesc')"
         >
-          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()"
-            >Create Your First Group</mns-btn
-          >
+          <mns-btn variant="primary" icon="Plus" (mnsClick)="openCreateForm()">{{
+            t('screenGroups.list.createFirst')
+          }}</mns-btn>
         </mns-empty>
       }
 
@@ -127,6 +131,7 @@ export class ScreenGroups implements OnInit {
   private memberService = inject(MemberService);
   private router = inject(Router);
   private toast = inject(ToastService);
+  private transloco = inject(TranslocoService);
 
   orgId = '';
   groups: ScreenGroup[] = [];
@@ -137,7 +142,7 @@ export class ScreenGroups implements OnInit {
 
   headerSub(): string {
     if (this.loading) return '';
-    return `${this.groups.length} group${this.groups.length === 1 ? '' : 's'}`;
+    return this.transloco.translate('screenGroups.list.subtitle', { count: this.groups.length });
   }
 
   /** Screens not currently assigned to any group — selectable on create. */
@@ -175,12 +180,12 @@ export class ScreenGroups implements OnInit {
           this.orgId = memberships[0].organisationId;
           this.loadGroups();
         } else {
-          this.loadError = 'You are not a member of any organisation.';
+          this.loadError = this.transloco.translate('common.errors.noOrgMembership');
           this.loading = false;
         }
       },
       error: () => {
-        this.loadError = 'Failed to load organisation context.';
+        this.loadError = this.transloco.translate('common.errors.loadOrgContext');
         this.loading = false;
       },
     });
@@ -196,7 +201,10 @@ export class ScreenGroups implements OnInit {
         this.loading = false;
       },
       error: (err) => {
-        this.loadError = err.status === 403 ? 'Access denied.' : 'Failed to load screen groups.';
+        this.loadError =
+          err.status === 403
+            ? this.transloco.translate('common.errors.accessDenied')
+            : this.transloco.translate('screenGroups.errors.loadGroups');
         this.loading = false;
       },
     });
@@ -241,13 +249,14 @@ export class ScreenGroups implements OnInit {
           next: () => this.finishCreate(),
           error: () => {
             // Group exists; surface a soft warning but still close + reload.
-            this.toast.error('Group created, but some screens could not be assigned.');
+            this.toast.error(this.transloco.translate('screenGroups.toast.someScreensNotAssigned'));
             this.finishCreate();
           },
         });
       },
       error: (err) => {
-        this.createError = err.error?.message || 'Failed to create screen group.';
+        this.createError =
+          err.error?.message || this.transloco.translate('screenGroups.errors.createGroup');
         this.creating = false;
       },
     });
@@ -256,7 +265,7 @@ export class ScreenGroups implements OnInit {
   private finishCreate(): void {
     this.creating = false;
     this.showCreateForm = false;
-    this.toast.success('Screen group created.');
+    this.toast.success(this.transloco.translate('screenGroups.toast.created'));
     this.loadGroups();
   }
 
@@ -279,11 +288,12 @@ export class ScreenGroups implements OnInit {
       next: () => {
         this.saving = false;
         this.editingGroup = null;
-        this.toast.success('Screen group updated.');
+        this.toast.success(this.transloco.translate('screenGroups.toast.updated'));
         this.loadGroups();
       },
       error: (err) => {
-        this.editError = err.error?.message || 'Failed to update screen group.';
+        this.editError =
+          err.error?.message || this.transloco.translate('screenGroups.errors.updateGroup');
         this.saving = false;
       },
     });
@@ -309,11 +319,12 @@ export class ScreenGroups implements OnInit {
       next: () => {
         this.deleting = false;
         this.deletingGroup = null;
-        this.toast.success('Screen group deleted.');
+        this.toast.success(this.transloco.translate('screenGroups.toast.deleted'));
         this.loadGroups();
       },
       error: (err) => {
-        this.deleteError = err.error?.message || 'Failed to delete screen group.';
+        this.deleteError =
+          err.error?.message || this.transloco.translate('screenGroups.errors.deleteGroup');
         this.deleting = false;
       },
     });

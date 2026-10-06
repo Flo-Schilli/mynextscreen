@@ -1,4 +1,5 @@
 import { Component, inject, input, signal, Signal, ChangeDetectionStrategy } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { SelectionService } from './selection.service';
 
 export interface BulkAction {
@@ -12,17 +13,25 @@ export interface BulkAction {
 @Component({
   selector: 'app-bulk-action-toolbar',
   standalone: true,
+  imports: [TranslocoDirective],
   template: `
     @if (selectionService.hasSelection()) {
-      <div class="bulk-toolbar" role="toolbar" aria-label="Bulk actions">
-        <span class="selection-count"> {{ selectionService.count() }} item(s) selected </span>
+      <div
+        class="bulk-toolbar"
+        role="toolbar"
+        [attr.aria-label]="t('ui.selection.bulkActions')"
+        *transloco="let t"
+      >
+        <span class="selection-count">
+          {{ t('ui.selection.selectedCount', { count: selectionService.count() }) }}
+        </span>
         <button
           class="clear-btn"
           (click)="selectionService.clearAll()"
           [disabled]="loading()"
-          aria-label="Clear selection"
+          [attr.aria-label]="t('ui.selection.clearSelection')"
         >
-          Clear selection
+          {{ t('ui.selection.clearSelection') }}
         </button>
         <div class="toolbar-actions">
           @for (action of actions(); track action.label) {

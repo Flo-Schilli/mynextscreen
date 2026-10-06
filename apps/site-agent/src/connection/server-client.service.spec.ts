@@ -223,6 +223,34 @@ describe('ServerClient', () => {
       expect(JSON.parse(initOf(1).body as string)).toEqual({});
     });
 
+    it('pushes metrics on the heartbeat when provided', async () => {
+      fetchMock.mockResolvedValueOnce(respond(204));
+
+      await client.sendHeartbeat('1.2.3', {
+        uptimeSeconds: 10,
+        memoryRssBytes: 1000,
+        connected: true,
+        lastConfigPullAtMs: 0,
+        screenCount: 1,
+        screens: [
+          {
+            screenId: 's1',
+            reachable: true,
+            failures: 0,
+            devmodeActive: false,
+            devmodeExtensions: 0,
+            launches: 2,
+            wakes: 1,
+          },
+        ],
+      });
+
+      const body = JSON.parse(initOf(1).body as string);
+      expect(body.agentVersion).toBe('1.2.3');
+      expect(body.metrics.screenCount).toBe(1);
+      expect(body.metrics.screens[0].launches).toBe(2);
+    });
+
     it('posts reports as a batch', async () => {
       fetchMock.mockResolvedValueOnce(respond(204));
 
@@ -234,6 +262,30 @@ describe('ServerClient', () => {
 
     it('builds the events URL from the stored server', async () => {
       expect(await client.eventsUrl()).toBe('https://signage.example.com/api/agents/me/events');
+    });
+
+    it('posts the setup code when asking the server to reset', async () => {
+      fetchMock.mockResolvedValueOnce(respond(204));
+
+      await client.requestReset('fresh-code');
+
+      expect(urlOf(1)).toContain('/api/agents/me/reset');
+      expect(JSON.parse(initOf(1).body as string)).toEqual({ setupCode: 'fresh-code' });
+    });
+
+    // A rejected code comes back as 401/410 and must surface, not be swallowed —
+    // the agent only clears local state once the server has accepted the reset.
+    // The 401 here is the reset answer, not the access-token refresh: the second
+    // 401 on an already-retried request is not retried again.
+    it('raises when the server rejects the setup code', async () => {
+      fetchMock
+        .mockResolvedValueOnce(respond(401, { message: 'expired access token' }))
+        .mockResolvedValueOnce(
+          respond(200, { accessToken: 'a2', refreshToken: 'r3', expiresIn: 900 }),
+        )
+        .mockResolvedValueOnce(respond(410, { message: 'used' }));
+
+      await expect(client.requestReset('stale-code')).rejects.toThrow(SessionRejectedError);
     });
   });
 });

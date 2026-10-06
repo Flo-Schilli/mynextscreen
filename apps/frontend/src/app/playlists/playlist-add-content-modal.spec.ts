@@ -3,6 +3,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { PlaylistAddContentModal } from './playlist-add-content-modal';
 import { Content } from '../content/content.model';
+import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 function buildContent(overrides: Partial<Content> = {}): Content {
   return {
@@ -32,7 +33,10 @@ describe('PlaylistAddContentModal', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PlaylistAddContentModal],
+      imports: [
+        PlaylistAddContentModal,
+        getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
+      ],
       providers: [provideZonelessChangeDetection()],
     }).compileComponents();
 

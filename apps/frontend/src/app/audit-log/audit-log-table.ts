@@ -1,9 +1,19 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
-import { AuditEntry, AUDIT_ACTION_LABELS } from './audit-log.model';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
+import { AuditEntry } from './audit-log.model';
 import { BadgeComponent, BadgeTone, BtnComponent, EmptyComponent, IconComponent } from '../ui';
 import type { IconName } from '../ui';
 import { AuditLogCard } from './audit-log-card';
+import { LanguageService } from '../i18n/language.service';
+import { LocaleDatePipe } from '../i18n/locale-format.pipes';
 
 // ── action taxonomy ──────────────────────────────────────────────────────────
 
@@ -69,25 +79,17 @@ function actionMeta(action: string): ActionMeta {
 
 // ── day-grouping helpers ─────────────────────────────────────────────────────
 
-function dayLabel(iso: string): string {
+/** Days between a timestamp and now (0 = today, 1 = yesterday, …). */
+function dayDiff(iso: string): number {
   const ts = new Date(iso);
   const now = new Date();
   const a = new Date(ts.getFullYear(), ts.getMonth(), ts.getDate());
   const b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diff = Math.round((b.getTime() - a.getTime()) / 86_400_000);
-  if (diff === 0) return 'Today';
-  if (diff === 1) return 'Yesterday';
-  return ts.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return Math.round((b.getTime() - a.getTime()) / 86_400_000);
 }
 
 type TableRow =
-  | { kind: 'divider'; label: string; key: string }
-  | { kind: 'entry'; entry: AuditEntry; key: string };
+  { kind: 'divider'; iso: string; key: string } | { kind: 'entry'; entry: AuditEntry; key: string };
 
 /**
  * Presentational audit-log table with grouped day headers, expandable detail
@@ -100,10 +102,19 @@ type TableRow =
   selector: 'app-audit-log-table',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, BadgeComponent, BtnComponent, EmptyComponent, IconComponent, AuditLogCard],
+  imports: [
+    LocaleDatePipe,
+    BadgeComponent,
+    BtnComponent,
+    EmptyComponent,
+    IconComponent,
+    AuditLogCard,
+    TranslocoDirective,
+  ],
   template: `
     <!-- table card: no extra padding so header/rows bleed edge-to-edge -->
     <div
+      *transloco="let t"
       class="bg-surface border border-border rounded-lg overflow-hidden"
       style="box-shadow:var(--shadow)"
     >
@@ -115,9 +126,9 @@ type TableRow =
             class="grid gap-4 px-5 h-11 items-center bg-surface-2 sticky top-0 z-[5]"
             style="grid-template-columns:32px 180px 1fr 200px 130px minmax(160px,1.3fr) minmax(140px,1.2fr)"
           >
-            @for (h of headers; track h) {
+            @for (h of headerKeys; track h) {
               <div class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint">
-                {{ h }}
+                {{ h ? t('auditLog.table.' + h) : '' }}
               </div>
             }
           </div>
@@ -127,8 +138,8 @@ type TableRow =
             <div class="border-t border-border">
               <mns-empty
                 icon="Search"
-                title="No matching entries"
-                desc="Try clearing a filter or widening the date range."
+                [title]="t('auditLog.table.noMatchTitle')"
+                [desc]="t('auditLog.table.noMatchDesc')"
               />
             </div>
           } @else {
@@ -140,7 +151,7 @@ type TableRow =
                 >
                   <mns-icon name="Calendar" [size]="13" class="text-faint" />
                   <span class="text-[11.5px] font-bold tracking-[.04em] text-muted">
-                    {{ row.label }}
+                    {{ dayLabel(row.iso) }}
                   </span>
                 </div>
               } @else {
@@ -178,7 +189,7 @@ type TableRow =
                     <!-- timestamp -->
                     <div class="flex flex-col items-start gap-px min-w-0">
                       <span class="timestamp-cell font-mono text-[13px] font-semibold text-text">
-                        {{ row.entry.timestamp | date: 'HH:mm:ss' }}
+                        {{ row.entry.timestamp | localeDate: 'HH:mm:ss' }}
                       </span>
                       <span class="text-[11.5px] text-faint">{{
                         relativeTime(row.entry.timestamp)
@@ -256,7 +267,7 @@ type TableRow =
                           <div
                             class="text-[10.5px] font-bold tracking-[.06em] uppercase text-faint mb-1"
                           >
-                            Event ID
+                            {{ t('auditLog.table.eventId') }}
                           </div>
                           <div class="font-mono text-[12.5px] font-semibold text-text break-all">
                             {{ row.entry.id }}
@@ -266,7 +277,7 @@ type TableRow =
                           <div
                             class="text-[10.5px] font-bold tracking-[.06em] uppercase text-faint mb-1"
                           >
-                            Resource ID
+                            {{ t('auditLog.table.resourceId') }}
                           </div>
                           <div class="font-mono text-[12.5px] font-semibold text-text break-all">
                             {{ row.entry.resourceId ?? '—' }}
@@ -276,17 +287,17 @@ type TableRow =
                           <div
                             class="text-[10.5px] font-bold tracking-[.06em] uppercase text-faint mb-1"
                           >
-                            Timestamp
+                            {{ t('auditLog.table.timestamp') }}
                           </div>
                           <div class="text-[13.5px] font-semibold text-text">
-                            {{ row.entry.timestamp | date: 'medium' }}
+                            {{ row.entry.timestamp | localeDate: 'medium' }}
                           </div>
                         </div>
                         <div class="min-w-0">
                           <div
                             class="text-[10.5px] font-bold tracking-[.06em] uppercase text-faint mb-1"
                           >
-                            Actor
+                            {{ t('auditLog.table.actor') }}
                           </div>
                           <div class="text-[13.5px] font-semibold text-text">
                             {{ getUserDisplay(row.entry.userId) }}
@@ -296,7 +307,7 @@ type TableRow =
                           <div
                             class="text-[10.5px] font-bold tracking-[.06em] uppercase text-faint mb-1"
                           >
-                            Resource type
+                            {{ t('auditLog.table.resourceType') }}
                           </div>
                           <div class="text-[13.5px] font-semibold text-text">
                             {{ row.entry.resourceType }}
@@ -331,8 +342,8 @@ type TableRow =
         @if (rows().length === 0) {
           <mns-empty
             icon="Search"
-            title="No matching entries"
-            desc="Try clearing a filter or widening the date range."
+            [title]="t('auditLog.table.noMatchTitle')"
+            [desc]="t('auditLog.table.noMatchDesc')"
           />
         } @else {
           @for (row of rows(); track row.key) {
@@ -343,7 +354,7 @@ type TableRow =
               >
                 <mns-icon name="Calendar" [size]="13" class="text-faint" />
                 <span class="text-[11.5px] font-bold tracking-[.04em] text-muted">
-                  {{ row.label }}
+                  {{ dayLabel(row.iso) }}
                 </span>
               </div>
             } @else {
@@ -368,14 +379,16 @@ type TableRow =
           class="load-more-container flex items-center justify-between gap-3 px-5 py-3.5 border-t border-border bg-surface-2"
         >
           <span class="count-text text-[12.5px] text-muted">
-            Showing {{ entries().length }} of {{ total() }} entries
+            {{ t('auditLog.table.showing', { shown: entries().length, total: total() }) }}
           </span>
           <mns-btn
             variant="outline"
             size="sm"
             [disabled]="loading()"
             (mnsClick)="loadMore.emit()"
-            >{{ loading() ? 'Loading…' : 'Load more' }}</mns-btn
+            >{{
+              loading() ? t('auditLog.table.loadingMore') : t('auditLog.table.loadMore')
+            }}</mns-btn
           >
         </div>
       }
@@ -450,18 +463,30 @@ export class AuditLogTable {
   readonly loadMore = output<void>();
   readonly selectResource = output<{ resourceType: string; resourceId: string | null }>();
 
+  private readonly transloco = inject(TranslocoService);
+  private readonly language = inject(LanguageService);
+
   protected readonly expandedId = signal<string | null>(null);
 
-  protected readonly headers = ['', 'Timestamp', 'User', 'Action', 'Type', 'Resource', 'Details'];
+  /** Column header translation keys under `auditLog.table.*` (first is blank). */
+  protected readonly headerKeys = [
+    '',
+    'headerTimestamp',
+    'headerUser',
+    'headerAction',
+    'headerType',
+    'headerResource',
+    'headerDetails',
+  ];
 
   /** Build row list: inject day-dividers between consecutive date groups. */
   protected readonly rows = computed<TableRow[]>(() => {
     const result: TableRow[] = [];
     let lastDay = '';
     for (const entry of this.entries()) {
-      const dl = dayLabel(entry.timestamp);
+      const dl = this.dayKey(entry.timestamp);
       if (dl !== lastDay) {
-        result.push({ kind: 'divider', label: dl, key: `d-${dl}` });
+        result.push({ kind: 'divider', iso: entry.timestamp, key: `d-${dl}` });
         lastDay = dl;
       }
       result.push({ kind: 'entry', entry, key: entry.id });
@@ -469,12 +494,35 @@ export class AuditLogTable {
     return result;
   });
 
+  /** A stable per-day grouping key, independent of language. */
+  private dayKey(iso: string): string {
+    const ts = new Date(iso);
+    return `${ts.getFullYear()}-${ts.getMonth()}-${ts.getDate()}`;
+  }
+
+  /** Localised day-divider label (Today / Yesterday / full date). */
+  protected dayLabel(iso: string): string {
+    const diff = dayDiff(iso);
+    if (diff === 0) return this.transloco.translate('auditLog.table.today');
+    if (diff === 1) return this.transloco.translate('auditLog.table.yesterday');
+    return new Date(iso).toLocaleDateString(this.language.locale(), {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+
   protected toggleExpand(id: string): void {
     this.expandedId.update((cur) => (cur === id ? null : id));
   }
 
   protected actionLabel(action: string): string {
-    return AUDIT_ACTION_LABELS[action] ?? action;
+    const key = 'auditLog.actions.' + action;
+    const label = this.transloco.translate(key);
+    // Transloco echoes the key back when there is no translation; fall back to
+    // the raw action id (e.g. a new backend action not yet in the catalogue).
+    return label === key ? action : label;
   }
 
   protected actionCategory(action: string): string {
@@ -495,12 +543,12 @@ export class AuditLogTable {
   }
 
   protected getUserDisplay(userId: string | null): string {
-    if (!userId) return 'System';
+    if (!userId) return this.transloco.translate('auditLog.table.system');
     return this.userMap().get(userId) ?? `${userId.substring(0, 8)}...`;
   }
 
   protected getOrgDisplay(organisationId: string | null): string {
-    if (!organisationId) return 'Instance';
+    if (!organisationId) return this.transloco.translate('auditLog.table.instance');
     return this.orgMap().get(organisationId) ?? `${organisationId.substring(0, 8)}...`;
   }
 
@@ -541,13 +589,13 @@ export class AuditLogTable {
 
   protected relativeTime(iso: string): string {
     const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
-    if (s < 60) return 'just now';
+    if (s < 60) return this.transloco.translate('auditLog.table.justNow');
     const m = Math.round(s / 60);
-    if (m < 60) return `${m} min ago`;
+    if (m < 60) return this.transloco.translate('auditLog.table.minutesAgo', { count: m });
     const h = Math.floor(m / 60);
-    if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`;
+    if (h < 24) return this.transloco.translate('auditLog.table.hoursAgo', { count: h });
     const d = Math.round(h / 24);
-    return `${d} day${d === 1 ? '' : 's'} ago`;
+    return this.transloco.translate('auditLog.table.daysAgo', { count: d });
   }
 
   protected onResourceClick(event: Event, entry: AuditEntry): void {
