@@ -17,6 +17,7 @@ import {
   BadgeComponent,
   BtnComponent,
   CardComponent,
+  CopyButtonComponent,
   EmptyComponent,
   ModalComponent,
   OverlayComponent,
@@ -43,6 +44,7 @@ import { LocaleDatePipe } from '../i18n/locale-format.pipes';
     BadgeComponent,
     BtnComponent,
     CardComponent,
+    CopyButtonComponent,
     EmptyComponent,
     ModalComponent,
     OverlayComponent,
@@ -123,10 +125,17 @@ import { LocaleDatePipe } from '../i18n/locale-format.pipes';
                   <strong>{{ code.agent.name }}</strong> {{ t('siteAgents.create.readyPrefix') }}
                 </p>
                 <!-- Shown once and never again: the server stores only its hash. -->
-                <div class="rounded-lg border border-border-strong bg-surface-2 p-3">
-                  <code class="block break-all font-mono text-[13px]">{{
+                <div
+                  class="flex items-center gap-2 rounded-lg border border-border-strong bg-surface-2 py-1.5 pl-3 pr-1.5"
+                >
+                  <code class="min-w-0 flex-1 break-all font-mono text-[13px]">{{
                     code.enrolmentToken
                   }}</code>
+                  <mns-copy-button
+                    [text]="code.enrolmentToken"
+                    (copied)="onTokenCopied()"
+                    (copyFailed)="onTokenCopyFailed()"
+                  />
                 </div>
                 <p class="text-[13px] text-muted">
                   {{
@@ -134,13 +143,6 @@ import { LocaleDatePipe } from '../i18n/locale-format.pipes';
                   }}
                 </p>
                 <div class="flex justify-end gap-2">
-                  <mns-btn
-                    variant="outline"
-                    icon="Check"
-                    (mnsClick)="copyToken(code.enrolmentToken)"
-                  >
-                    {{ t('siteAgents.create.copy') }}
-                  </mns-btn>
                   <mns-btn (mnsClick)="closeCreate()">{{ t('siteAgents.create.done') }}</mns-btn>
                 </div>
               </div>
@@ -248,15 +250,13 @@ export class SiteAgents implements OnInit, OnDestroy {
       });
   }
 
-  protected async copyToken(code: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(code);
-      this.toast.success(this.transloco.translate('siteAgents.toast.tokenCopied'));
-    } catch {
-      // Clipboard access is denied in plenty of contexts; the code is on screen
-      // either way, so this is a convenience, not a failure.
-      this.toast.error(this.transloco.translate('siteAgents.toast.tokenCopyFailed'));
-    }
+  protected onTokenCopied(): void {
+    this.toast.success(this.transloco.translate('siteAgents.toast.tokenCopied'));
+  }
+
+  /** The code is on screen either way, so this is a convenience, not a failure. */
+  protected onTokenCopyFailed(): void {
+    this.toast.error(this.transloco.translate('siteAgents.toast.tokenCopyFailed'));
   }
 
   private load(): void {
