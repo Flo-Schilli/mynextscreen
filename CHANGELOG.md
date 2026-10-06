@@ -4,6 +4,71 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.18.0
+
+### Added — Prometheus metrics
+
+The backend exposes `GET /api/metrics`: HTTP requests and latency, BullMQ queues
+and job durations, SSE connections, screens, live streams and the Postgres pool.
+Site agents push their own series (uptime, memory, connection, per-display
+reachability, Dev Mode, launches, wakes) over the session they already hold, so
+one scrape target covers the backend and every venue. See
+[Observability](docs/observability.md).
+
+HTTP series are recorded when the response finishes, so `401`/`403` from guards
+and `500`s from exception filters are counted with the status that went out.
+
+**Operator action:** the endpoint stays disabled (`404`) until a token is set.
+Set `metrics_scrape_token` (Ansible Vault) and run `ansible/deploy.yml`, then
+scrape the backend on the host at `localhost:50002` with that token as Bearer.
+Caddy answers `/api/metrics` with `404` on both public hosts; this needs the
+playbook run too, an image update alone does not change the Caddy config.
+
+### Changed — site agents join with a setup code from the dashboard
+
+**Site Agents → Add an agent** shows a short-lived, single-use setup code; it is
+pasted on the agent's setup page. The boot PIN in the container log is gone.
+`MNS_SERVER_URL` is now required and must be `https://`, because it is the only
+thing between an agent and a server impersonating yours on the venue network.
+Resetting an agent also needs a fresh setup code.
+
+**Operator action:** an agent container without `MNS_SERVER_URL`, or with an
+`http://` address, no longer starts. Set it to the server's `https://` address.
+`MNS_ALLOW_INSECURE_SERVER_URL=true` exists for local development only. Agents
+that are already connected keep their session.
+
+### Added — unattended agent rollout
+
+An agent started with `MNS_ENROLMENT_TOKEN` (a setup code) and
+`MNS_SETUP_PORT=0` joins on its own, without a browser. The code is redeemed
+only while no session is stored, so a restart with the variable still set does
+not fail on a spent code. `ansible/site-agent.yml` deploys the agent as a
+rootless Podman Quadlet on venue hardware, with host networking for
+Wake-on-LAN.
+
+### Added — the admin interface in German and English
+
+Every page of the admin SPA is translated, with a DE/EN switch in the top bar.
+The choice is remembered per browser; the first visit follows the browser
+language. Dates and numbers switch with it, and the date and time fields show
+`TT.MM.JJJJ` / 24-hour in German and `MM/DD/YYYY` / AM/PM in English regardless
+of the browser's own language, with a calendar picker in the app language.
+
+### Fixed — a new agent shows as online straight away
+
+The dashboard showed a freshly connected agent as offline for up to a minute,
+and after every agent restart, because the first heartbeat waited for the
+interval. The agent now checks in at start-up and right after enrolment, and
+"last seen" updates with the status instead of reading "never" until a reload.
+
+### Changed — smaller things
+
+- The setup code has a copy button right beside it, also for a re-issued code
+  on the agent's page.
+- `source-map-js` 1.2.2 (GHSA-68fv-2mgg-jv7q).
+- Development: the compose stack runs under rootless Podman on SELinux hosts,
+  and passes `METRICS_SCRAPE_TOKEN` through to the backend.
+
 ## 0.16.0
 
 Everything here came out of running the Site Agent against a real LG television
