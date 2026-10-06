@@ -4,6 +4,37 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.21.0
+
+### Added — a display that changes its address is found again by its MAC
+
+Where the router cannot be configured, every DHCP lease renewal may move a TV,
+and the agent kept knocking on the old address. When a display with a MAC
+stops answering, the agent now looks for it: it reads its neighbour table, asks
+every webOS set to announce itself over SSDP and checks who answered. It adopts
+a new address only where the set actually answers, acts on it in the same round
+and reports it. The server stores it, writes `screen.remote_address_changed` to
+the audit log and the dashboard updates the row live.
+
+While a set stays missing — typically off overnight — the search backs off from
+two minutes to 30. **Check now** searches straight away. A TV in standby answers
+neither SSDP nor ARP, so it is found once it is on again.
+
+### Added — subnet sweep, off unless switched on
+
+If SSDP does not turn a moved display up, the agent can touch every address of
+the subnet the set was last seen in on port 3001. That can look like a port
+scan, so it is a per-agent switch on the agent's page (**Allow subnet sweep**)
+and off by default. With it off, the agent contacts only sets that answered
+SSDP themselves.
+
+**Operator action:** update the server first, then the agents by re-running
+`ansible/site-agent.yml`. The backend migration (`0025`) adds
+`site_agents.subnet_sweep_enabled` and runs on start. Store the MAC of the
+interface each TV actually uses (wired and wireless differ); the IP is still
+entered once during setup. The server accepts a new address only for a display
+with a MAC stored.
+
 ## 0.20.0
 
 ### Added — check interval and "Check now" for site agents
