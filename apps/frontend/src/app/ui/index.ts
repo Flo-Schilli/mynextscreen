@@ -47,6 +47,7 @@ export { SInputComponent, SFieldComponent } from './form.component';
 export { StepperComponent } from './stepper.component';
 export { DateInputComponent } from './date-input.component';
 export { TimeInputComponent } from './time-input.component';
+export { CopyButtonComponent } from './copy-button.component';
 
 // Overlays
 export { OverlayComponent, ModalComponent } from './overlay.component';

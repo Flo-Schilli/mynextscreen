@@ -1072,7 +1072,6 @@
       "title": "Add a site agent",
       "readyPrefix": "is ready. Start the agent in the venue and enter this setup code on its setup page.",
       "tokenHint": "It can only be used once and expires {date}. Copy it now — it cannot be shown again, but you can issue a new one.",
-      "copy": "Copy",
       "done": "Done",
       "nameLabel": "Name",
       "nameHint": "How you will recognise this venue in the list",
