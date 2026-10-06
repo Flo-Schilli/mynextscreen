@@ -118,13 +118,16 @@ describe('AuditLogFilters', () => {
   });
 
   describe('date inputs', () => {
-    it('renders date-typed from and to inputs', async () => {
+    it('renders app-locale date fields instead of the browser-locale native picker', async () => {
       // Arrange / Act
       await setUp();
 
       // Assert
-      expect(fixture.debugElement.query(By.css('#filterFrom')).nativeElement.type).toBe('date');
-      expect(fixture.debugElement.query(By.css('#filterTo')).nativeElement.type).toBe('date');
+      for (const id of ['#filterFrom', '#filterTo']) {
+        const input = fixture.debugElement.query(By.css(id)).nativeElement as HTMLInputElement;
+        expect(input.type).toBe('text');
+        expect(input.closest('mns-date-input')).not.toBeNull();
+      }
     });
   });
 
@@ -156,6 +159,7 @@ describe('AuditLogFilters', () => {
       const input = fixture.debugElement.query(By.css('#filterFrom')).nativeElement;
       input.value = '2026-01-01';
       input.dispatchEvent(new Event('input'));
+      input.dispatchEvent(new Event('blur'));
       await fixture.whenStable();
 
       // Assert
