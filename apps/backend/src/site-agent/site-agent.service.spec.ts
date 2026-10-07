@@ -262,6 +262,58 @@ describe('SiteAgentService', () => {
     });
   });
 
+  describe('requestUpdate', () => {
+    const originalVersion = process.env.APP_VERSION;
+    afterEach(() => {
+      process.env.APP_VERSION = originalVersion;
+    });
+
+    async function makeOutdatedAgent(organisationId = orgId) {
+      const agent = await makeAgent(organisationId);
+      await db.update(siteAgents).set({ agentVersion: '1.0.0' }).where(eq(siteAgents.id, agent.id));
+      return agent;
+    }
+
+    it('pushes an update command to an outdated, connected agent', async () => {
+      process.env.APP_VERSION = '2.0.0';
+      const agent = await makeOutdatedAgent();
+
+      const result = await service.requestUpdate(orgId, agent.id, 'user-1');
+
+      expect(result.commandId).toEqual(expect.any(String));
+      expect(sse.push).toHaveBeenCalledWith(agent.id, {
+        commandId: result.commandId,
+        type: SiteAgentCommandType.UpdateAgent,
+      });
+    });
+
+    it('rejects with 409 when the agent already runs the server version', async () => {
+      process.env.APP_VERSION = '1.0.0';
+      const agent = await makeOutdatedAgent();
+
+      await expect(service.requestUpdate(orgId, agent.id, null)).rejects.toThrow(ConflictException);
+      expect(sse.push).not.toHaveBeenCalled();
+    });
+
+    it('rejects with 409 when the agent is not connected', async () => {
+      process.env.APP_VERSION = '2.0.0';
+      const agent = await makeOutdatedAgent();
+      sse.push.mockReturnValue(false);
+
+      await expect(service.requestUpdate(orgId, agent.id, null)).rejects.toThrow(ConflictException);
+    });
+
+    it('does not reach an agent of another organisation', async () => {
+      process.env.APP_VERSION = '2.0.0';
+      const foreign = await makeOutdatedAgent(otherOrgId);
+
+      await expect(service.requestUpdate(orgId, foreign.id, null)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(sse.push).not.toHaveBeenCalled();
+    });
+  });
+
   describe('tenant isolation', () => {
     it('does not find another organisation agent', async () => {
       const foreign = await makeAgent(otherOrgId);

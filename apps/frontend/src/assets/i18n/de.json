@@ -1162,7 +1162,8 @@
       "revokeBusyLabel": "Wird widerrufen…",
       "revokeBody": "Alle Sitzungen dieses Agenten beenden? Er funktioniert sofort nicht mehr und braucht einen neuen Setup-Code, um zurückzukommen. Seine Displays und deren Einstellungen bleiben unberührt.",
       "updateAvailable": "Update verfügbar: {installed} → {latest}.",
-      "updateHint": "Zum Aktualisieren das Ansible-Playbook site-agent.yml erneut ausführen oder das neue Image auf dem Agent-Host ziehen und den Dienst neu starten.",
+      "updateHint": "Der Agent lädt das neue Image am Venue-Host selbst und startet neu; dafür muss er online sein.",
+      "updateNow": "Jetzt aktualisieren",
       "probeInterval": "Prüfintervall",
       "probeIntervalOption": "{minutes} min",
       "probeNow": "Jetzt prüfen",
@@ -1188,6 +1189,8 @@
       "probeIntervalFailed": "Prüfintervall konnte nicht gespeichert werden.",
       "probeStarted": "Der Agent prüft jetzt alle Displays.",
       "probeFailed": "Prüfung konnte nicht gestartet werden.",
+      "updateStarted": "Update angestoßen. Der Agent aktualisiert sich und meldet sich mit der neuen Version zurück.",
+      "updateFailed": "Das Update konnte nicht gestartet werden.",
       "subnetSweepOn": "Subnetz-Suche aktiviert.",
       "subnetSweepOff": "Subnetz-Suche deaktiviert.",
       "subnetSweepFailed": "Einstellung konnte nicht gespeichert werden."

@@ -20,6 +20,7 @@ import { SsapKeyStore, ssapKeyDir } from './tv/ssap-key.store';
 import { SupervisorService } from './supervisor/supervisor.service';
 import { NetworkInfoService } from './network/network-info.service';
 import { CommandHandlerService } from './supervisor/command-handler.service';
+import { UpdateService, updateSentinelPath } from './update/update.service';
 
 /** Reported on heartbeat and shown on the setup page. Injected at build time. */
 export const AGENT_VERSION = process.env.APP_VERSION ?? '0.0.0-dev';
@@ -95,6 +96,12 @@ export function pinnedServerUrl(env: AgentEnv): string {
     // interface, which Nest cannot resolve by type.
     { provide: NetworkInfoService, useFactory: () => new NetworkInfoService() },
     { provide: DiscoveryService, useFactory: () => new DiscoveryService() },
+    {
+      provide: UpdateService,
+      useFactory: (env: AgentEnv) =>
+        new UpdateService(updateSentinelPath(env.stateDir), AGENT_VERSION),
+      inject: [AgentEnv],
+    },
     CommandHandlerService,
     {
       provide: DevmodeKeyService,

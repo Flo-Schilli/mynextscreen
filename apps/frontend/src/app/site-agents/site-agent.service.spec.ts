@@ -201,6 +201,16 @@ describe('SiteAgentService', () => {
       expect(req.request.method).toBe('POST');
       req.flush({ commandId: 'cmd-3' });
     });
+
+    it('asks the agent to update itself', () => {
+      service.requestUpdate(AGENT_ID).subscribe((result) => {
+        expect(result.commandId).toBe('cmd-4');
+      });
+
+      const req = http.expectOne(`/api/site-agents/${AGENT_ID}/update`);
+      expect(req.request.method).toBe('POST');
+      req.flush({ commandId: 'cmd-4' });
+    });
   });
 
   describe('commands', () => {

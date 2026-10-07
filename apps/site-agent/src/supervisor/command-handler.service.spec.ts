@@ -44,6 +44,7 @@ describe('CommandHandlerService', () => {
   let devmodeKeys: { obtain: jest.Mock; probeKeyServer: jest.Mock; forget: jest.Mock };
   let ssh: { run: jest.Mock; upload: jest.Mock };
   let ssapKeys: { load: jest.Mock; save: jest.Mock };
+  let updates: { requestUpdate: jest.Mock };
 
   const config = (screens: AgentScreenConfigMessage[]): AgentConfigMessage => ({
     agentId: 'agent-1',
@@ -87,6 +88,7 @@ describe('CommandHandlerService', () => {
       upload: jest.fn().mockResolvedValue({ status: 'ok' }),
     };
     ssapKeys = { load: jest.fn().mockResolvedValue('granted-key'), save: jest.fn() };
+    updates = { requestUpdate: jest.fn().mockResolvedValue(undefined) };
 
     handler = new CommandHandlerService(
       stream as never,
@@ -97,6 +99,7 @@ describe('CommandHandlerService', () => {
       devmodeKeys as never,
       ssh as never,
       ssapKeys as never,
+      updates as never,
     );
   });
 
@@ -121,6 +124,15 @@ describe('CommandHandlerService', () => {
       await handler.handle({ commandId: 'c1', type: 'probe_now' });
 
       expect(supervisor.probeNow).toHaveBeenCalledTimes(1);
+      expect(supervisor.runNow).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update_agent', () => {
+    it('hands the request to the update service without touching a screen', async () => {
+      await handler.handle({ commandId: 'c1', type: 'update_agent' });
+
+      expect(updates.requestUpdate).toHaveBeenCalledWith('c1');
       expect(supervisor.runNow).not.toHaveBeenCalled();
     });
   });

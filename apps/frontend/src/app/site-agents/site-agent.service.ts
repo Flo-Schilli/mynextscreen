@@ -54,6 +54,16 @@ export class SiteAgentService {
     return this.http.post<DispatchedCommand>(`/api/site-agents/${id}/probe`, {});
   }
 
+  /**
+   * Asks the agent to update itself to the server's version. Answers 202; the
+   * venue host pulls the new image and restarts the agent, which reports its
+   * new version on the next heartbeat. 409 when the agent is offline or already
+   * current.
+   */
+  requestUpdate(id: string): Observable<DispatchedCommand> {
+    return this.http.post<DispatchedCommand>(`/api/site-agents/${id}/update`, {});
+  }
+
   /** Ends every session; the agent has to be enrolled again to come back. */
   revoke(id: string): Observable<{ revoked: number }> {
     return this.http.post<{ revoked: number }>(`/api/site-agents/${id}/revoke`, {});

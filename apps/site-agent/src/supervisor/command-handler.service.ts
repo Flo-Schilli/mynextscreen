@@ -7,6 +7,7 @@ import { ReachabilityService } from '../probe/reachability.service';
 import { SshService } from '../tv/ssh.service';
 import { SsapClient } from '../tv/ssap-client';
 import { SsapKeyStore } from '../tv/ssap-key.store';
+import { UpdateService } from '../update/update.service';
 import { SupervisorService, classifySsap, describe } from './supervisor.service';
 import type {
   AgentScreenConfigMessage,
@@ -44,6 +45,7 @@ export class CommandHandlerService implements OnModuleInit {
     private readonly devmodeKeys: DevmodeKeyService,
     private readonly ssh: SshService,
     private readonly ssapKeys: SsapKeyStore,
+    private readonly updates: UpdateService,
   ) {}
 
   onModuleInit(): void {
@@ -60,6 +62,11 @@ export class CommandHandlerService implements OnModuleInit {
 
     if (command.type === 'probe_now') {
       await this.supervisor.probeNow();
+      return;
+    }
+
+    if (command.type === 'update_agent') {
+      await this.updates.requestUpdate(command.commandId);
       return;
     }
 

@@ -78,6 +78,7 @@ export const AUDIT_SITE_AGENT_DELETED = 'audit.site_agent.deleted';
 export const AUDIT_SITE_AGENT_ENROLLED = 'audit.site_agent.enrolled';
 export const AUDIT_SITE_AGENT_RESET = 'audit.site_agent.reset';
 export const AUDIT_SITE_AGENT_REVOKED = 'audit.site_agent.revoked';
+export const AUDIT_SITE_AGENT_UPDATE_REQUESTED = 'audit.site_agent.update_requested';
 export const AUDIT_SITE_AGENT_ONLINE = 'audit.site_agent.online';
 export const AUDIT_SITE_AGENT_OFFLINE = 'audit.site_agent.offline';
 
