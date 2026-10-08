@@ -4,6 +4,25 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.22.0
+
+### Added — update a site agent from the dashboard
+
+Each agent runs in a hardened container and cannot restart itself, so until now
+an update meant an SSH session and a manual re-run. The agent detail view now
+has an **update now** button, enabled when a newer image is available and the
+agent is online. It pushes an `update_agent` command over the existing agent SSE
+channel; the agent writes a sentinel file into its bind-mounted state directory,
+a host-side systemd path unit runs `podman auto-update`, pulls the rolling image
+tag and restarts the container with healthcheck-gated rollback. The request is
+audited as `site_agent.update_requested`; the server answers `409` when the
+agent is offline or already current.
+
+**Operator action:** re-run `ansible/site-agent.yml` once so the agent follows
+the rolling `stable` tag and the new `update.path`/`update.service` units are
+installed (a specific version can still be pinned via `-e`). After that,
+updates are one click from the dashboard.
+
 ## 0.21.0
 
 ### Added — a display that changes its address is found again by its MAC
