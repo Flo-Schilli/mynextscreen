@@ -12,9 +12,11 @@ import {
   AUDIT_SITE_AGENT_ONLINE,
   AUDIT_SITE_AGENT_RESET,
   AUDIT_SITE_AGENT_REVOKED,
+  AUDIT_SITE_AGENT_UPDATE_REQUESTED,
   AUDIT_SITE_AGENT_UPDATED,
   AuditSiteAgentEvent,
 } from '../audit-log/audit.events';
+import { isAgentOutdated, latestAgentVersion } from './agent-update';
 import { SITE_AGENT_STATUS_CHANGED, SiteAgentStatusChangedEvent } from './site-agent-status.event';
 import {
   SiteAgentEnrolmentService,
@@ -109,6 +111,39 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
     if (!this.sse.push(id, { commandId, type: SiteAgentCommandType.ProbeNow })) {
       throw new ConflictException('Site agent is offline');
     }
+    return { commandId };
+  }
+
+  /**
+   * Asks the agent to update itself to the server's version.
+   *
+   * Two 409s, both deliberate: an agent that already runs the server's version
+   * has nothing to pull, and one that is offline cannot be reached — queueing
+   * the command would fire an unexpected restart whenever the venue happens to
+   * reconnect. The agent turns the command into a sentinel file; the host's
+   * systemd path unit does the actual `podman auto-update`.
+   */
+  async requestUpdate(
+    organisationId: string,
+    id: string,
+    userId: string | null,
+  ): Promise<{ commandId: string }> {
+    const agent = await this.findOne(organisationId, id);
+    const latest = latestAgentVersion();
+    if (!isAgentOutdated(agent.agentVersion, latest)) {
+      throw new ConflictException('Site agent is already up to date');
+    }
+    const commandId = randomUUID();
+    if (!this.sse.push(id, { commandId, type: SiteAgentCommandType.UpdateAgent })) {
+      throw new ConflictException('Site agent is offline');
+    }
+    this.eventEmitter.emit(
+      AUDIT_SITE_AGENT_UPDATE_REQUESTED,
+      new AuditSiteAgentEvent(id, organisationId, userId, {
+        fromVersion: agent.agentVersion,
+        toVersion: latest,
+      }),
+    );
     return { commandId };
   }
 

@@ -47,6 +47,7 @@ export enum AuditAction {
   SiteAgentEnrolled = 'site_agent.enrolled',
   SiteAgentReset = 'site_agent.reset',
   SiteAgentRevoked = 'site_agent.revoked',
+  SiteAgentUpdateRequested = 'site_agent.update_requested',
   SiteAgentOnline = 'site_agent.online',
   SiteAgentOffline = 'site_agent.offline',
   ScreenRemoteControlUpdated = 'screen.remote_control_updated',

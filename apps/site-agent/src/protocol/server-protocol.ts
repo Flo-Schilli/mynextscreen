@@ -30,7 +30,8 @@ export type SiteAgentCommandTypeValue =
   | 'refetch_key'
   | 'reload_config'
   | 'probe_now'
-  | 'check';
+  | 'check'
+  | 'update_agent';
 
 /** One instruction pushed down the agent's SSE channel. */
 export interface SiteAgentCommandMessage {

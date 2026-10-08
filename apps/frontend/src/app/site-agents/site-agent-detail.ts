@@ -174,21 +174,35 @@ interface ManagedScreen {
 
         @if (agent.updateAvailable) {
           <!-- Server and agent ship from one release; an agent behind the server
-               has an update waiting. Updating is a redeploy on the venue host. -->
+               has an update waiting. The button pulls the new image on the venue
+               host and restarts the agent; it has to be online to receive it. -->
           <div
             class="mt-4 flex items-start gap-2 rounded-lg border border-border bg-surface-2 p-3 text-[13px]"
             data-testid="agent-update-hint"
           >
             <mns-icon name="Download" [size]="16" class="text-warn mt-0.5" />
-            <span>
-              <strong>{{
-                t('siteAgents.detail.updateAvailable', {
-                  installed: agent.agentVersion,
-                  latest: agent.latestAgentVersion,
-                })
-              }}</strong>
-              {{ t('siteAgents.detail.updateHint') }}
-            </span>
+            <div class="flex flex-1 flex-col gap-2">
+              <span>
+                <strong>{{
+                  t('siteAgents.detail.updateAvailable', {
+                    installed: agent.agentVersion,
+                    latest: agent.latestAgentVersion,
+                  })
+                }}</strong>
+                {{ t('siteAgents.detail.updateHint') }}
+              </span>
+              <div>
+                <mns-btn
+                  variant="outline"
+                  icon="Download"
+                  data-testid="agent-update-now"
+                  [disabled]="!agent.isOnline || updating()"
+                  (mnsClick)="updateNow()"
+                >
+                  {{ t('siteAgents.detail.updateNow') }}
+                </mns-btn>
+              </div>
+            </div>
           </div>
         }
 
@@ -502,6 +516,7 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
   protected readonly confirmError = signal('');
   protected readonly wizardFor = signal<ManagedScreen | null>(null);
   protected readonly probing = signal(false);
+  protected readonly updating = signal(false);
 
   private readonly agentId = computed(() => this.route.snapshot.paramMap.get('id') ?? '');
 
@@ -763,6 +778,30 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
             error.status === 409
               ? 'siteAgents.detailToast.agentOffline'
               : 'siteAgents.detailToast.probeFailed',
+          ),
+        );
+      },
+    });
+  }
+
+  /**
+   * The agent updates in place on the venue host; the new version arrives on the
+   * next heartbeat, which clears the hint. Nothing to poll for here.
+   */
+  protected updateNow(): void {
+    this.updating.set(true);
+    this.service.requestUpdate(this.agentId()).subscribe({
+      next: () => {
+        this.updating.set(false);
+        this.toast.success(this.transloco.translate('siteAgents.detailToast.updateStarted'));
+      },
+      error: (error: { status?: number }) => {
+        this.updating.set(false);
+        this.toast.error(
+          this.transloco.translate(
+            error.status === 409
+              ? 'siteAgents.detailToast.agentOffline'
+              : 'siteAgents.detailToast.updateFailed',
           ),
         );
       },

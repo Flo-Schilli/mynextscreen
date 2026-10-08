@@ -127,6 +127,24 @@ export class SiteAgentController {
     return this.siteAgentService.probeNow(organisationId, id);
   }
 
+  /**
+   * Asks the agent to update itself to the server's version. Answers 202; the
+   * host pulls the new image and restarts the container, and the agent reports
+   * its new version on the next heartbeat. 409 when the agent is offline or
+   * already current.
+   */
+  @Post(':id/update')
+  @Roles(OrganisationRole.OrgAdmin)
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  requestUpdate(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ commandId: string }> {
+    return this.siteAgentService.requestUpdate(organisationId, id, req.user.userId);
+  }
+
   /** Ends every session; the agent has to be enrolled again to come back. */
   @Post(':id/revoke')
   @Roles(OrganisationRole.OrgAdmin)

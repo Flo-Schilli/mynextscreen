@@ -36,6 +36,14 @@ export enum SiteAgentCommandType {
   ProbeNow = 'probe_now',
   /** Run one onboarding check; carries the step number. */
   Check = 'check',
+  /**
+   * Update the agent to the server's version. The agent cannot restart itself
+   * from inside its hardened container, so it drops a sentinel file in its
+   * state directory; a host-side systemd path unit runs `podman auto-update`,
+   * which pulls the rolling image tag and restarts the container with
+   * healthcheck-gated rollback.
+   */
+  UpdateAgent = 'update_agent',
 }
 
 /**

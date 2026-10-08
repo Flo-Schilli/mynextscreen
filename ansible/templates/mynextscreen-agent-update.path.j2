@@ -1,0 +1,12 @@
+[Unit]
+Description=Watch for a myNextScreen agent update request
+# The agent runs in a hardened container and cannot restart itself. When the
+# dashboard asks it to update, it drops this sentinel in its bind-mounted state
+# directory; this path unit turns that into a host-side podman auto-update.
+
+[Path]
+PathExists=%h/agent/state/update-requested
+Unit=mynextscreen-agent-update.service
+
+[Install]
+WantedBy=default.target

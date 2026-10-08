@@ -1,0 +1,13 @@
+[Unit]
+Description=Update the myNextScreen site agent on request
+# Triggered by mynextscreen-agent-update.path when the agent drops its sentinel.
+# podman auto-update pulls the rolling image tag for every AutoUpdate=registry
+# container this user owns (here, only the agent) and restarts it, rolling back
+# to the previous image if the new one fails its health check.
+
+[Service]
+Type=oneshot
+# Clear the sentinel first so the path unit re-arms and a failed pull can be
+# retried by simply pressing the button again.
+ExecStartPre=/usr/bin/rm -f %h/agent/state/update-requested
+ExecStart=/usr/bin/podman auto-update
