@@ -9,6 +9,7 @@ import { SiteAgentSseService } from './site-agent-sse.service';
 import { SecretCipher } from '../common/secret-cipher.service';
 import { SiteAgentCommandType, ONBOARDING_LAST_STEP } from './site-agent-command.enum';
 import { ScreenReachability } from './screen-reachability.enum';
+import type { AgentScreenReportDto } from './dto/agent-report.dto';
 import { DevmodeKeyStatus } from './devmode-key-status.enum';
 import { SshStatus } from './ssh-status.enum';
 import { SCREEN_ONBOARDING_CHECKED, SCREEN_REACHABILITY_CHANGED } from './screen-onboarding.event';
@@ -206,6 +207,74 @@ describe('ScreenRemoteCommandService', () => {
         reachability: ScreenReachability.Reachable,
       });
       expect((await remoteRow()).lastProbeError).toBeNull();
+    });
+
+    describe('an announced app launch', () => {
+      const probe = (extra: Partial<AgentScreenReportDto> = {}): AgentScreenReportDto => ({
+        screenId,
+        reachability: ScreenReachability.Reachable,
+        ...extra,
+      });
+
+      it('is stored on the server clock and passed on to the dashboard', async () => {
+        const before = Date.now();
+
+        await service.applyReport(agentId, orgId, probe({ appLaunchInSeconds: 180 }));
+
+        const planned = (await remoteRow()).appLaunchPlannedAt as Date;
+        expect(planned.getTime()).toBeGreaterThanOrEqual(before + 180_000);
+        expect(planned.getTime()).toBeLessThanOrEqual(Date.now() + 180_000);
+        expect(emitted(SCREEN_REACHABILITY_CHANGED)[0]).toMatchObject({
+          appLaunchPlannedAt: planned,
+        });
+      });
+
+      // The agent stops announcing once it launched or the set went away.
+      it('is cleared by a probe report without one', async () => {
+        await service.applyReport(agentId, orgId, probe({ appLaunchInSeconds: 180 }));
+
+        await service.applyReport(agentId, orgId, probe());
+
+        expect((await remoteRow()).appLaunchPlannedAt).toBeNull();
+      });
+
+      it('is cleared by a launch', async () => {
+        await service.applyReport(agentId, orgId, probe({ appLaunchInSeconds: 180 }));
+
+        await service.applyReport(agentId, orgId, { screenId, launched: true });
+
+        expect((await remoteRow()).appLaunchPlannedAt).toBeNull();
+      });
+
+      it('is not passed on alongside a launch in the same report', async () => {
+        await service.applyReport(
+          agentId,
+          orgId,
+          probe({ launched: true, appLaunchInSeconds: 180 }),
+        );
+
+        expect(emitted(SCREEN_REACHABILITY_CHANGED)[0]).toMatchObject({
+          appLaunchPlannedAt: null,
+        });
+      });
+
+      it('is left alone by a report that did not probe', async () => {
+        await service.applyReport(agentId, orgId, probe({ appLaunchInSeconds: 180 }));
+
+        await service.applyReport(agentId, orgId, {
+          screenId,
+          sshHostKeyFingerprint: 'SHA256:abc',
+        });
+
+        expect((await remoteRow()).appLaunchPlannedAt).not.toBeNull();
+      });
+
+      // A wait no agent rule can produce means the agent's numbers are off.
+      it('is dropped when it lies implausibly far ahead', async () => {
+        await service.applyReport(agentId, orgId, probe({ appLaunchInSeconds: 2 * 60 * 60 }));
+
+        expect((await remoteRow()).appLaunchPlannedAt).toBeNull();
+      });
     });
 
     describe('a set found under a new address', () => {

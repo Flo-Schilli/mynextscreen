@@ -37,6 +37,7 @@ export const REMOTE_CONTROL_DEFAULTS = {
   lastProbeAt: null,
   lastProbeError: null,
   lastLaunchAt: null,
+  appLaunchPlannedAt: null,
   lastWakeAt: null,
   lastDevmodeExtendAt: null,
   lastDevmodeExtendOk: null,

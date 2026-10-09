@@ -33,6 +33,14 @@ export interface ScreenRuntime {
   devmodeExtendCount: number;
   /** Last observed network reachability of the TV, for metrics. */
   reachable: boolean;
+  /**
+   * When the set last came back after not answering, 0 while it does not.
+   *
+   * A TV that was just switched on has no network time yet, so its TLS
+   * connections fail until NTP has run. The loop waits from this moment on
+   * before it touches the set.
+   */
+  reachableSince: number;
   /** When the set was last searched for under a new address, 0 if never. */
   lastDiscoveryAt: number;
   /** Consecutive searches that did not find the set, for their own backoff. */
@@ -58,6 +66,7 @@ export function newRuntime(devmodeJitterMs: number): ScreenRuntime {
     wakeCount: 0,
     devmodeExtendCount: 0,
     reachable: false,
+    reachableSince: 0,
     lastDiscoveryAt: 0,
     discoveryMisses: 0,
     pendingLocalIp: null,

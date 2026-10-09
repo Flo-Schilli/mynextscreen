@@ -1128,6 +1128,7 @@
       "loading": "Wird geladen…",
       "statusPlaying": "spielt ab",
       "statusAppNotRunning": "TV ist an, App läuft nicht",
+      "statusLaunchPending": "TV erkannt · App-Start ca. {{time}}",
       "statusUnreachable": "TV antwortet nicht",
       "statusNotReported": "noch nicht gemeldet",
       "devmodeOff": "aus",

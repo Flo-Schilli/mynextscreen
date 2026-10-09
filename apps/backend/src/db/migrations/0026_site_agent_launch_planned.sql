@@ -1,0 +1,1 @@
+ALTER TABLE "screen_remote_controls" ADD COLUMN "app_launch_planned_at" timestamp with time zone;

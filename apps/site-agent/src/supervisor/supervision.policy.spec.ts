@@ -1,11 +1,13 @@
 import {
   BACKOFF_CAP_MS,
   LAUNCH_COOLDOWN_MS,
+  SETTLE_AFTER_REACHABLE_MS,
   WAKE_COOLDOWN_MS,
   backoffFor,
   decideAction,
   isDevmodeExtensionDue,
   isWakeBeforeScheduleDue,
+  plannedLaunchAt,
 } from './supervision.policy';
 import { newRuntime } from './screen-runtime';
 import type { AgentScreenConfigMessage } from '../protocol/server-protocol';
@@ -204,6 +206,41 @@ describe('decideAction', () => {
     });
   });
 
+  describe('right after the TV came back', () => {
+    const settling = () => ({ ...runtime(), reachableSince: NOW - 60_000 });
+
+    // A set that was just switched on has no network time yet, so the app's
+    // TLS connections fail. Launching it now would only produce SSL errors.
+    it('does not launch the app yet', () => {
+      const config = screen({ playerHeartbeatStale: true });
+
+      expect(decideAction(config, true, settling(), NOW)).toEqual({ kind: 'none' });
+    });
+
+    // The extension makes the set call LG over HTTPS as well.
+    it('does not extend Developer Mode yet', () => {
+      const config = screen({ lastDevmodeExtendAt: null });
+
+      expect(decideAction(config, true, settling(), NOW)).toEqual({ kind: 'none' });
+    });
+
+    it('launches once the set has had time to settle', () => {
+      const config = screen({ playerHeartbeatStale: true });
+      const state = { ...runtime(), reachableSince: NOW - SETTLE_AFTER_REACHABLE_MS };
+
+      expect(decideAction(config, true, state, NOW)).toEqual({ kind: 'launch' });
+    });
+
+    // The onboarding wizard: someone is standing at the set waiting for it.
+    it('launches straight away when asked to skip the wait', () => {
+      const config = screen({ playerHeartbeatStale: true });
+
+      expect(decideAction(config, true, settling(), NOW, { skipSettle: true })).toEqual({
+        kind: 'launch',
+      });
+    });
+  });
+
   describe('when the TV answers', () => {
     // Load-bearing order: an expired Developer Mode session means the set has
     // already deleted the app, so launching it first would fail for a reason
@@ -236,6 +273,64 @@ describe('decideAction', () => {
 
       expect(decideAction(config, true, runtime(), NOW)).toEqual({ kind: 'none' });
     });
+  });
+});
+
+describe('plannedLaunchAt', () => {
+  const settling = (overrides = {}) => ({
+    ...newRuntime(0),
+    reachable: true,
+    reachableSince: NOW - 60_000,
+    ...overrides,
+  });
+
+  it('announces the launch the settle wait is holding back', () => {
+    const config = screen({ playerHeartbeatStale: true });
+
+    expect(plannedLaunchAt(config, settling(), NOW)).toBe(NOW - 60_000 + SETTLE_AFTER_REACHABLE_MS);
+  });
+
+  it('announces the later of settle wait and launch cooldown', () => {
+    const config = screen({ playerHeartbeatStale: true });
+    const state = settling({ lastLaunchAt: NOW - 60_000 });
+
+    expect(plannedLaunchAt(config, state, NOW)).toBe(NOW - 60_000 + LAUNCH_COOLDOWN_MS);
+  });
+
+  // Nothing would be launched, so nothing may be announced.
+  it('announces nothing when auto-launch is off', () => {
+    const config = screen({ playerHeartbeatStale: true, autoLaunchEnabled: false });
+
+    expect(plannedLaunchAt(config, settling(), NOW)).toBeNull();
+  });
+
+  it('announces nothing while the player is reporting', () => {
+    expect(plannedLaunchAt(screen(), settling(), NOW)).toBeNull();
+  });
+
+  it('announces nothing for a set that does not answer', () => {
+    const config = screen({ playerHeartbeatStale: true });
+
+    expect(plannedLaunchAt(config, settling({ reachable: false }), NOW)).toBeNull();
+  });
+
+  // Right after a launch the player has not reported yet; that is the app
+  // starting, not a launch to announce.
+  it('announces nothing after a launch outside the settle wait', () => {
+    const config = screen({ playerHeartbeatStale: true });
+    const state = settling({
+      reachableSince: NOW - 60 * 60_000,
+      lastLaunchAt: NOW - 10_000,
+    });
+
+    expect(plannedLaunchAt(config, state, NOW)).toBeNull();
+  });
+
+  it('announces nothing once the launch is due', () => {
+    const config = screen({ playerHeartbeatStale: true });
+    const state = settling({ reachableSince: NOW - SETTLE_AFTER_REACHABLE_MS });
+
+    expect(plannedLaunchAt(config, state, NOW)).toBeNull();
   });
 });
 

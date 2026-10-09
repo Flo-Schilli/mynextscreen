@@ -19,9 +19,11 @@ import { NetworkInfoService } from '../network/network-info.service';
 import { newRuntime, type ScreenRuntime } from './screen-runtime';
 import {
   DEVMODE_JITTER_MAX_MS,
+  SETTLE_AFTER_REACHABLE_MS,
   backoffFor,
   decideAction,
   discoveryCooldownFor,
+  plannedLaunchAt,
 } from './supervision.policy';
 import type {
   AgentConfigMessage,
@@ -249,10 +251,11 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     }
     const runtime = this.runtimeFor(screenId);
     // A human asking resets the backoff: they have presumably just fixed
-    // whatever the loop kept failing on.
+    // whatever the loop kept failing on. They are also watching the set, so
+    // the settle wait after it comes back would only look like a hang.
     runtime.failures = 0;
     runtime.nextAttemptAt = 0;
-    return this.visit(screen, this.configs.current()?.appId ?? '');
+    return this.visit(screen, this.configs.current()?.appId ?? '', { skipSettle: true });
   }
 
   /**
@@ -266,6 +269,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   private async visit(
     configured: AgentScreenConfigMessage,
     appId: string,
+    options: { skipSettle?: boolean } = {},
   ): Promise<AgentScreenReportMessage> {
     const runtime = this.runtimeFor(configured.screenId);
     const now = Date.now();
@@ -293,20 +297,34 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
       // a set in a different state, so it gets a fresh start.
       runtime.failures = 0;
       runtime.nextAttemptAt = 0;
+      runtime.reachableSince = now;
+      this.logger.log(
+        `Screen ${screen.name} answers again, leaving it alone until ${new Date(
+          now + SETTLE_AFTER_REACHABLE_MS,
+        ).toISOString()}`,
+      );
+    }
+    if (!reachable) {
+      runtime.reachableSince = 0;
     }
     runtime.reachable = reachable;
+    // Worked out before the backoff check, so a screen that is backing off
+    // still keeps the dashboard's announcement current. An operator round
+    // skips the wait, so it has nothing to announce.
+    const launchAt = options.skipSettle ? null : plannedLaunchAt(screen, runtime, now);
     const report: AgentScreenReportMessage = {
       screenId: screen.screenId,
       reachability: probe.reachability,
       ...(probe.detail ? { detail: probe.detail } : {}),
       ...(reportedIp ? { localIp: reportedIp } : {}),
+      ...(launchAt !== null ? { appLaunchInSeconds: Math.ceil((launchAt - now) / 1000) } : {}),
     };
 
     if (now < runtime.nextAttemptAt) {
       return report;
     }
 
-    const action = decideAction(screen, reachable, runtime, now);
+    const action = decideAction(screen, reachable, runtime, now, options);
     // A set that does not answer is not a failure of this loop: it is probed
     // again next interval anyway, and backing off would only delay noticing it.
     let ok = true;

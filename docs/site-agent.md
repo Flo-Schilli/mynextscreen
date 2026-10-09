@@ -257,8 +257,14 @@ The agent probes every display it looks after once per **check interval**,
 round immediately, for example right after switching a set back on.
 
 The probe is a plain TCP connect, so it runs every interval no matter how long
-a set has been off: a TV switched on after two days is noticed, and its app
-started, within one interval. What backs off after repeated failures are the
+a set has been off: a TV switched on after two days is noticed within one
+interval. The agent then leaves it alone for **three minutes** before it starts
+the app or extends Developer Mode: a set that was just switched on has not
+fetched the time yet, and until it has, every TLS connection the app makes
+fails. The agent page shows the set as *TV detected · app starts around HH:MM*
+in the meantime. The same wait applies after the agent itself restarts, since it
+cannot tell how long the set has been on. The onboarding wizard does not wait.
+What backs off after repeated failures are the
 actions — a launch, a Developer Mode extension — so a set that keeps refusing
 them is not hammered. That backoff doubles from one interval up to 30 minutes
 and is cleared as soon as the set comes back after being unreachable, or when

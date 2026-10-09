@@ -174,6 +174,7 @@ export class DashboardSseService implements OnModuleDestroy {
       screenId: event.screenId,
       reachability: event.reachability,
       lastProbeAt: event.lastProbeAt.toISOString(),
+      appLaunchPlannedAt: event.appLaunchPlannedAt?.toISOString() ?? null,
       ...(event.localIp ? { localIp: event.localIp } : {}),
     });
   }
