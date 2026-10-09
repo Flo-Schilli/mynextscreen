@@ -29,6 +29,8 @@ export class ScreenReachabilityChangedEvent {
     public readonly lastProbeAt: Date,
     /** Set only when the agent found the set under a new address this round. */
     public readonly localIp: string | null = null,
+    /** When the agent will launch the app it is holding back, null if nothing is pending. */
+    public readonly appLaunchPlannedAt: Date | null = null,
   ) {}
 }
 

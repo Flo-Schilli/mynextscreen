@@ -46,6 +46,7 @@ function makeRemote(overrides: Partial<ScreenRemoteControl> = {}): ScreenRemoteC
     lastProbeAt: null,
     lastProbeError: null,
     lastLaunchAt: null,
+    appLaunchPlannedAt: null,
     lastWakeAt: null,
     lastDevmodeExtendAt: null,
     lastDevmodeExtendOk: null,

@@ -26,6 +26,12 @@ import {
 import type { ManualCommandType } from './dto/screen-remote-command.dto';
 import type { AgentScreenReportDto } from './dto/agent-report.dto';
 
+/**
+ * The longest launch wait an agent can announce: its settle wait and launch
+ * cooldown stay well inside this. Anything longer means its numbers are off.
+ */
+const MAX_ANNOUNCED_LAUNCH_WAIT_S = 60 * 60;
+
 /** What the dashboard gets back when it asks for something to happen. */
 export interface DispatchedCommand {
   commandId: string;
@@ -109,12 +115,16 @@ export class ScreenRemoteCommandService {
 
     const now = new Date();
     const updates: Record<string, unknown> = { updatedAt: now };
+    const appLaunchPlannedAt = report.launched ? null : this.plannedLaunch(agentId, report, now);
 
     if (report.reachability) {
       updates.reachability = report.reachability;
       updates.lastProbeAt = now;
       updates.lastProbeError =
         report.reachability === ScreenReachability.Unreachable ? (report.detail ?? null) : null;
+      // Every probe report carries the announcement while a launch is pending,
+      // so one without it clears it: the app started, or the set went away.
+      updates.appLaunchPlannedAt = appLaunchPlannedAt;
     }
     if (report.keyStatus) updates.keyStatus = report.keyStatus;
     if (report.sshStatus) updates.sshStatus = report.sshStatus;
@@ -143,7 +153,10 @@ export class ScreenRemoteCommandService {
       updates.installedAppVersion = null;
       updates.installedAppVersionAt = now;
     }
-    if (report.launched) updates.lastLaunchAt = now;
+    if (report.launched) {
+      updates.lastLaunchAt = now;
+      updates.appLaunchPlannedAt = null;
+    }
     if (report.woken) updates.lastWakeAt = now;
     if (report.devmodeExtended !== undefined) {
       updates.lastDevmodeExtendOk = report.devmodeExtended;
@@ -186,6 +199,7 @@ export class ScreenRemoteCommandService {
           report.reachability ?? ScreenReachability.Reachable,
           now,
           moved?.to ?? null,
+          appLaunchPlannedAt,
         ),
       );
     }
@@ -193,6 +207,24 @@ export class ScreenRemoteCommandService {
     if (report.step !== undefined) {
       await this.applyCheckResult(organisationId, report);
     }
+  }
+
+  /**
+   * The launch time an agent announced, on this server's clock. An implausible
+   * wait is dropped rather than shown.
+   */
+  private plannedLaunch(agentId: string, report: AgentScreenReportDto, now: Date): Date | null {
+    const seconds = report.appLaunchInSeconds;
+    if (seconds === undefined) {
+      return null;
+    }
+    if (seconds > MAX_ANNOUNCED_LAUNCH_WAIT_S) {
+      this.logger.warn(
+        `Site agent ${agentId} announced a launch on ${report.screenId} in ${seconds}s, ignoring it`,
+      );
+      return null;
+    }
+    return new Date(now.getTime() + seconds * 1000);
   }
 
   /**

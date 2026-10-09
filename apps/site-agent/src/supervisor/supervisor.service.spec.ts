@@ -1,5 +1,7 @@
 import { SupervisorService, sanitizeProbeInterval } from './supervisor.service';
 import { ServerUnreachableError } from '../connection/server-client.service';
+import { SsapClient, SsapUnreachableError } from '../tv/ssap-client';
+import { SETTLE_AFTER_REACHABLE_MS } from './supervision.policy';
 import type { AgentConfigMessage, AgentScreenConfigMessage } from '../protocol/server-protocol';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -84,10 +86,25 @@ describe('SupervisorService', () => {
   }
 
   function reported(): Record<string, unknown> {
-    return client.sendReports.mock.calls[0][0].screens[0];
+    return client.sendReports.mock.calls.at(-1)[0].screens[0];
   }
 
+  /** Moves the clock past the wait the loop keeps after a set comes back. */
+  function settle(): void {
+    const later = Date.now() + SETTLE_AFTER_REACHABLE_MS;
+    jest.spyOn(Date, 'now').mockReturnValue(later);
+  }
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   beforeEach(() => {
+    // No SSAP server here. Refusing at once keeps every launch and version read
+    // from waiting out the connect timeout against an address on the real LAN.
+    jest
+      .spyOn(SsapClient, 'connect')
+      .mockRejectedValue(new SsapUnreachableError('ws://192.168.1.50:3001'));
     connections = { load: jest.fn().mockResolvedValue({ agentId: 'agent-1' }) };
     client = {
       fetchConfig: jest.fn(),
@@ -213,6 +230,63 @@ describe('SupervisorService', () => {
     });
   });
 
+  describe('a set that just came back', () => {
+    const stale = screen({ playerHeartbeatStale: true });
+
+    // Freshly switched on, the set has no network time yet and the app's TLS
+    // connections would fail.
+    it('is left alone and the launch is announced', async () => {
+      supervisor = build(configWith([stale]));
+
+      await supervisor.tick();
+
+      expect(reported()).not.toHaveProperty('ssapStatus');
+      expect(reported()).toMatchObject({ appLaunchInSeconds: SETTLE_AFTER_REACHABLE_MS / 1000 });
+    });
+
+    it('gets the app launched once it has settled, with the announcement gone', async () => {
+      supervisor = build(configWith([stale]));
+      await supervisor.tick();
+      settle();
+
+      await supervisor.tick();
+
+      expect(reported()).toHaveProperty('ssapStatus');
+      expect(reported()).not.toHaveProperty('appLaunchInSeconds');
+    });
+
+    it('announces nothing when no launch would follow', async () => {
+      supervisor = build(configWith([screen({ autoLaunchEnabled: false })]));
+
+      await supervisor.tick();
+
+      expect(reported()).not.toHaveProperty('appLaunchInSeconds');
+    });
+
+    it('waits again after it was off in between', async () => {
+      supervisor = build(configWith([stale]));
+      await supervisor.tick();
+      settle();
+      reachability.probe.mockResolvedValueOnce({ reachability: 'unreachable' });
+      await supervisor.tick();
+
+      await supervisor.tick();
+
+      expect(reported()).not.toHaveProperty('ssapStatus');
+      expect(reported()).toHaveProperty('appLaunchInSeconds');
+    });
+
+    // The onboarding wizard: someone is standing at the set.
+    it('is launched straight away for an operator', async () => {
+      supervisor = build(configWith([stale]));
+
+      const report = await supervisor.visitNow('s1');
+
+      expect(report).toHaveProperty('ssapStatus');
+      expect(report).not.toHaveProperty('appLaunchInSeconds');
+    });
+  });
+
   describe('probing while backing off', () => {
     const due = screen({ extendDevmodeEnabled: true, lastDevmodeExtendAt: null });
 
@@ -233,25 +307,31 @@ describe('SupervisorService', () => {
     it('keeps reporting reachability but holds back the failing action', async () => {
       ssh.extendDevmode.mockResolvedValue({ status: 'auth_failed', extended: false });
       supervisor = build(configWith([due]));
+      await supervisor.tick();
+      settle();
 
       await supervisor.tick();
       await supervisor.tick();
 
-      expect(reachability.probe).toHaveBeenCalledTimes(2);
+      expect(reachability.probe).toHaveBeenCalledTimes(3);
       expect(ssh.extendDevmode).toHaveBeenCalledTimes(1);
-      expect(client.sendReports.mock.calls[1][0].screens[0]).toMatchObject({
+      expect(reported()).toMatchObject({
         screenId: 's1',
         reachability: 'reachable',
       });
     });
 
-    it('acts straight away on a set that comes back', async () => {
+    it('drops the old backoff for a set that comes back', async () => {
       ssh.extendDevmode.mockResolvedValueOnce({ status: 'auth_failed', extended: false });
       supervisor = build(configWith([due]));
+      await supervisor.tick();
+      settle();
       await supervisor.tick();
 
       reachability.probe.mockResolvedValueOnce({ reachability: 'unreachable' });
       await supervisor.tick();
+      await supervisor.tick();
+      settle();
       await supervisor.tick();
 
       expect(ssh.extendDevmode).toHaveBeenCalledTimes(2);
@@ -279,14 +359,18 @@ describe('SupervisorService', () => {
       expect(reported()).toMatchObject({ reachability: 'reachable', localIp: '192.168.1.77' });
     });
 
-    it('acts on the set at its new address in the same round', async () => {
+    it('acts on the set at its new address once it has settled', async () => {
       unreachableAt('192.168.1.50');
       discovery.locate.mockResolvedValue('192.168.1.77');
-      supervisor = build(
-        configWith([
-          screen({ macAddress: MAC, extendDevmodeEnabled: true, lastDevmodeExtendAt: null }),
-        ]),
-      );
+      const moved = screen({
+        macAddress: MAC,
+        extendDevmodeEnabled: true,
+        lastDevmodeExtendAt: null,
+      });
+      supervisor = build(configWith([moved]));
+      await supervisor.tick();
+      configs.current.mockReturnValue(configWith([{ ...moved, localIp: '192.168.1.77' }]));
+      settle();
 
       await supervisor.tick();
 
@@ -412,6 +496,8 @@ describe('SupervisorService', () => {
       ssh.extendDevmode.mockResolvedValueOnce({ status: 'auth_failed', extended: false });
       supervisor = build(configWith([due()]));
       await supervisor.tick();
+      settle();
+      await supervisor.tick();
 
       await supervisor.probeNow();
 
@@ -510,6 +596,8 @@ describe('SupervisorService', () => {
 
     it('runs before the app is launched', async () => {
       supervisor = build(configWith([{ ...due, playerHeartbeatStale: true }]));
+      await supervisor.tick();
+      settle();
 
       await supervisor.tick();
 
@@ -529,6 +617,8 @@ describe('SupervisorService', () => {
     it('reports the key problem instead of attempting SSH', async () => {
       devmodeKeys.obtain.mockResolvedValue({ status: 'key_server_off', detail: 'refused' });
       supervisor = build(configWith([due]));
+      await supervisor.tick();
+      settle();
 
       await supervisor.tick();
 
@@ -541,6 +631,8 @@ describe('SupervisorService', () => {
     it('discards the cached key after an authentication failure', async () => {
       ssh.extendDevmode.mockResolvedValue({ status: 'auth_failed', extended: false });
       supervisor = build(configWith([due]));
+      await supervisor.tick();
+      settle();
 
       await supervisor.tick();
 
@@ -549,6 +641,8 @@ describe('SupervisorService', () => {
 
     it('passes the pinned host key through so a change is detected', async () => {
       supervisor = build(configWith([{ ...due, sshHostKeyFingerprint: 'SHA256:abc' }]));
+      await supervisor.tick();
+      settle();
 
       await supervisor.tick();
 
@@ -760,6 +854,8 @@ describe('SupervisorService', () => {
           }),
         ]),
       );
+      await supervisor.tick();
+      settle();
 
       await supervisor.tick();
       const metrics = supervisor.collectMetrics(true);

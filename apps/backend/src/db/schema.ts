@@ -728,6 +728,11 @@ export const screenRemoteControls = pgTable(
     lastProbeAt: timestamp({ withTimezone: true }),
     lastProbeError: text(),
     lastLaunchAt: timestamp({ withTimezone: true }),
+    /**
+     * When the agent will launch the app on a set it is holding back after the
+     * set came back, so the dashboard can say so. Null when nothing is pending.
+     */
+    appLaunchPlannedAt: timestamp({ withTimezone: true }),
     lastWakeAt: timestamp({ withTimezone: true }),
     lastDevmodeExtendAt: timestamp({ withTimezone: true }),
     lastDevmodeExtendOk: boolean(),

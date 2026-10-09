@@ -8,6 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { formatDate } from '@angular/common';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { Subject, forkJoin, of, switchMap, takeUntil } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -16,6 +17,7 @@ import { ScreenService } from '../screens/screen.service';
 import { OrganisationStateService } from '../shell/organisation-state.service';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
 import { ToastService } from '../shared/toast/toast.service';
+import { LanguageService } from '../i18n/language.service';
 import { ScreenRemoteSettings } from './screen-remote-settings';
 import { ScreenOnboardingWizard, ONBOARDING_STEP_COUNT } from './screen-onboarding-wizard';
 import { SiteAgentConfirmModal } from './site-agent-confirm-modal';
@@ -23,6 +25,7 @@ import { SiteAgentNetwork } from './site-agent-network';
 import {
   PROBE_INTERVAL_MAX_MINUTES,
   PROBE_INTERVAL_MIN_MINUTES,
+  pendingAppLaunchAt,
   type RemoteCommandType,
   type ScreenRemoteControl,
   type SiteAgent,
@@ -496,6 +499,7 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
   private readonly sse = inject(DashboardSseService);
   private readonly toast = inject(ToastService);
   private readonly transloco = inject(TranslocoService);
+  private readonly language = inject(LanguageService);
   private readonly destroyed$ = new Subject<void>();
 
   protected readonly agent = signal<SiteAgent | null>(null);
@@ -537,6 +541,7 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
         screenId: string;
         reachability: string;
         lastProbeAt: string;
+        appLaunchPlannedAt: string | null;
         /** Only present when the agent found the set under a new address. */
         localIp?: string;
       };
@@ -549,6 +554,7 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
                   ...item.remote,
                   reachability: data.reachability as ScreenRemoteControl['reachability'],
                   lastProbeAt: data.lastProbeAt,
+                  appLaunchPlannedAt: data.appLaunchPlannedAt ?? null,
                   ...(data.localIp ? { localIp: data.localIp } : {}),
                 },
               }
@@ -631,6 +637,12 @@ export class SiteAgentDetail implements OnInit, OnDestroy {
   protected statusLabel(item: ManagedScreen): string {
     if (item.screen.isOnline) {
       return this.transloco.translate('siteAgents.detail.statusPlaying');
+    }
+    const launchAt = pendingAppLaunchAt(item.remote, item.screen.isOnline);
+    if (launchAt) {
+      return this.transloco.translate('siteAgents.detail.statusLaunchPending', {
+        time: formatDate(launchAt, 'shortTime', this.language.locale()),
+      });
     }
     switch (item.remote.reachability) {
       case 'reachable':

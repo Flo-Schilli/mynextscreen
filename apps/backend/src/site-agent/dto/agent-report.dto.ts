@@ -114,6 +114,16 @@ export class AgentScreenReportDto {
   @IsOptional()
   @IsIP(4)
   localIp?: string;
+
+  /**
+   * Seconds until the agent launches the app on a set it is holding back.
+   * Relative because the venue machine's clock may be off; the server turns it
+   * into a time with its own.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  appLaunchInSeconds?: number;
 }
 
 /** Batched because an agent reports for every screen it looks after each round. */

@@ -102,6 +102,8 @@ export interface ScreenRemoteControl {
   lastProbeAt: string | null;
   lastProbeError: string | null;
   lastLaunchAt: string | null;
+  /** When the agent will launch the app it is holding back after the set came back. */
+  appLaunchPlannedAt: string | null;
   lastWakeAt: string | null;
   lastDevmodeExtendAt: string | null;
   lastDevmodeExtendOk: boolean | null;
@@ -146,6 +148,23 @@ export interface DispatchedCommand {
 
 /** What the mask looks like on the wire, so the UI can recognise it. */
 export const MASKED_SECRET = '••••••••';
+
+/**
+ * When the agent will start the app on a set that answers but is not playing
+ * yet, or null. An announcement that has passed is not shown: the agent clears
+ * it with its next probe, and until then "in the past" would only confuse.
+ */
+export function pendingAppLaunchAt(
+  remote: Pick<ScreenRemoteControl, 'reachability' | 'appLaunchPlannedAt'>,
+  playerOnline: boolean,
+  now: number = Date.now(),
+): Date | null {
+  if (playerOnline || remote.reachability !== 'reachable' || !remote.appLaunchPlannedAt) {
+    return null;
+  }
+  const at = new Date(remote.appLaunchPlannedAt);
+  return at.getTime() > now ? at : null;
+}
 
 /** Bounds the server enforces; mirrored so the form can say so before saving. */
 export const DEVMODE_INTERVAL_MIN_DAYS = 1;

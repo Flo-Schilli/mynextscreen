@@ -107,6 +107,12 @@ export interface AgentScreenReportMessage {
   installStatus?: 'ok' | 'failed';
   /** The set's new address, found by its MAC after the old one stopped answering. */
   localIp?: string;
+  /**
+   * Seconds until the loop launches the app on a set it is holding back, for
+   * the dashboard. Relative like `expiresIn`, since this machine's clock may be
+   * off. Sent on every probe report while a launch is pending, absent otherwise.
+   */
+  appLaunchInSeconds?: number;
 }
 
 export interface AgentReportMessage {

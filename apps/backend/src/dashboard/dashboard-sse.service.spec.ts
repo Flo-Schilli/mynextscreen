@@ -229,6 +229,30 @@ describe('DashboardSseService', () => {
           screenId: 'screen-1',
           reachability: 'unreachable',
           lastProbeAt: probedAt.toISOString(),
+          appLaunchPlannedAt: null,
+        },
+      );
+    });
+
+    it('should carry the announced app launch on screen.reachability', () => {
+      const probedAt = new Date('2026-10-01T12:00:00.000Z');
+      const launchAt = new Date('2026-10-01T12:03:00.000Z');
+      const event = new ScreenReachabilityChangedEvent(
+        'screen-1',
+        orgId,
+        'reachable',
+        probedAt,
+        null,
+        launchAt,
+      );
+      return expectOrgEvent(
+        () => service.handleScreenReachabilityChanged(event),
+        'screen.reachability',
+        {
+          screenId: 'screen-1',
+          reachability: 'reachable',
+          lastProbeAt: probedAt.toISOString(),
+          appLaunchPlannedAt: launchAt.toISOString(),
         },
       );
     });

@@ -1128,6 +1128,7 @@
       "loading": "Loading…",
       "statusPlaying": "playing",
       "statusAppNotRunning": "TV is on, app is not running",
+      "statusLaunchPending": "TV detected · app starts around {{time}}",
       "statusUnreachable": "TV does not answer",
       "statusNotReported": "not reported yet",
       "devmodeOff": "off",
