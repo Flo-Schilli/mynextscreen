@@ -4,6 +4,25 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.23.0
+
+### Changed — the agent lets a TV settle before starting the app
+
+A TV that was just switched on answers on the network before it has fetched the
+time over NTP. Until then every certificate looks invalid to it, and an app the
+agent started straight away failed with SSL errors. The agent now leaves a set
+alone for three minutes after it starts answering again before it launches the
+app or extends Developer Mode. The agent page shows the set as *TV detected ·
+app starts around HH:MM* in the meantime. The same wait applies after the agent
+itself restarts, since it cannot tell how long a set has been on; the onboarding
+wizard and the manual buttons do not wait.
+
+**Operator action:** update the server **before** the agents. The backend
+migration (`0026`) adds `screen_remote_controls.app_launch_planned_at` and runs
+on start. An updated agent sends a field an older server rejects, which would
+drop all of that agent's reports until the server catches up. Once the server
+runs 0.23.0, update the agents with **update now** on the dashboard.
+
 ## 0.22.0
 
 ### Added — update a site agent from the dashboard
