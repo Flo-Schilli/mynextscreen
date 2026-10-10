@@ -168,6 +168,27 @@ describe('ScreenGroupService', () => {
       expect(result[0].screens).toHaveLength(1);
     });
 
+    it("sorts each group's screens by name with numbers in numeric order", async () => {
+      const group = await seedGroup();
+      for (const name of ['Wall 10', 'Wall 2', 'Wall 1']) {
+        await seedScreen({ groupId: group.id, name });
+      }
+
+      const [result] = await service.findAll(orgId);
+
+      expect(result.screens.map((s) => s.name)).toEqual(['Wall 1', 'Wall 2', 'Wall 10']);
+    });
+
+    it('sorts groups by name with numbers in numeric order', async () => {
+      for (const name of ['Gruppe 10', 'Gruppe 2', 'Bühne']) {
+        await seedGroup({ name });
+      }
+
+      const result = await service.findAll(orgId);
+
+      expect(result.map((g) => g.name)).toEqual(['Bühne', 'Gruppe 2', 'Gruppe 10']);
+    });
+
     it('should return empty array when no groups exist', async () => {
       const result = await service.findAll(orgId);
       expect(result).toEqual([]);
@@ -182,6 +203,17 @@ describe('ScreenGroupService', () => {
 
       expect(result.id).toBe(group.id);
       expect(result.screens).toEqual([]);
+    });
+
+    it("sorts the group's screens by name with numbers in numeric order", async () => {
+      const group = await seedGroup();
+      for (const name of ['Wall 10', 'Wall 2', 'Wall 1']) {
+        await seedScreen({ groupId: group.id, name });
+      }
+
+      const result = await service.findOne(orgId, group.id);
+
+      expect(result.screens.map((s) => s.name)).toEqual(['Wall 1', 'Wall 2', 'Wall 10']);
     });
 
     it('should throw NotFoundException when group not found', async () => {

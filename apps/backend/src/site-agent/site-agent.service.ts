@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { and, count, eq, lt, sql } from 'drizzle-orm';
+import { byNaturalName } from '../common/natural-sort.util';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { screenRemoteControls, siteAgents, type SiteAgent } from '../db/schema';
@@ -178,10 +179,11 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
       .from(siteAgents)
       .leftJoin(screenRemoteControls, eq(screenRemoteControls.agentId, siteAgents.id))
       .where(eq(siteAgents.organisationId, organisationId))
-      .groupBy(siteAgents.id)
-      .orderBy(siteAgents.name);
+      .groupBy(siteAgents.id);
 
-    return rows.map((row) => ({ ...row.agent, screenCount: Number(row.screenCount) }));
+    return rows
+      .map((row) => ({ ...row.agent, screenCount: Number(row.screenCount) }))
+      .sort(byNaturalName);
   }
 
   /**
