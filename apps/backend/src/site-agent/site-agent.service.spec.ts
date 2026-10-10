@@ -359,6 +359,16 @@ describe('SiteAgentService', () => {
       expect(list.find((a) => a.id === busy.id)?.screenCount).toBe(2);
       expect(list.find((a) => a.id === idle.id)?.screenCount).toBe(0);
     });
+
+    it('sorts agents by name with numbers in numeric order', async () => {
+      for (const name of ['Agent 10', 'Agent 2', 'Agent 1']) {
+        await makeAgent(orgId, name);
+      }
+
+      const list = await service.listWithScreenCounts(orgId);
+
+      expect(list.map((a) => a.name)).toEqual(['Agent 1', 'Agent 2', 'Agent 10']);
+    });
   });
 
   describe('removeAgent', () => {

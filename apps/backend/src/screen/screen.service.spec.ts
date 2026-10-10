@@ -417,6 +417,17 @@ describe('ScreenService', () => {
       expect(result[0].currentPlaylistName).toBeNull();
       expect(result[0].currentPlaylistThumbnail).toBeNull();
     });
+
+    it('sorts screens by name with numbers in numeric order', async () => {
+      const org = await seedOrg();
+      for (const name of ['Saal 10', 'Saal 2', 'Bar', 'Saal 1']) {
+        await seedScreen(org.id, { name });
+      }
+
+      const result = await service.findAllWithPlaylist(org.id);
+
+      expect(result.map((s) => s.name)).toEqual(['Bar', 'Saal 1', 'Saal 2', 'Saal 10']);
+    });
   });
 
   describe('findOne', () => {

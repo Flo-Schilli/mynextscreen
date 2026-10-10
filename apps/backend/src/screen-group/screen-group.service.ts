@@ -18,6 +18,7 @@ import {
   type ScreenGroup,
   type SliceJob,
 } from '../db/schema';
+import { byNaturalName } from '../common/natural-sort.util';
 import { ScreenGroupMode } from './screen-group-mode.enum';
 import { SliceStatus } from '../slice-content/slice-status.enum';
 import { CreateScreenGroupDto } from './dto/create-screen-group.dto';
@@ -39,6 +40,10 @@ type ScreenGroupWithScreens = ScreenGroup & {
   sliceStatus?: SliceJob | null;
 };
 
+function withSortedScreens<G extends { screens: Screen[] }>(group: G): G {
+  return { ...group, screens: [...group.screens].sort(byNaturalName) };
+}
+
 @Injectable()
 export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
   constructor(
@@ -49,10 +54,11 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
   }
 
   override async findAll(organisationId: string): Promise<ScreenGroupWithScreens[]> {
-    return this.db.query.screenGroups.findMany({
+    const groups = await this.db.query.screenGroups.findMany({
       where: eq(screenGroups.organisationId, organisationId),
       with: { screens: true },
     });
+    return groups.map(withSortedScreens).sort(byNaturalName);
   }
 
   override async findOne(organisationId: string, id: string): Promise<ScreenGroupWithScreens> {
@@ -76,7 +82,7 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
     const active = jobs.find(
       (j) => j.status === SliceStatus.Queued || j.status === SliceStatus.Processing,
     );
-    return { ...entity, sliceStatus: active ?? jobs[0] ?? null };
+    return { ...withSortedScreens(entity), sliceStatus: active ?? jobs[0] ?? null };
   }
 
   async createGroup(

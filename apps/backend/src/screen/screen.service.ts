@@ -9,6 +9,7 @@ import type { ScreenReachability } from '../site-agent/screen-reachability.enum'
 import type { ContentType } from '../content/content-type.enum';
 import { CreateScreenDto } from './dto/create-screen.dto';
 import { UpdateScreenDto } from './dto/update-screen.dto';
+import { byNaturalName } from '../common/natural-sort.util';
 import { generateApiKey, hashApiKey, sha256hex } from './api-key.util';
 import { ScreenPairingService } from './screen-pairing.service';
 import { ScreenSessionService } from './screen-session.service';
@@ -218,9 +219,10 @@ export class ScreenService extends OrganisationScopedService<Screen> {
    * List all screens for the organisation, each enriched with its currently-
    * playing playlist name and a thumbnail of that playlist's first item. Only
    * online screens are resolved (offline screens get `null` without a query).
+   * Sorted by name so every screen picker in the dashboard lists them alike.
    */
   async findAllWithPlaylist(organisationId: string): Promise<ScreenWithPlaylist[]> {
-    const all = await this.findAll(organisationId);
+    const all = (await this.findAll(organisationId)).sort(byNaturalName);
 
     // One query for the whole list rather than one per card.
     const remotes = await this.db
