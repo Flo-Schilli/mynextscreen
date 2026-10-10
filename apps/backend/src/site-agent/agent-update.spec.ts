@@ -11,11 +11,23 @@ describe('parseReleaseVersion', () => {
     ['1.2.3', [1, 2, 3]],
     ['v0.18.0', [0, 18, 0]],
     [' 10.0.1 ', [10, 0, 1]],
+    // CI stamps every main build with build metadata; it has no bearing on order.
+    ['0.23.0+sha.1bbf9f7', [0, 23, 0]],
   ])('reads %p', (input, expected) => {
     expect(parseReleaseVersion(input)).toEqual(expected);
   });
 
-  it.each([null, undefined, '', '0.0.0-dev', '1.2', '1.2.3.4', 'latest'])('refuses %p', (input) => {
+  it.each([
+    null,
+    undefined,
+    '',
+    '0.0.0-dev',
+    '1.2',
+    '1.2.3.4',
+    'latest',
+    '1.2.3+',
+    '1.2.3-rc.1+sha.abc',
+  ])('refuses %p', (input) => {
     expect(parseReleaseVersion(input)).toBeNull();
   });
 });
@@ -27,6 +39,8 @@ describe('isAgentOutdated', () => {
     ['0.9.0', '0.10.0', true],
     ['0.18.0', '0.18.0', false],
     ['0.19.0', '0.18.0', false],
+    ['0.22.0', '0.23.0+sha.1bbf9f7', true],
+    ['0.23.0+sha.aaaaaaa', '0.23.0+sha.bbbbbbb', false],
   ])('agent %p against %p → %p', (agent, latest, expected) => {
     expect(isAgentOutdated(agent, latest)).toBe(expected);
   });
@@ -45,6 +59,10 @@ describe('isAgentOutdated', () => {
 describe('latestAgentVersion', () => {
   it('is the server release', () => {
     expect(latestAgentVersion('0.18.0')).toBe('0.18.0');
+  });
+
+  it('drops the build metadata of a main build', () => {
+    expect(latestAgentVersion('0.23.0+sha.1bbf9f7')).toBe('0.23.0');
   });
 
   it('is null on a dev build or without a version', () => {
