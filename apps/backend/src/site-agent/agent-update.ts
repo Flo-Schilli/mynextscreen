@@ -9,12 +9,15 @@ export interface AgentUpdateInfo {
 
 type ReleaseVersion = readonly [number, number, number];
 
-const RELEASE = /^v?(\d+)\.(\d+)\.(\d+)$/;
+/** `major.minor.patch`, optionally with SemVer build metadata (`+sha.1bbf9f7`). */
+const RELEASE = /^v?(\d+)\.(\d+)\.(\d+)(?:\+[0-9A-Za-z.-]+)?$/;
 
 /**
- * A plain `major.minor.patch` release, or null. Pre-releases and dev builds
- * (`0.0.0-dev`) are deliberately not comparable: a hint built on them would
- * either nag a developer or miss nothing worth saying.
+ * A `major.minor.patch` release, or null. Build metadata is accepted and
+ * ignored, as SemVer prescribes: CI stamps every main build with `+sha.<commit>`,
+ * and a server running one must still flag older agents. Pre-releases and dev
+ * builds (`0.0.0-dev`) are deliberately not comparable: a hint built on them
+ * would either nag a developer or miss nothing worth saying.
  */
 export function parseReleaseVersion(version: string | null | undefined): ReleaseVersion | null {
   const match = RELEASE.exec(version?.trim() ?? '');
@@ -50,7 +53,8 @@ export function isAgentOutdated(
  * exist in a supported setup. No registry or GitHub call is needed for that.
  */
 export function latestAgentVersion(serverVersion = process.env.APP_VERSION): string | null {
-  return parseReleaseVersion(serverVersion) ? (serverVersion as string).trim() : null;
+  const release = parseReleaseVersion(serverVersion);
+  return release ? release.join('.') : null;
 }
 
 export function withUpdateInfo<T extends SiteAgent>(
