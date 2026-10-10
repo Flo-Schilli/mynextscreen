@@ -4,6 +4,19 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.23.1
+
+### Fixed — the agent update hint shows on servers running a main build
+
+Every build from `main` reports its version with build metadata, such as
+`0.23.0+sha.1bbf9f7`. The server refused that suffix when comparing versions,
+took itself for a development build and never flagged an older agent, so the
+**update now** button did not appear. Build metadata is now ignored for the
+comparison, as SemVer prescribes, and the hint shows the bare version.
+
+**Operator action:** none beyond updating the server. Agents still on 0.22.0
+then show the hint, and **update now** pulls the current `stable` image.
+
 ## 0.23.0
 
 ### Changed — the agent lets a TV settle before starting the app
