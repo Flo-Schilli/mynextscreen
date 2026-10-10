@@ -4,6 +4,17 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.23.2
+
+### Fixed — screens, groups and agents are listed in order
+
+Screens, screen groups and site agents came back in the order they were
+created, so the screen page and every picker for them looked shuffled. All
+three are now sorted by name, with numbers in numeric order: *Löwensaal 2*
+comes before *Löwensaal 10*. The screens inside a group follow the same order.
+
+**Operator action:** none beyond updating the server.
+
 ## 0.23.1
 
 ### Fixed — the agent update hint shows on servers running a main build
