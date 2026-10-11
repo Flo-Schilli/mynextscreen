@@ -16,6 +16,12 @@ import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 
 /**
+ * Real monotonic clock for wait budgets. Bound before any test installs fake
+ * timers, which replace `performance.now` along with `Date` and `setTimeout`.
+ */
+const realNow = performance.now.bind(performance);
+
+/**
  * Integration test: wires the real ScreenStateService + ScheduleBoundaryService +
  * PlaylistChangeBridgeService together over the live EventEmitter and a real
  * Postgres database (harness). Only the external collaborators ScreenService,
@@ -164,34 +170,36 @@ describe('Playlist Transition Integration', () => {
   }
 
   /**
-   * Upper bound for {@link drainUntil}. Only reached when the awaited condition
-   * never becomes true — a healthy round takes microseconds, so this is a
-   * failure budget, not a delay.
+   * Wall-clock budget for {@link drainUntil}. Only reached when the awaited
+   * condition never becomes true — a healthy chain resolves in milliseconds, so
+   * this is a failure budget, not a delay. It is measured in real time, not in
+   * event-loop rounds: an idle round takes microseconds, so the former budget of
+   * 200 rounds covered under 10 ms and ran out whenever Postgres answered the
+   * four queries before the boundary timer a little slowly on a loaded runner.
    */
-  const MAX_DRAIN_ROUNDS = 200;
+  const DRAIN_BUDGET_MS = 5_000;
 
   /**
    * Drain real DB I/O and fake-timer microtasks until `condition` holds.
    *
    * The boundary callback issues several sequential awaited queries, and how
-   * many event-loop turns that chain needs depends on how fast Postgres answers
-   * — which is exactly what differs between a laptop and a loaded CI runner.
-   * Draining a *fixed* number of rounds therefore passed locally and failed
-   * intermittently on CI. Waiting for the observable outcome instead makes the
-   * test independent of that timing: it returns as soon as the effect is there,
-   * and fails with a description rather than an opaque `0 >= 1`.
+   * long that chain needs depends on how fast Postgres answers — which is
+   * exactly what differs between a laptop and a loaded CI runner. Waiting for
+   * the observable outcome, bounded by real time, makes the test independent of
+   * that timing: it returns as soon as the effect is there, and fails with a
+   * description rather than an opaque `0 >= 1`.
    */
   async function drainUntil(condition: () => boolean, description: string): Promise<void> {
-    for (let round = 0; round < MAX_DRAIN_ROUNDS; round += 1) {
+    const deadline = realNow() + DRAIN_BUDGET_MS;
+    while (realNow() < deadline) {
       if (condition()) return;
       await flushRealIo(2);
       await jest.advanceTimersByTimeAsync(0);
     }
     if (condition()) return;
     throw new Error(
-      `Timed out after ${MAX_DRAIN_ROUNDS} drain rounds waiting for ${description}. ` +
-        'Either the effect never happened, or the chain producing it now needs more than ' +
-        'the budgeted event-loop turns.',
+      `Timed out after ${DRAIN_BUDGET_MS} ms waiting for ${description}. ` +
+        'Either the effect never happened, or the chain producing it is slower than the budget.',
     );
   }
 
