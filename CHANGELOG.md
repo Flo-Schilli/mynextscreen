@@ -4,6 +4,31 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.24.0
+
+### Added — faster playlist editing
+
+- **Typed durations.** An image's duration can now be typed straight into its
+  row. The −/+ buttons stay. Enter or leaving the field saves the value,
+  Escape discards it, and anything that is not a whole number of at least one
+  second snaps back.
+- **Settings for all items.** A bar above the sequence sets the duration, the
+  transition or the transition duration on every item at once, each with its
+  own **Apply** button. The duration only reaches images; videos keep playing
+  their own length.
+- **Adding several items in order.** The *Add content* dialog lists titles in
+  natural order (*Bild 2* before *Bild 10*). Clicking items numbers them in the
+  order they were clicked, and **Add N items** appends them to the end of the
+  playlist in exactly that order. The selection survives search and filter
+  changes.
+
+### Fixed — a quick second edit no longer drops the first
+
+Changing two settings of the same item within a second saved only the second
+change. Both are now saved together.
+
+**Operator action:** none beyond updating the server. There is no migration.
+
 ## 0.23.2
 
 ### Fixed — screens, groups and agents are listed in order
