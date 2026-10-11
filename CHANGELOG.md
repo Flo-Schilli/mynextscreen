@@ -4,6 +4,23 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.24.1
+
+### Fixed — screens moved to another group stop with that group's schedule
+
+When a group's scheduled playlist ended, only screens that had never been in a
+group switched to the fallback. Screens that had been moved over from another
+group kept playing until they reconnected. The server had kept the group they
+were in when they connected and sent the end of the schedule there.
+
+Adding a screen to a group, removing it, or moving it to another cell of a
+video wall now takes effect at once on a connected screen: it switches to the
+group's current playlist, or back to its own schedule, without a reconnect.
+
+**Operator action:** none beyond updating the server. There is no migration.
+The restart during the update reconnects every screen and clears the stale
+group.
+
 ## 0.24.0
 
 ### Added — faster playlist editing
