@@ -1,6 +1,6 @@
 {
   "id": "com.mynextscreen.webos",
-  "version": "0.24.1",
+  "version": "0.24.2",
   "vendor": "myNextScreen",
   "type": "web",
   "main": "index.html",
