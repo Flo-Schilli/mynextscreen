@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  linkedSignal,
+  output,
+} from '@angular/core';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import {
@@ -7,6 +15,7 @@ import {
   TransitionType,
   TRANSITION_OPTIONS,
   PLAYLIST_COLORS,
+  UpdateAllPlaylistItemsRequest,
 } from './playlist.model';
 import { PlaylistFormatService } from './playlist-format.service';
 import { PlaylistLoopPreview } from './playlist-loop-preview';
@@ -20,6 +29,23 @@ import {
   SelectOption,
 } from '../ui';
 import { BackLink } from '../shared/back-link';
+
+/** Bounds shared by the per-item controls and the "all items" bar (match the backend DTOs). */
+const MIN_DURATION_SECONDS = 1;
+const MIN_TRANSITION_MS = 0;
+const MAX_TRANSITION_MS = 3000;
+const DEFAULT_IMAGE_DURATION_SECONDS = 10;
+const DEFAULT_TRANSITION: TransitionType = 'fade';
+const DEFAULT_TRANSITION_MS = 500;
+
+/** Parses a typed integer; null when it is not a whole number within the bounds. */
+function parseBoundedInt(raw: string, min: number, max = Number.MAX_SAFE_INTEGER): number | null {
+  if (raw.trim() === '') return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return null;
+  const rounded = Math.round(value);
+  return rounded >= min && rounded <= max ? rounded : null;
+}
 
 /** A per-item field change emitted by the editor for the parent to persist. */
 export interface ItemFieldChange<T> {
@@ -159,6 +185,99 @@ export interface ItemFieldChange<T> {
             >
           </mns-card-head>
 
+          @if (playlist().items.length > 1) {
+            <div
+              class="apply-all flex flex-wrap items-end gap-x-5 gap-y-3 mb-3 px-3 py-2.5 rounded-[12px] border border-dashed border-border-strong"
+            >
+              <span class="w-full text-[11.5px] font-bold uppercase tracking-wide text-faint">{{
+                t('playlists.editor.applyAll.title')
+              }}</span>
+
+              <div class="flex flex-col gap-1">
+                <span class="text-[11.5px] text-muted"
+                  >{{ t('playlists.editor.applyAll.duration') }} ·
+                  {{ t('playlists.editor.applyAll.imagesOnly') }}</span
+                >
+                <div class="flex items-center gap-1.5">
+                  <input
+                    #allDurationInput
+                    type="number"
+                    inputmode="numeric"
+                    min="1"
+                    step="1"
+                    class="apply-all-duration h-[30px] w-[72px] px-2 rounded-[9px] border border-border-strong bg-surface font-mono text-[12.5px] font-bold disabled:opacity-50"
+                    [value]="allDuration()"
+                    [disabled]="!hasImages()"
+                    [attr.aria-label]="t('playlists.editor.applyAll.duration')"
+                    (input)="allDuration.set(allDurationInput.value)"
+                  />
+                  <mns-btn
+                    class="apply-all-duration-btn"
+                    variant="soft"
+                    size="sm"
+                    [disabled]="!hasImages() || allDurationValue() === null"
+                    [title]="t('playlists.editor.applyAll.applyDurationAria')"
+                    (mnsClick)="applyAllDuration()"
+                    >{{ t('playlists.editor.applyAll.apply') }}</mns-btn
+                  >
+                </div>
+              </div>
+
+              <div class="flex flex-col gap-1">
+                <span class="text-[11.5px] text-muted">{{
+                  t('playlists.editor.applyAll.transition')
+                }}</span>
+                <div class="flex items-center gap-1.5">
+                  <div class="w-[140px]">
+                    <mns-select
+                      [options]="transitionOptions()"
+                      [value]="allTransition()"
+                      [ariaLabel]="t('playlists.editor.applyAll.transition')"
+                      (changed)="allTransition.set(asTransition($event))"
+                    />
+                  </div>
+                  <mns-btn
+                    class="apply-all-transition-btn"
+                    variant="soft"
+                    size="sm"
+                    [title]="t('playlists.editor.applyAll.applyTransitionAria')"
+                    (mnsClick)="applyToAll.emit({ transition: allTransition() })"
+                    >{{ t('playlists.editor.applyAll.apply') }}</mns-btn
+                  >
+                </div>
+              </div>
+
+              <div class="flex flex-col gap-1">
+                <span class="text-[11.5px] text-muted">{{
+                  t('playlists.editor.applyAll.transitionMs')
+                }}</span>
+                <div class="flex items-center gap-1.5">
+                  <input
+                    #allTransitionMsInput
+                    type="number"
+                    inputmode="numeric"
+                    min="0"
+                    max="3000"
+                    step="100"
+                    class="apply-all-transition-ms h-[30px] w-[80px] px-2 rounded-[9px] border border-border-strong bg-surface font-mono text-[12.5px] font-bold"
+                    [value]="allTransitionMs()"
+                    [attr.aria-label]="t('playlists.editor.applyAll.transitionMs')"
+                    (input)="allTransitionMs.set(allTransitionMsInput.value)"
+                  />
+                  <mns-btn
+                    class="apply-all-transition-ms-btn"
+                    variant="soft"
+                    size="sm"
+                    [disabled]="allTransitionMsValue() === null"
+                    [title]="t('playlists.editor.applyAll.applyTransitionMsAria')"
+                    (mnsClick)="applyAllTransitionMs()"
+                    >{{ t('playlists.editor.applyAll.apply') }}</mns-btn
+                  >
+                </div>
+              </div>
+            </div>
+          }
+
           @if (playlist().items.length === 0) {
             <div
               class="grid place-items-center py-9 px-5 rounded-[12px] border-[1.5px] border-dashed border-border-strong bg-surface-2 text-faint gap-2"
@@ -262,9 +381,22 @@ export interface ItemFieldChange<T> {
                       >
                         −
                       </button>
-                      <span class="font-mono min-w-[42px] text-center font-bold text-[12.5px]">{{
-                        t('playlists.editor.durationSeconds', { seconds: item.durationSeconds })
-                      }}</span>
+                      <span class="flex items-center">
+                        <input
+                          #durationInput
+                          type="number"
+                          inputmode="numeric"
+                          min="1"
+                          step="1"
+                          class="duration-input font-mono w-[40px] text-right font-bold text-[12.5px] bg-transparent outline-none focus:bg-hover rounded-[4px] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          [value]="item.durationSeconds"
+                          [attr.aria-label]="t('playlists.editor.durationInput')"
+                          (blur)="commitDuration(item, durationInput)"
+                          (keydown.enter)="durationInput.blur()"
+                          (keydown.escape)="resetDuration(item, durationInput)"
+                        />
+                        <span class="font-mono font-bold text-[12.5px] text-muted pr-0.5">s</span>
+                      </span>
                       <button
                         type="button"
                         class="grid place-items-center w-[26px] h-[26px] text-muted text-[16px] font-bold leading-none cursor-pointer"
@@ -410,6 +542,8 @@ export class PlaylistEditor {
   readonly durationChange = output<ItemFieldChange<number>>();
   readonly transitionChange = output<ItemFieldChange<TransitionType>>();
   readonly transitionDurationChange = output<ItemFieldChange<number>>();
+  /** One field to set on every item (duration reaches images only). */
+  readonly applyToAll = output<UpdateAllPlaylistItemsRequest>();
   readonly previewItem = output<PlaylistItem>();
   readonly closePreview = output<void>();
 
@@ -422,6 +556,36 @@ export class PlaylistEditor {
     })),
   );
   protected readonly colors = PLAYLIST_COLORS;
+
+  protected readonly hasImages = computed(() =>
+    this.playlist().items.some((item) => item.content?.type === 'image'),
+  );
+
+  // "All items" bar inputs, seeded from the first item and reset only when
+  // another playlist is opened (not on every reload after a save).
+  protected readonly allDuration = linkedSignal({
+    source: () => this.playlist().id,
+    computation: () =>
+      String(
+        this.playlist().items.find((item) => item.content?.type === 'image')?.durationSeconds ??
+          DEFAULT_IMAGE_DURATION_SECONDS,
+      ),
+  });
+  protected readonly allTransition = linkedSignal<string, TransitionType>({
+    source: () => this.playlist().id,
+    computation: () => this.playlist().items[0]?.transition ?? DEFAULT_TRANSITION,
+  });
+  protected readonly allTransitionMs = linkedSignal({
+    source: () => this.playlist().id,
+    computation: () =>
+      String(this.playlist().items[0]?.transitionDurationMs ?? DEFAULT_TRANSITION_MS),
+  });
+  protected readonly allDurationValue = computed(() =>
+    parseBoundedInt(this.allDuration(), MIN_DURATION_SECONDS),
+  );
+  protected readonly allTransitionMsValue = computed(() =>
+    parseBoundedInt(this.allTransitionMs(), MIN_TRANSITION_MS, MAX_TRANSITION_MS),
+  );
 
   protected readonly tileGradient = computed(() => {
     const color = this.playlist().color;
@@ -457,13 +621,48 @@ export class PlaylistEditor {
     return this.format.formatDuration(secs);
   }
 
+  /** Commits a typed duration; an invalid entry snaps back to the saved value. */
+  protected commitDuration(item: PlaylistItem, field: HTMLInputElement): void {
+    const value = parseBoundedInt(field.value, MIN_DURATION_SECONDS);
+    if (value === null) {
+      field.value = String(item.durationSeconds);
+      return;
+    }
+    field.value = String(value);
+    if (value !== item.durationSeconds) {
+      this.durationChange.emit({ item, value });
+    }
+  }
+
+  protected resetDuration(item: PlaylistItem, field: HTMLInputElement): void {
+    field.value = String(item.durationSeconds);
+    field.blur();
+  }
+
+  protected applyAllDuration(): void {
+    const durationSeconds = this.allDurationValue();
+    if (durationSeconds !== null) {
+      this.applyToAll.emit({ durationSeconds });
+    }
+  }
+
+  protected applyAllTransitionMs(): void {
+    const transitionDurationMs = this.allTransitionMsValue();
+    if (transitionDurationMs !== null) {
+      this.applyToAll.emit({ transitionDurationMs });
+    }
+  }
+
   protected stepDuration(item: PlaylistItem, delta: number): void {
-    const next = Math.max(1, item.durationSeconds + delta);
+    const next = Math.max(MIN_DURATION_SECONDS, item.durationSeconds + delta);
     this.durationChange.emit({ item, value: next });
   }
 
   protected stepTransitionMs(item: PlaylistItem, delta: number): void {
-    const next = Math.min(3000, Math.max(0, item.transitionDurationMs + delta));
+    const next = Math.min(
+      MAX_TRANSITION_MS,
+      Math.max(MIN_TRANSITION_MS, item.transitionDurationMs + delta),
+    );
     this.transitionDurationChange.emit({ item, value: next });
   }
 }

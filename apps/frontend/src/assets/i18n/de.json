@@ -688,7 +688,20 @@
       "transitionMs": "{ms}ms",
       "removeFromPlaylist": "Aus Playlist entfernen",
       "previewTitle": "Vorschau: {title}",
-      "previewAlt": "Vorschau"
+      "previewAlt": "Vorschau",
+      "durationInput": "Dauer in Sekunden",
+      "transitionMsInput": "Übergangsdauer in Millisekunden",
+      "applyAll": {
+        "title": "Für alle Elemente",
+        "duration": "Dauer (s)",
+        "imagesOnly": "nur Bilder",
+        "transition": "Übergang",
+        "transitionMs": "Übergangsdauer (ms)",
+        "apply": "Anwenden",
+        "applyDurationAria": "Dauer auf alle Bilder anwenden",
+        "applyTransitionAria": "Übergang auf alle Elemente anwenden",
+        "applyTransitionMsAria": "Übergangsdauer auf alle Elemente anwenden"
+      }
     },
     "transition": {
       "cut": "Hart",
@@ -724,7 +737,11 @@
       "videos": "Videos",
       "loading": "Medienbibliothek wird geladen…",
       "empty": "Kein Inhalt verfügbar. Lade zuerst Inhalt hoch.",
-      "noMatches": "Kein Inhalt entspricht deiner Suche."
+      "noMatches": "Kein Inhalt entspricht deiner Suche.",
+      "selectHint": "Klicke Inhalte in der gewünschten Reihenfolge an. Sie werden in dieser Reihenfolge ans Ende der Playlist angehängt.",
+      "clearSelection": "Auswahl leeren",
+      "addSelected": "{count, plural, =0 {Hinzufügen} one {# Element hinzufügen} other {# Elemente hinzufügen}}",
+      "selectedPosition": "Ausgewählt als Nummer {position}"
     },
     "assignScreen": {
       "title": "Bildschirm zuweisen",
@@ -751,11 +768,12 @@
       "deleted": "Playlist gelöscht.",
       "setDefault": "Als Standard-Playlist festgelegt.",
       "clearedDefault": "Standard-Playlist zurückgesetzt.",
-      "itemAdded": "Element zur Playlist hinzugefügt.",
       "itemRemoved": "Element aus Playlist entfernt.",
       "orderSaved": "Playlist-Reihenfolge gespeichert.",
       "linkCopied": "Link in die Zwischenablage kopiert.",
-      "linkCopyFailed": "Link konnte nicht kopiert werden."
+      "linkCopyFailed": "Link konnte nicht kopiert werden.",
+      "itemsAdded": "{count, plural, one {# Element zur Playlist hinzugefügt.} other {# Elemente zur Playlist hinzugefügt.}}",
+      "appliedToAll": "{count, plural, one {Auf # Element angewendet.} other {Auf # Elemente angewendet.}}"
     },
     "errors": {
       "loadPlaylists": "Playlists konnten nicht geladen werden.",
@@ -770,7 +788,8 @@
       "addItem": "Element konnte nicht hinzugefügt werden.",
       "removeItem": "Element konnte nicht entfernt werden.",
       "reorderItems": "Elemente konnten nicht neu geordnet werden.",
-      "loadScreens": "Bildschirme konnten nicht geladen werden."
+      "loadScreens": "Bildschirme konnten nicht geladen werden.",
+      "applyToAll": "Einstellung konnte nicht auf alle Elemente angewendet werden."
     }
   },
   "schedules": {

@@ -83,6 +83,13 @@ export interface UpdatePlaylistItemRequest {
   durationSeconds?: number;
 }
 
+/** Patch applied to every item; `durationSeconds` only reaches image items. */
+export type UpdateAllPlaylistItemsRequest = UpdatePlaylistItemRequest;
+
+export interface UpdateAllPlaylistItemsResponse {
+  updated: number;
+}
+
 export interface ReorderPlaylistItemsRequest {
   itemIds: string[];
 }

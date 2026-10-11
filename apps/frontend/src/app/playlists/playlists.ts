@@ -5,7 +5,14 @@ import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { firstValueFrom } from 'rxjs';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { PlaylistService } from './playlist.service';
-import { Playlist, PlaylistItem, TransitionType } from './playlist.model';
+import {
+  AddPlaylistItemRequest,
+  Playlist,
+  PlaylistItem,
+  TransitionType,
+  UpdateAllPlaylistItemsRequest,
+  UpdatePlaylistItemRequest,
+} from './playlist.model';
 import { PlaylistCreateForm } from './playlist-create-form';
 import { PlaylistEditor } from './playlist-editor';
 import { PlaylistGrid } from './playlist-grid';
@@ -38,6 +45,11 @@ import {
  * delegated to the create-form, editor, grid, and modal children; pure
  * formatting lives in {@link PlaylistFormatService}.
  */
+/** Images default to 10 s; a video plays its own length, 30 s while unknown. */
+function defaultItemDuration(content: Content): number {
+  return content.type === 'video' ? (content.durationSeconds ?? 30) : 10;
+}
+
 @Component({
   selector: 'app-playlists',
   standalone: true,
@@ -114,6 +126,7 @@ import {
           (durationChange)="updateItemDuration($event.item, $event.value)"
           (transitionChange)="updateItemTransition($event.item, $event.value)"
           (transitionDurationChange)="updateItemTransitionDuration($event.item, $event.value)"
+          (applyToAll)="applyToAllItems($event)"
           (previewItem)="previewItem($event)"
           (closePreview)="closePreview()"
         />
@@ -178,7 +191,7 @@ import {
           [availableContent]="availableContent"
           [loading]="contentLoading"
           [thumbUrl]="getContentThumbUrl"
-          (selectContent)="addContentToPlaylist($event)"
+          (addSelected)="addContentsToPlaylist($event)"
           (dismiss)="closeAddContent()"
         />
       }
@@ -278,8 +291,11 @@ export class Playlists implements OnInit {
   // Preview
   previewingItem: PlaylistItem | null = null;
 
-  // Debounce timers for item field updates
+  // Debounce timers for item field updates, plus the fields each pending
+  // PATCH has collected so far (so a second field edit within the window does
+  // not drop the first one).
   private durationTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private pendingItemPatches = new Map<string, UpdatePlaylistItemRequest>();
 
   // Bulk delete confirmation
   showBulkDeleteConfirm = false;
@@ -622,26 +638,28 @@ export class Playlists implements OnInit {
     this.showAddContent = false;
   }
 
-  addContentToPlaylist(content: Content): void {
-    if (!this.selectedPlaylist) return;
-    const defaultDuration = content.type === 'video' ? (content.durationSeconds ?? 30) : 10;
-    this.playlistService
-      .addItem(this.orgId, this.selectedPlaylist.id, {
-        contentId: content.id,
-        durationSeconds: defaultDuration,
-        transition: 'fade',
-        transitionDurationMs: 500,
-      })
-      .subscribe({
-        next: () => {
-          this.reloadPlaylist();
-          this.toast.success(this.transloco.translate('playlists.toast.itemAdded'));
-        },
-        error: (err) => {
-          this.editorError =
-            err.error?.message || this.transloco.translate('playlists.errors.addItem');
-        },
-      });
+  /** Appends the picked content in click order, in one request. */
+  addContentsToPlaylist(contents: Content[]): void {
+    if (!this.selectedPlaylist || contents.length === 0) return;
+    const items: AddPlaylistItemRequest[] = contents.map((content) => ({
+      contentId: content.id,
+      durationSeconds: defaultItemDuration(content),
+      transition: 'fade',
+      transitionDurationMs: 500,
+    }));
+    this.playlistService.addItems(this.orgId, this.selectedPlaylist.id, items).subscribe({
+      next: (saved) => {
+        this.showAddContent = false;
+        this.reloadPlaylist();
+        this.toast.success(
+          this.transloco.translate('playlists.toast.itemsAdded', { count: saved.length }),
+        );
+      },
+      error: (err) => {
+        this.editorError =
+          err.error?.message || this.transloco.translate('playlists.errors.addItem');
+      },
+    });
   }
 
   // --- Remove Item ---
@@ -684,24 +702,34 @@ export class Playlists implements OnInit {
   }
 
   // --- Item Field Updates (debounced PATCH) ---
-  private debouncedPatchItem(item: PlaylistItem, patch: Record<string, unknown>): void {
+  private debouncedPatchItem(item: PlaylistItem, patch: UpdatePlaylistItemRequest): void {
     const key = item.id;
     const existing = this.durationTimers.get(key);
     if (existing) clearTimeout(existing);
+    this.pendingItemPatches.set(key, { ...this.pendingItemPatches.get(key), ...patch });
 
     this.durationTimers.set(
       key,
       setTimeout(() => {
+        const collected = this.pendingItemPatches.get(key) ?? {};
+        this.durationTimers.delete(key);
+        this.pendingItemPatches.delete(key);
         if (!this.selectedPlaylist) return;
         this.playlistService
-          .updateItem(this.orgId, this.selectedPlaylist.id, item.id, patch)
+          .updateItem(this.orgId, this.selectedPlaylist.id, item.id, collected)
           .subscribe({
             next: () => this.reloadPlaylist(),
             error: () => this.reloadPlaylist(),
           });
-        this.durationTimers.delete(key);
       }, 800),
     );
+  }
+
+  /** Drops every pending per-item PATCH, so it cannot overwrite a newer bulk update. */
+  private cancelPendingItemPatches(): void {
+    this.durationTimers.forEach((timer) => clearTimeout(timer));
+    this.durationTimers.clear();
+    this.pendingItemPatches.clear();
   }
 
   updateItemDuration(item: PlaylistItem, value: number): void {
@@ -719,6 +747,25 @@ export class Playlists implements OnInit {
     if (value < 0 || value > 3000) return;
     item.transitionDurationMs = value;
     this.debouncedPatchItem(item, { transitionDurationMs: value });
+  }
+
+  // --- Apply to all items ---
+  applyToAllItems(patch: UpdateAllPlaylistItemsRequest): void {
+    if (!this.selectedPlaylist) return;
+    this.cancelPendingItemPatches();
+    this.playlistService.updateAllItems(this.orgId, this.selectedPlaylist.id, patch).subscribe({
+      next: ({ updated }) => {
+        this.reloadPlaylist();
+        this.toast.success(
+          this.transloco.translate('playlists.toast.appliedToAll', { count: updated }),
+        );
+      },
+      error: (err) => {
+        this.editorError =
+          err.error?.message || this.transloco.translate('playlists.errors.applyToAll');
+        this.reloadPlaylist();
+      },
+    });
   }
 
   // --- Preview ---

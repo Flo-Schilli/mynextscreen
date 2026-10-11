@@ -19,6 +19,8 @@ import { CreatePlaylistDto } from './dto/create-playlist.dto';
 import { UpdatePlaylistDto } from './dto/update-playlist.dto';
 import { AddPlaylistItemDto } from './dto/add-playlist-item.dto';
 import { UpdatePlaylistItemDto } from './dto/update-playlist-item.dto';
+import { NewPlaylistItemDto } from './dto/add-playlist-items.dto';
+import { UpdateAllPlaylistItemsDto } from './dto/update-all-playlist-items.dto';
 import { PLAYLIST_UPDATED, PlaylistUpdatedEvent } from './playlist.event';
 import { CONTENT_DURATION_RESOLVED, ContentDurationResolvedEvent } from '../content/content.event';
 import {
@@ -29,6 +31,23 @@ import {
   AUDIT_PLAYLIST_BULK_SCREEN_ASSIGNED,
   AuditPlaylistEvent,
 } from '../audit-log/audit.events';
+
+/** Fallback item durations when neither the video nor the request has one. */
+const DEFAULT_VIDEO_DURATION_SECONDS = 30;
+const DEFAULT_IMAGE_DURATION_SECONDS = 10;
+
+/** A video with a known length always plays it; otherwise the request wins, then the default. */
+function resolveItemDuration(content: Content, requestedSeconds?: number): number {
+  if (content.type === ContentType.Video && content.durationSeconds != null) {
+    return content.durationSeconds;
+  }
+  if (requestedSeconds != null) {
+    return requestedSeconds;
+  }
+  return content.type === ContentType.Video
+    ? DEFAULT_VIDEO_DURATION_SECONDS
+    : DEFAULT_IMAGE_DURATION_SECONDS;
+}
 
 type PlaylistWithItemsAndContent = Playlist & {
   items: (PlaylistItem & { content: Content })[];
@@ -140,15 +159,7 @@ export class PlaylistService {
       position = maxItem ? maxItem.position + 1 : 0;
     }
 
-    // Determine duration: for videos, prefer Content.durationSeconds; for images, default to 10
-    let durationSeconds: number;
-    if (content.type === ContentType.Video && content.durationSeconds != null) {
-      durationSeconds = content.durationSeconds;
-    } else if (dto.durationSeconds != null) {
-      durationSeconds = dto.durationSeconds;
-    } else {
-      durationSeconds = content.type === ContentType.Video ? 30 : 10;
-    }
+    const durationSeconds = resolveItemDuration(content, dto.durationSeconds);
 
     const [saved] = await this.db
       .insert(playlistItems)
@@ -165,6 +176,130 @@ export class PlaylistService {
       .returning();
     this.emitPlaylistChanged(id, organisationId);
     return saved;
+  }
+
+  /**
+   * Appends several items in request order behind the current last item, in
+   * one transaction. The playlist row is locked so two concurrent bulk adds
+   * cannot read the same last position. All content must belong to the
+   * organisation; otherwise nothing is inserted.
+   */
+  async addItems(
+    id: string,
+    organisationId: string,
+    items: NewPlaylistItemDto[],
+  ): Promise<PlaylistItem[]> {
+    await this.findOne(id, organisationId);
+
+    const contentIds = [...new Set(items.map((item) => item.contentId))];
+    const found = await this.db
+      .select()
+      .from(contents)
+      .where(and(inArray(contents.id, contentIds), eq(contents.organisationId, organisationId)));
+    const contentById = new Map(found.map((content) => [content.id, content]));
+    const missingIds = contentIds.filter((contentId) => !contentById.has(contentId));
+    if (missingIds.length > 0) {
+      throw new BadRequestException({
+        message: `Content not found in organisation "${organisationId}"`,
+        missingIds,
+      });
+    }
+
+    const saved = await this.db.transaction(async (tx) => {
+      await tx
+        .select({ id: playlists.id })
+        .from(playlists)
+        .where(eq(playlists.id, id))
+        .for('update');
+      const [last] = await tx
+        .select({ position: playlistItems.position })
+        .from(playlistItems)
+        .where(eq(playlistItems.playlistId, id))
+        .orderBy(desc(playlistItems.position))
+        .limit(1);
+      const firstPosition = last ? last.position + 1 : 0;
+
+      return tx
+        .insert(playlistItems)
+        .values(
+          items.map((item, index) => ({
+            playlistId: id,
+            contentId: item.contentId,
+            durationSeconds: resolveItemDuration(
+              contentById.get(item.contentId)!,
+              item.durationSeconds,
+            ),
+            position: firstPosition + index,
+            ...(item.transition !== undefined && { transition: item.transition }),
+            ...(item.transitionDurationMs !== undefined && {
+              transitionDurationMs: item.transitionDurationMs,
+            }),
+          })),
+        )
+        .returning();
+    });
+
+    this.emitPlaylistChanged(id, organisationId);
+    return saved.sort((a, b) => a.position - b.position);
+  }
+
+  /**
+   * Applies one patch to every item of a playlist in one transaction.
+   * Transition fields reach all items; `durationSeconds` reaches image items
+   * only, because a video always plays its own length.
+   */
+  async updateAllItems(
+    id: string,
+    organisationId: string,
+    dto: UpdateAllPlaylistItemsDto,
+  ): Promise<{ updated: number }> {
+    const transitionUpdates: Partial<PlaylistItem> = {
+      ...(dto.transition !== undefined && { transition: dto.transition }),
+      ...(dto.transitionDurationMs !== undefined && {
+        transitionDurationMs: dto.transitionDurationMs,
+      }),
+    };
+    const hasTransitionUpdates = Object.keys(transitionUpdates).length > 0;
+    if (!hasTransitionUpdates && dto.durationSeconds === undefined) {
+      throw new BadRequestException('At least one field must be provided');
+    }
+
+    await this.findOne(id, organisationId);
+
+    const updatedIds = await this.db.transaction(async (tx) => {
+      const touched = new Set<string>();
+      if (hasTransitionUpdates) {
+        const rows = await tx
+          .update(playlistItems)
+          .set(transitionUpdates)
+          .where(eq(playlistItems.playlistId, id))
+          .returning({ id: playlistItems.id });
+        rows.forEach((row) => touched.add(row.id));
+      }
+      if (dto.durationSeconds !== undefined) {
+        const imageContentIds = tx
+          .select({ id: contents.id })
+          .from(contents)
+          .where(
+            and(eq(contents.organisationId, organisationId), eq(contents.type, ContentType.Image)),
+          );
+        const rows = await tx
+          .update(playlistItems)
+          .set({ durationSeconds: dto.durationSeconds })
+          .where(
+            and(
+              eq(playlistItems.playlistId, id),
+              inArray(playlistItems.contentId, imageContentIds),
+            ),
+          )
+          .returning({ id: playlistItems.id });
+        rows.forEach((row) => touched.add(row.id));
+      }
+      return touched;
+    });
+
+    this.emitPlaylistChanged(id, organisationId);
+    return { updated: updatedIds.size };
   }
 
   async updateItem(

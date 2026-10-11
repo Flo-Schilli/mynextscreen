@@ -11,6 +11,8 @@ import {
   BulkDeletePlaylistsResponse,
   BulkAssignScreenResponse,
   UpdatePlaylistRequest,
+  UpdateAllPlaylistItemsRequest,
+  UpdateAllPlaylistItemsResponse,
 } from './playlist.model';
 
 @Injectable({ providedIn: 'root' })
@@ -55,6 +57,31 @@ export class PlaylistService {
     return this.http.post<PlaylistItem>(`/api/playlists/${playlistId}/items`, dto, {
       headers: this.orgHeader(orgId),
     });
+  }
+
+  /** Appends the items in array order behind the current last item. */
+  addItems(
+    orgId: string,
+    playlistId: string,
+    items: AddPlaylistItemRequest[],
+  ): Observable<PlaylistItem[]> {
+    return this.http.post<PlaylistItem[]>(
+      `/api/playlists/${playlistId}/items/bulk`,
+      { items },
+      { headers: this.orgHeader(orgId) },
+    );
+  }
+
+  updateAllItems(
+    orgId: string,
+    playlistId: string,
+    dto: UpdateAllPlaylistItemsRequest,
+  ): Observable<UpdateAllPlaylistItemsResponse> {
+    return this.http.patch<UpdateAllPlaylistItemsResponse>(
+      `/api/playlists/${playlistId}/items`,
+      dto,
+      { headers: this.orgHeader(orgId) },
+    );
   }
 
   updateItem(
