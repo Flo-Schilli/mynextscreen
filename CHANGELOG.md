@@ -4,6 +4,18 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.24.2
+
+### Fixed — the media library is sorted by title
+
+The media library listed items in the order they were uploaded, and a fresh
+upload appeared at the top. It now sorts by title the way screens, groups and
+site agents already do: numbers in numeric order ("Bild 2" before "Bild 10"),
+ignoring case and accents. New uploads and renamed items move to their place
+at once.
+
+**Operator action:** none beyond updating the server. There is no migration.
+
 ## 0.24.1
 
 ### Fixed — screens moved to another group stop with that group's schedule
