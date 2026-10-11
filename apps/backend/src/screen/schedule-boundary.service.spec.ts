@@ -9,6 +9,7 @@ import {
   GROUP_SCHEDULE_CHANGED,
 } from '../schedule';
 import { SCHEDULE_CHANGED, ScreenStateChangeEvent } from './screen-state.event';
+import { ScreenGroupMembershipChangedEvent } from '../screen-group/screen-group.event';
 import { DRIZZLE } from '../db/database.constants';
 import { organisations, screens, screenGroups, playlists, scheduleEntries } from '../db/schema';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
@@ -623,6 +624,132 @@ describe('ScheduleBoundaryService', () => {
       expect(groupEmits()).toHaveLength(1);
     });
 
+    /**
+     * Assigning a screen to a group does not reconnect it, so the group cached
+     * at registration outlived the move. A group entry ending then fanned out
+     * to the group the screen had left, and the screen kept playing.
+     */
+    describe('when a screen changes group while connected', () => {
+      let otherGroupId: string;
+
+      beforeEach(async () => {
+        const [other] = await db
+          .insert(screenGroups)
+          .values({ organisationId: orgId, name: 'Other Group' })
+          .returning();
+        otherGroupId = other.id;
+      });
+
+      async function moveInDb(id: string, to: string | null): Promise<void> {
+        await db.update(screens).set({ groupId: to }).where(eq(screens.id, id));
+      }
+
+      it('fans a boundary out to the new group once the screen is rescheduled', async () => {
+        const s1 = await seedGroupedScreen('Wall A');
+        resolveAs(playlistId, 1_000, 'group');
+        enableFakeTimers();
+        await service.registerScreen(s1);
+        await moveInDb(s1, otherGroupId);
+        // What creating a schedule entry on the new group triggers.
+        await service.handleGroupScheduleChanged(
+          new GroupScheduleChangedEvent(otherGroupId, orgId, playlistId),
+        );
+        emit.mockClear();
+
+        resolveAs(playlistId2, 0, 'fallback');
+        await jest.advanceTimersByTimeAsync(60_000);
+
+        expect(groupEmits()).toEqual([
+          [GROUP_SCHEDULE_CHANGED, expect.objectContaining({ groupId: otherGroupId })],
+        ]);
+      });
+
+      it('pushes the new group and fans later boundaries out to it', async () => {
+        const s1 = await seedGroupedScreen('Wall A');
+        resolveAs(playlistId, 1_000, 'group');
+        enableFakeTimers();
+        await service.registerScreen(s1);
+        await moveInDb(s1, otherGroupId);
+        emit.mockClear();
+
+        await service.handleGroupMembershipChanged(
+          new ScreenGroupMembershipChangedEvent(s1, orgId, groupId, otherGroupId),
+        );
+
+        expect(groupEmits()).toEqual([
+          [GROUP_SCHEDULE_CHANGED, expect.objectContaining({ groupId: otherGroupId })],
+        ]);
+        emit.mockClear();
+
+        resolveAs(playlistId2, 0, 'fallback');
+        await jest.advanceTimersByTimeAsync(60_000);
+
+        expect(groupEmits()).toEqual([
+          [GROUP_SCHEDULE_CHANGED, expect.objectContaining({ groupId: otherGroupId })],
+        ]);
+      });
+
+      // The realign throttle exists for reconnect storms. Assigning six screens
+      // one after another is not one: each needs its own push.
+      it('pushes every assignment, even within the realign throttle window', async () => {
+        const s1 = await seedGroupedScreen('Wall A');
+        const s2 = await seedGroupedScreen('Wall B');
+        resolveAs(playlistId, 1_000, 'group');
+        enableFakeTimers();
+        await service.registerScreen(s1);
+        await service.registerScreen(s2);
+        await moveInDb(s1, otherGroupId);
+        await moveInDb(s2, otherGroupId);
+        emit.mockClear();
+
+        await service.handleGroupMembershipChanged(
+          new ScreenGroupMembershipChangedEvent(s1, orgId, groupId, otherGroupId),
+        );
+        await service.handleGroupMembershipChanged(
+          new ScreenGroupMembershipChangedEvent(s2, orgId, groupId, otherGroupId),
+        );
+
+        expect(groupEmits()).toHaveLength(2);
+      });
+
+      it('pushes the screen itself when it leaves its group', async () => {
+        const s1 = await seedGroupedScreen('Wall A');
+        resolveAs(playlistId, 1_000, 'group');
+        enableFakeTimers();
+        await service.registerScreen(s1);
+        await moveInDb(s1, null);
+        emit.mockClear();
+
+        await service.handleGroupMembershipChanged(
+          new ScreenGroupMembershipChangedEvent(s1, orgId, groupId, null),
+        );
+
+        expect(emit).toHaveBeenCalledWith(
+          SCHEDULE_CHANGED,
+          expect.objectContaining({ screenId: s1, organisationId: orgId }),
+        );
+        expect(groupEmits()).toHaveLength(0);
+
+        // The next boundary is the screen's own, not the group it left.
+        emit.mockClear();
+        resolveAs(playlistId2, 0, 'fallback');
+        await jest.advanceTimersByTimeAsync(60_000);
+        expect(emit).toHaveBeenCalledWith(SCHEDULE_CHANGED, expect.any(ScreenStateChangeEvent));
+        expect(groupEmits()).toHaveLength(0);
+      });
+
+      it('ignores a screen that is not connected', async () => {
+        const s1 = await seedGroupedScreen('Wall A');
+
+        await service.handleGroupMembershipChanged(
+          new ScreenGroupMembershipChangedEvent(s1, orgId, null, groupId),
+        );
+
+        expect(emit).not.toHaveBeenCalled();
+        expect(trackedScreenIds()).not.toContain(s1);
+      });
+    });
+
     // scheduleNextBoundary awaits a query between clearing and re-arming its
     // timer. Without the generation guard both concurrent calls arm one, and the
     // superseded call's timer stays pending with nothing referencing it — so the
@@ -635,17 +762,19 @@ describe('ScheduleBoundaryService', () => {
       enableFakeTimers();
       await service.registerScreen(screenId);
 
-      const pending: Array<(boundaries: Date[]) => void> = [];
-      (service as unknown as { collectBoundaries: () => Promise<Date[]> }).collectBoundaries = () =>
-        new Promise<Date[]>((resolve) => pending.push(resolve));
+      type BoundaryWindow = { boundaries: Date[]; groupId: string | null };
+      const pending: Array<(window: BoundaryWindow) => void> = [];
+      (
+        service as unknown as { collectBoundaries: () => Promise<BoundaryWindow> }
+      ).collectBoundaries = () => new Promise<BoundaryWindow>((resolve) => pending.push(resolve));
 
       const base = Date.now();
       const event = new ScheduleEntryChangedEvent(screenId, orgId);
       const stale = service.handleScheduleEntryChanged(event);
       const newest = service.handleScheduleEntryChanged(event);
       // The superseded call comes back first, and with a nearer boundary.
-      pending[0]([new Date(base + 10_000)]);
-      pending[1]([new Date(base + 30_000)]);
+      pending[0]({ boundaries: [new Date(base + 10_000)], groupId: null });
+      pending[1]({ boundaries: [new Date(base + 30_000)], groupId: null });
       await Promise.all([stale, newest]);
       scheduleService.getCurrentPlaylist.mockClear();
 

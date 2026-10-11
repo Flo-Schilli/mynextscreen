@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { eq } from 'drizzle-orm';
 import { ScreenGroupService } from './screen-group.service';
 import { ScreenGroupMode } from './screen-group-mode.enum';
+import { SCREEN_GROUP_MEMBERSHIP_CHANGED } from './screen-group.event';
 import { DRIZZLE } from '../db/database.constants';
 import { organisations, screens, screenGroups, type ScreenGroup, type Screen } from '../db/schema';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
@@ -554,6 +555,71 @@ describe('ScreenGroupService', () => {
           details: expect.objectContaining({ screenId: screen.id }),
         }),
       );
+    });
+  });
+
+  describe('membership events', () => {
+    function membershipEmits(): unknown[] {
+      return emit.mock.calls.filter((c: unknown[]) => c[0] === SCREEN_GROUP_MEMBERSHIP_CHANGED);
+    }
+
+    it('emits when a screen joins a group', async () => {
+      const group = await seedGroup({
+        mode: ScreenGroupMode.Mirror,
+        gridColumns: null,
+        gridRows: null,
+      });
+      const screen = await seedScreen();
+
+      await service.assignScreen(orgId, group.id, screen.id, {});
+
+      expect(membershipEmits()).toEqual([
+        [
+          SCREEN_GROUP_MEMBERSHIP_CHANGED,
+          expect.objectContaining({
+            screenId: screen.id,
+            organisationId: orgId,
+            previousGroupId: null,
+            groupId: group.id,
+          }),
+        ],
+      ]);
+    });
+
+    it('emits when a screen moves to another cell of the same split wall', async () => {
+      const group = await seedGroup();
+      const screen = await seedScreen({ groupId: group.id, gridRow: 0, gridColumn: 0 });
+
+      await service.assignScreen(orgId, group.id, screen.id, { gridRow: 1, gridColumn: 0 });
+
+      expect(membershipEmits()).toHaveLength(1);
+    });
+
+    it('does not emit when a re-assignment changes nothing', async () => {
+      const group = await seedGroup();
+      const screen = await seedScreen({ groupId: group.id, gridRow: 0, gridColumn: 0 });
+
+      await service.assignScreen(orgId, group.id, screen.id, { gridRow: 0, gridColumn: 0 });
+
+      expect(membershipEmits()).toHaveLength(0);
+    });
+
+    it('emits when a screen leaves its group', async () => {
+      const group = await seedGroup();
+      const screen = await seedScreen({ groupId: group.id, gridRow: 0, gridColumn: 0 });
+
+      await service.removeScreen(orgId, group.id, screen.id);
+
+      expect(membershipEmits()).toEqual([
+        [
+          SCREEN_GROUP_MEMBERSHIP_CHANGED,
+          expect.objectContaining({
+            screenId: screen.id,
+            previousGroupId: group.id,
+            groupId: null,
+          }),
+        ],
+      ]);
     });
   });
 });

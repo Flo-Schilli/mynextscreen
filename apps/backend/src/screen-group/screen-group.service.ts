@@ -20,6 +20,10 @@ import {
 } from '../db/schema';
 import { byNaturalName } from '../common/natural-sort.util';
 import { ScreenGroupMode } from './screen-group-mode.enum';
+import {
+  SCREEN_GROUP_MEMBERSHIP_CHANGED,
+  ScreenGroupMembershipChangedEvent,
+} from './screen-group.event';
 import { SliceStatus } from '../slice-content/slice-status.enum';
 import { CreateScreenGroupDto } from './dto/create-screen-group.dto';
 import { UpdateScreenGroupDto } from './dto/update-screen-group.dto';
@@ -270,6 +274,22 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
       .where(eq(screens.id, screenId))
       .returning();
 
+    const membershipChanged =
+      screen.groupId !== saved.groupId ||
+      screen.gridRow !== saved.gridRow ||
+      screen.gridColumn !== saved.gridColumn;
+    if (membershipChanged) {
+      this.eventEmitter.emit(
+        SCREEN_GROUP_MEMBERSHIP_CHANGED,
+        new ScreenGroupMembershipChangedEvent(
+          screenId,
+          organisationId,
+          screen.groupId,
+          saved.groupId,
+        ),
+      );
+    }
+
     this.eventEmitter.emit(
       AUDIT_GROUP_SCREEN_ADDED,
       new AuditGroupEvent(groupId, organisationId, userId, {
@@ -312,6 +332,11 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
       .set({ groupId: null, gridRow: null, gridColumn: null })
       .where(eq(screens.id, screenId))
       .returning();
+
+    this.eventEmitter.emit(
+      SCREEN_GROUP_MEMBERSHIP_CHANGED,
+      new ScreenGroupMembershipChangedEvent(screenId, organisationId, groupId, null),
+    );
 
     this.eventEmitter.emit(
       AUDIT_GROUP_SCREEN_REMOVED,

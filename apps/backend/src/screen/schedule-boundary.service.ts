@@ -14,6 +14,16 @@ import {
 } from '../schedule';
 import type { DateRange, CurrentPlaylistSource } from '../schedule';
 import { SCHEDULE_CHANGED, ScreenStateChangeEvent } from './screen-state.event';
+import {
+  SCREEN_GROUP_MEMBERSHIP_CHANGED,
+  ScreenGroupMembershipChangedEvent,
+} from '../screen-group/screen-group.event';
+
+interface BoundaryWindow {
+  boundaries: Date[];
+  /** The screen's group as read alongside the boundaries. */
+  groupId: string | null;
+}
 
 interface TrackedScreen {
   timer: ReturnType<typeof setTimeout>;
@@ -23,9 +33,10 @@ interface TrackedScreen {
   source: CurrentPlaylistSource;
   organisationId: string;
   /**
-   * Captured when the screen registers. Deliberately not re-read per boundary:
-   * that would add a query for every screen on every boundary to catch a screen
-   * being moved between groups, which re-registers the screen anyway.
+   * The group whose members a group-wide boundary fans out to. Assigning a
+   * screen to a group does not reconnect it, so this is refreshed from the
+   * screen row on every reschedule and by the membership-changed event. Left
+   * stale, a group entry ending fanned out to the group the screen had left.
    */
   groupId: string | null;
   /**
@@ -75,8 +86,23 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
   async registerScreen(screenId: string): Promise<void> {
     if (this.destroyed || this.tracked.has(screenId)) return;
 
+    const state = await this.trackScreen(screenId);
+
+    // A screen that just (re)connected holds whatever anchor it fetched, while
+    // its peers still hold the one they were last told about. Nothing used to
+    // reconcile the two, so a single restarted member could sit on a different
+    // epoch indefinitely. Re-align the whole group on its arrival; the push is
+    // visually free for the peers, whose player short-circuits a re-anchor that
+    // changes neither playlist, epoch nor timeline.
+    if (state?.groupId) {
+      this.realignGroup(state.groupId, state.organisationId, state.currentPlaylistId);
+    }
+  }
+
+  /** Resolve the screen's current playlist and group, and arm its first boundary. */
+  private async trackScreen(screenId: string): Promise<TrackedScreen | null> {
     const [screen] = await this.db.select().from(screens).where(eq(screens.id, screenId)).limit(1);
-    if (!screen) return;
+    if (!screen) return null;
 
     let currentPlaylistId: string | null = null;
     let epoch = 0;
@@ -90,7 +116,7 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
       this.logger.warn(`Failed to resolve initial playlist for screen ${screenId}`);
     }
 
-    if (this.destroyed) return;
+    if (this.destroyed) return null;
 
     const state: TrackedScreen = {
       timer: null as unknown as ReturnType<typeof setTimeout>,
@@ -104,16 +130,7 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
     this.tracked.set(screenId, state);
 
     await this.scheduleNextBoundary(screenId);
-
-    // A screen that just (re)connected holds whatever anchor it fetched, while
-    // its peers still hold the one they were last told about. Nothing used to
-    // reconcile the two, so a single restarted member could sit on a different
-    // epoch indefinitely. Re-align the whole group on its arrival; the push is
-    // visually free for the peers, whose player short-circuits a re-anchor that
-    // changes neither playlist, epoch nor timeline.
-    if (screen.groupId) {
-      this.realignGroup(screen.groupId, screen.organisationId, currentPlaylistId);
-    }
+    return state;
   }
 
   unregisterScreen(screenId: string): void {
@@ -169,6 +186,35 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
     }
   }
 
+  /**
+   * Re-track a connected screen that joined, left or moved within a group, and
+   * push it the playlist it should now be playing.
+   *
+   * Deliberately not routed through {@link realignGroup}: its throttle is for a
+   * reconnect storm, and assigning several screens in a row would otherwise
+   * leave every one after the first without a push.
+   */
+  @OnEvent(SCREEN_GROUP_MEMBERSHIP_CHANGED)
+  async handleGroupMembershipChanged(event: ScreenGroupMembershipChangedEvent): Promise<void> {
+    if (this.destroyed || !this.tracked.has(event.screenId)) return;
+
+    this.unregisterScreen(event.screenId);
+    const state = await this.trackScreen(event.screenId);
+    if (!state || this.destroyed) return;
+
+    if (state.groupId) {
+      this.eventEmitter.emit(
+        GROUP_SCHEDULE_CHANGED,
+        new GroupScheduleChangedEvent(state.groupId, state.organisationId, state.currentPlaylistId),
+      );
+    } else {
+      this.eventEmitter.emit(
+        SCHEDULE_CHANGED,
+        new ScreenStateChangeEvent(event.screenId, state.organisationId),
+      );
+    }
+  }
+
   @OnEvent(GROUP_SCHEDULE_CHANGED)
   async handleGroupScheduleChanged(event: GroupScheduleChangedEvent): Promise<void> {
     if (this.destroyed) return;
@@ -194,7 +240,7 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
 
     const now = new Date();
     const windowEnd = new Date(now.getTime() + LOOK_AHEAD_MS);
-    const boundaries = await this.collectBoundaries(screenId, now, windowEnd);
+    const { boundaries, groupId } = await this.collectBoundaries(screenId, now, windowEnd);
 
     // The collectBoundaries query is async; bail if the service was destroyed
     // (and its timers cleared) while it was in flight, so we don't re-arm a
@@ -205,6 +251,8 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
     // timer stays armed with nothing referencing it.
     if (this.destroyed || this.tracked.get(screenId) !== state) return;
     if (state.generation !== generation) return;
+
+    state.groupId = groupId;
 
     const nowMs = now.getTime();
     const nextBoundary = boundaries
@@ -233,7 +281,7 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
    */
   async getNextStart(screenId: string, from: Date = new Date()): Promise<Date | null> {
     const windowEnd = new Date(from.getTime() + LOOK_AHEAD_MS);
-    const occurrences = await this.collectOccurrences(screenId, from, windowEnd);
+    const { occurrences } = await this.collectOccurrences(screenId, from, windowEnd);
     const fromMs = from.getTime();
 
     return (
@@ -244,21 +292,26 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
     );
   }
 
-  private async collectBoundaries(screenId: string, now: Date, windowEnd: Date): Promise<Date[]> {
-    const occurrences = await this.collectOccurrences(screenId, now, windowEnd);
-    return occurrences.flatMap((occ) => [occ.start, occ.end]);
+  private async collectBoundaries(
+    screenId: string,
+    now: Date,
+    windowEnd: Date,
+  ): Promise<BoundaryWindow> {
+    const { occurrences, groupId } = await this.collectOccurrences(screenId, now, windowEnd);
+    return { boundaries: occurrences.flatMap((occ) => [occ.start, occ.end]), groupId };
   }
 
   /**
    * Every occurrence touching the window, from the screen's own entries and
    * from its group's. The window reaches back as far as it reaches forward, so
    * an occurrence that began before `now` but is still running is included.
+   * Returns the group it read as well, so callers need no second screen query.
    */
   private async collectOccurrences(
     screenId: string,
     now: Date,
     windowEnd: Date,
-  ): Promise<DateRange[]> {
+  ): Promise<{ occurrences: DateRange[]; groupId: string | null }> {
     const occurrences: DateRange[] = [];
     const windowStart = new Date(now.getTime() - LOOK_AHEAD_MS);
 
@@ -286,7 +339,7 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
       }
     }
 
-    return occurrences;
+    return { occurrences, groupId: screen?.groupId ?? null };
   }
 
   private async onBoundaryReached(screenId: string): Promise<void> {
