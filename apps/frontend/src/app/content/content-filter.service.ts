@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Content } from './content.model';
+import { naturalCompare } from '../shared/natural-sort';
 
 /**
  * Pure content list helpers: deriving the available tag set and applying the
@@ -17,8 +18,9 @@ export class ContentFilterService {
 
   /**
    * Filters content by optional type and by tags (an item matches if it carries
-   * at least one of the selected tags). Returns a new array; the input is not
-   * mutated.
+   * at least one of the selected tags) and sorts the result naturally by title,
+   * so fresh uploads and renamed items land in place. Returns a new array; the
+   * input is not mutated.
    */
   filterContents(
     contents: readonly Content[],
@@ -32,6 +34,6 @@ export class ContentFilterService {
     if (tags.length > 0) {
       filtered = filtered.filter((c) => tags.some((t) => c.tags.includes(t)));
     }
-    return filtered;
+    return filtered.sort((a, b) => naturalCompare(a.title, b.title));
   }
 }

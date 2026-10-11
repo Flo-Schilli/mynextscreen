@@ -1,4 +1,4 @@
-import { byNaturalName } from './natural-sort.util';
+import { byNaturalName, byNaturalTitle } from './natural-sort.util';
 
 describe('byNaturalName', () => {
   const sortNames = (names: string[]): string[] =>
@@ -18,5 +18,12 @@ describe('byNaturalName', () => {
 
   it('ignores case and accents when comparing letters', () => {
     expect(sortNames(['bar', 'Äpfel', 'Zelt', 'apfel'])).toEqual(['Äpfel', 'apfel', 'bar', 'Zelt']);
+  });
+});
+
+describe('byNaturalTitle', () => {
+  it('orders by title with embedded numbers in numeric order', () => {
+    const sorted = ['Bild 10', 'bild 2', 'Bild 1'].map((title) => ({ title })).sort(byNaturalTitle);
+    expect(sorted.map((c) => c.title)).toEqual(['Bild 1', 'bild 2', 'Bild 10']);
   });
 });

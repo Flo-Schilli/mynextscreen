@@ -8,3 +8,8 @@ const collator = new Intl.Collator('de', { numeric: true, sensitivity: 'base' })
 export function byNaturalName(a: { name: string }, b: { name: string }): number {
   return collator.compare(a.name, b.name);
 }
+
+/** Same ordering as {@link byNaturalName}, for entities named by `title` (content). */
+export function byNaturalTitle(a: { title: string }, b: { title: string }): number {
+  return collator.compare(a.title, b.title);
+}

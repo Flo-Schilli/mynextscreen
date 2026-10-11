@@ -29,6 +29,7 @@ import {
 import { CONTENT_DURATION_RESOLVED, ContentDurationResolvedEvent } from './content.event';
 import { DetectedMediaType, SUPPORTED_MEDIA_TYPES, detectMediaType } from './media-type.util';
 import { getNumberConfig } from '../config/numeric-config.util';
+import { byNaturalTitle } from '../common/natural-sort.util';
 
 /** 100 MB. Shared with the Multer limit so both layers cut off at the same size. */
 export const DEFAULT_MAX_FILE_SIZE_BYTES = 104_857_600;
@@ -125,6 +126,7 @@ export class ContentService {
     return saved;
   }
 
+  /** Lists the organisation's content, sorted naturally by title ("Bild 2" before "Bild 10"). */
   async findAll(
     organisationId: string,
     filters?: { type?: ContentType; tags?: string[] },
@@ -138,6 +140,7 @@ export class ContentService {
       .select()
       .from(contents)
       .where(and(...conditions));
+    rows.sort(byNaturalTitle);
 
     if (filters?.tags && filters.tags.length > 0) {
       return rows.filter((c) => filters.tags!.some((tag) => c.tags.includes(tag)));

@@ -285,6 +285,17 @@ describe('ContentService', () => {
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe(tagged.id);
     });
+
+    it('sorts contents by title with numbers in numeric order', async () => {
+      const org = await seedOrg();
+      for (const title of ['Bild 10', 'Bild 2', 'Aftermovie', 'Bild 1']) {
+        await seedContent(org.id, { title });
+      }
+
+      const result = await service.findAll(org.id);
+
+      expect(result.map((c) => c.title)).toEqual(['Aftermovie', 'Bild 1', 'Bild 2', 'Bild 10']);
+    });
   });
 
   describe('findOne', () => {
