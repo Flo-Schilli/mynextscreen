@@ -405,6 +405,172 @@ describe('PlaylistService', () => {
     });
   });
 
+  describe('addItems', () => {
+    it('should append items in request order after the current last position', async () => {
+      const org = await seedOrg();
+      const playlist = await seedPlaylist(org.id);
+      const existing = await seedContent(org.id, { title: 'Existing' });
+      await db.insert(playlistItems).values({
+        playlistId: playlist.id,
+        contentId: existing.id,
+        position: 4,
+        durationSeconds: 10,
+      });
+      const a = await seedContent(org.id, { title: 'A' });
+      const b = await seedContent(org.id, { title: 'B' });
+      const c = await seedContent(org.id, { title: 'C' });
+
+      const saved = await service.addItems(playlist.id, org.id, [
+        { contentId: c.id, durationSeconds: 7 },
+        { contentId: a.id },
+        { contentId: b.id, transition: TransitionType.Cut, transitionDurationMs: 0 },
+      ]);
+
+      expect(saved.map((i) => [i.contentId, i.position])).toEqual([
+        [c.id, 5],
+        [a.id, 6],
+        [b.id, 7],
+      ]);
+      expect(saved[0].durationSeconds).toBe(7);
+      expect(saved[1].durationSeconds).toBe(10);
+      expect(saved[1].transition).toBe(TransitionType.Fade);
+      expect(saved[2].transition).toBe(TransitionType.Cut);
+      expect(saved[2].transitionDurationMs).toBe(0);
+      expect(emit).toHaveBeenCalledTimes(1);
+      expect(emit).toHaveBeenCalledWith(
+        PLAYLIST_UPDATED,
+        expect.objectContaining({ playlistId: playlist.id, organisationId: org.id }),
+      );
+    });
+
+    it('should start at position 0 and allow the same content twice', async () => {
+      const org = await seedOrg();
+      const playlist = await seedPlaylist(org.id);
+      const content = await seedContent(org.id);
+
+      const saved = await service.addItems(playlist.id, org.id, [
+        { contentId: content.id },
+        { contentId: content.id },
+      ]);
+
+      expect(saved.map((i) => i.position)).toEqual([0, 1]);
+    });
+
+    it('should prefer the known video length over the DTO duration', async () => {
+      const org = await seedOrg();
+      const playlist = await seedPlaylist(org.id);
+      const video = await seedContent(org.id, { type: ContentType.Video, durationSeconds: 42 });
+      const unknownVideo = await seedContent(org.id, { type: ContentType.Video });
+
+      const saved = await service.addItems(playlist.id, org.id, [
+        { contentId: video.id, durationSeconds: 5 },
+        { contentId: unknownVideo.id },
+      ]);
+
+      expect(saved.map((i) => i.durationSeconds)).toEqual([42, 30]);
+    });
+
+    it('should reject content from another organisation and insert nothing', async () => {
+      const org = await seedOrg();
+      const other = await seedOrg();
+      const playlist = await seedPlaylist(org.id);
+      const own = await seedContent(org.id);
+      const foreign = await seedContent(other.id);
+
+      await expect(
+        service.addItems(playlist.id, org.id, [{ contentId: own.id }, { contentId: foreign.id }]),
+      ).rejects.toThrow(BadRequestException);
+
+      const rows = await db
+        .select()
+        .from(playlistItems)
+        .where(eq(playlistItems.playlistId, playlist.id));
+      expect(rows).toHaveLength(0);
+      expect(emit).not.toHaveBeenCalled();
+    });
+
+    it('should throw when the playlist belongs to another organisation', async () => {
+      const org = await seedOrg();
+      const other = await seedOrg();
+      const playlist = await seedPlaylist(other.id);
+      const content = await seedContent(org.id);
+
+      await expect(
+        service.addItems(playlist.id, org.id, [{ contentId: content.id }]),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('updateAllItems', () => {
+    async function seedMixedPlaylist() {
+      const org = await seedOrg();
+      const playlist = await seedPlaylist(org.id);
+      const image = await seedContent(org.id, { type: ContentType.Image });
+      const video = await seedContent(org.id, { type: ContentType.Video, durationSeconds: 42 });
+      await db.insert(playlistItems).values([
+        { playlistId: playlist.id, contentId: image.id, position: 0, durationSeconds: 10 },
+        { playlistId: playlist.id, contentId: video.id, position: 1, durationSeconds: 42 },
+        { playlistId: playlist.id, contentId: image.id, position: 2, durationSeconds: 15 },
+      ]);
+      return { org, playlist };
+    }
+
+    async function itemsOf(playlistId: string) {
+      return db
+        .select()
+        .from(playlistItems)
+        .where(eq(playlistItems.playlistId, playlistId))
+        .orderBy(asc(playlistItems.position));
+    }
+
+    it('should set the duration on image items only', async () => {
+      const { org, playlist } = await seedMixedPlaylist();
+
+      const result = await service.updateAllItems(playlist.id, org.id, { durationSeconds: 20 });
+
+      expect(result).toEqual({ updated: 2 });
+      expect((await itemsOf(playlist.id)).map((i) => i.durationSeconds)).toEqual([20, 42, 20]);
+      expect(emit).toHaveBeenCalledTimes(1);
+      expect(emit).toHaveBeenCalledWith(
+        PLAYLIST_UPDATED,
+        expect.objectContaining({ playlistId: playlist.id }),
+      );
+    });
+
+    it('should set transition fields on every item', async () => {
+      const { org, playlist } = await seedMixedPlaylist();
+
+      const result = await service.updateAllItems(playlist.id, org.id, {
+        transition: TransitionType.ZoomIn,
+        transitionDurationMs: 1200,
+      });
+
+      expect(result).toEqual({ updated: 3 });
+      const items = await itemsOf(playlist.id);
+      expect(items.every((i) => i.transition === TransitionType.ZoomIn)).toBe(true);
+      expect(items.every((i) => i.transitionDurationMs === 1200)).toBe(true);
+      expect(items.map((i) => i.durationSeconds)).toEqual([10, 42, 15]);
+    });
+
+    it('should reject an empty patch', async () => {
+      const { org, playlist } = await seedMixedPlaylist();
+
+      await expect(service.updateAllItems(playlist.id, org.id, {})).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(emit).not.toHaveBeenCalled();
+    });
+
+    it('should throw when the playlist belongs to another organisation', async () => {
+      const { playlist } = await seedMixedPlaylist();
+      const other = await seedOrg();
+
+      await expect(
+        service.updateAllItems(playlist.id, other.id, { transition: TransitionType.Cut }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('removeItem', () => {
     it('should remove an item from the playlist', async () => {
       const org = await seedOrg();

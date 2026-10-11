@@ -504,53 +504,45 @@ describe('Playlists', () => {
       expect(component.contentLoading).toBe(false);
     });
 
-    it('adds an image with a 10s default duration and reloads', () => {
+    it('adds the picked content in click order with per-type default durations', () => {
       component.selectedPlaylist = buildPlaylist({ id: 'p1' });
-      component.addContentToPlaylist(buildContent({ id: 'cImg', type: 'image' }));
-
-      const post = httpMock.expectOne('/api/playlists/p1/items');
-      expect(post.request.body).toEqual({
-        contentId: 'cImg',
-        durationSeconds: 10,
-        transition: 'fade',
-        transitionDurationMs: 500,
-      });
-      post.flush(buildItem());
-      httpMock.expectOne('/api/playlists/p1').flush(buildPlaylist({ id: 'p1' }));
-    });
-
-    it('adds a video using its own duration as default', () => {
-      component.selectedPlaylist = buildPlaylist({ id: 'p1' });
-      component.addContentToPlaylist(
+      component.showAddContent = true;
+      component.addContentsToPlaylist([
         buildContent({ id: 'cVid', type: 'video', durationSeconds: 42 }),
-      );
+        buildContent({ id: 'cImg', type: 'image' }),
+        buildContent({ id: 'cNew', type: 'video', durationSeconds: null }),
+      ]);
 
-      const post = httpMock.expectOne('/api/playlists/p1/items');
-      expect(post.request.body.durationSeconds).toBe(42);
-      post.flush(buildItem());
+      const post = httpMock.expectOne('/api/playlists/p1/items/bulk');
+      expect(post.request.body).toEqual({
+        items: [
+          { contentId: 'cVid', durationSeconds: 42, transition: 'fade', transitionDurationMs: 500 },
+          { contentId: 'cImg', durationSeconds: 10, transition: 'fade', transitionDurationMs: 500 },
+          { contentId: 'cNew', durationSeconds: 30, transition: 'fade', transitionDurationMs: 500 },
+        ],
+      });
+      post.flush([buildItem(), buildItem(), buildItem()]);
       httpMock.expectOne('/api/playlists/p1').flush(buildPlaylist({ id: 'p1' }));
+      expect(component.showAddContent).toBe(false);
+      expect(lastToast()?.type).toBe('success');
     });
 
-    it('uses 30s when a video has no known duration', () => {
+    it('sends nothing for an empty selection', () => {
       component.selectedPlaylist = buildPlaylist({ id: 'p1' });
-      component.addContentToPlaylist(
-        buildContent({ id: 'cVid', type: 'video', durationSeconds: null }),
-      );
-
-      const post = httpMock.expectOne('/api/playlists/p1/items');
-      expect(post.request.body.durationSeconds).toBe(30);
-      post.flush(buildItem());
-      httpMock.expectOne('/api/playlists/p1').flush(buildPlaylist({ id: 'p1' }));
+      component.addContentsToPlaylist([]);
+      httpMock.expectNone('/api/playlists/p1/items/bulk');
     });
 
-    it('surfaces an add error', () => {
+    it('keeps the modal open and surfaces an add error', () => {
       component.selectedPlaylist = buildPlaylist({ id: 'p1' });
-      component.addContentToPlaylist(buildContent());
+      component.showAddContent = true;
+      component.addContentsToPlaylist([buildContent()]);
       httpMock
-        .expectOne('/api/playlists/p1/items')
+        .expectOne('/api/playlists/p1/items/bulk')
         .flush({ message: 'limit' }, { status: 400, statusText: 'Bad Request' });
 
       expect(component.editorError).toBe('limit');
+      expect(component.showAddContent).toBe(true);
     });
 
     it('closeAddContent hides the modal', () => {
@@ -681,6 +673,48 @@ describe('Playlists', () => {
       const patch = httpMock.expectOne('/api/playlists/p1/items/i1');
       expect(patch.request.body).toEqual({ transition: 'zoom-in' });
       patch.flush(item);
+      httpMock.expectOne('/api/playlists/p1').flush(buildPlaylist({ id: 'p1' }));
+    });
+
+    it('merges edits of different fields within the window into one PATCH', () => {
+      const item = buildItem({ id: 'i1' });
+      component.selectedPlaylist = buildPlaylist({ id: 'p1', items: [item] });
+      component.updateItemDuration(item, 25);
+      vi.advanceTimersByTime(400);
+      component.updateItemTransition(item, 'cut');
+      vi.advanceTimersByTime(800);
+
+      const patch = httpMock.expectOne('/api/playlists/p1/items/i1');
+      expect(patch.request.body).toEqual({ durationSeconds: 25, transition: 'cut' });
+      patch.flush(item);
+      httpMock.expectOne('/api/playlists/p1').flush(buildPlaylist({ id: 'p1' }));
+    });
+
+    it('applyToAllItems cancels pending item PATCHes and patches every item', () => {
+      const item = buildItem({ id: 'i1' });
+      component.selectedPlaylist = buildPlaylist({ id: 'p1', items: [item] });
+      component.updateItemTransition(item, 'cut');
+      component.applyToAllItems({ transition: 'zoom-in' });
+
+      const bulk = httpMock.expectOne('/api/playlists/p1/items');
+      expect(bulk.request.method).toBe('PATCH');
+      expect(bulk.request.body).toEqual({ transition: 'zoom-in' });
+      bulk.flush({ updated: 1 });
+      httpMock.expectOne('/api/playlists/p1').flush(buildPlaylist({ id: 'p1' }));
+
+      vi.advanceTimersByTime(900);
+      httpMock.expectNone('/api/playlists/p1/items/i1');
+      expect(lastToast()?.type).toBe('success');
+    });
+
+    it('applyToAllItems surfaces an error and reloads', () => {
+      component.selectedPlaylist = buildPlaylist({ id: 'p1' });
+      component.applyToAllItems({ durationSeconds: 20 });
+      httpMock
+        .expectOne('/api/playlists/p1/items')
+        .flush({ message: 'nope' }, { status: 400, statusText: 'Bad Request' });
+
+      expect(component.editorError).toBe('nope');
       httpMock.expectOne('/api/playlists/p1').flush(buildPlaylist({ id: 'p1' }));
     });
 

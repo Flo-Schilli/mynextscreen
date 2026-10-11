@@ -151,19 +151,110 @@ describe('PlaylistAddContentModal', () => {
     expect(img.nativeElement.getAttribute('src')).toBe('/thumb/c9');
   });
 
-  it('emits selectContent with the picked content', () => {
-    const picked = buildContent({ id: 'pick' });
-    fixture.componentRef.setInput('availableContent', [picked]);
+  describe('ordered multi-selection', () => {
+    function row(id: string) {
+      return fixture.debugElement.query(By.css(`button[data-content-id="${id}"]`));
+    }
+
+    function click(id: string): void {
+      row(id).triggerEventHandler('click', new MouseEvent('click'));
+      fixture.detectChanges();
+    }
+
+    function badge(id: string): string | null {
+      const el = row(id).query(By.css('.selection-badge'));
+      return el ? (el.nativeElement.textContent as string).trim() : null;
+    }
+
+    function addButton() {
+      return fixture.debugElement
+        .queryAll(By.css('mns-btn'))
+        .find((b) => (b.nativeElement.textContent as string).includes('Add'))!;
+    }
+
+    beforeEach(() => {
+      fixture.componentRef.setInput('availableContent', [
+        buildContent({ id: 'a', title: 'A' }),
+        buildContent({ id: 'b', title: 'B', type: 'video' }),
+        buildContent({ id: 'c', title: 'C' }),
+      ]);
+      fixture.detectChanges();
+    });
+
+    it('numbers rows in click order', () => {
+      click('b');
+      click('a');
+      click('c');
+
+      expect([badge('a'), badge('b'), badge('c')]).toEqual(['2', '1', '3']);
+      expect(row('b').nativeElement.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('emits the selection in click order', () => {
+      const spy = vi.fn();
+      component.addSelected.subscribe(spy);
+      click('b');
+      click('a');
+      click('c');
+
+      addButton().triggerEventHandler('mnsClick', new MouseEvent('click'));
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy.mock.calls[0][0].map((c: Content) => c.id)).toEqual(['b', 'a', 'c']);
+    });
+
+    it('renumbers the remaining rows when one is deselected', () => {
+      click('b');
+      click('a');
+      click('c');
+      click('b');
+
+      expect([badge('a'), badge('b'), badge('c')]).toEqual(['1', null, '2']);
+    });
+
+    it('keeps the selection across filter and search changes', () => {
+      click('c');
+      component['filter'].set('video');
+      component['query'].set('B');
+      fixture.detectChanges();
+      click('b');
+      component['filter'].set(undefined);
+      component['query'].set('');
+      fixture.detectChanges();
+
+      expect([badge('a'), badge('b'), badge('c')]).toEqual([null, '2', '1']);
+    });
+
+    it('disables the add button until something is selected', () => {
+      expect(addButton().componentInstance.disabled()).toBe(true);
+      click('a');
+      expect(addButton().componentInstance.disabled()).toBe(false);
+    });
+
+    it('clears the selection', () => {
+      click('a');
+      const clear = fixture.debugElement
+        .queryAll(By.css('mns-btn'))
+        .find((b) => (b.nativeElement.textContent as string).includes('Clear selection'))!;
+      clear.triggerEventHandler('mnsClick', new MouseEvent('click'));
+      fixture.detectChanges();
+
+      expect(badge('a')).toBeNull();
+    });
+  });
+
+  it('sorts content naturally by title', () => {
+    fixture.componentRef.setInput('availableContent', [
+      buildContent({ id: 'x10', title: 'Bild 10' }),
+      buildContent({ id: 'x2', title: 'bild 2' }),
+      buildContent({ id: 'x1', title: 'Bild 1' }),
+    ]);
     fixture.detectChanges();
 
-    const spy = vi.fn();
-    component.selectContent.subscribe(spy);
-    const row = fixture.debugElement
-      .queryAll(By.css('button'))
-      .find((b) => (b.nativeElement.textContent as string).includes('Clip'));
-    row!.triggerEventHandler('click', new MouseEvent('click'));
-
-    expect(spy).toHaveBeenCalledWith(picked);
+    const ids = fixture.debugElement
+      .queryAll(By.css('button[data-content-id]'))
+      .map((b) => b.nativeElement.getAttribute('data-content-id'));
+    expect(ids).toEqual(['x1', 'x2', 'x10']);
   });
 
   it('emits dismiss when Close is clicked', () => {

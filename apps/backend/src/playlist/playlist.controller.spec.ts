@@ -40,6 +40,8 @@ describe('PlaylistController', () => {
       bulkDelete: jest.fn(),
       bulkAssignScreen: jest.fn(),
       addItem: jest.fn(),
+      addItems: jest.fn(),
+      updateAllItems: jest.fn(),
       updateItem: jest.fn(),
       removeItem: jest.fn(),
       reorderItems: jest.fn(),
@@ -147,6 +149,30 @@ describe('PlaylistController', () => {
 
       expect(service.addItem).toHaveBeenCalledWith(playlistId, orgId, dto);
       expect(result).toEqual(mockItem);
+    });
+  });
+
+  describe('addItems', () => {
+    it('should call service.addItems with the ordered items', async () => {
+      const items = [{ contentId: 'content-2' }, { contentId: 'content-1', durationSeconds: 5 }];
+      service.addItems.mockResolvedValue([mockItem, mockItem]);
+
+      const result = await controller.addItems(orgId, playlistId, { items });
+
+      expect(service.addItems).toHaveBeenCalledWith(playlistId, orgId, items);
+      expect(result).toEqual([mockItem, mockItem]);
+    });
+  });
+
+  describe('updateAllItems', () => {
+    it('should call service.updateAllItems with organisationId, playlistId, and dto', async () => {
+      const dto = { transition: TransitionType.Cut };
+      service.updateAllItems.mockResolvedValue({ updated: 3 });
+
+      const result = await controller.updateAllItems(orgId, playlistId, dto);
+
+      expect(service.updateAllItems).toHaveBeenCalledWith(playlistId, orgId, dto);
+      expect(result).toEqual({ updated: 3 });
     });
   });
 

@@ -358,6 +358,177 @@ describe('PlaylistEditor', () => {
     });
   });
 
+  describe('typed duration', () => {
+    let item: PlaylistItem;
+    let spy: ReturnType<typeof vi.fn<(value: unknown) => void>>;
+
+    function field(): HTMLInputElement {
+      return fixture.debugElement.query(By.css('input.duration-input')).nativeElement;
+    }
+
+    function type(value: string, event: 'blur' | 'enter' | 'escape' = 'blur'): void {
+      const input = fixture.debugElement.query(By.css('input.duration-input'));
+      input.nativeElement.value = value;
+      if (event === 'blur') {
+        input.triggerEventHandler('blur', new FocusEvent('blur'));
+      } else {
+        input.nativeElement.dispatchEvent(
+          new KeyboardEvent('keydown', { key: event === 'enter' ? 'Enter' : 'Escape' }),
+        );
+        input.triggerEventHandler('blur', new FocusEvent('blur'));
+      }
+    }
+
+    beforeEach(() => {
+      item = buildItem({ id: 'i1', durationSeconds: 10 });
+      fixture.componentRef.setInput('playlist', buildPlaylist({ items: [item] }));
+      fixture.detectChanges();
+      spy = vi.fn();
+      component.durationChange.subscribe(spy);
+    });
+
+    it('shows the current duration', () => {
+      expect(field().value).toBe('10');
+    });
+
+    it('emits durationChange with the typed value on blur', () => {
+      type('45');
+      expect(spy).toHaveBeenCalledWith({ item, value: 45 });
+    });
+
+    it('emits on Enter', () => {
+      type('120', 'enter');
+      expect(spy).toHaveBeenCalledWith({ item, value: 120 });
+    });
+
+    it('rounds a decimal entry', () => {
+      type('7.6');
+      expect(spy).toHaveBeenCalledWith({ item, value: 8 });
+      expect(field().value).toBe('8');
+    });
+
+    it.each(['0', '-3', '', 'abc'])('snaps back to the saved value for "%s"', (raw) => {
+      type(raw);
+      expect(spy).not.toHaveBeenCalled();
+      expect(field().value).toBe('10');
+    });
+
+    it('does not emit when the value is unchanged', () => {
+      type('10');
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('discards the entry on Escape', () => {
+      type('99', 'escape');
+      expect(spy).not.toHaveBeenCalled();
+      expect(field().value).toBe('10');
+    });
+  });
+
+  describe('apply to all items', () => {
+    const video = (id: string): PlaylistItem =>
+      buildItem({
+        id,
+        durationSeconds: 42,
+        content: {
+          id: 'v1',
+          title: 'Movie',
+          type: 'video',
+          originalFilename: 'm.mp4',
+          transcodingStatus: 'completed',
+          durationSeconds: 42,
+          thumbnailSizeBytes: null,
+        },
+      });
+
+    function bar() {
+      return fixture.debugElement.query(By.css('.apply-all'));
+    }
+
+    function setInputValue(selector: string, value: string): void {
+      const input = fixture.debugElement.query(By.css(selector));
+      input.nativeElement.value = value;
+      input.triggerEventHandler('input', new Event('input'));
+      fixture.detectChanges();
+    }
+
+    function clickApply(selector: string): void {
+      fixture.debugElement
+        .query(By.css(selector))
+        .triggerEventHandler('mnsClick', new MouseEvent('click'));
+    }
+
+    it('is hidden for a playlist with a single item', () => {
+      fixture.componentRef.setInput('playlist', buildPlaylist({ items: [buildItem()] }));
+      fixture.detectChanges();
+      expect(bar()).toBeNull();
+    });
+
+    describe('with several items', () => {
+      let spy: ReturnType<typeof vi.fn<(value: unknown) => void>>;
+
+      beforeEach(() => {
+        fixture.componentRef.setInput(
+          'playlist',
+          buildPlaylist({
+            items: [
+              video('i0'),
+              buildItem({ id: 'i1', durationSeconds: 15, transitionDurationMs: 800 }),
+            ],
+          }),
+        );
+        fixture.detectChanges();
+        spy = vi.fn();
+        component.applyToAll.subscribe(spy);
+      });
+
+      it('seeds the duration from the first image', () => {
+        expect(bar().query(By.css('input.apply-all-duration')).nativeElement.value).toBe('15');
+      });
+
+      it('emits only the duration', () => {
+        setInputValue('input.apply-all-duration', '20');
+        clickApply('.apply-all-duration-btn');
+        expect(spy).toHaveBeenCalledWith({ durationSeconds: 20 });
+      });
+
+      it('disables the duration apply for an invalid entry', () => {
+        setInputValue('input.apply-all-duration', '0');
+        expect(
+          fixture.debugElement
+            .query(By.css('.apply-all-duration-btn'))
+            .componentInstance.disabled(),
+        ).toBe(true);
+      });
+
+      it('emits only the transition', () => {
+        bar().query(By.css('mns-select')).triggerEventHandler('changed', 'zoom-in');
+        fixture.detectChanges();
+        clickApply('.apply-all-transition-btn');
+        expect(spy).toHaveBeenCalledWith({ transition: 'zoom-in' });
+      });
+
+      it('emits only the transition duration within 0–3000 ms', () => {
+        setInputValue('input.apply-all-transition-ms', '1200');
+        clickApply('.apply-all-transition-ms-btn');
+        expect(spy).toHaveBeenCalledWith({ transitionDurationMs: 1200 });
+
+        setInputValue('input.apply-all-transition-ms', '3500');
+        expect(
+          fixture.debugElement
+            .query(By.css('.apply-all-transition-ms-btn'))
+            .componentInstance.disabled(),
+        ).toBe(true);
+      });
+    });
+
+    it('disables the duration control when the playlist holds no images', () => {
+      fixture.componentRef.setInput('playlist', buildPlaylist({ items: [video('a'), video('b')] }));
+      fixture.detectChanges();
+      expect(bar().query(By.css('input.apply-all-duration')).nativeElement.disabled).toBe(true);
+    });
+  });
+
   describe('inline preview', () => {
     it('does not render the preview card when no item is previewing', () => {
       fixture.detectChanges();

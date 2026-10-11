@@ -208,6 +208,49 @@ describe('PlaylistService', () => {
     });
   });
 
+  describe('addItems', () => {
+    it('should POST the items in order to /api/playlists/:id/items/bulk with the org header', () => {
+      // Arrange
+      const items: AddPlaylistItemRequest[] = [
+        { contentId: 'c2', durationSeconds: 10 },
+        { contentId: 'c1', durationSeconds: 30 },
+      ];
+      const expected = [buildItem({ contentId: 'c2' }), buildItem({ contentId: 'c1' })];
+      let result: PlaylistItem[] | undefined;
+
+      // Act
+      service.addItems(ORG_ID, 'p1', items).subscribe((res) => (result = res));
+
+      // Assert
+      const req = httpMock.expectOne('/api/playlists/p1/items/bulk');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ items });
+      expect(req.request.headers.get('X-Organisation-Id')).toBe(ORG_ID);
+      req.flush(expected);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('updateAllItems', () => {
+    it('should PATCH /api/playlists/:id/items with the patch and org header', () => {
+      // Arrange
+      let result: { updated: number } | undefined;
+
+      // Act
+      service
+        .updateAllItems(ORG_ID, 'p1', { transition: 'cut' })
+        .subscribe((res) => (result = res));
+
+      // Assert
+      const req = httpMock.expectOne('/api/playlists/p1/items');
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual({ transition: 'cut' });
+      expect(req.request.headers.get('X-Organisation-Id')).toBe(ORG_ID);
+      req.flush({ updated: 3 });
+      expect(result).toEqual({ updated: 3 });
+    });
+  });
+
   describe('removeItem', () => {
     it('should DELETE /api/playlists/:id/items/:itemId with the org header', () => {
       // Arrange

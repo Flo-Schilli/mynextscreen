@@ -688,7 +688,20 @@
       "transitionMs": "{ms}ms",
       "removeFromPlaylist": "Remove from playlist",
       "previewTitle": "Preview: {title}",
-      "previewAlt": "Preview"
+      "previewAlt": "Preview",
+      "durationInput": "Duration in seconds",
+      "transitionMsInput": "Transition duration in milliseconds",
+      "applyAll": {
+        "title": "All items",
+        "duration": "Duration (s)",
+        "imagesOnly": "images only",
+        "transition": "Transition",
+        "transitionMs": "Transition (ms)",
+        "apply": "Apply",
+        "applyDurationAria": "Apply duration to all images",
+        "applyTransitionAria": "Apply transition to all items",
+        "applyTransitionMsAria": "Apply transition duration to all items"
+      }
     },
     "transition": {
       "cut": "Cut",
@@ -724,7 +737,11 @@
       "videos": "Videos",
       "loading": "Loading content library…",
       "empty": "No content available. Upload content first.",
-      "noMatches": "No content matches your search."
+      "noMatches": "No content matches your search.",
+      "selectHint": "Click content in the order you want. It is appended to the end of the playlist in that order.",
+      "clearSelection": "Clear selection",
+      "addSelected": "{count, plural, =0 {Add} one {Add # item} other {Add # items}}",
+      "selectedPosition": "Selected as number {position}"
     },
     "assignScreen": {
       "title": "Assign to screen",
@@ -751,11 +768,12 @@
       "deleted": "Playlist deleted.",
       "setDefault": "Set as default playlist.",
       "clearedDefault": "Default playlist cleared.",
-      "itemAdded": "Item added to playlist.",
       "itemRemoved": "Item removed from playlist.",
       "orderSaved": "Playlist order saved.",
       "linkCopied": "Link copied to clipboard.",
-      "linkCopyFailed": "Could not copy link."
+      "linkCopyFailed": "Could not copy link.",
+      "itemsAdded": "{count, plural, one {# item added to playlist.} other {# items added to playlist.}}",
+      "appliedToAll": "{count, plural, one {Applied to # item.} other {Applied to # items.}}"
     },
     "errors": {
       "loadPlaylists": "Failed to load playlists.",
@@ -770,7 +788,8 @@
       "addItem": "Failed to add item.",
       "removeItem": "Failed to remove item.",
       "reorderItems": "Failed to reorder items.",
-      "loadScreens": "Failed to load screens."
+      "loadScreens": "Failed to load screens.",
+      "applyToAll": "Failed to apply the setting to all items."
     }
   },
   "schedules": {
