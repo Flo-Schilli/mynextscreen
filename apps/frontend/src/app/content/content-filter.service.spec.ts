@@ -83,5 +83,14 @@ describe('ContentFilterService', () => {
       service.filterContents(input, 'image', []);
       expect(input).toEqual([video, image]);
     });
+
+    it('sorts by title with numbers in numeric order', () => {
+      const titles = ['Bild 10', 'bild 2', 'Aftermovie', 'Bild 1'];
+      const input = titles.map((title, i) => makeContent({ id: `c${i}`, title }));
+
+      const result = service.filterContents(input, undefined, []);
+
+      expect(result.map((c) => c.title)).toEqual(['Aftermovie', 'Bild 1', 'bild 2', 'Bild 10']);
+    });
   });
 });
