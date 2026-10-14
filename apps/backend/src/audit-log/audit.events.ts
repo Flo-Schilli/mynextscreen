@@ -71,6 +71,23 @@ export class AuditScreenEvent {
   ) {}
 }
 
+// ── Content sources ──────────────────────────────────────────────────────────
+export const AUDIT_CONTENT_SOURCE_CREATED = 'audit.content_source.created';
+export const AUDIT_CONTENT_SOURCE_UPDATED = 'audit.content_source.updated';
+export const AUDIT_CONTENT_SOURCE_DELETED = 'audit.content_source.deleted';
+export const AUDIT_CONTENT_SOURCE_SYNCED = 'audit.content_source.synced';
+export const AUDIT_CONTENT_SOURCE_SYNC_FAILED = 'audit.content_source.sync_failed';
+
+/** `userId` is null for scheduled syncs. */
+export class AuditContentSourceEvent {
+  constructor(
+    public readonly sourceId: string,
+    public readonly organisationId: string,
+    public readonly userId: string | null,
+    public readonly details: Record<string, unknown> | null,
+  ) {}
+}
+
 // ── Site agents ──────────────────────────────────────────────────────────────
 export const AUDIT_SITE_AGENT_CREATED = 'audit.site_agent.created';
 export const AUDIT_SITE_AGENT_UPDATED = 'audit.site_agent.updated';

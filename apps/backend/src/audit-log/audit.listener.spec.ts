@@ -12,6 +12,7 @@ import {
   AuditLiveStreamEvent,
   AuditAuthEvent,
   AuditEmailEvent,
+  AuditContentSourceEvent,
 } from './audit.events';
 
 describe('AuditListener', () => {
@@ -828,6 +829,29 @@ describe('AuditListener', () => {
       organisationId: null,
       userId: null,
       details: { to: 'a@b.com', subject: 'Verify', reason: 'SMTP down' },
+    });
+  });
+
+  // ── Content Source Events ──────────────────────────────────────────────
+
+  it.each([
+    ['handleContentSourceCreated', AuditAction.ContentSourceCreated],
+    ['handleContentSourceUpdated', AuditAction.ContentSourceUpdated],
+    ['handleContentSourceDeleted', AuditAction.ContentSourceDeleted],
+    ['handleContentSourceSynced', AuditAction.ContentSourceSynced],
+    ['handleContentSourceSyncFailed', AuditAction.ContentSourceSyncFailed],
+  ] as const)('should map %s to %s', (handler, action) => {
+    const event = new AuditContentSourceEvent(resourceId, orgId, null, { rendered: 3 });
+
+    listener[handler](event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action,
+      resourceType: 'content_source',
+      resourceId,
+      organisationId: orgId,
+      userId: null,
+      details: { rendered: 3 },
     });
   });
 

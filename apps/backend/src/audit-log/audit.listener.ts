@@ -31,6 +31,12 @@ import {
   AUDIT_SCREEN_BULK_GROUP_ASSIGNED,
   AUDIT_SCREEN_PAIRING_FAILED,
   AuditScreenEvent,
+  AUDIT_CONTENT_SOURCE_CREATED,
+  AUDIT_CONTENT_SOURCE_UPDATED,
+  AUDIT_CONTENT_SOURCE_DELETED,
+  AUDIT_CONTENT_SOURCE_SYNCED,
+  AUDIT_CONTENT_SOURCE_SYNC_FAILED,
+  AuditContentSourceEvent,
   AUDIT_SITE_AGENT_CREATED,
   AUDIT_SITE_AGENT_UPDATED,
   AUDIT_SITE_AGENT_DELETED,
@@ -695,6 +701,33 @@ export class AuditListener {
 
   // ── Helper ───────────────────────────────────────────────────────────────
 
+  // ── Content sources ────────────────────────────────────────────────────────
+
+  @OnEvent(AUDIT_CONTENT_SOURCE_CREATED, { async: true })
+  handleContentSourceCreated(event: AuditContentSourceEvent): void {
+    this.recordContentSource(AuditAction.ContentSourceCreated, event);
+  }
+
+  @OnEvent(AUDIT_CONTENT_SOURCE_UPDATED, { async: true })
+  handleContentSourceUpdated(event: AuditContentSourceEvent): void {
+    this.recordContentSource(AuditAction.ContentSourceUpdated, event);
+  }
+
+  @OnEvent(AUDIT_CONTENT_SOURCE_DELETED, { async: true })
+  handleContentSourceDeleted(event: AuditContentSourceEvent): void {
+    this.recordContentSource(AuditAction.ContentSourceDeleted, event);
+  }
+
+  @OnEvent(AUDIT_CONTENT_SOURCE_SYNCED, { async: true })
+  handleContentSourceSynced(event: AuditContentSourceEvent): void {
+    this.recordContentSource(AuditAction.ContentSourceSynced, event);
+  }
+
+  @OnEvent(AUDIT_CONTENT_SOURCE_SYNC_FAILED, { async: true })
+  handleContentSourceSyncFailed(event: AuditContentSourceEvent): void {
+    this.recordContentSource(AuditAction.ContentSourceSyncFailed, event);
+  }
+
   // ── Site agents ────────────────────────────────────────────────────────────
 
   @OnEvent(AUDIT_SITE_AGENT_CREATED, { async: true })
@@ -765,6 +798,17 @@ export class AuditListener {
   @OnEvent(AUDIT_SCREEN_REMOTE_ADDRESS_CHANGED, { async: true })
   handleScreenRemoteAddressChanged(event: AuditScreenRemoteEvent): void {
     this.recordScreenRemote(AuditAction.ScreenRemoteAddressChanged, event);
+  }
+
+  private recordContentSource(action: AuditAction, event: AuditContentSourceEvent): void {
+    this.record(
+      action,
+      'content_source',
+      event.sourceId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
   }
 
   private recordSiteAgent(action: AuditAction, event: AuditSiteAgentEvent): void {
