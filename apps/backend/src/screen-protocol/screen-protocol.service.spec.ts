@@ -329,8 +329,10 @@ describe('ScreenProtocolService', () => {
             expect.objectContaining({
               type: ScreenEventType.GroupPlay,
               payload: expect.objectContaining({
-                contentUrl: expect.stringContaining(
-                  `/api/media/slices/${gid}/${screen.id}/${contentItemId}?s=`,
+                contentUrl: expect.stringMatching(
+                  new RegExp(
+                    `^/api/media/slices/${gid}/${screen.id}/${contentItemId}\\?s=.+&sig=[^&]+&v=hash$`,
+                  ),
                 ),
                 contentType: 'video',
                 groupId: gid,
