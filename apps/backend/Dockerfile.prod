@@ -33,8 +33,10 @@ ARG ALPINE_REFRESH=unset
 RUN echo "alpine package refresh: ${ALPINE_REFRESH}" \
     && apk upgrade --no-cache
 
-# ffmpeg for transcoding + live streaming; tini as PID 1 for clean signal handling
-RUN apk add --no-cache ffmpeg tini
+# ffmpeg for transcoding + live streaming; tini as PID 1 for clean signal handling.
+# fontconfig + fonts for the content-source slide renderer: sharp/libvips draws
+# the SVG text with the system fonts, and without any the text renders empty.
+RUN apk add --no-cache ffmpeg tini fontconfig font-dejavu font-liberation
 
 WORKDIR /app
 
