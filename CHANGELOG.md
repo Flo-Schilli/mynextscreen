@@ -26,6 +26,16 @@ minutes by default, and the moment an event ends: at the end of its day plus a
 grace period (default four hours) in the organisation's time zone. Its items
 cannot be edited by hand, and a playlist keeps the kind it was created with.
 
+Websites spell the same venue in several ways ("Der Hirsch" next to "Hirsch").
+On a source's page an editor maps such spellings to one **canonical venue**:
+the list shows every venue name the current events use, with its event count,
+and aliases can be added for spellings the site does not use right now. The
+venue pickers, the event pool, rule previews and summaries then show only the
+canonical name, a rule on "Hirsch" also picks the "Der Hirsch" events, and
+the source's dynamic playlists are recalculated right after saving. The
+slides keep the website's spelling. The event pool can be filtered by venue,
+genre and date and pages with "load more", showing how many events match.
+
 Once a day the server deletes the slides of events that ended more than 14
 days ago or that the site no longer lists, unless a playlist still shows them.
 
@@ -37,8 +47,9 @@ now carry the content's version, and once the new file is transcoded every
 screen showing it reloads its playlist. The same holds for re-rendered slides,
 and thumbnails in the dashboard follow the new file as well.
 
-**Operator action:** update the server. The backend migration (`0027`) adds
-`content_sources`, `source_events`, `source_event_slides`,
+**Operator action:** update the server. The backend migrations (`0027`,
+`0028`) add `content_sources` (with `venue_aliases`), `source_events`,
+`source_event_slides`,
 `contents.managed_by_source_id` and the playlist columns `kind`, `rule`,
 `next_resolve_at`, `last_resolved_at`, and runs on start. The backend image now
 ships `fontconfig` with the DejaVu and Liberation fonts; a backend run outside

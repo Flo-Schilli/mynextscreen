@@ -71,8 +71,8 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
 - **Redis** — BullMQ job queues (transcoding, slicing, content-source sync/cleanup, playlist resolve) plus _user_ refresh tokens; no other application data
 - **Screen sessions live in PostgreSQL**, not Redis, and deliberately so: Redis runs without `appendonly`, and a lost snapshot window would leave every screen that rotated inside it holding a token the server has never seen. With no credential left on the device, that is a visit per display
 - **Storage tracking** — per-organisation byte counters for originals and transcoded files, checked on upload against configurable limits
-- **Content-source tables** (migration `0027_content_sources`):
-  - `content_sources` — adapter type + params (jsonb), slide `formats` and `style`, `syncIntervalMinutes`, `enabled`, `nextSyncAt`, last sync status/error/summary
+- **Content-source tables** (migrations `0027_content_sources`, `0028_content_source_venue_aliases`):
+  - `content_sources` — adapter type + params (jsonb), slide `formats` and `style`, `syncIntervalMinutes`, `enabled`, `nextSyncAt`, last sync status/error/summary, `venueAliases` (jsonb `{ raw, canonical }[]`)
   - `source_events` — one row per scraped event, unique on `(sourceId, externalId)`; listing data, details (`imageUrl`, `ticketUrl`, `priceCents`, `currency`), `dataHash` for change detection, `firstSeenAt`/`lastSeenAt`, `goneAt` when no longer listed
   - `source_event_slides` — rendered slide per `(sourceEventId, format)`, pointing at a content row, with the `renderHash` of everything it shows
   - `contents.managedBySourceId` — set on slides; such content is hidden from library, search, bulk operations and dashboard counters (storage totals still include it)
@@ -175,6 +175,22 @@ playlists (kind=dynamic, rule) ◀──(playlist-resolve: resolve-<playlistId>)
   on the next sync. The
   text is drawn with the system fonts, so the backend image ships `fontconfig`,
   DejaVu and Liberation.
+- **Venue aliases** (`content-source/venue-aliases.ts`): a source maps raw
+  venue names to canonical ones, one level (`UpdateContentSourceDto` rejects
+  self aliases, duplicates, chains and cycles; at most 200 entries of up to
+  200 characters). They apply when the pool is **read**, never when it is
+  stored: `source_events.venue` keeps the website's spelling, the event API
+  adds `venueCanonical`, facets list canonical names only, a venue filter on
+  `GET :id/events` is widened to the raw names behind it (`rawVenuesFor`) so
+  the database still filters and counts, and the resolver compares
+  canonical names per source, rule venues included (a rule that still names
+  `Der Hirsch` means `Hirsch` once that alias exists). Reading instead of
+  storing a normalised column keeps one source of truth: an alias change
+  needs no backfill and cannot race a running sync that writes events. The
+  map is small and loaded once per request. Slides keep the raw name, so an
+  alias change re-renders nothing. A changed alias list emits
+  `content_source.venue_aliases_updated`, which queues a resolve of every
+  dynamic playlist fed by the source, like a sync.
 - **Rule engine** (`playlist/`): `PlaylistRuleDto` validates the rule (date
   bounds as tagged objects: `{ mode: 'today' | 'fixed' | 'relativeDays' }`
   and `{ mode: 'none' | 'fixed' | 'relativeDays' }`); `resolvePlaylistRule`
@@ -220,8 +236,11 @@ playlists (kind=dynamic, rule) ◀──(playlist-resolve: resolve-<playlistId>)
   references them, through `ContentService.deleteManaged` (files and quota). Gone
   events without slides are removed; past events the site still lists keep
   their row, so the next sync does not re-create them and refetch details.
-- **API**: `content-sources` (CRUD, `POST :id/sync`, `GET :id/events`,
-  `GET facets`, `GET adapters`; read for all roles, write for Org Admin and
+- **API**: `content-sources` (CRUD incl. `venueAliases`, `POST :id/sync`,
+  `GET :id/events` → `{ data, total }` with `limit` (default 200, max 500)
+  and `offset`, the shape of the audit log, `GET :id/venues` (raw venue
+  names of current events with canonical name and count), `GET facets`,
+  `GET adapters`; read for all roles, write for Org Admin and
   Editor), `POST /playlists` with `kind` + `rule`, `PATCH /playlists/:id/rule`,
   `POST /playlists/rule-preview`.
 
