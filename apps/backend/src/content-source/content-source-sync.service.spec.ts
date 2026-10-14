@@ -81,7 +81,11 @@ describe('ContentSourceSyncService', () => {
   let adapter: FakeAdapter;
   let fetcher: { getText: jest.Mock; getBuffer: jest.Mock };
   let renderer: { render: jest.Mock };
-  let contentService: { createManaged: jest.Mock; replaceManagedFile: jest.Mock };
+  let contentService: {
+    createManaged: jest.Mock;
+    replaceManagedFile: jest.Mock;
+    deleteManaged: jest.Mock;
+  };
   let emit: jest.Mock;
   let orgId: string;
   let source: ContentSource;
@@ -127,6 +131,7 @@ describe('ContentSourceSyncService', () => {
         const [row] = await db.select().from(contents).where(eq(contents.id, id));
         return row;
       }),
+      deleteManaged: jest.fn().mockResolvedValue(undefined),
     };
     emit = jest.fn();
     const registry = { get: jest.fn().mockReturnValue(adapter) };
@@ -267,17 +272,63 @@ describe('ContentSourceSyncService', () => {
   });
 
   it('marks unlisted events gone and revives them when they come back', async () => {
+    const other = listed({ externalId: 'other', title: 'Other' });
+    adapter.listing = { ...adapter.listing, events: [listed(), other] };
+    await service.sync(source.id, null, NOW);
+    const asp = async () => (await loadEvents()).find((e) => e.title === 'ASP')!;
+
+    adapter.listing = { ...adapter.listing, events: [other] };
+    const summary = await service.sync(source.id, null, NOW);
+    expect(summary?.gone).toBe(1);
+    expect((await asp()).goneAt).not.toBeNull();
+
+    adapter.listing = { ...adapter.listing, events: [listed(), other] };
+    await service.sync(source.id, null, NOW);
+    expect((await asp()).goneAt).toBeNull();
+  });
+
+  it('marks nothing gone when a complete listing comes back empty', async () => {
     adapter.listing = { ...adapter.listing, events: [listed()] };
     await service.sync(source.id, null, NOW);
 
     adapter.listing = { ...adapter.listing, events: [] };
     const summary = await service.sync(source.id, null, NOW);
-    expect(summary?.gone).toBe(1);
-    expect((await loadEvents())[0].goneAt).not.toBeNull();
+
+    expect(summary?.gone).toBe(0);
+    expect(summary?.errors).toEqual([
+      'Listing shows 0 of 1 current events; nothing was marked gone',
+    ]);
+    expect((await loadEvents())[0].goneAt).toBeNull();
+    expect((await loadSource()).lastSyncStatus).toBe('partial');
+  });
+
+  it('marks nothing gone when the listing collapses to under half', async () => {
+    adapter.listing = {
+      ...adapter.listing,
+      events: ['a', 'b', 'c', 'd'].map((id) => listed({ externalId: id, title: id })),
+    };
+    await service.sync(source.id, null, NOW);
+
+    adapter.listing = { ...adapter.listing, events: [listed({ externalId: 'a', title: 'a' })] };
+    const summary = await service.sync(source.id, null, NOW);
+
+    expect(summary?.gone).toBe(0);
+    expect((await loadEvents()).every((e) => e.goneAt === null)).toBe(true);
+    expect((await loadSource()).lastSyncStatus).toBe('partial');
+  });
+
+  it('still marks past events gone that dropped off the listing', async () => {
+    adapter.listing = {
+      ...adapter.listing,
+      events: [listed({ externalId: 'past', eventDate: '2026-10-20' }), listed()],
+    };
+    await service.sync(source.id, null, NOW);
 
     adapter.listing = { ...adapter.listing, events: [listed()] };
-    await service.sync(source.id, null, NOW);
-    expect((await loadEvents())[0].goneAt).toBeNull();
+    const summary = await service.sync(source.id, null, NOW);
+
+    expect(summary?.gone).toBe(1);
+    expect(summary?.errors).toEqual([]);
   });
 
   it('keeps events and merges genres when listing pages failed', async () => {
@@ -338,6 +389,42 @@ describe('ContentSourceSyncService', () => {
     expect(summary?.errors).toEqual(['Details of "ASP": HTTP 500']);
     expect((await loadEvents()).find((e) => e.title === 'ASP')?.imageUrl).toBeNull();
     expect((await loadSource()).lastSyncStatus).toBe('partial');
+  });
+
+  it('keeps the old listing hash when the details of a changed event fail', async () => {
+    adapter.listing = { ...adapter.listing, events: [listed()] };
+    await service.sync(source.id, null, NOW);
+    const changed = listed({ soldOut: true, statusLabels: ['AUSVERKAUFT'] });
+    adapter.listing = { ...adapter.listing, events: [changed] };
+    adapter.fetchDetails.mockRejectedValueOnce(new Error('HTTP 500'));
+
+    await service.sync(source.id, null, NOW);
+    expect((await loadEvents())[0]).toMatchObject({
+      soldOut: true,
+      dataHash: listingHash(listed()),
+    });
+
+    adapter.fetchDetails.mockClear();
+    adapter.fetchDetails.mockResolvedValueOnce({ ...DETAILS, ticketUrl: 'https://t.example/new' });
+    await service.sync(source.id, null, NOW);
+
+    expect(adapter.fetchDetails).toHaveBeenCalledTimes(1);
+    expect((await loadEvents())[0]).toMatchObject({
+      ticketUrl: 'https://t.example/new',
+      dataHash: listingHash(changed),
+    });
+  });
+
+  it('deletes a new slide content again when its slide row cannot be stored', async () => {
+    const orphanId = '00000000-0000-0000-0000-000000000001';
+    contentService.createManaged.mockResolvedValue({ id: orphanId });
+    adapter.listing = { ...adapter.listing, events: [listed()] };
+
+    const summary = await service.sync(source.id, null, NOW);
+
+    expect(summary).toMatchObject({ rendered: 0, failed: 2 });
+    expect(contentService.deleteManaged).toHaveBeenCalledTimes(2);
+    expect(contentService.deleteManaged).toHaveBeenCalledWith(orgId, orphanId);
   });
 
   it('keeps previous slides when the image cannot be downloaded', async () => {

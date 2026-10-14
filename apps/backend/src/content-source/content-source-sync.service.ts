@@ -43,6 +43,12 @@ export const MAX_SUMMARY_ERRORS = 20;
 /** Yesterday's events still show during a playlist's grace period, so they stay rendered. */
 const RENDER_LOOKBACK_DAYS = 1;
 const SLUG_MAX_LENGTH = 60;
+/**
+ * A complete listing that shows fewer than this share of the current events is
+ * distrusted: a layout change or a maintenance page served with HTTP 200 would
+ * otherwise mark every event gone and empty the playlists.
+ */
+export const MIN_LISTING_SHARE = 0.5;
 
 interface SyncRun {
   source: ContentSource;
@@ -192,11 +198,30 @@ export class ContentSourceSyncService {
       );
     }
 
+    const warnings = [...listing.warnings];
     // A failed listing page would make its events look removed; only mark gone on a full listing.
     if (listing.listingComplete) {
-      run.summary.gone = await this.markGone(run.source.id, listing.events);
+      const collapse = this.listingCollapse(run, listing.events, existing);
+      if (collapse) {
+        warnings.push(collapse);
+      } else {
+        run.summary.gone = await this.markGone(run.source.id, listing.events);
+      }
     }
-    return listing.warnings;
+    return warnings;
+  }
+
+  /** A warning when the listing shows too few of the current (not yet past) events. */
+  private listingCollapse(
+    run: SyncRun,
+    listed: ListedEvent[],
+    existing: SourceEvent[],
+  ): string | null {
+    const { today } = run.context;
+    const current = existing.filter((event) => !event.goneAt && event.eventDate >= today).length;
+    const shown = listed.filter((event) => event.eventDate >= today).length;
+    if (current === 0 || shown >= current * MIN_LISTING_SHARE) return null;
+    return `Listing shows ${shown} of ${current} current events; nothing was marked gone`;
   }
 
   private async upsertEvent(
@@ -207,7 +232,7 @@ export class ContentSourceSyncService {
   ): Promise<void> {
     const dataHash = listingHash(listed);
     const changed = previous !== undefined && previous.dataHash !== dataHash;
-    const details = await this.resolveDetails(run, listed, previous, dataHash);
+    const { details, loaded } = await this.resolveDetails(run, listed, previous, dataHash);
     // With some genre pages missing, keep what earlier syncs knew instead of dropping genres.
     const genres =
       genresComplete || !previous
@@ -228,7 +253,8 @@ export class ContentSourceSyncService {
       notes: listed.notes,
       detailUrl: listed.detailUrl,
       ...details,
-      dataHash,
+      // Without fresh details the old hash stays, so the next sync fetches them again.
+      dataHash: loaded || !previous ? dataHash : previous.dataHash,
       lastSeenAt: now,
       goneAt: null,
     };
@@ -251,13 +277,16 @@ export class ContentSourceSyncService {
     if (changed) run.summary.updated += 1;
   }
 
-  /** Details are fetched for new or changed events and retried while the image is missing. */
+  /**
+   * Details are fetched for new or changed events and retried while the image
+   * is missing. `loaded` is false when the stored details had to be kept.
+   */
   private async resolveDetails(
     run: SyncRun,
     listed: ListedEvent,
     previous: SourceEvent | undefined,
     dataHash: string,
-  ): Promise<EventDetails> {
+  ): Promise<{ details: EventDetails; loaded: boolean }> {
     const known: EventDetails | null = previous
       ? {
           imageUrl: previous.imageUrl,
@@ -267,14 +296,17 @@ export class ContentSourceSyncService {
         }
       : null;
     if (known && previous?.dataHash === dataHash && known.imageUrl) {
-      return known;
+      return { details: known, loaded: true };
     }
     try {
-      return await run.adapter.fetchDetails(listed, run.context);
+      return { details: await run.adapter.fetchDetails(listed, run.context), loaded: true };
     } catch (error) {
       run.summary.failed += 1;
       this.addError(run.summary, `Details of "${listed.title}": ${errorMessage(error)}`);
-      return known ?? { imageUrl: null, ticketUrl: null, priceCents: null, currency: null };
+      return {
+        details: known ?? { imageUrl: null, ticketUrl: null, priceCents: null, currency: null },
+        loaded: false,
+      };
     }
   }
 
@@ -381,13 +413,27 @@ export class ContentSourceSyncService {
           format,
         ]);
 
-    await this.db
-      .insert(sourceEventSlides)
-      .values({ sourceEventId: event.id, format, contentId: content.id, renderHash })
-      .onConflictDoUpdate({
-        target: [sourceEventSlides.sourceEventId, sourceEventSlides.format],
-        set: { contentId: content.id, renderHash },
-      });
+    try {
+      await this.db
+        .insert(sourceEventSlides)
+        .values({ sourceEventId: event.id, format, contentId: content.id, renderHash })
+        .onConflictDoUpdate({
+          target: [sourceEventSlides.sourceEventId, sourceEventSlides.format],
+          set: { contentId: content.id, renderHash },
+        });
+    } catch (error) {
+      // Without its slide row a new content would never be cleaned up: drop it again.
+      if (!slide) await this.discardContent(organisationId, content.id);
+      throw error;
+    }
+  }
+
+  private async discardContent(organisationId: string, contentId: string): Promise<void> {
+    try {
+      await this.contentService.deleteManaged(organisationId, contentId);
+    } catch (error) {
+      this.logger.warn(`Discarding orphaned slide ${contentId} failed: ${errorMessage(error)}`);
+    }
   }
 
   private async finish(
