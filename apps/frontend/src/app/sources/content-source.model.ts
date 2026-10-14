@@ -55,7 +55,10 @@ export interface ContentSource {
 export interface ParamField {
   key: string;
   type: 'integer';
+  /** English fallback for a `labelKey` the dashboard does not know. */
   label: string;
+  /** i18n key for the label. */
+  labelKey: string;
   min: number;
   max: number;
   default: number;

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, model } fr
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import {
   AdapterDescriptor,
+  ParamField,
   SLIDE_BACKGROUNDS,
   SLIDE_FORMATS,
   SlideBackground,
@@ -86,7 +87,7 @@ function numText(value: number | undefined): string {
 
       @for (field of schema(); track field.key) {
         <mns-sfield
-          [label]="field.label"
+          [label]="paramLabel(field)"
           [hint]="t('sources.form.paramHint', { min: field.min, max: field.max })"
         >
           <mns-sinput
@@ -121,7 +122,7 @@ function numText(value: number | undefined): string {
         </div>
       </mns-sfield>
 
-      <div class="grid gap-4 sm:grid-cols-2">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <mns-sfield [label]="t('sources.form.backgroundLabel')">
           <mns-select
             [options]="backgroundOptions()"
@@ -133,7 +134,7 @@ function numText(value: number | undefined): string {
           />
         </mns-sfield>
         <mns-sfield [label]="t('sources.form.accentLabel')" [hint]="t('sources.form.accentHint')">
-          <div class="flex items-center gap-2">
+          <div class="flex min-w-0 items-center gap-2">
             <input
               type="color"
               class="h-[38px] w-12 flex-shrink-0 rounded-[10px] border border-border-strong bg-surface cursor-pointer"
@@ -142,12 +143,16 @@ function numText(value: number | undefined): string {
               [attr.aria-label]="t('sources.form.accentLabel')"
               (input)="onColorInput($event)"
             />
-            <mns-sinput
-              [mono]="true"
-              [value]="value().style.accentColor"
-              [disabled]="disabled()"
-              (valueChange)="setAccent($event)"
-            />
+            <!-- min-w-0: without it the text field keeps its intrinsic width and
+                 pushes past the dialog edge in the two-column layout. -->
+            <div class="min-w-0 flex-1">
+              <mns-sinput
+                [mono]="true"
+                [value]="value().style.accentColor"
+                [disabled]="disabled()"
+                (valueChange)="setAccent($event)"
+              />
+            </div>
           </div>
         </mns-sfield>
       </div>
@@ -216,6 +221,15 @@ export class SourceForm {
       label: this.transloco.translate('sources.form.background.' + b),
     })),
   );
+
+  /**
+   * The adapter names an i18n key for each parameter; an adapter newer than
+   * the dashboard's translations falls back to its English label.
+   */
+  protected paramLabel(field: ParamField): string {
+    const translated = this.transloco.translate(field.labelKey);
+    return translated && translated !== field.labelKey ? translated : field.label;
+  }
 
   protected patch(change: Partial<SourceFormValue>): void {
     this.value.update((v) => ({ ...v, ...change }));

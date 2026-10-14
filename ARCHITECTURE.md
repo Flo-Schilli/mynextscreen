@@ -140,7 +140,8 @@ playlists (kind=dynamic, rule) ◀──(playlist-resolve: resolve-<playlistId>)
 ```
 
 - **Adapters** (`content-source/adapters/`) implement `ContentSourceAdapter`:
-  `paramsSchema` (the dashboard renders the form from it), `validateParams`,
+  `paramsSchema` (the dashboard renders the form from it and translates each
+  field's `labelKey`, falling back to the English `label`), `validateParams`,
   `listEvents` (listing pages, status, genres) and `fetchDetails` (image, ticket
   link, price from the detail page). Details are fetched only for new events,
   events whose listing hash changed, or while the image is still missing; when

@@ -2185,6 +2185,9 @@
       "adapterLabel": "Website",
       "adapterFixed": "Die Website lässt sich nach dem Anlegen nicht mehr ändern.",
       "paramHint": "{min}–{max}",
+      "params": {
+        "monthsAhead": "Monate im Voraus"
+      },
       "formatsLabel": "Slide-Formate",
       "formatsHint": "Pro Event und Format entsteht ein Slide.",
       "backgroundLabel": "Hintergrund",

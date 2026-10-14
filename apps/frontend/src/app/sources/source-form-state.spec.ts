@@ -16,7 +16,15 @@ const ADAPTER: AdapterDescriptor = {
   type: 'concertbuero-franken',
   label: 'Concertbüro Franken',
   paramsSchema: [
-    { key: 'monthsAhead', type: 'integer', label: 'Months ahead', min: 1, max: 24, default: 6 },
+    {
+      key: 'monthsAhead',
+      type: 'integer',
+      label: 'Months ahead',
+      labelKey: 'sources.form.params.monthsAhead',
+      min: 1,
+      max: 24,
+      default: 6,
+    },
   ],
 };
 

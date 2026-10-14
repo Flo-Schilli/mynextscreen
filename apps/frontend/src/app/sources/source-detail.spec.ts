@@ -7,13 +7,22 @@ import { SourceAccess } from './source-access';
 import { ContentSourceService } from './content-source.service';
 import { AdapterDescriptor, ContentSource, SourceEvent } from './content-source.model';
 import { ContentService } from '../content/content.service';
+import { TranslocoService } from '@jsverse/transloco';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 const ADAPTER: AdapterDescriptor = {
   type: 'concertbuero-franken',
   label: 'Concertbüro Franken',
   paramsSchema: [
-    { key: 'monthsAhead', type: 'integer', label: 'Months ahead', min: 1, max: 24, default: 6 },
+    {
+      key: 'monthsAhead',
+      type: 'integer',
+      label: 'Months ahead',
+      labelKey: 'sources.form.params.monthsAhead',
+      min: 1,
+      max: 24,
+      default: 6,
+    },
   ],
 };
 
@@ -183,5 +192,36 @@ describe('SourceDetail', () => {
     expect(fixture.nativeElement.querySelector('.sync-now')).toBeNull();
     expect(fixture.nativeElement.querySelector('.save-source')).toBeNull();
     expect(text()).toContain('Only admins and editors can change sources.');
+    const background = fixture.nativeElement.querySelector(
+      'mns-select button[aria-haspopup]',
+    ) as HTMLButtonElement;
+    expect(background.getAttribute('aria-label')).toBe('Background');
+    expect(background.disabled).toBe(true);
+  });
+
+  it('labels adapter parameters and the back link in the UI language', async () => {
+    await setUp();
+    TestBed.inject(TranslocoService).setActiveLang('de');
+    await vi.advanceTimersByTimeAsync(0);
+    fixture.detectChanges();
+
+    expect(text()).toContain('Monate im Voraus');
+    expect(text()).not.toContain('Months ahead');
+    expect(text()).toContain('Zurück');
+  });
+
+  it("falls back to the adapter's own label for an unknown parameter key", async () => {
+    service.getAdapters.mockReturnValue(
+      of([
+        {
+          ...ADAPTER,
+          paramsSchema: [{ ...ADAPTER.paramsSchema[0], labelKey: 'sources.form.params.unknown' }],
+        },
+      ]),
+    );
+    await setUp();
+
+    expect(text()).toContain('Months ahead');
+    expect(text()).not.toContain('sources.form.params.unknown');
   });
 });

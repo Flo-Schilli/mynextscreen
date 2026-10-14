@@ -2185,6 +2185,9 @@
       "adapterLabel": "Website",
       "adapterFixed": "The website cannot be changed once the source exists.",
       "paramHint": "{min}–{max}",
+      "params": {
+        "monthsAhead": "Months ahead"
+      },
       "formatsLabel": "Slide formats",
       "formatsHint": "One slide is rendered per event and format.",
       "backgroundLabel": "Background",

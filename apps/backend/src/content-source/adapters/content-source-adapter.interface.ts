@@ -26,7 +26,10 @@ export interface ContentSourceAdapter<P extends ContentSourceParams = ContentSou
 export interface ParamField {
   key: string;
   type: 'integer';
+  /** English fallback, shown when the dashboard has no translation for `labelKey`. */
   label: string;
+  /** Dashboard i18n key for the label, e.g. `sources.form.params.monthsAhead`. */
+  labelKey: string;
   min: number;
   max: number;
   default: number;

@@ -57,6 +57,7 @@ describe('ConcertbueroFrankenAdapter', () => {
         expect.objectContaining({
           key: 'monthsAhead',
           type: 'integer',
+          labelKey: 'sources.form.params.monthsAhead',
           min: 1,
           max: 24,
           default: 6,

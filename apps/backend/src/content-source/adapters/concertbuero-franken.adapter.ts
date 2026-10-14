@@ -47,6 +47,7 @@ export class ConcertbueroFrankenAdapter implements ContentSourceAdapter<Concertb
       key: 'monthsAhead',
       type: 'integer',
       label: 'Months ahead',
+      labelKey: 'sources.form.params.monthsAhead',
       min: MONTHS_AHEAD_MIN,
       max: MONTHS_AHEAD_MAX,
       default: MONTHS_AHEAD_DEFAULT,
