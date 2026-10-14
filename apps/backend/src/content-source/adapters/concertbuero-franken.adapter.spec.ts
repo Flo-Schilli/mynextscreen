@@ -82,7 +82,11 @@ describe('ConcertbueroFrankenAdapter', () => {
       expect(listing.listingComplete).toBe(true);
       expect(listing.genresComplete).toBe(true);
       expect(listing.warnings).toEqual([]);
-      expect(listing.events).toHaveLength(71);
+      // 71 detail pages; Clawfinger and Napalm Death each have a second one
+      // (`clawfinger-2-…`) for the same show, which counts once.
+      expect(listing.events).toHaveLength(69);
+      expect(listing.events.filter((e) => e.title === 'CLAWFINGER')).toHaveLength(1);
+      expect(listing.events.filter((e) => e.title === 'NAPALM DEATH')).toHaveLength(1);
       const clawfinger = listing.events.find((e) => e.detailUrl === clawfingerUrl);
       expect(clawfinger).toEqual({
         externalId: `${clawfingerUrl}#2026-11-02`,

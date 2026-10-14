@@ -85,14 +85,18 @@ export class ConcertbueroFrankenAdapter implements ContentSourceAdapter<Concertb
   ): Promise<EventListing> {
     const warnings: string[] = [];
     const byId = new Map<string, CbfListedEvent>();
+    const seenShows = new Set<string>();
     let listingComplete = true;
 
     for (const month of monthsInRange(context.today, params.monthsAhead)) {
       try {
         for (const event of parseEventList(await context.fetcher.getText(monthListUrl(month)))) {
-          // The site lists some events twice; the first occurrence wins.
-          const id = externalIdOf(event);
-          if (!byId.has(id)) byId.set(id, event);
+          // The site lists some events twice, sometimes under a second detail
+          // page (`clawfinger-2-….html`); the first occurrence wins.
+          const show = showKeyOf(event);
+          if (seenShows.has(show)) continue;
+          seenShows.add(show);
+          byId.set(externalIdOf(event), event);
         }
       } catch (error) {
         listingComplete = false;
@@ -164,6 +168,11 @@ export class ConcertbueroFrankenAdapter implements ContentSourceAdapter<Concertb
     }
     return { detailUrls, error: null };
   }
+}
+
+/** Date, artist and venue: one show, whichever detail page lists it. */
+function showKeyOf(event: CbfListedEvent): string {
+  return [event.eventDate, event.title, event.venue].join('\n');
 }
 
 /**
