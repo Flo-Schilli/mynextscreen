@@ -55,7 +55,9 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
   ├── Screen          { name, resolution/aspect, location, apiKey, heartbeat, status }
   │     └── gehört zu max. 1 ScreenGroup { mode(mirror|split), gridLayout }
   ├── Content         { title, desc, tags, originalPath, transcodedPath, sizes, status }
-  ├── Playlist        └── PlaylistItem { contentId, durationMs (für Bilder) }
+  ├── Playlist        { kind(static|dynamic), rule(jsonb), nextResolveAt } └── PlaylistItem { contentId, durationMs (für Bilder) }
+  ├── ContentSource   { adapterType, params, formats, style, syncInterval, lastSync* }
+  │     └── SourceEvent { externalId, eventDate, venue, genres, status, goneAt } └── SourceEventSlide { format, contentId(managed), renderHash }
   ├── Schedule        { screen|group, playlist, start/end, RRULE(recurring), color }
   ├── LiveStream      { sourceUrl, target screen(s)/group, ffmpeg lifecycle → HLS }
   ├── SiteAgent       { name, location, version, network(kind/ssid/ip), heartbeat; Enrolment + rotierende Sessions }
@@ -134,7 +136,8 @@ apps/
       screen-group/       # Mirror/Split-Modi, Grid-Layout
       content/            # Upload, Metadata, triggert Transcoding-Jobs (dto/)
       slice-content/      # Video-Wall-Slicing pro Screen-Viewport
-      playlist/           # Playlist-CRUD, geordnete Items mit Dauer
+      playlist/           # Playlist-CRUD, geordnete Items mit Dauer; dynamische Playlists (Regel, Resolver, Resolve-Queue)
+      content-source/     # Website-Adapter, Sync-Queue (+ täglicher Cleanup), Slide-Renderer (sharp), Event-Pool
       schedule/           # Kalender-CRUD, RRULE-Recurrence, Overlap/Fallback
       live-stream/        # Stream-URL, FFmpeg-Lifecycle, Override/Fallback (HLS)
       screen-protocol/    # Adapter-Abstraktion; JsonProtocolAdapter (erster Impl)

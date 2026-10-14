@@ -4,6 +4,47 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## Unreleased
+
+### Added — content sources and dynamic playlists
+
+Event slides no longer have to be made by hand. Under **Sources** an editor
+adds a website once (the first adapter covers concertbuero-franken.de), picks
+the slide formats (1920×1080, 1080×1920, 3840×2160), the background (black
+bars or blurred image) and an accent colour. The server scrapes the site on
+the source's interval (default six hours) and renders a slide per event and
+format: image, artist, weekday and date, venue, a badge for *sold out*,
+*moved*, *new date* or *cancelled*, and a QR code to the ticket shop. A changed
+event is re-rendered under the same content item. Slides count against the
+storage limit but stay out of the media library, search and bulk actions.
+
+A playlist can now be created as **dynamic**: instead of picking items, the
+editor sets a rule (sources, genres, venues, date window, without cancelled or
+sold-out events, sort order, limit, format, item duration) and sees the result
+in a live preview. The playlist updates itself after every sync, every 15
+minutes by default, and the moment an event ends: at the end of its day plus a
+grace period (default four hours) in the organisation's time zone. Its items
+cannot be edited by hand, and a playlist keeps the kind it was created with.
+
+Once a day the server deletes the slides of events that ended more than 14
+days ago or that the site no longer lists, unless a playlist still shows them.
+
+### Fixed — screens show a replaced file
+
+A re-uploaded file kept its old URL, and screens kept playing the cached old
+version for up to a day, also because nothing told them to reload. Media URLs
+now carry the content's version, and once the new file is transcoded every
+screen showing it reloads its playlist. The same holds for re-rendered slides,
+and thumbnails in the dashboard follow the new file as well.
+
+**Operator action:** update the server. The backend migration (`0027`) adds
+`content_sources`, `source_events`, `source_event_slides`,
+`contents.managed_by_source_id` and the playlist columns `kind`, `rule`,
+`next_resolve_at`, `last_resolved_at`, and runs on start. The backend image now
+ships `fontconfig` with the DejaVu and Liberation fonts; a backend run outside
+the image needs fonts installed for the slide text to render. No new
+environment variable: the scraper reaches only the hosts its adapter allows.
+
 ## 0.24.2
 
 ### Fixed — the media library is sorted by title
