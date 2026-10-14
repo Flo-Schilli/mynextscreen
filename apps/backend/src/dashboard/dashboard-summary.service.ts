@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { and, eq, gt, lt, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import {
@@ -97,7 +97,8 @@ export class DashboardSummaryService {
         pending: sql<string>`count(*) filter (where ${contents.transcodingStatus} in (${TranscodingStatus.Pending}, ${TranscodingStatus.Processing}))`,
       })
       .from(contents)
-      .where(eq(contents.organisationId, organisationId));
+      // Content-source slides are not library items; their bytes still count in storage.
+      .where(and(eq(contents.organisationId, organisationId), isNull(contents.managedBySourceId)));
 
     return {
       count: Number(agg?.count ?? 0),

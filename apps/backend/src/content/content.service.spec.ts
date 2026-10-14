@@ -6,11 +6,18 @@ import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { ContentService } from './content.service';
 import { DRIZZLE } from '../db/database.constants';
-import { contents, organisations, type Content, type Organisation } from '../db/schema';
+import {
+  contentSources,
+  contents,
+  organisations,
+  type Content,
+  type Organisation,
+} from '../db/schema';
 import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
 import { StorageService } from '../organisation/storage.service';
 import { CONTENT_DURATION_RESOLVED } from './content.event';
+import { AUDIT_CONTENT_UPLOADED, AUDIT_CONTENT_REUPLOADED } from '../audit-log/audit.events';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 
@@ -526,6 +533,116 @@ describe('ContentService', () => {
       const result = await service.ensureDuration(content);
 
       expect(result).toBeNull();
+    });
+  });
+  describe('managed content', () => {
+    const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+
+    async function seedSource(organisationId: string): Promise<string> {
+      const [source] = await db
+        .insert(contentSources)
+        .values({
+          organisationId,
+          name: 'Concerts',
+          adapterType: 'concertbuero-franken',
+          formats: ['1920x1080'],
+          style: { background: 'black', accentColor: '#e30613' },
+        })
+        .returning();
+      return source.id;
+    }
+
+    it('creates hidden content owned by the source without auditing each slide', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+
+      const created = await service.createManaged(
+        org.id,
+        sourceId,
+        JPEG_BYTES,
+        'slide.jpg',
+        'ASP · Sa, 10.10.2026',
+        ['1920x1080'],
+      );
+
+      expect(created.managedBySourceId).toBe(sourceId);
+      expect(created.type).toBe(ContentType.Image);
+      expect(created.originalMimeType).toBe('image/jpeg');
+      expect(created.tags).toEqual(['1920x1080']);
+      expect(storageService.reserveOriginalUsage).toHaveBeenCalledWith(org.id, JPEG_BYTES.length);
+      expect(queue.add).toHaveBeenCalledWith(
+        'transcode',
+        expect.objectContaining({ contentId: created.id, mimeType: 'image/jpeg' }),
+      );
+      expect(emit).not.toHaveBeenCalledWith(AUDIT_CONTENT_UPLOADED, expect.anything());
+    });
+
+    it('rejects managed bytes that are not a supported image', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+
+      await expect(
+        service.createManaged(org.id, sourceId, Buffer.from('<svg/>'), 'x.svg', 'X', []),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('replaces the file in place so playlist items keep their content id', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+      const created = await service.createManaged(org.id, sourceId, JPEG_BYTES, 'a.jpg', 'A', []);
+      queue.add.mockClear();
+
+      const bigger = Buffer.concat([JPEG_BYTES, Buffer.alloc(100)]);
+      const replaced = await service.replaceManagedFile(
+        org.id,
+        sourceId,
+        created.id,
+        bigger,
+        'a.jpg',
+      );
+
+      expect(replaced.id).toBe(created.id);
+      expect(Number(replaced.originalSizeBytes)).toBe(bigger.length);
+      expect(replaced.transcodingStatus).toBe(TranscodingStatus.Pending);
+      expect(queue.add).toHaveBeenCalledWith(
+        'transcode',
+        expect.objectContaining({ contentId: created.id }),
+      );
+      expect(emit).not.toHaveBeenCalledWith(AUDIT_CONTENT_REUPLOADED, expect.anything());
+    });
+
+    it('refuses to replace content the source does not own', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+      const manual = await seedContent(org.id);
+
+      await expect(
+        service.replaceManagedFile(org.id, sourceId, manual.id, JPEG_BYTES, 'a.jpg'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('hides managed content from the library listing', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+      await seedContent(org.id, { title: 'Manual' });
+      await seedContent(org.id, { title: 'Slide', managedBySourceId: sourceId });
+
+      const result = await service.findAll(org.id);
+
+      expect(result.map((c) => c.title)).toEqual(['Manual']);
+    });
+
+    it('rejects bulk operations that include managed content', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+      const slide = await seedContent(org.id, { managedBySourceId: sourceId });
+
+      await expect(service.bulkDelete(org.id, [slide.id], null)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      await expect(service.bulkTag(org.id, [slide.id], ['x'], null)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
   });
 });

@@ -11,6 +11,7 @@ import {
 } from '../db/schema';
 import { ContentType } from '../content/content-type.enum';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import { seedContentSource } from '../test/content-source-seed';
 import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('SearchService', () => {
@@ -229,6 +230,27 @@ describe('SearchService', () => {
       expect(result.content).toEqual([]);
       expect(result.playlists).toEqual([]);
       expect(result.schedules).toEqual([]);
+    });
+  });
+
+  describe('managed content', () => {
+    it('does not return slides a content source manages', async () => {
+      const org = await seedOrg('Org Managed');
+      const source = await seedContentSource(db, org.id);
+      await seedContent(org.id, 'Metal Night poster');
+      await db.insert(contents).values({
+        organisationId: org.id,
+        title: 'Metal Night slide',
+        type: ContentType.Image,
+        originalFilename: 'slide.jpg',
+        originalMimeType: 'image/jpeg',
+        originalSizeBytes: 1024,
+        managedBySourceId: source.id,
+      });
+
+      const result = await service.search('Metal', org.id);
+
+      expect(result.content.map((c) => c.label)).toEqual(['Metal Night poster']);
     });
   });
 
