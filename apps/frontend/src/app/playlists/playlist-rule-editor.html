@@ -1,0 +1,264 @@
+<ng-container *transloco="let t">
+  <mns-card>
+    <mns-card-head
+      [title]="t('playlists.rule.title')"
+      [sub]="canEdit() ? t('playlists.rule.sub') : t('playlists.rule.readOnly')"
+      icon="Filter"
+    />
+
+    <p class="rule-summary text-[14px] font-semibold">{{ summary() }}</p>
+    <p class="mt-1 text-[12.5px] text-faint">
+      @if (playlist().lastResolvedAt) {
+        {{
+          t('playlists.rule.lastResolved', {
+            date: playlist().lastResolvedAt | localeDate: 'short',
+          })
+        }}
+      }
+      @if (playlist().nextResolveAt) {
+        ·
+        {{
+          t('playlists.rule.nextResolve', {
+            date: playlist().nextResolveAt | localeDate: 'short',
+          })
+        }}
+      }
+    </p>
+
+    @if (canEdit()) {
+      @if (removedSources().length > 0) {
+        <p
+          class="missing-sources mt-4 rounded-[10px] border border-warn bg-warn-dim px-3 py-2 text-[13px]"
+        >
+          {{ t('playlists.rule.missingSources', { count: removedSources().length }) }}
+        </p>
+      }
+      @if (sourcesFailed()) {
+        <p class="mt-4 text-sm text-offline">{{ t('playlists.rule.errors.loadSources') }}</p>
+      }
+
+      <div class="mt-5 grid gap-6 lg:grid-cols-3">
+        <!-- sources & filters -->
+        <section class="flex flex-col gap-4">
+          <h3 class="text-[11.5px] font-bold uppercase tracking-wide text-faint">
+            {{ t('playlists.rule.sourcesSection') }}
+          </h3>
+          <mns-sfield [label]="t('playlists.rule.sourcesLabel')">
+            <mns-multi-select
+              class="rule-sources"
+              [options]="sourceOptions()"
+              [values]="form().sourceIds"
+              [placeholder]="t('playlists.rule.sourcesPlaceholder')"
+              [ariaLabel]="t('playlists.rule.sourcesLabel')"
+              (changed)="setSources($event)"
+            />
+          </mns-sfield>
+          <mns-sfield [label]="t('playlists.rule.genresLabel')">
+            <div class="flex flex-col gap-2">
+              <mns-multi-select
+                [options]="genreOptions()"
+                [values]="form().genres"
+                [placeholder]="t('playlists.rule.genresPlaceholder')"
+                [ariaLabel]="t('playlists.rule.genresLabel')"
+                (changed)="patch({ genres: $event })"
+              />
+              @if (form().genres.length > 1) {
+                <mns-select
+                  [options]="genreMatchOptions()"
+                  [value]="form().genreMatch"
+                  [searchable]="false"
+                  [ariaLabel]="t('playlists.rule.genresLabel')"
+                  (changed)="setGenreMatch($event)"
+                />
+              }
+            </div>
+          </mns-sfield>
+          <mns-sfield [label]="t('playlists.rule.venuesLabel')">
+            <mns-multi-select
+              [options]="venueOptions()"
+              [values]="form().venues"
+              [placeholder]="t('playlists.rule.venuesPlaceholder')"
+              [ariaLabel]="t('playlists.rule.venuesLabel')"
+              (changed)="patch({ venues: $event })"
+            />
+          </mns-sfield>
+          <mns-toggle-row
+            [label]="t('playlists.rule.excludeCancelled')"
+            [checked]="form().excludeCancelled"
+            (toggled)="patch({ excludeCancelled: $event })"
+          />
+          <mns-toggle-row
+            [label]="t('playlists.rule.excludeSoldOut')"
+            [checked]="form().excludeSoldOut"
+            (toggled)="patch({ excludeSoldOut: $event })"
+          />
+        </section>
+
+        <!-- date range -->
+        <section class="flex flex-col gap-4">
+          <h3 class="text-[11.5px] font-bold uppercase tracking-wide text-faint">
+            {{ t('playlists.rule.dateSection') }}
+          </h3>
+          <mns-sfield [label]="t('playlists.rule.dateFromLabel')">
+            <div class="flex flex-col gap-2">
+              <mns-select
+                [options]="dateFromOptions()"
+                [value]="form().dateFromMode"
+                [searchable]="false"
+                [ariaLabel]="t('playlists.rule.dateFromLabel')"
+                (changed)="setDateFromMode($event)"
+              />
+              @if (form().dateFromMode === 'fixed') {
+                <mns-date-input
+                  [ngModel]="form().dateFromDate"
+                  (ngModelChange)="patch({ dateFromDate: $event })"
+                />
+              } @else if (form().dateFromMode === 'relativeDays') {
+                <input
+                  type="number"
+                  class="h-[38px] w-full px-3 rounded-[10px] border border-border-strong bg-surface text-sm font-mono"
+                  [min]="bounds.relativeDays.min"
+                  [max]="bounds.relativeDays.max"
+                  [value]="form().dateFromDays"
+                  [attr.aria-label]="t('playlists.rule.daysLabel')"
+                  #fromDays
+                  (input)="setDays('dateFromDays', fromDays.value)"
+                />
+              }
+            </div>
+          </mns-sfield>
+          <mns-sfield [label]="t('playlists.rule.dateToLabel')">
+            <div class="flex flex-col gap-2">
+              <mns-select
+                [options]="dateToOptions()"
+                [value]="form().dateToMode"
+                [searchable]="false"
+                [ariaLabel]="t('playlists.rule.dateToLabel')"
+                (changed)="setDateToMode($event)"
+              />
+              @if (form().dateToMode === 'fixed') {
+                <mns-date-input
+                  [ngModel]="form().dateToDate"
+                  (ngModelChange)="patch({ dateToDate: $event })"
+                />
+              } @else if (form().dateToMode === 'relativeDays') {
+                <input
+                  type="number"
+                  class="h-[38px] w-full px-3 rounded-[10px] border border-border-strong bg-surface text-sm font-mono"
+                  [min]="bounds.relativeDays.min"
+                  [max]="bounds.relativeDays.max"
+                  [value]="form().dateToDays"
+                  [attr.aria-label]="t('playlists.rule.daysLabel')"
+                  #toDays
+                  (input)="setDays('dateToDays', toDays.value)"
+                />
+              }
+            </div>
+          </mns-sfield>
+          <mns-sfield [label]="t('playlists.rule.sortLabel')">
+            <mns-select
+              [options]="sortOptions()"
+              [value]="form().sort"
+              [searchable]="false"
+              [ariaLabel]="t('playlists.rule.sortLabel')"
+              (changed)="setSort($event)"
+            />
+          </mns-sfield>
+          <div class="flex flex-col gap-1.5">
+            <mns-stepper
+              [label]="t('playlists.rule.graceHours')"
+              [value]="form().graceHours"
+              [min]="bounds.graceHours.min"
+              [max]="bounds.graceHours.max"
+              (valueChange)="patch({ graceHours: $event })"
+            />
+            <span class="text-[11.5px] text-faint">{{ t('playlists.rule.graceHoursHint') }}</span>
+          </div>
+        </section>
+
+        <!-- amount & display -->
+        <section class="flex flex-col gap-4">
+          <h3 class="text-[11.5px] font-bold uppercase tracking-wide text-faint">
+            {{ t('playlists.rule.displaySection') }}
+          </h3>
+          <mns-stepper
+            [label]="t('playlists.rule.limit')"
+            [value]="form().limit"
+            [min]="bounds.limit.min"
+            [max]="bounds.limit.max"
+            [step]="5"
+            (valueChange)="patch({ limit: $event })"
+          />
+          <mns-stepper
+            [label]="t('playlists.rule.refreshInterval')"
+            [value]="form().refreshIntervalMinutes"
+            [min]="bounds.refreshIntervalMinutes.min"
+            [max]="bounds.refreshIntervalMinutes.max"
+            [step]="5"
+            (valueChange)="patch({ refreshIntervalMinutes: $event })"
+          />
+          <mns-stepper
+            [label]="t('playlists.rule.itemDuration')"
+            [value]="form().itemDurationSeconds"
+            [min]="bounds.itemDurationSeconds.min"
+            [max]="bounds.itemDurationSeconds.max"
+            (valueChange)="patch({ itemDurationSeconds: $event })"
+          />
+          <mns-stepper
+            [label]="t('playlists.rule.transitionMsLabel')"
+            [value]="form().transitionDurationMs"
+            [min]="bounds.transitionDurationMs.min"
+            [max]="bounds.transitionDurationMs.max"
+            [step]="100"
+            (valueChange)="patch({ transitionDurationMs: $event })"
+          />
+          <mns-sfield [label]="t('playlists.rule.formatLabel')">
+            <mns-select
+              [options]="formatOptions()"
+              [value]="form().format"
+              [searchable]="false"
+              [ariaLabel]="t('playlists.rule.formatLabel')"
+              (changed)="setFormat($event)"
+            />
+          </mns-sfield>
+          <mns-sfield [label]="t('playlists.rule.transitionLabel')">
+            <mns-select
+              [options]="transitionOptions()"
+              [value]="form().transition"
+              [ariaLabel]="t('playlists.rule.transitionLabel')"
+              (changed)="setTransition($event)"
+            />
+          </mns-sfield>
+        </section>
+      </div>
+
+      @if (errors().length > 0) {
+        <ul class="rule-errors mt-5 flex flex-col gap-1 text-offline text-sm">
+          @for (error of errors(); track error) {
+            <li>{{ t('playlists.rule.errors.' + error) }}</li>
+          }
+        </ul>
+      }
+
+      <div class="mt-5 flex justify-end gap-2">
+        <mns-btn variant="outline" [disabled]="!dirty() || saving()" (mnsClick)="discard()">{{
+          t('playlists.rule.discard')
+        }}</mns-btn>
+        <mns-btn
+          class="save-rule"
+          icon="Check"
+          [disabled]="!dirty() || !rule() || saving()"
+          (mnsClick)="submit()"
+        >
+          {{ saving() ? t('playlists.rule.saving') : t('playlists.rule.save') }}
+        </mns-btn>
+      </div>
+    }
+  </mns-card>
+
+  @if (canEdit()) {
+    <div class="mt-[var(--gap)]">
+      <app-playlist-rule-preview [state]="preview()" />
+    </div>
+  }
+</ng-container>

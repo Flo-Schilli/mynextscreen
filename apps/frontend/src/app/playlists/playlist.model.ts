@@ -1,11 +1,92 @@
+import type { SlideFormat } from '../sources/content-source.model';
+
+/** `static`: items curated by hand. `dynamic`: items computed from a rule. */
+export type PlaylistKind = 'static' | 'dynamic';
+
 export interface Playlist {
   id: string;
   organisationId: string;
   name: string;
   color: string;
+  /** Missing on payloads from before dynamic playlists; treat as `static`. */
+  kind?: PlaylistKind;
+  /** Filter rule of a dynamic playlist; null for static ones. */
+  rule?: PlaylistRule | null;
+  nextResolveAt?: string | null;
+  lastResolvedAt?: string | null;
   items: PlaylistItem[];
   createdAt: string;
   updatedAt: string;
+}
+
+export function isDynamicPlaylist(playlist: Pick<Playlist, 'kind'>): boolean {
+  return playlist.kind === 'dynamic';
+}
+
+export type GenreMatchMode = 'any' | 'all';
+export type RuleSortOrder = 'date_asc' | 'date_desc';
+
+/** Lower bound of the date window. `today` keeps every event that has not expired yet. */
+export type RuleDateFrom =
+  { mode: 'today' } | { mode: 'fixed'; date: string } | { mode: 'relativeDays'; days: number };
+
+/** Upper bound of the date window, inclusive. */
+export type RuleDateTo =
+  { mode: 'none' } | { mode: 'fixed'; date: string } | { mode: 'relativeDays'; days: number };
+
+/** Rule of a dynamic playlist, as stored and as sent (mirrors the backend `PlaylistRule`). */
+export interface PlaylistRule {
+  sourceIds: string[];
+  /** Empty `values` means every genre. */
+  genres: { match: GenreMatchMode; values: string[] };
+  /** Exact venue names; empty means every venue. */
+  venues: string[];
+  dateFrom: RuleDateFrom;
+  dateTo: RuleDateTo;
+  excludeCancelled: boolean;
+  excludeSoldOut: boolean;
+  sort: RuleSortOrder;
+  limit: number;
+  /** Hours after the local end of the event day until the event drops out. */
+  graceHours: number;
+  refreshIntervalMinutes: number;
+  format: SlideFormat;
+  itemDurationSeconds: number;
+  transition: TransitionType;
+  transitionDurationMs: number;
+}
+
+/** Bounds of the rule fields (backend `PlaylistRuleDto`). */
+export const RULE_BOUNDS = {
+  maxSources: 20,
+  limit: { min: 1, max: 200, default: 50 },
+  graceHours: { min: 0, max: 24, default: 4 },
+  refreshIntervalMinutes: { min: 5, max: 1440, default: 15 },
+  itemDurationSeconds: { min: 1, max: 3600, default: 10 },
+  transitionDurationMs: { min: 0, max: 3000, default: 500 },
+  relativeDays: { min: 0, max: 730 },
+} as const;
+
+export interface RulePreviewItem {
+  sourceEventId: string;
+  sourceId: string;
+  contentId: string;
+  title: string;
+  eventDate: string;
+  startTime: string | null;
+  venue: string;
+  city: string | null;
+  genres: string[];
+  statusLabels: string[];
+  cancelled: boolean;
+  soldOut: boolean;
+  /** When the event drops out of the playlist (end of day + grace hours), ISO. */
+  expiresAt: string;
+}
+
+export interface RulePreviewResult {
+  items: RulePreviewItem[];
+  totalDurationSeconds: number;
 }
 
 /** The seven accent swatches offered when creating/editing a playlist. */
@@ -62,6 +143,9 @@ export interface PlaylistItem {
 export interface CreatePlaylistRequest {
   name: string;
   color?: string;
+  kind?: PlaylistKind;
+  /** Required for `dynamic`. */
+  rule?: PlaylistRule;
 }
 
 export interface UpdatePlaylistRequest {

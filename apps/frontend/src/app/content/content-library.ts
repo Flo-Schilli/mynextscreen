@@ -26,7 +26,7 @@ import { ContentPlaylistModal } from './content-playlist-modal';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { PlaylistService } from '../playlists/playlist.service';
-import { Playlist } from '../playlists/playlist.model';
+import { Playlist, isDynamicPlaylist } from '../playlists/playlist.model';
 import { SelectionService } from '../shared/selection/selection.service';
 import { BulkAction } from '../shared/selection/bulk-action-toolbar';
 import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dialog';
@@ -1043,7 +1043,8 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
     this.playlistsLoading = true;
     this.playlistService.getAll(this.orgId).subscribe({
       next: (playlists) => {
-        this.playlists = playlists;
+        // A dynamic playlist computes its items from its rule; adding by hand is rejected.
+        this.playlists = playlists.filter((p) => !isDynamicPlaylist(p));
         this.playlistsLoading = false;
       },
       error: () => {

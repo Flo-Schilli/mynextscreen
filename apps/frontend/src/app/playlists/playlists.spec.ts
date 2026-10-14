@@ -16,6 +16,8 @@ import { Content } from '../content/content.model';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
 import { ToastService, Toast } from '../shared/toast/toast.service';
+import { ContentSourceService } from '../sources/content-source.service';
+import { ContentSource } from '../sources/content-source.model';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 const ORG_ID = 'org1';
@@ -111,6 +113,31 @@ interface ContentStub {
 interface ScreenStub {
   getAll: ReturnType<typeof vi.fn>;
 }
+interface SourceStub {
+  getAll: ReturnType<typeof vi.fn>;
+}
+
+function buildSource(overrides: Partial<ContentSource> = {}): ContentSource {
+  return {
+    id: 'src1',
+    organisationId: ORG_ID,
+    name: 'Concertbüro',
+    adapterType: 'concertbuero-franken',
+    params: {},
+    formats: ['1080x1920'],
+    style: { background: 'black', accentColor: '#e30613' },
+    syncIntervalMinutes: 360,
+    enabled: true,
+    nextSyncAt: null,
+    lastSyncAt: null,
+    lastSyncStatus: null,
+    lastSyncError: null,
+    lastSyncSummary: null,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+    ...overrides,
+  };
+}
 
 describe('Playlists', () => {
   let fixture: ComponentFixture<Playlists>;
@@ -120,6 +147,7 @@ describe('Playlists', () => {
   let orgStub: OrgStub;
   let contentStub: ContentStub;
   let screenStub: ScreenStub;
+  let sourceStub: SourceStub;
   let router: Router;
   let toastService: ToastService;
   let routeParams$: BehaviorSubject<ParamMap>;
@@ -145,6 +173,7 @@ describe('Playlists', () => {
       ),
     };
     screenStub = { getAll: vi.fn(() => of([])) };
+    sourceStub = { getAll: vi.fn(() => of([buildSource()])) };
     routeParams$ = new BehaviorSubject<ParamMap>(convertToParamMap({}));
 
     await TestBed.configureTestingModule({
@@ -157,6 +186,7 @@ describe('Playlists', () => {
         { provide: OrganisationService, useValue: orgStub },
         { provide: ContentService, useValue: contentStub },
         { provide: ScreenService, useValue: screenStub },
+        { provide: ContentSourceService, useValue: sourceStub },
         { provide: ActivatedRoute, useValue: { paramMap: routeParams$.asObservable() } },
       ],
     }).compileComponents();
@@ -326,6 +356,102 @@ describe('Playlists', () => {
       component.openCreateForm();
       component.cancelCreate();
       expect(component.showCreateForm).toBe(false);
+    });
+
+    it('loads the sources a dynamic playlist can use when the form opens', () => {
+      component.openCreateForm();
+
+      expect(sourceStub.getAll).toHaveBeenCalledWith(ORG_ID);
+      expect(component.availableSources.map((s) => s.id)).toEqual(['src1']);
+      expect(component.createKind).toBe('static');
+    });
+
+    it('creates a dynamic playlist with its sources, format and default rule', () => {
+      component.openCreateForm();
+      component.createName = 'Hirsch';
+      component.createKind = 'dynamic';
+      component.createSourceIds = ['src1'];
+      component.createFormat = '1080x1920';
+      component.submitCreate();
+
+      const post = httpMock.expectOne((r) => r.method === 'POST' && r.url === '/api/playlists');
+      expect(post.request.body).toMatchObject({
+        name: 'Hirsch',
+        kind: 'dynamic',
+        rule: {
+          sourceIds: ['src1'],
+          format: '1080x1920',
+          dateFrom: { mode: 'today' },
+          dateTo: { mode: 'none' },
+          excludeCancelled: true,
+          limit: 50,
+        },
+      });
+      post.flush(buildPlaylist({ id: 'pDyn', kind: 'dynamic' }));
+      httpMock.expectOne('/api/playlists').flush([]);
+      httpMock.expectOne('/api/playlists/pDyn').flush(buildPlaylist({ id: 'pDyn' }));
+    });
+
+    it('rejects a dynamic playlist without sources before any request', () => {
+      component.openCreateForm();
+      component.createName = 'Hirsch';
+      component.createKind = 'dynamic';
+      component.submitCreate();
+
+      expect(component.createError).toBe('Choose at least one source.');
+      httpMock.expectNone((r) => r.method === 'POST');
+    });
+  });
+
+  describe('rule of a dynamic playlist', () => {
+    const rule = {
+      sourceIds: ['src1'],
+      genres: { match: 'any' as const, values: [] },
+      venues: [],
+      dateFrom: { mode: 'today' as const },
+      dateTo: { mode: 'none' as const },
+      excludeCancelled: true,
+      excludeSoldOut: false,
+      sort: 'date_asc' as const,
+      limit: 30,
+      graceHours: 4,
+      refreshIntervalMinutes: 15,
+      format: '1080x1920' as const,
+      itemDurationSeconds: 10,
+      transition: 'fade' as const,
+      transitionDurationMs: 500,
+    };
+
+    beforeEach(() => {
+      init();
+      component.selectedPlaylist = buildPlaylist({ id: 'pDyn', kind: 'dynamic', rule });
+    });
+
+    it('PATCHes the rule and shows the recomputed playlist', () => {
+      component.saveRule({ ...rule, limit: 10 });
+
+      const req = httpMock.expectOne('/api/playlists/pDyn/rule');
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body.limit).toBe(10);
+      req.flush(buildPlaylist({ id: 'pDyn', kind: 'dynamic', rule: { ...rule, limit: 10 } }));
+
+      expect(component.selectedPlaylist?.rule?.limit).toBe(10);
+      expect(component.savingRule).toBe(false);
+      expect(lastToast()?.message).toBe('Rule saved');
+    });
+
+    it('explains a rule that still names a deleted source', () => {
+      component.saveRule(rule);
+
+      httpMock
+        .expectOne('/api/playlists/pDyn/rule')
+        .flush(
+          { message: 'Content sources not found', missingIds: ['src1'] },
+          { status: 400, statusText: 'Bad Request' },
+        );
+
+      expect(component.editorError).toContain('no longer exists');
+      expect(component.savingRule).toBe(false);
     });
   });
 

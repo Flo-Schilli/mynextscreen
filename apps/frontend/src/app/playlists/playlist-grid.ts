@@ -62,7 +62,17 @@ import { CardComponent, IconComponent } from '../ui';
                   <mns-icon name="Playlists" [size]="22" />
                 </span>
                 <div class="flex-1 min-w-0">
-                  <span class="block font-bold text-[15.5px] truncate">{{ playlist.name }}</span>
+                  <span class="flex items-center gap-1.5 font-bold text-[15.5px] min-w-0">
+                    <span class="truncate">{{ playlist.name }}</span>
+                    @if (playlist.kind === 'dynamic') {
+                      <span
+                        class="dynamic-badge inline-flex items-center gap-1 px-2 py-0.5 rounded-[99px] text-[11px] font-semibold text-info bg-info-dim flex-shrink-0"
+                        ><mns-icon name="Sparkle" [size]="11" />{{
+                          t('playlists.list.dynamic')
+                        }}</span
+                      >
+                    }
+                  </span>
                   <span class="block text-[12.5px] text-muted">
                     {{ t('playlists.list.items', { count: playlist.items.length }) }} ·
                     {{ format.formatDuration(format.totalDurationSeconds(playlist.items)) }}
