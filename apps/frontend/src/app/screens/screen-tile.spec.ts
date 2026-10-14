@@ -206,13 +206,18 @@ describe('ScreenTile', () => {
     expect(footer.textContent).toContain('Morning Loop');
   });
 
-  it('renders the playlist first-item thumbnail when one is available', async () => {
+  it('renders the playlist first-item thumbnail, versioned by updatedAt', async () => {
     getStaticThumbnailUrl.mockReturnValue('/api/content/c1/file/thumbnail?organisationId=org1');
     await setUp(
       makeScreen({
         isOnline: true,
         currentPlaylistName: 'Morning Loop',
-        currentPlaylistThumbnail: { contentId: 'c1', type: 'image', thumbnailSizeBytes: 256 },
+        currentPlaylistThumbnail: {
+          contentId: 'c1',
+          type: 'image',
+          thumbnailSizeBytes: 256,
+          updatedAt: '2026-10-14T10:00:00.000Z',
+        },
       }),
     );
 
@@ -223,6 +228,7 @@ describe('ScreenTile', () => {
       id: 'c1',
       type: 'image',
       thumbnailSizeBytes: 256,
+      updatedAt: '2026-10-14T10:00:00.000Z',
     });
     // The fallback glyph is replaced by the image.
     expect(fixture.nativeElement.querySelector('.thumb-glyph')).toBeNull();
@@ -233,7 +239,12 @@ describe('ScreenTile', () => {
     await setUp(
       makeScreen({
         isOnline: true,
-        currentPlaylistThumbnail: { contentId: 'v1', type: 'video', thumbnailSizeBytes: 512 },
+        currentPlaylistThumbnail: {
+          contentId: 'v1',
+          type: 'video',
+          thumbnailSizeBytes: 512,
+          updatedAt: '2026-10-14T10:00:00.000Z',
+        },
       }),
     );
 
@@ -246,7 +257,12 @@ describe('ScreenTile', () => {
     await setUp(
       makeScreen({
         isOnline: true,
-        currentPlaylistThumbnail: { contentId: 'v1', type: 'video', thumbnailSizeBytes: null },
+        currentPlaylistThumbnail: {
+          contentId: 'v1',
+          type: 'video',
+          thumbnailSizeBytes: null,
+          updatedAt: '2026-10-14T10:00:00.000Z',
+        },
       }),
     );
 

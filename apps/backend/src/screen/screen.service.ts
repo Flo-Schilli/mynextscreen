@@ -50,6 +50,8 @@ export type PlaylistThumbnailRef = {
   type: ContentType;
   /** Size of the precomputed thumbnail; null = none yet (fall back client-side). */
   thumbnailSizeBytes: number | null;
+  /** Versions the thumbnail URL: a re-upload or re-rendered slide keeps its id. */
+  updatedAt: Date;
 };
 
 /**
@@ -281,6 +283,7 @@ export class ScreenService extends OrganisationScopedService<Screen> {
       contentId: item.content.id,
       type: item.content.type,
       thumbnailSizeBytes: item.content.thumbnailSizeBytes,
+      updatedAt: item.content.updatedAt,
     };
   }
 
