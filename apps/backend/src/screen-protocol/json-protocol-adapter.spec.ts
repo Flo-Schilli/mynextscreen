@@ -246,6 +246,35 @@ describe('JsonProtocolAdapter', () => {
       expect(items[0].url).not.toContain('token');
     });
 
+    it('appends the content version after the signature, so a replaced file gets a new URL', () => {
+      const versioned: Playlist = {
+        ...playlist,
+        items: [{ ...playlistItemImage, version: '1793541600000' }],
+      };
+      const state = new ScreenState(screenInfo, versioned, [], null, null);
+
+      const result = adapter.renderState(state) as Record<string, unknown>;
+      const rendered = result.currentPlaylist as Record<string, unknown>;
+      const [item] = rendered.items as Array<Record<string, unknown>>;
+
+      const url = new URL(String(item.url), 'http://player');
+      expect(url.searchParams.get('v')).toBe('1793541600000');
+      // Only the path is signed; the version must not invalidate the signature.
+      expect(signer.verify(screenInfo.id, url.pathname, url.searchParams.get('sig') ?? '')).toBe(
+        true,
+      );
+    });
+
+    it('leaves the URL unversioned when the item has no version', () => {
+      const state = new ScreenState(screenInfo, playlist, [], null, null);
+
+      const result = adapter.renderState(state) as Record<string, unknown>;
+      const rendered = result.currentPlaylist as Record<string, unknown>;
+      const items = rendered.items as Array<Record<string, unknown>>;
+
+      expect(String(items[0].url)).not.toContain('&v=');
+    });
+
     it('should include recurrenceRule in schedule entries when present', () => {
       const state = new ScreenState(screenInfo, null, [recurringScheduleEntry], null, null);
 

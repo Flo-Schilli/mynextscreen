@@ -1,6 +1,12 @@
 export interface PlaylistItem {
   contentId: string;
   contentUrl: string;
+  /**
+   * Changes whenever the file behind the URL changes (content `updatedAt`, or
+   * the hash of a sliced rendition). Appended to the media URL so a replaced
+   * file gets a new URL and bypasses the screen's HTTP cache.
+   */
+  version?: string;
   duration: number;
   type: string;
   order: number;

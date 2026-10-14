@@ -6,6 +6,7 @@ import { PlaylistController } from './playlist.controller';
 import { PlaylistRuleService } from './playlist-rule.service';
 import { PlaylistResolveProcessor } from './playlist-resolve.processor';
 import { PlaylistRuleScheduler } from './playlist-rule.scheduler';
+import { PlaylistContentRefreshListener } from './playlist-content-refresh.listener';
 import { PLAYLIST_RESOLVE_QUEUE } from './playlist-resolve.constants';
 
 /**
@@ -28,6 +29,7 @@ import { PLAYLIST_RESOLVE_QUEUE } from './playlist-resolve.constants';
     PlaylistRuleService,
     PlaylistResolveProcessor,
     PlaylistRuleScheduler,
+    PlaylistContentRefreshListener,
   ],
   exports: [PlaylistService],
 })

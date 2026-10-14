@@ -246,6 +246,16 @@ describe('ScreenStateService', () => {
       expect(items[0].transitionDurationMs).toBe(1000);
     });
 
+    it('versions each item with the content’s updatedAt, so a replaced file changes its URL', async () => {
+      await seedItem({ type: ContentType.Image });
+      const [item] = await db.select().from(playlistItems);
+      const [content] = await db.select().from(contents).where(eq(contents.id, item.contentId));
+
+      const state = await service.assembleState(orgId, screenId);
+
+      expect(state.currentPlaylist!.items[0].version).toBe(String(content.updatedAt.getTime()));
+    });
+
     it('should use Content.durationSeconds for video items when available', async () => {
       await seedItem({ type: ContentType.Video, durationSeconds: 58 }, { durationSeconds: 30 });
       const state = await service.assembleState(orgId, screenId);
@@ -366,6 +376,8 @@ describe('ScreenStateService', () => {
         expect(state.currentPlaylist!.items[0].contentUrl).toBe(
           `/api/media/slices/${groupId}/${screenId}/${item.contentId}`,
         );
+        // A re-slice of changed content changes the hash, and with it the URL.
+        expect(state.currentPlaylist!.items[0].version).toBe('hash');
       });
 
       it('should fall back to empty contentUrl when no rendition exists yet', async () => {
