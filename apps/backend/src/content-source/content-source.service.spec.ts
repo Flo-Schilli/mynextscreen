@@ -265,6 +265,20 @@ describe('ContentSourceService', () => {
       expect(queue.add).not.toHaveBeenCalled();
     });
 
+    it('queues the cleanup once per day, keeping the finished job so its id stays taken', async () => {
+      await service.enqueueCleanup('2026-11-01');
+
+      expect(queue.add).toHaveBeenCalledWith(
+        'cleanup',
+        { day: '2026-11-01' },
+        {
+          jobId: 'cleanup-2026-11-01',
+          removeOnComplete: { age: 172_800 },
+          removeOnFail: { age: 172_800 },
+        },
+      );
+    });
+
     it('finds enabled sources that are due or never ran', async () => {
       const now = new Date('2026-11-01T10:00:00Z');
       const never = await seedContentSource(db, orgId, { name: 'never' });

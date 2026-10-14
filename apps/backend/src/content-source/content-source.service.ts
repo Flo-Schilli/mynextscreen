@@ -24,9 +24,13 @@ import { byNaturalName } from '../common/natural-sort.util';
 import { ContentSourceAdapterRegistry, type AdapterDescriptor } from './adapter.registry';
 import { InvalidSourceParamsError } from './adapters/content-source-adapter.interface';
 import {
+  CLEANUP_JOB_RETENTION_SECONDS,
+  CONTENT_SOURCE_CLEANUP_JOB,
   CONTENT_SOURCE_SYNC_JOB,
   CONTENT_SOURCE_SYNC_QUEUE,
+  cleanupJobId,
   syncJobId,
+  type ContentSourceCleanupJobData,
   type ContentSourceSyncJobData,
 } from './content-source.constants';
 import {
@@ -205,6 +209,16 @@ export class ContentSourceService {
       // Finished jobs must not linger: a kept job id would swallow every later sync.
       removeOnComplete: true,
       removeOnFail: true,
+    });
+  }
+
+  /** Queues the cleanup of one UTC day; later requests for the same day are absorbed. */
+  async enqueueCleanup(day: string): Promise<void> {
+    const data: ContentSourceCleanupJobData = { day };
+    await this.syncQueue.add(CONTENT_SOURCE_CLEANUP_JOB, data, {
+      jobId: cleanupJobId(day),
+      removeOnComplete: { age: CLEANUP_JOB_RETENTION_SECONDS },
+      removeOnFail: { age: CLEANUP_JOB_RETENTION_SECONDS },
     });
   }
 

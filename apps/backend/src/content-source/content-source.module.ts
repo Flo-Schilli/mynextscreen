@@ -7,6 +7,7 @@ import { ContentSourceController } from './content-source.controller';
 import { ContentSourceService } from './content-source.service';
 import { ContentSourceSyncService } from './content-source-sync.service';
 import { ContentSourceSyncProcessor } from './content-source-sync.processor';
+import { ContentSourceCleanupService } from './content-source-cleanup.service';
 import { ContentSourceScheduler } from './content-source.scheduler';
 import { ContentSourceAdapterRegistry } from './adapter.registry';
 import { ConcertbueroFrankenAdapter } from './adapters/concertbuero-franken.adapter';
@@ -34,6 +35,7 @@ import { CONTENT_SOURCE_SYNC_QUEUE } from './content-source.constants';
     ContentSourceService,
     ContentSourceSyncService,
     ContentSourceSyncProcessor,
+    ContentSourceCleanupService,
     ContentSourceScheduler,
     ContentSourceAdapterRegistry,
     ConcertbueroFrankenAdapter,
