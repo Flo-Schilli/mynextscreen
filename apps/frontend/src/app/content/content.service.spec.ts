@@ -407,6 +407,41 @@ describe('ContentService', () => {
     });
   });
 
+  describe('media URL versions', () => {
+    const updatedAt = '2026-11-01T10:00:00.000Z';
+
+    it('appends the version, so a replaced file with the same id bypasses the browser cache', () => {
+      // Act
+      const thumb = service.getThumbnailUrl('c1', updatedAt);
+      const full = service.getTranscodedUrl('c1', updatedAt);
+
+      // Assert
+      const v = encodeURIComponent(updatedAt);
+      expect(thumb).toBe(`/api/content/c1/file/thumbnail?organisationId=${ORG_ID}&v=${v}`);
+      expect(full).toBe(`/api/content/c1/file/transcoded?organisationId=${ORG_ID}&v=${v}`);
+    });
+
+    it('passes the ref’s updatedAt through the static thumbnail URL', () => {
+      // Act
+      const url = service.getStaticThumbnailUrl({
+        id: 'c1',
+        type: 'image',
+        thumbnailSizeBytes: 10,
+        updatedAt,
+      });
+
+      // Assert
+      expect(url).toContain('/api/content/c1/file/thumbnail?');
+      expect(url).toContain(`v=${encodeURIComponent(updatedAt)}`);
+    });
+
+    it('leaves the URL unversioned without a version', () => {
+      expect(service.getThumbnailUrl('c1', null)).toBe(
+        `/api/content/c1/file/thumbnail?organisationId=${ORG_ID}`,
+      );
+    });
+  });
+
   describe('media URL edge cases', () => {
     it('should omit the organisationId param when no org is selected', () => {
       // Arrange

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
-import { RulePreviewResult } from './playlist.model';
+import { RulePreviewItem, RulePreviewResult } from './playlist.model';
 import { PlaylistFormatService } from './playlist-format.service';
 import { ContentService } from '../content/content.service';
 import { LanguageService } from '../i18n/language.service';
@@ -60,11 +60,11 @@ export type RulePreviewState =
                     class="relative w-14 h-[34px] rounded-[6px] flex-shrink-0 overflow-hidden bg-surface-3"
                   >
                     <img
-                      [src]="thumbUrl(item.contentId)"
+                      [src]="thumbUrl(item)"
                       alt=""
                       class="w-full h-full object-cover"
                       loading="lazy"
-                      (error)="onThumbError($event, item.contentId)"
+                      (error)="onThumbError($event, item)"
                     />
                   </span>
                   <div class="flex-1 min-w-0">
@@ -128,15 +128,15 @@ export class PlaylistRulePreview {
     return formatIsoDate(iso, this.language.locale()) || iso;
   }
 
-  protected thumbUrl(contentId: string): string {
-    return this.contentService.getThumbnailUrl(contentId);
+  protected thumbUrl(item: RulePreviewItem): string {
+    return this.contentService.getThumbnailUrl(item.contentId, item.contentUpdatedAt);
   }
 
-  protected onThumbError(event: Event, contentId: string): void {
+  protected onThumbError(event: Event, item: RulePreviewItem): void {
     const img = event.target as HTMLImageElement;
     if (img.dataset['fallback']) return;
     img.dataset['fallback'] = '1';
-    img.src = this.contentService.getTranscodedUrl(contentId);
+    img.src = this.contentService.getTranscodedUrl(item.contentId, item.contentUpdatedAt);
   }
 
   private translateSub(result: RulePreviewResult): string {

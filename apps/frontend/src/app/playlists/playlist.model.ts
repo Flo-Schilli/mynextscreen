@@ -71,6 +71,8 @@ export interface RulePreviewItem {
   sourceEventId: string;
   sourceId: string;
   contentId: string;
+  /** `updatedAt` of the slide content, ISO; versions the thumbnail URL. */
+  contentUpdatedAt: string | null;
   title: string;
   eventDate: string;
   startTime: string | null;
@@ -137,6 +139,8 @@ export interface PlaylistItem {
     transcodingStatus: string;
     durationSeconds: number | null;
     thumbnailSizeBytes: number | null;
+    /** Versions media URLs: a re-upload or re-rendered slide keeps its id. */
+    updatedAt?: string;
   };
 }
 

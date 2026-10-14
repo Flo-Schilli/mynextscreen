@@ -63,7 +63,7 @@ const EVENT: SourceEvent = {
   detailUrl: null,
   ticketUrl: null,
   goneAt: null,
-  slides: [{ format: '1920x1080', contentId: 'c1' }],
+  slides: [{ format: '1920x1080', contentId: 'c1', updatedAt: '2026-11-01T10:00:00.000Z' }],
 };
 
 describe('SourceDetail', () => {

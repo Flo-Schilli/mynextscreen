@@ -33,6 +33,7 @@ const PREVIEW: RulePreviewResult = {
       sourceEventId: 'e1',
       sourceId: 's1',
       contentId: 'c1',
+      contentUpdatedAt: '2026-11-01T10:00:00.000Z',
       title: 'Heaven Shall Burn',
       eventDate: '2026-11-07',
       startTime: '20:00',

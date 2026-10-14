@@ -141,11 +141,11 @@ export class SourceEventTable {
 
   /** The small precomputed thumbnail; it 404s until transcoding has made it. */
   protected thumbUrl(slide: SourceEventSlide): string {
-    return this.contentService.getThumbnailUrl(slide.contentId);
+    return this.contentService.getThumbnailUrl(slide.contentId, slide.updatedAt);
   }
 
   protected fullUrl(slide: SourceEventSlide): string {
-    return this.contentService.getTranscodedUrl(slide.contentId);
+    return this.contentService.getTranscodedUrl(slide.contentId, slide.updatedAt);
   }
 
   /** Falls back to the full image once, so a missing thumbnail still shows the slide. */

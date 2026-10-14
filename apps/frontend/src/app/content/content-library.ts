@@ -798,9 +798,9 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
 
   getPreviewUrl = (content: Content): string => {
     if (content.transcodingStatus === 'completed') {
-      return this.contentService.getTranscodedUrl(content.id);
+      return this.contentService.getTranscodedUrl(content.id, content.updatedAt);
     }
-    return this.contentService.getOriginalUrl(content.id);
+    return this.contentService.getOriginalUrl(content.id, content.updatedAt);
   };
 
   /** Still-image thumbnail for grid cards (precomputed thumb, or null for a placeholder). */

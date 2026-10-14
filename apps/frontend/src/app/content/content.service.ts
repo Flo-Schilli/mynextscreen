@@ -15,6 +15,8 @@ export interface ThumbnailRef {
   id: string;
   type: 'image' | 'video';
   thumbnailSizeBytes: number | null;
+  /** Versions the URL: a re-upload or re-rendered slide keeps its id. */
+  updatedAt?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -182,17 +184,17 @@ export class ContentService {
     );
   }
 
-  getOriginalUrl(id: string): string {
-    return this.buildMediaUrl(`/api/content/${id}/file/original`);
+  getOriginalUrl(id: string, version?: string | null): string {
+    return this.buildMediaUrl(`/api/content/${id}/file/original`, version);
   }
 
-  getTranscodedUrl(id: string): string {
-    return this.buildMediaUrl(`/api/content/${id}/file/transcoded`);
+  getTranscodedUrl(id: string, version?: string | null): string {
+    return this.buildMediaUrl(`/api/content/${id}/file/transcoded`, version);
   }
 
   /** URL of the precomputed thumbnail (small WebP). 404s until one is generated. */
-  getThumbnailUrl(id: string): string {
-    return this.buildMediaUrl(`/api/content/${id}/file/thumbnail`);
+  getThumbnailUrl(id: string, version?: string | null): string {
+    return this.buildMediaUrl(`/api/content/${id}/file/thumbnail`, version);
   }
 
   /**
@@ -203,21 +205,28 @@ export class ContentService {
    */
   getStaticThumbnailUrl(ref: ThumbnailRef): string | null {
     if (ref.thumbnailSizeBytes != null) {
-      return this.getThumbnailUrl(ref.id);
+      return this.getThumbnailUrl(ref.id, ref.updatedAt);
     }
     if (ref.type === 'image') {
-      return this.getTranscodedUrl(ref.id);
+      return this.getTranscodedUrl(ref.id, ref.updatedAt);
     }
     return null;
   }
 
-  private buildMediaUrl(base: string): string {
+  /**
+   * `version` (the content's `updatedAt`) changes the URL whenever the file
+   * changes under the same id; the files are cached for a day.
+   */
+  private buildMediaUrl(base: string, version?: string | null): string {
     // Same-origin <img>/<video> send the httpOnly access cookie automatically;
     // the org scope travels as a query param since image tags cannot set headers.
     const params = new URLSearchParams();
     const orgId = this.orgState.selectedOrgId();
     if (orgId) {
       params.set('organisationId', orgId);
+    }
+    if (version) {
+      params.set('v', version);
     }
     const query = params.toString();
     return query ? `${base}?${query}` : base;

@@ -51,6 +51,8 @@ export interface RulePreviewItem {
   sourceEventId: string;
   sourceId: string;
   contentId: string;
+  /** `updatedAt` of the slide content, ISO; versions the thumbnail URL. */
+  contentUpdatedAt: string | null;
   title: string;
   eventDate: string;
   startTime: string | null;
@@ -151,6 +153,9 @@ export class PlaylistRuleService {
         sourceEventId: event.id,
         sourceId: event.sourceId,
         contentId,
+        contentUpdatedAt:
+          event.slides.find((slide) => slide.contentId === contentId)?.updatedAt.toISOString() ??
+          null,
         title: event.title,
         eventDate: event.eventDate,
         startTime: event.startTime,

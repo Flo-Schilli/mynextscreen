@@ -93,7 +93,7 @@ describe('PlaylistRuleService', () => {
   /** Seeds an event with a landscape slide; returns the slide's content id. */
   async function seedEventWithSlide(
     values: Partial<typeof sourceEvents.$inferInsert> = {},
-  ): Promise<{ eventId: string; contentId: string }> {
+  ): Promise<{ eventId: string; contentId: string; contentUpdatedAt: Date }> {
     const eventDate = values.eventDate ?? '2026-11-12';
     const [event] = await db
       .insert(sourceEvents)
@@ -128,7 +128,7 @@ describe('PlaylistRuleService', () => {
       contentId: content.id,
       renderHash: 'r',
     });
-    return { eventId: event.id, contentId: content.id };
+    return { eventId: event.id, contentId: content.id, contentUpdatedAt: content.updatedAt };
   }
 
   async function seedDynamic(
@@ -179,6 +179,7 @@ describe('PlaylistRuleService', () => {
           expect.objectContaining({
             sourceEventId: metal.eventId,
             contentId: metal.contentId,
+            contentUpdatedAt: metal.contentUpdatedAt.toISOString(),
             title: 'Metal Band',
             venue: 'Löwensaal',
             // 2026-11-13 00:00 CET + 4 h.

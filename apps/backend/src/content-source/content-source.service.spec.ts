@@ -322,7 +322,10 @@ describe('ContentSourceService', () => {
 
       const byGenre = await service.listEvents(orgId, source.id, { genres: ['Metal'] });
       expect(byGenre.map((e) => e.title)).toEqual(['Metal']);
-      expect(byGenre[0].slides).toEqual([{ format: '1920x1080', contentId: content.id }]);
+      // updatedAt versions the thumbnail URL, so a re-rendered slide is not served from cache.
+      expect(byGenre[0].slides).toEqual([
+        { format: '1920x1080', contentId: content.id, updatedAt: content.updatedAt },
+      ]);
 
       const byVenue = await service.listEvents(orgId, source.id, { venues: ['Hirsch'] });
       expect(byVenue.map((e) => e.title)).toEqual(['Pop']);

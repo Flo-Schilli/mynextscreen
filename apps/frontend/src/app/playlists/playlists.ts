@@ -888,12 +888,13 @@ export class Playlists implements OnInit {
       id: c.id,
       type: c.type,
       thumbnailSizeBytes: c.thumbnailSizeBytes,
+      updatedAt: c.updatedAt,
     });
   };
 
   /** Full-resolution media URL for playback/large preview (loop preview, inline preview). */
   getPreviewUrl = (item: PlaylistItem): string => {
-    return this.contentService.getTranscodedUrl(item.contentId);
+    return this.contentService.getTranscodedUrl(item.contentId, item.content?.updatedAt);
   };
 
   getContentThumbUrl = (content: Content): string | null => {

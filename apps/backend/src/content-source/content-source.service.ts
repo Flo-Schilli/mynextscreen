@@ -50,8 +50,15 @@ const MS_PER_MINUTE = 60_000;
 /** Safety cap for the rule pool; a source lists a few hundred events at most. */
 export const MAX_POOL_EVENTS = 5000;
 
+export interface SourceEventSlideRef {
+  format: SlideFormat;
+  contentId: string;
+  /** Of the slide's content; versions its URLs, since a re-render keeps the id. */
+  updatedAt: Date;
+}
+
 export interface SourceEventWithSlides extends SourceEvent {
-  slides: { format: SlideFormat; contentId: string }[];
+  slides: SourceEventSlideRef[];
 }
 
 export interface SourceFacets {
@@ -322,8 +329,10 @@ export class ContentSourceService {
         sourceEventId: sourceEventSlides.sourceEventId,
         format: sourceEventSlides.format,
         contentId: sourceEventSlides.contentId,
+        updatedAt: contents.updatedAt,
       })
       .from(sourceEventSlides)
+      .innerJoin(contents, eq(contents.id, sourceEventSlides.contentId))
       .where(
         inArray(
           sourceEventSlides.sourceEventId,
@@ -334,7 +343,7 @@ export class ContentSourceService {
       ...event,
       slides: slides
         .filter((slide) => slide.sourceEventId === event.id)
-        .map(({ format, contentId }) => ({ format, contentId })),
+        .map(({ format, contentId, updatedAt }) => ({ format, contentId, updatedAt })),
     }));
   }
 

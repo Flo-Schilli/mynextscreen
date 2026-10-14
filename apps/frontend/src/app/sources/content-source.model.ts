@@ -75,6 +75,8 @@ export interface SourceFacets {
 export interface SourceEventSlide {
   format: SlideFormat;
   contentId: string;
+  /** Of the slide's content, ISO. A re-render keeps the id, so this versions the URLs. */
+  updatedAt: string;
 }
 
 export interface SourceEvent {
