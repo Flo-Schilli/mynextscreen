@@ -37,6 +37,7 @@ jest.mock('fs/promises', () => ({
     Promise.resolve({ size: String(p).includes('_thumb') ? 100 : 5000 }),
   ),
   unlink: jest.fn().mockResolvedValue(undefined),
+  rename: jest.fn().mockResolvedValue(undefined),
   access: jest.fn().mockResolvedValue(undefined),
 }));
 
@@ -133,6 +134,7 @@ describe('TranscodingProcessor', () => {
     storageService = {
       checkTranscodedLimit: jest.fn().mockResolvedValue(undefined),
       addTranscodedUsage: jest.fn().mockResolvedValue(undefined),
+      subtractTranscodedUsage: jest.fn().mockResolvedValue(undefined),
     };
     emit = jest.fn();
 
@@ -340,8 +342,9 @@ describe('TranscodingProcessor', () => {
 
       await processor.process(createJob(content.id, org.id));
 
+      // Probed before the swap, on the staged file.
       expect(mockFfprobeDuration).toHaveBeenCalledWith(
-        expect.stringContaining(`${content.id}.mp4`),
+        expect.stringContaining(`${content.id}.next-job-1.mp4`),
         'ffprobe',
       );
     });
@@ -467,6 +470,149 @@ describe('TranscodingProcessor', () => {
       );
 
       expect(storageService.addTranscodedUsage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('process — replacing a live rendition', () => {
+    const fsMock = (): Record<'rename' | 'unlink', jest.Mock> =>
+      jest.requireMock('fs/promises') as Record<'rename' | 'unlink', jest.Mock>;
+
+    /** A re-uploaded image whose previous rendition (3000 + 50 bytes) is still live. */
+    async function seedLive(organisationId: string): Promise<Content> {
+      const content = await seedContent(organisationId, ContentType.Image);
+      const [row] = await db
+        .update(contents)
+        .set({
+          transcodingStatus: TranscodingStatus.Pending,
+          transcodedSizeBytes: 3000,
+          thumbnailSizeBytes: 50,
+          durationSeconds: null,
+        })
+        .where(eq(contents.id, content.id))
+        .returning();
+      return row;
+    }
+
+    const videoJob = (contentId: string, organisationId: string): Job<TranscodeJobData> =>
+      createJob(contentId, organisationId, { type: ContentType.Video });
+
+    it('writes to staging files and renames them over the live ones on success', async () => {
+      const org = await seedOrg();
+      const content = await seedLive(org.id);
+      setupSpawnSuccess();
+
+      await processor.process(videoJob(content.id, org.id));
+
+      const outputs = mockSpawn.mock.calls.map(([, args]) => (args as string[]).at(-1));
+      expect(outputs).toEqual([
+        expect.stringContaining(`transcoded/${content.id}.next-job-1.mp4`),
+        expect.stringContaining(`transcoded/${content.id}_thumb.next-job-1.webp`),
+      ]);
+      expect(fsMock().rename.mock.calls).toEqual([
+        [
+          expect.stringContaining(`${content.id}.next-job-1.mp4`),
+          expect.stringContaining(`transcoded/${content.id}.mp4`),
+        ],
+        [
+          expect.stringContaining(`${content.id}_thumb.next-job-1.webp`),
+          expect.stringContaining(`transcoded/${content.id}_thumb.webp`),
+        ],
+      ]);
+      // The type changed from image to video: the old WebP goes after the swap.
+      expect(fsMock().unlink).toHaveBeenCalledWith(
+        expect.stringContaining(`transcoded/${content.id}.webp`),
+      );
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(row.type).toBe(ContentType.Video);
+      expect(row.transcodingStatus).toBe(TranscodingStatus.Completed);
+      expect(Number(row.transcodedSizeBytes)).toBe(5000);
+      expect(row.durationSeconds).toBe(60);
+    });
+
+    it('bills only the growth over the previous rendition', async () => {
+      const org = await seedOrg();
+      const content = await seedLive(org.id);
+      setupSpawnSuccess();
+
+      await processor.process(videoJob(content.id, org.id));
+
+      // 5100 new - 3050 previous = 2050
+      expect(storageService.checkTranscodedLimit).toHaveBeenCalledWith(org.id, 2050);
+      expect(storageService.addTranscodedUsage).toHaveBeenCalledWith(org.id, 2050);
+      expect(storageService.subtractTranscodedUsage).not.toHaveBeenCalled();
+    });
+
+    it('releases quota without a limit check when the new rendition is smaller', async () => {
+      const org = await seedOrg();
+      const content = await seedLive(org.id);
+      await db
+        .update(contents)
+        .set({ transcodedSizeBytes: 9000 })
+        .where(eq(contents.id, content.id));
+      setupSpawnSuccess();
+
+      await processor.process(videoJob(content.id, org.id));
+
+      expect(storageService.checkTranscodedLimit).not.toHaveBeenCalled();
+      expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith(org.id, 3950);
+      expect(storageService.addTranscodedUsage).not.toHaveBeenCalled();
+    });
+
+    it('keeps the previous rendition live and its sizes when transcoding fails', async () => {
+      const org = await seedOrg();
+      const content = await seedLive(org.id);
+      setupSpawnFailure(1);
+
+      await expect(processor.process(videoJob(content.id, org.id))).rejects.toThrow(
+        'FFmpeg exited with code 1',
+      );
+
+      expect(fsMock().rename).not.toHaveBeenCalled();
+      const unlinked = fsMock().unlink.mock.calls.map(([p]) => String(p));
+      expect(unlinked.every((p) => p.includes('.next-job-1.'))).toBe(true);
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(row.transcodingStatus).toBe(TranscodingStatus.Failed);
+      expect(row.transcodingError).toContain('FFmpeg exited with code 1');
+      expect(row.type).toBe(ContentType.Image);
+      expect(Number(row.transcodedSizeBytes)).toBe(3000);
+      expect(Number(row.thumbnailSizeBytes)).toBe(50);
+      expect(storageService.subtractTranscodedUsage).not.toHaveBeenCalled();
+    });
+
+    it('keeps the previous rendition live when the growth exceeds the limit', async () => {
+      const org = await seedOrg();
+      const content = await seedLive(org.id);
+      setupSpawnSuccess();
+      storageService.checkTranscodedLimit.mockRejectedValue(new BadRequestException('limit'));
+
+      await processor.process(videoJob(content.id, org.id));
+
+      expect(fsMock().rename).not.toHaveBeenCalled();
+      const [row] = await db.select().from(contents).where(eq(contents.id, content.id));
+      expect(row.transcodingStatus).toBe(TranscodingStatus.Failed);
+      expect(Number(row.transcodedSizeBytes)).toBe(3000);
+    });
+
+    it('discards the result silently when the content was deleted meanwhile', async () => {
+      const org = await seedOrg();
+      const content = await seedLive(org.id);
+      setupSpawnSuccess();
+      const job = videoJob(content.id, org.id);
+      // Deleted after the status update, while FFmpeg runs.
+      mockFfprobeDuration.mockImplementation(async () => {
+        await db.delete(contents).where(eq(contents.id, content.id));
+        return 60;
+      });
+
+      await processor.process(job);
+
+      expect(fsMock().rename).not.toHaveBeenCalled();
+      expect(fsMock().unlink).toHaveBeenCalledWith(
+        expect.stringContaining(`${content.id}.next-job-1.mp4`),
+      );
+      expect(storageService.addTranscodedUsage).not.toHaveBeenCalled();
+      expect(emit).not.toHaveBeenCalledWith(TRANSCODING_COMPLETED, expect.anything());
+      expect(emit).not.toHaveBeenCalledWith(TRANSCODING_FAILED, expect.anything());
     });
   });
 

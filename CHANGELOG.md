@@ -45,7 +45,15 @@ A re-uploaded file kept its old URL, and screens kept playing the cached old
 version for up to a day, also because nothing told them to reload. Media URLs
 now carry the content's version, and once the new file is transcoded every
 screen showing it reloads its playlist. The same holds for re-rendered slides,
-and thumbnails in the dashboard follow the new file as well.
+and thumbnails in the dashboard follow the new file as well, the screen
+cards on the screens page included.
+
+While the new file is being transcoded, screens keep getting the previous one.
+Before, the media URL answered 404 until the transcode finished, and a screen
+that loaded the item in that window skipped it. The new file goes live in one
+step once it is complete; if transcoding fails, the previous file stays on air
+and the item shows the error. The transcoded storage limit only has to fit the
+difference between the old and the new file.
 
 **Operator action:** update the server. The backend migrations (`0027`,
 `0028`) add `content_sources` (with `venue_aliases`), `source_events`,

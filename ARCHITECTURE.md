@@ -160,7 +160,8 @@ playlists (kind=dynamic, rule) ◀──(playlist-resolve: resolve-<playlistId>)
   render every current event (from yesterday on) in every configured format
   whose `renderHash` changed. A new slide becomes managed content via
   `ContentService.createManaged`; a changed one replaces the file under the
-  same content id (`replaceManagedFile`), so playlist items stay valid. Both
+  same content id (`replaceManagedFile`), so playlist items stay valid, and the
+  previous slide stays on air until the new one is transcoded. Both
   go through the regular quota, magic-byte check and transcoding queue. A new
   slide whose `source_event_slides` row cannot be stored is deleted again. The
   outcome is stored on the source as a summary, audited, and
@@ -295,7 +296,8 @@ versions its thumbnail and file URLs the same way.
   - Image → WebP (JPEG fallback for compatibility)
 - **Progress:** worker reports progress via BullMQ events → DashboardSseService pushes to frontend via SSE
 - **Storage accounting:** on completion, original and transcoded file sizes are added to the organisation's usage counters
-- **Re-upload:** overwrites both original and transcoded files, updates storage counters; on completion the playlists showing the item are announced to their screens
+- **Re-upload** (`reUpload`, and `replaceManagedFile` for re-rendered slides): the new original replaces the old one at once, but the transcoded file, its thumbnail, `type`, `durationSeconds` and the transcoded sizes stay as they are, so `/api/media` keeps serving the previous rendition while the job runs and no screen skips the item. The worker writes to staging files beside the live ones (`{contentId}.next-{jobId}.{ext}`, `{contentId}_thumb.next-{jobId}.webp`; the media lookup matches the exact base name and never serves them), then `rename`s them over the live files (atomic within the directory), removes a leftover of the other extension when the type changed, updates the row in one statement and emits `TRANSCODING_COMPLETED`; the playlists showing the item are then announced to their screens. A failed transcode or an exceeded quota marks the row `failed` with the error, discards the staging files and leaves the previous rendition live and billed. Deleting the content mid-transcode removes its staging files; the job then discards its result
+- **Transcoded quota on re-upload:** only the growth over the previous rendition (`new transcoded + thumbnail − old`) is checked and booked, a shrink is released. Old and new files coexist only for the duration of one job, and the old one is deleted in the same step that books the difference; counting both would refuse a same-size re-upload near the limit although the steady state fits
 
 ## Live Streaming
 

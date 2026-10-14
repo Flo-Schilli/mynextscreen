@@ -81,3 +81,39 @@ export async function removeOrganisationMedia(
     await fs.rm(resolved, { force: true });
   }
 }
+
+/** Infix that marks a file a running transcode job writes before it goes live. */
+const STAGING_INFIX = '.next-';
+
+/**
+ * Where a transcode job writes a file before it replaces the live one:
+ * `{contentId}.mp4` becomes `{contentId}.next-{token}.mp4`. The extension stays
+ * last so FFmpeg still picks the container from it, and the base name no
+ * longer equals the content id, so the media endpoint never serves it.
+ */
+export function getStagingPath(livePath: string, token: string): string {
+  const { dir, name, ext } = path.parse(livePath);
+  return path.join(dir, `${name}${STAGING_INFIX}${token}${ext}`);
+}
+
+/**
+ * Removes staging files a transcode job left behind for a content item
+ * (deleted mid-transcode, or a worker that died). Best-effort: a missing
+ * directory means there is nothing to clean up.
+ */
+export async function removeStagingFiles(
+  basePath: string,
+  organisationId: string,
+  contentId: string,
+): Promise<void> {
+  const dir = path.join(basePath, organisationId, 'transcoded');
+  let entries: string[];
+  try {
+    entries = await fs.readdir(dir);
+  } catch {
+    return;
+  }
+  const prefixes = [`${contentId}${STAGING_INFIX}`, `${contentId}_thumb${STAGING_INFIX}`];
+  const staged = entries.filter((entry) => prefixes.some((prefix) => entry.startsWith(prefix)));
+  await Promise.all(staged.map((entry) => fs.rm(path.join(dir, entry), { force: true })));
+}

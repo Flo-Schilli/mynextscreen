@@ -9,11 +9,16 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
-import { contents } from '../db/schema';
+import { contents, type Content } from '../db/schema';
 import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
 import { StorageService } from '../organisation/storage.service';
-import { getOriginalPath, getTranscodedPath, getThumbnailPath } from './content-storage.util';
+import {
+  getOriginalPath,
+  getStagingPath,
+  getTranscodedPath,
+  getThumbnailPath,
+} from './content-storage.util';
 import { JobMetricsService } from '../observability/job-metrics.service';
 import { parseDuration, parseProgressTime, calculateProgress } from './ffmpeg-progress.util';
 import { ffprobeDuration } from './ffprobe-duration.util';
@@ -45,6 +50,27 @@ export const THUMBNAIL_JOB = 'thumbnail';
 
 /** Longest edge of a generated thumbnail, in pixels. Never upscales. */
 const THUMBNAIL_MAX_WIDTH = 480;
+
+const TRANSCODED_LIMIT_ERROR = 'Transcoded file would exceed organisation transcoded storage limit';
+
+interface RenditionFiles {
+  livePath: string;
+  stagingPath: string;
+  liveThumbnailPath: string;
+  stagingThumbnailPath: string;
+}
+
+interface StagedRendition {
+  transcodedSizeBytes: number;
+  thumbnailSizeBytes: number | null;
+  durationSeconds: number | null;
+  /** Transcoded file plus thumbnail, the amount billed to the transcoded quota. */
+  totalBytes: number;
+}
+
+/** Bytes a content's current rendition occupies in the transcoded quota. */
+const renditionBytes = (content: Content): number =>
+  Number(content.transcodedSizeBytes ?? 0) + Number(content.thumbnailSizeBytes ?? 0);
 
 @Processor('transcoding')
 export class TranscodingProcessor extends WorkerHost {
@@ -92,126 +118,214 @@ export class TranscodingProcessor extends WorkerHost {
     this.jobMetrics.recordFailed('transcoding', job);
   }
 
+  /**
+   * Transcodes into staging files next to the live ones and swaps them in only
+   * once everything succeeded. Until then the previous rendition (if any) stays
+   * servable, so a screen that loads a replaced item mid-transcode still gets
+   * the old file instead of a 404. A failure leaves the previous file live.
+   */
   private async processTranscode(job: Job<TranscodeJobData>): Promise<void> {
-    const { contentId, organisationId, originalPath, type } = job.data;
+    const { contentId, organisationId } = job.data;
 
     this.logger.log(`Processing transcoding job ${job.id} for content ${contentId}`);
 
     // Update status to processing
     await this.updateStatus(contentId, TranscodingStatus.Processing);
 
+    const files = this.renditionFiles(job);
     try {
-      const targetExt = type === ContentType.Video ? 'mp4' : 'webp';
-      const outputPath = getTranscodedPath(
-        this.mediaBasePath,
-        organisationId,
-        contentId,
-        targetExt,
-      );
-      await fs.mkdir(path.dirname(outputPath), { recursive: true });
+      await fs.mkdir(path.dirname(files.livePath), { recursive: true });
+      const rendition = await this.renderStaged(job, files);
 
-      if (type === ContentType.Video) {
-        await this.transcodeVideo(job, originalPath, outputPath);
-      } else {
-        await this.transcodeImage(job, originalPath, outputPath);
+      const previous = await this.findContent(contentId);
+      if (!previous) {
+        // Deleted while transcoding: nothing to swap into.
+        await this.discardStaged(files);
+        this.logger.log(`Content ${contentId} was deleted during transcoding; discarded result`);
+        return;
       }
 
-      // Get transcoded file size
-      const stat = await fs.stat(outputPath);
-      const transcodedSizeBytes = stat.size;
-
-      // Generate the thumbnail (best-effort). Videos use the transcoded MP4 so the
-      // `thumbnail` filter can pick a representative frame; images use the ORIGINAL,
-      // because FFmpeg's native WebP decoder cannot read back an animated WebP we
-      // may have just produced from an animated source.
-      const thumbnailPath = getThumbnailPath(this.mediaBasePath, organisationId, contentId);
-      const thumbnailSource = type === ContentType.Video ? outputPath : originalPath;
-      const thumbnailSizeBytes = await this.generateThumbnailSafe(
-        type,
-        thumbnailSource,
-        thumbnailPath,
-        contentId,
-      );
-      const addedBytes = transcodedSizeBytes + (thumbnailSizeBytes ?? 0);
-
-      // Check transcoded storage limit before saving (transcoded + thumbnail)
-      try {
-        await this.storageService.checkTranscodedLimit(organisationId, addedBytes);
-      } catch {
-        // Limit exceeded: remove the transcoded file + thumbnail and mark as failed
-        await this.unlinkSafe(outputPath);
-        await this.unlinkSafe(thumbnailPath);
-        const limitError = 'Transcoded file would exceed organisation transcoded storage limit';
-        await this.db
-          .update(contents)
-          .set({
-            transcodingStatus: TranscodingStatus.Failed,
-            transcodingError: limitError,
-          })
-          .where(eq(contents.id, contentId));
-        this.eventEmitter.emit(
-          TRANSCODING_FAILED,
-          new TranscodingFailedEvent(contentId, organisationId, limitError),
-        );
+      // The previous rendition is replaced right below, so only the growth has
+      // to fit the quota; old and new coexist only for the duration of the job.
+      const sizeDelta = rendition.totalBytes - renditionBytes(previous);
+      if (sizeDelta > 0 && !(await this.fitsTranscodedLimit(organisationId, sizeDelta))) {
+        await this.discardStaged(files);
+        await this.markFailed(job, TRANSCODED_LIMIT_ERROR);
         this.logger.warn(`Transcoding for content ${contentId} exceeded transcoded storage limit`);
         return;
       }
 
-      // Extract video duration via ffprobe
-      let durationSeconds: number | null = null;
-      if (type === ContentType.Video) {
-        try {
-          const ffprobePath = this.ffmpegPath.replace(/ffmpeg/, 'ffprobe');
-          durationSeconds = await ffprobeDuration(outputPath, ffprobePath);
-        } catch (err: unknown) {
-          this.logger.warn(
-            `Failed to extract duration for content ${contentId}: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
-      }
-
-      // Update content record
+      await this.promoteStaged(files, rendition, previous);
       await this.db
         .update(contents)
         .set({
-          transcodedSizeBytes,
-          thumbnailSizeBytes,
-          durationSeconds,
+          type: job.data.type,
+          transcodedSizeBytes: rendition.transcodedSizeBytes,
+          thumbnailSizeBytes: rendition.thumbnailSizeBytes,
+          durationSeconds: rendition.durationSeconds,
           transcodingStatus: TranscodingStatus.Completed,
           transcodingError: null,
         })
         .where(eq(contents.id, contentId));
-
-      // Update org storage counter (transcoded file + thumbnail)
-      await this.storageService.addTranscodedUsage(organisationId, addedBytes);
+      await this.bookTranscodedDelta(organisationId, sizeDelta);
 
       this.eventEmitter.emit(
         TRANSCODING_COMPLETED,
-        new TranscodingCompletedEvent(contentId, organisationId, transcodedSizeBytes),
+        new TranscodingCompletedEvent(contentId, organisationId, rendition.transcodedSizeBytes),
       );
-
       this.logger.log(
-        `Transcoding completed for content ${contentId} (${transcodedSizeBytes} bytes)`,
+        `Transcoding completed for content ${contentId} (${rendition.transcodedSizeBytes} bytes)`,
       );
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Transcoding failed for content ${contentId}: ${errorMessage}`);
-
-      await this.db
-        .update(contents)
-        .set({
-          transcodingStatus: TranscodingStatus.Failed,
-          transcodingError: errorMessage,
-        })
-        .where(eq(contents.id, contentId));
-
-      this.eventEmitter.emit(
-        TRANSCODING_FAILED,
-        new TranscodingFailedEvent(contentId, organisationId, errorMessage),
-      );
-
+      await this.discardStaged(files);
+      await this.markFailed(job, errorMessage);
       throw error;
     }
+  }
+
+  /** Live and staging paths of the rendition and thumbnail a job produces. */
+  private renditionFiles(job: Job<TranscodeJobData>): RenditionFiles {
+    const { contentId, organisationId, type } = job.data;
+    // Unique per job, so two re-uploads in quick succession never share a file.
+    const token = String(job.id ?? Date.now());
+    const targetExt = type === ContentType.Video ? 'mp4' : 'webp';
+    const livePath = getTranscodedPath(this.mediaBasePath, organisationId, contentId, targetExt);
+    const liveThumbnailPath = getThumbnailPath(this.mediaBasePath, organisationId, contentId);
+    return {
+      livePath,
+      stagingPath: getStagingPath(livePath, token),
+      liveThumbnailPath,
+      stagingThumbnailPath: getStagingPath(liveThumbnailPath, token),
+    };
+  }
+
+  /** Transcodes, thumbnails and probes into the staging files. */
+  private async renderStaged(
+    job: Job<TranscodeJobData>,
+    files: RenditionFiles,
+  ): Promise<StagedRendition> {
+    const { contentId, originalPath, type } = job.data;
+    if (type === ContentType.Video) {
+      await this.transcodeVideo(job, originalPath, files.stagingPath);
+    } else {
+      await this.transcodeImage(job, originalPath, files.stagingPath);
+    }
+    const transcodedSizeBytes = (await fs.stat(files.stagingPath)).size;
+
+    // Generate the thumbnail (best-effort). Videos use the transcoded MP4 so the
+    // `thumbnail` filter can pick a representative frame; images use the ORIGINAL,
+    // because FFmpeg's native WebP decoder cannot read back an animated WebP we
+    // may have just produced from an animated source.
+    const thumbnailSizeBytes = await this.generateThumbnailSafe(
+      type,
+      type === ContentType.Video ? files.stagingPath : originalPath,
+      files.stagingThumbnailPath,
+      contentId,
+    );
+
+    const durationSeconds =
+      type === ContentType.Video ? await this.probeDuration(files.stagingPath, contentId) : null;
+    return {
+      transcodedSizeBytes,
+      thumbnailSizeBytes,
+      durationSeconds,
+      totalBytes: transcodedSizeBytes + (thumbnailSizeBytes ?? 0),
+    };
+  }
+
+  /**
+   * Makes the staged files live. `rename` within one directory is atomic, so a
+   * request sees either the old or the new file, never a half-written one, and
+   * a download already streaming the old file keeps its handle.
+   */
+  private async promoteStaged(
+    files: RenditionFiles,
+    rendition: StagedRendition,
+    previous: Content,
+  ): Promise<void> {
+    await fs.rename(files.stagingPath, files.livePath);
+    if (rendition.thumbnailSizeBytes != null) {
+      await fs.rename(files.stagingThumbnailPath, files.liveThumbnailPath);
+    } else {
+      // No new thumbnail: drop the old one, the frontend falls back to the file.
+      await this.unlinkSafe(files.liveThumbnailPath);
+    }
+    // A re-upload that changed the type (image ↔ video) leaves the other extension behind.
+    const previousExt = previous.type === ContentType.Video ? 'mp4' : 'webp';
+    const previousPath = getTranscodedPath(
+      this.mediaBasePath,
+      previous.organisationId,
+      previous.id,
+      previousExt,
+    );
+    if (previousPath !== files.livePath) {
+      await this.unlinkSafe(previousPath);
+    }
+  }
+
+  private async discardStaged(files: RenditionFiles): Promise<void> {
+    await this.unlinkSafe(files.stagingPath);
+    await this.unlinkSafe(files.stagingThumbnailPath);
+  }
+
+  /**
+   * Marks the job's content failed. Sizes, type and duration stay untouched:
+   * they still describe the previous rendition, which remains live. The new
+   * original stays stored, so the error refers to the file the user uploaded.
+   */
+  private async markFailed(job: Job<TranscodeJobData>, errorMessage: string): Promise<void> {
+    const { contentId, organisationId } = job.data;
+    const updated = await this.db
+      .update(contents)
+      .set({ transcodingStatus: TranscodingStatus.Failed, transcodingError: errorMessage })
+      .where(eq(contents.id, contentId))
+      .returning({ id: contents.id });
+    // Content deleted mid-transcode: nobody is left to notify.
+    if (updated.length === 0) return;
+    this.eventEmitter.emit(
+      TRANSCODING_FAILED,
+      new TranscodingFailedEvent(contentId, organisationId, errorMessage),
+    );
+  }
+
+  private async fitsTranscodedLimit(organisationId: string, bytes: number): Promise<boolean> {
+    try {
+      await this.storageService.checkTranscodedLimit(organisationId, bytes);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async bookTranscodedDelta(organisationId: string, sizeDelta: number): Promise<void> {
+    if (sizeDelta > 0) {
+      await this.storageService.addTranscodedUsage(organisationId, sizeDelta);
+    } else if (sizeDelta < 0) {
+      await this.storageService.subtractTranscodedUsage(organisationId, -sizeDelta);
+    }
+  }
+
+  private async probeDuration(filePath: string, contentId: string): Promise<number | null> {
+    try {
+      const ffprobePath = this.ffmpegPath.replace(/ffmpeg/, 'ffprobe');
+      return await ffprobeDuration(filePath, ffprobePath);
+    } catch (err: unknown) {
+      this.logger.warn(
+        `Failed to extract duration for content ${contentId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return null;
+    }
+  }
+
+  private async findContent(contentId: string): Promise<Content | undefined> {
+    const [content] = await this.db
+      .select()
+      .from(contents)
+      .where(eq(contents.id, contentId))
+      .limit(1);
+    return content;
   }
 
   private transcodeVideo(

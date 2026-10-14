@@ -377,7 +377,7 @@ describe('ContentService', () => {
   });
 
   describe('reUpload', () => {
-    it('should replace file and reset transcoding status', async () => {
+    it('should replace the original and reset transcoding status', async () => {
       const org = await seedOrg();
       const content = await seedContent(org.id, {
         originalFilename: 'old.png',
@@ -395,15 +395,48 @@ describe('ContentService', () => {
       expect(result.originalFilename).toBe('new.png');
       expect(Number(result.originalSizeBytes)).toBe(3000);
       expect(result.transcodingStatus).toBe(TranscodingStatus.Pending);
-      expect(result.transcodedSizeBytes).toBeNull();
       expect(result.transcodingError).toBeNull();
       // sizeDelta = 3000 - 2000 = 1000 (positive) — reserved, not booked twice
       expect(storageService.reserveOriginalUsage).toHaveBeenCalledWith(org.id, 1000);
       expect(storageService.addOriginalUsage).not.toHaveBeenCalled();
-      expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith(org.id, 1000);
       expect(queue.add).toHaveBeenCalledWith(
         'transcode',
         expect.objectContaining({ contentId: content.id }),
+      );
+    });
+
+    it('keeps the live rendition until the new transcode swaps it in', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id, {
+        originalFilename: 'old.png',
+        originalMimeType: 'image/png',
+        originalSizeBytes: 2000,
+        transcodedSizeBytes: 1000,
+        thumbnailSizeBytes: 80,
+        type: ContentType.Image,
+        transcodingStatus: TranscodingStatus.Completed,
+      });
+      const fsPromises = jest.requireMock('fs/promises') as { unlink: jest.Mock };
+
+      const result = await service.reUpload(
+        org.id,
+        content.id,
+        createMockFile({ originalname: 'new.mp4', mimetype: 'video/mp4', buffer: MP4_BYTES }),
+      );
+
+      // Sizes and type still describe the file screens are being served.
+      expect(Number(result.transcodedSizeBytes)).toBe(1000);
+      expect(Number(result.thumbnailSizeBytes)).toBe(80);
+      expect(result.type).toBe(ContentType.Image);
+      expect(storageService.subtractTranscodedUsage).not.toHaveBeenCalled();
+      const unlinked = fsPromises.unlink.mock.calls.map(([p]) => String(p));
+      expect(unlinked.some((p) => p.includes('/transcoded/'))).toBe(false);
+      // Only the superseded original goes (its extension changed).
+      expect(unlinked).toEqual([expect.stringContaining(`originals/${content.id}.png`)]);
+      // The job carries the new type; it is applied together with the swap.
+      expect(queue.add).toHaveBeenCalledWith(
+        'transcode',
+        expect.objectContaining({ contentId: content.id, type: ContentType.Video }),
       );
     });
 
