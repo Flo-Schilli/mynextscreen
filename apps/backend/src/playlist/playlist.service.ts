@@ -21,6 +21,10 @@ import { AddPlaylistItemDto } from './dto/add-playlist-item.dto';
 import { UpdatePlaylistItemDto } from './dto/update-playlist-item.dto';
 import { NewPlaylistItemDto } from './dto/add-playlist-items.dto';
 import { UpdateAllPlaylistItemsDto } from './dto/update-all-playlist-items.dto';
+import { toPlaylistRule } from './dto/playlist-rule.dto';
+import { PlaylistKind } from './playlist-kind.enum';
+import { assertStaticPlaylist } from './assert-static-playlist';
+import type { TransitionType } from './transition-type.enum';
 import { PLAYLIST_UPDATED, PlaylistUpdatedEvent } from './playlist.event';
 import { CONTENT_DURATION_RESOLVED, ContentDurationResolvedEvent } from '../content/content.event';
 import {
@@ -53,6 +57,32 @@ type PlaylistWithItemsAndContent = Playlist & {
   items: (PlaylistItem & { content: Content })[];
 };
 
+/** One materialised item of a dynamic playlist, in playback order. */
+export interface ReplacementPlaylistItem {
+  contentId: string;
+  durationSeconds: number;
+  transition: TransitionType;
+  transitionDurationMs: number;
+}
+
+type ComparableItem = Pick<
+  PlaylistItem,
+  'contentId' | 'durationSeconds' | 'transition' | 'transitionDurationMs'
+>;
+
+function sameItems(current: ComparableItem[], next: ComparableItem[]): boolean {
+  return (
+    current.length === next.length &&
+    current.every(
+      (item, index) =>
+        item.contentId === next[index].contentId &&
+        item.durationSeconds === next[index].durationSeconds &&
+        item.transition === next[index].transition &&
+        item.transitionDurationMs === next[index].transitionDurationMs,
+    )
+  );
+}
+
 @Injectable()
 export class PlaylistService {
   constructor(
@@ -61,12 +91,22 @@ export class PlaylistService {
   ) {}
 
   async create(organisationId: string, dto: CreatePlaylistDto): Promise<Playlist> {
+    const kind = dto.kind ?? PlaylistKind.Static;
+    if (kind === PlaylistKind.Dynamic && !dto.rule) {
+      throw new BadRequestException('A dynamic playlist needs a rule');
+    }
+    if (kind === PlaylistKind.Static && dto.rule) {
+      throw new BadRequestException('A static playlist cannot have a rule');
+    }
     const [saved] = await this.db
       .insert(playlists)
       .values({
         organisationId,
         name: dto.name,
         ...(dto.color !== undefined && { color: dto.color }),
+        kind,
+        // Null `nextResolveAt` marks a dynamic playlist as due for its first resolve.
+        rule: dto.rule ? toPlaylistRule(dto.rule) : null,
       })
       .returning();
     this.emitPlaylistChanged(saved.id, organisationId);
@@ -74,6 +114,7 @@ export class PlaylistService {
       AUDIT_PLAYLIST_CREATED,
       new AuditPlaylistEvent(saved.id, organisationId, null, {
         name: dto.name,
+        ...(kind === PlaylistKind.Dynamic && { kind }),
       }),
     );
     return saved;
@@ -130,7 +171,7 @@ export class PlaylistService {
     organisationId: string,
     dto: AddPlaylistItemDto,
   ): Promise<PlaylistItem> {
-    await this.findOne(id, organisationId);
+    assertStaticPlaylist(await this.findOne(id, organisationId));
 
     // Verify content exists in the same organisation
     const [content] = await this.db
@@ -189,7 +230,7 @@ export class PlaylistService {
     organisationId: string,
     items: NewPlaylistItemDto[],
   ): Promise<PlaylistItem[]> {
-    await this.findOne(id, organisationId);
+    assertStaticPlaylist(await this.findOne(id, organisationId));
 
     const contentIds = [...new Set(items.map((item) => item.contentId))];
     const found = await this.db
@@ -264,7 +305,7 @@ export class PlaylistService {
       throw new BadRequestException('At least one field must be provided');
     }
 
-    await this.findOne(id, organisationId);
+    assertStaticPlaylist(await this.findOne(id, organisationId));
 
     const updatedIds = await this.db.transaction(async (tx) => {
       const touched = new Set<string>();
@@ -308,7 +349,7 @@ export class PlaylistService {
     organisationId: string,
     dto: UpdatePlaylistItemDto,
   ): Promise<PlaylistItem> {
-    await this.findOne(playlistId, organisationId);
+    assertStaticPlaylist(await this.findOne(playlistId, organisationId));
 
     const [item] = await this.db
       .select()
@@ -338,7 +379,7 @@ export class PlaylistService {
 
   async removeItem(playlistId: string, itemId: string, organisationId: string): Promise<void> {
     // Verify playlist belongs to org
-    await this.findOne(playlistId, organisationId);
+    assertStaticPlaylist(await this.findOne(playlistId, organisationId));
 
     const [item] = await this.db
       .select()
@@ -361,7 +402,7 @@ export class PlaylistService {
     itemIds: string[],
   ): Promise<PlaylistItem[]> {
     // Verify playlist belongs to org
-    await this.findOne(playlistId, organisationId);
+    assertStaticPlaylist(await this.findOne(playlistId, organisationId));
 
     // Fetch all items for this playlist
     const items = await this.db
@@ -400,6 +441,76 @@ export class PlaylistService {
 
     this.emitPlaylistChanged(playlistId, organisationId);
     return updated;
+  }
+
+  /**
+   * Replaces all items of a playlist with `items`, in order, in one transaction.
+   * The playlist row is locked like in {@link addItems}, so two resolves of the
+   * same playlist serialise. When the result equals the current items nothing
+   * is written and no update is pushed to the screens.
+   */
+  async replaceItems(
+    id: string,
+    organisationId: string,
+    items: ReplacementPlaylistItem[],
+  ): Promise<{ changed: boolean; items: PlaylistItem[] }> {
+    const contentIds = [...new Set(items.map((item) => item.contentId))];
+    const found =
+      contentIds.length === 0
+        ? []
+        : await this.db
+            .select()
+            .from(contents)
+            .where(
+              and(inArray(contents.id, contentIds), eq(contents.organisationId, organisationId)),
+            );
+    const contentById = new Map(found.map((content) => [content.id, content]));
+    const missingIds = contentIds.filter((contentId) => !contentById.has(contentId));
+    if (missingIds.length > 0) {
+      throw new BadRequestException({
+        message: `Content not found in organisation "${organisationId}"`,
+        missingIds,
+      });
+    }
+    const next = items.map((item) => ({
+      ...item,
+      durationSeconds: resolveItemDuration(contentById.get(item.contentId)!, item.durationSeconds),
+    }));
+
+    const result = await this.db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select({ id: playlists.id })
+        .from(playlists)
+        .where(and(eq(playlists.id, id), eq(playlists.organisationId, organisationId)))
+        .for('update');
+      if (!locked) {
+        throw new NotFoundException(
+          `Playlist with id "${id}" not found in organisation "${organisationId}"`,
+        );
+      }
+      const current = await tx
+        .select()
+        .from(playlistItems)
+        .where(eq(playlistItems.playlistId, id))
+        .orderBy(asc(playlistItems.position));
+      if (sameItems(current, next)) {
+        return { changed: false, items: current };
+      }
+      await tx.delete(playlistItems).where(eq(playlistItems.playlistId, id));
+      const inserted =
+        next.length === 0
+          ? []
+          : await tx
+              .insert(playlistItems)
+              .values(next.map((item, position) => ({ ...item, playlistId: id, position })))
+              .returning();
+      return { changed: true, items: inserted.sort((a, b) => a.position - b.position) };
+    });
+
+    if (result.changed) {
+      this.emitPlaylistChanged(id, organisationId);
+    }
+    return result;
   }
 
   async delete(id: string, organisationId: string): Promise<void> {

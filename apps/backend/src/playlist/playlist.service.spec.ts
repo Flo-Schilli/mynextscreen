@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { asc, eq } from 'drizzle-orm';
 import { PlaylistService } from './playlist.service';
 import { DRIZZLE } from '../db/database.constants';
@@ -17,6 +17,10 @@ import { ContentType } from '../content/content-type.enum';
 import { TranscodingStatus } from '../content/transcoding-status.enum';
 import { TransitionType } from './transition-type.enum';
 import { PLAYLIST_UPDATED } from './playlist.event';
+import { PlaylistKind } from './playlist-kind.enum';
+import type { PlaylistRule } from './playlist-rule.types';
+import { plainToInstance } from 'class-transformer';
+import { PlaylistRuleDto } from './dto/playlist-rule.dto';
 import { ContentDurationResolvedEvent } from '../content/content.event';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
@@ -839,6 +843,238 @@ describe('PlaylistService', () => {
 
       const total = await service.getTotalDuration(playlist.id, org.id);
       expect(total).toBe(0);
+    });
+  });
+
+  describe('dynamic playlists', () => {
+    const sourceId = '990e8400-e29b-41d4-a716-446655440000';
+
+    function ruleDto(overrides: Record<string, unknown> = {}): PlaylistRuleDto {
+      return plainToInstance(PlaylistRuleDto, {
+        sourceIds: [sourceId],
+        format: '1920x1080',
+        ...overrides,
+      });
+    }
+
+    async function seedDynamic(organisationId: string): Promise<Playlist> {
+      const [playlist] = await db
+        .insert(playlists)
+        .values({
+          organisationId,
+          name: 'Metal',
+          kind: PlaylistKind.Dynamic,
+          rule: { sourceIds: [sourceId] } as unknown as PlaylistRule,
+        })
+        .returning();
+      return playlist;
+    }
+
+    describe('create', () => {
+      it('stores kind and the normalised rule', async () => {
+        const org = await seedOrg();
+
+        const saved = await service.create(org.id, {
+          name: 'Metal',
+          kind: PlaylistKind.Dynamic,
+          rule: ruleDto({ limit: 30 }),
+        });
+
+        const [row] = await db.select().from(playlists).where(eq(playlists.id, saved.id));
+        expect(row.kind).toBe(PlaylistKind.Dynamic);
+        expect(row.rule).toMatchObject({ sourceIds: [sourceId], limit: 30, graceHours: 4 });
+        expect(row.rule).not.toBeInstanceOf(PlaylistRuleDto);
+        expect(row.nextResolveAt).toBeNull();
+      });
+
+      it('defaults to a static playlist without rule', async () => {
+        const org = await seedOrg();
+
+        const saved = await service.create(org.id, { name: 'Loop' });
+
+        expect(saved.kind).toBe(PlaylistKind.Static);
+        expect(saved.rule).toBeNull();
+      });
+
+      it('rejects a dynamic playlist without rule and a static one with rule', async () => {
+        const org = await seedOrg();
+
+        await expect(
+          service.create(org.id, { name: 'X', kind: PlaylistKind.Dynamic }),
+        ).rejects.toThrow(BadRequestException);
+        await expect(service.create(org.id, { name: 'X', rule: ruleDto() })).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+    });
+
+    describe('manual item endpoints', () => {
+      it('answer 409 for a dynamic playlist', async () => {
+        const org = await seedOrg();
+        const playlist = await seedDynamic(org.id);
+        const content = await seedContent(org.id);
+        const itemId = '770e8400-e29b-41d4-a716-446655440009';
+
+        const attempts: Promise<unknown>[] = [
+          service.addItem(playlist.id, org.id, { contentId: content.id }),
+          service.addItems(playlist.id, org.id, [{ contentId: content.id }]),
+          service.updateAllItems(playlist.id, org.id, { durationSeconds: 5 }),
+          service.updateItem(playlist.id, itemId, org.id, { durationSeconds: 5 }),
+          service.removeItem(playlist.id, itemId, org.id),
+          service.reorderItems(playlist.id, org.id, []),
+        ];
+
+        for (const attempt of attempts) {
+          await expect(attempt).rejects.toThrow(ConflictException);
+        }
+        expect(await db.select().from(playlistItems)).toHaveLength(0);
+      });
+    });
+
+    describe('replaceItems', () => {
+      function item(contentId: string, overrides: Partial<{ durationSeconds: number }> = {}) {
+        return {
+          contentId,
+          durationSeconds: 8,
+          transition: TransitionType.Cut,
+          transitionDurationMs: 250,
+          ...overrides,
+        };
+      }
+
+      async function itemsOf(playlistId: string) {
+        return db
+          .select()
+          .from(playlistItems)
+          .where(eq(playlistItems.playlistId, playlistId))
+          .orderBy(asc(playlistItems.position));
+      }
+
+      it('writes the items in order with their duration and transition', async () => {
+        const org = await seedOrg();
+        const playlist = await seedDynamic(org.id);
+        const a = await seedContent(org.id);
+        const b = await seedContent(org.id);
+
+        const result = await service.replaceItems(playlist.id, org.id, [item(b.id), item(a.id)]);
+
+        expect(result.changed).toBe(true);
+        const rows = await itemsOf(playlist.id);
+        expect(rows.map((row) => [row.contentId, row.position])).toEqual([
+          [b.id, 0],
+          [a.id, 1],
+        ]);
+        expect(rows[0]).toMatchObject({
+          durationSeconds: 8,
+          transition: TransitionType.Cut,
+          transitionDurationMs: 250,
+        });
+        expect(emit).toHaveBeenCalledWith(
+          PLAYLIST_UPDATED,
+          expect.objectContaining({ playlistId: playlist.id, organisationId: org.id }),
+        );
+      });
+
+      it('writes nothing and emits nothing when the items are unchanged', async () => {
+        const org = await seedOrg();
+        const playlist = await seedDynamic(org.id);
+        const a = await seedContent(org.id);
+        await service.replaceItems(playlist.id, org.id, [item(a.id)]);
+        const [before] = await itemsOf(playlist.id);
+        emit.mockClear();
+
+        const result = await service.replaceItems(playlist.id, org.id, [item(a.id)]);
+
+        expect(result.changed).toBe(false);
+        const [after] = await itemsOf(playlist.id);
+        expect(after.id).toBe(before.id);
+        expect(emit).not.toHaveBeenCalled();
+      });
+
+      it('rewrites when only the order or a duration changes', async () => {
+        const org = await seedOrg();
+        const playlist = await seedDynamic(org.id);
+        const a = await seedContent(org.id);
+        const b = await seedContent(org.id);
+        await service.replaceItems(playlist.id, org.id, [item(a.id), item(b.id)]);
+
+        const reordered = await service.replaceItems(playlist.id, org.id, [item(b.id), item(a.id)]);
+        const retimed = await service.replaceItems(playlist.id, org.id, [
+          item(b.id),
+          item(a.id, { durationSeconds: 12 }),
+        ]);
+
+        expect(reordered.changed).toBe(true);
+        expect(retimed.changed).toBe(true);
+        const rows = await itemsOf(playlist.id);
+        expect(rows.map((row) => [row.contentId, row.durationSeconds])).toEqual([
+          [b.id, 8],
+          [a.id, 12],
+        ]);
+      });
+
+      it('keeps a video’s own length', async () => {
+        const org = await seedOrg();
+        const playlist = await seedDynamic(org.id);
+        const video = await seedContent(org.id, { type: ContentType.Video, durationSeconds: 42 });
+
+        await service.replaceItems(playlist.id, org.id, [item(video.id)]);
+
+        const [row] = await itemsOf(playlist.id);
+        expect(row.durationSeconds).toBe(42);
+      });
+
+      it('clears the playlist for an empty result', async () => {
+        const org = await seedOrg();
+        const playlist = await seedDynamic(org.id);
+        const a = await seedContent(org.id);
+        await service.replaceItems(playlist.id, org.id, [item(a.id)]);
+
+        const result = await service.replaceItems(playlist.id, org.id, []);
+
+        expect(result).toEqual({ changed: true, items: [] });
+        expect(await itemsOf(playlist.id)).toHaveLength(0);
+      });
+
+      it('rejects content of another organisation and leaves the items alone', async () => {
+        const org = await seedOrg();
+        const other = await seedOrg();
+        const playlist = await seedDynamic(org.id);
+        const a = await seedContent(org.id);
+        const foreign = await seedContent(other.id);
+        await service.replaceItems(playlist.id, org.id, [item(a.id)]);
+
+        await expect(service.replaceItems(playlist.id, org.id, [item(foreign.id)])).rejects.toThrow(
+          BadRequestException,
+        );
+        expect((await itemsOf(playlist.id)).map((row) => row.contentId)).toEqual([a.id]);
+      });
+
+      it('throws 404 for a playlist of another organisation', async () => {
+        const org = await seedOrg();
+        const other = await seedOrg();
+        const playlist = await seedDynamic(other.id);
+
+        await expect(service.replaceItems(playlist.id, org.id, [])).rejects.toThrow(
+          NotFoundException,
+        );
+      });
+
+      it('serialises concurrent replaces into one consistent list', async () => {
+        const org = await seedOrg();
+        const playlist = await seedDynamic(org.id);
+        const a = await seedContent(org.id);
+        const b = await seedContent(org.id);
+
+        await Promise.all([
+          service.replaceItems(playlist.id, org.id, [item(a.id), item(b.id)]),
+          service.replaceItems(playlist.id, org.id, [item(b.id)]),
+        ]);
+
+        const rows = await itemsOf(playlist.id);
+        expect([1, 2]).toContain(rows.length);
+        expect(rows.map((row) => row.position)).toEqual(rows.map((_, index) => index));
+      });
     });
   });
 });

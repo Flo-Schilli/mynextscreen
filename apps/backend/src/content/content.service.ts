@@ -30,6 +30,7 @@ import { CONTENT_DURATION_RESOLVED, ContentDurationResolvedEvent } from './conte
 import { DetectedMediaType, SUPPORTED_MEDIA_TYPES, detectMediaType } from './media-type.util';
 import { getNumberConfig } from '../config/numeric-config.util';
 import { byNaturalTitle } from '../common/natural-sort.util';
+import { assertStaticPlaylist } from '../playlist/assert-static-playlist';
 
 /** The parts of an uploaded file the service reads; managed slides build it from a buffer. */
 type IncomingFile = Pick<Express.Multer.File, 'buffer' | 'originalname' | 'size' | 'mimetype'>;
@@ -560,6 +561,7 @@ export class ContentService {
         `Playlist with id "${playlistId}" not found in organisation "${organisationId}"`,
       );
     }
+    assertStaticPlaylist(playlist);
 
     const found = await this.findScopedOrThrowForeign(organisationId, ids);
     const foundIds = new Set(found.map((c) => c.id));
