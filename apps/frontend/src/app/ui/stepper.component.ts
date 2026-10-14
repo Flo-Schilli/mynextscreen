@@ -3,7 +3,9 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
 import { TranslocoDirective } from '@jsverse/transloco';
 
 /**
- * Labelled −/+ numeric stepper bounded by `min`/`max`, moving by `step`. Signal-model only:
+ * Labelled −/+ numeric stepper bounded by `min`/`max`, moving to the neighbouring multiple
+ * of `step`: a stored value off that grid (31 with step 5) snaps onto it instead of staying
+ * off it for good. Signal-model only:
  * bind with `[(value)]` and/or listen to `(changed)`.
  *
  * @example
@@ -53,11 +55,17 @@ export class StepperComponent {
   readonly canDec = computed(() => this.value() > this.min());
   readonly canInc = computed(() => this.value() < this.max());
 
+  /** Snaps to the previous multiple of `step`, so 31 with step 5 goes to 30, not 26. */
   dec(): void {
-    this.value.set(Math.max(this.min(), this.value() - this.step()));
+    const step = this.step();
+    const previous = Math.ceil(this.value() / step) * step - step;
+    this.value.set(Math.max(this.min(), previous));
   }
 
+  /** Snaps to the next multiple of `step`, so 31 with step 5 goes to 35, not 36. */
   inc(): void {
-    this.value.set(Math.min(this.max(), this.value() + this.step()));
+    const step = this.step();
+    const next = Math.floor(this.value() / step) * step + step;
+    this.value.set(Math.min(this.max(), next));
   }
 }

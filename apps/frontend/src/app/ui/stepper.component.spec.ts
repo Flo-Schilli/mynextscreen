@@ -77,4 +77,23 @@ describe('StepperComponent', () => {
     component.dec();
     expect(component.value()).toBe(5);
   });
+
+  it('snaps a value off the step grid onto it', async () => {
+    await setUp(31, 1, 200);
+    fixture.componentRef.setInput('step', 5);
+    component.dec();
+    expect(component.value()).toBe(30);
+    component.value.set(31);
+    component.inc();
+    expect(component.value()).toBe(35);
+  });
+
+  it('snaps down to the min when the grid lies below it', async () => {
+    await setUp(5, 1, 200);
+    fixture.componentRef.setInput('step', 5);
+    component.dec();
+    expect(component.value()).toBe(1);
+    component.inc();
+    expect(component.value()).toBe(5);
+  });
 });

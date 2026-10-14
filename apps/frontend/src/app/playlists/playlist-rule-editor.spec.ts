@@ -174,6 +174,20 @@ describe('PlaylistRuleEditor', () => {
     );
   });
 
+  it('steps the limit one at a time, so any count is reachable', async () => {
+    await setUp();
+    component.patch({ limit: 31 });
+    fixture.detectChanges();
+
+    const stepper = Array.from(
+      fixture.nativeElement.querySelectorAll('mns-stepper') as NodeListOf<HTMLElement>,
+    ).find((el) => el.textContent?.includes('Max. events'));
+    (stepper!.querySelector('button[aria-label="Decrease"]') as HTMLButtonElement).click();
+    component.submit();
+
+    expect(saved.at(-1)?.limit).toBe(30);
+  });
+
   it('keeps the format one of those the picked sources render', async () => {
     await setUp();
 

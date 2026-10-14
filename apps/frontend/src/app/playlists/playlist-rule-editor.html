@@ -186,7 +186,6 @@
             [value]="form().limit"
             [min]="bounds.limit.min"
             [max]="bounds.limit.max"
-            [step]="5"
             (valueChange)="patch({ limit: $event })"
           />
           <mns-stepper
