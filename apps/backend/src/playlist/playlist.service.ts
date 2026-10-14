@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Inject,
+} from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
@@ -41,6 +47,20 @@ const DEFAULT_VIDEO_DURATION_SECONDS = 30;
 const DEFAULT_IMAGE_DURATION_SECONDS = 10;
 
 /** A video with a known length always plays it; otherwise the request wins, then the default. */
+/**
+ * Slides of a content source belong in dynamic playlists only. The source
+ * owns their lifecycle: in a static playlist a slide would outlive its event.
+ */
+function assertLibraryContent(found: Pick<Content, 'id' | 'managedBySourceId'>[]): void {
+  const managedIds = found.filter((content) => content.managedBySourceId !== null).map((c) => c.id);
+  if (managedIds.length > 0) {
+    throw new ConflictException({
+      message: 'Content managed by a content source cannot be added to a static playlist',
+      managedIds,
+    });
+  }
+}
+
 function resolveItemDuration(content: Content, requestedSeconds?: number): number {
   if (content.type === ContentType.Video && content.durationSeconds != null) {
     return content.durationSeconds;
@@ -184,6 +204,7 @@ export class PlaylistService {
         `Content with id "${dto.contentId}" not found in organisation "${organisationId}"`,
       );
     }
+    assertLibraryContent([content]);
 
     // Determine position
     let position: number;
@@ -245,6 +266,7 @@ export class PlaylistService {
         missingIds,
       });
     }
+    assertLibraryContent(found);
 
     const saved = await this.db.transaction(async (tx) => {
       await tx

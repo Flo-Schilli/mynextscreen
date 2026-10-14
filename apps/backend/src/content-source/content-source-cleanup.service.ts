@@ -31,7 +31,7 @@ const errorMessage = (error: unknown): string =>
  * Daily housekeeping of the event pools. Deletes the slides of events that
  * ended more than {@link SLIDE_RETENTION_DAYS} days ago (in the organisation's
  * time zone) or that the source no longer lists, unless a playlist still shows
- * them. Slides go through {@link ContentService.delete}, which removes the
+ * them. Slides go through {@link ContentService.deleteManaged}, which removes the
  * files and frees the quota; the slide rows follow by FK cascade.
  *
  * Event rows are only removed once they are gone and slide-free. A past event
@@ -102,7 +102,7 @@ export class ContentSourceCleanupService {
 
     for (const { contentId } of stale) {
       try {
-        await this.contentService.delete(organisationId, contentId);
+        await this.contentService.deleteManaged(organisationId, contentId);
         result.slidesDeleted += 1;
       } catch (error) {
         result.slidesFailed += 1;

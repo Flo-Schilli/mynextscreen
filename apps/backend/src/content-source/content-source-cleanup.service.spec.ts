@@ -18,7 +18,7 @@ import { ContentSourceCleanupService } from './content-source-cleanup.service';
 describe('ContentSourceCleanupService', () => {
   let db: DrizzleDB;
   let service: ContentSourceCleanupService;
-  let contentService: { delete: jest.Mock };
+  let contentService: { deleteManaged: jest.Mock };
   let berlinOrgId: string;
   let utcOrgId: string;
 
@@ -36,7 +36,7 @@ describe('ContentSourceCleanupService', () => {
   beforeEach(async () => {
     await truncateAll();
     contentService = {
-      delete: jest.fn(async (_organisationId: string, id: string) => {
+      deleteManaged: jest.fn(async (_organisationId: string, id: string) => {
         await db.delete(contents).where(eq(contents.id, id));
       }),
     };
@@ -115,8 +115,8 @@ describe('ContentSourceCleanupService', () => {
 
     const result = await service.cleanup(now);
 
-    expect(contentService.delete).toHaveBeenCalledTimes(1);
-    expect(contentService.delete).toHaveBeenCalledWith(berlinOrgId, old.contentId);
+    expect(contentService.deleteManaged).toHaveBeenCalledTimes(1);
+    expect(contentService.deleteManaged).toHaveBeenCalledWith(berlinOrgId, old.contentId);
     expect(result).toEqual({ slidesDeleted: 1, slidesFailed: 0, eventsDeleted: 0 });
     const remaining = await db.select({ id: contents.id }).from(contents);
     expect(remaining.map((row) => row.id).sort()).toEqual(
@@ -154,7 +154,7 @@ describe('ContentSourceCleanupService', () => {
 
     const result = await service.cleanup(now);
 
-    expect(contentService.delete).not.toHaveBeenCalled();
+    expect(contentService.deleteManaged).not.toHaveBeenCalled();
     expect(result).toEqual({ slidesDeleted: 0, slidesFailed: 0, eventsDeleted: 0 });
     expect(await eventIds()).toEqual([shown.event.id]);
   });
@@ -168,7 +168,7 @@ describe('ContentSourceCleanupService', () => {
       slidesFailed: 0,
       eventsDeleted: 0,
     });
-    expect(contentService.delete).not.toHaveBeenCalled();
+    expect(contentService.deleteManaged).not.toHaveBeenCalled();
   });
 
   it('counts a failed delete, carries on and keeps the event whose slide survived', async () => {
@@ -180,8 +180,8 @@ describe('ContentSourceCleanupService', () => {
       eventDate: '2026-12-21',
       goneAt: new Date('2026-11-29T10:00:00Z'),
     });
-    const deleteRow = contentService.delete.getMockImplementation();
-    contentService.delete.mockImplementation(async (organisationId: string, id: string) => {
+    const deleteRow = contentService.deleteManaged.getMockImplementation();
+    contentService.deleteManaged.mockImplementation(async (organisationId: string, id: string) => {
       if (id === failing.contentId) throw new Error('disk full');
       await deleteRow?.(organisationId, id);
     });

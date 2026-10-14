@@ -1,4 +1,10 @@
-import { Injectable, BadRequestException, PayloadTooLargeException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ConflictException,
+  PayloadTooLargeException,
+  Inject,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -227,6 +233,17 @@ export class ContentService {
     return content;
   }
 
+  /** Like {@link findOne}, but refuses slides: their content source owns them. */
+  private async findLibraryContent(organisationId: string, id: string): Promise<Content> {
+    const content = await this.findOne(organisationId, id);
+    if (content.managedBySourceId !== null) {
+      throw new ConflictException(
+        `Content "${id}" is managed by a content source and cannot be changed here`,
+      );
+    }
+    return content;
+  }
+
   async ensureDuration(content: Content): Promise<number | null> {
     if (content.type !== ContentType.Video) {
       return null;
@@ -264,7 +281,7 @@ export class ContentService {
     id: string,
     dto: UpdateContentDto,
   ): Promise<Content> {
-    await this.findOne(organisationId, id);
+    await this.findLibraryContent(organisationId, id);
     const updates: Partial<Content> = {};
     if (dto.title !== undefined) updates.title = dto.title;
     if (dto.description !== undefined) updates.description = dto.description;
@@ -278,7 +295,24 @@ export class ContentService {
   }
 
   async delete(organisationId: string, id: string): Promise<void> {
+    await this.remove(await this.findLibraryContent(organisationId, id));
+  }
+
+  /**
+   * Deletes a slide on behalf of its content source (source removal, cleanup,
+   * a slide row that could not be stored). Files and quota go as in
+   * {@link delete}; library content is refused.
+   */
+  async deleteManaged(organisationId: string, id: string): Promise<void> {
     const content = await this.findOne(organisationId, id);
+    if (content.managedBySourceId === null) {
+      throw new BadRequestException(`Content "${id}" is not managed by a content source`);
+    }
+    await this.remove(content);
+  }
+
+  private async remove(content: Content): Promise<void> {
+    const { organisationId, id } = content;
     const ext = path.extname(content.originalFilename).replace('.', '') || 'bin';
 
     // Remove original file
@@ -318,7 +352,7 @@ export class ContentService {
 
   async reUpload(organisationId: string, id: string, file: Express.Multer.File): Promise<Content> {
     const detectedType = this.validateFile(file);
-    const content = await this.findOne(organisationId, id);
+    const content = await this.findLibraryContent(organisationId, id);
     const saved = await this.replaceFile(content, file, detectedType);
 
     this.eventEmitter.emit(

@@ -28,7 +28,7 @@ describe('ContentSourceService', () => {
   let db: DrizzleDB;
   let service: ContentSourceService;
   let queue: { add: jest.Mock };
-  let contentService: { delete: jest.Mock };
+  let contentService: { deleteManaged: jest.Mock };
   let emit: jest.Mock;
   let orgId: string;
   let otherOrgId: string;
@@ -47,7 +47,7 @@ describe('ContentSourceService', () => {
     await truncateAll();
     queue = { add: jest.fn().mockResolvedValue({ id: 'job' }) };
     contentService = {
-      delete: jest.fn(async (organisationId: string, id: string) => {
+      deleteManaged: jest.fn(async (organisationId: string, id: string) => {
         await db.delete(contents).where(eq(contents.id, id));
         return organisationId;
       }),
@@ -223,7 +223,7 @@ describe('ContentSourceService', () => {
 
       await service.remove(orgId, source.id, userId);
 
-      expect(contentService.delete).toHaveBeenCalledWith(orgId, slide.id);
+      expect(contentService.deleteManaged).toHaveBeenCalledWith(orgId, slide.id);
       expect(await db.select().from(contentSources)).toHaveLength(0);
       expect(emit).toHaveBeenCalledWith(
         AUDIT_CONTENT_SOURCE_DELETED,

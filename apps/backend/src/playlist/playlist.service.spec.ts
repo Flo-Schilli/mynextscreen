@@ -23,6 +23,7 @@ import { plainToInstance } from 'class-transformer';
 import { PlaylistRuleDto } from './dto/playlist-rule.dto';
 import { ContentDurationResolvedEvent } from '../content/content.event';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import { seedContentSource } from '../test/content-source-seed';
 import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('PlaylistService', () => {
@@ -188,6 +189,18 @@ describe('PlaylistService', () => {
   });
 
   describe('addItem', () => {
+    it('refuses a slide that a content source manages', async () => {
+      const org = await seedOrg();
+      const playlist = await seedPlaylist(org.id);
+      const source = await seedContentSource(db, org.id);
+      const slide = await seedContent(org.id, { managedBySourceId: source.id });
+
+      await expect(
+        service.addItem(playlist.id, org.id, { contentId: slide.id }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(await db.select().from(playlistItems)).toEqual([]);
+    });
+
     it('should add an image item with DTO duration', async () => {
       const org = await seedOrg();
       const playlist = await seedPlaylist(org.id);
@@ -410,6 +423,19 @@ describe('PlaylistService', () => {
   });
 
   describe('addItems', () => {
+    it('refuses slides that a content source manages and inserts nothing', async () => {
+      const org = await seedOrg();
+      const playlist = await seedPlaylist(org.id);
+      const source = await seedContentSource(db, org.id);
+      const manual = await seedContent(org.id);
+      const slide = await seedContent(org.id, { managedBySourceId: source.id });
+
+      await expect(
+        service.addItems(playlist.id, org.id, [{ contentId: manual.id }, { contentId: slide.id }]),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(await db.select().from(playlistItems)).toEqual([]);
+    });
+
     it('should append items in request order after the current last position', async () => {
       const org = await seedOrg();
       const playlist = await seedPlaylist(org.id);

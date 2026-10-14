@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getQueueToken } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
+import { BadRequestException, ConflictException, PayloadTooLargeException } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { ContentService } from './content.service';
 import { DRIZZLE } from '../db/database.constants';
@@ -641,6 +641,43 @@ describe('ContentService', () => {
         BadRequestException,
       );
       await expect(service.bulkTag(org.id, [slide.id], ['x'], null)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('refuses to edit, re-upload or delete managed content through the library', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+      const slide = await seedContent(org.id, { managedBySourceId: sourceId });
+
+      await expect(service.delete(org.id, slide.id)).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.reUpload(org.id, slide.id, createMockFile())).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      await expect(service.updateMetadata(org.id, slide.id, { title: 'x' })).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      const [kept] = await db.select().from(contents).where(eq(contents.id, slide.id));
+      expect(kept.title).toBe('Seed');
+      expect(storageService.subtractOriginalUsage).not.toHaveBeenCalled();
+    });
+
+    it('deletes managed content for its source and frees the quota', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+      const slide = await seedContent(org.id, { managedBySourceId: sourceId });
+
+      await service.deleteManaged(org.id, slide.id);
+
+      expect(await db.select().from(contents).where(eq(contents.id, slide.id))).toEqual([]);
+      expect(storageService.subtractOriginalUsage).toHaveBeenCalledWith(org.id, 1024);
+    });
+
+    it('refuses to delete library content as managed content', async () => {
+      const org = await seedOrg();
+      const manual = await seedContent(org.id);
+
+      await expect(service.deleteManaged(org.id, manual.id)).rejects.toBeInstanceOf(
         BadRequestException,
       );
     });

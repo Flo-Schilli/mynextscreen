@@ -186,7 +186,7 @@ export class ContentSourceService {
       .from(contents)
       .where(and(eq(contents.organisationId, organisationId), eq(contents.managedBySourceId, id)));
     for (const { id: contentId } of managed) {
-      await this.contentService.delete(organisationId, contentId);
+      await this.contentService.deleteManaged(organisationId, contentId);
     }
     await this.db
       .delete(contentSources)
