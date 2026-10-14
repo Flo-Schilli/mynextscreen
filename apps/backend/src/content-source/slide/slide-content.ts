@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import type { SlideFormat, SlideStyle } from '../content-source.types';
 
 /** Bump when the rendered look changes, so every slide is re-rendered once. */
-export const RENDERER_VERSION = 2;
+export const RENDERER_VERSION = 3;
 
 /** Everything a slide shows, already reduced to display strings. */
 export interface SlideContent {

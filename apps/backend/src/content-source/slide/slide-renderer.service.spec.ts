@@ -3,6 +3,8 @@ import {
   SlideRendererService,
   badgeRects,
   fitFontSize,
+  portraitImageSize,
+  portraitLayout,
   qrPlateRect,
   type Rect,
 } from './slide-renderer.service';
@@ -44,6 +46,8 @@ const STACKED: SlideContent = {
 };
 
 const LANDSCAPE = { width: 1920, height: 1080 };
+/** LINE_GAP of the renderer at a 1080 px short edge. */
+const LINE_GAP_PX = 22;
 const PORTRAIT = { width: 1080, height: 1920 };
 
 /** A point on the rect's left padding, clear of text and of rounded corners. */
@@ -71,16 +75,135 @@ describe('SlideRendererService', () => {
     expect(center[1]).toBeLessThan(60);
   });
 
-  it('renders portrait with the image on top at full width', async () => {
-    const output = await renderer.render(await redImage(), PLAIN, '1080x1920', BLACK_STYLE);
+  describe('portrait composition', () => {
+    const grey = async (output: Buffer, rect: Rect): Promise<number> => {
+      const row = await sharp(output).extract(rect).greyscale().raw().toBuffer();
+      return Math.max(...row);
+    };
 
-    const meta = await sharp(output).metadata();
-    expect([meta.width, meta.height]).toEqual([1080, 1920]);
-    // 900x675 scaled to full width is 1080x810, flush with the top edge.
-    const top = await pixel(output, 5, 20);
-    expect(top[0]).toBeGreaterThan(200);
-    const belowImage = await pixel(output, 1000, 1000);
-    expect(belowImage[0]).toBeLessThan(40);
+    it('grows a landscape image beyond full-width fit by a bounded crop', async () => {
+      const output = await renderer.render(
+        await redImage(900, 600),
+        PLAIN,
+        '1080x1920',
+        BLACK_STYLE,
+      );
+      const { image } = portraitLayout(PORTRAIT, PLAIN, { width: 900, height: 600 });
+
+      // Fitted to the width a 3:2 image is 720 tall; the crop takes it to 847.
+      expect(image.width).toBe(1080);
+      expect(image.height).toBe(847);
+      expect(1080 / (image.height * 1.5)).toBeGreaterThanOrEqual(0.85);
+      expect((await pixel(output, 5, image.top + 10))[0]).toBeGreaterThan(200);
+      expect((await pixel(output, 5, image.top + image.height - 10))[0]).toBeGreaterThan(200);
+      expect(Math.max(...(await pixel(output, 5, image.top - 20)))).toBeLessThan(30);
+    });
+
+    it('fits an upright image whole at full height, centred between bars', async () => {
+      const output = await renderer.render(
+        await redImage(500, 1000),
+        PLAIN,
+        '1080x1920',
+        BLACK_STYLE,
+      );
+      const { image } = portraitLayout(PORTRAIT, PLAIN, { width: 500, height: 1000 });
+
+      expect(image.width).toBeLessThan(1080);
+      expect(image.width / image.height).toBeCloseTo(500 / 1000, 2);
+      expect(image.left).toBe(Math.floor((1080 - image.width) / 2));
+      const middle = image.top + image.height / 2;
+      expect((await pixel(output, 540, middle))[0]).toBeGreaterThan(200);
+      expect(Math.max(...(await pixel(output, 10, middle)))).toBeLessThan(30);
+    });
+
+    it('shows a square image uncropped at full width', async () => {
+      const output = await renderer.render(
+        await redImage(800, 800),
+        PLAIN,
+        '1080x1920',
+        BLACK_STYLE,
+      );
+      const { image } = portraitLayout(PORTRAIT, PLAIN, { width: 800, height: 800 });
+
+      expect([image.width, image.height]).toEqual([1080, 1080]);
+      expect((await pixel(output, 5, image.top + 540))[0]).toBeGreaterThan(200);
+    });
+
+    it.each([
+      ['landscape', 900, 600],
+      ['upright', 500, 1000],
+      ['square', 800, 800],
+    ] as const)('centres image and text as one block (%s)', (_, width, height) => {
+      const { image, titleY } = portraitLayout(PORTRAIT, PLAIN, { width, height });
+
+      const textBottom = titleY + LINE_GAP_PX + 44 * 1.22;
+      const above = image.top;
+      const below = 1920 - textBottom;
+      // Centred, or pushed up just enough to keep the bottom margin.
+      expect(Math.abs(above - below) < 4 || Math.abs(below - 70) < 4).toBe(true);
+      expect(titleY).toBeGreaterThan(image.top + image.height);
+    });
+
+    it.each([
+      ['landscape', 900, 600],
+      ['upright', 500, 1000],
+      ['square', 800, 800],
+    ] as const)('keeps image and text clear of the QR code and badges (%s)', async (_, w, h) => {
+      const output = await renderer.render(await redImage(w, h), WITH_EXTRAS, '1080x1920', {
+        ...BLACK_STYLE,
+        accentColor: '#0000ff',
+      });
+      const { image, titleY } = portraitLayout(PORTRAIT, WITH_EXTRAS, { width: w, height: h });
+      const plate = qrPlateRect(PORTRAIT, WITH_EXTRAS.qrUrl)!;
+      const [badge] = badgeRects(PORTRAIT, WITH_EXTRAS.badges);
+
+      const metaBottom = titleY + LINE_GAP_PX + 44 * 1.22;
+      expect(image.top + image.height).toBeLessThan(plate.top);
+      expect(metaBottom).toBeLessThan(plate.top);
+      expect(titleY - 84).toBeGreaterThan(badge.top + badge.height);
+      // The title is drawn: white glyphs left of centre on the title line.
+      expect(
+        await grey(output, { left: 80, top: titleY - 50, width: 300, height: 40 }),
+      ).toBeGreaterThan(200);
+    });
+
+    it('fills the bars beside an upright image with the blurred copy', async () => {
+      const output = await renderer.render(
+        await redImage(500, 1000),
+        PLAIN,
+        '1080x1920',
+        BLUR_STYLE,
+      );
+      const { image } = portraitLayout(PORTRAIT, PLAIN, { width: 500, height: 1000 });
+
+      const [r, g] = await pixel(output, 10, image.top + image.height / 2);
+      expect(r).toBeGreaterThan(60);
+      expect(g).toBeLessThan(40);
+    });
+
+    it('centres the text alone when there is no image', () => {
+      const { image, titleY } = portraitLayout(PORTRAIT, PLAIN, null);
+
+      expect(image.height).toBe(0);
+      expect(titleY).toBeGreaterThan(900);
+      expect(titleY).toBeLessThan(1100);
+    });
+  });
+
+  describe('portraitImageSize', () => {
+    it('crops at most 15 % of a wide image and never exceeds a square', () => {
+      // 16:9 fitted to the width is 608 tall; the crop allows 715.
+      expect(portraitImageSize(1600, 900, 1080, 1400)).toEqual({ width: 1080, height: 715 });
+      expect(portraitImageSize(1200, 900, 1080, 1400)).toEqual({ width: 1080, height: 953 });
+      // 11:10 would pass a square within the crop limit, so it stops there.
+      expect(portraitImageSize(1100, 1000, 1080, 1400)).toEqual({ width: 1080, height: 1080 });
+    });
+
+    it('respects the available height', () => {
+      expect(portraitImageSize(800, 800, 1080, 900)).toEqual({ width: 900, height: 900 });
+      expect(portraitImageSize(1200, 900, 1080, 900)).toEqual({ width: 1080, height: 900 });
+      expect(portraitImageSize(600, 1200, 1080, 1400)).toEqual({ width: 700, height: 1400 });
+    });
   });
 
   it('renders text with characters that XML 1.0 forbids', async () => {

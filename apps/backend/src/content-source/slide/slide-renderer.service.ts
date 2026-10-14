@@ -14,8 +14,16 @@ const TITLE_MIN_FONT_SIZE = 40;
 const META_FONT_SIZE = 44;
 const META_MIN_FONT_SIZE = 28;
 const LINE_GAP = 22;
-const PORTRAIT_IMAGE_SHARE = 0.6;
-const PORTRAIT_TEXT_OFFSET = 150;
+/**
+ * Largest share of a landscape image's width a portrait slide may crop away
+ * (see {@link portraitImageSize}).
+ */
+const PORTRAIT_MAX_CROP = 0.15;
+/** Space between the image and the top of the title's capitals. */
+const PORTRAIT_TEXT_GAP = 70;
+/** Capital height and descender depth relative to font size (Liberation Sans). */
+const CAP_HEIGHT = 0.72;
+const DESCENT = 0.22;
 const QR_SIZE = 220;
 const QR_PLATE_PADDING = 14;
 const QR_GAP = 40;
@@ -104,6 +112,104 @@ export function qrPlateRect(dims: SlideDimensions, qrUrl: string | null): Rect |
   };
 }
 
+interface TextMetrics {
+  titleSize: number;
+  metaSize: number;
+}
+
+/** Font sizes of title and meta line, shrunk until they fit the text column. */
+function textMetrics(dims: SlideDimensions, content: SlideContent): TextMetrics {
+  const s = scaleOf(dims);
+  const paddingX = PADDING_X * s;
+  // Landscape text shares the bottom row with the QR code; portrait text sits above it.
+  const plate = qrPlateRect(dims, content.qrUrl);
+  const qrReserve = plate && !isPortrait(dims) ? plate.width + QR_GAP * s : 0;
+  const maxTextWidth = dims.width - 2 * paddingX - qrReserve;
+  return {
+    titleSize: fitFontSize(
+      content.title,
+      TITLE_FONT_SIZE * s,
+      TITLE_MIN_FONT_SIZE * s,
+      maxTextWidth,
+    ),
+    metaSize: fitFontSize(
+      content.metaLine,
+      META_FONT_SIZE * s,
+      META_MIN_FONT_SIZE * s,
+      maxTextWidth,
+    ),
+  };
+}
+
+/**
+ * Size of the image area on a portrait slide, at most `maxWidth` x `maxHeight`.
+ * Square and upright images are fitted whole: they already fill the column.
+ * A landscape image fitted to the width leaves a thin band over an empty
+ * slide, so it may grow taller than its aspect allows, up to a square and as
+ * long as at most {@link PORTRAIT_MAX_CROP} of its width is cropped away. The
+ * crop itself is left to sharp's `attention` strategy, which trims the least
+ * interesting edge strip by strip (skin tones and saturated detail stay).
+ */
+export function portraitImageSize(
+  imageWidth: number,
+  imageHeight: number,
+  maxWidth: number,
+  maxHeight: number,
+): { width: number; height: number } {
+  const aspect = imageWidth / imageHeight;
+  if (aspect <= 1 || aspect <= maxWidth / maxHeight) {
+    const height = Math.min(maxHeight, maxWidth / aspect);
+    return { width: Math.round(height * aspect), height: Math.round(height) };
+  }
+  const height = Math.min(maxHeight, maxWidth, maxWidth / aspect / (1 - PORTRAIT_MAX_CROP));
+  return { width: maxWidth, height: Math.round(height) };
+}
+
+/** Where the image and the title go on a portrait slide. */
+export interface PortraitLayout {
+  image: Rect;
+  /** Baseline of the title; the meta line follows below it. */
+  titleY: number;
+}
+
+/**
+ * Lays out a portrait slide as one block: the image, at full width or as tall
+ * as fits, with the text right below it. The block is centred on the slide and
+ * pushed up only as far as needed to stay clear of the QR code. The title
+ * never runs under the badge stack.
+ */
+export function portraitLayout(
+  dims: SlideDimensions,
+  content: SlideContent,
+  imageSize: { width: number; height: number } | null,
+): PortraitLayout {
+  const s = scaleOf(dims);
+  const { titleSize, metaSize } = textMetrics(dims, content);
+  const titleOffset = PORTRAIT_TEXT_GAP * s + titleSize * CAP_HEIGHT;
+  const textHeight = titleOffset + LINE_GAP * s + metaSize * (1 + DESCENT);
+  const plate = qrPlateRect(dims, content.qrUrl);
+  const bottomLimit = plate ? plate.top - QR_GAP * s : dims.height - PADDING_BOTTOM * s;
+
+  const size = imageSize
+    ? portraitImageSize(imageSize.width, imageSize.height, dims.width, bottomLimit - textHeight)
+    : { width: 0, height: 0 };
+  const blockHeight = size.height + textHeight;
+  const top = Math.max(0, Math.min((dims.height - blockHeight) / 2, bottomLimit - blockHeight));
+  const image = {
+    left: Math.floor((dims.width - size.width) / 2),
+    top: Math.round(top),
+    width: size.width,
+    height: size.height,
+  };
+
+  const stack = badgeRects(dims, content.badges).at(-1);
+  const belowBadges = stack ? stack.top + stack.height + LINE_GAP * s + titleSize : 0;
+  return {
+    image,
+    titleY: Math.round(Math.max(image.top + image.height + titleOffset, belowBadges)),
+  };
+}
+
 /** The accent ends up inside SVG markup, so anything but `#rrggbb` is replaced. */
 const safeAccent = (color: string): string =>
   HEX_COLOR.test(color) ? color : DEFAULT_SLIDE_STYLE.accentColor;
@@ -117,8 +223,8 @@ function textColorOn(hex: string): string {
 
 /**
  * Renders event slides: landscape puts the fitted image full-frame with the
- * text bottom left (the approved cbf-screens look), portrait puts the image on
- * top at full width with the text block below.
+ * text bottom left (the approved cbf-screens look), portrait centres image and
+ * text block as one composition (see {@link portraitLayout}).
  */
 @Injectable()
 export class SlideRendererService {
@@ -129,27 +235,26 @@ export class SlideRendererService {
     style: SlideStyle,
   ): Promise<Buffer> {
     const dims = parseSlideFormat(format);
-    const imageBox = this.imageBox(dims);
     const layers: SharpOverlay[] = [];
-    let imageBottom = imageBox.top + imageBox.height;
+    let titleY: number | null = null;
 
-    if (image) {
-      const fitted = await sharp(image)
-        .resize(imageBox.width, imageBox.height, { fit: 'inside', kernel: 'lanczos3' })
-        .flatten({ background: BLACK })
-        .png()
-        .toBuffer({ resolveWithObject: true });
-      const left = imageBox.left + Math.floor((imageBox.width - fitted.info.width) / 2);
-      // Portrait keeps the image flush with the top edge, landscape centres it.
-      const top = isPortrait(dims)
-        ? imageBox.top
-        : imageBox.top + Math.floor((imageBox.height - fitted.info.height) / 2);
-      layers.push({ input: fitted.data, left, top });
-      imageBottom = top + fitted.info.height;
+    if (isPortrait(dims)) {
+      const meta = image ? await sharp(image).metadata() : null;
+      const layout = portraitLayout(
+        dims,
+        content,
+        meta?.width && meta.height ? { width: meta.width, height: meta.height } : null,
+      );
+      if (image && layout.image.height > 0) {
+        layers.push(await this.portraitImageLayer(image, layout.image));
+      }
+      titleY = layout.titleY;
+    } else if (image) {
+      layers.push(await this.landscapeImageLayer(image, dims));
     }
 
     layers.push({
-      input: Buffer.from(this.overlaySvg(dims, content, style, imageBottom)),
+      input: Buffer.from(this.overlaySvg(dims, content, style, titleY)),
       left: 0,
       top: 0,
     });
@@ -166,16 +271,32 @@ export class SlideRendererService {
       .toBuffer();
   }
 
-  private imageBox(dims: SlideDimensions): Rect {
-    if (!isPortrait(dims)) {
-      return { left: 0, top: 0, width: dims.width, height: dims.height };
-    }
+  /** Landscape: the whole image, fitted and centred on the full frame. */
+  private async landscapeImageLayer(image: Buffer, dims: SlideDimensions): Promise<SharpOverlay> {
+    const fitted = await sharp(image)
+      .resize(dims.width, dims.height, { fit: 'inside', kernel: 'lanczos3' })
+      .flatten({ background: BLACK })
+      .png()
+      .toBuffer({ resolveWithObject: true });
     return {
-      left: 0,
-      top: 0,
-      width: dims.width,
-      height: Math.round(dims.height * PORTRAIT_IMAGE_SHARE),
+      input: fitted.data,
+      left: Math.floor((dims.width - fitted.info.width) / 2),
+      top: Math.floor((dims.height - fitted.info.height) / 2),
     };
+  }
+
+  /** Portrait: the image filling its box, cropped where the box asks for it. */
+  private async portraitImageLayer(image: Buffer, box: Rect): Promise<SharpOverlay> {
+    const data = await sharp(image)
+      .resize(box.width, box.height, {
+        fit: 'cover',
+        position: sharp.strategy.attention,
+        kernel: 'lanczos3',
+      })
+      .flatten({ background: BLACK })
+      .png()
+      .toBuffer();
+    return { input: data, left: box.left, top: box.top };
   }
 
   private async background(
@@ -213,39 +334,26 @@ export class SlideRendererService {
     return { input: qr, left: plate.left + padding, top: plate.top + padding };
   }
 
+  /** `portraitTitleY` is the title baseline on a portrait slide, null for landscape. */
   private overlaySvg(
     dims: SlideDimensions,
     content: SlideContent,
     style: SlideStyle,
-    imageBottom: number,
+    portraitTitleY: number | null,
   ): string {
     const s = scaleOf(dims);
     const { width, height } = dims;
     const plate = qrPlateRect(dims, content.qrUrl);
     const paddingX = PADDING_X * s;
-    const portrait = isPortrait(dims);
-    // Landscape text shares the bottom row with the QR code; portrait text sits above it.
-    const qrReserve = plate && !portrait ? plate.width + QR_GAP * s : 0;
-    const maxTextWidth = width - 2 * paddingX - qrReserve;
-    const titleSize = fitFontSize(
-      content.title,
-      TITLE_FONT_SIZE * s,
-      TITLE_MIN_FONT_SIZE * s,
-      maxTextWidth,
-    );
-    const metaSize = fitFontSize(
-      content.metaLine,
-      META_FONT_SIZE * s,
-      META_MIN_FONT_SIZE * s,
-      maxTextWidth,
-    );
-    const titleY = portrait
-      ? this.portraitTitleY(dims, content.badges, imageBottom, titleSize)
-      : height - PADDING_BOTTOM * s - metaSize - LINE_GAP * s;
-    const metaY = portrait ? titleY + metaSize + LINE_GAP * s : height - PADDING_BOTTOM * s;
-    const shadeTop = portrait
-      ? imageBottom - GRADIENT_HEIGHT * s * 0.5
-      : height - GRADIENT_HEIGHT * s;
+    const { titleSize, metaSize } = textMetrics(dims, content);
+    const titleY = portraitTitleY ?? height - PADDING_BOTTOM * s - metaSize - LINE_GAP * s;
+    const metaY =
+      portraitTitleY !== null ? titleY + metaSize + LINE_GAP * s : height - PADDING_BOTTOM * s;
+    // Portrait darkens from just above the title down, landscape the bottom band.
+    const shadeTop =
+      portraitTitleY !== null
+        ? titleY - titleSize - GRADIENT_HEIGHT * s * 0.5
+        : height - GRADIENT_HEIGHT * s;
 
     return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -262,22 +370,6 @@ export class SlideRendererService {
   ${this.badgesSvg(dims, content.badges, safeAccent(style.accentColor))}
   ${plate ? `<rect x="${plate.left}" y="${plate.top}" width="${plate.width}" height="${plate.height}" fill="#fff"/>` : ''}
 </svg>`;
-  }
-
-  /**
-   * Portrait text sits below the image, but never under the badge stack: a
-   * very wide image leaves little room above the text for stacked badges.
-   */
-  private portraitTitleY(
-    dims: SlideDimensions,
-    badges: readonly string[],
-    imageBottom: number,
-    titleSize: number,
-  ): number {
-    const s = scaleOf(dims);
-    const stack = badgeRects(dims, badges).at(-1);
-    const belowBadges = stack ? stack.top + stack.height + LINE_GAP * s + titleSize : 0;
-    return Math.max(imageBottom + PORTRAIT_TEXT_OFFSET * s, belowBadges);
   }
 
   private badgesSvg(dims: SlideDimensions, badges: readonly string[], accentColor: string): string {

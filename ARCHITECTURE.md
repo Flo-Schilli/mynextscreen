@@ -169,7 +169,13 @@ playlists (kind=dynamic, rule) ◀──(playlist-resolve: resolve-<playlistId>)
 - **Slide renderer** (`slide/`) composes an SVG layer (artist, `Sa, 10.10.2026
 • Venue`, status badges, QR code to the ticket shop) over the event image with
   sharp and writes JPEG. Landscape puts the fitted image full-frame with the
-  text bottom left; portrait puts the image on top and the text below. Badges
+  text bottom left. Portrait centres image and text as one block
+  (`portraitLayout`), pushed up only as far as the QR code needs: square and
+  upright images are fitted whole as large as the space allows; a landscape
+  image may grow taller than a full-width fit, up to a square, by cropping at
+  most 15 % of its width (`PORTRAIT_MAX_CROP`; 25 % cut the outer
+  members of real band photos) with sharp's `attention`
+  strategy, which trims the least interesting edge first. Badges
   stack top right: `ABGESAGT` stands alone, otherwise every status that
   applies shows in the order `VERLEGT`, `NEUER TERMIN`, `AUSVERKAUFT`. The
   `renderHash` includes `RENDERER_VERSION`; bumping it re-renders every slide

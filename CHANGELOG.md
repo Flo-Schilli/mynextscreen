@@ -36,6 +36,13 @@ the source's dynamic playlists are recalculated right after saving. The
 slides keep the website's spelling. The event pool can be filtered by venue,
 genre and date and pages with "load more", showing how many events match.
 
+Portrait slides (1080×1920) centre the image and the text below it as one
+block. Square and upright images are shown whole and as large as fits; a
+landscape press photo grows taller than a full-width fit by cropping at most
+15 % of its width, trimming the least interesting edge first, so the lower
+half of the slide no longer stays empty. Landscape and 4K slides are unchanged.
+Every portrait slide is re-rendered on the next sync.
+
 Once a day the server deletes the slides of events that ended more than 14
 days ago or that the site no longer lists, unless a playlist still shows them.
 
