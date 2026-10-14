@@ -168,7 +168,6 @@ ansible/                  # Prod-Deployment: quadlets/, templates/ (Caddy, fail2
 docker-compose.yml        # Dev: backend(3000) · frontend(4200) · player(4300) · redis · postgres(5432)
 ARCHITECTURE.md           # Technische Architektur (kanonisch)
 VISION.md                 # Produkt-Vision & Feature-Details (kanonisch)
-.maggus/                  # Maggus-Task-Runner (features/, bugs/, config.yml)
 ```
 
 > Build-Outputs: backend → `dist/apps/backend/main.js`; frontend/player →
