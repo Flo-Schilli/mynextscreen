@@ -14,6 +14,7 @@ function gaugeMock(): jest.Mocked<Pick<Gauge<string>, 'set'>> {
 describe('DomainMetricsCollector', () => {
   let transcodingQueue: { getJobCounts: jest.Mock };
   let sliceQueue: { getJobCounts: jest.Mock };
+  let contentSourceQueue: { getJobCounts: jest.Mock };
   let pool: Pick<Pool, 'totalCount' | 'idleCount' | 'waitingCount'>;
   let db: { select: jest.Mock };
   let dashboardSse: Pick<DashboardSseService, 'activeConnectionCount'>;
@@ -39,6 +40,15 @@ describe('DomainMetricsCollector', () => {
         completed: 5,
         failed: 0,
         delayed: 1,
+      }),
+    };
+    contentSourceQueue = {
+      getJobCounts: jest.fn().mockResolvedValue({
+        waiting: 4,
+        active: 1,
+        completed: 0,
+        failed: 0,
+        delayed: 0,
       }),
     };
     pool = { totalCount: 8, idleCount: 5, waitingCount: 2 };
@@ -68,6 +78,7 @@ describe('DomainMetricsCollector', () => {
     collector = new DomainMetricsCollector(
       transcodingQueue as unknown as Queue,
       sliceQueue as unknown as Queue,
+      contentSourceQueue as unknown as Queue,
       pool as Pool,
       db as unknown as DrizzleDB,
       dashboardSse as DashboardSseService,
@@ -92,6 +103,10 @@ describe('DomainMetricsCollector', () => {
     expect(gauges.queueJobs.set).toHaveBeenCalledWith(
       { queue: 'slice-content', state: 'delayed' },
       1,
+    );
+    expect(gauges.queueJobs.set).toHaveBeenCalledWith(
+      { queue: 'content-source-sync', state: 'waiting' },
+      4,
     );
   });
 
