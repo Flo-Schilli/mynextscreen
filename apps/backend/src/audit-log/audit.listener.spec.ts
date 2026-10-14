@@ -124,6 +124,24 @@ describe('AuditListener', () => {
     });
   });
 
+  it.each([
+    ['handlePlaylistRuleUpdated', AuditAction.PlaylistRuleUpdated],
+    ['handlePlaylistResolved', AuditAction.PlaylistResolved],
+  ] as const)('should map %s to %s', (handler, action) => {
+    const event = new AuditPlaylistEvent(resourceId, orgId, null, { itemCount: 3 });
+
+    listener[handler](event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action,
+      resourceType: 'playlist',
+      resourceId,
+      organisationId: orgId,
+      userId: null,
+      details: { itemCount: 3 },
+    });
+  });
+
   it('should map playlist.deleted to PlaylistDelete audit entry', () => {
     const event = new AuditPlaylistEvent(resourceId, orgId, userId, {
       name: 'Old Playlist',

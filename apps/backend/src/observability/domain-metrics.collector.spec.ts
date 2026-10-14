@@ -15,6 +15,7 @@ describe('DomainMetricsCollector', () => {
   let transcodingQueue: { getJobCounts: jest.Mock };
   let sliceQueue: { getJobCounts: jest.Mock };
   let contentSourceQueue: { getJobCounts: jest.Mock };
+  let playlistResolveQueue: { getJobCounts: jest.Mock };
   let pool: Pick<Pool, 'totalCount' | 'idleCount' | 'waitingCount'>;
   let db: { select: jest.Mock };
   let dashboardSse: Pick<DashboardSseService, 'activeConnectionCount'>;
@@ -51,6 +52,15 @@ describe('DomainMetricsCollector', () => {
         delayed: 0,
       }),
     };
+    playlistResolveQueue = {
+      getJobCounts: jest.fn().mockResolvedValue({
+        waiting: 6,
+        active: 0,
+        completed: 0,
+        failed: 0,
+        delayed: 0,
+      }),
+    };
     pool = { totalCount: 8, idleCount: 5, waitingCount: 2 };
     // groupBy returns one row per isOnline value
     db = {
@@ -79,6 +89,7 @@ describe('DomainMetricsCollector', () => {
       transcodingQueue as unknown as Queue,
       sliceQueue as unknown as Queue,
       contentSourceQueue as unknown as Queue,
+      playlistResolveQueue as unknown as Queue,
       pool as Pool,
       db as unknown as DrizzleDB,
       dashboardSse as DashboardSseService,
@@ -107,6 +118,10 @@ describe('DomainMetricsCollector', () => {
     expect(gauges.queueJobs.set).toHaveBeenCalledWith(
       { queue: 'content-source-sync', state: 'waiting' },
       4,
+    );
+    expect(gauges.queueJobs.set).toHaveBeenCalledWith(
+      { queue: 'playlist-resolve', state: 'waiting' },
+      6,
     );
   });
 

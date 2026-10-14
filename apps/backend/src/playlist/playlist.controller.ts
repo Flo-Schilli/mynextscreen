@@ -9,6 +9,8 @@ import {
   Body,
   Req,
   ParseUUIDPipe,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { PlaylistService } from './playlist.service';
 import { CreatePlaylistDto } from './dto/create-playlist.dto';
@@ -20,6 +22,9 @@ import { UpdateAllPlaylistItemsDto } from './dto/update-all-playlist-items.dto';
 import { ReorderPlaylistItemsDto } from './dto/reorder-playlist-items.dto';
 import { BulkDeletePlaylistsDto } from './dto/bulk-delete-playlists.dto';
 import { BulkAssignScreenDto } from './dto/bulk-assign-screen.dto';
+import { PlaylistRuleDto } from './dto/playlist-rule.dto';
+import { PlaylistKind } from './playlist-kind.enum';
+import { PlaylistRuleService, type RulePreviewResult } from './playlist-rule.service';
 import { Roles } from '../auth/roles.decorator';
 import { AuthenticatedRequest } from '../auth';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
@@ -29,7 +34,10 @@ import type { PlaylistItem } from '../db/schema';
 
 @Controller('playlists')
 export class PlaylistController {
-  constructor(private readonly playlistService: PlaylistService) {}
+  constructor(
+    private readonly playlistService: PlaylistService,
+    private readonly ruleService: PlaylistRuleService,
+  ) {}
 
   @Post()
   @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
@@ -37,7 +45,20 @@ export class PlaylistController {
     @CurrentOrganisation() organisationId: string,
     @Body() dto: CreatePlaylistDto,
   ): Promise<Playlist> {
-    return this.playlistService.create(organisationId, dto);
+    return dto.kind === PlaylistKind.Dynamic
+      ? this.ruleService.createDynamic(organisationId, dto)
+      : this.playlistService.create(organisationId, dto);
+  }
+
+  /** Live preview of a rule for the editor; stores nothing. */
+  @Post('rule-preview')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
+  @HttpCode(HttpStatus.OK)
+  previewRule(
+    @CurrentOrganisation() organisationId: string,
+    @Body() dto: PlaylistRuleDto,
+  ): Promise<RulePreviewResult> {
+    return this.ruleService.preview(organisationId, dto);
   }
 
   @Get()
@@ -63,6 +84,18 @@ export class PlaylistController {
     @Body() dto: UpdatePlaylistDto,
   ): Promise<Playlist> {
     return this.playlistService.update(id, organisationId, dto);
+  }
+
+  /** Replaces the rule of a dynamic playlist and recomputes its items at once. */
+  @Patch(':id/rule')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
+  updateRule(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: PlaylistRuleDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<Playlist> {
+    return this.ruleService.updateRule(organisationId, id, dto, req.user.userId);
   }
 
   @Post('bulk-delete')

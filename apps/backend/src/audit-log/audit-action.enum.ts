@@ -40,6 +40,9 @@ export enum AuditAction {
   ContentBulkAddedToPlaylist = 'content.bulk_added_to_playlist',
   PlaylistBulkDeleted = 'playlist.bulk_deleted',
   PlaylistBulkScreenAssigned = 'playlist.bulk_screen_assigned',
+  // Dynamic playlists (rule over a content-source event pool)
+  PlaylistRuleUpdated = 'playlist.rule_updated',
+  PlaylistResolved = 'playlist.resolved',
   // Site agents (on-premise service that remote-controls the displays)
   SiteAgentCreated = 'site_agent.created',
   SiteAgentUpdated = 'site_agent.updated',

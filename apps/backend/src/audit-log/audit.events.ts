@@ -25,6 +25,9 @@ export const AUDIT_PLAYLIST_UPDATED = 'audit.playlist.updated';
 export const AUDIT_PLAYLIST_DELETED = 'audit.playlist.deleted';
 export const AUDIT_PLAYLIST_BULK_DELETED = 'audit.playlist.bulk_deleted';
 export const AUDIT_PLAYLIST_BULK_SCREEN_ASSIGNED = 'audit.playlist.bulk_screen_assigned';
+export const AUDIT_PLAYLIST_RULE_UPDATED = 'audit.playlist.rule_updated';
+/** A resolve changed the items of a dynamic playlist; unchanged resolves are not audited. */
+export const AUDIT_PLAYLIST_RESOLVED = 'audit.playlist.resolved';
 
 export class AuditPlaylistEvent {
   constructor(

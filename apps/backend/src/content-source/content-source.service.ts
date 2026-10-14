@@ -43,6 +43,8 @@ import type {
 import { DEFAULT_EVENTS_PAGE } from './dto/source-events-query.dto';
 
 const MS_PER_MINUTE = 60_000;
+/** Safety cap for the rule pool; a source lists a few hundred events at most. */
+export const MAX_POOL_EVENTS = 5000;
 
 export interface SourceEventWithSlides extends SourceEvent {
   slides: { format: SlideFormat; contentId: string }[];
@@ -250,6 +252,32 @@ export class ContentSourceService {
       .orderBy(asc(sourceEvents.startsAt), asc(sourceEvents.title))
       .limit(query.limit ?? DEFAULT_EVENTS_PAGE)
       .offset(query.offset ?? 0);
+    return this.attachSlides(events);
+  }
+
+  /**
+   * Current events of some sources from `fromDate` on, with their slides: the
+   * pool a playlist rule filters. Gone events are left out.
+   */
+  async findPool(
+    organisationId: string,
+    sourceIds: string[],
+    fromDate: string,
+  ): Promise<SourceEventWithSlides[]> {
+    if (sourceIds.length === 0) return [];
+    const events = await this.db
+      .select()
+      .from(sourceEvents)
+      .where(
+        and(
+          eq(sourceEvents.organisationId, organisationId),
+          inArray(sourceEvents.sourceId, sourceIds),
+          isNull(sourceEvents.goneAt),
+          gte(sourceEvents.eventDate, fromDate),
+        ),
+      )
+      .orderBy(asc(sourceEvents.startsAt), asc(sourceEvents.title))
+      .limit(MAX_POOL_EVENTS);
     return this.attachSlides(events);
   }
 

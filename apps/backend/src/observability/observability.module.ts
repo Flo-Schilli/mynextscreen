@@ -6,6 +6,7 @@ import { LiveStreamModule } from '../live-stream';
 import { SiteAgentModule } from '../site-agent';
 import { SLICE_CONTENT_QUEUE } from '../slice-content/slice-content.constants';
 import { CONTENT_SOURCE_SYNC_QUEUE } from '../content-source/content-source.constants';
+import { PLAYLIST_RESOLVE_QUEUE } from '../playlist/playlist-resolve.constants';
 import { MetricsController } from './metrics.controller';
 import { MetricsScrapeAuthGuard } from './metrics-scrape-auth.guard';
 import { HttpMetricsMiddleware } from './http-metrics.middleware';
@@ -25,7 +26,7 @@ import { observabilityMetricProviders } from './observability.providers';
  * graph acyclic: observability depends on the domain modules it scrapes, never
  * the reverse.
  *
- * The transcoding, slice and content-source queues are re-registered here so the collector can
+ * The transcoding, slice, content-source and playlist-resolve queues are re-registered here so the collector can
  * read their depth; BullMQ resolves repeated `registerQueue` calls for the same
  * name to the one queue.
  */
@@ -41,6 +42,7 @@ import { observabilityMetricProviders } from './observability.providers';
       { name: 'transcoding' },
       { name: SLICE_CONTENT_QUEUE },
       { name: CONTENT_SOURCE_SYNC_QUEUE },
+      { name: PLAYLIST_RESOLVE_QUEUE },
     ),
     DashboardModule,
     LiveStreamModule,

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PlaylistController } from './playlist.controller';
 import { PlaylistService } from './playlist.service';
+import { PlaylistRuleService } from './playlist-rule.service';
 import { AuthenticatedRequest } from '../auth';
 
 describe('PlaylistController — bulk endpoints', () => {
@@ -35,7 +36,10 @@ describe('PlaylistController — bulk endpoints', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PlaylistController],
-      providers: [{ provide: PlaylistService, useValue: service }],
+      providers: [
+        { provide: PlaylistService, useValue: service },
+        { provide: PlaylistRuleService, useValue: {} },
+      ],
     }).compile();
 
     controller = module.get<PlaylistController>(PlaylistController);

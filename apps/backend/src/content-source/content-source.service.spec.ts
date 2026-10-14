@@ -340,6 +340,25 @@ describe('ContentSourceService', () => {
       );
     });
 
+    it('loads the rule pool of several sources from a date on, scoped to the organisation', async () => {
+      const a = await seedContentSource(db, orgId);
+      const b = await seedContentSource(db, orgId);
+      const c = await seedContentSource(db, orgId);
+      const foreign = await seedContentSource(db, otherOrgId);
+      await seedEvent(a.id, orgId, { title: 'A', eventDate: '2026-11-10' });
+      await seedEvent(b.id, orgId, { title: 'B', eventDate: '2026-11-12' });
+      await seedEvent(a.id, orgId, { title: 'Old', eventDate: '2026-11-01' });
+      await seedEvent(a.id, orgId, { title: 'Gone', goneAt: new Date() });
+      await seedEvent(c.id, orgId, { title: 'Other source' });
+      await seedEvent(foreign.id, otherOrgId, { title: 'Foreign' });
+
+      const pool = await service.findPool(orgId, [a.id, b.id, foreign.id], '2026-11-09');
+
+      expect(pool.map((event) => event.title)).toEqual(['A', 'B']);
+      expect(pool[0].slides).toEqual([]);
+      await expect(service.findPool(orgId, [], '2026-11-09')).resolves.toEqual([]);
+    });
+
     it('collects venue and genre facets per organisation and source', async () => {
       const a = await seedContentSource(db, orgId);
       const b = await seedContentSource(db, orgId);
