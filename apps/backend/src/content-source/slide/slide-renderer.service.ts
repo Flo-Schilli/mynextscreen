@@ -23,6 +23,7 @@ const BADGE_MARGIN = 60;
 const BADGE_HEIGHT = 72;
 const BADGE_FONT_SIZE = 40;
 const BADGE_PADDING_X = 30;
+const BADGE_GAP = 16;
 const BLUR_SIGMA = 30;
 const BLUR_BRIGHTNESS = 0.45;
 /** Rough glyph width relative to font size (bold capitals). */
@@ -69,18 +70,25 @@ const scaleOf = ({ width, height }: SlideDimensions): number =>
 
 const isPortrait = ({ width, height }: SlideDimensions): boolean => height > width;
 
-/** Where the status badge sits (top right), or null without badge. */
-export function badgeRect(dims: SlideDimensions, badge: string | null): Rect | null {
-  if (!badge) return null;
+/**
+ * Where the status badges sit: stacked top right, one below the other, all
+ * as wide as the longest label so the stack reads as one column. Empty when
+ * there is nothing to show.
+ */
+export function badgeRects(dims: SlideDimensions, badges: readonly string[]): Rect[] {
+  if (badges.length === 0) return [];
   const s = scaleOf(dims);
   const fontSize = BADGE_FONT_SIZE * s;
-  const width = Math.round(badge.length * fontSize * AVG_CHAR_WIDTH + 2 * BADGE_PADDING_X * s);
-  return {
+  const longest = Math.max(...badges.map((badge) => badge.length));
+  const width = Math.round(longest * fontSize * AVG_CHAR_WIDTH + 2 * BADGE_PADDING_X * s);
+  const height = Math.round(BADGE_HEIGHT * s);
+  const step = height + Math.round(BADGE_GAP * s);
+  return badges.map((_, index) => ({
     left: Math.round(dims.width - BADGE_MARGIN * s - width),
-    top: Math.round(BADGE_MARGIN * s),
+    top: Math.round(BADGE_MARGIN * s) + index * step,
     width,
-    height: Math.round(BADGE_HEIGHT * s),
-  };
+    height,
+  }));
 }
 
 /** The white plate behind the QR code (bottom right), or null without QR code. */
@@ -232,7 +240,7 @@ export class SlideRendererService {
       maxTextWidth,
     );
     const titleY = portrait
-      ? imageBottom + PORTRAIT_TEXT_OFFSET * s
+      ? this.portraitTitleY(dims, content.badges, imageBottom, titleSize)
       : height - PADDING_BOTTOM * s - metaSize - LINE_GAP * s;
     const metaY = portrait ? titleY + metaSize + LINE_GAP * s : height - PADDING_BOTTOM * s;
     const shadeTop = portrait
@@ -251,18 +259,37 @@ export class SlideRendererService {
     <text x="${paddingX}" y="${titleY}" font-size="${titleSize}" font-weight="bold">${escapeXml(content.title)}</text>
     <text x="${paddingX}" y="${metaY}" font-size="${metaSize}">${escapeXml(content.metaLine)}</text>
   </g>
-  ${this.badgeSvg(dims, content.badge, safeAccent(style.accentColor))}
+  ${this.badgesSvg(dims, content.badges, safeAccent(style.accentColor))}
   ${plate ? `<rect x="${plate.left}" y="${plate.top}" width="${plate.width}" height="${plate.height}" fill="#fff"/>` : ''}
 </svg>`;
   }
 
-  private badgeSvg(dims: SlideDimensions, badge: string | null, accentColor: string): string {
-    const rect = badgeRect(dims, badge);
-    if (!rect || !badge) return '';
+  /**
+   * Portrait text sits below the image, but never under the badge stack: a
+   * very wide image leaves little room above the text for stacked badges.
+   */
+  private portraitTitleY(
+    dims: SlideDimensions,
+    badges: readonly string[],
+    imageBottom: number,
+    titleSize: number,
+  ): number {
+    const s = scaleOf(dims);
+    const stack = badgeRects(dims, badges).at(-1);
+    const belowBadges = stack ? stack.top + stack.height + LINE_GAP * s + titleSize : 0;
+    return Math.max(imageBottom + PORTRAIT_TEXT_OFFSET * s, belowBadges);
+  }
+
+  private badgesSvg(dims: SlideDimensions, badges: readonly string[], accentColor: string): string {
     const fontSize = BADGE_FONT_SIZE * scaleOf(dims);
-    const textX = rect.left + rect.width / 2;
-    const textY = rect.top + rect.height / 2 + fontSize * 0.36;
-    return `<rect x="${rect.left}" y="${rect.top}" width="${rect.width}" height="${rect.height}" rx="${rect.height / 6}" fill="${accentColor}"/>
-  <text x="${textX}" y="${textY}" font-family="${FONT_FAMILY}" font-size="${fontSize}" font-weight="bold" text-anchor="middle" fill="${textColorOn(accentColor)}">${escapeXml(badge)}</text>`;
+    const textColor = textColorOn(accentColor);
+    return badgeRects(dims, badges)
+      .map((rect, index) => {
+        const textX = rect.left + rect.width / 2;
+        const textY = rect.top + rect.height / 2 + fontSize * 0.36;
+        return `<rect x="${rect.left}" y="${rect.top}" width="${rect.width}" height="${rect.height}" rx="${rect.height / 6}" fill="${accentColor}"/>
+  <text x="${textX}" y="${textY}" font-family="${FONT_FAMILY}" font-size="${fontSize}" font-weight="bold" text-anchor="middle" fill="${textColor}">${escapeXml(badges[index])}</text>`;
+      })
+      .join('\n  ');
   }
 }

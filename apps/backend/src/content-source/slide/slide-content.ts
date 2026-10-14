@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import type { SlideFormat, SlideStyle } from '../content-source.types';
 
 /** Bump when the rendered look changes, so every slide is re-rendered once. */
-export const RENDERER_VERSION = 1;
+export const RENDERER_VERSION = 2;
 
 /** Everything a slide shows, already reduced to display strings. */
 export interface SlideContent {
@@ -10,8 +10,8 @@ export interface SlideContent {
   title: string;
   /** `Sa, 10.10.2026 • Löwensaal` */
   metaLine: string;
-  /** Status badge text, null when the event needs none. */
-  badge: string | null;
+  /** Status badges, top to bottom; empty when the event needs none. */
+  badges: readonly string[];
   /** Ticket link for the QR code, null when no code should be shown. */
   qrUrl: string | null;
 }
@@ -46,14 +46,23 @@ export function parseSlideFormat(format: SlideFormat): SlideDimensions {
   return { width, height };
 }
 
-/** Highest-priority badge, or null. Relocations are shortened to `VERLEGT`. */
-export function badgeFor(event: SlideEventInput): string | null {
+/**
+ * The badges a slide shows, in display order. A cancellation makes every
+ * other status irrelevant and stands alone; otherwise all that apply are
+ * stacked as `VERLEGT`, `NEUER TERMIN`, `AUSVERKAUFT`. Relocation labels
+ * such as `LOCATION VERLEGT` are shortened to `VERLEGT`.
+ */
+export function badgesFor(event: SlideEventInput): string[] {
   const labels = new Set(event.statusLabels);
-  if (event.cancelled || labels.has('ABGESAGT')) return 'ABGESAGT';
-  if (labels.has('NEUER TERMIN')) return 'NEUER TERMIN';
-  if ([...labels].some((label) => label.includes('VERLEGT'))) return 'VERLEGT';
-  if (event.soldOut || labels.has('AUSVERKAUFT')) return 'AUSVERKAUFT';
-  return null;
+  if (event.cancelled || labels.has('ABGESAGT')) return ['ABGESAGT'];
+  const relocated = [...labels].some((label) => label.includes('VERLEGT'));
+  const rescheduled = labels.has('NEUER TERMIN');
+  const soldOut = event.soldOut || labels.has('AUSVERKAUFT');
+  return [
+    ...(relocated ? ['VERLEGT'] : []),
+    ...(rescheduled ? ['NEUER TERMIN'] : []),
+    ...(soldOut ? ['AUSVERKAUFT'] : []),
+  ];
 }
 
 /** No QR code for events nobody can buy tickets for, or without a web link. */
@@ -68,7 +77,7 @@ export function buildSlideContent(event: SlideEventInput): SlideContent {
   return {
     title: event.title.toLocaleUpperCase('de-DE'),
     metaLine: `${formatDateLabel(event.eventDate)} • ${event.venue}`,
-    badge: badgeFor(event),
+    badges: badgesFor(event),
     qrUrl: qrUrlFor(event),
   };
 }

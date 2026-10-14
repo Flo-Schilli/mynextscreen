@@ -1,7 +1,7 @@
 import { sharp } from './sharp';
 import {
   SlideRendererService,
-  badgeRect,
+  badgeRects,
   fitFontSize,
   qrPlateRect,
   type Rect,
@@ -15,13 +15,13 @@ const BLUR_STYLE: SlideStyle = { background: 'blur', accentColor: '#00ff00' };
 const PLAIN: SlideContent = {
   title: 'A & <B>',
   metaLine: 'Sa, 10.10.2026 • Löwensaal',
-  badge: null,
+  badges: [],
   qrUrl: null,
 };
 
 const WITH_EXTRAS: SlideContent = {
   ...PLAIN,
-  badge: 'AUSVERKAUFT',
+  badges: ['AUSVERKAUFT'],
   qrUrl: 'https://tickets.example.org/event/1',
 };
 
@@ -36,8 +36,18 @@ async function pixel(image: Buffer, left: number, top: number): Promise<number[]
   return [data[0], data[1], data[2]];
 }
 
+/** Relocated and sold out at once, like MORPHEUZ in the E2E test. */
+const STACKED: SlideContent = {
+  ...PLAIN,
+  title: 'MORPHEUZ',
+  badges: ['VERLEGT', 'AUSVERKAUFT'],
+};
+
+const LANDSCAPE = { width: 1920, height: 1080 };
+const PORTRAIT = { width: 1080, height: 1920 };
+
 /** A point on the rect's left padding, clear of text and of rounded corners. */
-const insideCorner = (rect: Rect | null): [number, number] => [
+const insideCorner = (rect: Rect | null | undefined): [number, number] => [
   rect!.left + 4,
   rect!.top + Math.round(rect!.height / 2),
 ];
@@ -78,7 +88,7 @@ describe('SlideRendererService', () => {
       ...WITH_EXTRAS,
       title: 'ASP\u0001\u0008 & Friends\u000B',
       metaLine: 'Sa\u001F, 10.10.2026 \u000C• Löwensaal',
-      badge: 'AUS\u0000VERKAUFT',
+      badges: ['AUS\u0000VERKAUFT', 'NEUER\u0001 TERMIN'],
     };
 
     const output = await renderer.render(await redImage(), content, '1920x1080', BLACK_STYLE);
@@ -91,7 +101,7 @@ describe('SlideRendererService', () => {
 
     const meta = await sharp(output).metadata();
     expect([meta.width, meta.height]).toEqual([3840, 2160]);
-    const [x, y] = insideCorner(badgeRect({ width: 3840, height: 2160 }, WITH_EXTRAS.badge));
+    const [x, y] = insideCorner(badgeRects({ width: 3840, height: 2160 }, WITH_EXTRAS.badges)[0]);
     const badge = await pixel(output, x, y);
     expect(badge[1]).toBeGreaterThan(200);
   });
@@ -109,7 +119,7 @@ describe('SlideRendererService', () => {
     const dims = { width: 1920, height: 1080 };
     const output = await renderer.render(await redImage(), WITH_EXTRAS, '1920x1080', BLACK_STYLE);
 
-    const [bx, by] = insideCorner(badgeRect(dims, WITH_EXTRAS.badge));
+    const [bx, by] = insideCorner(badgeRects(dims, WITH_EXTRAS.badges)[0]);
     const badge = await pixel(output, bx, by);
     expect(badge[0]).toBeLessThan(60);
     expect(badge[1]).toBeGreaterThan(200);
@@ -123,7 +133,7 @@ describe('SlideRendererService', () => {
     const dims = { width: 1920, height: 1080 };
     const output = await renderer.render(await redImage(), PLAIN, '1920x1080', BLACK_STYLE);
 
-    const [bx, by] = insideCorner(badgeRect(dims, 'AUSVERKAUFT'));
+    const [bx, by] = insideCorner(badgeRects(dims, ['AUSVERKAUFT'])[0]);
     expect((await pixel(output, bx, by))[1]).toBeLessThan(60);
     const [qx, qy] = insideCorner(qrPlateRect(dims, 'https://x.example'));
     expect(Math.min(...(await pixel(output, qx, qy)))).toBeLessThan(120);
@@ -138,7 +148,7 @@ describe('SlideRendererService', () => {
     const meta = await sharp(output).metadata();
     expect([meta.width, meta.height]).toEqual([1080, 1920]);
     expect(Math.max(...(await pixel(output, 10, 10)))).toBeLessThan(20);
-    const [bx, by] = insideCorner(badgeRect({ width: 1080, height: 1920 }, WITH_EXTRAS.badge));
+    const [bx, by] = insideCorner(badgeRects({ width: 1080, height: 1920 }, WITH_EXTRAS.badges)[0]);
     const badge = await pixel(output, bx, by);
     expect(badge[0]).toBeGreaterThan(180);
   });
@@ -152,9 +162,46 @@ describe('SlideRendererService', () => {
     expect((await sharp(output).metadata()).format).toBe('jpeg');
   });
 
+  it.each([
+    ['landscape', '1920x1080', LANDSCAPE],
+    ['portrait', '1080x1920', PORTRAIT],
+  ] as const)('stacks every badge in the accent colour (%s)', async (_, format, dims) => {
+    const output = await renderer.render(await redImage(), STACKED, format, BLACK_STYLE);
+
+    const [first, second] = badgeRects(dims, STACKED.badges);
+    for (const rect of [first, second]) {
+      const [x, y] = insideCorner(rect);
+      const badge = await pixel(output, x, y);
+      expect(badge[0]).toBeLessThan(60);
+      expect(badge[1]).toBeGreaterThan(200);
+    }
+    // The gap between the two badges shows the image, not the accent.
+    const gapY = Math.round((first.top + first.height + second.top) / 2);
+    const gap = await pixel(output, first.left + 4, gapY);
+    expect(gap[1]).toBeLessThan(60);
+  });
+
+  it('keeps portrait text below the stack even above a very wide image', async () => {
+    const all: SlideContent = { ...STACKED, badges: ['VERLEGT', 'NEUER TERMIN', 'AUSVERKAUFT'] };
+    // A 10:1 panorama is only 108 px tall at full width.
+    const output = await renderer.render(await redImage(2000, 200), all, '1080x1920', {
+      ...BLACK_STYLE,
+      accentColor: '#0000ff',
+    });
+
+    const last = badgeRects(PORTRAIT, all.badges)[2];
+    // Left of the stack, level with the last badge: no white title glyphs there.
+    const row = await sharp(output)
+      .extract({ left: 0, top: last.top, width: last.left, height: last.height })
+      .greyscale()
+      .raw()
+      .toBuffer();
+    expect(Math.max(...row)).toBeLessThan(120);
+  });
+
   describe('layout helpers', () => {
-    it('returns null rects when badge or QR are absent', () => {
-      expect(badgeRect({ width: 1920, height: 1080 }, null)).toBeNull();
+    it('returns no rects when badges or QR are absent', () => {
+      expect(badgeRects({ width: 1920, height: 1080 }, [])).toEqual([]);
       expect(qrPlateRect({ width: 1920, height: 1080 }, null)).toBeNull();
     });
 
@@ -164,13 +211,39 @@ describe('SlideRendererService', () => {
         { width: 1080, height: 1920 },
         { width: 3840, height: 2160 },
       ]) {
-        for (const rect of [badgeRect(dims, 'NEUER TERMIN'), qrPlateRect(dims, 'https://x')]) {
+        const badges = badgeRects(dims, ['VERLEGT', 'NEUER TERMIN', 'AUSVERKAUFT']);
+        for (const rect of [...badges, qrPlateRect(dims, 'https://x')]) {
           expect(rect!.left).toBeGreaterThan(0);
           expect(rect!.top).toBeGreaterThan(0);
           expect(rect!.left + rect!.width).toBeLessThan(dims.width);
           expect(rect!.top + rect!.height).toBeLessThan(dims.height);
         }
       }
+    });
+  });
+
+  describe('badge stack', () => {
+    it.each([
+      ['landscape', LANDSCAPE],
+      ['portrait', PORTRAIT],
+      ['4K', { width: 3840, height: 2160 }],
+    ] as const)('stacks top down, right aligned, without overlap (%s)', (_, dims) => {
+      const rects = badgeRects(dims, ['VERLEGT', 'NEUER TERMIN', 'AUSVERKAUFT']);
+
+      expect(new Set(rects.map((rect) => rect.left + rect.width)).size).toBe(1);
+      for (let i = 1; i < rects.length; i++) {
+        expect(rects[i].top).toBeGreaterThan(rects[i - 1].top + rects[i - 1].height);
+      }
+      // Landscape text and the QR plate live in the bottom band; the stack stays clear of it.
+      const stackBottom = rects[2].top + rects[2].height;
+      expect(stackBottom).toBeLessThan(qrPlateRect(dims, 'https://x')!.top);
+      expect(stackBottom).toBeLessThan(dims.height / 2);
+    });
+
+    it('sizes every badge for the longest label', () => {
+      const [short, long] = badgeRects(LANDSCAPE, ['VERLEGT', 'NEUER TERMIN']);
+      expect(short.width).toBe(long.width);
+      expect(badgeRects(LANDSCAPE, ['VERLEGT'])[0].width).toBeLessThan(long.width);
     });
   });
 

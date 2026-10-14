@@ -165,9 +165,13 @@ playlists (kind=dynamic, rule) ◀──(playlist-resolve: resolve-<playlistId>)
   outcome is stored on the source as a summary, audited, and
   `content_source.synced` is emitted.
 - **Slide renderer** (`slide/`) composes an SVG layer (artist, `Sa, 10.10.2026
-• Venue`, status badge, QR code to the ticket shop) over the event image with
+• Venue`, status badges, QR code to the ticket shop) over the event image with
   sharp and writes JPEG. Landscape puts the fitted image full-frame with the
-  text bottom left; portrait puts the image on top and the text below. The
+  text bottom left; portrait puts the image on top and the text below. Badges
+  stack top right: `ABGESAGT` stands alone, otherwise every status that
+  applies shows in the order `VERLEGT`, `NEUER TERMIN`, `AUSVERKAUFT`. The
+  `renderHash` includes `RENDERER_VERSION`; bumping it re-renders every slide
+  on the next sync. The
   text is drawn with the system fonts, so the backend image ships `fontconfig`,
   DejaVu and Liberation.
 - **Rule engine** (`playlist/`): `PlaylistRuleDto` validates the rule (date

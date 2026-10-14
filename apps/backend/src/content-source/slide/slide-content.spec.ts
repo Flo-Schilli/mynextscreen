@@ -1,5 +1,5 @@
 import {
-  badgeFor,
+  badgesFor,
   buildSlideContent,
   computeRenderHash,
   formatDateLabel,
@@ -35,22 +35,28 @@ describe('slide content', () => {
     expect(buildSlideContent(EVENT)).toEqual({
       title: 'DIE ÄRZTE',
       metaLine: 'Sa, 10.10.2026 • Löwensaal',
-      badge: null,
+      badges: [],
       qrUrl: 'https://tickets.example.org/1',
     });
   });
 
-  it.each<[Partial<SlideEventInput>, string | null]>([
-    [{}, null],
-    [{ soldOut: true }, 'AUSVERKAUFT'],
-    [{ statusLabels: ['AUSVERKAUFT'] }, 'AUSVERKAUFT'],
-    [{ statusLabels: ['LOCATION VERLEGT'] }, 'VERLEGT'],
-    [{ statusLabels: ['NEUER TERMIN', 'AUSVERKAUFT'] }, 'NEUER TERMIN'],
-    [{ cancelled: true, soldOut: true }, 'ABGESAGT'],
-    [{ statusLabels: ['ABGESAGT'] }, 'ABGESAGT'],
-    [{ statusLabels: ['ZUSATZKONZERT'] }, null],
-  ])('badge for %j is %s', (patch, expected) => {
-    expect(badgeFor({ ...EVENT, ...patch })).toBe(expected);
+  it.each<[Partial<SlideEventInput>, string[]]>([
+    [{}, []],
+    [{ soldOut: true }, ['AUSVERKAUFT']],
+    [{ statusLabels: ['AUSVERKAUFT'] }, ['AUSVERKAUFT']],
+    [{ statusLabels: ['LOCATION VERLEGT'] }, ['VERLEGT']],
+    [{ statusLabels: ['NEUER TERMIN', 'AUSVERKAUFT'] }, ['NEUER TERMIN', 'AUSVERKAUFT']],
+    [{ statusLabels: ['LOCATION VERLEGT'], soldOut: true }, ['VERLEGT', 'AUSVERKAUFT']],
+    [
+      { statusLabels: ['AUSVERKAUFT', 'NEUER TERMIN', 'LOCATION VERLEGT'] },
+      ['VERLEGT', 'NEUER TERMIN', 'AUSVERKAUFT'],
+    ],
+    [{ statusLabels: ['AUSVERKAUFT'], soldOut: true }, ['AUSVERKAUFT']],
+    [{ cancelled: true, soldOut: true }, ['ABGESAGT']],
+    [{ statusLabels: ['ABGESAGT', 'LOCATION VERLEGT', 'NEUER TERMIN'] }, ['ABGESAGT']],
+    [{ statusLabels: ['ZUSATZKONZERT'] }, []],
+  ])('badges for %j are %j', (patch, expected) => {
+    expect(badgesFor({ ...EVENT, ...patch })).toEqual(expected);
   });
 
   it.each<[Partial<SlideEventInput>, string | null]>([
@@ -79,7 +85,13 @@ describe('slide content', () => {
     it('changes with content, image, format and style', () => {
       const variants = [
         computeRenderHash(
-          { ...content, badge: 'ABGESAGT' },
+          { ...content, badges: ['ABGESAGT'] },
+          'https://img/1.jpg',
+          '1920x1080',
+          STYLE,
+        ),
+        computeRenderHash(
+          { ...content, badges: ['VERLEGT', 'AUSVERKAUFT'] },
           'https://img/1.jpg',
           '1920x1080',
           STYLE,
@@ -91,7 +103,7 @@ describe('slide content', () => {
           background: 'blur',
         }),
       ];
-      expect(new Set([base, ...variants]).size).toBe(5);
+      expect(new Set([base, ...variants]).size).toBe(6);
     });
   });
 });
