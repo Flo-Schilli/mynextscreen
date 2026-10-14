@@ -984,7 +984,7 @@ describe('PlaylistService', () => {
 
         const result = await service.replaceItems(playlist.id, org.id, [item(b.id), item(a.id)]);
 
-        expect(result.changed).toBe(true);
+        expect(result?.changed).toBe(true);
         const rows = await itemsOf(playlist.id);
         expect(rows.map((row) => [row.contentId, row.position])).toEqual([
           [b.id, 0],
@@ -1011,7 +1011,7 @@ describe('PlaylistService', () => {
 
         const result = await service.replaceItems(playlist.id, org.id, [item(a.id)]);
 
-        expect(result.changed).toBe(false);
+        expect(result?.changed).toBe(false);
         const [after] = await itemsOf(playlist.id);
         expect(after.id).toBe(before.id);
         expect(emit).not.toHaveBeenCalled();
@@ -1030,8 +1030,8 @@ describe('PlaylistService', () => {
           item(a.id, { durationSeconds: 12 }),
         ]);
 
-        expect(reordered.changed).toBe(true);
-        expect(retimed.changed).toBe(true);
+        expect(reordered?.changed).toBe(true);
+        expect(retimed?.changed).toBe(true);
         const rows = await itemsOf(playlist.id);
         expect(rows.map((row) => [row.contentId, row.durationSeconds])).toEqual([
           [b.id, 8],
@@ -1060,6 +1060,27 @@ describe('PlaylistService', () => {
 
         expect(result).toEqual({ changed: true, items: [] });
         expect(await itemsOf(playlist.id)).toHaveLength(0);
+      });
+
+      it('writes only while the stored rule is the expected one', async () => {
+        const org = await seedOrg();
+        const playlist = await seedDynamic(org.id);
+        const a = await seedContent(org.id);
+
+        const outdated = { ...playlist.rule!, sourceIds: [] };
+        await expect(
+          service.replaceItems(playlist.id, org.id, [item(a.id)], outdated),
+        ).resolves.toBeNull();
+        expect(await itemsOf(playlist.id)).toHaveLength(0);
+        expect(emit).not.toHaveBeenCalled();
+
+        const current = await service.replaceItems(
+          playlist.id,
+          org.id,
+          [item(a.id)],
+          playlist.rule,
+        );
+        expect(current?.changed).toBe(true);
       });
 
       it('rejects content of another organisation and leaves the items alone', async () => {

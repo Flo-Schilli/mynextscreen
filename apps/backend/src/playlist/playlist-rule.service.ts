@@ -80,6 +80,8 @@ export interface ResolveOutcome {
   nextResolveAt: Date;
 }
 
+type DynamicPlaylist = Playlist & { rule: PlaylistRule };
+
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
@@ -174,62 +176,45 @@ export class PlaylistRuleService {
   }
 
   /**
-   * Recomputes one dynamic playlist. Returns null when the playlist is gone or
-   * static. The next resolve is due after the refresh interval, or earlier
-   * when a shown event expires before that.
+   * Recomputes one dynamic playlist; the path of the resolve job. Returns null
+   * when the playlist is gone or static, or when its rule changed meanwhile
+   * (it is then left due). The next resolve is due after the refresh
+   * interval, or earlier when a shown event expires before that. On failure
+   * it backs off to the refresh interval, so a broken rule is not retried
+   * every tick.
    */
   async resolve(playlistId: string, now: Date = new Date()): Promise<ResolveOutcome | null> {
-    const [playlist] = await this.db
-      .select()
-      .from(playlists)
-      .where(eq(playlists.id, playlistId))
-      .limit(1);
-    if (!playlist || playlist.kind !== PlaylistKind.Dynamic || !playlist.rule) {
-      return null;
-    }
-    const rule = playlist.rule;
-    const { organisationId } = playlist;
-    const refreshAt = new Date(now.getTime() + rule.refreshIntervalMinutes * MS_PER_MINUTE);
-
+    const playlist = await this.loadDynamic(playlistId);
+    if (!playlist) return null;
     try {
-      const timeZone = await this.timeZoneOf(organisationId);
-      const entries = await this.resolveEntries(organisationId, rule, now, timeZone);
-      const { changed, items } = await this.playlistService.replaceItems(
-        playlistId,
-        organisationId,
-        entries.map(({ contentId }) => ({
-          contentId,
-          durationSeconds: rule.itemDurationSeconds,
-          transition: rule.transition,
-          transitionDurationMs: rule.transitionDurationMs,
-        })),
-      );
-      const nextResolveAt = this.nextResolveAt(entries, rule, refreshAt, timeZone);
-      await this.db
-        .update(playlists)
-        .set({ lastResolvedAt: now, nextResolveAt })
-        .where(eq(playlists.id, playlistId));
-      if (changed) {
-        this.eventEmitter.emit(
-          AUDIT_PLAYLIST_RESOLVED,
-          new AuditPlaylistEvent(playlistId, organisationId, null, { itemCount: items.length }),
-        );
-      }
-      return { changed, itemCount: items.length, nextResolveAt };
+      return await this.apply(playlist, now);
     } catch (error) {
-      // Back off to the regular interval, so a broken rule is not retried every tick.
-      await this.db
-        .update(playlists)
-        .set({ nextResolveAt: refreshAt })
-        .where(eq(playlists.id, playlistId));
+      const refreshAt = new Date(
+        now.getTime() + playlist.rule.refreshIntervalMinutes * MS_PER_MINUTE,
+      );
+      await this.scheduleNext(playlist, refreshAt);
       throw error;
     }
   }
 
+  /**
+   * Marks the playlist due when its resolve job is already running: the job
+   * id would absorb the new request, although the running job may have read
+   * the pool before the change that triggered it. The scheduler queues it
+   * again once the running job is done.
+   */
   async enqueueResolve(playlistId: string): Promise<void> {
+    const jobId = resolveJobId(playlistId);
+    const running = await this.resolveQueue.getJob(jobId);
+    if (running && (await running.isActive())) {
+      await this.db
+        .update(playlists)
+        .set({ nextResolveAt: new Date() })
+        .where(eq(playlists.id, playlistId));
+    }
     const data: PlaylistResolveJobData = { playlistId };
     await this.resolveQueue.add(PLAYLIST_RESOLVE_JOB, data, {
-      jobId: resolveJobId(playlistId),
+      jobId,
       // Finished jobs must not linger: a kept job id would swallow every later resolve.
       removeOnComplete: true,
       removeOnFail: true,
@@ -306,13 +291,89 @@ export class PlaylistRuleService {
     }
   }
 
-  /** Resolves now; on failure the playlist stays due and the scheduler retries it. */
+  /** Resolves now; on failure the playlist is left due and the scheduler retries it. */
   private async resolveOrDefer(playlistId: string): Promise<void> {
     try {
-      await this.resolve(playlistId);
+      const playlist = await this.loadDynamic(playlistId);
+      if (playlist) await this.apply(playlist, new Date());
     } catch (error) {
       this.logger.warn(`Resolving playlist ${playlistId} failed: ${errorMessage(error)}`);
+      await this.db
+        .update(playlists)
+        .set({ nextResolveAt: new Date() })
+        .where(eq(playlists.id, playlistId))
+        .catch((markError: unknown) =>
+          this.logger.warn(`Marking playlist ${playlistId} due failed: ${errorMessage(markError)}`),
+        );
     }
+  }
+
+  private async loadDynamic(playlistId: string): Promise<DynamicPlaylist | null> {
+    const [playlist] = await this.db
+      .select()
+      .from(playlists)
+      .where(eq(playlists.id, playlistId))
+      .limit(1);
+    if (!playlist || playlist.kind !== PlaylistKind.Dynamic || !playlist.rule) {
+      return null;
+    }
+    return { ...playlist, rule: playlist.rule };
+  }
+
+  /** Resolves the rule as read and writes the items, unless the rule changed meanwhile. */
+  private async apply(playlist: DynamicPlaylist, now: Date): Promise<ResolveOutcome | null> {
+    const { id: playlistId, organisationId, rule } = playlist;
+    const refreshAt = new Date(now.getTime() + rule.refreshIntervalMinutes * MS_PER_MINUTE);
+    const timeZone = await this.timeZoneOf(organisationId);
+    const entries = await this.resolveEntries(organisationId, rule, now, timeZone);
+    const result = await this.playlistService.replaceItems(
+      playlistId,
+      organisationId,
+      entries.map(({ contentId }) => ({
+        contentId,
+        durationSeconds: rule.itemDurationSeconds,
+        transition: rule.transition,
+        transitionDurationMs: rule.transitionDurationMs,
+      })),
+      rule,
+    );
+    if (!result) {
+      // The new rule's own resolve, or the scheduler, takes over.
+      await this.scheduleNext(playlist, now);
+      return null;
+    }
+    const nextResolveAt = this.nextResolveAt(entries, rule, refreshAt, timeZone);
+    await this.scheduleNext(playlist, nextResolveAt, now);
+    if (result.changed) {
+      this.eventEmitter.emit(
+        AUDIT_PLAYLIST_RESOLVED,
+        new AuditPlaylistEvent(playlistId, organisationId, null, {
+          itemCount: result.items.length,
+        }),
+      );
+    }
+    return { changed: result.changed, itemCount: result.items.length, nextResolveAt };
+  }
+
+  /**
+   * Stores the next resolve, unless someone moved it since the playlist was
+   * read (see {@link enqueueResolve}): that earlier request must survive.
+   */
+  private async scheduleNext(
+    playlist: DynamicPlaylist,
+    nextResolveAt: Date,
+    resolvedAt?: Date,
+  ): Promise<void> {
+    const unchanged = playlist.nextResolveAt
+      ? eq(playlists.nextResolveAt, playlist.nextResolveAt)
+      : isNull(playlists.nextResolveAt);
+    await this.db
+      .update(playlists)
+      .set({
+        nextResolveAt: sql`CASE WHEN ${unchanged} THEN ${nextResolveAt.toISOString()}::timestamptz ELSE ${playlists.nextResolveAt} END`,
+        ...(resolvedAt ? { lastResolvedAt: resolvedAt } : {}),
+      })
+      .where(eq(playlists.id, playlist.id));
   }
 
   private async resolveEntries(

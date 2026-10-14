@@ -470,12 +470,17 @@ export class PlaylistService {
    * The playlist row is locked like in {@link addItems}, so two resolves of the
    * same playlist serialise. When the result equals the current items nothing
    * is written and no update is pushed to the screens.
+   *
+   * With `expectedRule`, the items are only written while the stored rule
+   * still equals it; otherwise nothing is written and null is returned, so a
+   * resolve that read an outdated rule cannot overwrite the new rule's items.
    */
   async replaceItems(
     id: string,
     organisationId: string,
     items: ReplacementPlaylistItem[],
-  ): Promise<{ changed: boolean; items: PlaylistItem[] }> {
+    expectedRule?: Playlist['rule'],
+  ): Promise<{ changed: boolean; items: PlaylistItem[] } | null> {
     const contentIds = [...new Set(items.map((item) => item.contentId))];
     const found =
       contentIds.length === 0
@@ -501,7 +506,7 @@ export class PlaylistService {
 
     const result = await this.db.transaction(async (tx) => {
       const [locked] = await tx
-        .select({ id: playlists.id })
+        .select({ id: playlists.id, rule: playlists.rule })
         .from(playlists)
         .where(and(eq(playlists.id, id), eq(playlists.organisationId, organisationId)))
         .for('update');
@@ -509,6 +514,12 @@ export class PlaylistService {
         throw new NotFoundException(
           `Playlist with id "${id}" not found in organisation "${organisationId}"`,
         );
+      }
+      if (
+        expectedRule !== undefined &&
+        JSON.stringify(locked.rule) !== JSON.stringify(expectedRule)
+      ) {
+        return null;
       }
       const current = await tx
         .select()
@@ -529,7 +540,7 @@ export class PlaylistService {
       return { changed: true, items: inserted.sort((a, b) => a.position - b.position) };
     });
 
-    if (result.changed) {
+    if (result?.changed) {
       this.emitPlaylistChanged(id, organisationId);
     }
     return result;

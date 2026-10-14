@@ -36,7 +36,7 @@ import { TransitionType } from './transition-type.enum';
 describe('PlaylistRuleService', () => {
   let db: DrizzleDB;
   let emit: jest.Mock;
-  let queue: { add: jest.Mock };
+  let queue: { add: jest.Mock; getJob: jest.Mock };
   let sourceService: ContentSourceService;
   let service: PlaylistRuleService;
   let orgId: string;
@@ -57,7 +57,10 @@ describe('PlaylistRuleService', () => {
   beforeEach(async () => {
     await truncateAll();
     emit = jest.fn();
-    queue = { add: jest.fn().mockResolvedValue({ id: 'job' }) };
+    queue = {
+      add: jest.fn().mockResolvedValue({ id: 'job' }),
+      getJob: jest.fn().mockResolvedValue(undefined),
+    };
     const emitter = { emit } as unknown as EventEmitter2;
     sourceService = new ContentSourceService(
       db,
@@ -332,6 +335,48 @@ describe('PlaylistRuleService', () => {
       await expect(service.resolve('990e8400-e29b-41d4-a716-446655440000')).resolves.toBeNull();
     });
 
+    it('discards the result when the rule changed while resolving', async () => {
+      await seedEventWithSlide({ eventDate: '2026-11-12', venue: 'Hirsch' });
+      const playlist = await seedDynamic(
+        { nextResolveAt: new Date('2026-11-10T10:00:00Z') },
+        { venues: ['Hirsch'] },
+      );
+      const findPool = sourceService.findPool.bind(sourceService);
+      jest.spyOn(sourceService, 'findPool').mockImplementationOnce(async (...args) => {
+        await db
+          .update(playlists)
+          .set({ rule: toPlaylistRule(ruleDto({ venues: ['Z-Bau'] })) })
+          .where(eq(playlists.id, playlist.id));
+        return findPool(...args);
+      });
+
+      await expect(service.resolve(playlist.id, noon)).resolves.toBeNull();
+
+      expect(await itemsOf(playlist.id)).toEqual([]);
+      const row = await playlistRow(playlist.id);
+      expect(row.lastResolvedAt).toBeNull();
+      expect(row.nextResolveAt!.getTime()).toBeLessThanOrEqual(noon.getTime());
+    });
+
+    it('keeps a next resolve that was moved forward while resolving', async () => {
+      const playlist = await seedDynamic({}, { refreshIntervalMinutes: 60 });
+      const requested = new Date('2026-11-10T11:00:30Z');
+      const findPool = sourceService.findPool.bind(sourceService);
+      jest.spyOn(sourceService, 'findPool').mockImplementationOnce(async (...args) => {
+        await db
+          .update(playlists)
+          .set({ nextResolveAt: requested })
+          .where(eq(playlists.id, playlist.id));
+        return findPool(...args);
+      });
+
+      await service.resolve(playlist.id, noon);
+
+      const row = await playlistRow(playlist.id);
+      expect(row.nextResolveAt).toEqual(requested);
+      expect(row.lastResolvedAt).toEqual(noon);
+    });
+
     it('backs off to the refresh interval and rethrows on failure', async () => {
       const playlist = await seedDynamic({}, { refreshIntervalMinutes: 30 });
       jest.spyOn(sourceService, 'findPool').mockRejectedValueOnce(new Error('db blip'));
@@ -345,6 +390,18 @@ describe('PlaylistRuleService', () => {
   });
 
   describe('updateRule', () => {
+    it('leaves the playlist due when the immediate resolve fails', async () => {
+      const playlist = await seedDynamic({ nextResolveAt: new Date('2099-01-01T00:00:00Z') });
+      jest.spyOn(sourceService, 'findPool').mockRejectedValueOnce(new Error('db blip'));
+      const before = Date.now();
+
+      await service.updateRule(orgId, playlist.id, ruleDto({ venues: ['Hirsch'] }), null);
+
+      const { nextResolveAt } = await playlistRow(playlist.id);
+      expect(nextResolveAt!.getTime()).toBeGreaterThanOrEqual(before);
+      expect(nextResolveAt!.getTime()).toBeLessThanOrEqual(Date.now());
+    });
+
     it('stores the rule, audits and recomputes at once', async () => {
       await seedEventWithSlide({ eventDate: '2099-01-01', venue: 'Hirsch' });
       await seedEventWithSlide({ eventDate: '2099-01-02', venue: 'Z-Bau' });
@@ -391,6 +448,30 @@ describe('PlaylistRuleService', () => {
         { playlistId: 'p1' },
         { jobId: 'resolve-p1', removeOnComplete: true, removeOnFail: true },
       );
+    });
+
+    it('marks the playlist due when its resolve job is already running', async () => {
+      const playlist = await seedDynamic({ nextResolveAt: new Date('2099-01-01T00:00:00Z') });
+      queue.getJob.mockResolvedValue({ isActive: jest.fn().mockResolvedValue(true) });
+      const before = Date.now();
+
+      await service.enqueueResolve(playlist.id);
+
+      expect(queue.getJob).toHaveBeenCalledWith(`resolve-${playlist.id}`);
+      const { nextResolveAt } = await playlistRow(playlist.id);
+      expect(nextResolveAt!.getTime()).toBeGreaterThanOrEqual(before);
+      expect(nextResolveAt!.getTime()).toBeLessThanOrEqual(Date.now());
+    });
+
+    it('leaves the schedule alone when the job is only waiting', async () => {
+      const later = new Date('2099-01-01T00:00:00Z');
+      const playlist = await seedDynamic({ nextResolveAt: later });
+      queue.getJob.mockResolvedValue({ isActive: jest.fn().mockResolvedValue(false) });
+
+      await service.enqueueResolve(playlist.id);
+
+      expect((await playlistRow(playlist.id)).nextResolveAt).toEqual(later);
+      expect(queue.add).toHaveBeenCalledTimes(1);
     });
 
     it('finds dynamic playlists that are due or never resolved', async () => {
