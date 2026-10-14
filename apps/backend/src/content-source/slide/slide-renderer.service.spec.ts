@@ -73,6 +73,19 @@ describe('SlideRendererService', () => {
     expect(belowImage[0]).toBeLessThan(40);
   });
 
+  it('renders text with characters that XML 1.0 forbids', async () => {
+    const content: SlideContent = {
+      ...WITH_EXTRAS,
+      title: 'ASP\u0001\u0008 & Friends\u000B',
+      metaLine: 'Sa\u001F, 10.10.2026 \u000C• Löwensaal',
+      badge: 'AUS\u0000VERKAUFT',
+    };
+
+    const output = await renderer.render(await redImage(), content, '1920x1080', BLACK_STYLE);
+
+    expect((await sharp(output).metadata()).format).toBe('jpeg');
+  });
+
   it('scales to 4K', async () => {
     const output = await renderer.render(await redImage(), WITH_EXTRAS, '3840x2160', BLACK_STYLE);
 

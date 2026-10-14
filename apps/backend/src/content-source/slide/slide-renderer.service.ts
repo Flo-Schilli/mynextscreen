@@ -47,7 +47,11 @@ const XML_ESCAPES: Record<string, string> = {
   '"': '&quot;',
   "'": '&apos;',
 };
-const escapeXml = (text: string): string => text.replace(/[&<>"']/g, (char) => XML_ESCAPES[char]);
+/** Control characters XML 1.0 forbids even as references; scraped text may carry them. */
+// eslint-disable-next-line no-control-regex
+const XML_INVALID_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
+const escapeXml = (text: string): string =>
+  text.replace(XML_INVALID_CHARS, '').replace(/[&<>"']/g, (char) => XML_ESCAPES[char]);
 
 /** Shrinks the font until the text fits the available width. */
 export function fitFontSize(
