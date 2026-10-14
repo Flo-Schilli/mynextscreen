@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { createHash } from 'crypto';
-import { and, eq, gte, inArray, isNull, notInArray } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, notInArray, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import {
@@ -443,6 +443,12 @@ export class ContentSourceSyncService {
     error: string | null,
   ): Promise<void> {
     const now = new Date();
+    // Also after a failure, so a broken site is retried on schedule, not every tick.
+    const next = new Date(now.getTime() + source.syncIntervalMinutes * MS_PER_MINUTE);
+    // A sync requested during the run moved nextSyncAt; that request must survive.
+    const unchanged = source.nextSyncAt
+      ? eq(contentSources.nextSyncAt, source.nextSyncAt)
+      : isNull(contentSources.nextSyncAt);
     await this.db
       .update(contentSources)
       .set({
@@ -450,8 +456,7 @@ export class ContentSourceSyncService {
         lastSyncStatus: status,
         lastSyncError: error,
         ...(summary ? { lastSyncSummary: summary } : {}),
-        // Also after a failure, so a broken site is retried on schedule, not every tick.
-        nextSyncAt: new Date(now.getTime() + source.syncIntervalMinutes * MS_PER_MINUTE),
+        nextSyncAt: sql`CASE WHEN ${unchanged} THEN ${next.toISOString()}::timestamptz ELSE ${contentSources.nextSyncAt} END`,
       })
       .where(eq(contentSources.id, source.id));
   }

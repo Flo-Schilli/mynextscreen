@@ -31,7 +31,7 @@ import { PLAYLIST_UPDATED } from '../playlist/playlist.event';
 describe('ContentSourceService', () => {
   let db: DrizzleDB;
   let service: ContentSourceService;
-  let queue: { add: jest.Mock };
+  let queue: { add: jest.Mock; getJob: jest.Mock };
   let contentService: { deleteManaged: jest.Mock };
   let emit: jest.Mock;
   let orgId: string;
@@ -49,7 +49,10 @@ describe('ContentSourceService', () => {
 
   beforeEach(async () => {
     await truncateAll();
-    queue = { add: jest.fn().mockResolvedValue({ id: 'job' }) };
+    queue = {
+      add: jest.fn().mockResolvedValue({ id: 'job' }),
+      getJob: jest.fn().mockResolvedValue(undefined),
+    };
     contentService = {
       deleteManaged: jest.fn(async (organisationId: string, id: string) => {
         await db.delete(contents).where(eq(contents.id, id));
@@ -319,6 +322,26 @@ describe('ContentSourceService', () => {
       );
     });
 
+    it('marks the source due when its sync is already running', async () => {
+      const later = new Date('2099-01-01T00:00:00Z');
+      const source = await seedContentSource(db, orgId, { nextSyncAt: later });
+      const waiting = await seedContentSource(db, orgId, { nextSyncAt: later });
+      queue.getJob.mockImplementation(async (jobId: string) => ({
+        isActive: jest.fn().mockResolvedValue(jobId === `sync-${source.id}`),
+      }));
+      const before = Date.now();
+
+      await service.enqueueSync(source.id, null);
+      await service.enqueueSync(waiting.id, null);
+
+      const row = async (id: string) =>
+        (await db.select().from(contentSources).where(eq(contentSources.id, id)))[0];
+      const { nextSyncAt } = await row(source.id);
+      expect(nextSyncAt!.getTime()).toBeGreaterThanOrEqual(before);
+      expect(nextSyncAt!.getTime()).toBeLessThanOrEqual(Date.now());
+      expect((await row(waiting.id)).nextSyncAt).toEqual(later);
+    });
+
     it('does not queue a sync for a foreign source', async () => {
       const foreign = await seedContentSource(db, otherOrgId);
 
@@ -328,7 +351,7 @@ describe('ContentSourceService', () => {
       expect(queue.add).not.toHaveBeenCalled();
     });
 
-    it('queues the cleanup once per day, keeping the finished job so its id stays taken', async () => {
+    it('queues the cleanup per day, keeping only a finished job so a failed one can rerun', async () => {
       await service.enqueueCleanup('2026-11-01');
 
       expect(queue.add).toHaveBeenCalledWith(
@@ -337,7 +360,7 @@ describe('ContentSourceService', () => {
         {
           jobId: 'cleanup-2026-11-01',
           removeOnComplete: { age: 172_800 },
-          removeOnFail: { age: 172_800 },
+          removeOnFail: true,
         },
       );
     });

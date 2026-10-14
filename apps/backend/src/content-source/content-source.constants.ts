@@ -21,6 +21,7 @@ export const CONTENT_SOURCE_CLEANUP_JOB = 'cleanup';
 /**
  * One job id per UTC day. The finished job is kept for two days, so the id
  * stays taken and every further add of that day, from any instance, is a no-op.
+ * A failed job is removed at once, so the scheduler's next add retries it.
  */
 export const cleanupJobId = (day: string): string => `cleanup-${day}`;
 export const CLEANUP_JOB_RETENTION_SECONDS = 2 * 24 * 60 * 60;

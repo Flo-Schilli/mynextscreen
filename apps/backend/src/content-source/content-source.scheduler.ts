@@ -3,6 +3,11 @@ import { Interval } from '@nestjs/schedule';
 import { ContentSourceService } from './content-source.service';
 
 export const CONTENT_SOURCE_TICK_MS = 60_000;
+/**
+ * How often an instance adds the day's cleanup again. A finished job absorbs
+ * the add; a failed one was removed, so the add retries it.
+ */
+export const CLEANUP_REQUEUE_MS = 60 * 60_000;
 
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -15,8 +20,8 @@ const errorMessage = (error: unknown): string =>
 @Injectable()
 export class ContentSourceScheduler {
   private readonly logger = new Logger(ContentSourceScheduler.name);
-  /** UTC day this instance already queued the cleanup for; saves a Redis call per tick. */
-  private cleanupQueuedFor: string | null = null;
+  /** Last cleanup this instance queued; saves a Redis call per tick. */
+  private cleanupQueued: { day: string; at: number } | null = null;
 
   constructor(private readonly sourceService: ContentSourceService) {}
 
@@ -41,13 +46,14 @@ export class ContentSourceScheduler {
     }
   }
 
-  /** Returns true when this call queued the cleanup of the current UTC day. */
+  /** Returns true when this call asked the queue for the cleanup of the current UTC day. */
   async enqueueDailyCleanup(now: Date): Promise<boolean> {
     const day = now.toISOString().slice(0, 10);
-    if (this.cleanupQueuedFor === day) return false;
+    const queued = this.cleanupQueued;
+    if (queued?.day === day && now.getTime() - queued.at < CLEANUP_REQUEUE_MS) return false;
     try {
       await this.sourceService.enqueueCleanup(day);
-      this.cleanupQueuedFor = day;
+      this.cleanupQueued = { day, at: now.getTime() };
       return true;
     } catch (error) {
       this.logger.warn(`Enqueueing the content source cleanup failed: ${errorMessage(error)}`);

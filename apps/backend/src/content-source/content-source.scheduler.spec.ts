@@ -38,18 +38,19 @@ describe('ContentSourceScheduler', () => {
   });
 
   describe('daily cleanup', () => {
-    it('enqueues the cleanup once per UTC day', async () => {
-      await expect(scheduler.enqueueDailyCleanup(new Date('2026-11-01T00:05:00Z'))).resolves.toBe(
-        true,
-      );
-      await expect(scheduler.enqueueDailyCleanup(new Date('2026-11-01T23:59:00Z'))).resolves.toBe(
-        false,
-      );
-      await expect(scheduler.enqueueDailyCleanup(new Date('2026-11-02T00:00:00Z'))).resolves.toBe(
-        true,
-      );
+    it('enqueues the cleanup per UTC day and re-adds it hourly to retry a failed run', async () => {
+      const at = (iso: string) => scheduler.enqueueDailyCleanup(new Date(iso));
 
-      expect(service.enqueueCleanup.mock.calls).toEqual([['2026-11-01'], ['2026-11-02']]);
+      await expect(at('2026-11-01T00:05:00Z')).resolves.toBe(true);
+      await expect(at('2026-11-01T01:04:00Z')).resolves.toBe(false);
+      await expect(at('2026-11-01T01:05:00Z')).resolves.toBe(true);
+      await expect(at('2026-11-02T00:00:00Z')).resolves.toBe(true);
+
+      expect(service.enqueueCleanup.mock.calls).toEqual([
+        ['2026-11-01'],
+        ['2026-11-01'],
+        ['2026-11-02'],
+      ]);
     });
 
     it('retries on the next tick when enqueueing failed', async () => {

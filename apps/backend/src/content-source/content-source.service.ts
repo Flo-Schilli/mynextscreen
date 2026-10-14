@@ -250,23 +250,40 @@ export class ContentSourceService {
     return { queued: true };
   }
 
+  /**
+   * Marks the source due when its sync is already running: the job id would
+   * absorb the request, although the running sync may have listed the site
+   * before. The scheduler queues it again once the running sync is done.
+   */
   async enqueueSync(sourceId: string, triggeredBy: string | null): Promise<void> {
+    const jobId = syncJobId(sourceId);
+    const running = await this.syncQueue.getJob(jobId);
+    if (running && (await running.isActive())) {
+      await this.db
+        .update(contentSources)
+        .set({ nextSyncAt: new Date() })
+        .where(eq(contentSources.id, sourceId));
+    }
     const data: ContentSourceSyncJobData = { sourceId, triggeredBy };
     await this.syncQueue.add(CONTENT_SOURCE_SYNC_JOB, data, {
-      jobId: syncJobId(sourceId),
+      jobId,
       // Finished jobs must not linger: a kept job id would swallow every later sync.
       removeOnComplete: true,
       removeOnFail: true,
     });
   }
 
-  /** Queues the cleanup of one UTC day; later requests for the same day are absorbed. */
+  /**
+   * Queues the cleanup of one UTC day. Once it finished, later requests for
+   * the same day are absorbed; a failed run is removed, so a later request
+   * retries it.
+   */
   async enqueueCleanup(day: string): Promise<void> {
     const data: ContentSourceCleanupJobData = { day };
     await this.syncQueue.add(CONTENT_SOURCE_CLEANUP_JOB, data, {
       jobId: cleanupJobId(day),
       removeOnComplete: { age: CLEANUP_JOB_RETENTION_SECONDS },
-      removeOnFail: { age: CLEANUP_JOB_RETENTION_SECONDS },
+      removeOnFail: true,
     });
   }
 

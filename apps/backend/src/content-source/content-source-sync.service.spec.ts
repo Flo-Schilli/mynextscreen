@@ -232,6 +232,23 @@ describe('ContentSourceSyncService', () => {
     );
   });
 
+  it('keeps a next sync that was requested while the run was going', async () => {
+    const requested = new Date('2026-11-01T10:00:30Z');
+    adapter.listEvents.mockImplementationOnce(async () => {
+      await db
+        .update(contentSources)
+        .set({ nextSyncAt: requested })
+        .where(eq(contentSources.id, source.id));
+      return adapter.listing;
+    });
+
+    await service.sync(source.id, null, NOW);
+
+    const saved = await loadSource();
+    expect(saved.nextSyncAt).toEqual(requested);
+    expect(saved.lastSyncStatus).toBe('success');
+  });
+
   it('skips details and rendering when nothing changed', async () => {
     adapter.listing = { ...adapter.listing, events: [listed()] };
     await service.sync(source.id, null, NOW);
