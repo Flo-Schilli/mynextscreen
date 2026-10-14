@@ -44,3 +44,16 @@ export class ContentSourceSyncedEvent {
     public readonly organisationId: string,
   ) {}
 }
+
+/**
+ * Emitted after a source and its slides were deleted. Dynamic playlists whose
+ * rule names the source drop it and resolve again.
+ */
+export const CONTENT_SOURCE_REMOVED = 'content_source.removed';
+
+export class ContentSourceRemovedEvent {
+  constructor(
+    public readonly sourceId: string,
+    public readonly organisationId: string,
+  ) {}
+}

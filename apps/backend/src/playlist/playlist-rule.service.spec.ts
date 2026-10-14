@@ -21,7 +21,10 @@ import type { ContentService } from '../content/content.service';
 import { ContentSourceService } from '../content-source/content-source.service';
 import { ContentSourceAdapterRegistry } from '../content-source/adapter.registry';
 import { ConcertbueroFrankenAdapter } from '../content-source/adapters/concertbuero-franken.adapter';
-import { ContentSourceSyncedEvent } from '../content-source/content-source.constants';
+import {
+  ContentSourceRemovedEvent,
+  ContentSourceSyncedEvent,
+} from '../content-source/content-source.constants';
 import { AUDIT_PLAYLIST_RESOLVED, AUDIT_PLAYLIST_RULE_UPDATED } from '../audit-log/audit.events';
 import { PlaylistService } from './playlist.service';
 import { PlaylistRuleService } from './playlist-rule.service';
@@ -415,6 +418,30 @@ describe('PlaylistRuleService', () => {
         { playlistId: fed.id },
         expect.objectContaining({ jobId: `resolve-${fed.id}` }),
       );
+    });
+
+    it('drops a removed source from rules and re-resolves those playlists', async () => {
+      const other = await seedContentSource(db, orgId);
+      const mixed = await seedDynamic({}, { sourceIds: [source.id, other.id] });
+      const only = await seedDynamic();
+      const unrelated = await seedDynamic({}, { sourceIds: [other.id] });
+
+      await service.onSourceRemoved(new ContentSourceRemovedEvent(source.id, orgId));
+
+      expect((await playlistRow(mixed.id)).rule?.sourceIds).toEqual([other.id]);
+      expect((await playlistRow(only.id)).rule?.sourceIds).toEqual([]);
+      expect((await playlistRow(unrelated.id)).rule?.sourceIds).toEqual([other.id]);
+      const queued = queue.add.mock.calls.map(([, data]) => data.playlistId);
+      expect(queued.sort()).toEqual([mixed.id, only.id].sort());
+    });
+
+    it('swallows a failure on source removal', async () => {
+      await seedDynamic();
+      queue.add.mockRejectedValue(new Error('redis down'));
+
+      await expect(
+        service.onSourceRemoved(new ContentSourceRemovedEvent(source.id, orgId)),
+      ).resolves.toBeUndefined();
     });
 
     it('swallows a queue failure on sync events', async () => {

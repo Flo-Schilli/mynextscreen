@@ -18,7 +18,9 @@ import {
   type SourceEventWithSlides,
 } from '../content-source/content-source.service';
 import {
+  CONTENT_SOURCE_REMOVED,
   CONTENT_SOURCE_SYNCED,
+  ContentSourceRemovedEvent,
   ContentSourceSyncedEvent,
 } from '../content-source/content-source.constants';
 import {
@@ -269,6 +271,37 @@ export class PlaylistRuleService {
       // The scheduler still resolves these playlists on their interval.
       this.logger.warn(
         `Enqueueing playlists of source ${event.sourceId} failed: ${errorMessage(error)}`,
+      );
+    }
+  }
+
+  /**
+   * A deleted source can no longer feed a playlist: drop it from every rule
+   * that names it and resolve those playlists, so their screens let go of the
+   * removed slides.
+   */
+  @OnEvent(CONTENT_SOURCE_REMOVED, { async: true })
+  async onSourceRemoved(event: ContentSourceRemovedEvent): Promise<void> {
+    try {
+      const rows = await this.db
+        .update(playlists)
+        .set({
+          rule: sql`jsonb_set(${playlists.rule}, '{sourceIds}', (${playlists.rule} -> 'sourceIds') - ${event.sourceId}::text)`,
+        })
+        .where(
+          and(
+            eq(playlists.organisationId, event.organisationId),
+            eq(playlists.kind, PlaylistKind.Dynamic),
+            sql`${playlists.rule} -> 'sourceIds' ? ${event.sourceId}`,
+          ),
+        )
+        .returning({ id: playlists.id });
+      for (const { id } of rows) {
+        await this.enqueueResolve(id);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Updating playlists of removed source ${event.sourceId} failed: ${errorMessage(error)}`,
       );
     }
   }

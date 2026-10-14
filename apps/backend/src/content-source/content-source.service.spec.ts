@@ -6,6 +6,8 @@ import {
   contentSources,
   contents,
   organisations,
+  playlistItems,
+  playlists,
   sourceEventSlides,
   sourceEvents,
 } from '../db/schema';
@@ -23,6 +25,8 @@ import { ContentSourceAdapterRegistry } from './adapter.registry';
 import { ConcertbueroFrankenAdapter } from './adapters/concertbuero-franken.adapter';
 import { ContentSourceService } from './content-source.service';
 import { DEFAULT_SLIDE_STYLE } from './content-source.types';
+import { CONTENT_SOURCE_REMOVED } from './content-source.constants';
+import { PLAYLIST_UPDATED } from '../playlist/playlist.event';
 
 describe('ContentSourceService', () => {
   let db: DrizzleDB;
@@ -206,6 +210,22 @@ describe('ContentSourceService', () => {
   });
 
   describe('remove', () => {
+    async function insertSlide(sourceId: string) {
+      const [slide] = await db
+        .insert(contents)
+        .values({
+          organisationId: orgId,
+          title: 'Slide',
+          type: ContentType.Image,
+          originalFilename: 's.jpg',
+          originalMimeType: 'image/jpeg',
+          originalSizeBytes: 1,
+          managedBySourceId: sourceId,
+        })
+        .returning();
+      return slide;
+    }
+
     it('deletes managed slides through the content service, then the source', async () => {
       const source = await seedContentSource(db, orgId);
       const [slide] = await db
@@ -228,6 +248,49 @@ describe('ContentSourceService', () => {
       expect(emit).toHaveBeenCalledWith(
         AUDIT_CONTENT_SOURCE_DELETED,
         expect.objectContaining({ details: { name: 'Concerts', slidesDeleted: 1 } }),
+      );
+    });
+
+    it('lets a slide that a running sync creates meanwhile fail instead of orphaning it', async () => {
+      const source = await seedContentSource(db, orgId);
+      await insertSlide(source.id);
+      let concurrentCreate: Promise<unknown> | null = null;
+      const deleteRow = contentService.deleteManaged.getMockImplementation()!;
+      contentService.deleteManaged.mockImplementation(
+        async (organisationId: string, id: string) => {
+          // A sync stores a new slide while the removal is under way.
+          concurrentCreate ??= insertSlide(source.id);
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          return deleteRow(organisationId, id);
+        },
+      );
+
+      await service.remove(orgId, source.id, userId);
+
+      await expect(concurrentCreate).rejects.toThrow();
+      expect(await db.select().from(contents)).toEqual([]);
+    });
+
+    it('announces the playlists that showed its slides and the removal itself', async () => {
+      const source = await seedContentSource(db, orgId);
+      const slide = await insertSlide(source.id);
+      const [playlist] = await db
+        .insert(playlists)
+        .values({ organisationId: orgId, name: 'Concerts' })
+        .returning();
+      await db
+        .insert(playlistItems)
+        .values({ playlistId: playlist.id, contentId: slide.id, position: 0, durationSeconds: 8 });
+
+      await service.remove(orgId, source.id, userId);
+
+      expect(emit).toHaveBeenCalledWith(
+        PLAYLIST_UPDATED,
+        expect.objectContaining({ playlistId: playlist.id, organisationId: orgId }),
+      );
+      expect(emit).toHaveBeenCalledWith(
+        CONTENT_SOURCE_REMOVED,
+        expect.objectContaining({ sourceId: source.id, organisationId: orgId }),
       );
     });
 

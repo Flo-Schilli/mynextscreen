@@ -8,6 +8,7 @@ import type { DrizzleDB } from '../db/drizzle.types';
 import {
   contentSources,
   contents,
+  playlistItems,
   sourceEventSlides,
   sourceEvents,
   type ContentSource,
@@ -21,13 +22,16 @@ import {
   AuditContentSourceEvent,
 } from '../audit-log/audit.events';
 import { byNaturalName } from '../common/natural-sort.util';
+import { PLAYLIST_UPDATED, PlaylistUpdatedEvent } from '../playlist/playlist.event';
 import { ContentSourceAdapterRegistry, type AdapterDescriptor } from './adapter.registry';
 import { InvalidSourceParamsError } from './adapters/content-source-adapter.interface';
 import {
   CLEANUP_JOB_RETENTION_SECONDS,
   CONTENT_SOURCE_CLEANUP_JOB,
+  CONTENT_SOURCE_REMOVED,
   CONTENT_SOURCE_SYNC_JOB,
   CONTENT_SOURCE_SYNC_QUEUE,
+  ContentSourceRemovedEvent,
   cleanupJobId,
   syncJobId,
   type ContentSourceCleanupJobData,
@@ -178,23 +182,60 @@ export class ContentSourceService {
    * Deletes the source with its events and slides. Slides go through the
    * content service first, so their files are removed and the quota is freed;
    * the FK cascade alone would only drop the rows.
+   *
+   * The source row stays locked throughout: a running sync cannot add a slide
+   * meanwhile (its insert waits for the lock and then fails on the foreign
+   * key), so no slide escapes into the cascade with its file and quota.
+   * Playlists that showed a slide are announced to their screens afterwards.
    */
   async remove(organisationId: string, id: string, userId: string | null): Promise<void> {
-    const source = await this.findOne(organisationId, id);
-    const managed = await this.db
-      .select({ id: contents.id })
-      .from(contents)
-      .where(and(eq(contents.organisationId, organisationId), eq(contents.managedBySourceId, id)));
-    for (const { id: contentId } of managed) {
-      await this.contentService.deleteManaged(organisationId, contentId);
-    }
-    await this.db
-      .delete(contentSources)
-      .where(and(eq(contentSources.id, id), eq(contentSources.organisationId, organisationId)));
+    const removed = await this.db.transaction(async (tx) => {
+      const [source] = await tx
+        .select()
+        .from(contentSources)
+        .where(and(eq(contentSources.id, id), eq(contentSources.organisationId, organisationId)))
+        .for('update');
+      if (!source) {
+        throw new NotFoundException(`Content source "${id}" not found`);
+      }
+      const managed = await tx
+        .select({ id: contents.id })
+        .from(contents)
+        .where(
+          and(eq(contents.organisationId, organisationId), eq(contents.managedBySourceId, id)),
+        );
+      const affected =
+        managed.length === 0
+          ? []
+          : await tx
+              .selectDistinct({ playlistId: playlistItems.playlistId })
+              .from(playlistItems)
+              .where(
+                inArray(
+                  playlistItems.contentId,
+                  managed.map((content) => content.id),
+                ),
+              );
+      for (const { id: contentId } of managed) {
+        await this.contentService.deleteManaged(organisationId, contentId);
+      }
+      await tx.delete(contentSources).where(eq(contentSources.id, id));
+      return { source, slidesDeleted: managed.length, affected };
+    });
 
-    this.audit(AUDIT_CONTENT_SOURCE_DELETED, source, userId, {
-      name: source.name,
-      slidesDeleted: managed.length,
+    for (const { playlistId } of removed.affected) {
+      this.eventEmitter.emit(
+        PLAYLIST_UPDATED,
+        new PlaylistUpdatedEvent(playlistId, organisationId),
+      );
+    }
+    this.eventEmitter.emit(
+      CONTENT_SOURCE_REMOVED,
+      new ContentSourceRemovedEvent(id, organisationId),
+    );
+    this.audit(AUDIT_CONTENT_SOURCE_DELETED, removed.source, userId, {
+      name: removed.source.name,
+      slidesDeleted: removed.slidesDeleted,
     });
   }
 
