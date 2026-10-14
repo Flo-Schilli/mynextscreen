@@ -128,6 +128,7 @@ function numText(value: number | undefined): string {
             [value]="value().style.background"
             [ariaLabel]="t('sources.form.backgroundLabel')"
             [searchable]="false"
+            [disabled]="disabled()"
             (changed)="setBackground($event)"
           />
         </mns-sfield>

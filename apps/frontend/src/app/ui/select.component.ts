@@ -45,6 +45,7 @@ const MENU_POSITIONS: ConnectedPosition[] = [
  *   [options]="[{value:'a',label:'Option A'},{value:'b',label:'Option B'}]"
  *   [(value)]="selectedValue"
  *   placeholder="Choose..."
+ *   [disabled]="!canEdit()"
  * />
  */
 @Component({
@@ -58,9 +59,10 @@ const MENU_POSITIONS: ConnectedPosition[] = [
       cdkOverlayOrigin
       #origin="cdkOverlayOrigin"
       type="button"
-      class="inline-flex items-center justify-between gap-2 w-full px-3 py-2 rounded-[10px] text-sm font-medium bg-surface border border-border-strong text-text transition-all duration-[180ms] cursor-pointer"
+      class="inline-flex items-center justify-between gap-2 w-full px-3 py-2 rounded-[10px] text-sm font-medium bg-surface border border-border-strong text-text transition-all duration-[180ms] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
       [class.ring-[3px]]="open()"
       [style.--tw-ring-color]="'var(--accent-soft)'"
+      [disabled]="disabled()"
       (click)="toggleOpen()"
       (keydown)="onKeydown($event)"
       [attr.aria-expanded]="open()"
@@ -158,6 +160,8 @@ export class SelectComponent {
   readonly ariaLabel = input<string | undefined>(undefined);
   /** Leave unset to decide from the number of options. */
   readonly searchable = input<boolean | undefined>(undefined);
+  /** Shows the current choice but cannot be opened, e.g. for viewers. */
+  readonly disabled = input<boolean>(false);
 
   readonly changed = output<string>();
 
@@ -208,10 +212,16 @@ export class SelectComponent {
       }
     });
 
+    // A select that turns read-only while open must not stay usable.
+    effect(() => {
+      if (this.disabled()) this.open.set(false);
+    });
+
     inject(DestroyRef).onDestroy(() => closeLayer(this.layer));
   }
 
   toggleOpen(): void {
+    if (this.disabled()) return;
     this.query.set('');
     // Measured before opening, not in an effect afterwards: the overlay reads
     // its width as it attaches, and a width that arrives a tick later leaves

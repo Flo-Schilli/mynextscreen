@@ -13,11 +13,17 @@ function makeOptions(count: number): SelectOption[] {
 @Component({
   standalone: true,
   imports: [SelectComponent],
-  template: `<mns-select [options]="options()" [(value)]="picked" placeholder="Choose…" />`,
+  template: `<mns-select
+    [options]="options()"
+    [(value)]="picked"
+    [disabled]="disabled()"
+    placeholder="Choose…"
+  />`,
 })
 class HostComponent {
   readonly options = signal<SelectOption[]>([]);
   readonly picked = signal('');
+  readonly disabled = signal(false);
 }
 
 describe('SelectComponent', () => {
@@ -174,5 +180,34 @@ describe('SelectComponent', () => {
     fixture.detectChanges();
 
     expect(el('[role=listbox]')).toBeNull();
+  });
+
+  it('shows the current choice but does not open while disabled', () => {
+    setUp(4);
+    host.picked.set('v2');
+    host.disabled.set(true);
+    fixture.detectChanges();
+    const trigger = fixture.nativeElement.querySelector(
+      'button[aria-haspopup]',
+    ) as HTMLButtonElement;
+
+    openDropdown();
+    trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    fixture.detectChanges();
+
+    expect(trigger.disabled).toBe(true);
+    expect(trigger.textContent).toContain('Europe/City2');
+    expect(optionLabels()).toEqual([]);
+  });
+
+  it('closes an open menu when it becomes disabled', () => {
+    setUp(4);
+    openDropdown();
+    expect(optionLabels().length).toBe(4);
+
+    host.disabled.set(true);
+    fixture.detectChanges();
+
+    expect(optionLabels()).toEqual([]);
   });
 });
