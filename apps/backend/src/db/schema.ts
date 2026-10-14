@@ -41,6 +41,14 @@ import { LiveStreamStatus } from '../live-stream/live-stream-status.enum';
 import { TranscodingPreset } from '../live-stream/transcoding-preset.enum';
 import { NotificationEventType } from '../notification/notification-event-type.enum';
 import { TransitionType } from '../playlist/transition-type.enum';
+import { PlaylistKind, type PlaylistRuleData } from '../playlist/playlist-kind.enum';
+import type {
+  ContentSourceParams,
+  ContentSourceSyncStatus,
+  ContentSourceSyncSummary,
+  SlideFormat,
+  SlideStyle,
+} from '../content-source/content-source.types';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { DevmodeKeyStatus } from '../site-agent/devmode-key-status.enum';
 import { ScreenReachability } from '../site-agent/screen-reachability.enum';
@@ -293,8 +301,118 @@ export const contents = pgTable('contents', {
   durationSeconds: integer(),
   transcodingStatus: text().$type<TranscodingStatus>().notNull().default(TranscodingStatus.Pending),
   transcodingError: text(),
+  // Set for slides a content source renders. Such content is hidden from the
+  // media library, search and bulk operations; the source owns its lifecycle.
+  managedBySourceId: uuid().references((): AnyPgColumn => contentSources.id, {
+    onDelete: 'cascade',
+  }),
   ...timestamps,
 });
+
+// ── content sources (scraped event pools) ────────────────────────────────────
+
+/** A website an adapter scrapes on an interval into {@link sourceEvents}. */
+export const contentSources = pgTable(
+  'content_sources',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    name: text().notNull(),
+    adapterType: text().notNull(),
+    params: jsonb().$type<ContentSourceParams>().notNull().default({}),
+    formats: jsonb().$type<SlideFormat[]>().notNull(),
+    style: jsonb().$type<SlideStyle>().notNull(),
+    syncIntervalMinutes: integer().notNull().default(360),
+    enabled: boolean().notNull().default(true),
+    /** Null means due right away. */
+    nextSyncAt: timestamp({ withTimezone: true }),
+    lastSyncAt: timestamp({ withTimezone: true }),
+    lastSyncStatus: text().$type<ContentSourceSyncStatus>(),
+    lastSyncError: text(),
+    lastSyncSummary: jsonb().$type<ContentSourceSyncSummary>(),
+    ...timestamps,
+  },
+  (t) => [
+    index('IDX_content_sources_organisation').on(t.organisationId),
+    index('IDX_content_sources_next_sync').on(t.nextSyncAt),
+  ],
+);
+
+/** One scraped event of a source; `externalId` is the adapter's stable key. */
+export const sourceEvents = pgTable(
+  'source_events',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    sourceId: uuid()
+      .notNull()
+      .references(() => contentSources.id, { onDelete: 'cascade' }),
+    externalId: text().notNull(),
+    title: text().notNull(),
+    /** Local calendar date of the event, `YYYY-MM-DD`. */
+    eventDate: text().notNull(),
+    /** Local start time `HH:MM`, null when the listing has none. */
+    startTime: text(),
+    /** Start instant in the organisation's time zone (midnight when no time is known). */
+    startsAt: timestamp({ withTimezone: true }).notNull(),
+    venue: text().notNull(),
+    city: text(),
+    genres: jsonb().$type<string[]>().notNull().default([]),
+    statusLabels: jsonb().$type<string[]>().notNull().default([]),
+    cancelled: boolean().notNull().default(false),
+    soldOut: boolean().notNull().default(false),
+    notes: jsonb().$type<string[]>().notNull().default([]),
+    detailUrl: text(),
+    imageUrl: text(),
+    ticketUrl: text(),
+    /** Lowest ticket price in minor units (cents). */
+    priceCents: integer(),
+    currency: text(),
+    /** Hash of the listing data; a change triggers a detail refetch. */
+    dataHash: text().notNull(),
+    firstSeenAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    /** Set when the source stopped listing the event; cleared when it reappears. */
+    goneAt: timestamp({ withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('UQ_source_events_source_external').on(t.sourceId, t.externalId),
+    index('IDX_source_events_org_date').on(t.organisationId, t.eventDate),
+  ],
+);
+
+/** Rendered slide of an event in one format, backed by a managed content row. */
+export const sourceEventSlides = pgTable(
+  'source_event_slides',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    sourceEventId: uuid()
+      .notNull()
+      .references(() => sourceEvents.id, { onDelete: 'cascade' }),
+    format: text().$type<SlideFormat>().notNull(),
+    contentId: uuid()
+      .notNull()
+      .references(() => contents.id, { onDelete: 'cascade' }),
+    /** Hash of everything the slide shows; a change triggers a re-render. */
+    renderHash: text().notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('UQ_source_event_slides_event_format').on(t.sourceEventId, t.format),
+    index('IDX_source_event_slides_content').on(t.contentId),
+  ],
+);
 
 // ── playlists & items ──────────────────────────────────────────────────────────
 
@@ -307,6 +425,11 @@ export const playlists = pgTable('playlists', {
     .references(() => organisations.id, { onDelete: 'cascade' }),
   name: text().notNull(),
   color: text().notNull().default('#6d6cf6'),
+  kind: text().$type<PlaylistKind>().notNull().default(PlaylistKind.Static),
+  /** Filter rule of a dynamic playlist; null for static ones. */
+  rule: jsonb().$type<PlaylistRuleData>(),
+  nextResolveAt: timestamp({ withTimezone: true }),
+  lastResolvedAt: timestamp({ withTimezone: true }),
   ...timestamps,
 });
 
@@ -876,6 +999,15 @@ export type NewScreenRemoteControl = typeof screenRemoteControls.$inferInsert;
 
 export type Content = typeof contents.$inferSelect;
 export type NewContent = typeof contents.$inferInsert;
+
+export type ContentSource = typeof contentSources.$inferSelect;
+export type NewContentSource = typeof contentSources.$inferInsert;
+
+export type SourceEvent = typeof sourceEvents.$inferSelect;
+export type NewSourceEvent = typeof sourceEvents.$inferInsert;
+
+export type SourceEventSlide = typeof sourceEventSlides.$inferSelect;
+export type NewSourceEventSlide = typeof sourceEventSlides.$inferInsert;
 
 export type Playlist = typeof playlists.$inferSelect;
 export type NewPlaylist = typeof playlists.$inferInsert;
