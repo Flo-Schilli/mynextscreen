@@ -47,7 +47,7 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
 | **UserModule**           | User-org membership, role assignment, notification preferences                                                                                     |
 | **ScreenModule**         | Pairing and re-pairing, screen sessions (rotating refresh tokens), heartbeat tracking, online/offline status                                       |
 | **ScreenGroupModule**    | Group management, mirror/split mode config, grid layout for video walls                                                                            |
-| **SiteAgentModule**      | On-premise agents: enrolment, rotating sessions, per-screen remote-control settings, command channel and telemetry |
+| **SiteAgentModule**      | On-premise agents: enrolment, rotating sessions, per-screen remote-control settings, command channel and telemetry                                 |
 | **ContentModule**        | Upload handling, metadata CRUD, storage tracking, triggers transcoding jobs                                                                        |
 | **TranscodingModule**    | BullMQ workers: video → H.264 MP4, image → WebP (JPEG fallback), storage accounting                                                                |
 | **PlaylistModule**       | Playlist CRUD, ordered items with per-item duration; dynamic playlists: rule DTO, pure resolver, `playlist-resolve` queue, rule scheduler          |
@@ -82,8 +82,8 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
 
 An LG consumer TV has no autostart and its Developer Mode session expires — and
 when it does, the set deletes the installed app. The server cannot act on either
-from outside the venue, and the player heartbeat alone cannot tell *the TV is
-off* from *the TV is on and the app is not running*.
+from outside the venue, and the player heartbeat alone cannot tell _the TV is
+off_ from _the TV is on and the app is not running_.
 
 A **site agent** is a separate service (`apps/site-agent`) that runs inside a
 venue's LAN, pairs with one organisation and looks after the displays assigned
@@ -165,7 +165,7 @@ playlists (kind=dynamic, rule) ◀──(playlist-resolve: resolve-<playlistId>)
   outcome is stored on the source as a summary, audited, and
   `content_source.synced` is emitted.
 - **Slide renderer** (`slide/`) composes an SVG layer (artist, `Sa, 10.10.2026
-  • Venue`, status badge, QR code to the ticket shop) over the event image with
+• Venue`, status badge, QR code to the ticket shop) over the event image with
   sharp and writes JPEG. Landscape puts the fitted image full-frame with the
   text bottom left; portrait puts the image on top and the text below. The
   text is drawn with the system fonts, so the backend image ships `fontconfig`,
@@ -191,7 +191,9 @@ playlists (kind=dynamic, rule) ◀──(playlist-resolve: resolve-<playlistId>)
   instances. A request that arrives while the job with that id is running
   marks the source or playlist due (`nextSyncAt`/`nextResolveAt` = now), and
   the running job keeps that value instead of writing its own, so the next
-  tick queues it again.
+  tick queues it again. The tickers' own enqueues never mark a running job's
+  source or playlist due; otherwise every run longer than a tick would repeat
+  forever.
 - **Protection**: dynamic playlists answer `409` on every manual item endpoint
   and on bulk-add; `PATCH /playlists/:id/rule` answers `409` for static ones.
   The kind is fixed at creation. Managed slides answer `409` to library

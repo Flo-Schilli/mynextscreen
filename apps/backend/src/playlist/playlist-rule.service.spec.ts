@@ -463,6 +463,21 @@ describe('PlaylistRuleService', () => {
       expect(nextResolveAt!.getTime()).toBeLessThanOrEqual(Date.now());
     });
 
+    it('leaves a running playlist alone when the scheduler queues it', async () => {
+      const due = new Date('2026-01-01T00:00:00Z');
+      const playlist = await seedDynamic({ nextResolveAt: due });
+      queue.getJob.mockResolvedValue({ isActive: jest.fn().mockResolvedValue(true) });
+
+      await service.enqueueScheduledResolve(playlist.id);
+
+      expect((await playlistRow(playlist.id)).nextResolveAt).toEqual(due);
+      expect(queue.add).toHaveBeenCalledWith(
+        'resolve',
+        { playlistId: playlist.id },
+        { jobId: `resolve-${playlist.id}`, removeOnComplete: true, removeOnFail: true },
+      );
+    });
+
     it('leaves the schedule alone when the job is only waiting', async () => {
       const later = new Date('2099-01-01T00:00:00Z');
       const playlist = await seedDynamic({ nextResolveAt: later });

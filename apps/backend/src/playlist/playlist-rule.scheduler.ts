@@ -25,7 +25,7 @@ export class PlaylistRuleScheduler {
     try {
       const due = await this.ruleService.findDuePlaylistIds(now);
       for (const playlistId of due) {
-        await this.ruleService.enqueueResolve(playlistId);
+        await this.ruleService.enqueueScheduledResolve(playlistId);
       }
       return due.length;
     } catch (error) {

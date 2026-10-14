@@ -264,9 +264,23 @@ export class ContentSourceService {
         .set({ nextSyncAt: new Date() })
         .where(eq(contentSources.id, sourceId));
     }
+    await this.addSyncJob(sourceId, triggeredBy);
+  }
+
+  /**
+   * Queues the sync of a due source for the scheduler. Unlike
+   * {@link enqueueSync} it never marks a running source due: the scheduler
+   * finds the source due throughout its own run, and marking it would queue
+   * every sync that outlasts one tick again, forever.
+   */
+  async enqueueScheduledSync(sourceId: string): Promise<void> {
+    await this.addSyncJob(sourceId, null);
+  }
+
+  private async addSyncJob(sourceId: string, triggeredBy: string | null): Promise<void> {
     const data: ContentSourceSyncJobData = { sourceId, triggeredBy };
     await this.syncQueue.add(CONTENT_SOURCE_SYNC_JOB, data, {
-      jobId,
+      jobId: syncJobId(sourceId),
       // Finished jobs must not linger: a kept job id would swallow every later sync.
       removeOnComplete: true,
       removeOnFail: true,

@@ -342,6 +342,22 @@ describe('ContentSourceService', () => {
       expect((await row(waiting.id)).nextSyncAt).toEqual(later);
     });
 
+    it('leaves a running source alone when the scheduler queues it', async () => {
+      const due = new Date('2026-01-01T00:00:00Z');
+      const source = await seedContentSource(db, orgId, { nextSyncAt: due });
+      queue.getJob.mockResolvedValue({ isActive: jest.fn().mockResolvedValue(true) });
+
+      await service.enqueueScheduledSync(source.id);
+
+      const [row] = await db.select().from(contentSources).where(eq(contentSources.id, source.id));
+      expect(row.nextSyncAt).toEqual(due);
+      expect(queue.add).toHaveBeenCalledWith(
+        'sync',
+        { sourceId: source.id, triggeredBy: null },
+        { jobId: `sync-${source.id}`, removeOnComplete: true, removeOnFail: true },
+      );
+    });
+
     it('does not queue a sync for a foreign source', async () => {
       const foreign = await seedContentSource(db, otherOrgId);
 

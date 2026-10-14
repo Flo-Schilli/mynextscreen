@@ -36,7 +36,7 @@ export class ContentSourceScheduler {
     try {
       const due = await this.sourceService.findDueSourceIds(now);
       for (const sourceId of due) {
-        await this.sourceService.enqueueSync(sourceId, null);
+        await this.sourceService.enqueueScheduledSync(sourceId);
       }
       return due.length;
     } catch (error) {

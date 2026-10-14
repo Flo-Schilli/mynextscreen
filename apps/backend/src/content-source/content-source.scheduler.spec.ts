@@ -2,13 +2,17 @@ import { ContentSourceScheduler } from './content-source.scheduler';
 import type { ContentSourceService } from './content-source.service';
 
 describe('ContentSourceScheduler', () => {
-  let service: { findDueSourceIds: jest.Mock; enqueueSync: jest.Mock; enqueueCleanup: jest.Mock };
+  let service: {
+    findDueSourceIds: jest.Mock;
+    enqueueScheduledSync: jest.Mock;
+    enqueueCleanup: jest.Mock;
+  };
   let scheduler: ContentSourceScheduler;
 
   beforeEach(() => {
     service = {
       findDueSourceIds: jest.fn().mockResolvedValue(['a', 'b']),
-      enqueueSync: jest.fn().mockResolvedValue(undefined),
+      enqueueScheduledSync: jest.fn().mockResolvedValue(undefined),
       enqueueCleanup: jest.fn().mockResolvedValue(undefined),
     };
     scheduler = new ContentSourceScheduler(service as unknown as ContentSourceService);
@@ -20,19 +24,21 @@ describe('ContentSourceScheduler', () => {
     await expect(scheduler.enqueueDueSources(now)).resolves.toBe(2);
 
     expect(service.findDueSourceIds).toHaveBeenCalledWith(now);
-    expect(service.enqueueSync).toHaveBeenNthCalledWith(1, 'a', null);
-    expect(service.enqueueSync).toHaveBeenNthCalledWith(2, 'b', null);
+    // A scheduled sync must not mark a running source due again: that would
+    // re-queue every sync that outlasts one tick, forever.
+    expect(service.enqueueScheduledSync).toHaveBeenNthCalledWith(1, 'a');
+    expect(service.enqueueScheduledSync).toHaveBeenNthCalledWith(2, 'b');
   });
 
   it('runs syncs and the daily cleanup on the interval tick', async () => {
     await scheduler.tick();
 
-    expect(service.enqueueSync).toHaveBeenCalledTimes(2);
+    expect(service.enqueueScheduledSync).toHaveBeenCalledTimes(2);
     expect(service.enqueueCleanup).toHaveBeenCalledTimes(1);
   });
 
   it('survives a failing queue so the next tick can retry', async () => {
-    service.enqueueSync.mockRejectedValue(new Error('redis down'));
+    service.enqueueScheduledSync.mockRejectedValue(new Error('redis down'));
 
     await expect(scheduler.enqueueDueSources(new Date())).resolves.toBe(0);
   });

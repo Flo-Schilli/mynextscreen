@@ -212,9 +212,23 @@ export class PlaylistRuleService {
         .set({ nextResolveAt: new Date() })
         .where(eq(playlists.id, playlistId));
     }
+    await this.addResolveJob(playlistId);
+  }
+
+  /**
+   * Queues the resolve of a due playlist for the scheduler. Unlike
+   * {@link enqueueResolve} it never marks a running playlist due: the
+   * scheduler finds it due throughout its own run, and marking it would queue
+   * every resolve that outlasts one tick again, forever.
+   */
+  async enqueueScheduledResolve(playlistId: string): Promise<void> {
+    await this.addResolveJob(playlistId);
+  }
+
+  private async addResolveJob(playlistId: string): Promise<void> {
     const data: PlaylistResolveJobData = { playlistId };
     await this.resolveQueue.add(PLAYLIST_RESOLVE_JOB, data, {
-      jobId,
+      jobId: resolveJobId(playlistId),
       // Finished jobs must not linger: a kept job id would swallow every later resolve.
       removeOnComplete: true,
       removeOnFail: true,
