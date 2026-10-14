@@ -4,6 +4,7 @@ import { validate } from 'class-validator';
 import { CreateContentSourceDto } from './create-content-source.dto';
 import { UpdateContentSourceDto } from './update-content-source.dto';
 import { SourceEventsQueryDto, SourceFacetsQueryDto } from './source-events-query.dto';
+import { venueAliasListProblem } from './venue-alias.dto';
 
 async function errorsOf<T extends object>(cls: new () => T, plain: object): Promise<string[]> {
   const errors = await validate(plainToInstance(cls, plain), {
@@ -41,6 +42,78 @@ describe('content source DTOs', () => {
     await expect(errorsOf(CreateContentSourceDto, { ...valid, ...patch })).resolves.toContain(
       property,
     );
+  });
+
+  describe('venue aliases', () => {
+    const withAliases = (venueAliases: unknown) => ({ venueAliases });
+
+    it('accepts a one-level alias list and trims the names', async () => {
+      const dto = plainToInstance(
+        UpdateContentSourceDto,
+        withAliases([
+          { raw: ' Der Hirsch ', canonical: 'Hirsch ' },
+          { raw: 'Z-Bau Galerie', canonical: 'Z-Bau' },
+          { raw: 'Z-Bau (Saal)', canonical: 'Z-Bau' },
+        ]),
+      );
+
+      await expect(validate(dto, { whitelist: true, forbidNonWhitelisted: true })).resolves.toEqual(
+        [],
+      );
+      expect(dto.venueAliases?.[0]).toMatchObject({ raw: 'Der Hirsch', canonical: 'Hirsch' });
+      await expect(
+        errorsOf(CreateContentSourceDto, { ...valid, venueAliases: [] }),
+      ).resolves.toEqual([]);
+    });
+
+    it.each([
+      ['an empty raw name', [{ raw: '  ', canonical: 'Hirsch' }]],
+      ['an empty canonical name', [{ raw: 'Der Hirsch', canonical: '' }]],
+      ['a too long name', [{ raw: 'x'.repeat(201), canonical: 'Hirsch' }]],
+      ['a missing field', [{ raw: 'Der Hirsch' }]],
+      ['an unknown field', [{ raw: 'Der Hirsch', canonical: 'Hirsch', note: 'x' }]],
+      ['a self alias', [{ raw: 'Hirsch', canonical: 'Hirsch' }]],
+      [
+        'a duplicate raw name',
+        [
+          { raw: 'Der Hirsch', canonical: 'Hirsch' },
+          { raw: 'Der Hirsch', canonical: 'Hirsch Nürnberg' },
+        ],
+      ],
+      [
+        'a chain',
+        [
+          { raw: 'Der Hirsch', canonical: 'Hirsch' },
+          { raw: 'Hirsch', canonical: 'Hirsch Nürnberg' },
+        ],
+      ],
+      [
+        'a cycle',
+        [
+          { raw: 'A', canonical: 'B' },
+          { raw: 'B', canonical: 'A' },
+        ],
+      ],
+      ['not a list', { raw: 'Der Hirsch', canonical: 'Hirsch' }],
+      [
+        'too many entries',
+        Array.from({ length: 201 }, (_, i) => ({ raw: `Venue ${i}`, canonical: 'Hirsch' })),
+      ],
+    ])('rejects %s', async (_label, venueAliases) => {
+      await expect(errorsOf(UpdateContentSourceDto, withAliases(venueAliases))).resolves.toContain(
+        'venueAliases',
+      );
+    });
+
+    it('names the problem of a chained list', () => {
+      expect(
+        venueAliasListProblem([
+          { raw: 'Der Hirsch', canonical: 'Hirsch' },
+          { raw: 'Hirsch', canonical: 'Hirsch Nürnberg' },
+        ]),
+      ).toMatch(/one level/);
+      expect(venueAliasListProblem([{ raw: 'Der Hirsch', canonical: 'Hirsch' }])).toBeNull();
+    });
   });
 
   it('does not let an update change the adapter type', async () => {

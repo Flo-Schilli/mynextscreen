@@ -117,6 +117,7 @@ describe('PlaylistCreateForm', () => {
         lastSyncStatus: null,
         lastSyncError: null,
         lastSyncSummary: null,
+        venueAliases: [],
         createdAt: '',
         updatedAt: '',
       },

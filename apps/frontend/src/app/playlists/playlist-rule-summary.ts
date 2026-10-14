@@ -9,6 +9,11 @@ export interface RuleSummaryContext {
   translate: Translate;
   /** Formats an ISO date (`YYYY-MM-DD`) in the active locale. */
   formatDate: (iso: string) => string;
+  /**
+   * The rule's venues as the sources' aliases read them; the stored names
+   * when absent. A rule may still name a spelling that got aliased later.
+   */
+  canonicalVenues?: (rule: PlaylistRule) => string[];
 }
 
 function genresPart(rule: PlaylistRule, { translate }: RuleSummaryContext): string {
@@ -18,8 +23,12 @@ function genresPart(rule: PlaylistRule, { translate }: RuleSummaryContext): stri
   return values.join(match === 'all' ? ' & ' : ', ');
 }
 
-function venuesPart(rule: PlaylistRule, { translate }: RuleSummaryContext): string {
-  return rule.venues.length === 0 ? translate(KEY + 'allVenues') : rule.venues.join(', ');
+function venuesPart(
+  rule: PlaylistRule,
+  { translate, canonicalVenues }: RuleSummaryContext,
+): string {
+  if (rule.venues.length === 0) return translate(KEY + 'allVenues');
+  return (canonicalVenues ? canonicalVenues(rule) : rule.venues).join(', ');
 }
 
 function fromText(from: RuleDateFrom, ctx: RuleSummaryContext): string {

@@ -25,7 +25,10 @@ import { ContentSourceAdapterRegistry } from './adapter.registry';
 import { ConcertbueroFrankenAdapter } from './adapters/concertbuero-franken.adapter';
 import { ContentSourceService } from './content-source.service';
 import { DEFAULT_SLIDE_STYLE } from './content-source.types';
-import { CONTENT_SOURCE_REMOVED } from './content-source.constants';
+import {
+  CONTENT_SOURCE_REMOVED,
+  CONTENT_SOURCE_VENUE_ALIASES_UPDATED,
+} from './content-source.constants';
 import { PLAYLIST_UPDATED } from '../playlist/playlist.event';
 
 describe('ContentSourceService', () => {
@@ -115,6 +118,7 @@ describe('ContentSourceService', () => {
         syncIntervalMinutes: 360,
         enabled: true,
         nextSyncAt: null,
+        venueAliases: [],
       });
       expect(emit).toHaveBeenCalledWith(
         AUDIT_CONTENT_SOURCE_CREATED,
@@ -192,6 +196,42 @@ describe('ContentSourceService', () => {
       });
       expect(saved.nextSyncAt?.toISOString()).toBe('2026-11-01T11:00:00.000Z');
       expect(emit).toHaveBeenCalledWith(AUDIT_CONTENT_SOURCE_UPDATED, expect.anything());
+    });
+
+    it('stores new venue aliases and announces them', async () => {
+      const source = await seedContentSource(db, orgId);
+      const venueAliases = [{ raw: 'Der Hirsch', canonical: 'Hirsch' }];
+
+      const saved = await service.update(orgId, source.id, { venueAliases }, userId);
+
+      expect(saved.venueAliases).toEqual(venueAliases);
+      expect(emit).toHaveBeenCalledWith(
+        CONTENT_SOURCE_VENUE_ALIASES_UPDATED,
+        expect.objectContaining({ sourceId: source.id, organisationId: orgId }),
+      );
+    });
+
+    it('does not announce an alias list that only changed its order', async () => {
+      const source = await seedContentSource(db, orgId, {
+        venueAliases: [
+          { raw: 'Der Hirsch', canonical: 'Hirsch' },
+          { raw: 'Z-Bau Galerie', canonical: 'Z-Bau' },
+        ],
+      });
+
+      await service.update(
+        orgId,
+        source.id,
+        {
+          venueAliases: [
+            { raw: 'Z-Bau Galerie', canonical: 'Z-Bau' },
+            { raw: 'Der Hirsch', canonical: 'Hirsch' },
+          ],
+        },
+        userId,
+      );
+
+      expect(emit).not.toHaveBeenCalled();
     });
 
     it('makes a never-synced source due when the interval changes', async () => {
@@ -422,33 +462,104 @@ describe('ContentSourceService', () => {
         renderHash: 'r',
       });
 
-      const byGenre = await service.listEvents(orgId, source.id, { genres: ['Metal'] });
+      const { data: byGenre, total } = await service.listEvents(orgId, source.id, {
+        genres: ['Metal'],
+      });
       expect(byGenre.map((e) => e.title)).toEqual(['Metal']);
+      expect(total).toBe(1);
       // updatedAt versions the thumbnail URL, so a re-rendered slide is not served from cache.
       expect(byGenre[0].slides).toEqual([
         { format: '1920x1080', contentId: content.id, updatedAt: content.updatedAt },
       ]);
 
       const byVenue = await service.listEvents(orgId, source.id, { venues: ['Hirsch'] });
-      expect(byVenue.map((e) => e.title)).toEqual(['Pop']);
+      expect(byVenue.data.map((e) => e.title)).toEqual(['Pop']);
 
       const byDate = await service.listEvents(orgId, source.id, {
         from: '2027-01-01',
         to: '2027-12-31',
       });
-      expect(byDate.map((e) => e.title)).toEqual(['Late']);
+      expect(byDate.data.map((e) => e.title)).toEqual(['Late']);
 
       const all = await service.listEvents(orgId, source.id, { includeGone: true, limit: 10 });
-      expect(all).toHaveLength(4);
+      expect(all.data).toHaveLength(4);
 
       const current = await service.listEvents(orgId, source.id, {});
-      expect(current.map((e) => e.title)).not.toContain('Gone');
+      expect(current.data.map((e) => e.title)).not.toContain('Gone');
+    });
+
+    it('pages through the pool and counts every match, keeping the filters', async () => {
+      const source = await seedContentSource(db, orgId);
+      for (let day = 1; day <= 5; day++) {
+        const date = `2026-11-0${day}`;
+        await seedEvent(source.id, orgId, {
+          title: `Hirsch ${day}`,
+          venue: 'Hirsch',
+          eventDate: date,
+          startsAt: new Date(`${date}T19:00:00Z`),
+        });
+      }
+      await seedEvent(source.id, orgId, { title: 'Elsewhere', venue: 'Z-Bau' });
+
+      const first = await service.listEvents(orgId, source.id, { venues: ['Hirsch'], limit: 2 });
+      const last = await service.listEvents(orgId, source.id, {
+        venues: ['Hirsch'],
+        limit: 2,
+        offset: 4,
+      });
+
+      expect(first).toMatchObject({ total: 5 });
+      expect(first.data.map((e) => e.title)).toEqual(['Hirsch 1', 'Hirsch 2']);
+      expect(last.data.map((e) => e.title)).toEqual(['Hirsch 5']);
+      expect(last.total).toBe(5);
+    });
+
+    it('filters and labels venues by their canonical name, keeping the raw one', async () => {
+      const source = await seedContentSource(db, orgId, {
+        venueAliases: [
+          { raw: 'Der Hirsch', canonical: 'Hirsch' },
+          { raw: 'Z-Bau', canonical: 'Z-Bau Nürnberg' },
+        ],
+      });
+      await seedEvent(source.id, orgId, { title: 'A', venue: 'Hirsch' });
+      await seedEvent(source.id, orgId, { title: 'B', venue: 'Der Hirsch' });
+      await seedEvent(source.id, orgId, { title: 'C', venue: 'Z-Bau' });
+
+      const hirsch = await service.listEvents(orgId, source.id, { venues: ['Hirsch'] });
+      const zbauRaw = await service.listEvents(orgId, source.id, { venues: ['Z-Bau'] });
+
+      expect(hirsch.total).toBe(2);
+      expect(hirsch.data.map((e) => [e.title, e.venue, e.venueCanonical])).toEqual([
+        ['A', 'Hirsch', 'Hirsch'],
+        ['B', 'Der Hirsch', 'Hirsch'],
+      ]);
+      // An aliased raw name is no filter value of its own any more.
+      expect(zbauRaw.total).toBe(0);
+    });
+
+    it('lists the raw venues of current events with their canonical name', async () => {
+      const source = await seedContentSource(db, orgId, {
+        venueAliases: [{ raw: 'Der Hirsch', canonical: 'Hirsch' }],
+      });
+      await seedEvent(source.id, orgId, { venue: 'Hirsch' });
+      await seedEvent(source.id, orgId, { venue: 'Hirsch' });
+      await seedEvent(source.id, orgId, { venue: 'Der Hirsch' });
+      await seedEvent(source.id, orgId, { venue: '' });
+      await seedEvent(source.id, orgId, { venue: 'Gone', goneAt: new Date() });
+
+      await expect(service.listVenues(orgId, source.id)).resolves.toEqual([
+        { name: 'Der Hirsch', canonical: 'Hirsch', events: 1 },
+        { name: 'Hirsch', canonical: 'Hirsch', events: 2 },
+      ]);
     });
 
     it('returns an empty pool without querying slides', async () => {
       const source = await seedContentSource(db, orgId);
 
-      await expect(service.listEvents(orgId, source.id, {})).resolves.toEqual([]);
+      await expect(service.listEvents(orgId, source.id, {})).resolves.toEqual({
+        data: [],
+        total: 0,
+      });
     });
 
     it('does not expose the pool of a foreign source', async () => {
@@ -474,6 +585,7 @@ describe('ContentSourceService', () => {
       const pool = await service.findPool(orgId, [a.id, b.id, foreign.id], '2026-11-09');
 
       expect(pool.map((event) => event.title)).toEqual(['A', 'B']);
+      expect(pool[0].venueCanonical).toBe('Löwensaal');
       expect(pool[0].slides).toEqual([]);
       await expect(service.findPool(orgId, [], '2026-11-09')).resolves.toEqual([]);
     });
@@ -495,6 +607,24 @@ describe('ContentSourceService', () => {
       await expect(service.facets(orgId, { sourceIds: [b.id] })).resolves.toEqual({
         venues: ['Löwensaal'],
         genres: ['Pop'],
+      });
+    });
+
+    it('lists only canonical venue facets, per source aliases', async () => {
+      const a = await seedContentSource(db, orgId, {
+        venueAliases: [{ raw: 'Der Hirsch', canonical: 'Hirsch' }],
+      });
+      const b = await seedContentSource(db, orgId);
+      await seedEvent(a.id, orgId, { venue: 'Hirsch' });
+      await seedEvent(a.id, orgId, { venue: 'Der Hirsch' });
+      // Another source without the alias keeps its own spelling.
+      await seedEvent(b.id, orgId, { venue: 'Der Hirsch' });
+
+      await expect(service.facets(orgId, { sourceIds: [a.id] })).resolves.toMatchObject({
+        venues: ['Hirsch'],
+      });
+      await expect(service.facets(orgId, {})).resolves.toMatchObject({
+        venues: ['Der Hirsch', 'Hirsch'],
       });
     });
   });

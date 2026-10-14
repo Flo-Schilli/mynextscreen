@@ -55,7 +55,12 @@ import { BadgeComponent } from '../ui';
                 }
               </td>
               <td class="py-2.5 pr-4">
-                {{ event.venue }}
+                {{ event.venueCanonical }}
+                @if (event.venueCanonical !== event.venue) {
+                  <span class="venue-raw block text-faint" [title]="t('sources.events.venueRaw')">
+                    {{ t('sources.events.venueRawValue', { name: event.venue }) }}
+                  </span>
+                }
                 @if (event.city) {
                   <span class="block text-muted">{{ event.city }}</span>
                 }

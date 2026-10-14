@@ -46,6 +46,7 @@ import type {
   ContentSourceParams,
   ContentSourceSyncStatus,
   ContentSourceSyncSummary,
+  VenueAlias,
   SlideFormat,
   SlideStyle,
 } from '../content-source/content-source.types';
@@ -334,6 +335,8 @@ export const contentSources = pgTable(
     lastSyncStatus: text().$type<ContentSourceSyncStatus>(),
     lastSyncError: text(),
     lastSyncSummary: jsonb().$type<ContentSourceSyncSummary>(),
+    /** Raw venue name → canonical name; applied when events are read, never stored on them. */
+    venueAliases: jsonb().$type<VenueAlias[]>().notNull().default([]),
     ...timestamps,
   },
   (t) => [

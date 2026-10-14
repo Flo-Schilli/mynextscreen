@@ -1,5 +1,10 @@
 import { addDays, localDate, zonedTimeToUtc } from '../common/zoned-time.util';
 import type { SlideFormat } from '../content-source/content-source.types';
+import {
+  EMPTY_ALIAS_MAP,
+  canonicalVenue,
+  type VenueAliasesBySource,
+} from '../content-source/venue-aliases';
 import type { PlaylistRule, RuleDateFrom, RuleDateTo } from './playlist-rule.types';
 
 const MS_PER_HOUR = 3_600_000;
@@ -85,6 +90,32 @@ function matchesGenres(event: RulePoolEvent, rule: PlaylistRule): boolean {
     : values.some((genre) => event.genres.includes(genre));
 }
 
+/**
+ * Canonical rule venues per source. A rule may still name a raw venue that got
+ * aliased later; it then means its canonical venue, like every other spelling.
+ */
+function ruleVenuesBySource(
+  rule: PlaylistRule,
+  aliases: VenueAliasesBySource,
+): Map<string, Set<string>> {
+  return new Map(
+    rule.sourceIds.map((sourceId) => {
+      const map = aliases.get(sourceId) ?? EMPTY_ALIAS_MAP;
+      return [sourceId, new Set(rule.venues.map((venue) => canonicalVenue(map, venue)))];
+    }),
+  );
+}
+
+function matchesVenues(
+  event: RulePoolEvent,
+  ruleVenues: Map<string, Set<string>>,
+  aliases: VenueAliasesBySource,
+): boolean {
+  const wanted = ruleVenues.get(event.sourceId);
+  if (!wanted || wanted.size === 0) return true;
+  return wanted.has(canonicalVenue(aliases.get(event.sourceId) ?? EMPTY_ALIAS_MAP, event.venue));
+}
+
 function compareEvents(a: RulePoolEvent, b: RulePoolEvent, descending: boolean): number {
   const byTime = a.startsAt.getTime() - b.startsAt.getTime();
   if (byTime !== 0) return descending ? -byTime : byTime;
@@ -96,18 +127,20 @@ function compareEvents(a: RulePoolEvent, b: RulePoolEvent, descending: boolean):
  * playback order. Pure: the caller supplies the pool, the clock and the
  * organisation's time zone. Events without a slide in the rule's format are
  * skipped before the limit applies, so the limit counts playable items.
+ * Venues compare by their canonical name under each source's aliases.
  */
 export function resolvePlaylistRule<E extends RulePoolEvent>(
   events: readonly E[],
   rule: PlaylistRule,
   now: Date,
   timeZone: string,
+  venueAliases: VenueAliasesBySource = new Map(),
 ): ResolvedRuleEntry<E>[] {
   const today = localDate(now, timeZone);
   const from = lowerBound(rule.dateFrom, today);
   const to = upperBound(rule.dateTo, today);
   const sources = new Set(rule.sourceIds);
-  const venues = new Set(rule.venues);
+  const ruleVenues = ruleVenuesBySource(rule, venueAliases);
 
   const candidates = events.filter(
     (event) =>
@@ -115,7 +148,7 @@ export function resolvePlaylistRule<E extends RulePoolEvent>(
       event.goneAt === null &&
       !(rule.excludeCancelled && event.cancelled) &&
       !(rule.excludeSoldOut && event.soldOut) &&
-      (venues.size === 0 || venues.has(event.venue)) &&
+      matchesVenues(event, ruleVenues, venueAliases) &&
       matchesGenres(event, rule) &&
       (from === null || event.eventDate >= from) &&
       (to === null || event.eventDate <= to) &&

@@ -225,6 +225,39 @@ describe('resolvePlaylistRule', () => {
       expect(ids(result)).toEqual(['hirsch', 'zbau']);
     });
 
+    it("matches venues by their canonical name under each source's aliases", () => {
+      const pool = [
+        event('2026-11-12', { id: 'plain', venue: 'Hirsch' }),
+        event('2026-11-13', { id: 'aliased', venue: 'Der Hirsch' }),
+        event('2026-11-14', { id: 'unaliased-source', venue: 'Der Hirsch', sourceId: 'source-2' }),
+        event('2026-11-15', { id: 'zbau', venue: 'Z-Bau' }),
+      ];
+      const aliases = new Map([[SOURCE, new Map([['Der Hirsch', 'Hirsch']])]]);
+      const both = rule({ sourceIds: [SOURCE, 'source-2'] });
+
+      const canonical = resolvePlaylistRule(
+        pool,
+        { ...both, venues: ['Hirsch'] },
+        noon,
+        BERLIN,
+        aliases,
+      );
+      // A rule that still names the aliased spelling means the canonical venue.
+      const legacy = resolvePlaylistRule(
+        pool,
+        { ...both, venues: ['Der Hirsch'] },
+        noon,
+        BERLIN,
+        aliases,
+      );
+
+      expect(ids(canonical)).toEqual(['plain', 'aliased']);
+      expect(ids(legacy)).toEqual(['plain', 'aliased', 'unaliased-source']);
+      expect(
+        ids(resolvePlaylistRule(pool, { ...both, venues: [] }, noon, BERLIN, aliases)),
+      ).toEqual(['plain', 'aliased', 'unaliased-source', 'zbau']);
+    });
+
     it('excludes cancelled by default and sold out on request', () => {
       const pool = [
         event('2026-11-12', { id: 'cancelled', cancelled: true }),

@@ -38,6 +38,7 @@ const PREVIEW: RulePreviewResult = {
       eventDate: '2026-11-07',
       startTime: '20:00',
       venue: 'Löwensaal',
+      venueCanonical: 'Löwensaal',
       city: 'Nürnberg',
       genres: ['Metal'],
       statusLabels: ['AUSVERKAUFT'],
@@ -65,6 +66,7 @@ function source(id: string, name: string, formats: SlideFormat[]): ContentSource
     lastSyncStatus: null,
     lastSyncError: null,
     lastSyncSummary: null,
+    venueAliases: [],
     createdAt: '',
     updatedAt: '',
   };

@@ -2252,7 +2252,16 @@
       "gone": "Nicht mehr gelistet",
       "noSlide": "Kein Slide",
       "slideAlt": "Slide {format}",
-      "truncated": "Angezeigt werden die ersten {count} Events."
+      "allVenues": "Alle Spielorte",
+      "allGenres": "Alle Genres",
+      "from": "Von",
+      "to": "Bis",
+      "noMatch": "Keine Events passen zu den Filtern.",
+      "showing": "{shown} von {total} Events",
+      "loadMore": "Weitere laden",
+      "loadingMore": "Wird geladen…",
+      "venueRaw": "Schreibweise der Website; der Slide zeigt sie so.",
+      "venueRawValue": "Website: {name}"
     },
     "toast": {
       "created": "Quelle angelegt. Der erste Sync läuft.",
@@ -2265,7 +2274,31 @@
       "updateFailed": "Quelle konnte nicht gespeichert werden.",
       "deleteFailed": "Quelle konnte nicht gelöscht werden.",
       "syncFailed": "Sync konnte nicht gestartet werden.",
-      "eventsFailed": "Events konnten nicht geladen werden."
+      "eventsFailed": "Events konnten nicht geladen werden.",
+      "aliasesUpdated": "Aliase gespeichert. Dynamische Playlists werden neu berechnet.",
+      "aliasesFailed": "Aliase konnten nicht gespeichert werden.",
+      "venuesFailed": "Spielorte konnten nicht geladen werden."
+    },
+    "aliases": {
+      "title": "Spielort-Aliase",
+      "sub": "Fasst Schreibweisen der Website zu einem Spielort zusammen, z. B. „Der Hirsch“ → „Hirsch“. Filter, Regeln und der Event-Pool nutzen den kanonischen Namen; der Slide zeigt weiter die Schreibweise der Website.",
+      "empty": "Noch keine Spielorte. Synchronisiere die Quelle, um den Pool zu füllen.",
+      "raw": "Name auf der Website",
+      "events": "Events",
+      "canonical": "Kanonischer Name",
+      "canonicalFor": "Kanonischer Name für {name}",
+      "notListed": "aktuell nicht gelistet",
+      "remove": "Alias für {name} entfernen",
+      "newRaw": "Weitere Schreibweise",
+      "newCanonical": "Kanonischer Name",
+      "add": "Alias hinzufügen",
+      "save": "Aliase speichern",
+      "unsaved": "Ungespeicherte Änderungen",
+      "errors": {
+        "chain": "Dieser Name ist selbst ein Alias. Wähle seinen kanonischen Namen (nur eine Ebene).",
+        "tooLong": "Höchstens 200 Zeichen."
+      },
+      "keep": "wie auf der Website"
     }
   }
 }

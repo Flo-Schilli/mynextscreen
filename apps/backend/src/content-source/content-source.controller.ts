@@ -20,8 +20,9 @@ import type { ContentSource } from '../db/schema';
 import type { AdapterDescriptor } from './adapter.registry';
 import {
   ContentSourceService,
-  type SourceEventWithSlides,
+  type SourceEventsPage,
   type SourceFacets,
+  type SourceVenue,
 } from './content-source.service';
 import {
   CreateContentSourceDto,
@@ -120,7 +121,17 @@ export class ContentSourceController {
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: SourceEventsQueryDto,
-  ): Promise<SourceEventWithSlides[]> {
+  ): Promise<SourceEventsPage> {
     return this.sourceService.listEvents(organisationId, id, query);
+  }
+
+  /** Raw venue names of the current events with their canonical name, for the alias editor. */
+  @Get(':id/venues')
+  @Roles(...READ_ROLES)
+  venues(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<SourceVenue[]> {
+    return this.sourceService.listVenues(organisationId, id);
   }
 }

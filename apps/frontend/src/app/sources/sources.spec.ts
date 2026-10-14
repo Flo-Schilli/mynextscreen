@@ -41,6 +41,7 @@ function buildSource(overrides: Partial<ContentSource> = {}): ContentSource {
     lastSyncStatus: 'partial',
     lastSyncError: null,
     lastSyncSummary: null,
+    venueAliases: [],
     createdAt: '',
     updatedAt: '',
     ...overrides,

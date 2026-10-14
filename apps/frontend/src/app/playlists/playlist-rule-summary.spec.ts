@@ -5,6 +5,7 @@ import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 import { formatIsoDate } from '../i18n/locale-date-input';
 import { PlaylistRule } from './playlist.model';
 import { summariseRule } from './playlist-rule-summary';
+import { canonicalRuleVenues } from '../sources/venue-alias-state';
 
 const RULE: PlaylistRule = {
   sourceIds: ['s1'],
@@ -90,5 +91,22 @@ describe('summariseRule', () => {
     };
 
     expect(summary(rule, 'en')).toContain('from 11/05/2026');
+  });
+
+  it('names venues by their canonical name once', () => {
+    transloco.setActiveLang('de');
+    const rule: PlaylistRule = { ...RULE, venues: ['Hirsch', 'Der Hirsch'] };
+
+    const text = summariseRule(rule, {
+      translate: (key, params) => transloco.translate(key, params),
+      formatDate: (iso) => iso,
+      canonicalVenues: (r) =>
+        canonicalRuleVenues(r.venues, r.sourceIds, [
+          { id: 's1', venueAliases: [{ raw: 'Der Hirsch', canonical: 'Hirsch' }] },
+        ]),
+    });
+
+    expect(text).toContain(' · Hirsch · ');
+    expect(text).not.toContain('Der Hirsch');
   });
 });

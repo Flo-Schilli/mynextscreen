@@ -5,9 +5,10 @@ import {
   AdapterDescriptor,
   ContentSource,
   CreateContentSourceRequest,
-  SourceEvent,
+  SourceEventsPage,
   SourceEventsQuery,
   SourceFacets,
+  SourceVenue,
   UpdateContentSourceRequest,
 } from './content-source.model';
 
@@ -73,10 +74,22 @@ export class ContentSourceService {
     );
   }
 
-  getEvents(orgId: string, id: string, query: SourceEventsQuery = {}): Observable<SourceEvent[]> {
-    return this.http.get<SourceEvent[]>(`/api/content-sources/${id}/events`, {
+  /** One page of the event pool; `total` counts every event matching the filters. */
+  getEvents(
+    orgId: string,
+    id: string,
+    query: SourceEventsQuery = {},
+  ): Observable<SourceEventsPage> {
+    return this.http.get<SourceEventsPage>(`/api/content-sources/${id}/events`, {
       headers: this.orgHeader(orgId),
       params: toEventParams(query),
+    });
+  }
+
+  /** Raw venue names of the source's current events, with their canonical name. */
+  getVenues(orgId: string, id: string): Observable<SourceVenue[]> {
+    return this.http.get<SourceVenue[]>(`/api/content-sources/${id}/venues`, {
+      headers: this.orgHeader(orgId),
     });
   }
 

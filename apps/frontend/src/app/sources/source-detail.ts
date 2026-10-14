@@ -13,7 +13,7 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { Subscription, forkJoin, map, switchMap, takeWhile, timer } from 'rxjs';
 import { ContentSourceService } from './content-source.service';
-import { AdapterDescriptor, ContentSource, SourceEvent } from './content-source.model';
+import { AdapterDescriptor, ContentSource, SourceVenue, VenueAlias } from './content-source.model';
 import {
   SourceFormValue,
   apiErrorMessage,
@@ -23,7 +23,8 @@ import {
   validateSourceForm,
 } from './source-form-state';
 import { SourceForm } from './source-form';
-import { SourceEventTable } from './source-event-table';
+import { SourceEventPool } from './source-event-pool';
+import { SourceVenueAliases } from './source-venue-aliases';
 import { SourceAccess } from './source-access';
 import { ToastService } from '../shared/toast/toast.service';
 import { BackLink } from '../shared/back-link';
@@ -36,18 +37,15 @@ import {
   ModalComponent,
   OverlayComponent,
   PageHeaderComponent,
-  SwitchComponent,
 } from '../ui';
 
-/** Events requested per load; the table says so when the pool is longer. */
-const EVENTS_PAGE = 200;
 const SYNC_POLL_MS = 3000;
 /** Stops polling after ~3 minutes; a longer sync shows up on the next visit. */
 const SYNC_POLL_MAX = 60;
 
 /**
- * One content source: sync status with "sync now", the settings form and the
- * event pool with slide previews. Viewers see everything read-only.
+ * One content source: sync status with "sync now", the settings form, the
+ * venue aliases and the event pool with slide previews. Viewers see everything read-only.
  */
 @Component({
   selector: 'app-source-detail',
@@ -63,9 +61,9 @@ const SYNC_POLL_MAX = 60;
     ModalComponent,
     OverlayComponent,
     PageHeaderComponent,
-    SwitchComponent,
     SourceForm,
-    SourceEventTable,
+    SourceEventPool,
+    SourceVenueAliases,
     TranslocoDirective,
   ],
   template: `
@@ -164,33 +162,27 @@ const SYNC_POLL_MAX = 60;
           </mns-card>
         </div>
 
-        <!-- event pool -->
+        <!-- venue aliases -->
         <div class="mt-[var(--gap)]">
-          <mns-card>
-            <mns-card-head
-              [title]="t('sources.events.title')"
-              [sub]="t('sources.events.count', { count: events().length })"
-              icon="Calendar"
-            >
-              <div slot="right" class="flex items-center gap-2 text-[13px] text-muted">
-                <span>{{ t('sources.events.includeGone') }}</span>
-                <mns-switch [checked]="includeGone()" (toggled)="setIncludeGone($event)" />
-              </div>
-            </mns-card-head>
-            @if (eventsLoading()) {
-              <p class="text-sm text-muted py-4">{{ t('sources.events.loading') }}</p>
-            } @else if (events().length === 0) {
-              <p class="text-sm text-muted py-4">{{ t('sources.events.empty') }}</p>
-            } @else {
-              <app-source-event-table [events]="events()" />
-              @if (events().length >= eventsPage) {
-                <p class="mt-3 text-[12.5px] text-faint">
-                  {{ t('sources.events.truncated', { count: eventsPage }) }}
-                </p>
-              }
-            }
-          </mns-card>
+          <app-source-venue-aliases
+            [venues]="venues()"
+            [aliases]="source.venueAliases"
+            [disabled]="!access.canEdit()"
+            [saving]="savingAliases()"
+            (saved)="saveAliases($event)"
+          />
         </div>
+
+        <!-- event pool -->
+        @if (access.orgId(); as orgId) {
+          <div class="mt-[var(--gap)]">
+            <app-source-event-pool
+              [orgId]="orgId"
+              [sourceId]="source.id"
+              [reload]="poolVersion()"
+            />
+          </div>
+        }
 
         @if (deleteOpen()) {
           <mns-overlay (closed)="deleteOpen.set(false)">
@@ -241,16 +233,16 @@ export class SourceDetail {
   protected readonly source = signal<ContentSource | null>(null);
   protected readonly adapters = signal<AdapterDescriptor[]>([]);
   protected readonly form = signal<SourceFormValue | null>(null);
-  protected readonly events = signal<SourceEvent[]>([]);
-  protected readonly eventsLoading = signal(false);
-  protected readonly includeGone = signal(false);
+  protected readonly venues = signal<SourceVenue[]>([]);
+  /** Bumped to make the event pool load again. */
+  protected readonly poolVersion = signal(0);
+  protected readonly savingAliases = signal(false);
   protected readonly notFound = signal(false);
   protected readonly saving = signal(false);
   protected readonly submitted = signal(false);
   protected readonly syncing = signal(false);
   protected readonly deleting = signal(false);
   protected readonly deleteOpen = signal(false);
-  protected readonly eventsPage = EVENTS_PAGE;
 
   private pollSub: Subscription | null = null;
 
@@ -314,11 +306,26 @@ export class SourceDetail {
     });
   }
 
-  protected setIncludeGone(includeGone: boolean): void {
-    this.includeGone.set(includeGone);
+  /** Saves only the aliases; unsaved edits in the settings form stay. */
+  protected saveAliases(venueAliases: VenueAlias[]): void {
     const orgId = this.access.orgId();
     const source = this.source();
-    if (orgId && source) this.loadEvents(orgId, source.id);
+    if (!orgId || !source) return;
+    this.savingAliases.set(true);
+    this.service.update(orgId, source.id, { venueAliases }).subscribe({
+      next: (updated) => {
+        this.savingAliases.set(false);
+        this.source.set(updated);
+        this.toast.success(this.transloco.translate('sources.toast.aliasesUpdated'));
+        this.refreshPool(orgId, source.id);
+      },
+      error: (err: unknown) => {
+        this.savingAliases.set(false);
+        this.toast.error(
+          apiErrorMessage(err, this.transloco.translate('sources.toast.aliasesFailed')),
+        );
+      },
+    });
   }
 
   protected remove(): void {
@@ -348,7 +355,7 @@ export class SourceDetail {
         next: ({ source, adapters }) => {
           this.adapters.set(adapters);
           this.applySource(source);
-          this.loadEvents(orgId, id);
+          this.loadVenues(orgId, id);
         },
         error: () => {
           this.source.set(null);
@@ -368,21 +375,20 @@ export class SourceDetail {
     this.submitted.set(false);
   }
 
-  private loadEvents(orgId: string, id: string): void {
-    this.eventsLoading.set(true);
+  private loadVenues(orgId: string, id: string): void {
     this.service
-      .getEvents(orgId, id, { includeGone: this.includeGone(), limit: EVENTS_PAGE })
+      .getVenues(orgId, id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (events) => {
-          this.events.set(events);
-          this.eventsLoading.set(false);
-        },
-        error: () => {
-          this.eventsLoading.set(false);
-          this.toast.error(this.transloco.translate('sources.toast.eventsFailed'));
-        },
+        next: (venues) => this.venues.set(venues),
+        error: () => this.toast.error(this.transloco.translate('sources.toast.venuesFailed')),
       });
+  }
+
+  /** Venues and pool read through the aliases, so both load again after a change. */
+  private refreshPool(orgId: string, id: string): void {
+    this.loadVenues(orgId, id);
+    this.poolVersion.update((version) => version + 1);
   }
 
   /**
@@ -406,7 +412,7 @@ export class SourceDetail {
           if (!settled(source)) return;
           this.syncing.set(false);
           this.toast.success(this.transloco.translate('sources.toast.syncFinished'));
-          this.loadEvents(orgId, id);
+          this.refreshPool(orgId, id);
         },
         error: () => this.syncing.set(false),
         complete: () => this.syncing.set(false),

@@ -46,6 +46,7 @@ import {
 import { summariseRule } from './playlist-rule-summary';
 import { PlaylistRulePreview, RulePreviewState } from './playlist-rule-preview';
 import { ContentSourceService } from '../sources/content-source.service';
+import { canonicalRuleVenues } from '../sources/venue-alias-state';
 import { ContentSource, SourceFacets } from '../sources/content-source.model';
 import { formatLabel } from '../sources/source-form-state';
 import { LanguageService } from '../i18n/language.service';
@@ -166,6 +167,7 @@ export class PlaylistRuleEditor {
     return summariseRule(rule, {
       translate: (key, params) => this.transloco.translate(key, params),
       formatDate: (iso) => formatIsoDate(iso, locale) || iso,
+      canonicalVenues: (r) => canonicalRuleVenues(r.venues, r.sourceIds, this.sources()),
     });
   });
 

@@ -116,13 +116,22 @@ describe('ContentSourceService', () => {
     expect(params.get('includeGone')).toBe('false');
     expect(params.get('limit')).toBe('200');
     expect(params.get('offset')).toBe('0');
-    req.flush([]);
+    req.flush({ data: [], total: 0 });
   });
 
   it('sends no event filters that were not set', () => {
     service.getEvents(ORG_ID, 's1').subscribe();
     const req = httpMock.expectOne((r) => r.url === '/api/content-sources/s1/events');
     expect(req.request.params.keys()).toEqual([]);
-    req.flush([]);
+    req.flush({ data: [], total: 0 });
+  });
+
+  it('loads the raw venues of a source', () => {
+    let venues: unknown;
+    service.getVenues(ORG_ID, 's1').subscribe((v) => (venues = v));
+    const req = httpMock.expectOne('/api/content-sources/s1/venues');
+    expect(req.request.headers.get('X-Organisation-Id')).toBe(ORG_ID);
+    req.flush([{ name: 'Der Hirsch', canonical: 'Hirsch', events: 4 }]);
+    expect(venues).toEqual([{ name: 'Der Hirsch', canonical: 'Hirsch', events: 4 }]);
   });
 });

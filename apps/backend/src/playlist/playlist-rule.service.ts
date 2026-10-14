@@ -20,8 +20,10 @@ import {
 import {
   CONTENT_SOURCE_REMOVED,
   CONTENT_SOURCE_SYNCED,
+  CONTENT_SOURCE_VENUE_ALIASES_UPDATED,
   ContentSourceRemovedEvent,
   ContentSourceSyncedEvent,
+  ContentSourceVenueAliasesUpdatedEvent,
 } from '../content-source/content-source.constants';
 import {
   AUDIT_PLAYLIST_RESOLVED,
@@ -58,7 +60,10 @@ export interface RulePreviewItem {
   title: string;
   eventDate: string;
   startTime: string | null;
+  /** As the website writes it; the slide shows this. */
   venue: string;
+  /** After the source's aliases. */
+  venueCanonical: string;
   city: string | null;
   genres: string[];
   statusLabels: string[];
@@ -164,6 +169,7 @@ export class PlaylistRuleService {
         eventDate: event.eventDate,
         startTime: event.startTime,
         venue: event.venue,
+        venueCanonical: event.venueCanonical,
         city: event.city,
         genres: event.genres,
         statusLabels: event.statusLabels,
@@ -252,6 +258,17 @@ export class PlaylistRuleService {
   /** A sync may have added, changed or cancelled events: refresh every playlist fed by it. */
   @OnEvent(CONTENT_SOURCE_SYNCED, { async: true })
   async onSourceSynced(event: ContentSourceSyncedEvent): Promise<void> {
+    await this.enqueueFedBy(event);
+  }
+
+  /** New aliases change which events a venue filter matches. */
+  @OnEvent(CONTENT_SOURCE_VENUE_ALIASES_UPDATED, { async: true })
+  async onVenueAliasesUpdated(event: ContentSourceVenueAliasesUpdatedEvent): Promise<void> {
+    await this.enqueueFedBy(event);
+  }
+
+  /** Queues a resolve of every dynamic playlist whose rule names the source. */
+  private async enqueueFedBy(event: { sourceId: string; organisationId: string }): Promise<void> {
     try {
       const rows = await this.db
         .select({ id: playlists.id })
@@ -396,12 +413,15 @@ export class PlaylistRuleService {
     now: Date,
     timeZone: string,
   ): Promise<ResolvedRuleEntry<SourceEventWithSlides>[]> {
-    const pool = await this.sourceService.findPool(
-      organisationId,
-      rule.sourceIds,
-      earliestLiveEventDate(now, timeZone),
-    );
-    return resolvePlaylistRule(pool, rule, now, timeZone);
+    const [pool, aliases] = await Promise.all([
+      this.sourceService.findPool(
+        organisationId,
+        rule.sourceIds,
+        earliestLiveEventDate(now, timeZone),
+      ),
+      this.sourceService.venueAliasesBySource(organisationId, rule.sourceIds),
+    ]);
+    return resolvePlaylistRule(pool, rule, now, timeZone, aliases);
   }
 
   private nextResolveAt(

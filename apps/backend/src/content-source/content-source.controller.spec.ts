@@ -24,7 +24,8 @@ describe('ContentSourceController', () => {
       update: jest.fn().mockResolvedValue({ id }),
       remove: jest.fn().mockResolvedValue(undefined),
       requestSync: jest.fn().mockResolvedValue({ queued: true }),
-      listEvents: jest.fn().mockResolvedValue([]),
+      listEvents: jest.fn().mockResolvedValue({ data: [], total: 0 }),
+      listVenues: jest.fn().mockResolvedValue([]),
     };
     controller = new ContentSourceController(service as unknown as ContentSourceService);
   });
@@ -35,7 +36,7 @@ describe('ContentSourceController', () => {
       reflector.get(ROLES_KEY, ContentSourceController.prototype[method]);
 
     // RolesGuard default-denies an undeclared route; only a test catches a missing decorator.
-    it.each(['adapters', 'facets', 'findAll', 'findOne', 'events'] as const)(
+    it.each(['adapters', 'facets', 'findAll', 'findOne', 'events', 'venues'] as const)(
       'lets every member read via %s',
       (method) => {
         expect(rolesOf(method)).toEqual([
@@ -70,6 +71,7 @@ describe('ContentSourceController', () => {
     await controller.remove(orgId, id, req);
     await controller.sync(orgId, id, req);
     await controller.events(orgId, id, { venues: ['Hirsch'] });
+    await controller.venues(orgId, id);
 
     expect(service.adapters).toHaveBeenCalled();
     expect(service.facets).toHaveBeenCalledWith(orgId, { sourceIds: [id] });
@@ -80,5 +82,6 @@ describe('ContentSourceController', () => {
     expect(service.remove).toHaveBeenCalledWith(orgId, id, userId);
     expect(service.requestSync).toHaveBeenCalledWith(orgId, id, userId);
     expect(service.listEvents).toHaveBeenCalledWith(orgId, id, { venues: ['Hirsch'] });
+    expect(service.listVenues).toHaveBeenCalledWith(orgId, id);
   });
 });

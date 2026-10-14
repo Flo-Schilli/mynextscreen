@@ -58,3 +58,16 @@ export class ContentSourceRemovedEvent {
     public readonly organisationId: string,
   ) {}
 }
+
+/**
+ * Emitted after a source's venue aliases changed. The event pool reads
+ * differently now, so dynamic playlists fed by the source resolve again.
+ */
+export const CONTENT_SOURCE_VENUE_ALIASES_UPDATED = 'content_source.venue_aliases_updated';
+
+export class ContentSourceVenueAliasesUpdatedEvent {
+  constructor(
+    public readonly sourceId: string,
+    public readonly organisationId: string,
+  ) {}
+}

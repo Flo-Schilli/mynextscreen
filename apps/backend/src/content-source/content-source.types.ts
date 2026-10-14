@@ -42,3 +42,17 @@ export interface ContentSourceSyncSummary {
 
 /** Adapter parameters as stored on the source (validated by the adapter). */
 export type ContentSourceParams = Record<string, string | number | boolean>;
+
+/**
+ * Maps a venue name as the website writes it to the name the dashboard and the
+ * rules use, e.g. `Der Hirsch` → `Hirsch`. One level only: a canonical name
+ * is never itself an alias.
+ */
+export interface VenueAlias {
+  raw: string;
+  canonical: string;
+}
+
+/** Upper bound of aliases per source; a venue site lists a few dozen venues. */
+export const MAX_VENUE_ALIASES = 200;
+export const MAX_VENUE_NAME_LENGTH = 200;

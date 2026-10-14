@@ -4,6 +4,7 @@ import type { Queue } from 'bullmq';
 import { plainToInstance } from 'class-transformer';
 import { asc, eq } from 'drizzle-orm';
 import {
+  contentSources,
   contents,
   organisations,
   playlistItems,
@@ -24,6 +25,7 @@ import { ConcertbueroFrankenAdapter } from '../content-source/adapters/concertbu
 import {
   ContentSourceRemovedEvent,
   ContentSourceSyncedEvent,
+  ContentSourceVenueAliasesUpdatedEvent,
 } from '../content-source/content-source.constants';
 import { AUDIT_PLAYLIST_RESOLVED, AUDIT_PLAYLIST_RULE_UPDATED } from '../audit-log/audit.events';
 import { PlaylistService } from './playlist.service';
@@ -191,6 +193,32 @@ describe('PlaylistRuleService', () => {
             // 2026-11-13 00:00 CET + 4 h.
             expiresAt: '2026-11-13T03:00:00.000Z',
           }),
+        ]);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("applies the source's venue aliases and shows both names", async () => {
+      jest.useFakeTimers({ now: noon, doNotFake: ['nextTick', 'setImmediate'] });
+      try {
+        await db
+          .update(contentSources)
+          .set({ venueAliases: [{ raw: 'Der Hirsch', canonical: 'Hirsch' }] })
+          .where(eq(contentSources.id, source.id));
+        await seedEventWithSlide({ title: 'Raw', venue: 'Hirsch' });
+        await seedEventWithSlide({
+          title: 'Aliased',
+          venue: 'Der Hirsch',
+          eventDate: '2026-11-13',
+        });
+        await seedEventWithSlide({ title: 'Elsewhere', venue: 'Z-Bau' });
+
+        const result = await service.preview(orgId, ruleDto({ venues: ['Hirsch'] }));
+
+        expect(result.items.map((item) => [item.title, item.venue, item.venueCanonical])).toEqual([
+          ['Raw', 'Hirsch', 'Hirsch'],
+          ['Aliased', 'Der Hirsch', 'Hirsch'],
         ]);
       } finally {
         jest.useRealTimers();
@@ -509,6 +537,20 @@ describe('PlaylistRuleService', () => {
       await service.onSourceSynced(new ContentSourceSyncedEvent(source.id, orgId));
 
       expect(queue.add).toHaveBeenCalledTimes(1);
+      expect(queue.add).toHaveBeenCalledWith(
+        'resolve',
+        { playlistId: fed.id },
+        expect.objectContaining({ jobId: `resolve-${fed.id}` }),
+      );
+    });
+
+    it('enqueues the dynamic playlists fed by a source whose aliases changed', async () => {
+      const fed = await seedDynamic();
+
+      await service.onVenueAliasesUpdated(
+        new ContentSourceVenueAliasesUpdatedEvent(source.id, orgId),
+      );
+
       expect(queue.add).toHaveBeenCalledWith(
         'resolve',
         { playlistId: fed.id },

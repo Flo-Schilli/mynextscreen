@@ -32,6 +32,16 @@ export interface ContentSourceSyncSummary {
 
 export type ContentSourceParams = Record<string, string | number | boolean>;
 
+/** Raw venue name as the website writes it → name shown and filtered by. One level only. */
+export interface VenueAlias {
+  raw: string;
+  canonical: string;
+}
+
+/** Bounds of the alias list (backend `VenueAliasDto`). */
+export const MAX_VENUE_ALIASES = 200;
+export const MAX_VENUE_NAME_LENGTH = 200;
+
 export interface ContentSource {
   id: string;
   organisationId: string;
@@ -47,6 +57,7 @@ export interface ContentSource {
   lastSyncStatus: ContentSourceSyncStatus | null;
   lastSyncError: string | null;
   lastSyncSummary: ContentSourceSyncSummary | null;
+  venueAliases: VenueAlias[];
   createdAt: string;
   updatedAt: string;
 }
@@ -91,7 +102,10 @@ export interface SourceEvent {
   eventDate: string;
   /** Local start time `HH:MM`, or null. */
   startTime: string | null;
+  /** As the website writes it; the slide shows this. */
   venue: string;
+  /** After the source's aliases; shown and filtered by. */
+  venueCanonical: string;
   city: string | null;
   genres: string[];
   statusLabels: string[];
@@ -103,6 +117,19 @@ export interface SourceEvent {
   slides: SourceEventSlide[];
 }
 
+/** One page of a source's event pool and the number of all matching events. */
+export interface SourceEventsPage {
+  data: SourceEvent[];
+  total: number;
+}
+
+/** A raw venue name of the source's current events. */
+export interface SourceVenue {
+  name: string;
+  canonical: string;
+  events: number;
+}
+
 export interface CreateContentSourceRequest {
   name: string;
   adapterType: string;
@@ -111,6 +138,7 @@ export interface CreateContentSourceRequest {
   style: SlideStyle;
   syncIntervalMinutes: number;
   enabled: boolean;
+  venueAliases?: VenueAlias[];
 }
 
 /** The adapter type is fixed once a source exists. */

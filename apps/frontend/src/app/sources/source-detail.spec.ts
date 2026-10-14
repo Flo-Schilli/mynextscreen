@@ -41,6 +41,7 @@ function buildSource(overrides: Partial<ContentSource> = {}): ContentSource {
     lastSyncAt: '2026-10-14T08:00:00Z',
     lastSyncStatus: 'success',
     lastSyncError: null,
+    venueAliases: [],
     lastSyncSummary: {
       listed: 12,
       created: 2,
@@ -64,6 +65,7 @@ const EVENT: SourceEvent = {
   eventDate: '2026-11-07',
   startTime: '20:00',
   venue: 'Löwensaal',
+  venueCanonical: 'Löwensaal',
   city: 'Nürnberg',
   genres: ['Metal'],
   statusLabels: ['AUSVERKAUFT', 'NEUER TERMIN'],
@@ -78,7 +80,14 @@ const EVENT: SourceEvent = {
 describe('SourceDetail', () => {
   let fixture: ComponentFixture<SourceDetail>;
   let service: Record<
-    'getOne' | 'getAdapters' | 'getEvents' | 'sync' | 'update' | 'delete',
+    | 'getOne'
+    | 'getAdapters'
+    | 'getEvents'
+    | 'getVenues'
+    | 'getFacets'
+    | 'sync'
+    | 'update'
+    | 'delete',
     ReturnType<typeof vi.fn>
   >;
   const canEdit = signal(true);
@@ -120,7 +129,14 @@ describe('SourceDetail', () => {
     service = {
       getOne: vi.fn(() => of(buildSource())),
       getAdapters: vi.fn(() => of([ADAPTER])),
-      getEvents: vi.fn(() => of([EVENT])),
+      getEvents: vi.fn(() => of({ data: [EVENT], total: 1 })),
+      getVenues: vi.fn(() =>
+        of([
+          { name: 'Der Hirsch', canonical: 'Der Hirsch', events: 4 },
+          { name: 'Löwensaal', canonical: 'Löwensaal', events: 1 },
+        ]),
+      ),
+      getFacets: vi.fn(() => of({ venues: ['Löwensaal'], genres: ['Metal'] })),
       sync: vi.fn(() => of({ queued: true })),
       update: vi.fn(() => of(buildSource({ name: 'Renamed' }))),
       delete: vi.fn(() => of(undefined)),
@@ -145,8 +161,64 @@ describe('SourceDetail', () => {
     expect(thumb.getAttribute('src')).toBe('/thumb/c1');
     expect(service.getEvents).toHaveBeenCalledWith('org1', 's1', {
       includeGone: false,
-      limit: 200,
+      limit: 100,
+      offset: 0,
     });
+    expect(service.getFacets).toHaveBeenCalledWith('org1', ['s1']);
+    expect(text()).toContain('1 of 1 events');
+    expect(fixture.nativeElement.querySelector('.pool-more')).toBeNull();
+  });
+
+  it('shows the canonical venue with the website spelling below it', async () => {
+    service.getEvents.mockReturnValue(
+      of({ data: [{ ...EVENT, venue: 'Der Hirsch', venueCanonical: 'Hirsch' }], total: 1 }),
+    );
+    await setUp();
+
+    const cell = fixture.nativeElement.querySelector('.event-row td:nth-child(3)') as HTMLElement;
+    expect(cell.textContent).toContain('Hirsch');
+    expect(cell.querySelector('.venue-raw')?.textContent).toContain('Website: Der Hirsch');
+  });
+
+  it('loads the next page with the same filters and appends it', async () => {
+    service.getEvents.mockReturnValue(of({ data: [EVENT], total: 2 }));
+    await setUp();
+    service.getEvents.mockReturnValue(of({ data: [{ ...EVENT, id: 'e2' }], total: 2 }));
+
+    button('.pool-more').click();
+    fixture.detectChanges();
+
+    expect(service.getEvents).toHaveBeenLastCalledWith('org1', 's1', {
+      includeGone: false,
+      limit: 100,
+      offset: 1,
+    });
+    expect(fixture.nativeElement.querySelectorAll('.event-row')).toHaveLength(2);
+    expect(text()).toContain('2 of 2 events');
+    expect(fixture.nativeElement.querySelector('.pool-more')).toBeNull();
+  });
+
+  it('saves venue aliases on their own and reloads venues and pool', async () => {
+    await setUp();
+    service.update.mockReturnValue(
+      of(buildSource({ venueAliases: [{ raw: 'Der Hirsch', canonical: 'Hirsch' }] })),
+    );
+    service.getEvents.mockClear();
+    service.getVenues.mockClear();
+
+    const input = fixture.nativeElement.querySelector('.alias-canonical') as HTMLInputElement;
+    input.value = 'Hirsch';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    button('.save-aliases').click();
+    await vi.advanceTimersByTimeAsync(0);
+    fixture.detectChanges();
+
+    expect(service.update).toHaveBeenCalledWith('org1', 's1', {
+      venueAliases: [{ raw: 'Der Hirsch', canonical: 'Hirsch' }],
+    });
+    expect(service.getVenues).toHaveBeenCalledTimes(1);
+    expect(service.getEvents).toHaveBeenCalledTimes(1);
   });
 
   it('polls after "sync now" until the sync has finished, then reloads the pool', async () => {
@@ -197,6 +269,10 @@ describe('SourceDetail', () => {
     ) as HTMLButtonElement;
     expect(background.getAttribute('aria-label')).toBe('Background');
     expect(background.disabled).toBe(true);
+    const alias = fixture.nativeElement.querySelector('.alias-canonical') as HTMLInputElement;
+    expect(alias.disabled).toBe(true);
+    expect(fixture.nativeElement.querySelector('.save-aliases')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.alias-add')).toBeNull();
   });
 
   it('labels adapter parameters and the back link in the UI language', async () => {

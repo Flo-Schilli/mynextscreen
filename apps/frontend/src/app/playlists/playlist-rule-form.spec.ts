@@ -46,6 +46,7 @@ function source(id: string, formats: SlideFormat[]): ContentSource {
     lastSyncStatus: null,
     lastSyncError: null,
     lastSyncSummary: null,
+    venueAliases: [],
     createdAt: '',
     updatedAt: '',
   };

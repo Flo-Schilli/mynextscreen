@@ -2252,7 +2252,16 @@
       "gone": "No longer listed",
       "noSlide": "No slide",
       "slideAlt": "Slide {format}",
-      "truncated": "Showing the first {count} events."
+      "allVenues": "All venues",
+      "allGenres": "All genres",
+      "from": "From",
+      "to": "Until",
+      "noMatch": "No events match the filters.",
+      "showing": "{shown} of {total} events",
+      "loadMore": "Load more",
+      "loadingMore": "Loading…",
+      "venueRaw": "Spelling on the website; the slide shows it like this.",
+      "venueRawValue": "Website: {name}"
     },
     "toast": {
       "created": "Source created. The first sync is running.",
@@ -2265,7 +2274,31 @@
       "updateFailed": "Could not save the source.",
       "deleteFailed": "Could not delete the source.",
       "syncFailed": "Could not start the sync.",
-      "eventsFailed": "Could not load the events."
+      "eventsFailed": "Could not load the events.",
+      "aliasesUpdated": "Aliases saved. Dynamic playlists are being recalculated.",
+      "aliasesFailed": "Aliases could not be saved.",
+      "venuesFailed": "Venues could not be loaded."
+    },
+    "aliases": {
+      "title": "Venue aliases",
+      "sub": "Merges the website's spellings into one venue, e.g. “Der Hirsch” → “Hirsch”. Filters, rules and the event pool use the canonical name; the slide keeps the website's spelling.",
+      "empty": "No venues yet. Sync the source to fill the pool.",
+      "raw": "Name on the website",
+      "events": "Events",
+      "canonical": "Canonical name",
+      "canonicalFor": "Canonical name for {name}",
+      "notListed": "not listed right now",
+      "remove": "Remove alias for {name}",
+      "newRaw": "Another spelling",
+      "newCanonical": "Canonical name",
+      "add": "Add alias",
+      "save": "Save aliases",
+      "unsaved": "Unsaved changes",
+      "errors": {
+        "chain": "This name is an alias itself. Pick its canonical name (one level only).",
+        "tooLong": "At most 200 characters."
+      },
+      "keep": "as on the website"
     }
   }
 }

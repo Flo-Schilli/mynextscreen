@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { InjectQueue } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Queue } from 'bullmq';
-import { and, asc, eq, gte, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, eq, gte, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import {
@@ -31,7 +31,9 @@ import {
   CONTENT_SOURCE_REMOVED,
   CONTENT_SOURCE_SYNC_JOB,
   CONTENT_SOURCE_SYNC_QUEUE,
+  CONTENT_SOURCE_VENUE_ALIASES_UPDATED,
   ContentSourceRemovedEvent,
+  ContentSourceVenueAliasesUpdatedEvent,
   cleanupJobId,
   syncJobId,
   type ContentSourceCleanupJobData,
@@ -42,12 +44,22 @@ import {
   type ContentSourceParams,
   type SlideFormat,
 } from './content-source.types';
-import type {
-  CreateContentSourceDto,
-  SourceEventsQueryDto,
-  SourceFacetsQueryDto,
-  UpdateContentSourceDto,
+import {
+  toVenueAliases,
+  type CreateContentSourceDto,
+  type SourceEventsQueryDto,
+  type SourceFacetsQueryDto,
+  type UpdateContentSourceDto,
 } from './dto';
+import {
+  EMPTY_ALIAS_MAP,
+  canonicalVenue,
+  rawVenuesFor,
+  sameVenueAliases,
+  toVenueAliasMap,
+  type VenueAliasMap,
+  type VenueAliasesBySource,
+} from './venue-aliases';
 import { DEFAULT_EVENTS_PAGE } from './dto/source-events-query.dto';
 
 const MS_PER_MINUTE = 60_000;
@@ -62,7 +74,22 @@ export interface SourceEventSlideRef {
 }
 
 export interface SourceEventWithSlides extends SourceEvent {
+  /** `venue` after the source's aliases; `venue` keeps what the website says. */
+  venueCanonical: string;
   slides: SourceEventSlideRef[];
+}
+
+/** One page of a source's event pool plus the number of all matching events. */
+export interface SourceEventsPage {
+  data: SourceEventWithSlides[];
+  total: number;
+}
+
+/** A raw venue name of a source's current events, for the alias editor. */
+export interface SourceVenue {
+  name: string;
+  canonical: string;
+  events: number;
 }
 
 export interface SourceFacets {
@@ -127,6 +154,7 @@ export class ContentSourceService {
         style: dto.style ? { ...dto.style } : DEFAULT_SLIDE_STYLE,
         syncIntervalMinutes: dto.syncIntervalMinutes,
         enabled: dto.enabled,
+        venueAliases: dto.venueAliases ? toVenueAliases(dto.venueAliases) : [],
         // Null means due: the scheduler picks a new source up on its next tick.
         nextSyncAt: null,
       })
@@ -155,6 +183,12 @@ export class ContentSourceService {
     if (dto.style !== undefined) updates.style = { ...dto.style };
     if (dto.enabled !== undefined) updates.enabled = dto.enabled;
     if (
+      dto.venueAliases !== undefined &&
+      !sameVenueAliases(existing.venueAliases, dto.venueAliases)
+    ) {
+      updates.venueAliases = toVenueAliases(dto.venueAliases);
+    }
+    if (
       dto.syncIntervalMinutes !== undefined &&
       dto.syncIntervalMinutes !== existing.syncIntervalMinutes
     ) {
@@ -175,6 +209,12 @@ export class ContentSourceService {
       .returning();
 
     this.audit(AUDIT_CONTENT_SOURCE_UPDATED, saved, userId, { fields: Object.keys(updates) });
+    if (updates.venueAliases) {
+      this.eventEmitter.emit(
+        CONTENT_SOURCE_VENUE_ALIASES_UPDATED,
+        new ContentSourceVenueAliasesUpdatedEvent(id, organisationId),
+      );
+    }
     return saved;
   }
 
@@ -315,12 +355,18 @@ export class ContentSourceService {
     return rows.map((row) => row.id);
   }
 
+  /**
+   * One page of the source's event pool. Venue filters take canonical names;
+   * they are widened to the raw names the aliases map onto them, so the
+   * stored column can be filtered and counted in the database.
+   */
   async listEvents(
     organisationId: string,
     sourceId: string,
     query: SourceEventsQueryDto,
-  ): Promise<SourceEventWithSlides[]> {
-    await this.findOne(organisationId, sourceId);
+  ): Promise<SourceEventsPage> {
+    const source = await this.findOne(organisationId, sourceId);
+    const aliases = toVenueAliasMap(source.venueAliases);
     const conditions: SQL[] = [
       eq(sourceEvents.organisationId, organisationId),
       eq(sourceEvents.sourceId, sourceId),
@@ -328,7 +374,9 @@ export class ContentSourceService {
     if (!query.includeGone) conditions.push(isNull(sourceEvents.goneAt));
     if (query.from) conditions.push(gte(sourceEvents.eventDate, query.from));
     if (query.to) conditions.push(lte(sourceEvents.eventDate, query.to));
-    if (query.venues?.length) conditions.push(inArray(sourceEvents.venue, query.venues));
+    if (query.venues?.length) {
+      conditions.push(inArray(sourceEvents.venue, rawVenuesFor(aliases, query.venues)));
+    }
     if (query.genres?.length) {
       conditions.push(
         sql`${sourceEvents.genres} ?| array[${sql.join(
@@ -337,15 +385,65 @@ export class ContentSourceService {
         )}]::text[]`,
       );
     }
+    const where = and(...conditions);
 
-    const events = await this.db
-      .select()
+    const [events, [{ total }]] = await Promise.all([
+      this.db
+        .select()
+        .from(sourceEvents)
+        .where(where)
+        .orderBy(asc(sourceEvents.startsAt), asc(sourceEvents.title), asc(sourceEvents.id))
+        .limit(query.limit ?? DEFAULT_EVENTS_PAGE)
+        .offset(query.offset ?? 0),
+      this.db.select({ total: count() }).from(sourceEvents).where(where),
+    ]);
+    return {
+      data: await this.attachSlides(events, new Map([[sourceId, aliases]])),
+      total,
+    };
+  }
+
+  /** Raw venue names of the source's current events with their canonical name and event count. */
+  async listVenues(organisationId: string, sourceId: string): Promise<SourceVenue[]> {
+    const source = await this.findOne(organisationId, sourceId);
+    const aliases = toVenueAliasMap(source.venueAliases);
+    const rows = await this.db
+      .select({ name: sourceEvents.venue, events: count() })
       .from(sourceEvents)
-      .where(and(...conditions))
-      .orderBy(asc(sourceEvents.startsAt), asc(sourceEvents.title))
-      .limit(query.limit ?? DEFAULT_EVENTS_PAGE)
-      .offset(query.offset ?? 0);
-    return this.attachSlides(events);
+      .where(
+        and(
+          eq(sourceEvents.organisationId, organisationId),
+          eq(sourceEvents.sourceId, sourceId),
+          isNull(sourceEvents.goneAt),
+        ),
+      )
+      .groupBy(sourceEvents.venue);
+    return rows
+      .filter((row) => row.name !== '')
+      .map((row) => ({
+        name: row.name,
+        canonical: canonicalVenue(aliases, row.name),
+        events: row.events,
+      }))
+      .sort((a, b) => byNatural(a.name, b.name));
+  }
+
+  /** Venue alias maps of some of the organisation's sources, keyed by source id. */
+  async venueAliasesBySource(
+    organisationId: string,
+    sourceIds: readonly string[],
+  ): Promise<VenueAliasesBySource> {
+    if (sourceIds.length === 0) return new Map();
+    const rows = await this.db
+      .select({ id: contentSources.id, venueAliases: contentSources.venueAliases })
+      .from(contentSources)
+      .where(
+        and(
+          eq(contentSources.organisationId, organisationId),
+          inArray(contentSources.id, [...sourceIds]),
+        ),
+      );
+    return new Map(rows.map((row) => [row.id, toVenueAliasMap(row.venueAliases)]));
   }
 
   /**
@@ -358,23 +456,29 @@ export class ContentSourceService {
     fromDate: string,
   ): Promise<SourceEventWithSlides[]> {
     if (sourceIds.length === 0) return [];
-    const events = await this.db
-      .select()
-      .from(sourceEvents)
-      .where(
-        and(
-          eq(sourceEvents.organisationId, organisationId),
-          inArray(sourceEvents.sourceId, sourceIds),
-          isNull(sourceEvents.goneAt),
-          gte(sourceEvents.eventDate, fromDate),
-        ),
-      )
-      .orderBy(asc(sourceEvents.startsAt), asc(sourceEvents.title))
-      .limit(MAX_POOL_EVENTS);
-    return this.attachSlides(events);
+    const [aliases, events] = await Promise.all([
+      this.venueAliasesBySource(organisationId, sourceIds),
+      this.db
+        .select()
+        .from(sourceEvents)
+        .where(
+          and(
+            eq(sourceEvents.organisationId, organisationId),
+            inArray(sourceEvents.sourceId, sourceIds),
+            isNull(sourceEvents.goneAt),
+            gte(sourceEvents.eventDate, fromDate),
+          ),
+        )
+        .orderBy(asc(sourceEvents.startsAt), asc(sourceEvents.title))
+        .limit(MAX_POOL_EVENTS),
+    ]);
+    return this.attachSlides(events, aliases);
   }
 
-  /** Distinct venues and genres of the organisation's current events, for rule pickers. */
+  /**
+   * Distinct venues and genres of the organisation's current events, for rule
+   * pickers. Venues are canonical: an aliased raw name never shows up.
+   */
   async facets(organisationId: string, query: SourceFacetsQueryDto): Promise<SourceFacets> {
     const conditions: SQL[] = [
       eq(sourceEvents.organisationId, organisationId),
@@ -383,10 +487,21 @@ export class ContentSourceService {
     if (query.sourceIds?.length) conditions.push(inArray(sourceEvents.sourceId, query.sourceIds));
 
     const rows = await this.db
-      .select({ venue: sourceEvents.venue, genres: sourceEvents.genres })
+      .select({
+        sourceId: sourceEvents.sourceId,
+        venue: sourceEvents.venue,
+        genres: sourceEvents.genres,
+      })
       .from(sourceEvents)
       .where(and(...conditions));
-    const venues = new Set(rows.map((row) => row.venue).filter((venue) => venue !== ''));
+    const aliases = await this.venueAliasesBySource(organisationId, [
+      ...new Set(rows.map((row) => row.sourceId)),
+    ]);
+    const venues = new Set(
+      rows
+        .filter((row) => row.venue !== '')
+        .map((row) => canonicalVenue(aliases.get(row.sourceId) ?? EMPTY_ALIAS_MAP, row.venue)),
+    );
     const genres = new Set(rows.flatMap((row) => row.genres));
     return {
       venues: [...venues].sort(byNatural),
@@ -394,7 +509,10 @@ export class ContentSourceService {
     };
   }
 
-  private async attachSlides(events: SourceEvent[]): Promise<SourceEventWithSlides[]> {
+  private async attachSlides(
+    events: SourceEvent[],
+    aliases: VenueAliasesBySource,
+  ): Promise<SourceEventWithSlides[]> {
     if (events.length === 0) return [];
     const slides = await this.db
       .select({
@@ -411,8 +529,10 @@ export class ContentSourceService {
           events.map((event) => event.id),
         ),
       );
+    const aliasesOf = (sourceId: string): VenueAliasMap => aliases.get(sourceId) ?? EMPTY_ALIAS_MAP;
     return events.map((event) => ({
       ...event,
+      venueCanonical: canonicalVenue(aliasesOf(event.sourceId), event.venue),
       slides: slides
         .filter((slide) => slide.sourceEventId === event.id)
         .map(({ format, contentId, updatedAt }) => ({ format, contentId, updatedAt })),

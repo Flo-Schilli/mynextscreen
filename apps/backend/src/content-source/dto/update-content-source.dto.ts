@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   ArrayUnique,
   IsArray,
@@ -13,10 +14,12 @@ import {
   MaxLength,
   Min,
   MinLength,
+  Validate,
   ValidateNested,
 } from 'class-validator';
-import { SLIDE_FORMATS, type SlideFormat } from '../content-source.types';
+import { MAX_VENUE_ALIASES, SLIDE_FORMATS, type SlideFormat } from '../content-source.types';
 import { SlideStyleDto } from './slide-style.dto';
+import { VenueAliasDto, VenueAliasListConstraint } from './venue-alias.dto';
 import { SYNC_INTERVAL_MAX_MINUTES, SYNC_INTERVAL_MIN_MINUTES } from './create-content-source.dto';
 
 /** The adapter type is fixed once a source exists; its events depend on it. */
@@ -52,4 +55,13 @@ export class UpdateContentSourceDto {
   @IsOptional()
   @IsBoolean()
   enabled?: boolean;
+
+  /** Replaces the whole alias list; see `VenueAliasDto`. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_VENUE_ALIASES)
+  @ValidateNested({ each: true })
+  @Type(() => VenueAliasDto)
+  @Validate(VenueAliasListConstraint)
+  venueAliases?: VenueAliasDto[];
 }

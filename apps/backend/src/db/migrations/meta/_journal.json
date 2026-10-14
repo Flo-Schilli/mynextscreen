@@ -197,6 +197,13 @@
       "when": 1791991064274,
       "tag": "0027_content_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792004669797,
+      "tag": "0028_content_source_venue_aliases",
+      "breakpoints": true
     }
   ]
 }

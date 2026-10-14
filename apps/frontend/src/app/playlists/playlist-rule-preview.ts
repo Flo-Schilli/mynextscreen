@@ -74,7 +74,7 @@ export type RulePreviewState =
                       @if (item.startTime) {
                         {{ item.startTime }}
                       }
-                      · {{ item.venue }}
+                      · {{ item.venueCanonical }}
                     </div>
                   </div>
                   @if (item.cancelled) {

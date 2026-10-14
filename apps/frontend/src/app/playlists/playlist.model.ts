@@ -76,7 +76,10 @@ export interface RulePreviewItem {
   title: string;
   eventDate: string;
   startTime: string | null;
+  /** As the website writes it; the slide shows this. */
   venue: string;
+  /** After the source's aliases. */
+  venueCanonical: string;
   city: string | null;
   genres: string[];
   statusLabels: string[];
