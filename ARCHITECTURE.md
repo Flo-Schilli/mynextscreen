@@ -143,9 +143,13 @@ playlists (kind=dynamic, rule) ◀──(playlist-resolve: resolve-<playlistId>)
   `paramsSchema` (the dashboard renders the form from it), `validateParams`,
   `listEvents` (listing pages, status, genres) and `fetchDetails` (image, ticket
   link, price from the detail page). Details are fetched only for new events,
-  events whose listing hash changed, or while the image is still missing. A
+  events whose listing hash changed, or while the image is still missing; when
+  they fail, the old hash stays so the next sync fetches them again. A
   listing reports whether it was complete; only a complete listing marks
-  missing events as gone. The registry maps `adapterType` to the adapter.
+  missing events as gone, and only if it shows at least half of the current
+  (not yet past) events. A listing that collapses below that, e.g. a
+  maintenance page served with HTTP 200, marks nothing gone and ends the sync
+  `partial`. The registry maps `adapterType` to the adapter.
 - **HTTP** goes through `SourceHttpClient` only: every URL and redirect hop is
   checked against the adapter's host allowlist and the `OutboundGuard`
   (no private targets), 20 s timeout, 5 MB cap, retries on 5xx, 300 ms pause
@@ -156,7 +160,8 @@ playlists (kind=dynamic, rule) ◀──(playlist-resolve: resolve-<playlistId>)
   whose `renderHash` changed. A new slide becomes managed content via
   `ContentService.createManaged`; a changed one replaces the file under the
   same content id (`replaceManagedFile`), so playlist items stay valid. Both
-  go through the regular quota, magic-byte check and transcoding queue. The
+  go through the regular quota, magic-byte check and transcoding queue. A new
+  slide whose `source_event_slides` row cannot be stored is deleted again. The
   outcome is stored on the source as a summary, audited, and
   `content_source.synced` is emitted.
 - **Slide renderer** (`slide/`) composes an SVG layer (artist, `Sa, 10.10.2026
@@ -172,23 +177,40 @@ playlists (kind=dynamic, rule) ◀──(playlist-resolve: resolve-<playlistId>)
   event expires at the start of the next local day plus `graceHours`.
   `PlaylistRuleService.resolve` writes the result with
   `PlaylistService.replaceItems` (one transaction with row lock, diff against
-  the stored items, `PLAYLIST_UPDATED` only on change) and sets
+  the stored items, `PLAYLIST_UPDATED` only on change; nothing is written when
+  the stored rule no longer equals the one the resolve read) and sets
   `nextResolveAt` to the refresh interval or the earliest expiry of a shown
-  event, whichever comes first.
+  event, whichever comes first. A failed job backs off to the refresh
+  interval; a failed immediate resolve after create or rule update leaves the
+  playlist due.
 - **Triggers**: `content_source.synced` queues a resolve of every dynamic
   playlist fed by that source; `PlaylistRuleScheduler` and
   `ContentSourceScheduler` tick once a minute and queue whatever is due. The
   playlist scheduler lives in the playlist module because playlist depends on
   content-source, not the other way round. BullMQ job ids deduplicate across
-  instances.
+  instances. A request that arrives while the job with that id is running
+  marks the source or playlist due (`nextSyncAt`/`nextResolveAt` = now), and
+  the running job keeps that value instead of writing its own, so the next
+  tick queues it again.
 - **Protection**: dynamic playlists answer `409` on every manual item endpoint
   and on bulk-add; `PATCH /playlists/:id/rule` answers `409` for static ones.
-  The kind is fixed at creation.
-- **Cleanup**: once per UTC day the content-source ticker queues
-  `cleanup-<day>` (kept for two days, so a second instance's add is a no-op).
+  The kind is fixed at creation. Managed slides answer `409` to library
+  delete, re-upload and metadata edits and to adding them to a static
+  playlist (`400` in bulk operations); sources delete them through
+  `ContentService.deleteManaged`.
+- **Removal**: deleting a source locks its row, deletes its slides through
+  `deleteManaged` (files and quota) and then the row; a running sync cannot
+  add a slide meanwhile, its insert waits and fails on the foreign key.
+  Playlists that showed a slide get `PLAYLIST_UPDATED`, and
+  `content_source.removed` drops the source from every dynamic rule and
+  re-resolves those playlists.
+- **Cleanup**: the content-source ticker queues `cleanup-<day>` once per UTC
+  day and adds it again hourly. A finished job is kept for two days, so these
+  adds (also from a second instance) are no-ops; a failed one is removed at
+  once, so the next add retries it.
   `ContentSourceCleanupService` deletes, per organisation, the slides of events
   that ended more than 14 local days ago or are gone, unless a playlist still
-  references them, through `ContentService.delete` (files and quota). Gone
+  references them, through `ContentService.deleteManaged` (files and quota). Gone
   events without slides are removed; past events the site still lists keep
   their row, so the next sync does not re-create them and refetch details.
 - **API**: `content-sources` (CRUD, `POST :id/sync`, `GET :id/events`,
