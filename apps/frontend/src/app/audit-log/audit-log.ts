@@ -353,6 +353,11 @@ export class AuditLog implements OnInit {
       organisation: '/admin/organisations',
     };
 
+    // Sources have their own detail page; the other resources open their list.
+    if (resourceType === 'content_source') {
+      this.router.navigate(['/sources', resourceId]);
+      return;
+    }
     const route = routeMap[resourceType];
     if (route) {
       this.router.navigate([route]);

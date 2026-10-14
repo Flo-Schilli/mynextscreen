@@ -40,6 +40,7 @@ export { EmptyComponent } from './empty.component';
 // Forms
 export { SelectComponent } from './select.component';
 export type { SelectOption } from './select.component';
+export { MultiSelectComponent } from './multi-select.component';
 
 export { SwitchComponent, ToggleRowComponent } from './switch.component';
 export { SInputComponent, SFieldComponent } from './form.component';

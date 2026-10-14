@@ -146,7 +146,8 @@
       "liveStreams": "Live-Streams",
       "auditLog": "Audit-Log",
       "settings": "Einstellungen",
-      "instanceAdmin": "Instanz-Admin"
+      "instanceAdmin": "Instanz-Admin",
+      "sources": "Quellen"
     },
     "sidebar": {
       "collapse": "Seitenleiste einklappen",
@@ -643,7 +644,8 @@
       "createFirst": "Erste Playlist erstellen",
       "items": "{count, plural, one {# Element} other {# Elemente}}",
       "default": "Standard",
-      "emptyPlaylist": "Leere Playlist"
+      "emptyPlaylist": "Leere Playlist",
+      "dynamic": "Dynamisch"
     },
     "create": {
       "title": "Neue Playlist",
@@ -652,7 +654,20 @@
       "accentColor": "Akzentfarbe",
       "setAccentColor": "Akzentfarbe {color} setzen",
       "creating": "Wird erstellt…",
-      "createPlaylist": "Playlist erstellen"
+      "createPlaylist": "Playlist erstellen",
+      "kindLabel": "Typ",
+      "kindStatic": "Statisch",
+      "kindStaticDesc": "Inhalte von Hand zusammenstellen",
+      "kindDynamic": "Dynamisch",
+      "kindDynamicDesc": "Events aus Quellen per Regel, aktualisiert sich selbst",
+      "sourcesLabel": "Quellen",
+      "sourcesPlaceholder": "Quellen wählen",
+      "formatLabel": "Format",
+      "ruleHint": "Filter, Zeitraum und Darstellung stellst du danach in der Regel ein.",
+      "noSources": "Lege zuerst eine Inhaltsquelle an.",
+      "goToSources": "Zu den Quellen",
+      "sourcesRequired": "Wähle mindestens eine Quelle.",
+      "formatRequired": "Keine der gewählten Quellen rendert ein Format."
     },
     "delete": {
       "title": "Playlist löschen",
@@ -701,7 +716,8 @@
         "applyDurationAria": "Dauer auf alle Bilder anwenden",
         "applyTransitionAria": "Übergang auf alle Elemente anwenden",
         "applyTransitionMsAria": "Übergangsdauer auf alle Elemente anwenden"
-      }
+      },
+      "dynamic": "Dynamisch"
     },
     "transition": {
       "cut": "Hart",
@@ -773,7 +789,8 @@
       "linkCopied": "Link in die Zwischenablage kopiert.",
       "linkCopyFailed": "Link konnte nicht kopiert werden.",
       "itemsAdded": "{count, plural, one {# Element zur Playlist hinzugefügt.} other {# Elemente zur Playlist hinzugefügt.}}",
-      "appliedToAll": "{count, plural, one {Auf # Element angewendet.} other {Auf # Elemente angewendet.}}"
+      "appliedToAll": "{count, plural, one {Auf # Element angewendet.} other {Auf # Elemente angewendet.}}",
+      "ruleSaved": "Regel gespeichert"
     },
     "errors": {
       "loadPlaylists": "Playlists konnten nicht geladen werden.",
@@ -790,6 +807,93 @@
       "reorderItems": "Elemente konnten nicht neu geordnet werden.",
       "loadScreens": "Bildschirme konnten nicht geladen werden.",
       "applyToAll": "Einstellung konnte nicht auf alle Elemente angewendet werden."
+    },
+    "rule": {
+      "title": "Regel",
+      "sub": "Die Playlist wird automatisch aus dem Event-Pool berechnet",
+      "readOnly": "Nur Admins und Editoren können die Regel ändern.",
+      "sourcesSection": "Quellen & Filter",
+      "dateSection": "Zeitraum",
+      "displaySection": "Menge & Darstellung",
+      "sourcesLabel": "Quellen",
+      "sourcesPlaceholder": "Quellen wählen",
+      "genresLabel": "Genres",
+      "genresPlaceholder": "Alle Genres",
+      "genreMatch": {
+        "any": "Mindestens eines",
+        "all": "Alle zugleich"
+      },
+      "venuesLabel": "Spielorte",
+      "venuesPlaceholder": "Alle Spielorte",
+      "dateFromLabel": "Von",
+      "dateToLabel": "Bis",
+      "dateFromMode": {
+        "today": "Heute",
+        "fixed": "Datum",
+        "relativeDays": "In X Tagen"
+      },
+      "dateToMode": {
+        "none": "Offen",
+        "fixed": "Datum",
+        "relativeDays": "In X Tagen"
+      },
+      "daysLabel": "Tage ab heute",
+      "excludeCancelled": "Abgesagte ausblenden",
+      "excludeSoldOut": "Ausverkaufte ausblenden",
+      "sortLabel": "Sortierung",
+      "sort": {
+        "date_asc": "Nächste zuerst",
+        "date_desc": "Späteste zuerst"
+      },
+      "limit": "Maximal Events",
+      "graceHours": "Nachlauf (Std.)",
+      "graceHoursHint": "So lange bleibt ein Event nach Ende seines Tages in der Playlist.",
+      "refreshInterval": "Neuberechnung (Min.)",
+      "itemDuration": "Dauer pro Slide (s)",
+      "formatLabel": "Format",
+      "transitionLabel": "Übergang",
+      "transitionMsLabel": "Übergangsdauer (ms)",
+      "save": "Regel speichern",
+      "saving": "Wird gespeichert…",
+      "discard": "Verwerfen",
+      "missingSources": "{count, plural, one {Eine gelöschte Quelle wurde} other {# gelöschte Quellen wurden}} aus der Auswahl entfernt. Speichere, um die Regel zu bereinigen.",
+      "lastResolved": "Zuletzt berechnet {date}",
+      "nextResolve": "Nächste Berechnung {date}",
+      "errors": {
+        "sourcesRequired": "Wähle mindestens eine Quelle.",
+        "tooManySources": "Höchstens 20 Quellen.",
+        "formatRequired": "Keine der gewählten Quellen rendert ein Format.",
+        "dateFromInvalid": "Das Startdatum ist ungültig.",
+        "dateToInvalid": "Das Enddatum ist ungültig.",
+        "dateRangeInvalid": "Das Enddatum liegt vor dem Startdatum.",
+        "numberOutOfRange": "Ein Wert liegt außerhalb des erlaubten Bereichs.",
+        "saveFailed": "Regel konnte nicht gespeichert werden.",
+        "sourcesMissing": "Eine gewählte Quelle existiert nicht mehr. Die Auswahl wurde bereinigt.",
+        "loadSources": "Quellen konnten nicht geladen werden."
+      },
+      "preview": {
+        "title": "Vorschau",
+        "sub": "{count, plural, =0 {Keine Events} one {# Event} other {# Events}} · {duration} pro Durchlauf",
+        "loading": "Vorschau wird berechnet…",
+        "empty": "Die Regel trifft gerade auf kein Event zu.",
+        "failed": "Vorschau fehlgeschlagen.",
+        "invalid": "Vervollständige die Regel, um eine Vorschau zu sehen.",
+        "expires": "bis {date}",
+        "cancelled": "Abgesagt",
+        "soldOut": "Ausverkauft"
+      },
+      "summary": {
+        "allGenres": "Alle Genres",
+        "allVenues": "Alle Spielorte",
+        "fromToday": "ab heute",
+        "fromDate": "ab {date}",
+        "fromDays": "{days, plural, =0 {ab heute} one {ab morgen} other {ab in # Tagen}}",
+        "toDate": "bis {date}",
+        "toDays": "{days, plural, =0 {bis heute} one {bis morgen} other {bis in # Tagen}}",
+        "withoutCancelled": "ohne abgesagte",
+        "withoutSoldOut": "ohne ausverkaufte",
+        "limit": "max. {limit}"
+      }
     }
   },
   "schedules": {
@@ -1450,7 +1554,14 @@
       "auth.password_changed": "Passwort geändert",
       "auth.super_admin_setup": "Instanz-Einrichtung (Super-Admin)",
       "email.sent": "E-Mail gesendet",
-      "email.send_failed": "E-Mail-Versand fehlgeschlagen"
+      "email.send_failed": "E-Mail-Versand fehlgeschlagen",
+      "playlist.rule_updated": "Playlist-Regel geändert",
+      "playlist.resolved": "Dynamische Playlist neu berechnet",
+      "content_source.created": "Inhaltsquelle angelegt",
+      "content_source.updated": "Inhaltsquelle geändert",
+      "content_source.deleted": "Inhaltsquelle gelöscht",
+      "content_source.synced": "Inhaltsquelle synchronisiert",
+      "content_source.sync_failed": "Sync der Inhaltsquelle fehlgeschlagen"
     }
   },
   "notifications": {
@@ -1823,6 +1934,12 @@
     "timeInput": {
       "placeholder": "HH:MM",
       "invalid": "Keine gültige Uhrzeit"
+    },
+    "multiSelect": {
+      "placeholder": "Alle",
+      "selected": "{count} ausgewählt",
+      "clear": "Auswahl aufheben",
+      "noOptions": "Keine Optionen"
     }
   },
   "admin": {
@@ -2038,6 +2155,114 @@
         "loadFailed": "Audit-Log konnte nicht geladen werden.",
         "loadMoreFailed": "Weitere Einträge konnten nicht geladen werden."
       }
+    }
+  },
+  "sources": {
+    "list": {
+      "title": "Inhaltsquellen",
+      "subtitle": "Veranstaltungsseiten, aus denen automatisch Slides entstehen",
+      "count": "{count, plural, one {# Quelle} other {# Quellen}}",
+      "add": "Quelle hinzufügen",
+      "loading": "Quellen werden geladen…",
+      "emptyTitle": "Noch keine Quellen",
+      "emptyDesc": "Lege eine Quelle an, um Events einer Website als Slides in dynamische Playlists zu bringen.",
+      "lastSync": "Letzter Sync",
+      "nextSync": "Nächster Sync",
+      "never": "Nie",
+      "paused": "Pausiert",
+      "formats": "Formate"
+    },
+    "status": {
+      "running": "Läuft",
+      "success": "Erfolgreich",
+      "partial": "Teilweise",
+      "failed": "Fehlgeschlagen",
+      "never": "Noch nie synchronisiert"
+    },
+    "form": {
+      "nameLabel": "Name",
+      "namePlaceholder": "z. B. Concertbüro Franken",
+      "adapterLabel": "Website",
+      "adapterFixed": "Die Website lässt sich nach dem Anlegen nicht mehr ändern.",
+      "paramHint": "{min}–{max}",
+      "formatsLabel": "Slide-Formate",
+      "formatsHint": "Pro Event und Format entsteht ein Slide.",
+      "backgroundLabel": "Hintergrund",
+      "background": {
+        "black": "Schwarz",
+        "blur": "Unscharfes Bild"
+      },
+      "accentLabel": "Akzentfarbe",
+      "accentHint": "Farbe des Status-Badges auf dem Slide",
+      "intervalLabel": "Sync-Intervall (Minuten)",
+      "intervalHint": "{min}–{max} Minuten",
+      "enabledLabel": "Aktiv",
+      "enabledDesc": "Synchronisiert automatisch im eingestellten Intervall",
+      "noAdapters": "Keine Websites verfügbar",
+      "errors": {
+        "nameRequired": "Gib einen Namen an (max. 200 Zeichen).",
+        "adapterRequired": "Wähle eine Website.",
+        "paramOutOfRange": "Ein Parameter liegt außerhalb des erlaubten Bereichs.",
+        "formatRequired": "Wähle mindestens ein Format.",
+        "accentColorInvalid": "Die Akzentfarbe muss ein Hex-Wert wie #e30613 sein.",
+        "intervalOutOfRange": "Das Intervall muss zwischen 15 und 10080 Minuten liegen."
+      }
+    },
+    "create": {
+      "title": "Neue Quelle",
+      "submit": "Quelle anlegen",
+      "creating": "Wird angelegt…"
+    },
+    "detail": {
+      "loading": "Quelle wird geladen…",
+      "notFound": "Quelle nicht gefunden.",
+      "syncNow": "Jetzt synchronisieren",
+      "syncing": "Synchronisiert…",
+      "settingsTitle": "Einstellungen",
+      "settingsSub": "Website, Formate, Stil und Intervall",
+      "readOnly": "Nur Admins und Editoren können Quellen ändern.",
+      "save": "Speichern",
+      "saving": "Wird gespeichert…",
+      "lastSync": "Letzter Sync {date}",
+      "neverSynced": "Noch nie synchronisiert",
+      "nextSync": "Nächster Sync {date}",
+      "nextSyncDue": "Nächster Sync beim nächsten Durchlauf",
+      "summary": "{listed} gelistet · {created} neu · {updated} geändert · {gone} entfernt · {rendered} gerendert · {failed} Fehler",
+      "syncError": "Fehler: {error}",
+      "deleteTitle": "Quelle löschen",
+      "deleteConfirm": "„{name}“ und ihr Event-Pool werden gelöscht. Dynamische Playlists mit dieser Quelle zeigen danach keine Events mehr daraus."
+    },
+    "events": {
+      "title": "Event-Pool",
+      "count": "{count, plural, =0 {Keine Events} one {# Event} other {# Events}}",
+      "includeGone": "Nicht mehr gelistete zeigen",
+      "date": "Datum",
+      "artist": "Künstler",
+      "venue": "Spielort",
+      "genres": "Genres",
+      "status": "Status",
+      "slides": "Slides",
+      "loading": "Events werden geladen…",
+      "empty": "Noch keine Events. Synchronisiere die Quelle, um den Pool zu füllen.",
+      "cancelled": "Abgesagt",
+      "soldOut": "Ausverkauft",
+      "gone": "Nicht mehr gelistet",
+      "noSlide": "Kein Slide",
+      "slideAlt": "Slide {format}",
+      "truncated": "Angezeigt werden die ersten {count} Events."
+    },
+    "toast": {
+      "created": "Quelle angelegt. Der erste Sync läuft.",
+      "updated": "Quelle gespeichert",
+      "deleted": "Quelle gelöscht",
+      "syncQueued": "Sync gestartet",
+      "syncFinished": "Sync abgeschlossen",
+      "loadFailed": "Quellen konnten nicht geladen werden.",
+      "createFailed": "Quelle konnte nicht angelegt werden.",
+      "updateFailed": "Quelle konnte nicht gespeichert werden.",
+      "deleteFailed": "Quelle konnte nicht gelöscht werden.",
+      "syncFailed": "Sync konnte nicht gestartet werden.",
+      "eventsFailed": "Events konnten nicht geladen werden."
     }
   }
 }

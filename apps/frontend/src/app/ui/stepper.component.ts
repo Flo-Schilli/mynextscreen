@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
 import { TranslocoDirective } from '@jsverse/transloco';
 
 /**
- * Labelled −/+ numeric stepper bounded by `min`/`max`. Signal-model only:
+ * Labelled −/+ numeric stepper bounded by `min`/`max`, moving by `step`. Signal-model only:
  * bind with `[(value)]` and/or listen to `(changed)`.
  *
  * @example
@@ -27,7 +27,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
         >
           −
         </button>
-        <span class="mono w-8 text-center font-bold text-sm">{{ value() }}</span>
+        <span class="mono min-w-8 px-1 text-center font-bold text-sm">{{ value() }}</span>
         <button
           type="button"
           class="grid place-items-center w-8 h-8 text-muted text-lg font-bold transition-colors duration-[120ms] hover:bg-hover disabled:opacity-40 disabled:cursor-not-allowed"
@@ -47,15 +47,17 @@ export class StepperComponent {
   readonly value = model<number>(1);
   readonly min = input<number>(1);
   readonly max = input<number>(4);
+  /** Amount one click adds or removes. */
+  readonly step = input<number>(1);
 
   readonly canDec = computed(() => this.value() > this.min());
   readonly canInc = computed(() => this.value() < this.max());
 
   dec(): void {
-    this.value.set(Math.max(this.min(), this.value() - 1));
+    this.value.set(Math.max(this.min(), this.value() - this.step()));
   }
 
   inc(): void {
-    this.value.set(Math.min(this.max(), this.value() + 1));
+    this.value.set(Math.min(this.max(), this.value() + this.step()));
   }
 }
