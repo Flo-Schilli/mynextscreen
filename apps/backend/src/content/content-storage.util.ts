@@ -90,18 +90,6 @@ export async function removeOrganisationMedia(
  */
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/**
- * Guards a path segment that must be a bare UUID before it reaches the
- * filesystem. Throws on anything else so a tainted id can never traverse or
- * escape the media tree.
- */
-function assertUuidSegment(value: string, label: string): string {
-  if (!UUID_PATTERN.test(value)) {
-    throw new Error(`Invalid ${label}: expected a UUID`);
-  }
-  return value;
-}
-
 /** Infix that marks a file a running transcode job writes before it goes live. */
 const STAGING_INFIX = '.next-';
 
@@ -126,8 +114,15 @@ export async function removeStagingFiles(
   organisationId: string,
   contentId: string,
 ): Promise<void> {
-  assertUuidSegment(organisationId, 'organisationId');
-  assertUuidSegment(contentId, 'contentId');
+  // Both ids are DB UUIDs; reject anything else inline (a local regex barrier,
+  // so the taint tracker also sees the values are safe) before they reach the
+  // filesystem and could traverse or escape the media tree.
+  if (!UUID_PATTERN.test(organisationId)) {
+    throw new Error('Invalid organisationId: expected a UUID');
+  }
+  if (!UUID_PATTERN.test(contentId)) {
+    throw new Error('Invalid contentId: expected a UUID');
+  }
   const dir = path.join(basePath, organisationId, 'transcoded');
   let entries: string[];
   try {
