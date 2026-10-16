@@ -82,6 +82,26 @@ export async function removeOrganisationMedia(
   }
 }
 
+/**
+ * The hex-grouped shape of a DB UUID. Every `organisationId`/`contentId` is a
+ * UUID, so a value that fails this is never a legitimate id — anchoring to this
+ * allowlist keeps attacker controlled path separators or `..` segments out of
+ * filesystem operations.
+ */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Guards a path segment that must be a bare UUID before it reaches the
+ * filesystem. Throws on anything else so a tainted id can never traverse or
+ * escape the media tree.
+ */
+function assertUuidSegment(value: string, label: string): string {
+  if (!UUID_PATTERN.test(value)) {
+    throw new Error(`Invalid ${label}: expected a UUID`);
+  }
+  return value;
+}
+
 /** Infix that marks a file a running transcode job writes before it goes live. */
 const STAGING_INFIX = '.next-';
 
@@ -106,6 +126,8 @@ export async function removeStagingFiles(
   organisationId: string,
   contentId: string,
 ): Promise<void> {
+  assertUuidSegment(organisationId, 'organisationId');
+  assertUuidSegment(contentId, 'contentId');
   const dir = path.join(basePath, organisationId, 'transcoded');
   let entries: string[];
   try {

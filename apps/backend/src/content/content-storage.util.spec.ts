@@ -5,6 +5,7 @@ import {
   getOriginalPath,
   getTranscodedPath,
   removeOrganisationMedia,
+  removeStagingFiles,
 } from './content-storage.util';
 import * as path from 'path';
 
@@ -68,6 +69,46 @@ describe('content-storage.util', () => {
       ]);
 
       expect(existsSync(outsider)).toBe(true);
+    });
+  });
+
+  describe('removeStagingFiles', () => {
+    const orgId = '11111111-1111-1111-1111-111111111111';
+    const id = '22222222-2222-2222-2222-222222222222';
+
+    it('removes only the staging files for the content item', async () => {
+      const base = await mkdtemp(path.join(tmpdir(), 'mynextscreen-staging-'));
+      const transcoded = path.join(base, orgId, 'transcoded');
+      await mkdir(transcoded, { recursive: true });
+      const staged = path.join(transcoded, `${id}.next-abc.mp4`);
+      const stagedThumb = path.join(transcoded, `${id}_thumb.next-abc.webp`);
+      const live = path.join(transcoded, `${id}.mp4`);
+      const other = path.join(transcoded, `${contentId}.next-xyz.mp4`);
+      await Promise.all([staged, stagedThumb, live, other].map((file) => writeFile(file, 'x')));
+
+      await removeStagingFiles(base, orgId, id);
+
+      expect(existsSync(staged)).toBe(false);
+      expect(existsSync(stagedThumb)).toBe(false);
+      expect(existsSync(live)).toBe(true);
+      expect(existsSync(other)).toBe(true);
+    });
+
+    it('is a no-op when the transcoded directory is missing', async () => {
+      const base = await mkdtemp(path.join(tmpdir(), 'mynextscreen-staging-'));
+      await expect(removeStagingFiles(base, orgId, id)).resolves.toBeUndefined();
+    });
+
+    it('rejects a non-UUID organisationId before touching the filesystem', async () => {
+      await expect(removeStagingFiles('/data/media', '../../etc', id)).rejects.toThrow(
+        /Invalid organisationId/,
+      );
+    });
+
+    it('rejects a non-UUID contentId before touching the filesystem', async () => {
+      await expect(removeStagingFiles('/data/media', orgId, '../escape')).rejects.toThrow(
+        /Invalid contentId/,
+      );
     });
   });
 });
