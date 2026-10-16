@@ -81,3 +81,56 @@ export async function removeOrganisationMedia(
     await fs.rm(resolved, { force: true });
   }
 }
+
+/**
+ * The hex-grouped shape of a DB UUID. Every `organisationId`/`contentId` is a
+ * UUID, so a value that fails this is never a legitimate id — anchoring to this
+ * allowlist keeps attacker controlled path separators or `..` segments out of
+ * filesystem operations.
+ */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Infix that marks a file a running transcode job writes before it goes live. */
+const STAGING_INFIX = '.next-';
+
+/**
+ * Where a transcode job writes a file before it replaces the live one:
+ * `{contentId}.mp4` becomes `{contentId}.next-{token}.mp4`. The extension stays
+ * last so FFmpeg still picks the container from it, and the base name no
+ * longer equals the content id, so the media endpoint never serves it.
+ */
+export function getStagingPath(livePath: string, token: string): string {
+  const { dir, name, ext } = path.parse(livePath);
+  return path.join(dir, `${name}${STAGING_INFIX}${token}${ext}`);
+}
+
+/**
+ * Removes staging files a transcode job left behind for a content item
+ * (deleted mid-transcode, or a worker that died). Best-effort: a missing
+ * directory means there is nothing to clean up.
+ */
+export async function removeStagingFiles(
+  basePath: string,
+  organisationId: string,
+  contentId: string,
+): Promise<void> {
+  // Both ids are DB UUIDs; reject anything else inline (a local regex barrier,
+  // so the taint tracker also sees the values are safe) before they reach the
+  // filesystem and could traverse or escape the media tree.
+  if (!UUID_PATTERN.test(organisationId)) {
+    throw new Error('Invalid organisationId: expected a UUID');
+  }
+  if (!UUID_PATTERN.test(contentId)) {
+    throw new Error('Invalid contentId: expected a UUID');
+  }
+  const dir = path.join(basePath, organisationId, 'transcoded');
+  let entries: string[];
+  try {
+    entries = await fs.readdir(dir);
+  } catch {
+    return;
+  }
+  const prefixes = [`${contentId}${STAGING_INFIX}`, `${contentId}_thumb${STAGING_INFIX}`];
+  const staged = entries.filter((entry) => prefixes.some((prefix) => entry.startsWith(prefix)));
+  await Promise.all(staged.map((entry) => fs.rm(path.join(dir, entry), { force: true })));
+}

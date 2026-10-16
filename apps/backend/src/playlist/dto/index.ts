@@ -7,3 +7,4 @@ export { BulkAssignScreenDto } from './bulk-assign-screen.dto';
 export { UpdatePlaylistItemDto } from './update-playlist-item.dto';
 export { AddPlaylistItemsDto, NewPlaylistItemDto } from './add-playlist-items.dto';
 export { UpdateAllPlaylistItemsDto } from './update-all-playlist-items.dto';
+export { PlaylistRuleDto, toPlaylistRule } from './playlist-rule.dto';

@@ -1,0 +1,1 @@
+ALTER TABLE "content_sources" ADD COLUMN "venue_aliases" jsonb DEFAULT '[]'::jsonb NOT NULL;

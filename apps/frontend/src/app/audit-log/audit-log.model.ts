@@ -64,6 +64,13 @@ export const AUDIT_ACTIONS = [
   'content.bulk_added_to_playlist',
   'playlist.bulk_deleted',
   'playlist.bulk_screen_assigned',
+  'playlist.rule_updated',
+  'playlist.resolved',
+  'content_source.created',
+  'content_source.updated',
+  'content_source.deleted',
+  'content_source.synced',
+  'content_source.sync_failed',
 ];
 
 export const RESOURCE_TYPES = [
@@ -75,6 +82,7 @@ export const RESOURCE_TYPES = [
   'organisation',
   'screen-group',
   'live-stream',
+  'content_source',
 ];
 
 /**

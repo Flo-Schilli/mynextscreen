@@ -61,4 +61,39 @@ describe('StepperComponent', () => {
     expect(component.value()).toBe(4);
     expect(buttons()[1].disabled).toBe(true);
   });
+
+  it('moves by step and clamps the last step to the bounds', async () => {
+    await setUp(10, 5, 22);
+    fixture.componentRef.setInput('step', 5);
+    component.inc();
+    expect(component.value()).toBe(15);
+    component.inc();
+    expect(component.value()).toBe(20);
+    component.inc();
+    expect(component.value()).toBe(22);
+    component.dec();
+    component.dec();
+    component.dec();
+    component.dec();
+    expect(component.value()).toBe(5);
+  });
+
+  it('snaps a value off the step grid onto it', async () => {
+    await setUp(31, 1, 200);
+    fixture.componentRef.setInput('step', 5);
+    component.dec();
+    expect(component.value()).toBe(30);
+    component.value.set(31);
+    component.inc();
+    expect(component.value()).toBe(35);
+  });
+
+  it('snaps down to the min when the grid lies below it', async () => {
+    await setUp(5, 1, 200);
+    fixture.componentRef.setInput('step', 5);
+    component.dec();
+    expect(component.value()).toBe(1);
+    component.inc();
+    expect(component.value()).toBe(5);
+  });
 });

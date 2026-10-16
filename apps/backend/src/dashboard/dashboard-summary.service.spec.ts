@@ -6,6 +6,7 @@ import { contents, organisations, playlists, scheduleEntries, screens } from '..
 import { ContentType } from '../content/content-type.enum';
 import { TranscodingStatus } from '../content/transcoding-status.enum';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import { seedContentSource } from '../test/content-source-seed';
 import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('DashboardSummaryService', () => {
@@ -122,6 +123,26 @@ describe('DashboardSummaryService', () => {
     expect(failed).toBeDefined();
     expect(failed?.tone).toBe('warn');
     expect(failed?.title).toBe('Transcoding failed');
+  });
+
+  it('leaves content managed by a content source out of the library counters', async () => {
+    const source = await seedContentSource(db, orgId);
+    await insertContent(TranscodingStatus.Completed);
+    await db.insert(contents).values({
+      organisationId: orgId,
+      title: 'Slide',
+      type: ContentType.Image,
+      originalFilename: 'slide.jpg',
+      originalMimeType: 'image/jpeg',
+      originalSizeBytes: 1000,
+      transcodingStatus: TranscodingStatus.Failed,
+      managedBySourceId: source.id,
+    });
+
+    const summary = await service.getSummary(orgId);
+
+    expect(summary.content.count).toBe(1);
+    expect(summary.alerts.find((a) => a.id === 'transcode:failed')).toBeUndefined();
   });
 
   it('raises a backlog alert only once the pending queue reaches the threshold', async () => {

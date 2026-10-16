@@ -66,6 +66,17 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 - Ordered list of content items from the library
 - Each item has a **display duration** (relevant for images; videos play their full length)
 - Playlists are reusable and can be assigned to multiple screens or groups
+- A playlist is either **static** (items picked by hand) or **dynamic** (items follow a rule over a content source's event pool, see below). The kind is chosen at creation and cannot be changed afterwards
+
+### Content Sources & Dynamic Playlists
+
+- A **content source** scrapes a website on an interval (default every 6 hours, 15 minutes to 7 days) into a per-source **event pool**: artist, date and start time, venue, genres, status (cancelled, sold out, moved, new date), image, ticket link and price. One **adapter** per website; the first one covers concertbuero-franken.de
+- For each event the server renders a **slide** per configured format (1920×1080, 1080×1920, 3840×2160): event image, artist, weekday and date, venue, **status badges** in the source's accent colour (moved, new date, sold out stacked together; cancelled alone) and a **QR code** to the ticket shop (left out when sold out, cancelled or without a link). Background per source: black bars or a blurred copy of the image
+- Websites spell venues inconsistently ("Hirsch" / "Der Hirsch", "Z-Bau" / "Z-Bau Galerie"). Each source keeps **venue aliases** that map a raw name to a canonical one (one level, no chains). Facets, the event pool, its filters, rules, previews and rule summaries use the canonical name; the slide keeps the website's spelling. Changing the aliases recalculates the dynamic playlists fed by that source
+- Slides are regular content items under the hood, transcoded and counted against the storage limit, but they are **hidden** from the content library, search, bulk operations and the dashboard counters; the source owns their lifecycle. A changed event is re-rendered under the same content id
+- A **dynamic playlist** holds a rule instead of hand-picked items: sources, genres (any/all), venues, date window (from today / a fixed date / N days ahead, until open / a fixed date / N days ahead), exclude cancelled or sold-out events, sort order, limit, slide format, item duration and transition. The editor shows a live preview and a plain-language summary of the rule
+- The rule keeps itself current: after every sync, on its refresh interval (default 15 minutes) and the moment a shown event expires. An event drops out at the end of its local event day plus a per-playlist **grace period** (default 4 hours), in the organisation's time zone. Its items cannot be edited by hand
+- Slides of events that ended more than 14 days ago, or that the source no longer lists, are deleted once a day when no playlist shows them, which frees their storage
 
 ### Schedules
 
@@ -135,6 +146,10 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
   - Detail view: preview, metadata editing, transcoding status, file sizes (original + transcoded)
 - **Playlists** — list of playlists
   - Playlist editor: drag-and-drop reordering of items, per-item duration input, total duration display, inline preview
+  - Dynamic playlists: rule editor (sources, genres, venues, date window, exclusions, limit, format) with live preview instead of the item list
+- **Sources** — content sources with the state of their last sync
+  - Form: adapter and its parameters, slide formats, style (background, accent colour), sync interval, enabled
+  - Detail view: "sync now", venue aliases (every raw venue name of the current events with its canonical name, plus aliases for spellings not listed right now; read-only for viewers) and the event pool with status badges and slide thumbnails, filterable by venue, genre and date, paged with "load more" and a total count
 - **Schedules** — calendar view (day / week / month)
   - Drag-and-drop playlist blocks onto time slots per screen or group
   - Colour-coded by playlist, visual gap detection (shows where fallback would activate)

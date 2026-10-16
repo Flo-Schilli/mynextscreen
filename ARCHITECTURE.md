@@ -47,10 +47,11 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
 | **UserModule**           | User-org membership, role assignment, notification preferences                                                                                     |
 | **ScreenModule**         | Pairing and re-pairing, screen sessions (rotating refresh tokens), heartbeat tracking, online/offline status                                       |
 | **ScreenGroupModule**    | Group management, mirror/split mode config, grid layout for video walls                                                                            |
-| **SiteAgentModule**      | On-premise agents: enrolment, rotating sessions, per-screen remote-control settings, command channel and telemetry |
+| **SiteAgentModule**      | On-premise agents: enrolment, rotating sessions, per-screen remote-control settings, command channel and telemetry                                 |
 | **ContentModule**        | Upload handling, metadata CRUD, storage tracking, triggers transcoding jobs                                                                        |
 | **TranscodingModule**    | BullMQ workers: video → H.264 MP4, image → WebP (JPEG fallback), storage accounting                                                                |
-| **PlaylistModule**       | Playlist CRUD, ordered items with per-item duration                                                                                                |
+| **PlaylistModule**       | Playlist CRUD, ordered items with per-item duration; dynamic playlists: rule DTO, pure resolver, `playlist-resolve` queue, rule scheduler          |
+| **ContentSourceModule**  | Website adapters, guarded HTTP client, `content-source-sync` queue (sync + daily cleanup), slide renderer (sharp), event pool + facets API         |
 | **ScheduleModule**       | Calendar-based schedule CRUD, recurring rules (RRULE/iCal standard), conflict detection (no overlaps), fallback resolution                         |
 | **LiveStreamModule**     | Stream URL management, FFmpeg process lifecycle, override/fallback logic                                                                           |
 | **ScreenProtocolModule** | Protocol abstraction layer; JSON adapter (first), renders screen state for pull + SSE push                                                         |
@@ -67,16 +68,22 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
   {MEDIA_BASE_PATH}/{organisationId}/originals/{contentId}.{ext}
   {MEDIA_BASE_PATH}/{organisationId}/transcoded/{contentId}.{ext}
   ```
-- **Redis** — BullMQ job queue for transcoding jobs plus _user_ refresh tokens; no other application data
+- **Redis** — BullMQ job queues (transcoding, slicing, content-source sync/cleanup, playlist resolve) plus _user_ refresh tokens; no other application data
 - **Screen sessions live in PostgreSQL**, not Redis, and deliberately so: Redis runs without `appendonly`, and a lost snapshot window would leave every screen that rotated inside it holding a token the server has never seen. With no credential left on the device, that is a visit per display
 - **Storage tracking** — per-organisation byte counters for originals and transcoded files, checked on upload against configurable limits
+- **Content-source tables** (migrations `0027_content_sources`, `0028_content_source_venue_aliases`):
+  - `content_sources` — adapter type + params (jsonb), slide `formats` and `style`, `syncIntervalMinutes`, `enabled`, `nextSyncAt`, last sync status/error/summary, `venueAliases` (jsonb `{ raw, canonical }[]`)
+  - `source_events` — one row per scraped event, unique on `(sourceId, externalId)`; listing data, details (`imageUrl`, `ticketUrl`, `priceCents`, `currency`), `dataHash` for change detection, `firstSeenAt`/`lastSeenAt`, `goneAt` when no longer listed
+  - `source_event_slides` — rendered slide per `(sourceEventId, format)`, pointing at a content row, with the `renderHash` of everything it shows
+  - `contents.managedBySourceId` — set on slides; such content is hidden from library, search, bulk operations and dashboard counters (storage totals still include it)
+  - `playlists.kind` (`static` | `dynamic`), `rule` (jsonb), `nextResolveAt`, `lastResolvedAt`
 
 ## Site Agents
 
 An LG consumer TV has no autostart and its Developer Mode session expires — and
 when it does, the set deletes the installed app. The server cannot act on either
-from outside the venue, and the player heartbeat alone cannot tell *the TV is
-off* from *the TV is on and the app is not running*.
+from outside the venue, and the player heartbeat alone cannot tell _the TV is
+off_ from _the TV is on and the app is not running_.
 
 A **site agent** is a separate service (`apps/site-agent`) that runs inside a
 venue's LAN, pairs with one organisation and looks after the displays assigned
@@ -120,6 +127,133 @@ before a schedule begins, and extends Developer Mode over SSH + the Luna bus.
 
 See [docs/site-agent.md](docs/site-agent.md).
 
+## Content Sources & Dynamic Playlists
+
+Venues publish their programme on websites. A **content source** turns such a
+site into an event pool with rendered slides, and **dynamic playlists** pick
+from that pool by rule and keep themselves current.
+
+```
+content_sources ──(content-source-sync: sync-<sourceId>)──▶ source_events ──▶ source_event_slides ──▶ contents (managed, hidden)
+                                                                 │
+playlists (kind=dynamic, rule) ◀──(playlist-resolve: resolve-<playlistId>)──┘  → playlist_items (materialised)
+```
+
+- **Adapters** (`content-source/adapters/`) implement `ContentSourceAdapter`:
+  `paramsSchema` (the dashboard renders the form from it and translates each
+  field's `labelKey`, falling back to the English `label`), `validateParams`,
+  `listEvents` (listing pages, status, genres) and `fetchDetails` (image, ticket
+  link, price from the detail page). Details are fetched only for new events,
+  events whose listing hash changed, or while the image is still missing; when
+  they fail, the old hash stays so the next sync fetches them again. A
+  listing reports whether it was complete; only a complete listing marks
+  missing events as gone, and only if it shows at least half of the current
+  (not yet past) events. A listing that collapses below that, e.g. a
+  maintenance page served with HTTP 200, marks nothing gone and ends the sync
+  `partial`. The registry maps `adapterType` to the adapter.
+- **HTTP** goes through `SourceHttpClient` only: every URL and redirect hop is
+  checked against the adapter's host allowlist and the `OutboundGuard`
+  (no private targets), 20 s timeout, 5 MB cap, retries on 5xx, 300 ms pause
+  between requests. No new configuration: the allowlist lives on the adapter.
+- **Sync** (`ContentSourceSyncService`, queue `content-source-sync`, job id
+  `sync-<sourceId>`): list → upsert `source_events` → mark unlisted ones gone →
+  render every current event (from yesterday on) in every configured format
+  whose `renderHash` changed. A new slide becomes managed content via
+  `ContentService.createManaged`; a changed one replaces the file under the
+  same content id (`replaceManagedFile`), so playlist items stay valid, and the
+  previous slide stays on air until the new one is transcoded. Both
+  go through the regular quota, magic-byte check and transcoding queue. A new
+  slide whose `source_event_slides` row cannot be stored is deleted again. The
+  outcome is stored on the source as a summary, audited, and
+  `content_source.synced` is emitted.
+- **Slide renderer** (`slide/`) composes an SVG layer (artist, `Sa, 10.10.2026
+• Venue`, status badges, QR code to the ticket shop) over the event image with
+  sharp and writes JPEG. Landscape puts the fitted image full-frame with the
+  text bottom left. Portrait centres image and text as one block
+  (`portraitLayout`), pushed up only as far as the QR code needs: square and
+  upright images are fitted whole as large as the space allows; a landscape
+  image may grow taller than a full-width fit, up to a square, by cropping at
+  most 15 % of its width (`PORTRAIT_MAX_CROP`; 25 % cut the outer
+  members of real band photos) with sharp's `attention`
+  strategy, which trims the least interesting edge first. Badges
+  stack top right: `ABGESAGT` stands alone, otherwise every status that
+  applies shows in the order `VERLEGT`, `NEUER TERMIN`, `AUSVERKAUFT`. The
+  `renderHash` includes `RENDERER_VERSION`; bumping it re-renders every slide
+  on the next sync. The
+  text is drawn with the system fonts, so the backend image ships `fontconfig`,
+  DejaVu and Liberation.
+- **Venue aliases** (`content-source/venue-aliases.ts`): a source maps raw
+  venue names to canonical ones, one level (`UpdateContentSourceDto` rejects
+  self aliases, duplicates, chains and cycles; at most 200 entries of up to
+  200 characters). They apply when the pool is **read**, never when it is
+  stored: `source_events.venue` keeps the website's spelling, the event API
+  adds `venueCanonical`, facets list canonical names only, a venue filter on
+  `GET :id/events` is widened to the raw names behind it (`rawVenuesFor`) so
+  the database still filters and counts, and the resolver compares
+  canonical names per source, rule venues included (a rule that still names
+  `Der Hirsch` means `Hirsch` once that alias exists). Reading instead of
+  storing a normalised column keeps one source of truth: an alias change
+  needs no backfill and cannot race a running sync that writes events. The
+  map is small and loaded once per request. Slides keep the raw name, so an
+  alias change re-renders nothing. A changed alias list emits
+  `content_source.venue_aliases_updated`, which queues a resolve of every
+  dynamic playlist fed by the source, like a sync.
+- **Rule engine** (`playlist/`): `PlaylistRuleDto` validates the rule (date
+  bounds as tagged objects: `{ mode: 'today' | 'fixed' | 'relativeDays' }`
+  and `{ mode: 'none' | 'fixed' | 'relativeDays' }`); `resolvePlaylistRule`
+  is a pure function over pool, rule, clock and organisation time zone. An
+  event expires at the start of the next local day plus `graceHours`.
+  `PlaylistRuleService.resolve` writes the result with
+  `PlaylistService.replaceItems` (one transaction with row lock, diff against
+  the stored items, `PLAYLIST_UPDATED` only on change; nothing is written when
+  the stored rule no longer equals the one the resolve read) and sets
+  `nextResolveAt` to the refresh interval or the earliest expiry of a shown
+  event, whichever comes first. A failed job backs off to the refresh
+  interval; a failed immediate resolve after create or rule update leaves the
+  playlist due.
+- **Triggers**: `content_source.synced` queues a resolve of every dynamic
+  playlist fed by that source; `PlaylistRuleScheduler` and
+  `ContentSourceScheduler` tick once a minute and queue whatever is due. The
+  playlist scheduler lives in the playlist module because playlist depends on
+  content-source, not the other way round. BullMQ job ids deduplicate across
+  instances. A request that arrives while the job with that id is running
+  marks the source or playlist due (`nextSyncAt`/`nextResolveAt` = now), and
+  the running job keeps that value instead of writing its own, so the next
+  tick queues it again. The tickers' own enqueues never mark a running job's
+  source or playlist due; otherwise every run longer than a tick would repeat
+  forever.
+- **Protection**: dynamic playlists answer `409` on every manual item endpoint
+  and on bulk-add; `PATCH /playlists/:id/rule` answers `409` for static ones.
+  The kind is fixed at creation. Managed slides answer `409` to library
+  delete, re-upload and metadata edits and to adding them to a static
+  playlist (`400` in bulk operations); sources delete them through
+  `ContentService.deleteManaged`.
+- **Removal**: deleting a source locks its row, deletes its slides through
+  `deleteManaged` (files and quota) and then the row; a running sync cannot
+  add a slide meanwhile, its insert waits and fails on the foreign key.
+  Playlists that showed a slide get `PLAYLIST_UPDATED`, and
+  `content_source.removed` drops the source from every dynamic rule and
+  re-resolves those playlists.
+- **Cleanup**: the content-source ticker queues `cleanup-<day>` once per UTC
+  day and adds it again hourly. A finished job is kept for two days, so these
+  adds (also from a second instance) are no-ops; a failed one is removed at
+  once, so the next add retries it.
+  `ContentSourceCleanupService` deletes, per organisation, the slides of events
+  that ended more than 14 local days ago or are gone, unless a playlist still
+  references them, through `ContentService.deleteManaged` (files and quota). Gone
+  events without slides are removed; past events the site still lists keep
+  their row, so the next sync does not re-create them and refetch details.
+- **API**: `content-sources` (CRUD incl. `venueAliases`, `POST :id/sync`,
+  `GET :id/events` → `{ data, total }` with `limit` (default 200, max 500)
+  and `offset`, the shape of the audit log, `GET :id/venues` (raw venue
+  names of current events with canonical name and count), `GET facets`,
+  `GET adapters`; read for all roles, write for Org Admin and
+  Editor), `POST /playlists` with `kind` + `rule`, `PATCH /playlists/:id/rule`,
+  `POST /playlists/rule-preview`.
+
+From materialised items onward nothing is special: screen state, schedules,
+slicing and SSE treat a dynamic playlist like any other.
+
 ## Screen Communication
 
 ### Protocol Abstraction
@@ -146,7 +280,12 @@ Media is fetched with a **signed URL** rather than a credential: an HMAC over
 screen id and path, keyed from `JWT_ACCESS_SECRET`, bucketed to a day with a
 per-screen offset. The URL therefore stays byte-stable for at least 24 hours and
 ordinary HTTP caching keeps working. Only the path is signed, so unknown query
-parameters cannot invalidate it.
+parameters cannot invalidate it. The state appends `v=<content updatedAt>`
+(for split-mode slices: the rendition's source hash) after the signature, so a
+file replaced under the same content id gets a new URL. When transcoding of
+such a file completes, every playlist that shows it is announced with
+`PLAYLIST_UPDATED`, and the screens refetch their state. The dashboard
+versions its thumbnail and file URLs the same way.
 
 ### Screen Groups & Sync
 
@@ -163,7 +302,8 @@ parameters cannot invalidate it.
   - Image → WebP (JPEG fallback for compatibility)
 - **Progress:** worker reports progress via BullMQ events → DashboardSseService pushes to frontend via SSE
 - **Storage accounting:** on completion, original and transcoded file sizes are added to the organisation's usage counters
-- **Re-upload:** overwrites both original and transcoded files, updates storage counters
+- **Re-upload** (`reUpload`, and `replaceManagedFile` for re-rendered slides): the new original replaces the old one at once, but the transcoded file, its thumbnail, `type`, `durationSeconds` and the transcoded sizes stay as they are, so `/api/media` keeps serving the previous rendition while the job runs and no screen skips the item. The worker writes to staging files beside the live ones (`{contentId}.next-{jobId}.{ext}`, `{contentId}_thumb.next-{jobId}.webp`; the media lookup matches the exact base name and never serves them), then `rename`s them over the live files (atomic within the directory), removes a leftover of the other extension when the type changed, updates the row in one statement and emits `TRANSCODING_COMPLETED`; the playlists showing the item are then announced to their screens. A failed transcode or an exceeded quota marks the row `failed` with the error, discards the staging files and leaves the previous rendition live and billed. Deleting the content mid-transcode removes its staging files; the job then discards its result
+- **Transcoded quota on re-upload:** only the growth over the previous rendition (`new transcoded + thumbnail − old`) is checked and booked, a shrink is released. Old and new files coexist only for the duration of one job, and the old one is deleted in the same step that books the difference; counting both would refuse a same-size re-upload near the limit although the steady state fits
 
 ## Live Streaming
 

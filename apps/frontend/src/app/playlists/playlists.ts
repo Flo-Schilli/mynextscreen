@@ -9,17 +9,23 @@ import {
   AddPlaylistItemRequest,
   Playlist,
   PlaylistItem,
+  PlaylistKind,
+  PlaylistRule,
   TransitionType,
   UpdateAllPlaylistItemsRequest,
   UpdatePlaylistItemRequest,
 } from './playlist.model';
 import { PlaylistCreateForm } from './playlist-create-form';
+import { defaultRuleForm, toRule } from './playlist-rule-form';
 import { PlaylistEditor } from './playlist-editor';
 import { PlaylistGrid } from './playlist-grid';
 import { PlaylistAddContentModal } from './playlist-add-content-modal';
 import { PlaylistAssignScreenModal } from './playlist-assign-screen-modal';
 import { ContentService } from '../content/content.service';
 import { Content } from '../content/content.model';
+import { ContentSourceService } from '../sources/content-source.service';
+import { ContentSource, SlideFormat } from '../sources/content-source.model';
+import { apiErrorMessage } from '../sources/source-form-state';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
 import { MemberService } from '../settings/users/member.service';
@@ -95,6 +101,11 @@ function defaultItemDuration(content: Content): number {
         <app-playlist-create-form
           [(name)]="createName"
           [(color)]="createColor"
+          [(kind)]="createKind"
+          [(sourceIds)]="createSourceIds"
+          [(format)]="createFormat"
+          [sources]="availableSources"
+          [sourcesLoading]="sourcesLoading"
           [error]="createError"
           [creating]="creating"
           (create)="submitCreate()"
@@ -107,6 +118,9 @@ function defaultItemDuration(content: Content): number {
         <app-playlist-editor
           [playlist]="selectedPlaylist"
           [isOrgAdmin]="isOrgAdmin"
+          [canEdit]="canEdit"
+          [orgId]="orgId"
+          [savingRule]="savingRule"
           [isDefault]="isDefault"
           [settingDefault]="settingDefault"
           [editorError]="editorError"
@@ -128,6 +142,7 @@ function defaultItemDuration(content: Content): number {
           (transitionDurationChange)="updateItemTransitionDuration($event.item, $event.value)"
           (applyToAll)="applyToAllItems($event)"
           (previewItem)="previewItem($event)"
+          (saveRule)="saveRule($event)"
           (closePreview)="closePreview()"
         />
       }
@@ -241,6 +256,7 @@ function defaultItemDuration(content: Content): number {
 export class Playlists implements OnInit {
   private playlistService = inject(PlaylistService);
   private contentService = inject(ContentService);
+  private contentSourceService = inject(ContentSourceService);
   private screenService = inject(ScreenService);
   private memberService = inject(MemberService);
   private organisationService = inject(OrganisationService);
@@ -269,6 +285,14 @@ export class Playlists implements OnInit {
   createColor = '#6d6cf6';
   createError = '';
   creating = false;
+  createKind: PlaylistKind = 'static';
+  createSourceIds: string[] = [];
+  createFormat: SlideFormat | '' = '';
+  availableSources: ContentSource[] = [];
+  sourcesLoading = false;
+
+  // Rule of a dynamic playlist
+  savingRule = false;
 
   // Detail / editor
   selectedPlaylist: Playlist | null = null;
@@ -327,6 +351,11 @@ export class Playlists implements OnInit {
 
   get isOrgAdmin(): boolean {
     return this.userRole === 'org_admin';
+  }
+
+  /** Viewers may look, but the backend rejects their writes. */
+  get canEdit(): boolean {
+    return this.userRole === 'org_admin' || this.userRole === 'editor';
   }
 
   get isDefault(): boolean {
@@ -454,7 +483,43 @@ export class Playlists implements OnInit {
     this.createName = '';
     this.createColor = '#6d6cf6';
     this.createError = '';
+    this.createKind = 'static';
+    this.createSourceIds = [];
+    this.createFormat = '';
     this.showCreateForm = true;
+    this.loadSources();
+  }
+
+  /** Sources a dynamic playlist can be created from; a failure just leaves the list empty. */
+  private loadSources(): void {
+    this.sourcesLoading = true;
+    this.contentSourceService.getAll(this.orgId).subscribe({
+      next: (sources) => {
+        this.availableSources = sources;
+        this.sourcesLoading = false;
+      },
+      error: () => {
+        this.availableSources = [];
+        this.sourcesLoading = false;
+      },
+    });
+  }
+
+  /** The starting rule of a new dynamic playlist: its sources and format, defaults otherwise. */
+  private initialRule(): PlaylistRule | null {
+    if (this.createSourceIds.length === 0) {
+      this.createError = this.transloco.translate('playlists.create.sourcesRequired');
+      return null;
+    }
+    const rule = toRule({
+      ...defaultRuleForm(),
+      sourceIds: this.createSourceIds,
+      format: this.createFormat,
+    });
+    if (!rule) {
+      this.createError = this.transloco.translate('playlists.create.formatRequired');
+    }
+    return rule;
   }
 
   cancelCreate(): void {
@@ -467,10 +532,17 @@ export class Playlists implements OnInit {
       return;
     }
 
-    this.creating = true;
     this.createError = '';
+    const rule = this.createKind === 'dynamic' ? this.initialRule() : null;
+    if (this.createKind === 'dynamic' && !rule) return;
+
+    this.creating = true;
     this.playlistService
-      .create(this.orgId, { name: this.createName.trim(), color: this.createColor })
+      .create(this.orgId, {
+        name: this.createName.trim(),
+        color: this.createColor,
+        ...(rule ? { kind: 'dynamic' as const, rule } : {}),
+      })
       .subscribe({
         next: (playlist) => {
           this.creating = false;
@@ -547,6 +619,27 @@ export class Playlists implements OnInit {
       error: (err) => {
         this.editorError =
           err.error?.message || this.transloco.translate('playlists.errors.updateColor');
+      },
+    });
+  }
+
+  // --- Rule of a dynamic playlist ---
+  saveRule(rule: PlaylistRule): void {
+    if (!this.selectedPlaylist) return;
+    this.savingRule = true;
+    this.editorError = '';
+    this.playlistService.updateRule(this.orgId, this.selectedPlaylist.id, rule).subscribe({
+      next: (updated) => {
+        this.savingRule = false;
+        this.selectedPlaylist = updated;
+        this.toast.success(this.transloco.translate('playlists.toast.ruleSaved'));
+      },
+      error: (err: unknown) => {
+        this.savingRule = false;
+        const missing = (err as { error?: { missingIds?: unknown } }).error?.missingIds;
+        this.editorError = Array.isArray(missing)
+          ? this.transloco.translate('playlists.rule.errors.sourcesMissing')
+          : apiErrorMessage(err, this.transloco.translate('playlists.rule.errors.saveFailed'));
       },
     });
   }
@@ -795,12 +888,13 @@ export class Playlists implements OnInit {
       id: c.id,
       type: c.type,
       thumbnailSizeBytes: c.thumbnailSizeBytes,
+      updatedAt: c.updatedAt,
     });
   };
 
   /** Full-resolution media URL for playback/large preview (loop preview, inline preview). */
   getPreviewUrl = (item: PlaylistItem): string => {
-    return this.contentService.getTranscodedUrl(item.contentId);
+    return this.contentService.getTranscodedUrl(item.contentId, item.content?.updatedAt);
   };
 
   getContentThumbUrl = (content: Content): string | null => {

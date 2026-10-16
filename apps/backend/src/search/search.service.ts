@@ -1,5 +1,5 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { and, eq, ilike, or, sql } from 'drizzle-orm';
+import { and, eq, ilike, isNull, or, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { screens, contents, playlists, scheduleEntries, screenGroups } from '../db/schema';
@@ -72,6 +72,8 @@ export class SearchService {
       .where(
         and(
           eq(contents.organisationId, organisationId),
+          // Slides of content sources are not part of the library.
+          isNull(contents.managedBySourceId),
           or(
             ilike(contents.title, likePattern),
             ilike(contents.description, likePattern),

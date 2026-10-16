@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getQueueToken } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { ContentService } from './content.service';
 import { DRIZZLE } from '../db/database.constants';
@@ -16,6 +16,7 @@ import {
 } from '../db/schema';
 import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
+import { PlaylistKind } from '../playlist/playlist-kind.enum';
 import { StorageService } from '../organisation/storage.service';
 import {
   AUDIT_CONTENT_BULK_DELETED,
@@ -297,6 +298,20 @@ describe('ContentService — bulk operations', () => {
       const [pl] = await db.insert(playlists).values({ organisationId, name: 'PL' }).returning();
       return pl.id;
     }
+
+    it('should refuse a dynamic playlist with 409', async () => {
+      const org = await seedOrg();
+      const [dynamic] = await db
+        .insert(playlists)
+        .values({ organisationId: org.id, name: 'Rule', kind: PlaylistKind.Dynamic })
+        .returning();
+      const c1 = await seedContent(org.id);
+
+      await expect(
+        service.bulkAddToPlaylist(org.id, [c1.id], dynamic.id, 'user-1'),
+      ).rejects.toThrow(ConflictException);
+      expect(await db.select().from(playlistItems)).toHaveLength(0);
+    });
 
     it('should add content items to the playlist', async () => {
       const org = await seedOrg();

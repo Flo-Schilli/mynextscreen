@@ -46,6 +46,9 @@ const TABLE_NAMES = [
   'sliced_renditions',
   'org_metric_snapshots',
   'system_metric_snapshots',
+  'content_sources',
+  'source_events',
+  'source_event_slides',
 ];
 
 function baseUri(): string {

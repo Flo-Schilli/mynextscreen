@@ -35,6 +35,13 @@ const ACTION_META: Record<string, ActionMeta> = {
   'playlist.delete': { tone: 'offline', icon: 'Trash' },
   'playlist.bulk_deleted': { tone: 'offline', icon: 'Trash' },
   'playlist.bulk_screen_assigned': { tone: 'accent', icon: 'Screens' },
+  'playlist.rule_updated': { tone: 'info', icon: 'Filter' },
+  'playlist.resolved': { tone: 'neutral', icon: 'Refresh' },
+  'content_source.created': { tone: 'accent', icon: 'Globe' },
+  'content_source.updated': { tone: 'info', icon: 'Pencil' },
+  'content_source.deleted': { tone: 'offline', icon: 'Trash' },
+  'content_source.synced': { tone: 'online', icon: 'Refresh' },
+  'content_source.sync_failed': { tone: 'offline', icon: 'Alert' },
   'schedule.create': { tone: 'accent', icon: 'Schedules' },
   'schedule.update': { tone: 'info', icon: 'Pencil' },
   'schedule.delete': { tone: 'offline', icon: 'Trash' },
@@ -431,6 +438,10 @@ type TableRow =
     .action-badge[data-category='live_stream'] mns-badge span {
       background: var(--online-dim);
       color: var(--color-online);
+    }
+    .action-badge[data-category='content_source'] mns-badge span {
+      background: var(--info-dim);
+      color: var(--color-info);
     }
     .action-badge[data-category='auth'] mns-badge span {
       background: var(--accent-soft);

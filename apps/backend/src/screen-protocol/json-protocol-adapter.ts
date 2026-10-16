@@ -72,7 +72,11 @@ export class JsonProtocolAdapter implements ScreenProtocolAdapter {
     const path = item.contentUrl || `/api/media/${organisationId}/${item.contentId}`;
     // Signed here, where the URL leaves the server: the player uses it verbatim
     // and never has to attach a credential of its own.
-    const url = this.mediaUrlSigner.sign(screenId, path);
+    const signed = this.mediaUrlSigner.sign(screenId, path);
+    // Only the path is signed, so the version can follow the signature. Media is
+    // cached for a day; without it a re-rendered slide with the same content id
+    // would keep showing the old file.
+    const url = item.version ? `${signed}&v=${encodeURIComponent(item.version)}` : signed;
     return {
       url,
       duration: item.duration,

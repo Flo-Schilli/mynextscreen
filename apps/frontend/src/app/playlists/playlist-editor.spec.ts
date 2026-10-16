@@ -5,6 +5,10 @@ import { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { PlaylistEditor } from './playlist-editor';
 import { Playlist, PlaylistItem } from './playlist.model';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
+import { of } from 'rxjs';
+import { PlaylistService } from './playlist.service';
+import { ContentSourceService } from '../sources/content-source.service';
+import { ContentService } from '../content/content.service';
 
 function buildItem(overrides: Partial<PlaylistItem> = {}): PlaylistItem {
   return {
@@ -51,7 +55,22 @@ describe('PlaylistEditor', () => {
         PlaylistEditor,
         getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
       ],
-      providers: [provideZonelessChangeDetection()],
+      providers: [
+        provideZonelessChangeDetection(),
+        // Only the rule editor of a dynamic playlist talks to these.
+        {
+          provide: ContentSourceService,
+          useValue: { getAll: () => of([]), getFacets: () => of({ venues: [], genres: [] }) },
+        },
+        {
+          provide: PlaylistService,
+          useValue: { previewRule: () => of({ items: [], totalDurationSeconds: 0 }) },
+        },
+        {
+          provide: ContentService,
+          useValue: { getThumbnailUrl: () => '', getTranscodedUrl: () => '' },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(PlaylistEditor);
@@ -577,6 +596,49 @@ describe('PlaylistEditor', () => {
       closeBtn!.triggerEventHandler('mnsClick', new MouseEvent('click'));
 
       expect(spy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('dynamic playlist', () => {
+    const dynamic = (): Playlist =>
+      buildPlaylist({
+        kind: 'dynamic',
+        items: [buildItem()],
+        rule: {
+          sourceIds: ['s1'],
+          genres: { match: 'any', values: [] },
+          venues: [],
+          dateFrom: { mode: 'today' },
+          dateTo: { mode: 'none' },
+          excludeCancelled: true,
+          excludeSoldOut: false,
+          sort: 'date_asc',
+          limit: 50,
+          graceHours: 4,
+          refreshIntervalMinutes: 15,
+          format: '1920x1080',
+          itemDurationSeconds: 10,
+          transition: 'fade',
+          transitionDurationMs: 500,
+        },
+      });
+
+    it('shows the rule editor instead of the hand-sorted sequence', () => {
+      fixture.componentRef.setInput('playlist', dynamic());
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('app-playlist-rule-editor')).not.toBeNull();
+      expect(fixture.nativeElement.querySelector('[cdkDropList]')).toBeNull();
+      expect(fixture.nativeElement.textContent).not.toContain('Add content');
+      expect(fixture.nativeElement.textContent).toContain('Dynamic');
+    });
+
+    it('keeps the sequence for a static playlist', () => {
+      fixture.componentRef.setInput('playlist', buildPlaylist({ items: [buildItem()] }));
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('app-playlist-rule-editor')).toBeNull();
+      expect(fixture.nativeElement.textContent).toContain('Add content');
     });
   });
 });

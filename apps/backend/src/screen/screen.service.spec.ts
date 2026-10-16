@@ -369,6 +369,7 @@ describe('ScreenService', () => {
         contentId: first.id,
         type: ContentType.Video,
         thumbnailSizeBytes: 512,
+        updatedAt: first.updatedAt,
       });
       expect(getCurrentPlaylist).toHaveBeenCalledWith(screen.id);
     });

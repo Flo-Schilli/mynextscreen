@@ -2,15 +2,22 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getQueueToken } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
+import { BadRequestException, ConflictException, PayloadTooLargeException } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { ContentService } from './content.service';
 import { DRIZZLE } from '../db/database.constants';
-import { contents, organisations, type Content, type Organisation } from '../db/schema';
+import {
+  contentSources,
+  contents,
+  organisations,
+  type Content,
+  type Organisation,
+} from '../db/schema';
 import { ContentType } from './content-type.enum';
 import { TranscodingStatus } from './transcoding-status.enum';
 import { StorageService } from '../organisation/storage.service';
 import { CONTENT_DURATION_RESOLVED } from './content.event';
+import { AUDIT_CONTENT_UPLOADED, AUDIT_CONTENT_REUPLOADED } from '../audit-log/audit.events';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 
@@ -370,7 +377,7 @@ describe('ContentService', () => {
   });
 
   describe('reUpload', () => {
-    it('should replace file and reset transcoding status', async () => {
+    it('should replace the original and reset transcoding status', async () => {
       const org = await seedOrg();
       const content = await seedContent(org.id, {
         originalFilename: 'old.png',
@@ -388,15 +395,48 @@ describe('ContentService', () => {
       expect(result.originalFilename).toBe('new.png');
       expect(Number(result.originalSizeBytes)).toBe(3000);
       expect(result.transcodingStatus).toBe(TranscodingStatus.Pending);
-      expect(result.transcodedSizeBytes).toBeNull();
       expect(result.transcodingError).toBeNull();
       // sizeDelta = 3000 - 2000 = 1000 (positive) — reserved, not booked twice
       expect(storageService.reserveOriginalUsage).toHaveBeenCalledWith(org.id, 1000);
       expect(storageService.addOriginalUsage).not.toHaveBeenCalled();
-      expect(storageService.subtractTranscodedUsage).toHaveBeenCalledWith(org.id, 1000);
       expect(queue.add).toHaveBeenCalledWith(
         'transcode',
         expect.objectContaining({ contentId: content.id }),
+      );
+    });
+
+    it('keeps the live rendition until the new transcode swaps it in', async () => {
+      const org = await seedOrg();
+      const content = await seedContent(org.id, {
+        originalFilename: 'old.png',
+        originalMimeType: 'image/png',
+        originalSizeBytes: 2000,
+        transcodedSizeBytes: 1000,
+        thumbnailSizeBytes: 80,
+        type: ContentType.Image,
+        transcodingStatus: TranscodingStatus.Completed,
+      });
+      const fsPromises = jest.requireMock('fs/promises') as { unlink: jest.Mock };
+
+      const result = await service.reUpload(
+        org.id,
+        content.id,
+        createMockFile({ originalname: 'new.mp4', mimetype: 'video/mp4', buffer: MP4_BYTES }),
+      );
+
+      // Sizes and type still describe the file screens are being served.
+      expect(Number(result.transcodedSizeBytes)).toBe(1000);
+      expect(Number(result.thumbnailSizeBytes)).toBe(80);
+      expect(result.type).toBe(ContentType.Image);
+      expect(storageService.subtractTranscodedUsage).not.toHaveBeenCalled();
+      const unlinked = fsPromises.unlink.mock.calls.map(([p]) => String(p));
+      expect(unlinked.some((p) => p.includes('/transcoded/'))).toBe(false);
+      // Only the superseded original goes (its extension changed).
+      expect(unlinked).toEqual([expect.stringContaining(`originals/${content.id}.png`)]);
+      // The job carries the new type; it is applied together with the swap.
+      expect(queue.add).toHaveBeenCalledWith(
+        'transcode',
+        expect.objectContaining({ contentId: content.id, type: ContentType.Video }),
       );
     });
 
@@ -526,6 +566,153 @@ describe('ContentService', () => {
       const result = await service.ensureDuration(content);
 
       expect(result).toBeNull();
+    });
+  });
+  describe('managed content', () => {
+    const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+
+    async function seedSource(organisationId: string): Promise<string> {
+      const [source] = await db
+        .insert(contentSources)
+        .values({
+          organisationId,
+          name: 'Concerts',
+          adapterType: 'concertbuero-franken',
+          formats: ['1920x1080'],
+          style: { background: 'black', accentColor: '#e30613' },
+        })
+        .returning();
+      return source.id;
+    }
+
+    it('creates hidden content owned by the source without auditing each slide', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+
+      const created = await service.createManaged(
+        org.id,
+        sourceId,
+        JPEG_BYTES,
+        'slide.jpg',
+        'ASP · Sa, 10.10.2026',
+        ['1920x1080'],
+      );
+
+      expect(created.managedBySourceId).toBe(sourceId);
+      expect(created.type).toBe(ContentType.Image);
+      expect(created.originalMimeType).toBe('image/jpeg');
+      expect(created.tags).toEqual(['1920x1080']);
+      expect(storageService.reserveOriginalUsage).toHaveBeenCalledWith(org.id, JPEG_BYTES.length);
+      expect(queue.add).toHaveBeenCalledWith(
+        'transcode',
+        expect.objectContaining({ contentId: created.id, mimeType: 'image/jpeg' }),
+      );
+      expect(emit).not.toHaveBeenCalledWith(AUDIT_CONTENT_UPLOADED, expect.anything());
+    });
+
+    it('rejects managed bytes that are not a supported image', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+
+      await expect(
+        service.createManaged(org.id, sourceId, Buffer.from('<svg/>'), 'x.svg', 'X', []),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('replaces the file in place so playlist items keep their content id', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+      const created = await service.createManaged(org.id, sourceId, JPEG_BYTES, 'a.jpg', 'A', []);
+      queue.add.mockClear();
+
+      const bigger = Buffer.concat([JPEG_BYTES, Buffer.alloc(100)]);
+      const replaced = await service.replaceManagedFile(
+        org.id,
+        sourceId,
+        created.id,
+        bigger,
+        'a.jpg',
+      );
+
+      expect(replaced.id).toBe(created.id);
+      expect(Number(replaced.originalSizeBytes)).toBe(bigger.length);
+      expect(replaced.transcodingStatus).toBe(TranscodingStatus.Pending);
+      expect(queue.add).toHaveBeenCalledWith(
+        'transcode',
+        expect.objectContaining({ contentId: created.id }),
+      );
+      expect(emit).not.toHaveBeenCalledWith(AUDIT_CONTENT_REUPLOADED, expect.anything());
+    });
+
+    it('refuses to replace content the source does not own', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+      const manual = await seedContent(org.id);
+
+      await expect(
+        service.replaceManagedFile(org.id, sourceId, manual.id, JPEG_BYTES, 'a.jpg'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('hides managed content from the library listing', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+      await seedContent(org.id, { title: 'Manual' });
+      await seedContent(org.id, { title: 'Slide', managedBySourceId: sourceId });
+
+      const result = await service.findAll(org.id);
+
+      expect(result.map((c) => c.title)).toEqual(['Manual']);
+    });
+
+    it('rejects bulk operations that include managed content', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+      const slide = await seedContent(org.id, { managedBySourceId: sourceId });
+
+      await expect(service.bulkDelete(org.id, [slide.id], null)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      await expect(service.bulkTag(org.id, [slide.id], ['x'], null)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('refuses to edit, re-upload or delete managed content through the library', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+      const slide = await seedContent(org.id, { managedBySourceId: sourceId });
+
+      await expect(service.delete(org.id, slide.id)).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.reUpload(org.id, slide.id, createMockFile())).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      await expect(service.updateMetadata(org.id, slide.id, { title: 'x' })).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      const [kept] = await db.select().from(contents).where(eq(contents.id, slide.id));
+      expect(kept.title).toBe('Seed');
+      expect(storageService.subtractOriginalUsage).not.toHaveBeenCalled();
+    });
+
+    it('deletes managed content for its source and frees the quota', async () => {
+      const org = await seedOrg();
+      const sourceId = await seedSource(org.id);
+      const slide = await seedContent(org.id, { managedBySourceId: sourceId });
+
+      await service.deleteManaged(org.id, slide.id);
+
+      expect(await db.select().from(contents).where(eq(contents.id, slide.id))).toEqual([]);
+      expect(storageService.subtractOriginalUsage).toHaveBeenCalledWith(org.id, 1024);
+    });
+
+    it('refuses to delete library content as managed content', async () => {
+      const org = await seedOrg();
+      const manual = await seedContent(org.id);
+
+      await expect(service.deleteManaged(org.id, manual.id)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
   });
 });

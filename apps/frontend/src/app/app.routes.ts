@@ -110,6 +110,14 @@ export const routes: Routes = [
         loadComponent: () => import('./content/content-library').then((m) => m.ContentLibrary),
       },
       {
+        path: 'sources',
+        loadComponent: () => import('./sources/sources').then((m) => m.Sources),
+      },
+      {
+        path: 'sources/:id',
+        loadComponent: () => import('./sources/source-detail').then((m) => m.SourceDetail),
+      },
+      {
         path: 'playlists',
         loadComponent: () => import('./playlists/playlists').then((m) => m.Playlists),
       },

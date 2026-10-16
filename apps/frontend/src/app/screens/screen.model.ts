@@ -27,6 +27,8 @@ export interface PlaylistThumbnailRef {
   contentId: string;
   type: 'image' | 'video';
   thumbnailSizeBytes: number | null;
+  /** Versions the thumbnail URL: a re-upload or re-rendered slide keeps its id. */
+  updatedAt: string;
 }
 
 /**

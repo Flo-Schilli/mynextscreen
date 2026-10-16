@@ -1,5 +1,6 @@
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
+import { provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { PlaylistCreateForm } from './playlist-create-form';
 import { BtnComponent } from '../ui';
@@ -21,7 +22,7 @@ describe('PlaylistCreateForm', () => {
         PlaylistCreateForm,
         getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
       ],
-      providers: [provideZonelessChangeDetection()],
+      providers: [provideZonelessChangeDetection(), provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(PlaylistCreateForm);
@@ -97,5 +98,57 @@ describe('PlaylistCreateForm', () => {
     swatch.triggerEventHandler('click', new MouseEvent('click'));
 
     expect(component.color()).toBe('#ec4899');
+  });
+
+  describe('dynamic kind', () => {
+    const sources = [
+      {
+        id: 's1',
+        organisationId: 'org1',
+        name: 'Concertbüro',
+        adapterType: 'x',
+        params: {},
+        formats: ['1080x1920' as const],
+        style: { background: 'black' as const, accentColor: '#e30613' },
+        syncIntervalMinutes: 360,
+        enabled: true,
+        nextSyncAt: null,
+        lastSyncAt: null,
+        lastSyncStatus: null,
+        lastSyncError: null,
+        lastSyncSummary: null,
+        venueAliases: [],
+        createdAt: '',
+        updatedAt: '',
+      },
+    ];
+
+    it('switches the kind from the radio cards', () => {
+      fixture.detectChanges();
+
+      (fixture.nativeElement.querySelector('[data-kind="dynamic"]') as HTMLElement).click();
+      fixture.detectChanges();
+
+      expect(component.kind()).toBe('dynamic');
+    });
+
+    it('points to the sources page when there is no source yet', () => {
+      fixture.componentRef.setInput('kind', 'dynamic');
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('.no-sources')).not.toBeNull();
+    });
+
+    it('picks a format the chosen sources render', () => {
+      fixture.componentRef.setInput('kind', 'dynamic');
+      fixture.componentRef.setInput('sources', sources);
+      fixture.componentRef.setInput('format', '1920x1080');
+      fixture.detectChanges();
+
+      component['onSourcesChange'](['s1']);
+
+      expect(component.sourceIds()).toEqual(['s1']);
+      expect(component.format()).toBe('1080x1920');
+    });
   });
 });

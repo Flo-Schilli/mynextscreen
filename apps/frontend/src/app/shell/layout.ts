@@ -193,6 +193,7 @@ export class Layout implements OnInit {
     { label: 'shell.nav.siteAgents', route: '/site-agents', icon: 'Cast' },
     { label: 'shell.nav.content', route: '/content', icon: 'Content' },
     { label: 'shell.nav.playlists', route: '/playlists', icon: 'Playlists' },
+    { label: 'shell.nav.sources', route: '/sources', icon: 'Globe' },
     { label: 'shell.nav.schedules', route: '/schedules', icon: 'Schedules' },
     { label: 'shell.nav.liveStreams', route: '/live-streams', icon: 'Stream' },
     { label: 'shell.nav.auditLog', route: '/audit-log', icon: 'Audit' },

@@ -269,13 +269,15 @@ export class ScreenProtocolService {
         .limit(1);
 
       if (rendition) {
+        const signed = this.mediaUrlSigner.sign(
+          screen.id,
+          `/api/media/slices/${group.id}/${screen.id}/${contentItemId}`,
+        );
         this.screenStateService.pushEvent(
           screen.id,
           new ScreenEvent(ScreenEventType.GroupPlay, {
-            contentUrl: this.mediaUrlSigner.sign(
-              screen.id,
-              `/api/media/slices/${group.id}/${screen.id}/${contentItemId}`,
-            ),
+            // Versioned like in the screen state, so a re-sliced file bypasses the cache.
+            contentUrl: `${signed}&v=${encodeURIComponent(rendition.sourceHash)}`,
             contentItemId,
             contentType,
             groupId: group.id,

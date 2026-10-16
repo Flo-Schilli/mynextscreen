@@ -10,6 +10,7 @@ import { OrganisationModule } from './organisation';
 import { UserModule } from './user';
 import { ScreenModule } from './screen';
 import { ContentModule } from './content';
+import { ContentSourceModule } from './content-source';
 import { MediaModule } from './media';
 import { DashboardModule } from './dashboard';
 import { PlaylistModule } from './playlist';
@@ -55,6 +56,7 @@ import { validateEnv } from './config/env.validation';
     UserModule,
     ScreenModule,
     ContentModule,
+    ContentSourceModule,
     MediaModule,
     DashboardModule,
     PlaylistModule,

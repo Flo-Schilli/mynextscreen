@@ -15,10 +15,13 @@ import {
   TransitionType,
   TRANSITION_OPTIONS,
   PLAYLIST_COLORS,
+  PlaylistRule,
   UpdateAllPlaylistItemsRequest,
+  isDynamicPlaylist,
 } from './playlist.model';
 import { PlaylistFormatService } from './playlist-format.service';
 import { PlaylistLoopPreview } from './playlist-loop-preview';
+import { PlaylistRuleEditor } from './playlist-rule-editor';
 import {
   CardComponent,
   CardHeadComponent,
@@ -68,6 +71,7 @@ export interface ItemFieldChange<T> {
     BackLink,
     DragDropModule,
     PlaylistLoopPreview,
+    PlaylistRuleEditor,
     CardComponent,
     CardHeadComponent,
     BadgeComponent,
@@ -101,6 +105,11 @@ export interface ItemFieldChange<T> {
               (keydown.escape)="resetName(nameInput)"
             />
             <div class="flex items-center gap-[9px] mt-[7px] flex-wrap">
+              @if (isDynamic()) {
+                <mns-badge tone="info" icon="Sparkle">{{
+                  t('playlists.editor.dynamic')
+                }}</mns-badge>
+              }
               <mns-badge tone="accent" icon="Playlists">{{ itemCountLabel() }}</mns-badge>
               <mns-badge tone="neutral" icon="Clock">{{ durationLabel() }}</mns-badge>
               @if (isDefault()) {
@@ -167,302 +176,319 @@ export interface ItemFieldChange<T> {
         <app-playlist-loop-preview [items]="playlist().items" [mediaUrl]="previewUrl()" />
       </div>
 
-      <!-- sequence -->
-      <div class="mt-[var(--gap)]">
-        <mns-card>
-          <mns-card-head
-            [title]="t('playlists.editor.sequenceTitle')"
-            [sub]="t('playlists.editor.sequenceSub')"
-            icon="List"
-          >
-            <mns-btn
-              slot="right"
-              variant="soft"
-              size="md"
-              icon="Plus"
-              (mnsClick)="addContent.emit()"
-              >{{ t('playlists.editor.addContent') }}</mns-btn
+      @if (isDynamic()) {
+        <!-- rule: a dynamic playlist computes its items, there is nothing to drag -->
+        <div class="mt-[var(--gap)]">
+          <app-playlist-rule-editor
+            [playlist]="playlist()"
+            [orgId]="orgId()"
+            [canEdit]="canEdit()"
+            [saving]="savingRule()"
+            (save)="saveRule.emit($event)"
+          />
+        </div>
+      } @else {
+        <!-- sequence -->
+        <div class="mt-[var(--gap)]">
+          <mns-card>
+            <mns-card-head
+              [title]="t('playlists.editor.sequenceTitle')"
+              [sub]="t('playlists.editor.sequenceSub')"
+              icon="List"
             >
-          </mns-card-head>
+              <mns-btn
+                slot="right"
+                variant="soft"
+                size="md"
+                icon="Plus"
+                (mnsClick)="addContent.emit()"
+                >{{ t('playlists.editor.addContent') }}</mns-btn
+              >
+            </mns-card-head>
 
-          @if (playlist().items.length > 1) {
-            <div
-              class="apply-all flex flex-wrap items-end gap-x-5 gap-y-3 mb-3 px-3 py-2.5 rounded-[12px] border border-dashed border-border-strong"
-            >
-              <span class="w-full text-[11.5px] font-bold uppercase tracking-wide text-faint">{{
-                t('playlists.editor.applyAll.title')
-              }}</span>
-
-              <div class="flex flex-col gap-1">
-                <span class="text-[11.5px] text-muted"
-                  >{{ t('playlists.editor.applyAll.duration') }} ·
-                  {{ t('playlists.editor.applyAll.imagesOnly') }}</span
-                >
-                <div class="flex items-center gap-1.5">
-                  <input
-                    #allDurationInput
-                    type="number"
-                    inputmode="numeric"
-                    min="1"
-                    step="1"
-                    class="apply-all-duration h-[30px] w-[72px] px-2 rounded-[9px] border border-border-strong bg-surface font-mono text-[12.5px] font-bold disabled:opacity-50"
-                    [value]="allDuration()"
-                    [disabled]="!hasImages()"
-                    [attr.aria-label]="t('playlists.editor.applyAll.duration')"
-                    (input)="allDuration.set(allDurationInput.value)"
-                  />
-                  <mns-btn
-                    class="apply-all-duration-btn"
-                    variant="soft"
-                    size="sm"
-                    [disabled]="!hasImages() || allDurationValue() === null"
-                    [title]="t('playlists.editor.applyAll.applyDurationAria')"
-                    (mnsClick)="applyAllDuration()"
-                    >{{ t('playlists.editor.applyAll.apply') }}</mns-btn
-                  >
-                </div>
-              </div>
-
-              <div class="flex flex-col gap-1">
-                <span class="text-[11.5px] text-muted">{{
-                  t('playlists.editor.applyAll.transition')
+            @if (playlist().items.length > 1) {
+              <div
+                class="apply-all flex flex-wrap items-end gap-x-5 gap-y-3 mb-3 px-3 py-2.5 rounded-[12px] border border-dashed border-border-strong"
+              >
+                <span class="w-full text-[11.5px] font-bold uppercase tracking-wide text-faint">{{
+                  t('playlists.editor.applyAll.title')
                 }}</span>
-                <div class="flex items-center gap-1.5">
-                  <div class="w-[140px]">
-                    <mns-select
-                      [options]="transitionOptions()"
-                      [value]="allTransition()"
-                      [ariaLabel]="t('playlists.editor.applyAll.transition')"
-                      (changed)="allTransition.set(asTransition($event))"
+
+                <div class="flex flex-col gap-1">
+                  <span class="text-[11.5px] text-muted"
+                    >{{ t('playlists.editor.applyAll.duration') }} ·
+                    {{ t('playlists.editor.applyAll.imagesOnly') }}</span
+                  >
+                  <div class="flex items-center gap-1.5">
+                    <input
+                      #allDurationInput
+                      type="number"
+                      inputmode="numeric"
+                      min="1"
+                      step="1"
+                      class="apply-all-duration h-[30px] w-[72px] px-2 rounded-[9px] border border-border-strong bg-surface font-mono text-[12.5px] font-bold disabled:opacity-50"
+                      [value]="allDuration()"
+                      [disabled]="!hasImages()"
+                      [attr.aria-label]="t('playlists.editor.applyAll.duration')"
+                      (input)="allDuration.set(allDurationInput.value)"
                     />
+                    <mns-btn
+                      class="apply-all-duration-btn"
+                      variant="soft"
+                      size="sm"
+                      [disabled]="!hasImages() || allDurationValue() === null"
+                      [title]="t('playlists.editor.applyAll.applyDurationAria')"
+                      (mnsClick)="applyAllDuration()"
+                      >{{ t('playlists.editor.applyAll.apply') }}</mns-btn
+                    >
                   </div>
-                  <mns-btn
-                    class="apply-all-transition-btn"
-                    variant="soft"
-                    size="sm"
-                    [title]="t('playlists.editor.applyAll.applyTransitionAria')"
-                    (mnsClick)="applyToAll.emit({ transition: allTransition() })"
-                    >{{ t('playlists.editor.applyAll.apply') }}</mns-btn
-                  >
+                </div>
+
+                <div class="flex flex-col gap-1">
+                  <span class="text-[11.5px] text-muted">{{
+                    t('playlists.editor.applyAll.transition')
+                  }}</span>
+                  <div class="flex items-center gap-1.5">
+                    <div class="w-[140px]">
+                      <mns-select
+                        [options]="transitionOptions()"
+                        [value]="allTransition()"
+                        [ariaLabel]="t('playlists.editor.applyAll.transition')"
+                        (changed)="allTransition.set(asTransition($event))"
+                      />
+                    </div>
+                    <mns-btn
+                      class="apply-all-transition-btn"
+                      variant="soft"
+                      size="sm"
+                      [title]="t('playlists.editor.applyAll.applyTransitionAria')"
+                      (mnsClick)="applyToAll.emit({ transition: allTransition() })"
+                      >{{ t('playlists.editor.applyAll.apply') }}</mns-btn
+                    >
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-1">
+                  <span class="text-[11.5px] text-muted">{{
+                    t('playlists.editor.applyAll.transitionMs')
+                  }}</span>
+                  <div class="flex items-center gap-1.5">
+                    <input
+                      #allTransitionMsInput
+                      type="number"
+                      inputmode="numeric"
+                      min="0"
+                      max="3000"
+                      step="100"
+                      class="apply-all-transition-ms h-[30px] w-[80px] px-2 rounded-[9px] border border-border-strong bg-surface font-mono text-[12.5px] font-bold"
+                      [value]="allTransitionMs()"
+                      [attr.aria-label]="t('playlists.editor.applyAll.transitionMs')"
+                      (input)="allTransitionMs.set(allTransitionMsInput.value)"
+                    />
+                    <mns-btn
+                      class="apply-all-transition-ms-btn"
+                      variant="soft"
+                      size="sm"
+                      [disabled]="allTransitionMsValue() === null"
+                      [title]="t('playlists.editor.applyAll.applyTransitionMsAria')"
+                      (mnsClick)="applyAllTransitionMs()"
+                      >{{ t('playlists.editor.applyAll.apply') }}</mns-btn
+                    >
+                  </div>
                 </div>
               </div>
+            }
 
-              <div class="flex flex-col gap-1">
-                <span class="text-[11.5px] text-muted">{{
-                  t('playlists.editor.applyAll.transitionMs')
-                }}</span>
-                <div class="flex items-center gap-1.5">
-                  <input
-                    #allTransitionMsInput
-                    type="number"
-                    inputmode="numeric"
-                    min="0"
-                    max="3000"
-                    step="100"
-                    class="apply-all-transition-ms h-[30px] w-[80px] px-2 rounded-[9px] border border-border-strong bg-surface font-mono text-[12.5px] font-bold"
-                    [value]="allTransitionMs()"
-                    [attr.aria-label]="t('playlists.editor.applyAll.transitionMs')"
-                    (input)="allTransitionMs.set(allTransitionMsInput.value)"
-                  />
-                  <mns-btn
-                    class="apply-all-transition-ms-btn"
-                    variant="soft"
-                    size="sm"
-                    [disabled]="allTransitionMsValue() === null"
-                    [title]="t('playlists.editor.applyAll.applyTransitionMsAria')"
-                    (mnsClick)="applyAllTransitionMs()"
-                    >{{ t('playlists.editor.applyAll.apply') }}</mns-btn
-                  >
-                </div>
+            @if (playlist().items.length === 0) {
+              <div
+                class="grid place-items-center py-9 px-5 rounded-[12px] border-[1.5px] border-dashed border-border-strong bg-surface-2 text-faint gap-2"
+              >
+                <mns-icon name="Plus" [size]="22" />
+                <span class="text-[13px] font-semibold">{{ t('playlists.editor.noItems') }}</span>
               </div>
-            </div>
-          }
-
-          @if (playlist().items.length === 0) {
-            <div
-              class="grid place-items-center py-9 px-5 rounded-[12px] border-[1.5px] border-dashed border-border-strong bg-surface-2 text-faint gap-2"
-            >
-              <mns-icon name="Plus" [size]="22" />
-              <span class="text-[13px] font-semibold">{{ t('playlists.editor.noItems') }}</span>
-            </div>
-          } @else {
-            <div
-              cdkDropList
-              class="flex flex-col gap-2"
-              (cdkDropListDropped)="reorder.emit($event)"
-            >
-              @for (item of playlist().items; track item.id; let i = $index) {
-                <div
-                  class="item-row flex flex-wrap sm:flex-nowrap items-center gap-3 px-3 py-2.5 rounded-[12px] bg-surface-2 border border-border"
-                  cdkDrag
-                >
-                  <span
-                    class="grid place-items-center w-[22px] h-[30px] text-faint cursor-grab flex-shrink-0"
-                    cdkDragHandle
-                    [title]="t('playlists.editor.dragToReorder')"
+            } @else {
+              <div
+                cdkDropList
+                class="flex flex-col gap-2"
+                (cdkDropListDropped)="reorder.emit($event)"
+              >
+                @for (item of playlist().items; track item.id; let i = $index) {
+                  <div
+                    class="item-row flex flex-wrap sm:flex-nowrap items-center gap-3 px-3 py-2.5 rounded-[12px] bg-surface-2 border border-border"
+                    cdkDrag
                   >
-                    <svg width="13" height="18" viewBox="0 0 13 18" fill="currentColor">
-                      <circle cx="3.5" cy="3" r="1.4" />
-                      <circle cx="9.5" cy="3" r="1.4" />
-                      <circle cx="3.5" cy="9" r="1.4" />
-                      <circle cx="9.5" cy="9" r="1.4" />
-                      <circle cx="3.5" cy="15" r="1.4" />
-                      <circle cx="9.5" cy="15" r="1.4" />
-                    </svg>
-                  </span>
-                  <span
-                    class="font-mono w-5 text-center text-[12px] font-bold text-faint flex-shrink-0"
-                    >{{ i + 1 }}</span
-                  >
-                  <button
-                    type="button"
-                    class="relative w-14 h-[34px] rounded-[6px] flex-shrink-0 overflow-hidden bg-surface-3 cursor-pointer"
-                    (click)="previewItem.emit(item)"
-                    [attr.aria-label]="t('playlists.editor.previewItemAria')"
-                  >
-                    @if (thumbUrl()(item); as src) {
-                      <img [src]="src" alt="" class="w-full h-full object-cover" loading="lazy" />
-                      @if (item.content?.type === 'video') {
-                        <span class="absolute inset-0 grid place-items-center pointer-events-none">
+                    <span
+                      class="grid place-items-center w-[22px] h-[30px] text-faint cursor-grab flex-shrink-0"
+                      cdkDragHandle
+                      [title]="t('playlists.editor.dragToReorder')"
+                    >
+                      <svg width="13" height="18" viewBox="0 0 13 18" fill="currentColor">
+                        <circle cx="3.5" cy="3" r="1.4" />
+                        <circle cx="9.5" cy="3" r="1.4" />
+                        <circle cx="3.5" cy="9" r="1.4" />
+                        <circle cx="9.5" cy="9" r="1.4" />
+                        <circle cx="3.5" cy="15" r="1.4" />
+                        <circle cx="9.5" cy="15" r="1.4" />
+                      </svg>
+                    </span>
+                    <span
+                      class="font-mono w-5 text-center text-[12px] font-bold text-faint flex-shrink-0"
+                      >{{ i + 1 }}</span
+                    >
+                    <button
+                      type="button"
+                      class="relative w-14 h-[34px] rounded-[6px] flex-shrink-0 overflow-hidden bg-surface-3 cursor-pointer"
+                      (click)="previewItem.emit(item)"
+                      [attr.aria-label]="t('playlists.editor.previewItemAria')"
+                    >
+                      @if (thumbUrl()(item); as src) {
+                        <img [src]="src" alt="" class="w-full h-full object-cover" loading="lazy" />
+                        @if (item.content?.type === 'video') {
                           <span
-                            class="grid place-items-center w-5 h-5 rounded-full bg-black/45 text-white"
+                            class="absolute inset-0 grid place-items-center pointer-events-none"
                           >
-                            <mns-icon name="Play" [size]="10" />
+                            <span
+                              class="grid place-items-center w-5 h-5 rounded-full bg-black/45 text-white"
+                            >
+                              <mns-icon name="Play" [size]="10" />
+                            </span>
                           </span>
+                        }
+                      } @else if (item.content?.type === 'video') {
+                        <span
+                          class="absolute inset-0 grid place-items-center text-white bg-black/45"
+                        >
+                          <mns-icon name="Play" [size]="11" />
+                        </span>
+                      } @else {
+                        <span class="absolute inset-0 grid place-items-center text-white">
+                          <mns-icon name="Image" [size]="11" />
                         </span>
                       }
-                    } @else if (item.content?.type === 'video') {
-                      <span class="absolute inset-0 grid place-items-center text-white bg-black/45">
-                        <mns-icon name="Play" [size]="11" />
+                    </button>
+                    <div class="flex-1 min-w-0">
+                      <div class="text-[13.5px] font-semibold truncate">
+                        {{ item.content?.title || t('playlists.editor.untitled') }}
+                      </div>
+                      <div class="flex items-center gap-[7px] mt-0.5">
+                        <span class="inline-flex items-center gap-1 text-[11.5px] text-muted">
+                          <mns-icon
+                            [name]="item.content?.type === 'video' ? 'Video' : 'Image'"
+                            [size]="12"
+                          />
+                          {{
+                            item.content
+                              ? t('content.type.' + item.content.type)
+                              : t('playlists.editor.unknown')
+                          }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- duration -->
+                    @if (item.content?.type === 'video') {
+                      <span
+                        class="inline-flex w-full sm:w-auto justify-center sm:justify-start items-center gap-1.5 px-[11px] py-1.5 rounded-[9px] bg-surface border border-border text-muted text-[12.5px] font-semibold"
+                        [title]="t('playlists.editor.playsFullVideo')"
+                      >
+                        <mns-icon name="Clock" [size]="13" />
+                        <span class="font-mono">{{ durationDisplay(item) }}</span>
                       </span>
                     } @else {
-                      <span class="absolute inset-0 grid place-items-center text-white">
-                        <mns-icon name="Image" [size]="11" />
-                      </span>
+                      <div
+                        class="flex w-full sm:w-auto justify-center sm:justify-start items-center border border-border-strong rounded-[9px] overflow-hidden bg-surface"
+                      >
+                        <button
+                          type="button"
+                          class="grid place-items-center w-[26px] h-[26px] text-muted text-[16px] font-bold leading-none cursor-pointer"
+                          [attr.aria-label]="t('playlists.editor.decreaseDuration')"
+                          (click)="stepDuration(item, -1)"
+                        >
+                          −
+                        </button>
+                        <span class="flex items-center">
+                          <input
+                            #durationInput
+                            type="number"
+                            inputmode="numeric"
+                            min="1"
+                            step="1"
+                            class="duration-input font-mono w-[40px] text-right font-bold text-[12.5px] bg-transparent outline-none focus:bg-hover rounded-[4px] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            [value]="item.durationSeconds"
+                            [attr.aria-label]="t('playlists.editor.durationInput')"
+                            (blur)="commitDuration(item, durationInput)"
+                            (keydown.enter)="durationInput.blur()"
+                            (keydown.escape)="resetDuration(item, durationInput)"
+                          />
+                          <span class="font-mono font-bold text-[12.5px] text-muted pr-0.5">s</span>
+                        </span>
+                        <button
+                          type="button"
+                          class="grid place-items-center w-[26px] h-[26px] text-muted text-[16px] font-bold leading-none cursor-pointer"
+                          [attr.aria-label]="t('playlists.editor.increaseDuration')"
+                          (click)="stepDuration(item, 1)"
+                        >
+                          +
+                        </button>
+                      </div>
                     }
-                  </button>
-                  <div class="flex-1 min-w-0">
-                    <div class="text-[13.5px] font-semibold truncate">
-                      {{ item.content?.title || t('playlists.editor.untitled') }}
-                    </div>
-                    <div class="flex items-center gap-[7px] mt-0.5">
-                      <span class="inline-flex items-center gap-1 text-[11.5px] text-muted">
-                        <mns-icon
-                          [name]="item.content?.type === 'video' ? 'Video' : 'Image'"
-                          [size]="12"
-                        />
-                        {{
-                          item.content
-                            ? t('content.type.' + item.content.type)
-                            : t('playlists.editor.unknown')
-                        }}
-                      </span>
-                    </div>
-                  </div>
 
-                  <!-- duration -->
-                  @if (item.content?.type === 'video') {
-                    <span
-                      class="inline-flex w-full sm:w-auto justify-center sm:justify-start items-center gap-1.5 px-[11px] py-1.5 rounded-[9px] bg-surface border border-border text-muted text-[12.5px] font-semibold"
-                      [title]="t('playlists.editor.playsFullVideo')"
-                    >
-                      <mns-icon name="Clock" [size]="13" />
-                      <span class="font-mono">{{ durationDisplay(item) }}</span>
-                    </span>
-                  } @else {
+                    <!-- transition — the player animates an item as it enters, so
+                     this is the item's own way in, not the way the one before
+                     it leaves. -->
                     <div
-                      class="flex w-full sm:w-auto justify-center sm:justify-start items-center border border-border-strong rounded-[9px] overflow-hidden bg-surface"
+                      class="w-full sm:w-[140px] sm:flex-shrink-0"
+                      [title]="t('playlists.editor.transitionOnEnter')"
+                    >
+                      <mns-select
+                        [options]="transitionOptions()"
+                        [value]="item.transition"
+                        [ariaLabel]="t('playlists.editor.transitionOnEnter')"
+                        (changed)="transitionChange.emit({ item, value: asTransition($event) })"
+                      />
+                    </div>
+
+                    <!-- transition duration (ms) -->
+                    <div
+                      class="flex w-full sm:w-auto justify-center sm:justify-start items-center border border-border-strong rounded-[9px] overflow-hidden bg-surface sm:flex-shrink-0"
+                      [title]="t('playlists.editor.transitionDuration')"
                     >
                       <button
                         type="button"
                         class="grid place-items-center w-[26px] h-[26px] text-muted text-[16px] font-bold leading-none cursor-pointer"
-                        [attr.aria-label]="t('playlists.editor.decreaseDuration')"
-                        (click)="stepDuration(item, -1)"
+                        [attr.aria-label]="t('playlists.editor.decreaseTransitionMs')"
+                        (click)="stepTransitionMs(item, -100)"
                       >
                         −
                       </button>
-                      <span class="flex items-center">
-                        <input
-                          #durationInput
-                          type="number"
-                          inputmode="numeric"
-                          min="1"
-                          step="1"
-                          class="duration-input font-mono w-[40px] text-right font-bold text-[12.5px] bg-transparent outline-none focus:bg-hover rounded-[4px] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          [value]="item.durationSeconds"
-                          [attr.aria-label]="t('playlists.editor.durationInput')"
-                          (blur)="commitDuration(item, durationInput)"
-                          (keydown.enter)="durationInput.blur()"
-                          (keydown.escape)="resetDuration(item, durationInput)"
-                        />
-                        <span class="font-mono font-bold text-[12.5px] text-muted pr-0.5">s</span>
-                      </span>
+                      <span class="font-mono min-w-[52px] text-center font-bold text-[12.5px]">{{
+                        t('playlists.editor.transitionMs', { ms: item.transitionDurationMs })
+                      }}</span>
                       <button
                         type="button"
                         class="grid place-items-center w-[26px] h-[26px] text-muted text-[16px] font-bold leading-none cursor-pointer"
-                        [attr.aria-label]="t('playlists.editor.increaseDuration')"
-                        (click)="stepDuration(item, 1)"
+                        [attr.aria-label]="t('playlists.editor.increaseTransitionMs')"
+                        (click)="stepTransitionMs(item, 100)"
                       >
                         +
                       </button>
                     </div>
-                  }
 
-                  <!-- transition — the player animates an item as it enters, so
-                     this is the item's own way in, not the way the one before
-                     it leaves. -->
-                  <div
-                    class="w-full sm:w-[140px] sm:flex-shrink-0"
-                    [title]="t('playlists.editor.transitionOnEnter')"
-                  >
-                    <mns-select
-                      [options]="transitionOptions()"
-                      [value]="item.transition"
-                      [ariaLabel]="t('playlists.editor.transitionOnEnter')"
-                      (changed)="transitionChange.emit({ item, value: asTransition($event) })"
-                    />
-                  </div>
-
-                  <!-- transition duration (ms) -->
-                  <div
-                    class="flex w-full sm:w-auto justify-center sm:justify-start items-center border border-border-strong rounded-[9px] overflow-hidden bg-surface sm:flex-shrink-0"
-                    [title]="t('playlists.editor.transitionDuration')"
-                  >
                     <button
                       type="button"
-                      class="grid place-items-center w-[26px] h-[26px] text-muted text-[16px] font-bold leading-none cursor-pointer"
-                      [attr.aria-label]="t('playlists.editor.decreaseTransitionMs')"
-                      (click)="stepTransitionMs(item, -100)"
+                      class="grid place-items-center w-[30px] h-[30px] rounded-[8px] flex-shrink-0 border border-border bg-transparent text-faint cursor-pointer hover:text-offline hover:border-offline"
+                      [title]="t('playlists.editor.removeFromPlaylist')"
+                      (click)="removeItem.emit(item)"
                     >
-                      −
-                    </button>
-                    <span class="font-mono min-w-[52px] text-center font-bold text-[12.5px]">{{
-                      t('playlists.editor.transitionMs', { ms: item.transitionDurationMs })
-                    }}</span>
-                    <button
-                      type="button"
-                      class="grid place-items-center w-[26px] h-[26px] text-muted text-[16px] font-bold leading-none cursor-pointer"
-                      [attr.aria-label]="t('playlists.editor.increaseTransitionMs')"
-                      (click)="stepTransitionMs(item, 100)"
-                    >
-                      +
+                      <mns-icon name="Trash" [size]="14" />
                     </button>
                   </div>
-
-                  <button
-                    type="button"
-                    class="grid place-items-center w-[30px] h-[30px] rounded-[8px] flex-shrink-0 border border-border bg-transparent text-faint cursor-pointer hover:text-offline hover:border-offline"
-                    [title]="t('playlists.editor.removeFromPlaylist')"
-                    (click)="removeItem.emit(item)"
-                  >
-                    <mns-icon name="Trash" [size]="14" />
-                  </button>
-                </div>
-              }
-            </div>
-          }
-        </mns-card>
-      </div>
+                }
+              </div>
+            }
+          </mns-card>
+        </div>
+      }
 
       <!-- inline preview -->
       @if (previewingItem()) {
@@ -521,6 +547,11 @@ export interface ItemFieldChange<T> {
 export class PlaylistEditor {
   readonly playlist = input.required<Playlist>();
   readonly isOrgAdmin = input.required<boolean>();
+  /** False for viewers: a dynamic playlist's rule is then shown read-only. */
+  readonly canEdit = input(true);
+  /** Needed by the rule editor of a dynamic playlist. */
+  readonly orgId = input('');
+  readonly savingRule = input(false);
   readonly isDefault = input.required<boolean>();
   readonly settingDefault = input.required<boolean>();
   readonly editorError = input.required<string>();
@@ -546,6 +577,7 @@ export class PlaylistEditor {
   readonly applyToAll = output<UpdateAllPlaylistItemsRequest>();
   readonly previewItem = output<PlaylistItem>();
   readonly closePreview = output<void>();
+  readonly saveRule = output<PlaylistRule>();
 
   protected readonly format = inject(PlaylistFormatService);
   private readonly transloco = inject(TranslocoService);
@@ -556,6 +588,8 @@ export class PlaylistEditor {
     })),
   );
   protected readonly colors = PLAYLIST_COLORS;
+
+  protected readonly isDynamic = computed(() => isDynamicPlaylist(this.playlist()));
 
   protected readonly hasImages = computed(() =>
     this.playlist().items.some((item) => item.content?.type === 'image'),

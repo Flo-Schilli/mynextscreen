@@ -69,6 +69,10 @@ export class NotificationEventListener {
         .from(contents)
         .where(eq(contents.id, event.contentId))
         .limit(1);
+      // Content sources render dozens of slides per sync; nobody acts on those.
+      if (content?.managedBySourceId) {
+        return;
+      }
 
       const contentTitle = content?.title ?? 'Unknown';
 
@@ -96,6 +100,10 @@ export class NotificationEventListener {
         .from(contents)
         .where(eq(contents.id, event.contentId))
         .limit(1);
+      // Content sources render dozens of slides per sync; nobody acts on those.
+      if (content?.managedBySourceId) {
+        return;
+      }
 
       const contentTitle = content?.title ?? 'Unknown';
 

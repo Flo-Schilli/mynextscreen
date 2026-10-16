@@ -147,6 +147,7 @@ export class ScreenStateService implements OnModuleDestroy {
             .limit(1);
           if (rendition) {
             item.contentUrl = `/api/media/slices/${screen.groupId}/${screen.id}/${item.contentId}`;
+            item.version = rendition.sourceHash;
           }
         }
       };
@@ -207,6 +208,7 @@ export class ScreenStateService implements OnModuleDestroy {
         return {
           contentId: item.contentId,
           contentUrl: '',
+          version: item.content ? String(item.content.updatedAt.getTime()) : undefined,
           duration,
           type: item.content?.type ?? 'unknown',
           order: item.position,

@@ -1,7 +1,8 @@
 # Dev image — build context = repo root. Hot-reload via `nx serve` (nest --watch).
 FROM node:26-alpine
 
-RUN apk add --no-cache ffmpeg
+# Fonts for the content-source slide renderer (SVG text renders empty without them).
+RUN apk add --no-cache ffmpeg fontconfig font-dejavu font-liberation
 
 WORKDIR /app
 

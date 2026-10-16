@@ -13,6 +13,8 @@ import {
   UpdatePlaylistRequest,
   UpdateAllPlaylistItemsRequest,
   UpdateAllPlaylistItemsResponse,
+  PlaylistRule,
+  RulePreviewResult,
 } from './playlist.model';
 
 @Injectable({ providedIn: 'root' })
@@ -39,6 +41,20 @@ export class PlaylistService {
 
   update(orgId: string, id: string, dto: UpdatePlaylistRequest): Observable<Playlist> {
     return this.http.patch<Playlist>(`/api/playlists/${id}`, dto, {
+      headers: this.orgHeader(orgId),
+    });
+  }
+
+  /** Replaces the rule of a dynamic playlist and recomputes its items (409 for static ones). */
+  updateRule(orgId: string, id: string, rule: PlaylistRule): Observable<Playlist> {
+    return this.http.patch<Playlist>(`/api/playlists/${id}/rule`, rule, {
+      headers: this.orgHeader(orgId),
+    });
+  }
+
+  /** What a rule would select right now, without saving anything. */
+  previewRule(orgId: string, rule: PlaylistRule): Observable<RulePreviewResult> {
+    return this.http.post<RulePreviewResult>('/api/playlists/rule-preview', rule, {
       headers: this.orgHeader(orgId),
     });
   }

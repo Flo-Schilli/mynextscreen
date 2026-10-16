@@ -22,7 +22,7 @@ and stating in the pull request that you have read and accept `CLA.md`.
 ## Working on the code
 
 ```bash
-npm ci                 # requires npm 11.6.2 — see package.json engines
+npm ci                 # requires npm 12.2.0 — see package.json engines
 npm run dev            # docker compose: backend :3000 · admin :4200 · player :4300
 npx nx run-many -t typecheck lint format:check test build
 ```

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { BtnComponent } from '../ui';
 
 /**
@@ -20,23 +21,28 @@ import { BtnComponent } from '../ui';
   selector: 'app-back-link',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, BtnComponent],
+  imports: [RouterLink, BtnComponent, TranslocoDirective],
   template: `
-    @if (route(); as target) {
-      <a [routerLink]="target" class="no-underline">
-        <mns-btn variant="outline" icon="ChevronLeft">{{ label() }}</mns-btn>
-      </a>
-    } @else {
-      <mns-btn variant="outline" icon="ChevronLeft" (mnsClick)="back.emit()">
-        {{ label() }}
-      </mns-btn>
-    }
+    <ng-container *transloco="let t">
+      @if (route(); as target) {
+        <a [routerLink]="target" class="no-underline">
+          <mns-btn variant="outline" icon="ChevronLeft">{{
+            label() || t('common.actions.back')
+          }}</mns-btn>
+        </a>
+      } @else {
+        <mns-btn variant="outline" icon="ChevronLeft" (mnsClick)="back.emit()">
+          {{ label() || t('common.actions.back') }}
+        </mns-btn>
+      }
+    </ng-container>
   `,
   host: { style: 'display:contents' },
 })
 export class BackLink {
   readonly route = input<string | undefined>(undefined);
-  readonly label = input<string>('Back');
+  /** Defaults to the localized "Back". */
+  readonly label = input<string>('');
 
   readonly back = output<void>();
 }

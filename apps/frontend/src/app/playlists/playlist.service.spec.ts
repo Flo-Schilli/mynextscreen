@@ -13,6 +13,8 @@ import {
   ReorderPlaylistItemsRequest,
   BulkDeletePlaylistsResponse,
   BulkAssignScreenResponse,
+  PlaylistRule,
+  RulePreviewResult,
 } from './playlist.model';
 
 try {
@@ -372,6 +374,47 @@ describe('PlaylistService', () => {
       expect(req.request.headers.get('X-Organisation-Id')).toBe(ORG_ID);
       req.flush(expected);
       expect(result).toEqual(expected);
+    });
+  });
+
+  describe('dynamic playlist rule', () => {
+    const rule: PlaylistRule = {
+      sourceIds: ['s1'],
+      genres: { match: 'any', values: [] },
+      venues: [],
+      dateFrom: { mode: 'today' },
+      dateTo: { mode: 'none' },
+      excludeCancelled: true,
+      excludeSoldOut: false,
+      sort: 'date_asc',
+      limit: 50,
+      graceHours: 4,
+      refreshIntervalMinutes: 15,
+      format: '1920x1080',
+      itemDurationSeconds: 10,
+      transition: 'fade',
+      transitionDurationMs: 500,
+    };
+
+    it('should PATCH the rule of a playlist', () => {
+      service.updateRule(ORG_ID, 'p1', rule).subscribe();
+
+      const req = httpMock.expectOne('/api/playlists/p1/rule');
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual(rule);
+      expect(req.request.headers.get('X-Organisation-Id')).toBe(ORG_ID);
+      req.flush(buildPlaylist({ kind: 'dynamic', rule }));
+    });
+
+    it('should POST a rule for a preview', () => {
+      let result: RulePreviewResult | undefined;
+      service.previewRule(ORG_ID, rule).subscribe((res) => (result = res));
+
+      const req = httpMock.expectOne('/api/playlists/rule-preview');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual(rule);
+      req.flush({ items: [], totalDurationSeconds: 0 });
+      expect(result).toEqual({ items: [], totalDurationSeconds: 0 });
     });
   });
 

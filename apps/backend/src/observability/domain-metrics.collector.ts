@@ -13,6 +13,8 @@ import { DashboardSseService } from '../dashboard';
 import { SiteAgentSseService } from '../site-agent/site-agent-sse.service';
 import { FfmpegLiveService } from '../live-stream/ffmpeg-live.service';
 import { SLICE_CONTENT_QUEUE } from '../slice-content/slice-content.constants';
+import { CONTENT_SOURCE_SYNC_QUEUE } from '../content-source/content-source.constants';
+import { PLAYLIST_RESOLVE_QUEUE } from '../playlist/playlist-resolve.constants';
 import {
   BULLMQ_QUEUE_JOBS,
   LIVE_STREAMS_ACTIVE,
@@ -44,6 +46,8 @@ export class DomainMetricsCollector {
   constructor(
     @InjectQueue('transcoding') private readonly transcodingQueue: Queue,
     @InjectQueue(SLICE_CONTENT_QUEUE) private readonly sliceQueue: Queue,
+    @InjectQueue(CONTENT_SOURCE_SYNC_QUEUE) private readonly contentSourceQueue: Queue,
+    @InjectQueue(PLAYLIST_RESOLVE_QUEUE) private readonly playlistResolveQueue: Queue,
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly dashboardSse: DashboardSseService,
@@ -72,6 +76,8 @@ export class DomainMetricsCollector {
     await Promise.all([
       this.collectQueue('transcoding', this.transcodingQueue),
       this.collectQueue(SLICE_CONTENT_QUEUE, this.sliceQueue),
+      this.collectQueue(CONTENT_SOURCE_SYNC_QUEUE, this.contentSourceQueue),
+      this.collectQueue(PLAYLIST_RESOLVE_QUEUE, this.playlistResolveQueue),
     ]);
   }
 

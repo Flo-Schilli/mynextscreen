@@ -9,7 +9,7 @@ WORKDIR /app
 COPY package.json package-lock.json nx.json tsconfig.base.json ./
 # The lockfile is maintained with the npm version pinned in package.json;
 # the base image's bundled npm can lag that patch, so pin it explicitly.
-RUN npm i -g npm@11.6.2
+RUN npm i -g npm@12.2.0
 RUN npm ci
 
 COPY apps/site-agent apps/site-agent
@@ -43,7 +43,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 # npm is a build-time tool only — the container runs `node dist/...`. Removing
 # it drops the advisories Trivy reports against npm's own bundled dependencies.
-RUN npm i -g npm@11.6.2 \
+RUN npm i -g npm@12.2.0 \
     && npm ci --omit=dev \
     && npm cache clean --force \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx

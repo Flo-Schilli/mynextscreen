@@ -25,6 +25,9 @@ export const AUDIT_PLAYLIST_UPDATED = 'audit.playlist.updated';
 export const AUDIT_PLAYLIST_DELETED = 'audit.playlist.deleted';
 export const AUDIT_PLAYLIST_BULK_DELETED = 'audit.playlist.bulk_deleted';
 export const AUDIT_PLAYLIST_BULK_SCREEN_ASSIGNED = 'audit.playlist.bulk_screen_assigned';
+export const AUDIT_PLAYLIST_RULE_UPDATED = 'audit.playlist.rule_updated';
+/** A resolve changed the items of a dynamic playlist; unchanged resolves are not audited. */
+export const AUDIT_PLAYLIST_RESOLVED = 'audit.playlist.resolved';
 
 export class AuditPlaylistEvent {
   constructor(
@@ -65,6 +68,23 @@ export class AuditScreenEvent {
     // null when the event has no concrete screen yet (e.g. a failed pairing
     // claim before the screen is created).
     public readonly screenId: string | null,
+    public readonly organisationId: string,
+    public readonly userId: string | null,
+    public readonly details: Record<string, unknown> | null,
+  ) {}
+}
+
+// ── Content sources ──────────────────────────────────────────────────────────
+export const AUDIT_CONTENT_SOURCE_CREATED = 'audit.content_source.created';
+export const AUDIT_CONTENT_SOURCE_UPDATED = 'audit.content_source.updated';
+export const AUDIT_CONTENT_SOURCE_DELETED = 'audit.content_source.deleted';
+export const AUDIT_CONTENT_SOURCE_SYNCED = 'audit.content_source.synced';
+export const AUDIT_CONTENT_SOURCE_SYNC_FAILED = 'audit.content_source.sync_failed';
+
+/** `userId` is null for scheduled syncs. */
+export class AuditContentSourceEvent {
+  constructor(
+    public readonly sourceId: string,
     public readonly organisationId: string,
     public readonly userId: string | null,
     public readonly details: Record<string, unknown> | null,

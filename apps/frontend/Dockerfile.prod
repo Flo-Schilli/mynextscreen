@@ -10,7 +10,7 @@ COPY package.json package-lock.json nx.json tsconfig.base.json ./
 # The lockfile is maintained with the npm version pinned in package.json;
 # the base image's bundled npm can lag that patch, so pin it explicitly to keep
 # `npm ci` deterministic (older npm fails with "Missing: ... from lock file").
-RUN npm i -g npm@11.6.2
+RUN npm i -g npm@12.2.0
 RUN npm ci
 
 COPY apps/frontend apps/frontend

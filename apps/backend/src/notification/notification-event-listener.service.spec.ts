@@ -8,6 +8,7 @@ import { DRIZZLE } from '../db/database.constants';
 import { organisations, screens, contents, type Organisation } from '../db/schema';
 import { ContentType } from '../content/content-type.enum';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
+import { seedContentSource } from '../test/content-source-seed';
 import type { DrizzleDB } from '../db/drizzle.types';
 
 describe('NotificationEventListener', () => {
@@ -161,6 +162,43 @@ describe('NotificationEventListener', () => {
       const event = new TranscodingCompletedEvent(content.id, org.id, 1024);
 
       await expect(listener.handleTranscodingCompleted(event)).resolves.toBeUndefined();
+    });
+  });
+
+  describe('content managed by a content source', () => {
+    async function seedManagedContent() {
+      const source = await seedContentSource(db, org.id);
+      const [content] = await db
+        .insert(contents)
+        .values({
+          organisationId: org.id,
+          title: 'Slide',
+          type: ContentType.Image,
+          originalFilename: 'slide.jpg',
+          originalMimeType: 'image/jpeg',
+          originalSizeBytes: 1024,
+          managedBySourceId: source.id,
+        })
+        .returning();
+      return content;
+    }
+
+    it('does not notify when a managed slide finished transcoding', async () => {
+      const content = await seedManagedContent();
+
+      await listener.handleTranscodingCompleted(
+        new TranscodingCompletedEvent(content.id, org.id, 1024),
+      );
+
+      expect(dispatch).not.toHaveBeenCalled();
+    });
+
+    it('does not ask to re-upload a managed slide that failed', async () => {
+      const content = await seedManagedContent();
+
+      await listener.handleTranscodingFailed(new TranscodingFailedEvent(content.id, org.id, 'x'));
+
+      expect(dispatch).not.toHaveBeenCalled();
     });
   });
 

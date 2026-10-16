@@ -415,6 +415,7 @@ export class ScreenTile {
       id: ref.contentId,
       type: ref.type,
       thumbnailSizeBytes: ref.thumbnailSizeBytes,
+      updatedAt: ref.updatedAt,
     });
   });
 

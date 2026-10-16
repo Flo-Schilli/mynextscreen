@@ -32,7 +32,7 @@ jobs:
         run: |
           # Match the npm pinned in package.json: the lockfile is written by it
           # and npm 10 (the version bundled with Node 22) cannot install it.
-          npm i -g npm@11.6.2
+          npm i -g npm@12.2.0
           npm ci
 
       - name: Check version sync

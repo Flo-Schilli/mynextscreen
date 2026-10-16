@@ -146,7 +146,8 @@
       "liveStreams": "Live Streams",
       "auditLog": "Audit Log",
       "settings": "Settings",
-      "instanceAdmin": "Instance Admin"
+      "instanceAdmin": "Instance Admin",
+      "sources": "Sources"
     },
     "sidebar": {
       "collapse": "Collapse sidebar",
@@ -643,7 +644,8 @@
       "createFirst": "Create Your First Playlist",
       "items": "{count, plural, one {# item} other {# items}}",
       "default": "Default",
-      "emptyPlaylist": "Empty playlist"
+      "emptyPlaylist": "Empty playlist",
+      "dynamic": "Dynamic"
     },
     "create": {
       "title": "New playlist",
@@ -652,7 +654,20 @@
       "accentColor": "Accent colour",
       "setAccentColor": "Set accent colour {color}",
       "creating": "Creating…",
-      "createPlaylist": "Create playlist"
+      "createPlaylist": "Create playlist",
+      "kindLabel": "Type",
+      "kindStatic": "Static",
+      "kindStaticDesc": "Put content together by hand",
+      "kindDynamic": "Dynamic",
+      "kindDynamicDesc": "Events from sources by rule, updates itself",
+      "sourcesLabel": "Sources",
+      "sourcesPlaceholder": "Choose sources",
+      "formatLabel": "Format",
+      "ruleHint": "Filters, date range and display are set in the rule afterwards.",
+      "noSources": "Create a content source first.",
+      "goToSources": "Go to sources",
+      "sourcesRequired": "Choose at least one source.",
+      "formatRequired": "None of the chosen sources renders a format."
     },
     "delete": {
       "title": "Delete Playlist",
@@ -701,7 +716,8 @@
         "applyDurationAria": "Apply duration to all images",
         "applyTransitionAria": "Apply transition to all items",
         "applyTransitionMsAria": "Apply transition duration to all items"
-      }
+      },
+      "dynamic": "Dynamic"
     },
     "transition": {
       "cut": "Cut",
@@ -773,7 +789,8 @@
       "linkCopied": "Link copied to clipboard.",
       "linkCopyFailed": "Could not copy link.",
       "itemsAdded": "{count, plural, one {# item added to playlist.} other {# items added to playlist.}}",
-      "appliedToAll": "{count, plural, one {Applied to # item.} other {Applied to # items.}}"
+      "appliedToAll": "{count, plural, one {Applied to # item.} other {Applied to # items.}}",
+      "ruleSaved": "Rule saved"
     },
     "errors": {
       "loadPlaylists": "Failed to load playlists.",
@@ -790,6 +807,93 @@
       "reorderItems": "Failed to reorder items.",
       "loadScreens": "Failed to load screens.",
       "applyToAll": "Failed to apply the setting to all items."
+    },
+    "rule": {
+      "title": "Rule",
+      "sub": "The playlist is computed from the event pool automatically",
+      "readOnly": "Only admins and editors can change the rule.",
+      "sourcesSection": "Sources & filters",
+      "dateSection": "Date range",
+      "displaySection": "Amount & display",
+      "sourcesLabel": "Sources",
+      "sourcesPlaceholder": "Choose sources",
+      "genresLabel": "Genres",
+      "genresPlaceholder": "All genres",
+      "genreMatch": {
+        "any": "Any of them",
+        "all": "All of them"
+      },
+      "venuesLabel": "Venues",
+      "venuesPlaceholder": "All venues",
+      "dateFromLabel": "From",
+      "dateToLabel": "To",
+      "dateFromMode": {
+        "today": "Today",
+        "fixed": "Date",
+        "relativeDays": "In X days"
+      },
+      "dateToMode": {
+        "none": "Open-ended",
+        "fixed": "Date",
+        "relativeDays": "In X days"
+      },
+      "daysLabel": "Days from today",
+      "excludeCancelled": "Hide cancelled",
+      "excludeSoldOut": "Hide sold out",
+      "sortLabel": "Order",
+      "sort": {
+        "date_asc": "Soonest first",
+        "date_desc": "Latest first"
+      },
+      "limit": "Max. events",
+      "graceHours": "Grace (hours)",
+      "graceHoursHint": "How long an event stays in the playlist after its day ends.",
+      "refreshInterval": "Recompute (min.)",
+      "itemDuration": "Duration per slide (s)",
+      "formatLabel": "Format",
+      "transitionLabel": "Transition",
+      "transitionMsLabel": "Transition duration (ms)",
+      "save": "Save rule",
+      "saving": "Saving…",
+      "discard": "Discard",
+      "missingSources": "{count, plural, one {A deleted source was} other {# deleted sources were}} removed from the selection. Save to clean up the rule.",
+      "lastResolved": "Last computed {date}",
+      "nextResolve": "Next computation {date}",
+      "errors": {
+        "sourcesRequired": "Choose at least one source.",
+        "tooManySources": "At most 20 sources.",
+        "formatRequired": "None of the chosen sources renders a format.",
+        "dateFromInvalid": "The start date is invalid.",
+        "dateToInvalid": "The end date is invalid.",
+        "dateRangeInvalid": "The end date is before the start date.",
+        "numberOutOfRange": "A value is outside its allowed range.",
+        "saveFailed": "Could not save the rule.",
+        "sourcesMissing": "A chosen source no longer exists. The selection was cleaned up.",
+        "loadSources": "Could not load the sources."
+      },
+      "preview": {
+        "title": "Preview",
+        "sub": "{count, plural, =0 {No events} one {# event} other {# events}} · {duration} per loop",
+        "loading": "Computing preview…",
+        "empty": "The rule matches no event right now.",
+        "failed": "Preview failed.",
+        "invalid": "Complete the rule to see a preview.",
+        "expires": "until {date}",
+        "cancelled": "Cancelled",
+        "soldOut": "Sold out"
+      },
+      "summary": {
+        "allGenres": "All genres",
+        "allVenues": "All venues",
+        "fromToday": "from today",
+        "fromDate": "from {date}",
+        "fromDays": "{days, plural, =0 {from today} one {from tomorrow} other {from in # days}}",
+        "toDate": "until {date}",
+        "toDays": "{days, plural, =0 {until today} one {until tomorrow} other {until in # days}}",
+        "withoutCancelled": "without cancelled",
+        "withoutSoldOut": "without sold out",
+        "limit": "max. {limit}"
+      }
     }
   },
   "schedules": {
@@ -1450,7 +1554,14 @@
       "auth.password_changed": "Password changed",
       "auth.super_admin_setup": "Instance setup (super-admin)",
       "email.sent": "Email sent",
-      "email.send_failed": "Email send failed"
+      "email.send_failed": "Email send failed",
+      "playlist.rule_updated": "Playlist rule changed",
+      "playlist.resolved": "Dynamic playlist recomputed",
+      "content_source.created": "Content source created",
+      "content_source.updated": "Content source updated",
+      "content_source.deleted": "Content source deleted",
+      "content_source.synced": "Content source synced",
+      "content_source.sync_failed": "Content source sync failed"
     }
   },
   "notifications": {
@@ -1823,6 +1934,12 @@
     "timeInput": {
       "placeholder": "hh:mm AM",
       "invalid": "Not a valid time"
+    },
+    "multiSelect": {
+      "placeholder": "All",
+      "selected": "{count} selected",
+      "clear": "Clear selection",
+      "noOptions": "No options"
     }
   },
   "admin": {
@@ -2038,6 +2155,150 @@
         "loadFailed": "Failed to load audit log.",
         "loadMoreFailed": "Failed to load more entries."
       }
+    }
+  },
+  "sources": {
+    "list": {
+      "title": "Content sources",
+      "subtitle": "Event websites that slides are rendered from automatically",
+      "count": "{count, plural, one {# source} other {# sources}}",
+      "add": "Add source",
+      "loading": "Loading sources…",
+      "emptyTitle": "No sources yet",
+      "emptyDesc": "Add a source to turn the events of a website into slides for dynamic playlists.",
+      "lastSync": "Last sync",
+      "nextSync": "Next sync",
+      "never": "Never",
+      "paused": "Paused",
+      "formats": "Formats"
+    },
+    "status": {
+      "running": "Running",
+      "success": "Succeeded",
+      "partial": "Partial",
+      "failed": "Failed",
+      "never": "Never synced"
+    },
+    "form": {
+      "nameLabel": "Name",
+      "namePlaceholder": "e.g. Concertbüro Franken",
+      "adapterLabel": "Website",
+      "adapterFixed": "The website cannot be changed once the source exists.",
+      "paramHint": "{min}–{max}",
+      "params": {
+        "monthsAhead": "Months ahead"
+      },
+      "formatsLabel": "Slide formats",
+      "formatsHint": "One slide is rendered per event and format.",
+      "backgroundLabel": "Background",
+      "background": {
+        "black": "Black",
+        "blur": "Blurred image"
+      },
+      "accentLabel": "Accent colour",
+      "accentHint": "Colour of the status badge on the slide",
+      "intervalLabel": "Sync interval (minutes)",
+      "intervalHint": "{min}–{max} minutes",
+      "enabledLabel": "Enabled",
+      "enabledDesc": "Syncs automatically at the set interval",
+      "noAdapters": "No websites available",
+      "errors": {
+        "nameRequired": "Enter a name (max. 200 characters).",
+        "adapterRequired": "Choose a website.",
+        "paramOutOfRange": "A parameter is outside its allowed range.",
+        "formatRequired": "Choose at least one format.",
+        "accentColorInvalid": "The accent colour must be a hex value like #e30613.",
+        "intervalOutOfRange": "The interval must be between 15 and 10080 minutes."
+      }
+    },
+    "create": {
+      "title": "New source",
+      "submit": "Create source",
+      "creating": "Creating…"
+    },
+    "detail": {
+      "loading": "Loading source…",
+      "notFound": "Source not found.",
+      "syncNow": "Sync now",
+      "syncing": "Syncing…",
+      "settingsTitle": "Settings",
+      "settingsSub": "Website, formats, style and interval",
+      "readOnly": "Only admins and editors can change sources.",
+      "save": "Save",
+      "saving": "Saving…",
+      "lastSync": "Last sync {date}",
+      "neverSynced": "Never synced",
+      "nextSync": "Next sync {date}",
+      "nextSyncDue": "Next sync on the next run",
+      "summary": "{listed} listed · {created} new · {updated} changed · {gone} removed · {rendered} rendered · {failed} failed",
+      "syncError": "Error: {error}",
+      "deleteTitle": "Delete source",
+      "deleteConfirm": "“{name}” and its event pool will be deleted. Dynamic playlists using this source will no longer show its events."
+    },
+    "events": {
+      "title": "Event pool",
+      "count": "{count, plural, =0 {No events} one {# event} other {# events}}",
+      "includeGone": "Show events no longer listed",
+      "date": "Date",
+      "artist": "Artist",
+      "venue": "Venue",
+      "genres": "Genres",
+      "status": "Status",
+      "slides": "Slides",
+      "loading": "Loading events…",
+      "empty": "No events yet. Sync the source to fill the pool.",
+      "cancelled": "Cancelled",
+      "soldOut": "Sold out",
+      "gone": "No longer listed",
+      "noSlide": "No slide",
+      "slideAlt": "Slide {format}",
+      "allVenues": "All venues",
+      "allGenres": "All genres",
+      "from": "From",
+      "to": "Until",
+      "noMatch": "No events match the filters.",
+      "showing": "{shown} of {total} events",
+      "loadMore": "Load more",
+      "loadingMore": "Loading…",
+      "venueRaw": "Spelling on the website; the slide shows it like this.",
+      "venueRawValue": "Website: {name}"
+    },
+    "toast": {
+      "created": "Source created. The first sync is running.",
+      "updated": "Source saved",
+      "deleted": "Source deleted",
+      "syncQueued": "Sync started",
+      "syncFinished": "Sync finished",
+      "loadFailed": "Could not load the sources.",
+      "createFailed": "Could not create the source.",
+      "updateFailed": "Could not save the source.",
+      "deleteFailed": "Could not delete the source.",
+      "syncFailed": "Could not start the sync.",
+      "eventsFailed": "Could not load the events.",
+      "aliasesUpdated": "Aliases saved. Dynamic playlists are being recalculated.",
+      "aliasesFailed": "Aliases could not be saved.",
+      "venuesFailed": "Venues could not be loaded."
+    },
+    "aliases": {
+      "title": "Venue aliases",
+      "sub": "Merges the website's spellings into one venue, e.g. “Der Hirsch” → “Hirsch”. Filters, rules and the event pool use the canonical name; the slide keeps the website's spelling.",
+      "empty": "No venues yet. Sync the source to fill the pool.",
+      "raw": "Name on the website",
+      "events": "Events",
+      "canonical": "Canonical name",
+      "canonicalFor": "Canonical name for {name}",
+      "notListed": "not listed right now",
+      "remove": "Remove alias for {name}",
+      "newRaw": "Another spelling",
+      "newCanonical": "Canonical name",
+      "add": "Add alias",
+      "save": "Save aliases",
+      "unsaved": "Unsaved changes",
+      "errors": {
+        "chain": "This name is an alias itself. Pick its canonical name (one level only).",
+        "tooLong": "At most 200 characters."
+      },
+      "keep": "as on the website"
     }
   }
 }
