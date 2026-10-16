@@ -58,7 +58,7 @@ npx nx serve player                      # :4300
 ```
 
 > The lockfile is written by npm 11. npm 10, which ships with Node 22, cannot
-> install it — run `npm i -g npm@11.6.2` first.
+> install it — run `npm i -g npm@12.2.0` first.
 
 ## Production
 

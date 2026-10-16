@@ -15,9 +15,9 @@
   "private": true,
   "engines": {
     "node": "26.x",
-    "npm": "11.6.2"
+    "npm": "12.2.0"
   },
-  "packageManager": "npm@11.6.2",
+  "packageManager": "npm@12.2.0",
   "scripts": {
     "dev": "docker compose up --build",
     "lint": "nx run-many -t lint",

@@ -109,7 +109,7 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
   Ansible-Playbook `ansible/site-agent.yml`. Tests: **Jest** (Gate 85/75/83/85).
 - **Media:** **FFmpeg** als Child-Process (Transcoding + HLS-Live).
 - **Echtzeit:** **SSE** (Dashboard-Updates + Screen-Pushes).
-- **Runtime:** Node.js 26 (LTS). **Package-Manager: npm** (npm@11.6.2, kein pnpm/yarn).
+- **Runtime:** Node.js 26 (LTS). **Package-Manager: npm** (npm@12.2.0, kein pnpm/yarn).
 - **Deployment:** Docker Compose (dev) · Ansible + rootless Podman Quadlets + Caddy
   (prod, `ansible/`). Repo-Remote: GitHub (`github.com/Flo-Schilli/mynextscreen`).
 
