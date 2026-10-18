@@ -1,5 +1,5 @@
 {
-  "id": "edeafa12-14c1-45d0-9038-c8d2301da35f",
+  "id": "3c4fc2bb-f6d0-4077-b3ae-1e684f2f8bb5",
   "prevId": "650ad349-85af-48f4-8c65-3888fe744734",
   "version": "7",
   "dialect": "postgresql",
@@ -154,6 +154,22 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "UQ_capture_plugin_acceptances_active_agent": {
+          "name": "UQ_capture_plugin_acceptances_active_agent",
+          "columns": [
+            {
+              "expression": "agent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"capture_plugin_acceptances\".\"revoked_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

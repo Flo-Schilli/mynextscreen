@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne } from 'drizzle-orm';
 import {
   AUDIT_SITE_AGENT_CAPTURE_LICENSE_ACCEPTED,
   AUDIT_SITE_AGENT_CAPTURE_LICENSE_REVOKED,
@@ -10,6 +10,10 @@ import {
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { capturePluginAcceptances, users, type CapturePluginAcceptance } from '../db/schema';
+import {
+  CAPTURE_LICENSE_REVOKED,
+  CaptureLicenseRevokedEvent,
+} from './capture-license-revoked.event';
 import { SiteAgentService } from './site-agent.service';
 import { SiteAgentSseService } from './site-agent-sse.service';
 import { SiteAgentCommandType } from './site-agent-command.enum';
@@ -19,7 +23,9 @@ import {
 } from './capture-plugin-status.service';
 import { CapturePluginLicenseTextService } from './capture-plugin-license-text.service';
 import {
+  CAPTURE_DEVICE_ACCEPTANCE,
   CAPTURE_LICENSE_MISMATCH,
+  CAPTURE_PLUGIN_STATUS_PENDING,
   CAPTURE_LICENSE_TEXT_MISSING,
   CAPTURE_PLUGIN_NOT_READY,
   type CaptureLicenseTextView,
@@ -28,6 +34,16 @@ import {
 
 /** Shown when the accepting user has no display name; never their email. */
 const UNKNOWN_USER_NAME = 'Unknown';
+
+/** Attempts at the accept transaction before a unique violation is given up on. */
+const MAX_ACCEPT_ATTEMPTS = 3;
+const UNIQUE_VIOLATION = '23505';
+
+/** Postgres error code of a unique violation, as drizzle or pg surface it. */
+function isUniqueViolation(error: unknown): boolean {
+  const code = (error as { code?: string; cause?: { code?: string } } | null) ?? {};
+  return code.code === UNIQUE_VIOLATION || code.cause?.code === UNIQUE_VIOLATION;
+}
 
 /** Bound on the device-acceptance memo; one entry per agent and license hash. */
 const MAX_DEVICE_MEMO = 2000;
@@ -39,8 +55,8 @@ const MAX_DEVICE_MEMO = 2000;
  */
 @Injectable()
 export class CapturePluginAcceptanceService {
-  /** `agentId:licenseSha256` pairs whose device acceptance is already recorded. */
-  private readonly deviceRecorded = new Set<string>();
+  /** Agent to the license hash whose device acceptance is already recorded. */
+  private readonly deviceRecorded = new Map<string, string>();
 
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
@@ -85,27 +101,8 @@ export class CapturePluginAcceptanceService {
       throw new ConflictException(CAPTURE_LICENSE_TEXT_MISSING);
     }
 
-    const now = new Date();
-    await this.db.transaction(async (tx) => {
-      // One active acceptance per agent: a newer one supersedes the older.
-      await tx
-        .update(capturePluginAcceptances)
-        .set({ revokedAt: now, revokedByUserId: userId })
-        .where(
-          and(
-            eq(capturePluginAcceptances.agentId, agentId),
-            isNull(capturePluginAcceptances.revokedAt),
-          ),
-        );
-      await tx.insert(capturePluginAcceptances).values({
-        organisationId,
-        agentId,
-        licenseSha256,
-        source: 'dashboard',
-        acceptedByUserId: userId,
-        acceptedAt: now,
-      });
-    });
+    await this.insertDashboardAcceptance(organisationId, agentId, userId, licenseSha256);
+    this.deviceRecorded.delete(agentId);
 
     this.eventEmitter.emit(
       AUDIT_SITE_AGENT_CAPTURE_LICENSE_ACCEPTED,
@@ -118,6 +115,12 @@ export class CapturePluginAcceptanceService {
     return this.buildView(agentId);
   }
 
+  /**
+   * Revokes the dashboard acceptance. An acceptance made on the device is
+   * managed there (environment) and answers 409 `device_acceptance`. Active NDI
+   * streams of the agent are deactivated through {@link CaptureLicenseRevokedEvent},
+   * so screens fall back to their playlist instead of a black picture.
+   */
   async revoke(organisationId: string, agentId: string, userId: string): Promise<void> {
     await this.agents.findOne(organisationId, agentId);
     const revoked = await this.db
@@ -126,25 +129,37 @@ export class CapturePluginAcceptanceService {
       .where(
         and(
           eq(capturePluginAcceptances.agentId, agentId),
+          eq(capturePluginAcceptances.source, 'dashboard'),
           isNull(capturePluginAcceptances.revokedAt),
         ),
       )
       .returning({ licenseSha256: capturePluginAcceptances.licenseSha256 });
     if (revoked.length === 0) {
+      if (await this.latestActive(agentId)) {
+        throw new ConflictException(CAPTURE_DEVICE_ACCEPTANCE);
+      }
       throw new NotFoundException('No active license acceptance');
     }
+    // The environment may still accept: let the next report record that again.
+    this.deviceRecorded.delete(agentId);
     this.eventEmitter.emit(
       AUDIT_SITE_AGENT_CAPTURE_LICENSE_REVOKED,
       new AuditSiteAgentEvent(agentId, organisationId, userId, {
-        licenseSha256: revoked.map((row) => row.licenseSha256),
+        licenseSha256: revoked[0].licenseSha256,
       }),
     );
     this.pushReloadConfig(agentId);
+    await this.eventEmitter.emitAsync(
+      CAPTURE_LICENSE_REVOKED,
+      new CaptureLicenseRevokedEvent(agentId, organisationId, userId),
+    );
   }
 
   /**
    * Records an acceptance the operator made on the device. Called with every
-   * agent report, so the common case (already recorded) costs no query.
+   * agent report, so the common case (already recorded) costs no query. There
+   * is no tombstone: whenever the plugin still accepts through its environment
+   * and no active row covers the hash, the device acceptance is recorded again.
    */
   async recordDeviceAcceptance(
     organisationId: string,
@@ -155,33 +170,34 @@ export class CapturePluginAcceptanceService {
     if (report.acceptedVia !== 'environment' || !hash) {
       return;
     }
-    const memoKey = `${agentId}:${hash}`;
-    if (this.deviceRecorded.has(memoKey)) {
+    if (this.deviceRecorded.get(agentId) === hash) {
       return;
     }
-    const existing = await this.db
-      .select({
-        source: capturePluginAcceptances.source,
-        revokedAt: capturePluginAcceptances.revokedAt,
-      })
-      .from(capturePluginAcceptances)
-      .where(
-        and(
-          eq(capturePluginAcceptances.agentId, agentId),
-          eq(capturePluginAcceptances.licenseSha256, hash),
-        ),
-      );
-    // A revoked device row stays a tombstone: the environment still accepts,
-    // but that is not a new decision to record.
-    const alreadyKnown = existing.some((row) => row.source === 'device' || row.revokedAt === null);
-    if (!alreadyKnown) {
-      await this.db.insert(capturePluginAcceptances).values({
-        organisationId,
-        agentId,
-        licenseSha256: hash,
-        source: 'device',
-        acceptedByUserId: null,
-      });
+    const inserted = await this.db.transaction(async (tx) => {
+      // The environment decides: a dashboard row for another hash is superseded.
+      await tx
+        .update(capturePluginAcceptances)
+        .set({ revokedAt: new Date() })
+        .where(
+          and(
+            eq(capturePluginAcceptances.agentId, agentId),
+            isNull(capturePluginAcceptances.revokedAt),
+            ne(capturePluginAcceptances.licenseSha256, hash),
+          ),
+        );
+      return tx
+        .insert(capturePluginAcceptances)
+        .values({
+          organisationId,
+          agentId,
+          licenseSha256: hash,
+          source: 'device',
+          acceptedByUserId: null,
+        })
+        .onConflictDoNothing()
+        .returning({ id: capturePluginAcceptances.id });
+    });
+    if (inserted.length > 0) {
       this.eventEmitter.emit(
         AUDIT_SITE_AGENT_CAPTURE_LICENSE_ACCEPTED,
         new AuditSiteAgentEvent(agentId, organisationId, null, {
@@ -193,7 +209,7 @@ export class CapturePluginAcceptanceService {
     if (this.deviceRecorded.size >= MAX_DEVICE_MEMO) {
       this.deviceRecorded.clear();
     }
-    this.deviceRecorded.add(memoKey);
+    this.deviceRecorded.set(agentId, hash);
   }
 
   /** Plugin state for the agent list and detail; `absent` when no fresh report exists. */
@@ -204,6 +220,9 @@ export class CapturePluginAcceptanceService {
   /** 409 unless the plugin is ready and an active acceptance matches its reported hash. */
   async assertNdiReady(agentId: string): Promise<void> {
     const reported = this.status.get(agentId);
+    if (!reported && this.status.isStatusPending(agentId) && this.sse.isConnected(agentId)) {
+      throw new ConflictException(CAPTURE_PLUGIN_STATUS_PENDING);
+    }
     if (reported?.state !== 'ready' || !reported.license) {
       throw new ConflictException(CAPTURE_PLUGIN_NOT_READY);
     }
@@ -220,6 +239,48 @@ export class CapturePluginAcceptanceService {
       .limit(1);
     if (!match) {
       throw new ConflictException(CAPTURE_PLUGIN_NOT_READY);
+    }
+  }
+
+  /**
+   * Supersedes the active acceptance and inserts the new one. The partial
+   * unique index allows one active row per agent, so a concurrent accept can
+   * make the insert fail; the retry then supersedes the winner's row.
+   */
+  private async insertDashboardAcceptance(
+    organisationId: string,
+    agentId: string,
+    userId: string,
+    licenseSha256: string,
+  ): Promise<void> {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        await this.db.transaction(async (tx) => {
+          const now = new Date();
+          await tx
+            .update(capturePluginAcceptances)
+            .set({ revokedAt: now, revokedByUserId: userId })
+            .where(
+              and(
+                eq(capturePluginAcceptances.agentId, agentId),
+                isNull(capturePluginAcceptances.revokedAt),
+              ),
+            );
+          await tx.insert(capturePluginAcceptances).values({
+            organisationId,
+            agentId,
+            licenseSha256,
+            source: 'dashboard',
+            acceptedByUserId: userId,
+            acceptedAt: now,
+          });
+        });
+        return;
+      } catch (error) {
+        if (!isUniqueViolation(error) || attempt >= MAX_ACCEPT_ATTEMPTS) {
+          throw error;
+        }
+      }
     }
   }
 

@@ -122,15 +122,6 @@ describe('SiteAgentConfigService', () => {
 
       expect((await service.buildAgentConfig(agentId)).ndiPlugin).toEqual({ acceptance: null });
     });
-
-    it('picks the newest of several active rows', async () => {
-      await insertAcceptance({ licenseSha256: 'a'.repeat(64), acceptedAt: new Date(1_000) });
-      await insertAcceptance({ licenseSha256: 'b'.repeat(64), acceptedAt: new Date(2_000) });
-
-      expect((await service.buildAgentConfig(agentId)).ndiPlugin.acceptance?.licenseSha256).toBe(
-        'b'.repeat(64),
-      );
-    });
   });
 
   describe('ndiStreams', () => {

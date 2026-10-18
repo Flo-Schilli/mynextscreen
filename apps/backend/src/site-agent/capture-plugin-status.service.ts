@@ -25,6 +25,13 @@ const MAX_ENTRIES = 2000;
  */
 export const CAPTURE_PLUGIN_STATUS_TTL_MS = 30_000;
 
+/**
+ * After a restart the in-memory statuses are empty until agents report again,
+ * which takes up to one report interval. Within this window an agent that has
+ * not reported yet is "pending", not "not ready".
+ */
+export const CAPTURE_PLUGIN_STARTUP_GRACE_MS = 60_000;
+
 interface StoredStatus {
   status: CapturePluginStatus;
   reportedAtMs: number;
@@ -41,12 +48,22 @@ interface StoredStatus {
 @Injectable()
 export class CapturePluginStatusService {
   private readonly statuses = new Map<string, StoredStatus>();
+  /** Agents that reported at least once since this process started. */
+  private readonly seen = new Set<string>();
+
+  constructor(private readonly startedAtMs: number = Date.now()) {}
+
+  /** True while an agent may simply not have reported since this process started. */
+  isStatusPending(agentId: string, now = Date.now()): boolean {
+    return !this.seen.has(agentId) && now - this.startedAtMs < CAPTURE_PLUGIN_STARTUP_GRACE_MS;
+  }
 
   record(agentId: string, report: AgentCapturePluginReportDto, now = Date.now()): void {
     this.evictStale(now);
     if (!this.statuses.has(agentId) && this.statuses.size >= MAX_ENTRIES) {
       return;
     }
+    this.seen.add(agentId);
     this.statuses.set(agentId, {
       reportedAtMs: now,
       status: {

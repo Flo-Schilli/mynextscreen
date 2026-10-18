@@ -789,7 +789,14 @@ export const capturePluginAcceptances = pgTable(
     revokedAt: timestamp({ withTimezone: true }),
     revokedByUserId: uuid().references(() => users.id, { onDelete: 'set null' }),
   },
-  (t) => [index('IDX_capture_plugin_acceptances_agent').on(t.agentId)],
+  (t) => [
+    index('IDX_capture_plugin_acceptances_agent').on(t.agentId),
+    // At most one active acceptance per agent, enforced here so two concurrent
+    // accepts (or a device acceptance racing a dashboard one) cannot both win.
+    uniqueIndex('UQ_capture_plugin_acceptances_active_agent')
+      .on(t.agentId)
+      .where(sql`${t.revokedAt} IS NULL`),
+  ],
 );
 
 /**

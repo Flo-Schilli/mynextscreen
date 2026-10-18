@@ -271,6 +271,26 @@ Implementation notes (phase 3):
   accepting needs the stored text (`409 license_text_missing` otherwise).
 - The plugin reports its acceptance as `via: 'api' | 'env'`; the agent reports it as
   `capturePlugin.acceptedVia: 'api' | 'environment'`.
+- Revoke (`DELETE …/acceptance`) only touches `source='dashboard'` rows. When the only active
+  acceptance was made on the device (environment), it answers `409 device_acceptance`: that
+  acceptance is removed on the device by unsetting `MNS_CAPTURE_ACCEPT_NDI_LICENSE`. There is no
+  tombstone: if a dashboard acceptance superseded a device row and is revoked later, the next
+  report that still shows `acceptedVia=environment` for the current hash records the device
+  acceptance again.
+- A dashboard revoke also deactivates the agent's active NDI streams through the normal deactivate
+  path (audit reason `capture_license_revoked`), so screens fall back to the scheduled playlist
+  instead of a black picture. A plugin that goes to `license_required` for other reasons (new license hash after an image
+  update) is covered without deactivation: the agent reports the wanted streams with error code
+  `license_required`, the agent health turns `degraded`, and the stale-playlist 503 makes the
+  screens fall back once no fresh segments arrive.
+- Status after a backend restart: statuses are in memory. For the first 60 s after start, an
+  agent that has not reported yet makes create/activate answer `409 capture_plugin_status_pending`
+  (retry in a few seconds) instead of `capture_plugin_not_ready`.
+- The agent sends `capturePlugin: { state: 'absent' }` once a plugin that answered before becomes
+  unreachable, so the backend does not show a stale `ready` until its 30 s TTL.
+- At most one acceptance per agent is active, enforced by the partial unique index
+  `UQ_capture_plugin_acceptances_active_agent` (`WHERE revoked_at IS NULL`); concurrent accepts
+  retry the transaction.
 - The agent revokes only an acceptance made through the API, and only when the config carries
   an explicit `ndiPlugin.acceptance: null`. A config without `ndiPlugin` (older server) changes
   nothing.

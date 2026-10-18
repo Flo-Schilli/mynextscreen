@@ -23,4 +23,5 @@ ALTER TABLE "capture_plugin_acceptances" ADD CONSTRAINT "capture_plugin_acceptan
 ALTER TABLE "capture_plugin_acceptances" ADD CONSTRAINT "capture_plugin_acceptances_agent_id_site_agents_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."site_agents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "capture_plugin_acceptances" ADD CONSTRAINT "capture_plugin_acceptances_accepted_by_user_id_users_id_fk" FOREIGN KEY ("accepted_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "capture_plugin_acceptances" ADD CONSTRAINT "capture_plugin_acceptances_revoked_by_user_id_users_id_fk" FOREIGN KEY ("revoked_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "IDX_capture_plugin_acceptances_agent" ON "capture_plugin_acceptances" USING btree ("agent_id");
+CREATE INDEX "IDX_capture_plugin_acceptances_agent" ON "capture_plugin_acceptances" USING btree ("agent_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "UQ_capture_plugin_acceptances_active_agent" ON "capture_plugin_acceptances" USING btree ("agent_id") WHERE "capture_plugin_acceptances"."revoked_at" IS NULL;

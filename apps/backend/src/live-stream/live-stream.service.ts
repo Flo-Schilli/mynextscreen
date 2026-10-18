@@ -26,6 +26,10 @@ import { LiveStreamSourceType } from './live-stream-source-type.enum';
 import { NdiHlsStorageService } from './ndi-hls-storage.service';
 import { SiteAgentService } from '../site-agent/site-agent.service';
 import { CapturePluginAcceptanceService } from '../site-agent/capture-plugin-acceptance.service';
+import {
+  CAPTURE_LICENSE_REVOKED,
+  CaptureLicenseRevokedEvent,
+} from '../site-agent/capture-license-revoked.event';
 import { SiteAgentSseService } from '../site-agent/site-agent-sse.service';
 import { NdiStreamStatusService } from '../site-agent/ndi-stream-status.service';
 import { SiteAgentCommandType } from '../site-agent/site-agent-command.enum';
@@ -437,6 +441,7 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     organisationId: string,
     id: string,
     userId: string | null = null,
+    reason = 'manual',
   ): Promise<LiveStream> {
     const stream = await this.findOne(organisationId, id);
 
@@ -477,11 +482,47 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       new AuditLiveStreamEvent(id, organisationId, userId, {
         streamId: id,
         streamName: stream.name,
-        reason: 'manual',
+        reason,
       }),
     );
 
     return saved;
+  }
+
+  /**
+   * A revoked capture license stops the plugin's pipelines, so the agent's
+   * active NDI streams are deactivated and their screens fall back to the
+   * scheduled playlist instead of showing a black picture.
+   */
+  @OnEvent(CAPTURE_LICENSE_REVOKED)
+  async handleCaptureLicenseRevoked(event: CaptureLicenseRevokedEvent): Promise<void> {
+    const active = await this.db
+      .select({ id: liveStreams.id })
+      .from(liveStreams)
+      .where(
+        and(
+          eq(liveStreams.organisationId, event.organisationId),
+          eq(liveStreams.agentId, event.agentId),
+          eq(liveStreams.sourceType, LiveStreamSourceType.Ndi),
+          eq(liveStreams.status, LiveStreamStatus.Active),
+        ),
+      );
+    for (const { id } of active) {
+      try {
+        await this.deactivateStream(
+          event.organisationId,
+          id,
+          event.userId,
+          'capture_license_revoked',
+        );
+      } catch (error: unknown) {
+        this.logger.error(
+          `Could not deactivate stream ${id} after the capture license was revoked: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
   }
 
   @OnEvent(LIVE_STREAM_PROCESS_EXITED)

@@ -12,10 +12,15 @@ import { NdiHlsStorageService } from './ndi-hls-storage.service';
 import { ScreenGroupService } from '../screen-group/screen-group.service';
 import { SiteAgentService } from '../site-agent/site-agent.service';
 import { SiteAgentSseService } from '../site-agent/site-agent-sse.service';
+import { CaptureLicenseRevokedEvent } from '../site-agent/capture-license-revoked.event';
 import { CapturePluginAcceptanceService } from '../site-agent/capture-plugin-acceptance.service';
 import { NdiStreamStatusService } from '../site-agent/ndi-stream-status.service';
 import { SiteAgentCommandType } from '../site-agent/site-agent-command.enum';
-import { AUDIT_LIVE_STREAM_CREATED, AUDIT_LIVE_STREAM_PTZ } from '../audit-log/audit.events';
+import {
+  AUDIT_LIVE_STREAM_CREATED,
+  AUDIT_LIVE_STREAM_DEACTIVATED,
+  AUDIT_LIVE_STREAM_PTZ,
+} from '../audit-log/audit.events';
 import type { PtzCommand } from './ptz-command';
 import { PtzProtocol } from './ptz-protocol.enum';
 import { DRIZZLE } from '../db/database.constants';
@@ -351,6 +356,63 @@ describe('LiveStreamService (NDI)', () => {
       await service.activateStream(orgId, ndi.id, { targetScreenIds: [screenId] });
 
       expect(ffmpeg.stop).toHaveBeenCalledWith(pull.id);
+    });
+  });
+
+  describe('handleCaptureLicenseRevoked', () => {
+    it('deactivates the active NDI streams of that agent, with the revoke reason', async () => {
+      const stream = await seedNdi();
+      await service.activateStream(orgId, stream.id, { targetScreenIds: [screenId] });
+      const idle = await seedNdi({ status: LiveStreamStatus.Idle });
+      emitter.emit.mockClear();
+
+      await service.handleCaptureLicenseRevoked(
+        new CaptureLicenseRevokedEvent(agentId, orgId, 'user-1'),
+      );
+
+      const [row] = await db.select().from(liveStreams).where(eq(liveStreams.id, stream.id));
+      expect(row.status).toBe(LiveStreamStatus.Idle);
+      expect(await db.$count(liveStreamActivations)).toBe(0);
+      expect(emitter.emit).toHaveBeenCalledWith(
+        AUDIT_LIVE_STREAM_DEACTIVATED,
+        expect.objectContaining({
+          userId: 'user-1',
+          details: expect.objectContaining({ reason: 'capture_license_revoked' }),
+        }),
+      );
+      const [untouched] = await db.select().from(liveStreams).where(eq(liveStreams.id, idle.id));
+      expect(untouched.status).toBe(LiveStreamStatus.Idle);
+    });
+
+    it('leaves streams of other agents and organisations alone', async () => {
+      const foreign = await seedNdi({
+        agentId: foreignAgentId,
+        organisationId: otherOrgId,
+        status: LiveStreamStatus.Active,
+      });
+
+      await service.handleCaptureLicenseRevoked(
+        new CaptureLicenseRevokedEvent(agentId, orgId, 'u'),
+      );
+
+      const [row] = await db.select().from(liveStreams).where(eq(liveStreams.id, foreign.id));
+      expect(row.status).toBe(LiveStreamStatus.Active);
+    });
+
+    it('keeps going when one stream fails to deactivate', async () => {
+      const first = await seedNdi({ status: LiveStreamStatus.Active });
+      const second = await seedNdi({ status: LiveStreamStatus.Active });
+      ndiHls.removeStreamDir.mockRejectedValueOnce(new Error('disk'));
+
+      await service.handleCaptureLicenseRevoked(
+        new CaptureLicenseRevokedEvent(agentId, orgId, 'u'),
+      );
+
+      const rows = await db.select().from(liveStreams).where(eq(liveStreams.agentId, agentId));
+      expect(rows.map((r) => r.id).sort()).toEqual([first.id, second.id].sort());
+      expect(rows.filter((r) => r.status === LiveStreamStatus.Idle).length).toBeGreaterThanOrEqual(
+        1,
+      );
     });
   });
 

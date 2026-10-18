@@ -16,6 +16,7 @@ import { closeTestDb, initTestDb, truncateAll } from '../test/db-harness';
 import { CapturePluginAcceptanceService } from './capture-plugin-acceptance.service';
 import { CapturePluginLicenseTextService } from './capture-plugin-license-text.service';
 import { CapturePluginStatusService } from './capture-plugin-status.service';
+import { CAPTURE_LICENSE_REVOKED } from './capture-license-revoked.event';
 import { SiteAgentCommandType } from './site-agent-command.enum';
 import type { AgentCapturePluginReportDto } from './dto/agent-report.dto';
 
@@ -26,8 +27,8 @@ describe('CapturePluginAcceptanceService', () => {
   let db: DrizzleDB;
   let service: CapturePluginAcceptanceService;
   let status: CapturePluginStatusService;
-  let sse: { push: jest.Mock };
-  let emitter: { emit: jest.Mock };
+  let sse: { push: jest.Mock; isConnected: jest.Mock };
+  let emitter: { emit: jest.Mock; emitAsync: jest.Mock };
   let orgId: string;
   let otherOrgId: string;
   let agentId: string;
@@ -95,8 +96,8 @@ describe('CapturePluginAcceptanceService', () => {
     userId = user.id;
 
     status = new CapturePluginStatusService();
-    sse = { push: jest.fn().mockReturnValue(true) };
-    emitter = { emit: jest.fn() };
+    sse = { push: jest.fn().mockReturnValue(true), isConnected: jest.fn().mockReturnValue(true) };
+    emitter = { emit: jest.fn(), emitAsync: jest.fn().mockResolvedValue([]) };
     const agents = {
       findOne: jest.fn(async (org_: string, id: string) => {
         const [row] = await db.select().from(siteAgents).where(eq(siteAgents.id, id));
@@ -262,6 +263,30 @@ describe('CapturePluginAcceptanceService', () => {
       expect(await db.$count(capturePluginAcceptances)).toBe(2);
     });
 
+    it('survives concurrent accepts: one active row, no unique violation escapes', async () => {
+      status.record(agentId, report());
+      await storeText();
+
+      const results = await Promise.allSettled(
+        Array.from({ length: 4 }, () => service.accept(orgId, agentId, userId, HASH)),
+      );
+
+      expect(results.every((result) => result.status === 'fulfilled')).toBe(true);
+      expect(await activeRows()).toHaveLength(1);
+    });
+
+    it('rejects a second active row at the database level', async () => {
+      const row = {
+        organisationId: orgId,
+        agentId,
+        licenseSha256: HASH,
+        source: 'dashboard',
+      } as const;
+      await db.insert(capturePluginAcceptances).values(row);
+
+      await expect(db.insert(capturePluginAcceptances).values(row)).rejects.toThrow();
+    });
+
     it('is not found for an agent of another organisation', async () => {
       status.record(agentId, report());
       await storeText();
@@ -287,9 +312,45 @@ describe('CapturePluginAcceptanceService', () => {
       expect(row.revokedByUserId).toBe(userId);
       expect(emitter.emit).toHaveBeenCalledWith(
         AUDIT_SITE_AGENT_CAPTURE_LICENSE_REVOKED,
-        expect.objectContaining({ agentId, organisationId: orgId, userId }),
+        expect.objectContaining({
+          agentId,
+          organisationId: orgId,
+          userId,
+          details: { licenseSha256: HASH },
+        }),
       );
       expect(sse.push).toHaveBeenCalledTimes(1);
+      expect(emitter.emitAsync).toHaveBeenCalledWith(
+        CAPTURE_LICENSE_REVOKED,
+        expect.objectContaining({ agentId, organisationId: orgId, userId }),
+      );
+    });
+
+    it('answers 409 device_acceptance when only a device acceptance is active', async () => {
+      status.record(agentId, report({ state: 'ready', acceptedVia: 'environment' }));
+      await service.recordDeviceAcceptance(orgId, agentId, status.get(agentId)!);
+
+      await expect(service.revoke(orgId, agentId, userId)).rejects.toThrow(
+        new ConflictException('device_acceptance'),
+      );
+
+      expect(await activeRows()).toHaveLength(1);
+      expect(emitter.emitAsync).not.toHaveBeenCalled();
+    });
+
+    it('records the environment acceptance again after a dashboard acceptance over it is revoked', async () => {
+      status.record(agentId, report({ state: 'ready', acceptedVia: 'environment' }));
+      await service.recordDeviceAcceptance(orgId, agentId, status.get(agentId)!);
+      await storeText();
+      await service.accept(orgId, agentId, userId, HASH);
+      await service.revoke(orgId, agentId, userId);
+      expect(await activeRows()).toHaveLength(0);
+
+      await service.recordDeviceAcceptance(orgId, agentId, status.get(agentId)!);
+
+      const [row] = await activeRows();
+      expect(row).toEqual(expect.objectContaining({ source: 'device', licenseSha256: HASH }));
+      await expect(service.revoke(orgId, agentId, userId)).rejects.toThrow('device_acceptance');
     });
 
     it('is 404 without an active acceptance', async () => {
@@ -367,21 +428,15 @@ describe('CapturePluginAcceptanceService', () => {
       expect(emitter.emit).not.toHaveBeenCalled();
     });
 
-    it('does not resurrect a revoked device acceptance', async () => {
+    it('lets an environment acceptance for a new hash supersede a dashboard row', async () => {
+      status.record(agentId, report({}, OTHER_HASH));
+      await storeText(OTHER_HASH);
+      await service.accept(orgId, agentId, userId, OTHER_HASH);
+
       await record();
-      await service.revoke(orgId, agentId, userId);
-      const fresh = new CapturePluginAcceptanceService(
-        db,
-        {} as never,
-        status,
-        {} as never,
-        sse as never,
-        emitter as never,
-      );
 
-      await fresh.recordDeviceAcceptance(orgId, agentId, status.get(agentId)!);
-
-      expect(await activeRows()).toHaveLength(0);
+      const active = await activeRows();
+      expect(active.map((row) => [row.source, row.licenseSha256])).toEqual([['device', HASH]]);
     });
 
     it('records a new device row for a new license hash', async () => {
@@ -402,7 +457,36 @@ describe('CapturePluginAcceptanceService', () => {
 
     const notReady = new ConflictException('capture_plugin_not_ready');
 
-    it('refuses without a fresh report', async () => {
+    it('refuses without a fresh report once the startup window has passed', async () => {
+      const late = new CapturePluginStatusService(Date.now() - 10 * 60_000);
+      const lateService = new CapturePluginAcceptanceService(
+        db,
+        {} as never,
+        late,
+        {} as never,
+        sse as never,
+        emitter as never,
+      );
+
+      await expect(lateService.assertNdiReady(agentId)).rejects.toThrow(notReady);
+    });
+
+    it('answers a retryable capture_plugin_status_pending while no report has arrived since start', async () => {
+      await expect(service.assertNdiReady(agentId)).rejects.toThrow(
+        new ConflictException('capture_plugin_status_pending'),
+      );
+    });
+
+    it('is not pending for a disconnected agent', async () => {
+      sse.isConnected.mockReturnValue(false);
+
+      await expect(service.assertNdiReady(agentId)).rejects.toThrow(notReady);
+    });
+
+    it('is not pending once the agent has reported, even if it then goes stale', async () => {
+      status.record(agentId, report(), 1_000);
+
+      expect(status.isStatusPending(agentId)).toBe(false);
       await expect(service.assertNdiReady(agentId)).rejects.toThrow(notReady);
     });
 
