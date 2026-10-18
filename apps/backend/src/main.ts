@@ -6,7 +6,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 // break jest.spyOn on namespace imports elsewhere).
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import cookieParser = require('cookie-parser');
-import { json, raw } from 'express';
+import { raw } from 'express';
 import helmet from 'helmet';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -14,13 +14,10 @@ import { Pool } from 'pg';
 import * as path from 'path';
 import { AppModule } from './app.module';
 import { resolveNdiHlsMaxUploadBytes } from './live-stream/ndi-hls-limits';
+import { registerBodyParsers } from './common/body-parsers';
 import { requireBearerHeader } from './live-stream/require-bearer-header';
 
-/**
- * Two license texts of up to 256 KiB each, JSON-escaped (worst case six bytes
- * per character). Nest's default JSON limit (100 kB) would reject them.
- */
-const CAPTURE_LICENSE_TEXT_BODY_LIMIT = '4mb';
+const CAPTURE_LICENSE_TEXT_ROUTE = '/api/agents/me/capture-plugin/license-text';
 
 const NDI_HLS_SEGMENT_TYPE = 'video/mp2t';
 const NDI_HLS_PLAYLIST_TYPE = 'application/vnd.apple.mpegurl';
@@ -45,7 +42,7 @@ async function runMigrations(databaseUrl: string): Promise<void> {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
   const config = app.get(ConfigService);
 
   await runMigrations(config.getOrThrow<string>('DATABASE_URL'));
@@ -78,13 +75,10 @@ async function bootstrap() {
       limit: resolveNdiHlsMaxUploadBytes(config),
     }),
   );
-  // The agent's license text upload exceeds Nest's default JSON limit; the same
-  // cheap Bearer check keeps unauthenticated clients from making us buffer it.
-  app.use(
-    '/api/agents/me/capture-plugin/license-text',
-    requireBearerHeader,
-    json({ limit: CAPTURE_LICENSE_TEXT_BODY_LIMIT }),
-  );
+  // Nest's own body parsers are off (`bodyParser: false`): a path-scoped
+  // `json()` carries the same internal name as Nest's global one, which makes
+  // Nest skip registering it and leaves every other route without JSON parsing.
+  registerBodyParsers(app, { licenseTextRoute: CAPTURE_LICENSE_TEXT_ROUTE });
   app.use(cookieParser());
   // The admin SPA (PUBLIC_BASE_URL) sends credentialed cookies; the player app
   // (PLAYER_BASE_URL) is a separate origin that calls the public pairing routes
