@@ -121,7 +121,12 @@ export type NdiStreamStateValue = 'connecting' | 'streaming' | 'error';
  * addresses or FFmpeg output.
  */
 export type NdiErrorCode =
-  'source_not_found' | 'ffmpeg_exited' | 'no_frames' | 'resolution_changed' | 'internal_error';
+  | 'source_not_found'
+  | 'ffmpeg_exited'
+  | 'no_frames'
+  | 'resolution_changed'
+  | 'license_required'
+  | 'internal_error';
 
 /** Mirrors the backend's DTO maximum lengths for the reported fields. */
 export const NDI_STATUS_MAX_SOURCE_NAME = 200;
@@ -212,7 +217,8 @@ export interface AgentScreenReportMessage {
  * What the agent knows about the capture plugin (the separate NDI container).
  * Sent only when the plugin answers: an agent without it omits the block.
  */
-export type CapturePluginStateValue = 'license_required' | 'ready' | 'error' | 'incompatible';
+export type CapturePluginStateValue =
+  'license_required' | 'ready' | 'error' | 'incompatible' | 'absent';
 
 /** Reason behind `error` and `incompatible`; the plugin's codes plus the agent's own. */
 export type CapturePluginErrorCode =
