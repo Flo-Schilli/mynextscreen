@@ -28,6 +28,8 @@ let db: DrizzleDB | null = null;
 
 const TABLE_NAMES = [
   'organisations',
+  'capture_plugin_license_texts',
+  'capture_plugin_acceptances',
   'users',
   'user_organisation_memberships',
   'screen_groups',

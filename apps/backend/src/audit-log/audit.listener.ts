@@ -39,6 +39,8 @@ import {
   AUDIT_CONTENT_SOURCE_SYNCED,
   AUDIT_CONTENT_SOURCE_SYNC_FAILED,
   AuditContentSourceEvent,
+  AUDIT_SITE_AGENT_CAPTURE_LICENSE_ACCEPTED,
+  AUDIT_SITE_AGENT_CAPTURE_LICENSE_REVOKED,
   AUDIT_SITE_AGENT_CREATED,
   AUDIT_SITE_AGENT_UPDATED,
   AUDIT_SITE_AGENT_DELETED,
@@ -812,6 +814,16 @@ export class AuditListener {
   @OnEvent(AUDIT_SITE_AGENT_OFFLINE, { async: true })
   handleSiteAgentOffline(event: AuditSiteAgentEvent): void {
     this.recordSiteAgent(AuditAction.SiteAgentOffline, event);
+  }
+
+  @OnEvent(AUDIT_SITE_AGENT_CAPTURE_LICENSE_ACCEPTED, { async: true })
+  handleSiteAgentCaptureLicenseAccepted(event: AuditSiteAgentEvent): void {
+    this.recordSiteAgent(AuditAction.SiteAgentCaptureLicenseAccepted, event);
+  }
+
+  @OnEvent(AUDIT_SITE_AGENT_CAPTURE_LICENSE_REVOKED, { async: true })
+  handleSiteAgentCaptureLicenseRevoked(event: AuditSiteAgentEvent): void {
+    this.recordSiteAgent(AuditAction.SiteAgentCaptureLicenseRevoked, event);
   }
 
   @OnEvent(AUDIT_SCREEN_REMOTE_CONTROL_UPDATED, { async: true })

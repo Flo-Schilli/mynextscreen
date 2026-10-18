@@ -251,13 +251,29 @@ identified by the hash of the exact shipped text.
    the trademark notice, a link to https://ndi.video and an unticked checkbox "I accept the NDI SDK
    License and the plugin terms on behalf of <organisation>". Accept is enabled only after scrolling
    to the end and ticking the box.
-4. `POST /api/site-agents/:id/capture-plugin/acceptance { sdkVersion, licenseSha256 }` (OrgAdmin)
+4. `POST /api/site-agents/:id/capture-plugin/acceptance { licenseSha256 }` (OrgAdmin)
    → row in the new table `capture_plugin_acceptances` (`id`, `organisationId`, `agentId`,
-   `sdkVersion`, `licenseSha256`, `acceptedByUserId`, `acceptedAt`, `revokedAt`, `revokedByUserId`)
+   `licenseSha256`, `source`, `acceptedByUserId`, `acceptedAt`, `revokedAt`, `revokedByUserId`)
    plus audit `site_agent.capture_license_accepted`. Then the backend pushes `reload_config`.
-5. `AgentConfig.ndiPlugin = { acceptance: { sdkVersion, licenseSha256 } | null }` → agent →
+5. `AgentConfig.ndiPlugin = { acceptance: { licenseSha256 } | null }` → agent →
    plugin → status `ready` → card shows "ready".
 6. `DELETE …/acceptance` (OrgAdmin) revokes, with audit `site_agent.capture_license_revoked`.
+
+Implementation notes (phase 3):
+- `sdkVersion` is not part of the dashboard API or the stored acceptance. The hash covers the
+  texts; the agent adds the plugin's own `sdkVersion` when it calls `PUT /v1/license`.
+- A new acceptance supersedes an earlier active one of the same agent (`revokedAt` set), so at
+  most one row is active.
+- The texts reach the backend from the agent (`PUT /api/agents/me/capture-plugin/license-text`,
+  once per process and hash). The backend recomputes both hashes and the combination
+  `sha256(ndiLicenseSha256 + "\n" + termsSha256)` and stores the texts in
+  `capture_plugin_license_texts`, keyed by that hash. `GET …/license-text` (OrgAdmin) serves them;
+  accepting needs the stored text (`409 license_text_missing` otherwise).
+- The plugin reports its acceptance as `via: 'api' | 'env'`; the agent reports it as
+  `capturePlugin.acceptedVia: 'api' | 'environment'`.
+- The agent revokes only an acceptance made through the API, and only when the config carries
+  an explicit `ndiPlugin.acceptance: null`. A config without `ndiPlugin` (older server) changes
+  nothing.
 
 ### 6.2 Fallback: on the device (unattended / offline installs)
 - Env `MNS_CAPTURE_ACCEPT_NDI_LICENSE=<licenseSha256>` on the **plugin** container, set via the

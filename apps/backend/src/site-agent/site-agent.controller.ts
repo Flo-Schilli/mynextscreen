@@ -13,7 +13,9 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { SiteAgentService, type SiteAgentListItem } from './site-agent.service';
-import { CreateSiteAgentDto, UpdateSiteAgentDto } from './dto';
+import { CapturePluginAcceptanceService } from './capture-plugin-acceptance.service';
+import type { CaptureLicenseTextView, CapturePluginView } from './capture-plugin-acceptance.types';
+import { AcceptCaptureLicenseDto, CreateSiteAgentDto, UpdateSiteAgentDto } from './dto';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
@@ -31,9 +33,17 @@ interface CreatedSiteAgentResponse extends EnrolmentTokenResponse {
   agent: SiteAgent;
 }
 
+/** The plugin state every agent response carries, so lists can gate on it. */
+interface CapturePluginStateInfo {
+  capturePluginState: CapturePluginView['state'];
+}
+
 @Controller('site-agents')
 export class SiteAgentController {
-  constructor(private readonly siteAgentService: SiteAgentService) {}
+  constructor(
+    private readonly siteAgentService: SiteAgentService,
+    private readonly capturePlugin: CapturePluginAcceptanceService,
+  ) {}
 
   @Post()
   @Roles(OrganisationRole.OrgAdmin)
@@ -55,9 +65,9 @@ export class SiteAgentController {
   @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
   async findAll(
     @CurrentOrganisation() organisationId: string,
-  ): Promise<(SiteAgentListItem & AgentUpdateInfo)[]> {
+  ): Promise<(SiteAgentListItem & AgentUpdateInfo & CapturePluginStateInfo)[]> {
     const agents = await this.siteAgentService.listWithScreenCounts(organisationId);
-    return agents.map((agent) => withUpdateInfo(agent));
+    return agents.map((agent) => this.withCapturePluginState(withUpdateInfo(agent)));
   }
 
   @Get(':id')
@@ -65,8 +75,53 @@ export class SiteAgentController {
   async findOne(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<SiteAgent & AgentUpdateInfo> {
-    return withUpdateInfo(await this.siteAgentService.findOne(organisationId, id));
+  ): Promise<SiteAgent & AgentUpdateInfo & CapturePluginStateInfo> {
+    return this.withCapturePluginState(
+      withUpdateInfo(await this.siteAgentService.findOne(organisationId, id)),
+    );
+  }
+
+  @Get(':id/capture-plugin')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
+  capturePluginStatus(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<CapturePluginView> {
+    return this.capturePlugin.getView(organisationId, id);
+  }
+
+  /** The texts being accepted: OrgAdmin only, like the acceptance itself. */
+  @Get(':id/capture-plugin/license-text')
+  @Roles(OrganisationRole.OrgAdmin)
+  capturePluginLicenseText(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<CaptureLicenseTextView> {
+    return this.capturePlugin.getLicenseText(organisationId, id);
+  }
+
+  @Post(':id/capture-plugin/acceptance')
+  @Roles(OrganisationRole.OrgAdmin)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  acceptCapturePluginLicense(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AcceptCaptureLicenseDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<CapturePluginView> {
+    return this.capturePlugin.accept(organisationId, id, req.user.userId, dto.licenseSha256);
+  }
+
+  @Delete(':id/capture-plugin/acceptance')
+  @Roles(OrganisationRole.OrgAdmin)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  revokeCapturePluginLicense(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<void> {
+    return this.capturePlugin.revoke(organisationId, id, req.user.userId);
   }
 
   @Patch(':id')
@@ -154,5 +209,9 @@ export class SiteAgentController {
     @Req() req: AuthenticatedRequest,
   ): Promise<{ revoked: number }> {
     return this.siteAgentService.revokeAccess(organisationId, id, req.user.userId);
+  }
+
+  private withCapturePluginState<T extends { id: string }>(agent: T): T & CapturePluginStateInfo {
+    return { ...agent, capturePluginState: this.capturePlugin.stateOf(agent.id) };
   }
 }

@@ -191,6 +191,9 @@ export const CAPTURE_PLUGIN_ERROR_CODES = [
 ] as const;
 export type CapturePluginErrorCode = (typeof CAPTURE_PLUGIN_ERROR_CODES)[number];
 
+export const CAPTURE_PLUGIN_ACCEPTED_VIA = ['api', 'environment'] as const;
+export type CapturePluginAcceptedVia = (typeof CAPTURE_PLUGIN_ACCEPTED_VIA)[number];
+
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 
 /** Hashes of the exact license texts the plugin ships; what an acceptance must quote. */
@@ -235,6 +238,15 @@ export class AgentCapturePluginReportDto {
   @IsOptional()
   @IsIn(CAPTURE_PLUGIN_ERROR_CODES)
   errorCode?: CapturePluginErrorCode;
+
+  /**
+   * How the plugin's current acceptance was made: through its API (the
+   * dashboard flow) or through its environment (accepted on the device). Null
+   * or absent while the license is not accepted, and from older agents.
+   */
+  @IsOptional()
+  @IsIn(CAPTURE_PLUGIN_ACCEPTED_VIA)
+  acceptedVia?: CapturePluginAcceptedVia | null;
 }
 
 /** Batched because an agent reports for every screen it looks after each round. */

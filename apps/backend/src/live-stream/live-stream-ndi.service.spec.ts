@@ -12,6 +12,7 @@ import { NdiHlsStorageService } from './ndi-hls-storage.service';
 import { ScreenGroupService } from '../screen-group/screen-group.service';
 import { SiteAgentService } from '../site-agent/site-agent.service';
 import { SiteAgentSseService } from '../site-agent/site-agent-sse.service';
+import { CapturePluginAcceptanceService } from '../site-agent/capture-plugin-acceptance.service';
 import { NdiStreamStatusService } from '../site-agent/ndi-stream-status.service';
 import { SiteAgentCommandType } from '../site-agent/site-agent-command.enum';
 import { AUDIT_LIVE_STREAM_CREATED, AUDIT_LIVE_STREAM_PTZ } from '../audit-log/audit.events';
@@ -39,6 +40,7 @@ describe('LiveStreamService (NDI)', () => {
   let sse: { isConnected: jest.Mock; push: jest.Mock };
   let ndiHls: { removeStreamDir: jest.Mock };
   let ndiStatus: NdiStreamStatusService;
+  let capturePlugin: { assertNdiReady: jest.Mock };
   let emitter: { emit: jest.Mock };
   let siteAgentService: SiteAgentService;
   let orgId: string;
@@ -127,6 +129,7 @@ describe('LiveStreamService (NDI)', () => {
     ndiHls = { removeStreamDir: jest.fn().mockResolvedValue(undefined) };
     emitter = { emit: jest.fn() };
     ndiStatus = new NdiStreamStatusService();
+    capturePlugin = { assertNdiReady: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -139,6 +142,7 @@ describe('LiveStreamService (NDI)', () => {
         { provide: SiteAgentSseService, useValue: sse },
         { provide: NdiHlsStorageService, useValue: ndiHls },
         { provide: NdiStreamStatusService, useValue: ndiStatus },
+        { provide: CapturePluginAcceptanceService, useValue: capturePlugin },
         {
           provide: SiteAgentService,
           useValue: {
@@ -189,6 +193,29 @@ describe('LiveStreamService (NDI)', () => {
       );
     });
 
+    it('answers 409 capture_plugin_not_ready and stores nothing when the plugin is not licensed', async () => {
+      capturePlugin.assertNdiReady.mockRejectedValue(
+        new ConflictException('capture_plugin_not_ready'),
+      );
+
+      await expect(service.createLiveStream(orgId, ndiDto())).rejects.toThrow(
+        'capture_plugin_not_ready',
+      );
+
+      expect(capturePlugin.assertNdiReady).toHaveBeenCalledWith(agentId);
+      expect(await db.$count(liveStreams)).toBe(0);
+    });
+
+    it('does not consult the plugin gate for a pull stream', async () => {
+      await service.createLiveStream(orgId, {
+        name: 'Pull',
+        sourceUrl: 'rtmp://example.com/live/x',
+        protocol: 'rtmp',
+      } as CreateLiveStreamDto);
+
+      expect(capturePlugin.assertNdiReady).not.toHaveBeenCalled();
+    });
+
     it('stores an empty source name as null', async () => {
       const stream = await service.createLiveStream(orgId, ndiDto({ ndiSourceName: '   ' }));
 
@@ -223,6 +250,22 @@ describe('LiveStreamService (NDI)', () => {
       await expect(
         service.activateStream(orgId, stream.id, { targetScreenIds: [screenId] }),
       ).rejects.toThrow(new ConflictException('Site agent offline'));
+
+      const [row] = await db.select().from(liveStreams).where(eq(liveStreams.id, stream.id));
+      expect(row.status).toBe(LiveStreamStatus.Idle);
+      expect(await db.$count(liveStreamActivations)).toBe(0);
+      expect(sse.push).not.toHaveBeenCalled();
+    });
+
+    it('answers 409 capture_plugin_not_ready and changes nothing when the plugin is not licensed', async () => {
+      const stream = await seedNdi();
+      capturePlugin.assertNdiReady.mockRejectedValue(
+        new ConflictException('capture_plugin_not_ready'),
+      );
+
+      await expect(
+        service.activateStream(orgId, stream.id, { targetScreenIds: [screenId] }),
+      ).rejects.toThrow('capture_plugin_not_ready');
 
       const [row] = await db.select().from(liveStreams).where(eq(liveStreams.id, stream.id));
       expect(row.status).toBe(LiveStreamStatus.Idle);

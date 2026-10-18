@@ -45,6 +45,7 @@ describe('CapturePluginStatusService', () => {
         termsSha256: hash('c'),
       },
       errorCode: null,
+      acceptedVia: null,
       reportedAt: new Date(2_000).toISOString(),
     });
   });

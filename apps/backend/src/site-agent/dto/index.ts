@@ -13,3 +13,8 @@ export type { ManualCommandType } from './screen-remote-command.dto';
 export { ScreenOnboardingCheckDto } from './screen-onboarding-check.dto';
 export { AgentReportDto, AgentNdiStreamReportDto, NDI_STREAM_STATES } from './agent-report.dto';
 export type { NdiStreamState } from './agent-report.dto';
+export {
+  UploadCaptureLicenseTextDto,
+  CAPTURE_LICENSE_TEXT_MAX_BYTES,
+} from './upload-capture-license-text.dto';
+export { AcceptCaptureLicenseDto } from './accept-capture-license.dto';

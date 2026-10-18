@@ -25,6 +25,7 @@ import { LiveStreamStatus } from './live-stream-status.enum';
 import { LiveStreamSourceType } from './live-stream-source-type.enum';
 import { NdiHlsStorageService } from './ndi-hls-storage.service';
 import { SiteAgentService } from '../site-agent/site-agent.service';
+import { CapturePluginAcceptanceService } from '../site-agent/capture-plugin-acceptance.service';
 import { SiteAgentSseService } from '../site-agent/site-agent-sse.service';
 import { NdiStreamStatusService } from '../site-agent/ndi-stream-status.service';
 import { SiteAgentCommandType } from '../site-agent/site-agent-command.enum';
@@ -76,6 +77,7 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     private readonly siteAgentSse: SiteAgentSseService,
     private readonly ndiHls: NdiHlsStorageService,
     private readonly ndiStatus: NdiStreamStatusService,
+    private readonly capturePlugin: CapturePluginAcceptanceService,
   ) {
     super(db, liveStreams, 'LiveStream');
   }
@@ -342,6 +344,7 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       // Fail fast, before any state changes: a stream that is "active" with no
       // agent to feed it would just show a black screen.
       this.assertAgentConnected(stream);
+      await this.capturePlugin.assertNdiReady(stream.agentId!);
     } else {
       await this.startPullIngest(stream);
     }
@@ -556,6 +559,7 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
 
     // The DTO cannot see the database: confirm the agent is this org's own.
     const agent = await this.siteAgentService.findOne(organisationId, dto.agentId!);
+    await this.capturePlugin.assertNdiReady(agent.id);
     return {
       organisationId,
       name: dto.name,

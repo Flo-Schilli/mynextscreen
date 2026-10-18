@@ -6,7 +6,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 // break jest.spyOn on namespace imports elsewhere).
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import cookieParser = require('cookie-parser');
-import { raw } from 'express';
+import { json, raw } from 'express';
 import helmet from 'helmet';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -15,6 +15,12 @@ import * as path from 'path';
 import { AppModule } from './app.module';
 import { resolveNdiHlsMaxUploadBytes } from './live-stream/ndi-hls-limits';
 import { requireBearerHeader } from './live-stream/require-bearer-header';
+
+/**
+ * Two license texts of up to 256 KiB each, JSON-escaped (worst case six bytes
+ * per character). Nest's default JSON limit (100 kB) would reject them.
+ */
+const CAPTURE_LICENSE_TEXT_BODY_LIMIT = '4mb';
 
 const NDI_HLS_SEGMENT_TYPE = 'video/mp2t';
 const NDI_HLS_PLAYLIST_TYPE = 'application/vnd.apple.mpegurl';
@@ -71,6 +77,13 @@ async function bootstrap() {
       type: [NDI_HLS_SEGMENT_TYPE, NDI_HLS_PLAYLIST_TYPE],
       limit: resolveNdiHlsMaxUploadBytes(config),
     }),
+  );
+  // The agent's license text upload exceeds Nest's default JSON limit; the same
+  // cheap Bearer check keeps unauthenticated clients from making us buffer it.
+  app.use(
+    '/api/agents/me/capture-plugin/license-text',
+    requireBearerHeader,
+    json({ limit: CAPTURE_LICENSE_TEXT_BODY_LIMIT }),
   );
   app.use(cookieParser());
   // The admin SPA (PUBLIC_BASE_URL) sends credentialed cookies; the player app

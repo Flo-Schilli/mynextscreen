@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { AgentCapturePluginReportDto } from './dto/agent-report.dto';
+import type { AgentCapturePluginReportDto, CapturePluginAcceptedVia } from './dto/agent-report.dto';
 
 export interface CapturePluginStatus {
   state: NonNullable<AgentCapturePluginReportDto['state']>;
@@ -12,6 +12,7 @@ export interface CapturePluginStatus {
     termsSha256: string;
   } | null;
   errorCode: string | null;
+  acceptedVia: CapturePluginAcceptedVia | null;
   reportedAt: string;
 }
 
@@ -61,6 +62,7 @@ export class CapturePluginStatusService {
             }
           : null,
         errorCode: report.errorCode ?? null,
+        acceptedVia: report.acceptedVia ?? null,
         reportedAt: new Date(now).toISOString(),
       },
     });

@@ -66,6 +66,12 @@ export interface AgentNdiStreamConfig {
   ptz: { protocol: PtzProtocol; port: number } | null;
 }
 
+/** What the agent hands its capture plugin; absent acceptance means "not accepted". */
+export interface AgentNdiPluginConfig {
+  /** The active dashboard acceptance. Device acceptances live in the plugin's environment. */
+  acceptance: { licenseSha256: string } | null;
+}
+
 export interface AgentConfig {
   agentId: string;
   organisationId: string;
@@ -77,4 +83,5 @@ export interface AgentConfig {
   screens: AgentScreenConfig[];
   /** Active NDI streams bound to this agent; the agent reconciles against it. */
   ndiStreams: AgentNdiStreamConfig[];
+  ndiPlugin: AgentNdiPluginConfig;
 }

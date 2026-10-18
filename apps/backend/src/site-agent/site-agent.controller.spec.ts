@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Reflector } from '@nestjs/core';
 import { SiteAgentController } from './site-agent.controller';
 import { SiteAgentService } from './site-agent.service';
+import { CapturePluginAcceptanceService } from './capture-plugin-acceptance.service';
 import { ROLES_KEY } from '../auth/roles.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
@@ -10,6 +11,7 @@ import type { SiteAgent } from '../db/schema';
 describe('SiteAgentController', () => {
   let controller: SiteAgentController;
   let service: Record<string, jest.Mock>;
+  let capturePlugin: Record<string, jest.Mock>;
 
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
   const agentId = '660e8400-e29b-41d4-a716-446655440000';
@@ -45,10 +47,20 @@ describe('SiteAgentController', () => {
       revokeAccess: jest.fn(),
       probeNow: jest.fn(),
     };
+    capturePlugin = {
+      stateOf: jest.fn().mockReturnValue('absent'),
+      getView: jest.fn(),
+      getLicenseText: jest.fn(),
+      accept: jest.fn(),
+      revoke: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SiteAgentController],
-      providers: [{ provide: SiteAgentService, useValue: service }],
+      providers: [
+        { provide: SiteAgentService, useValue: service },
+        { provide: CapturePluginAcceptanceService, useValue: capturePlugin },
+      ],
     }).compile();
 
     controller = module.get(SiteAgentController);
@@ -138,6 +150,60 @@ describe('SiteAgentController', () => {
 
         expect(agent).toMatchObject({ latestAgentVersion: '0.18.0', updateAvailable: false });
       });
+    });
+  });
+
+  describe('capturePluginState', () => {
+    it('is added to list and detail responses', async () => {
+      capturePlugin.stateOf.mockReturnValue('license_required');
+      service.listWithScreenCounts.mockResolvedValue([{ ...mockAgent, screenCount: 0 }]);
+      service.findOne.mockResolvedValue(mockAgent);
+
+      const [listed] = await controller.findAll(orgId);
+      const detail = await controller.findOne(orgId, agentId);
+
+      expect(listed.capturePluginState).toBe('license_required');
+      expect(detail.capturePluginState).toBe('license_required');
+      expect(capturePlugin.stateOf).toHaveBeenCalledWith(agentId);
+    });
+  });
+
+  describe('capture plugin acceptance', () => {
+    it('declares OrgAdmin only for text, accept and revoke, and Viewer for the status', () => {
+      const reflector = new Reflector();
+      const rolesOf = (name: keyof SiteAgentController): OrganisationRole[] =>
+        reflector.get<OrganisationRole[]>(ROLES_KEY, SiteAgentController.prototype[name]);
+
+      expect(rolesOf('capturePluginStatus')).toContain(OrganisationRole.Viewer);
+      for (const name of [
+        'capturePluginLicenseText',
+        'acceptCapturePluginLicense',
+        'revokeCapturePluginLicense',
+      ] as const) {
+        expect(rolesOf(name)).toEqual([OrganisationRole.OrgAdmin]);
+      }
+    });
+
+    it('scopes the status and text lookups to the organisation', async () => {
+      await controller.capturePluginStatus(orgId, agentId);
+      await controller.capturePluginLicenseText(orgId, agentId);
+
+      expect(capturePlugin.getView).toHaveBeenCalledWith(orgId, agentId);
+      expect(capturePlugin.getLicenseText).toHaveBeenCalledWith(orgId, agentId);
+    });
+
+    it('forwards the acting user and hash when accepting', async () => {
+      const hash = 'a'.repeat(64);
+
+      await controller.acceptCapturePluginLicense(orgId, agentId, { licenseSha256: hash }, mockReq);
+
+      expect(capturePlugin.accept).toHaveBeenCalledWith(orgId, agentId, userId, hash);
+    });
+
+    it('forwards the acting user when revoking', async () => {
+      await controller.revokeCapturePluginLicense(orgId, agentId, mockReq);
+
+      expect(capturePlugin.revoke).toHaveBeenCalledWith(orgId, agentId, userId);
     });
   });
 

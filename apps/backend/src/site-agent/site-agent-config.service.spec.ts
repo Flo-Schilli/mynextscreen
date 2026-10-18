@@ -9,6 +9,7 @@ import { ScheduleBoundaryService } from '../screen/schedule-boundary.service';
 import { SecretCipher } from '../common/secret-cipher.service';
 import { DRIZZLE } from '../db/database.constants';
 import {
+  capturePluginAcceptances,
   liveStreams,
   organisations,
   screenRemoteControls,
@@ -90,6 +91,46 @@ describe('SiteAgentConfigService', () => {
       })
       .returning();
     screenId = screen.id;
+  });
+
+  describe('ndiPlugin', () => {
+    const insertAcceptance = (
+      values: Partial<typeof capturePluginAcceptances.$inferInsert> & { licenseSha256: string },
+    ) =>
+      db.insert(capturePluginAcceptances).values({
+        organisationId: orgId,
+        agentId,
+        source: 'dashboard',
+        ...values,
+      });
+
+    it('has no acceptance without a row', async () => {
+      expect((await service.buildAgentConfig(agentId)).ndiPlugin).toEqual({ acceptance: null });
+    });
+
+    it('carries the active dashboard acceptance', async () => {
+      await insertAcceptance({ licenseSha256: 'a'.repeat(64) });
+
+      expect((await service.buildAgentConfig(agentId)).ndiPlugin).toEqual({
+        acceptance: { licenseSha256: 'a'.repeat(64) },
+      });
+    });
+
+    it('ignores revoked rows and device acceptances', async () => {
+      await insertAcceptance({ licenseSha256: 'a'.repeat(64), revokedAt: new Date() });
+      await insertAcceptance({ licenseSha256: 'b'.repeat(64), source: 'device' });
+
+      expect((await service.buildAgentConfig(agentId)).ndiPlugin).toEqual({ acceptance: null });
+    });
+
+    it('picks the newest of several active rows', async () => {
+      await insertAcceptance({ licenseSha256: 'a'.repeat(64), acceptedAt: new Date(1_000) });
+      await insertAcceptance({ licenseSha256: 'b'.repeat(64), acceptedAt: new Date(2_000) });
+
+      expect((await service.buildAgentConfig(agentId)).ndiPlugin.acceptance?.licenseSha256).toBe(
+        'b'.repeat(64),
+      );
+    });
   });
 
   describe('ndiStreams', () => {

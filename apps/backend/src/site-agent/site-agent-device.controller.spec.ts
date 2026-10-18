@@ -12,6 +12,8 @@ import { SiteAgentSseService } from './site-agent-sse.service';
 import { ScreenRemoteCommandService } from './screen-remote-command.service';
 import { NdiStreamStatusService } from './ndi-stream-status.service';
 import { CapturePluginStatusService } from './capture-plugin-status.service';
+import { CapturePluginAcceptanceService } from './capture-plugin-acceptance.service';
+import { CapturePluginLicenseTextService } from './capture-plugin-license-text.service';
 import { AgentMetricsService } from '../observability/agent-metrics.service';
 import { ScreenReachability } from './screen-reachability.enum';
 import { IS_AGENT_AUTH_KEY } from '../auth/agent-auth.decorator';
@@ -31,7 +33,9 @@ describe('SiteAgentDeviceController', () => {
   let emitter: { emit: jest.Mock };
   let agentMetrics: { record: jest.Mock };
   let ndiStatus: { record: jest.Mock };
-  let capturePluginStatus: { record: jest.Mock };
+  let capturePluginStatus: { record: jest.Mock; get: jest.Mock };
+  let captureAcceptance: { recordDeviceAcceptance: jest.Mock };
+  let captureTexts: { store: jest.Mock };
 
   const agentId = '660e8400-e29b-41d4-a716-446655440000';
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
@@ -53,7 +57,9 @@ describe('SiteAgentDeviceController', () => {
     emitter = { emit: jest.fn() };
     agentMetrics = { record: jest.fn() };
     ndiStatus = { record: jest.fn() };
-    capturePluginStatus = { record: jest.fn() };
+    capturePluginStatus = { record: jest.fn(), get: jest.fn() };
+    captureAcceptance = { recordDeviceAcceptance: jest.fn() };
+    captureTexts = { store: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SiteAgentDeviceController],
@@ -72,6 +78,8 @@ describe('SiteAgentDeviceController', () => {
         { provide: AgentMetricsService, useValue: agentMetrics },
         { provide: NdiStreamStatusService, useValue: ndiStatus },
         { provide: CapturePluginStatusService, useValue: capturePluginStatus },
+        { provide: CapturePluginAcceptanceService, useValue: captureAcceptance },
+        { provide: CapturePluginLicenseTextService, useValue: captureTexts },
       ],
     }).compile();
 
@@ -300,6 +308,28 @@ describe('SiteAgentDeviceController', () => {
       await controller.reports(agentReq, { screens: [] });
 
       expect(capturePluginStatus.record).not.toHaveBeenCalled();
+      expect(captureAcceptance.recordDeviceAcceptance).not.toHaveBeenCalled();
+    });
+
+    it('hands the stored status to the device acceptance recorder', async () => {
+      const stored = { state: 'ready', acceptedVia: 'environment' };
+      capturePluginStatus.get.mockReturnValue(stored);
+
+      await controller.reports(agentReq, { screens: [], capturePlugin: { state: 'ready' } });
+
+      expect(captureAcceptance.recordDeviceAcceptance).toHaveBeenCalledWith(
+        agentReq.organisationId,
+        agentId,
+        stored,
+      );
+    });
+
+    it('skips the recorder when the store dropped the status', async () => {
+      capturePluginStatus.get.mockReturnValue(undefined);
+
+      await controller.reports(agentReq, { screens: [], capturePlugin: { state: 'ready' } });
+
+      expect(captureAcceptance.recordDeviceAcceptance).not.toHaveBeenCalled();
     });
 
     it('applies every screen in the batch', async () => {
@@ -350,6 +380,22 @@ describe('SiteAgentDeviceController', () => {
       await controller.reset(spoofed, { setupCode: 'fresh-code' });
 
       expect(siteAgentService.resetFromAgent).toHaveBeenCalledWith(agentId, orgId, 'fresh-code');
+    });
+  });
+
+  describe('uploadCaptureLicenseText', () => {
+    it('stores the texts through the license text service', async () => {
+      const dto = {
+        licenseSha256: 'a'.repeat(64),
+        ndiLicenseSha256: 'b'.repeat(64),
+        termsSha256: 'c'.repeat(64),
+        ndiLicenseText: 'ndi',
+        termsText: 'terms',
+      };
+
+      await controller.uploadCaptureLicenseText(dto);
+
+      expect(captureTexts.store).toHaveBeenCalledWith(dto);
     });
   });
 });
