@@ -318,23 +318,37 @@ identified by the hash of the exact shipped text.
 | Phase | Content | Effort (rough) |
 |---|---|---|
 | **0 Verify** | **Done 2026-10-18** (section 2) | done |
-| **1 Plugin repo** | repo exists. Add CI and GHCR publish (amd64), branch protection, NDI denylist (tree, diff, image sha256), move pipeline code and `tools/ndi-*` (relicensed), control API + `openapi.json`, license gate, platform check, bundled runtime + notices, specs, first release `v0.1.0` | 2.5–3.5 days |
-| **2 Agent** | **In review.** `PluginClient` + hand-synced types + contract spec, reconcile via the plugin, report block, remove grandi/FFmpeg/pipeline/`tools/ndi-*` from this repo, image smoke "no libndi, no grandi" | 1–2 days |
+| **1 Plugin repo** | **Done 2026-10-18** (plugin PRs #1, #3, #8). CI, tag-only GHCR publish (amd64), branch protection, NDI denylist (tree, diff, image sha256), moved pipeline + `tools/ndi-*` (relicensed), control API + `openapi.json`, license gate, platform check, bundled runtime + notices. **Released `v0.1.0`** (`ghcr.io/flo-schilli/mynextscreen-capture-plugin:0.1.0`) after phase 2 | done |
+| **2 Agent** | **Done 2026-10-18** (#171). `PluginClient` + hand-synced types + contract spec, reconcile via the plugin (no orphan deletion before a real config), report block, hardened HLS pickup, grandi/FFmpeg/pipeline/`tools/ndi-*` removed, agent image back to Alpine (~135 MB compressed), smoke "no libndi, no grandi, no ffmpeg" | done |
 | **3 Backend + dashboard** | migration `capture_plugin_acceptances`, acceptance API + audit, `AgentConfig.ndiPlugin`, gating (409), plugin card + acceptance modal, create-modal gating, i18n | 2–3 days |
 | **4 Deployment** | ansible quadlet + vars (x86-64 only), setup-UI acceptance page, device env fallback, docs/NOTICE, weekly SDK check job | 1–2 days |
 | **5 E2E** | rootless on x86-64: test source → plugin → agent → backend → player; acceptance/revocation/license-change paths. The Pi run (`h264_v4l2m2m`) is an optional dev test, not a release blocker | 1 day |
 
-Delivery: plugin-repo work through PRs in the plugin repo. This repo keeps one PR per phase into
-`develop`. Phase 2 requires a published plugin release from phase 1, so the agent and the
-integration tests have a pinned image.
+Delivery: plugin-repo work through PRs in the plugin repo; images are published only for version
+tags. This repo keeps one PR per phase into `develop`. Phase 2 was built and tested against a
+locally built plugin image; from phase 3 on, deployments pin the released plugin tag (`0.1.0`).
 
-## 10. Question for NDI (licensing@ndi.video)
-Recommended before releasing to `main`, **not a blocker** for starting phase 1. One confirmation
-question:
+## 10. NDI licensing: no request to NDI (decision 2026-10-18)
+**We deliberately do not ask NDI.** The use stays inside what the NDI SDK License and the SDK
+documentation allow as written:
+- **Production on x86-64 general-purpose hardware only**, with an operator-controlled, unrestricted
+  Linux. That is the "Products" definition of clause 1b (*"general purpose operating systems … on
+  general purpose computing platforms such as servers, desktops, and laptops on which the end user
+  can freely change … the operating system"*).
+- **Raspberry Pi only for internal development**, covered by clause 2a (*"for the sole purpose of
+  developing Products"*). No arm64 plugin image is ever published, and the plugin refuses to run on
+  non-x86-64 without `MNS_CAPTURE_DEV_ALLOW_ARM=1`.
+- **Bundling the unmodified runtime** is permitted by SDK docs §4.2/§4.5 when our terms cover clause
+  3d, which `NOTICE` does. The license acceptance (phase 3) is the consent to those terms.
 
-> May we ship the unmodified NDI 6 Linux runtime (`libndi.so.6`) in a public amd64 container image
-> under plugin terms that cover clause 3d, for use on x86-64 general-purpose hosts with an
-> operator-controlled, unrestricted Linux?
+Obligations that stay with us: follow new SDK releases (clause 2b; weekly `sdk-watch` in the plugin
+repo), trademark use (clause 3f: no "NDI" in product names, notice + link), and never offer the
+plugin on a preconfigured locked appliance (1b(i)).
+
+Residual risk: a third party could run the public image on an excluded environment; that would be
+their licensing matter, and our docs and the platform check state the intended use. If NDI ever
+objects, the remedy is to withdraw the image. This is a reading of the license text, not legal
+advice.
 
 ## 11. Risks
 
