@@ -10,6 +10,12 @@ import type {
 import { ConnectionStore, type StoredConnection } from './connection.store';
 import { normaliseBaseUrl } from './server-url';
 
+const HLS_FILENAME_PATTERN = /^(index\.m3u8|[A-Za-z0-9_-]+\.ts)$/;
+const STREAM_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const HLS_SEGMENT_CONTENT_TYPE = 'video/mp2t';
+export const HLS_PLAYLIST_CONTENT_TYPE = 'application/vnd.apple.mpegurl';
+
 /** Raised when the server says the session is gone and refreshing did not help. */
 export class SessionRejectedError extends Error {
   constructor(message = 'Agent session was rejected') {
@@ -56,6 +62,9 @@ interface RequestOptions {
 @Injectable()
 export class ServerClient {
   private readonly logger = new Logger(ServerClient.name);
+
+  /** Warn once per streak of fallbacks, not on every report. */
+  private warnedNdiFallback = false;
 
   /** In flight refresh, shared by every caller that hit 401 at the same moment. */
   private refreshInFlight: Promise<string> | null = null;
@@ -136,7 +145,45 @@ export class ServerClient {
   }
 
   async sendReports(report: AgentReportMessage): Promise<void> {
-    await this.request('/api/agents/me/reports', { method: 'POST', body: report });
+    const { ndiStreams, ...base } = report;
+    if (!ndiStreams) {
+      await this.request('/api/agents/me/reports', { method: 'POST', body: report });
+      return;
+    }
+    try {
+      await this.request('/api/agents/me/reports', { method: 'POST', body: report });
+      this.warnedNdiFallback = false;
+    } catch (error) {
+      // A server older than this agent rejects the unknown `ndiStreams` field.
+      // The screen reports matter more than the NDI status, so retry without it.
+      if (!(error instanceof UnexpectedStatusError) || error.status !== 400) {
+        throw error;
+      }
+      if (!this.warnedNdiFallback) {
+        this.warnedNdiFallback = true;
+        this.logger.warn(
+          'The server rejected the NDI status field, probably because it is older than this agent; sending reports without it',
+        );
+      }
+      if (base.screens.length > 0) {
+        await this.request('/api/agents/me/reports', { method: 'POST', body: base });
+      }
+    }
+  }
+
+  /** Uploads one finished HLS file of an NDI stream (segment or playlist). */
+  async putHlsFile(
+    streamId: string,
+    filename: string,
+    body: Buffer,
+    contentType: string,
+  ): Promise<void> {
+    await this.binaryRequest(hlsPath(streamId, filename), 'PUT', body, contentType);
+  }
+
+  /** Removes an HLS file the encoder has rolled off the playlist. */
+  async deleteHlsFile(streamId: string, filename: string): Promise<void> {
+    await this.binaryRequest(hlsPath(streamId, filename), 'DELETE');
   }
 
   /**
@@ -156,6 +203,40 @@ export class ServerClient {
       throw new Error(`/api/agents/me/app-package returned ${response.status}`);
     }
     return Buffer.from(await response.arrayBuffer());
+  }
+
+  /**
+   * A request whose body is bytes and whose answer is ignored. Shares the JSON
+   * path's session handling: one 401 means the access token expired, so it is
+   * refreshed and the call repeated once.
+   */
+  private async binaryRequest(
+    path: string,
+    method: 'PUT' | 'DELETE',
+    body?: Buffer,
+    contentType?: string,
+    isRetry = false,
+  ): Promise<void> {
+    const connection = await this.requireConnection();
+    const authorization = await this.authorization();
+    let response: Response;
+    try {
+      response = await fetch(`${connection.serverUrl}${path}`, {
+        method,
+        headers: {
+          Authorization: authorization,
+          ...(contentType ? { 'Content-Type': contentType } : {}),
+        },
+        body: body ? new Uint8Array(body) : undefined,
+      });
+    } catch (error) {
+      throw new ServerUnreachableError(error);
+    }
+    if (response.status === 401 && !isRetry) {
+      this.accessToken = null;
+      return this.binaryRequest(path, method, body, contentType, true);
+    }
+    await this.readBody<void>(response, path);
   }
 
   /** Absolute URL of the command stream, for the SSE consumer to open. */
@@ -280,4 +361,12 @@ export class ServerClient {
     }
     return connection;
   }
+}
+
+/** Path of one HLS file; the id and name are checked so nothing odd reaches the URL. */
+function hlsPath(streamId: string, filename: string): string {
+  if (!STREAM_ID_PATTERN.test(streamId) || !HLS_FILENAME_PATTERN.test(filename)) {
+    throw new Error('Invalid HLS stream id or filename');
+  }
+  return `/api/agents/me/live-streams/${streamId}/hls/${filename}`;
 }

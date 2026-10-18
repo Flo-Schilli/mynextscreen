@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { AgentEnv, DEFAULT_SETUP_PORT, DEFAULT_STATE_DIR } from './agent-env';
+import { AgentEnv, DEFAULT_FFMPEG_PATH, DEFAULT_SETUP_PORT, DEFAULT_STATE_DIR } from './agent-env';
 
 describe('AgentEnv', () => {
   function envWith(values: Record<string, string>): AgentEnv {
@@ -47,6 +47,36 @@ describe('AgentEnv', () => {
 
     it('parses the port as a number, since the environment gives strings', () => {
       expect(envWith({ MNS_SETUP_PORT: '9999' }).setupPort).toBe(9999);
+    });
+  });
+
+  describe('NDI', () => {
+    it('is enabled with the system FFmpeg and no encoder override by default', () => {
+      const env = envWith({});
+
+      expect(env.ndiEnabled).toBe(true);
+      expect(env.ffmpegPath).toBe(DEFAULT_FFMPEG_PATH);
+      expect(env.ndiEncoderOverride).toBeNull();
+    });
+
+    it('is switched off only by an explicit false', () => {
+      expect(envWith({ MNS_NDI_ENABLED: 'false' }).ndiEnabled).toBe(false);
+      expect(envWith({ MNS_NDI_ENABLED: 'true' }).ndiEnabled).toBe(true);
+      expect(envWith({ MNS_NDI_ENABLED: '0' }).ndiEnabled).toBe(true);
+    });
+
+    it('takes an FFmpeg path and an encoder override', () => {
+      const env = envWith({ MNS_FFMPEG_PATH: '/opt/ffmpeg', MNS_NDI_ENCODER: ' h264_vaapi ' });
+
+      expect(env.ffmpegPath).toBe('/opt/ffmpeg');
+      expect(env.ndiEncoderOverride).toBe('h264_vaapi');
+    });
+
+    it('falls back for blank values', () => {
+      const env = envWith({ MNS_FFMPEG_PATH: '', MNS_NDI_ENCODER: '  ' });
+
+      expect(env.ffmpegPath).toBe(DEFAULT_FFMPEG_PATH);
+      expect(env.ndiEncoderOverride).toBeNull();
     });
   });
 });

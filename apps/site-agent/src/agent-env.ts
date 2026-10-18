@@ -6,6 +6,9 @@ export const DEFAULT_STATE_DIR = '/var/lib/mynextscreen-agent';
 /** Port the setup UI listens on. `0` disables it entirely. */
 export const DEFAULT_SETUP_PORT = 8787;
 
+/** FFmpeg binary used for NDI transcoding; resolved through `PATH`. */
+export const DEFAULT_FFMPEG_PATH = 'ffmpeg';
+
 /**
  * Typed access to the agent's environment, so the defaults live in one place
  * rather than being repeated at every `config.get` call site.
@@ -43,5 +46,20 @@ export class AgentEnv {
 
   get setupPort(): number {
     return Number(this.config.get<string>('MNS_SETUP_PORT', String(DEFAULT_SETUP_PORT)));
+  }
+
+  /** Switch for the whole NDI pipeline. On unless explicitly set to `false`. */
+  get ndiEnabled(): boolean {
+    return this.config.get<string>('MNS_NDI_ENABLED') !== 'false';
+  }
+
+  /** Forces one encoder over the automatic choice; null leaves the choice to the stream. */
+  get ndiEncoderOverride(): string | null {
+    const value = this.config.get<string>('MNS_NDI_ENCODER')?.trim();
+    return value ? value : null;
+  }
+
+  get ffmpegPath(): string {
+    return this.config.get<string>('MNS_FFMPEG_PATH', DEFAULT_FFMPEG_PATH) || DEFAULT_FFMPEG_PATH;
   }
 }

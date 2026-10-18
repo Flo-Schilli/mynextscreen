@@ -20,6 +20,10 @@ import { SsapKeyStore, ssapKeyDir } from './tv/ssap-key.store';
 import { SupervisorService } from './supervisor/supervisor.service';
 import { NetworkInfoService } from './network/network-info.service';
 import { CommandHandlerService } from './supervisor/command-handler.service';
+import { HlsUploadService } from './hls/hls-upload.service';
+import { createGrandiBinding } from './ndi/grandi-binding';
+import { createNdiReceiverFactory } from './ndi/ndi-receiver';
+import { NdiStreamManager } from './ndi/ndi-stream.manager';
 import { UpdateService, updateSentinelPath } from './update/update.service';
 
 /** Reported on heartbeat and shown on the setup page. Injected at build time. */
@@ -104,6 +108,22 @@ export function pinnedServerUrl(env: AgentEnv): string {
     },
     CommandHandlerService,
     {
+      provide: HlsUploadService,
+      useFactory: (client: ServerClient) => new HlsUploadService(client),
+      inject: [ServerClient],
+    },
+    {
+      provide: NdiStreamManager,
+      useFactory: (uploader: HlsUploadService, env: AgentEnv) =>
+        new NdiStreamManager(createNdiReceiverFactory(createGrandiBinding()), uploader, {
+          enabled: env.ndiEnabled,
+          ffmpegPath: env.ffmpegPath,
+          encoderOverride: env.ndiEncoderOverride,
+          arch: process.arch,
+        }),
+      inject: [HlsUploadService, AgentEnv],
+    },
+    {
       provide: DevmodeKeyService,
       useFactory: (env: AgentEnv) => new DevmodeKeyService(devmodeKeyDir(env.stateDir)),
       inject: [AgentEnv],
@@ -127,6 +147,7 @@ export function pinnedServerUrl(env: AgentEnv): string {
         ssapKeys: SsapKeyStore,
         network: NetworkInfoService,
         discovery: DiscoveryService,
+        ndi: NdiStreamManager,
       ) =>
         new SupervisorService(
           connections,
@@ -140,6 +161,7 @@ export function pinnedServerUrl(env: AgentEnv): string {
           ssapKeys,
           network,
           discovery,
+          ndi,
           AGENT_VERSION,
         ),
       inject: [
@@ -154,6 +176,7 @@ export function pinnedServerUrl(env: AgentEnv): string {
         SsapKeyStore,
         NetworkInfoService,
         DiscoveryService,
+        NdiStreamManager,
       ],
     },
     {
