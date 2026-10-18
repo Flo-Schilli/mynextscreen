@@ -1104,7 +1104,11 @@
       "errorAgentRequired": "Site agent is required.",
       "errorCameraHostRequired": "Camera IP address is required.",
       "errorCameraHostInvalid": "Enter a valid IPv4 or IPv6 address.",
-      "ndiTrademark": "NDI® is a registered trademark of Vizrt NDI AB."
+      "ndiTrademark": "NDI® is a registered trademark of Vizrt NDI AB.",
+      "agentNotReady": "capture plugin not ready",
+      "noReadyAgent": "No site agent has a ready capture plugin. Enable the plugin on an agent first:",
+      "noReadyAgentLink": "Open site agents",
+      "errorAgentNotReady": "The capture plugin of this site agent is not ready."
     },
     "delete": {
       "title": "Delete live stream",
@@ -1189,7 +1193,8 @@
       "copyUrl": "Failed to copy URL.",
       "updateQualityPreset": "Failed to change the quality preset.",
       "ptz": "Failed to send the camera command. Is the site agent online?",
-      "updatePtz": "Failed to save the PTZ settings."
+      "updatePtz": "Failed to save the PTZ settings.",
+      "capturePluginNotReady": "The capture plugin of this site agent is not ready or its license has not been accepted. Check the agent page."
     },
     "toast": {
       "created": "Live stream created.",
@@ -1538,6 +1543,53 @@
       "ethernet": "LAN",
       "unknown": "Network unknown",
       "notReported": "Network not reported"
+    },
+    "capture": {
+      "title": "Video capture plugin (NDI®-compatible)",
+      "platform": "Supported platform: x86-64 only.",
+      "trademark": "NDI® is a registered trademark of Vizrt NDI AB.",
+      "pluginVersion": "Plugin version",
+      "sdkVersion": "SDK version",
+      "lastReport": "Last report",
+      "never": "never",
+      "acceptedBy": "Accepted by {name} on {date}.",
+      "acceptedDevice": "Accepted on the device on {date}.",
+      "deviceManaged": "This acceptance is managed on the device and can only be withdrawn there.",
+      "waitingForText": "Waiting for the agent to provide the license text.",
+      "enable": "Enable",
+      "revoke": "Revoke acceptance",
+      "revokeTitle": "Revoke license acceptance",
+      "revokeBody": "The plugin stops capturing and running NDI streams on this agent stop until the license is accepted again.",
+      "loadFailed": "The plugin status could not be loaded.",
+      "state": {
+        "absent": "Not installed or not reachable",
+        "license_required": "License acceptance required",
+        "ready": "Ready",
+        "error": "Error",
+        "errorCode": "Error: {code}",
+        "incompatible": "Incompatible version"
+      },
+      "toast": {
+        "accepted": "License accepted. The plugin is being enabled.",
+        "revoked": "License acceptance revoked.",
+        "revokeFailed": "Revoking the acceptance failed.",
+        "acceptFailed": "Accepting the license failed.",
+        "licenseChanged": "The license has changed in the meantime. The new text was reloaded; please read and accept it again.",
+        "textMissing": "The license text is not available yet. Please try again shortly."
+      },
+      "modal": {
+        "title": "Enable video capture plugin",
+        "loading": "Loading license text…",
+        "ndiLicenseHeading": "NDI SDK License",
+        "termsHeading": "Plugin terms",
+        "hash": "License version",
+        "scrollHint": "Scroll both texts to the end to continue.",
+        "checkbox": "I accept the NDI SDK License and the plugin terms on behalf of {organisation}.",
+        "accept": "Accept and enable",
+        "accepting": "Accepting…",
+        "notAvailable": "The license text is not available yet. The agent has to provide it first.",
+        "loadFailed": "The license text could not be loaded."
+      }
     }
   },
   "auditLog": {
@@ -1654,7 +1706,9 @@
       "content_source.updated": "Content source updated",
       "content_source.deleted": "Content source deleted",
       "content_source.synced": "Content source synced",
-      "content_source.sync_failed": "Content source sync failed"
+      "content_source.sync_failed": "Content source sync failed",
+      "site_agent.capture_license_accepted": "Video capture license accepted",
+      "site_agent.capture_license_revoked": "Video capture license revoked"
     }
   },
   "notifications": {

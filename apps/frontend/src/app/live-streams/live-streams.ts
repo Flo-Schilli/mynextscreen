@@ -4,7 +4,7 @@ import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { LiveStreamService } from './live-stream.service';
-import { LiveStream, CreateLiveStreamRequest } from './live-stream.model';
+import { LiveStream, CreateLiveStreamRequest, isCapturePluginNotReady } from './live-stream.model';
 import { LiveStreamCard } from './live-stream-card';
 import { LiveStreamCreateModal } from './live-stream-create-modal';
 import { LiveStreamDeleteModal } from './live-stream-delete-modal';
@@ -262,8 +262,9 @@ export class LiveStreams implements OnInit {
         this.toast.success(this.transloco.translate('liveStreams.toast.created'));
       },
       error: (err) => {
-        this.createError =
-          err.error?.message || this.transloco.translate('liveStreams.errors.createStream');
+        this.createError = isCapturePluginNotReady(err)
+          ? this.transloco.translate('liveStreams.errors.capturePluginNotReady')
+          : err.error?.message || this.transloco.translate('liveStreams.errors.createStream');
         this.creating = false;
       },
     });

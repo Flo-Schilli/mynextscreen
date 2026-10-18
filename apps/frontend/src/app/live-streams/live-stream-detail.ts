@@ -21,6 +21,7 @@ import {
 import {
   ActivateLiveStreamRequest,
   ActivateStreamResponse,
+  isCapturePluginNotReady,
   LiveStream,
   parsePtzPort,
   PtzCommand,
@@ -1187,7 +1188,9 @@ export class LiveStreamDetail implements OnInit {
       error: (err) => {
         this.busy.set(false);
         this.toast.error(
-          err.error?.message || this.transloco.translate('liveStreams.errors.startStream'),
+          isCapturePluginNotReady(err)
+            ? this.transloco.translate('liveStreams.errors.capturePluginNotReady')
+            : err.error?.message || this.transloco.translate('liveStreams.errors.startStream'),
         );
       },
     });
@@ -1229,7 +1232,9 @@ export class LiveStreamDetail implements OnInit {
         error: (err) => {
           this.busy.set(false);
           this.toast.error(
-            err.error?.message || this.transloco.translate('liveStreams.errors.restartStream'),
+            isCapturePluginNotReady(err)
+              ? this.transloco.translate('liveStreams.errors.capturePluginNotReady')
+              : err.error?.message || this.transloco.translate('liveStreams.errors.restartStream'),
           );
         },
       });

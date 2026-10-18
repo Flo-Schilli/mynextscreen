@@ -7,6 +7,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import {
   BtnComponent,
@@ -68,6 +69,7 @@ const NDI_HOME_URL = 'https://ndi.video';
     ToggleRowComponent,
     BtnComponent,
     PtzSettingsFields,
+    RouterLink,
     TranslocoDirective,
   ],
   template: `
@@ -150,6 +152,15 @@ const NDI_HOME_URL = 'https://ndi.video';
                 [placeholder]="t('liveStreams.create.agentPlaceholder')"
               />
             </mns-sfield>
+
+            @if (!anyAgentReady()) {
+              <p class="hint" data-testid="no-ready-agent">
+                {{ t('liveStreams.create.noReadyAgent') }}
+                <a routerLink="/site-agents" (click)="dismiss.emit()">{{
+                  t('liveStreams.create.noReadyAgentLink')
+                }}</a>
+              </p>
+            }
 
             <mns-sfield [label]="t('liveStreams.create.cameraHostLabel')">
               <mns-sinput
@@ -280,6 +291,15 @@ const NDI_HOME_URL = 'https://ndi.video';
       background: var(--accent-soft);
       color: var(--accent);
     }
+    .hint {
+      margin: 0;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+    .hint a {
+      text-decoration: underline;
+      color: var(--accent);
+    }
     .trademark {
       margin: 0;
       font-size: 0.6875rem;
@@ -332,8 +352,21 @@ export class LiveStreamCreateModal {
   protected readonly ptzPort = signal('');
   protected readonly localError = signal('');
 
+  protected readonly anyAgentReady = computed(() =>
+    this.agents().some((a) => a.capturePluginState === 'ready'),
+  );
+
+  /** Agents without a ready capture plugin stay listed, disabled, with the reason. */
   protected readonly agentOptions = computed<SelectOption[]>(() =>
-    this.agents().map((a) => ({ value: a.id, label: a.name })),
+    this.agents().map((a) =>
+      a.capturePluginState === 'ready'
+        ? { value: a.id, label: a.name }
+        : {
+            value: a.id,
+            label: `${a.name} (${this.transloco.translate('liveStreams.create.agentNotReady')})`,
+            disabled: true,
+          },
+    ),
   );
 
   protected sourceHint(): string {
@@ -373,6 +406,11 @@ export class LiveStreamCreateModal {
   private buildNdi(name: string): CreateLiveStreamRequest | null {
     if (!this.agentId()) {
       this.fail('liveStreams.create.errorAgentRequired');
+      return null;
+    }
+    const agent = this.agents().find((a) => a.id === this.agentId());
+    if (agent && agent.capturePluginState !== 'ready') {
+      this.fail('liveStreams.create.errorAgentNotReady');
       return null;
     }
     const cameraHost = this.cameraHost().trim();

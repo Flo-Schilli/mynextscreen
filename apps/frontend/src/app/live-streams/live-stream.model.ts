@@ -153,3 +153,16 @@ function isValidIpv6(value: string): boolean {
 export function isValidIpAddress(value: string): boolean {
   return IPV4_PATTERN.test(value) || isValidIpv6(value);
 }
+
+/**
+ * Whether a failed create/activate is the backend refusing an NDI stream
+ * because the agent's capture plugin is not ready or its license is not
+ * accepted (409 `capture_plugin_not_ready`).
+ */
+export function isCapturePluginNotReady(err: unknown): boolean {
+  const e = err as { status?: number; error?: { error?: string; code?: string; message?: string } };
+  return (
+    e?.status === 409 &&
+    [e.error?.error, e.error?.code, e.error?.message].includes('capture_plugin_not_ready')
+  );
+}
