@@ -1,9 +1,10 @@
 import { createServer, type Server } from 'node:http';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   MAX_RESPONSE_BYTES,
+  NOT_A_SOCKET,
   PluginUnreachableError,
   UnixSocketTransport,
 } from './plugin-transport';
@@ -86,6 +87,18 @@ describe('UnixSocketTransport', () => {
 
     expect(failure).toBeInstanceOf(PluginUnreachableError);
     expect(failure).toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('refuses a path that exists but is not a socket, naming it', async () => {
+    await writeFile(socket, 'not a socket');
+
+    const failure = await new UnixSocketTransport(socket)
+      .send('GET', '/v1/status')
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(PluginUnreachableError);
+    expect(failure).toMatchObject({ code: NOT_A_SOCKET });
+    expect((failure as Error).message).toContain('not a unix socket');
   });
 
   it('rejects as unreachable when the plugin does not answer in time', async () => {

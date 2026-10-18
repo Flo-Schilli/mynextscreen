@@ -201,7 +201,8 @@ export type CapturePluginErrorCode =
   | 'runtime_missing'
   | 'runtime_mismatch'
   | 'ndi_load_failed'
-  | 'unsupported_api_version';
+  | 'unsupported_api_version'
+  | 'internal_error';
 
 export interface AgentCapturePluginMessage {
   state: CapturePluginStateValue;

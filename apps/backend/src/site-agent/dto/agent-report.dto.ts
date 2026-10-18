@@ -187,6 +187,7 @@ export const CAPTURE_PLUGIN_ERROR_CODES = [
   'runtime_mismatch',
   'ndi_load_failed',
   'unsupported_api_version',
+  'internal_error',
 ] as const;
 export type CapturePluginErrorCode = (typeof CAPTURE_PLUGIN_ERROR_CODES)[number];
 

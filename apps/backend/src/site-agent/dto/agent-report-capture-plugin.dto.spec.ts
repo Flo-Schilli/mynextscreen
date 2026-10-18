@@ -42,6 +42,15 @@ describe('AgentReportDto capturePlugin', () => {
     ).toBe(0);
   });
 
+  it('accepts the agent-side internal_error code', async () => {
+    expect(
+      await errorsFor({
+        screens: [],
+        capturePlugin: { state: 'error', errorCode: 'internal_error' },
+      }),
+    ).toBe(0);
+  });
+
   it.each([
     [{ ...valid, state: 'paused' }],
     [{ ...valid, state: undefined }],

@@ -2,14 +2,13 @@ import { Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common'
 import type { AgentNdiStreamConfig } from '../protocol/server-protocol';
 import {
   CAPTURE_API_MAJOR,
-  PLUGIN_STATES,
   type PluginErrorResponse,
   type PluginStatus,
   type PluginStreamConfig,
-  type PluginStreamList,
   type PluginStreamStatus,
 } from './capture-plugin-protocol';
-import { PluginUnreachableError, type PluginTransport } from './plugin-transport';
+import { sanitizeStatus, sanitizeStreams } from './plugin-sanitize';
+import { NOT_A_SOCKET, PluginUnreachableError, type PluginTransport } from './plugin-transport';
 
 export const POLL_INTERVAL_MS = 2_000;
 
@@ -69,9 +68,6 @@ export function toPluginConfig(config: AgentNdiStreamConfig): PluginStreamConfig
   };
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-
 function errorCodeOf(body: unknown): string {
   const code = (body as Partial<PluginErrorResponse> | undefined)?.error?.code;
   return typeof code === 'string' ? code : 'unknown';
@@ -80,21 +76,12 @@ function errorCodeOf(body: unknown): string {
 /** Major version of an `apiVersion` such as `1` or `1.2`. */
 const majorOf = (apiVersion: string): string => apiVersion.split('.')[0] ?? '';
 
-function isStatusShape(body: unknown): body is PluginStatus {
-  return (
-    isRecord(body) &&
-    typeof body.apiVersion === 'string' &&
-    typeof body.state === 'string' &&
-    (PLUGIN_STATES as readonly string[]).includes(body.state)
-  );
-}
-
-function isStreamList(body: unknown): body is PluginStreamList {
-  return isRecord(body) && Array.isArray(body.streams);
-}
-
 /**
  * Talks to the capture plugin over its unix socket.
+ *
+ * The socket and the HLS directory live on a volume shared with the plugin
+ * container, owned by uid 1000 on both sides: that volume is a trust boundary,
+ * and plugin answers are treated as untrusted input (see `plugin-sanitize.ts`).
  *
  * Polls `GET /v1/status` and, while the plugin is `ready`, `GET /v1/streams`
  * every {@link POLL_INTERVAL_MS}. A missing socket is the plugin not being
@@ -106,6 +93,7 @@ export class PluginClient implements OnModuleInit, OnModuleDestroy {
   private current: CaptureSnapshot = UNKNOWN;
   private timer: ReturnType<typeof setInterval> | null = null;
   private polling: Promise<void> | null = null;
+  private warnedNotSocket = false;
   private readonly listeners = new Set<() => void>();
 
   constructor(
@@ -195,8 +183,8 @@ export class PluginClient implements OnModuleInit, OnModuleDestroy {
     if (statusResponse.status !== 200) {
       return { ...UNKNOWN, state: 'error' };
     }
-    const body = statusResponse.body;
-    if (!isStatusShape(body)) {
+    const body = sanitizeStatus(statusResponse.body);
+    if (!body) {
       return { ...UNKNOWN, state: 'incompatible', agentErrorCode: 'unsupported_api_version' };
     }
     if (majorOf(body.apiVersion) !== CAPTURE_API_MAJOR) {
@@ -224,14 +212,19 @@ export class PluginClient implements OnModuleInit, OnModuleDestroy {
   private async listStreams(): Promise<PluginStreamStatus[] | null> {
     try {
       const response = await this.transport.send('GET', '/v1/streams');
-      return response.status === 200 && isStreamList(response.body) ? response.body.streams : null;
+      return response.status === 200 ? sanitizeStreams(response.body) : null;
     } catch {
       return null;
     }
   }
 
   private unreachable(error: unknown): CaptureSnapshot {
-    if (!(error instanceof PluginUnreachableError)) {
+    if (error instanceof PluginUnreachableError && error.code === NOT_A_SOCKET) {
+      if (!this.warnedNotSocket) {
+        this.warnedNotSocket = true;
+        this.logger.warn(`${error.message}: check MNS_CAPTURE_SOCKET and the shared volume`);
+      }
+    } else if (!(error instanceof PluginUnreachableError)) {
       this.logger.warn(
         `Unexpected capture plugin failure: ${error instanceof Error ? error.message : String(error)}`,
       );

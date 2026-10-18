@@ -192,6 +192,14 @@ mode 0700 and is owned by uid 1000. Both containers run as uid 1000 (`keep-id`),
 permissions are the authentication. A shared token in an env var is an optional second factor.
 The contract is `openapi.json` in the plugin repo.
 
+**Trust boundary.** The socket directory and the HLS directory are one volume shared by both
+containers, owned by uid 1000 on both sides. Filesystem permissions are the only authentication:
+whoever can write that volume can impersonate the plugin. The agent therefore treats everything
+from it as untrusted. It checks that the socket path is a socket before connecting, validates and
+clamps every plugin answer to the backend DTO limits before reporting it (unknown states and codes
+become `error` / `internal_error`), and uploads only `index.m3u8` plus `seg_<run>_<n>.ts` files that
+are regular files (no symlinks, `O_NOFOLLOW`) within 1 MiB (playlist) / 32 MiB (segment).
+
 | Route | Purpose |
 |---|---|
 | `GET /v1/status` | `apiVersion`, plugin version, license state, sdkVersion, `{ sdkVersion, licenseSha256 }` of the shipped text (the agent forwards it to the backend), arch, available encoders |

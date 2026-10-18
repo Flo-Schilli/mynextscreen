@@ -1,5 +1,6 @@
 import { watch, type FSWatcher } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { lstat, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Logger } from '@nestjs/common';
 import {
@@ -8,7 +9,19 @@ import {
 } from '../connection/server-client.service';
 
 export const PLAYLIST_NAME = 'index.m3u8';
-const SEGMENT_NAME = /^[A-Za-z0-9_-]+\.ts$/;
+/** `seg_<runId>_<number>.ts`, the names the plugin writes; nothing else is ever opened. */
+const SEGMENT_NAME = /^seg_[A-Za-z0-9]+_\d+\.ts$/;
+
+export const SEGMENT_MAX_BYTES = 32 * 1024 * 1024;
+export const PLAYLIST_MAX_BYTES = 1024 * 1024;
+
+/** A file in the shared directory that must not be uploaded: not regular, a symlink or too big. */
+export class HlsFileRejectedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'HlsFileRejectedError';
+  }
+}
 
 /** Segments uploaded at the same time; more would only crowd the uplink. */
 export const UPLOAD_CONCURRENCY = 2;
@@ -27,7 +40,12 @@ export interface HlsUploadTarget {
 export interface HlsFileSystem {
   /** Calls `listener` whenever something in `dir` changes. */
   watch(dir: string, listener: () => void): { close(): void };
-  readFile(path: string): Promise<Buffer>;
+  /**
+   * Reads a regular file of at most `maxBytes`. Rejects with
+   * {@link HlsFileRejectedError} for anything else that exists; a missing file
+   * rejects with the plain ENOENT error.
+   */
+  readFile(path: string, maxBytes: number): Promise<Buffer>;
 }
 
 /**
@@ -65,9 +83,44 @@ export function watchDirectory(dir: string, listener: () => void): { close(): vo
   };
 }
 
+/**
+ * The shared directory is written by another container, so a file in it is
+ * untrusted: it is opened without following symlinks and only when it is a
+ * regular file within the size cap. `O_NOFOLLOW` closes the window between the
+ * `lstat` and the `open`.
+ */
+export async function readRegularFile(path: string, maxBytes: number): Promise<Buffer> {
+  const info = await lstat(path);
+  if (!info.isFile()) {
+    throw new HlsFileRejectedError('not a regular file');
+  }
+  if (info.size > maxBytes) {
+    throw new HlsFileRejectedError(`larger than ${maxBytes} bytes`);
+  }
+  const flags = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0);
+  let handle;
+  try {
+    handle = await open(path, flags);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ELOOP') {
+      throw new HlsFileRejectedError('is a symlink');
+    }
+    throw error;
+  }
+  try {
+    const opened = await handle.stat();
+    if (!opened.isFile() || opened.size > maxBytes) {
+      throw new HlsFileRejectedError('not a regular file within the size limit');
+    }
+    return await handle.readFile();
+  } finally {
+    await handle.close();
+  }
+}
+
 export const systemHlsFileSystem: HlsFileSystem = {
   watch: watchDirectory,
-  readFile: (path) => readFile(path),
+  readFile: readRegularFile,
 };
 
 export interface HlsUploadHandle {
@@ -105,6 +158,7 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 class StreamUploader implements HlsUploadHandle {
   private readonly logger = new Logger('HlsUpload');
   private readonly uploaded = new Set<string>();
+  private readonly rejected = new Set<string>();
   private readonly watcher: { close(): void };
   private running = false;
   private dirty = false;
@@ -176,9 +230,10 @@ class StreamUploader implements HlsUploadHandle {
   private async pass(): Promise<boolean> {
     let playlist: Buffer;
     try {
-      playlist = await this.files.readFile(join(this.dir, PLAYLIST_NAME));
-    } catch {
-      return true; // not written yet, or already cleaned up
+      playlist = await this.files.readFile(join(this.dir, PLAYLIST_NAME), PLAYLIST_MAX_BYTES);
+    } catch (error) {
+      this.noteRejected(PLAYLIST_NAME, error);
+      return true; // not written yet, already cleaned up, or not acceptable
     }
     const playlistText = playlist.toString('utf8');
     const listed = parsePlaylistSegments(playlistText);
@@ -219,9 +274,11 @@ class StreamUploader implements HlsUploadHandle {
   private async uploadSegment(name: string, detectedAt: number): Promise<boolean> {
     let body: Buffer;
     try {
-      body = await this.files.readFile(join(this.dir, name));
-    } catch {
-      // Already rolled off locally; the playlist no longer needs it either.
+      body = await this.files.readFile(join(this.dir, name), SEGMENT_MAX_BYTES);
+    } catch (error) {
+      // Already rolled off locally, or not acceptable: either way it is skipped
+      // and not retried; the playlist no longer needs it or the player will skip it.
+      this.noteRejected(name, error);
       this.uploaded.add(name);
       return true;
     }
@@ -231,6 +288,14 @@ class StreamUploader implements HlsUploadHandle {
       this.lagMs = Date.now() - detectedAt;
     }
     return ok;
+  }
+
+  /** Logs a refused file once per name; a missing file is normal and stays quiet. */
+  private noteRejected(name: string, error: unknown): void {
+    if (error instanceof HlsFileRejectedError && !this.rejected.has(name)) {
+      this.rejected.add(name);
+      this.logger.warn(`Skipping ${name} of stream ${this.streamId}: ${error.message}`);
+    }
   }
 
   private putFile(name: string, body: Buffer, contentType: string): Promise<void> {

@@ -1,8 +1,12 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  HlsFileRejectedError,
   HlsUploadService,
+  PLAYLIST_MAX_BYTES,
+  readRegularFile,
+  SEGMENT_MAX_BYTES,
   REWATCH_INTERVAL_MS,
   PLAYLIST_NAME,
   UPLOAD_ATTEMPTS,
@@ -28,9 +32,9 @@ const idle = async (): Promise<void> => {
 
 describe('parsePlaylistSegments', () => {
   it('lists segments in order and ignores everything else', () => {
-    const text = `${playlist('seg_00001.ts', 'seg_00002.ts')}\nhttp://evil/x.ts\n../up.ts\nseg 3.ts\n`;
+    const text = `${playlist('seg_ab12_00001.ts', 'seg_ab12_00002.ts')}\nhttp://evil/x.ts\n../up.ts\nseg 3.ts\n`;
 
-    expect(parsePlaylistSegments(text)).toEqual(['seg_00001.ts', 'seg_00002.ts']);
+    expect(parsePlaylistSegments(text)).toEqual(['seg_ab12_00001.ts', 'seg_ab12_00002.ts']);
   });
 });
 
@@ -80,53 +84,57 @@ describe('HlsUploadService', () => {
   });
 
   it('uploads each new segment before the playlist', async () => {
-    set('seg_00001.ts', 'a');
-    set('seg_00002.ts', 'b');
-    set(PLAYLIST_NAME, playlist('seg_00001.ts', 'seg_00002.ts'));
+    set('seg_ab12_00001.ts', 'a');
+    set('seg_ab12_00002.ts', 'b');
+    set(PLAYLIST_NAME, playlist('seg_ab12_00001.ts', 'seg_ab12_00002.ts'));
 
     trigger();
     await idle();
 
     const playlistAt = events.indexOf(`PUT ${PLAYLIST_NAME}`);
     expect(playlistAt).toBe(2);
-    expect(events.slice(0, 2).sort()).toEqual(['PUT seg_00001.ts', 'PUT seg_00002.ts']);
+    expect(events.slice(0, 2).sort()).toEqual(['PUT seg_ab12_00001.ts', 'PUT seg_ab12_00002.ts']);
   });
 
   it('sends the right content types and ids', async () => {
-    set('seg_00001.ts', 'a');
-    set(PLAYLIST_NAME, playlist('seg_00001.ts'));
+    set('seg_ab12_00001.ts', 'a');
+    set(PLAYLIST_NAME, playlist('seg_ab12_00001.ts'));
 
     trigger();
     await idle();
 
     expect(target.putHlsFile).toHaveBeenCalledWith(
       STREAM,
-      'seg_00001.ts',
+      'seg_ab12_00001.ts',
       Buffer.from('a'),
       'video/mp2t',
     );
     expect(target.putHlsFile).toHaveBeenCalledWith(
       STREAM,
       PLAYLIST_NAME,
-      Buffer.from(playlist('seg_00001.ts')),
+      Buffer.from(playlist('seg_ab12_00001.ts')),
       'application/vnd.apple.mpegurl',
     );
   });
 
   it('uploads only segments it has not sent yet and deletes rolled-off ones after the playlist', async () => {
-    set('seg_00001.ts', 'a');
-    set('seg_00002.ts', 'b');
-    set(PLAYLIST_NAME, playlist('seg_00001.ts', 'seg_00002.ts'));
+    set('seg_ab12_00001.ts', 'a');
+    set('seg_ab12_00002.ts', 'b');
+    set(PLAYLIST_NAME, playlist('seg_ab12_00001.ts', 'seg_ab12_00002.ts'));
     trigger();
     await idle();
     events.length = 0;
 
-    set('seg_00003.ts', 'c');
-    set(PLAYLIST_NAME, playlist('seg_00002.ts', 'seg_00003.ts'));
+    set('seg_ab12_00003.ts', 'c');
+    set(PLAYLIST_NAME, playlist('seg_ab12_00002.ts', 'seg_ab12_00003.ts'));
     trigger();
     await idle();
 
-    expect(events).toEqual(['PUT seg_00003.ts', `PUT ${PLAYLIST_NAME}`, 'DELETE seg_00001.ts']);
+    expect(events).toEqual([
+      'PUT seg_ab12_00003.ts',
+      `PUT ${PLAYLIST_NAME}`,
+      'DELETE seg_ab12_00001.ts',
+    ]);
   });
 
   it('limits parallel segment uploads', async () => {
@@ -138,7 +146,13 @@ describe('HlsUploadService', () => {
       await new Promise((resolve) => setTimeout(resolve, 3));
       inFlight -= 1;
     });
-    const names = ['seg_00001.ts', 'seg_00002.ts', 'seg_00003.ts', 'seg_00004.ts', 'seg_00005.ts'];
+    const names = [
+      'seg_ab12_00001.ts',
+      'seg_ab12_00002.ts',
+      'seg_ab12_00003.ts',
+      'seg_ab12_00004.ts',
+      'seg_ab12_00005.ts',
+    ];
     names.forEach((name) => set(name, 'x'));
     set(PLAYLIST_NAME, playlist(...names));
 
@@ -149,8 +163,8 @@ describe('HlsUploadService', () => {
   });
 
   it('retries a failed upload with backoff', async () => {
-    set('seg_00001.ts', 'a');
-    set(PLAYLIST_NAME, playlist('seg_00001.ts'));
+    set('seg_ab12_00001.ts', 'a');
+    set(PLAYLIST_NAME, playlist('seg_ab12_00001.ts'));
     target.putHlsFile
       .mockRejectedValueOnce(new Error('503'))
       .mockRejectedValueOnce(new Error('503'));
@@ -160,21 +174,21 @@ describe('HlsUploadService', () => {
 
     expect(target.putHlsFile).toHaveBeenCalledWith(
       STREAM,
-      'seg_00001.ts',
+      'seg_ab12_00001.ts',
       expect.anything(),
       'video/mp2t',
     );
     expect(target.putHlsFile).toHaveBeenCalledTimes(4);
-    expect(events).toEqual(['PUT seg_00001.ts', `PUT ${PLAYLIST_NAME}`]);
+    expect(events).toEqual(['PUT seg_ab12_00001.ts', `PUT ${PLAYLIST_NAME}`]);
   });
 
   it('holds the playlist back when a segment cannot be uploaded, and retries later', async () => {
     jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
     try {
-      set('seg_00001.ts', 'a');
-      set(PLAYLIST_NAME, playlist('seg_00001.ts'));
+      set('seg_ab12_00001.ts', 'a');
+      set(PLAYLIST_NAME, playlist('seg_ab12_00001.ts'));
       target.putHlsFile.mockImplementation(async (_id, name) => {
-        if (name === 'seg_00001.ts') {
+        if (name === 'seg_ab12_00001.ts') {
           throw new Error('down');
         }
         events.push(`PUT ${name}`);
@@ -185,7 +199,7 @@ describe('HlsUploadService', () => {
 
       expect(events).toEqual([]);
       expect(
-        target.putHlsFile.mock.calls.filter(([, name]) => name === 'seg_00001.ts'),
+        target.putHlsFile.mock.calls.filter(([, name]) => name === 'seg_ab12_00001.ts'),
       ).toHaveLength(UPLOAD_ATTEMPTS);
 
       target.putHlsFile.mockImplementation(async (_id, name) => {
@@ -193,7 +207,7 @@ describe('HlsUploadService', () => {
       });
       await jest.advanceTimersByTimeAsync(1_500);
 
-      expect(events).toEqual(['PUT seg_00001.ts', `PUT ${PLAYLIST_NAME}`]);
+      expect(events).toEqual(['PUT seg_ab12_00001.ts', `PUT ${PLAYLIST_NAME}`]);
     } finally {
       jest.useRealTimers();
     }
@@ -215,7 +229,7 @@ describe('HlsUploadService', () => {
   });
 
   it('skips a segment that is already gone locally', async () => {
-    set(PLAYLIST_NAME, playlist('seg_00001.ts'));
+    set(PLAYLIST_NAME, playlist('seg_ab12_00001.ts'));
 
     trigger();
     await idle();
@@ -231,43 +245,43 @@ describe('HlsUploadService', () => {
   });
 
   it('survives a failing delete', async () => {
-    set('seg_00001.ts', 'a');
-    set(PLAYLIST_NAME, playlist('seg_00001.ts'));
+    set('seg_ab12_00001.ts', 'a');
+    set(PLAYLIST_NAME, playlist('seg_ab12_00001.ts'));
     trigger();
     await idle();
     target.deleteHlsFile.mockRejectedValue(new Error('404'));
 
-    set('seg_00002.ts', 'b');
-    set(PLAYLIST_NAME, playlist('seg_00002.ts'));
+    set('seg_ab12_00002.ts', 'b');
+    set(PLAYLIST_NAME, playlist('seg_ab12_00002.ts'));
     trigger();
     await idle();
 
-    expect(events).toContain('PUT seg_00002.ts');
-    expect(target.deleteHlsFile).toHaveBeenCalledWith(STREAM, 'seg_00001.ts');
+    expect(events).toContain('PUT seg_ab12_00002.ts');
+    expect(target.deleteHlsFile).toHaveBeenCalledWith(STREAM, 'seg_ab12_00001.ts');
   });
 
   it('reruns a pass when files change during it', async () => {
-    set('seg_00001.ts', 'a');
-    set(PLAYLIST_NAME, playlist('seg_00001.ts'));
+    set('seg_ab12_00001.ts', 'a');
+    set(PLAYLIST_NAME, playlist('seg_ab12_00001.ts'));
     target.putHlsFile.mockImplementationOnce(async () => {
-      set('seg_00002.ts', 'b');
-      set(PLAYLIST_NAME, playlist('seg_00001.ts', 'seg_00002.ts'));
+      set('seg_ab12_00002.ts', 'b');
+      set(PLAYLIST_NAME, playlist('seg_ab12_00001.ts', 'seg_ab12_00002.ts'));
       trigger();
     });
 
     trigger();
     await idle();
 
-    expect(events).toContain('PUT seg_00002.ts');
+    expect(events).toContain('PUT seg_ab12_00002.ts');
   });
 
   it('measures the lag from detection to acceptance', async () => {
     jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
     try {
-      set('seg_00001.ts', 'a');
-      set(PLAYLIST_NAME, playlist('seg_00001.ts'));
+      set('seg_ab12_00001.ts', 'a');
+      set(PLAYLIST_NAME, playlist('seg_ab12_00001.ts'));
       target.putHlsFile.mockImplementation(async (_id, name) => {
-        if (name === 'seg_00001.ts') {
+        if (name === 'seg_ab12_00001.ts') {
           await new Promise((resolve) => setTimeout(resolve, 250));
         }
       });
@@ -284,8 +298,8 @@ describe('HlsUploadService', () => {
 
   it('closes the watcher and ignores changes after stop', async () => {
     await handle.stop();
-    set('seg_00001.ts', 'a');
-    set(PLAYLIST_NAME, playlist('seg_00001.ts'));
+    set('seg_ab12_00001.ts', 'a');
+    set(PLAYLIST_NAME, playlist('seg_ab12_00001.ts'));
 
     trigger();
     await idle();
@@ -295,8 +309,8 @@ describe('HlsUploadService', () => {
   });
 
   it('stops retrying once stopped', async () => {
-    set('seg_00001.ts', 'a');
-    set(PLAYLIST_NAME, playlist('seg_00001.ts'));
+    set('seg_ab12_00001.ts', 'a');
+    set(PLAYLIST_NAME, playlist('seg_ab12_00001.ts'));
     target.putHlsFile.mockRejectedValue(new Error('down'));
 
     trigger();
@@ -312,8 +326,8 @@ describe('HlsUploadService', () => {
 describe('unchanged playlist', () => {
   it('is not uploaded again', async () => {
     const files = new Map<string, string>([
-      [`${DIR}/seg_00001.ts`, 'a'],
-      [`${DIR}/${PLAYLIST_NAME}`, playlist('seg_00001.ts')],
+      [`${DIR}/seg_ab12_00001.ts`, 'a'],
+      [`${DIR}/${PLAYLIST_NAME}`, playlist('seg_ab12_00001.ts')],
     ]);
     let trigger: () => void = () => undefined;
     const target = { putHlsFile: jest.fn(async () => undefined), deleteHlsFile: jest.fn() };
@@ -385,5 +399,113 @@ describe('watchDirectory', () => {
     await wait(REWATCH_INTERVAL_MS + 200);
 
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe('segment allowlist', () => {
+  it('ignores names that are not seg_<run>_<n>.ts', () => {
+    const text = [
+      'seg_ab12_00001.ts',
+      'seg_ab12.ts',
+      'seg__00001.ts',
+      'other_ab12_00001.ts',
+      'seg_ab-12_00001.ts',
+      'seg_ab12_00001.ts.bak',
+      '../seg_ab12_00002.ts',
+    ].join('\n');
+
+    expect(parsePlaylistSegments(text)).toEqual(['seg_ab12_00001.ts']);
+  });
+});
+
+describe('a file the shared directory must not hand over', () => {
+  it('is skipped without blocking the other segments or the playlist', async () => {
+    const files = new Map<string, string>([
+      [`${DIR}/seg_ab12_00001.ts`, 'a'],
+      [`${DIR}/seg_ab12_00002.ts`, 'b'],
+      [`${DIR}/${PLAYLIST_NAME}`, playlist('seg_ab12_00001.ts', 'seg_ab12_00002.ts')],
+    ]);
+    let trigger: () => void = () => undefined;
+    const target = { putHlsFile: jest.fn(async () => undefined), deleteHlsFile: jest.fn() };
+    const handle = new HlsUploadService(
+      target as HlsUploadTarget,
+      {
+        watch: (_dir, listener) => {
+          trigger = listener;
+          return { close: () => undefined };
+        },
+        readFile: async (path) => {
+          if (path.endsWith('seg_ab12_00001.ts')) {
+            throw new HlsFileRejectedError('is a symlink');
+          }
+          return Buffer.from(files.get(path) ?? '');
+        },
+      },
+      1,
+    ).start(STREAM, DIR);
+
+    trigger();
+    await idle();
+    trigger();
+    await idle();
+
+    const names = (target.putHlsFile.mock.calls as unknown as string[][]).map((c) => c[1]);
+    expect(names).toEqual(['seg_ab12_00002.ts', PLAYLIST_NAME]);
+    await handle.stop();
+  });
+});
+
+describe('readRegularFile', () => {
+  let base: string;
+
+  beforeEach(async () => {
+    base = await mkdtemp(join(tmpdir(), 'mns-read-'));
+  });
+
+  afterEach(async () => {
+    await rm(base, { recursive: true, force: true });
+  });
+
+  it('reads a regular file within the limit', async () => {
+    await writeFile(join(base, 'a.ts'), 'abc');
+
+    expect((await readRegularFile(join(base, 'a.ts'), 10)).toString()).toBe('abc');
+  });
+
+  it('refuses a symlink, even to a harmless file', async () => {
+    await writeFile(join(base, 'target'), 'secret');
+    await symlink(join(base, 'target'), join(base, 'link.ts'));
+
+    await expect(readRegularFile(join(base, 'link.ts'), 100)).rejects.toBeInstanceOf(
+      HlsFileRejectedError,
+    );
+  });
+
+  it('refuses a directory', async () => {
+    await mkdir(join(base, 'dir.ts'));
+
+    await expect(readRegularFile(join(base, 'dir.ts'), 100)).rejects.toBeInstanceOf(
+      HlsFileRejectedError,
+    );
+  });
+
+  it('refuses a file over the limit', async () => {
+    await writeFile(join(base, 'big.ts'), Buffer.alloc(11));
+
+    await expect(readRegularFile(join(base, 'big.ts'), 10)).rejects.toBeInstanceOf(
+      HlsFileRejectedError,
+    );
+  });
+
+  it('reports a missing file as the plain error, not as a rejection', async () => {
+    const failure = await readRegularFile(join(base, 'nope.ts'), 10).catch((e: unknown) => e);
+
+    expect(failure).not.toBeInstanceOf(HlsFileRejectedError);
+    expect(failure).toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('uses 32 MiB for segments and 1 MiB for the playlist', () => {
+    expect(SEGMENT_MAX_BYTES).toBe(32 * 1024 * 1024);
+    expect(PLAYLIST_MAX_BYTES).toBe(1024 * 1024);
   });
 });

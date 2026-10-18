@@ -65,7 +65,13 @@ interface AppliedStream {
  */
 export class NdiStreamManager implements OnModuleDestroy {
   private readonly logger = new Logger(NdiStreamManager.name);
-  private wanted: ReadonlyMap<string, AgentNdiStreamConfig> = new Map();
+  /**
+   * What the server wants, keyed by lower-case stream id. `null` means no real
+   * config has been applied yet: nothing is started and, above all, nothing is
+   * deleted, because "unknown" must never read as "no streams".
+   */
+  private wanted: ReadonlyMap<string, AgentNdiStreamConfig> | null = null;
+  private destroyed = false;
   private readonly applied = new Map<string, AppliedStream>();
   private queue: Promise<void> = Promise.resolve();
   private warnedDisabled = false;
@@ -89,7 +95,11 @@ export class NdiStreamManager implements OnModuleDestroy {
   }
 
   /** Serialised: overlapping calls (round plus command) cannot interleave start and stop. */
-  reconcile(streams: readonly AgentNdiStreamConfig[]): Promise<void> {
+  reconcile(streams: readonly AgentNdiStreamConfig[] | null): Promise<void> {
+    if (streams === null) {
+      // No config could be loaded: keep what is known, delete nothing.
+      return this.queue;
+    }
     if (!this.options.enabled && streams.length > 0 && !this.warnedDisabled) {
       this.warnedDisabled = true;
       this.logger.warn('NDI streams are configured but MNS_NDI_ENABLED is false; ignoring them');
@@ -106,8 +116,12 @@ export class NdiStreamManager implements OnModuleDestroy {
   /** One entry per wanted stream, filled from what the plugin reports. */
   status(): AgentNdiStreamStatusMessage[] {
     const { state, streams } = this.plugin.snapshot();
-    return [...this.wanted.keys()].map((streamId): AgentNdiStreamStatusMessage => {
-      const stream = streams.find((candidate) => candidate.streamId === streamId);
+    const wanted = this.wanted;
+    if (!wanted) {
+      return [];
+    }
+    return [...wanted.keys()].map((streamId): AgentNdiStreamStatusMessage => {
+      const stream = streams.find((candidate) => candidate.streamId.toLowerCase() === streamId);
       const uploadLagMs = this.applied.get(streamId)?.upload.uploadLagMs() ?? null;
       if (stream) {
         return {
@@ -170,7 +184,7 @@ export class NdiStreamManager implements OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    this.wanted = new Map();
+    this.destroyed = true;
     await this.queue;
     // Stop the uploaders but leave the plugin's streams alone: an agent restart
     // (update, reboot of the container) must not interrupt a running picture.
@@ -183,6 +197,9 @@ export class NdiStreamManager implements OnModuleDestroy {
   }
 
   private enqueue(): Promise<void> {
+    if (this.destroyed) {
+      return this.queue;
+    }
     this.queue = this.queue
       .then(() => this.apply())
       .catch((error: unknown) => {
@@ -201,8 +218,9 @@ export class NdiStreamManager implements OnModuleDestroy {
   }
 
   private async applyOnce(): Promise<void> {
+    const wanted = this.wanted;
     const snapshot = this.plugin.snapshot();
-    if (snapshot.state === 'unknown') {
+    if (this.destroyed || wanted === null || snapshot.state === 'unknown') {
       return;
     }
     if (snapshot.state !== 'ready') {
@@ -211,15 +229,18 @@ export class NdiStreamManager implements OnModuleDestroy {
       return;
     }
 
-    const listed = new Set(snapshot.streams.map((stream) => stream.streamId));
+    // Lower-case key to the id as the plugin spells it, which is what DELETE needs.
+    const listed = new Map(
+      snapshot.streams.map((stream) => [stream.streamId.toLowerCase(), stream.streamId]),
+    );
     let changed = false;
 
-    for (const streamId of new Set([...listed, ...this.applied.keys()])) {
-      if (!this.wanted.has(streamId)) {
-        changed = (await this.remove(streamId)) || changed;
+    for (const streamId of new Set([...listed.keys(), ...this.applied.keys()])) {
+      if (!wanted.has(streamId)) {
+        changed = (await this.remove(listed.get(streamId) ?? streamId, streamId)) || changed;
       }
     }
-    for (const [streamId, config] of this.wanted) {
+    for (const [streamId, config] of wanted) {
       changed = (await this.ensure(streamId, config, listed.has(streamId))) || changed;
     }
     if (changed) {
@@ -229,10 +250,10 @@ export class NdiStreamManager implements OnModuleDestroy {
   }
 
   /** Stops a stream the server no longer wants, or one the plugin runs without our knowledge. */
-  private async remove(streamId: string): Promise<boolean> {
+  private async remove(pluginId: string, streamId: string): Promise<boolean> {
     await this.stopUploads([streamId]);
     try {
-      await this.plugin.deleteStream(streamId);
+      await this.plugin.deleteStream(pluginId);
       this.failing.delete(`stop:${streamId}`);
       this.logger.log(`Stopped NDI stream ${streamId}`);
       return true;
@@ -275,7 +296,7 @@ export class NdiStreamManager implements OnModuleDestroy {
   }
 
   private startUpload(streamId: string): HlsUploadHandle {
-    return this.uploader.start(streamId, join(this.options.hlsDir, streamId.toLowerCase()));
+    return this.uploader.start(streamId, join(this.options.hlsDir, streamId));
   }
 
   private async stopUploads(streamIds: readonly string[]): Promise<void> {
@@ -303,7 +324,7 @@ export class NdiStreamManager implements OnModuleDestroy {
     const valid = new Map<string, AgentNdiStreamConfig>();
     for (const stream of streams) {
       if (isStreamId(stream.streamId)) {
-        valid.set(stream.streamId, stream);
+        valid.set(stream.streamId.toLowerCase(), stream);
       } else {
         this.logger.warn('Ignoring an NDI stream with an invalid id');
       }

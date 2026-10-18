@@ -1,3 +1,4 @@
+import { lstat } from 'node:fs/promises';
 import { request } from 'node:http';
 
 /** A plugin answer that arrived: any HTTP status, body already parsed. */
@@ -30,11 +31,22 @@ export class PluginUnreachableError extends Error {
   }
 }
 
+/** `code` of the unreachable error when the socket path exists but is something else. */
+export const NOT_A_SOCKET = 'ENOTSOCK';
 export const REQUEST_TIMEOUT_MS = 5_000;
 /** The largest answer is a license text of some tens of KiB; this is a ceiling, not an expectation. */
 export const MAX_RESPONSE_BYTES = 1024 * 1024;
 
-/** HTTP/1.1 over a unix socket, with a hard timeout and a response size cap. */
+/**
+ * HTTP/1.1 over a unix socket, with a hard timeout and a response size cap.
+ *
+ * Trust boundary: the socket directory is a volume shared with the plugin
+ * container, owned by uid 1000 (both containers run as the same user, keep-id).
+ * Filesystem permissions are the only authentication, so whoever can write that
+ * volume can impersonate the plugin. The path is checked to be a socket before
+ * every connect, and everything the plugin sends is validated and clamped
+ * (`plugin-sanitize.ts`) before it is acted on or reported.
+ */
 export class UnixSocketTransport implements PluginTransport {
   constructor(
     private readonly socketPath: string,
@@ -42,6 +54,27 @@ export class UnixSocketTransport implements PluginTransport {
   ) {}
 
   send(method: 'GET' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<PluginResponse> {
+    return this.checkSocket().then(() => this.exchange(method, path, body));
+  }
+
+  /** Absent is the normal "no plugin"; a path that exists but is not a socket is a misconfiguration. */
+  private async checkSocket(): Promise<void> {
+    let info;
+    try {
+      info = await lstat(this.socketPath);
+    } catch (error) {
+      throw toUnreachable(error as Error);
+    }
+    if (!info.isSocket()) {
+      throw new PluginUnreachableError(`${this.socketPath} is not a unix socket`, NOT_A_SOCKET);
+    }
+  }
+
+  private exchange(
+    method: 'GET' | 'PUT' | 'DELETE',
+    path: string,
+    body?: unknown,
+  ): Promise<PluginResponse> {
     const payload = body === undefined ? null : Buffer.from(JSON.stringify(body), 'utf8');
     return new Promise((resolve, reject) => {
       const req = request(

@@ -739,7 +739,9 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   /** Brings the NDI pipelines in line with the config; never lets a failure stop the round. */
   private async reconcileNdi(config: AgentConfigMessage | null): Promise<void> {
     try {
-      await this.ndi.reconcile(config?.ndiStreams ?? []);
+      // No config (cache missing or unreadable) is not "no streams": the manager
+      // keeps what it has rather than stopping every running stream.
+      await this.ndi.reconcile(config ? (config.ndiStreams ?? []) : null);
     } catch (error) {
       this.logger.error(`Could not reconcile NDI streams: ${describe(error)}`);
     }

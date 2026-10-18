@@ -229,6 +229,16 @@ describe('SupervisorService', () => {
       expect(ndi.reconcile).toHaveBeenCalledWith([stream]);
     });
 
+    it('passes null, not an empty list, when no config could be loaded', async () => {
+      supervisor = build(null);
+
+      await supervisor.onModuleInit();
+      supervisor.onModuleDestroy();
+
+      expect(ndi.reconcile).toHaveBeenCalledWith(null);
+      expect(ndi.reconcile).not.toHaveBeenCalledWith([]);
+    });
+
     it('reconciles against an empty list when the config has no streams', async () => {
       supervisor = build(configWith([]));
 

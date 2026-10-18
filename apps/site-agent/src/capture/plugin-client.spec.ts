@@ -131,12 +131,124 @@ describe('PluginClient', () => {
       expect(client.snapshot()).toMatchObject({ state: 'incompatible', status: null });
     });
 
-    it('is incompatible for a status with an unknown state', async () => {
+    it('maps an unknown plugin state to error, with an internal_error code', async () => {
       transport.routes.set('GET /v1/status', ok({ ...statusFixture(), state: 'on_fire' }));
 
       await client.poll();
 
-      expect(client.snapshot().state).toBe('incompatible');
+      expect(client.snapshot().state).toBe('error');
+      expect(client.snapshot().status?.errorCode).toBe('internal_error');
+    });
+
+    it('never lets plugin data exceed what the backend accepts', async () => {
+      transport.routes.set(
+        'GET /v1/status',
+        ok({
+          ...statusFixture(),
+          pluginVersion: 'v'.repeat(500),
+          apiVersion: `1.${'9'.repeat(50)}`,
+          errorCode: 'made_up',
+          sdkVersion: 'x'.repeat(30),
+          license: { licenseSha256: 'nope' },
+        }),
+      );
+      transport.routes.set(
+        'GET /v1/streams',
+        ok({
+          streams: [
+            null,
+            'x',
+            { streamId: 'not-a-uuid' },
+            streamStatusFixture({
+              sourceName: 's'.repeat(500),
+              encoder: 'e'.repeat(500),
+              fps: 99999,
+              state: 'weird' as never,
+              error: 'strange' as never,
+              framesDropped: -4,
+            }),
+            ...Array.from({ length: 80 }, () => streamStatusFixture()),
+          ],
+        }),
+      );
+
+      await client.poll();
+
+      const { status, streams } = client.snapshot();
+      expect(status?.pluginVersion).toHaveLength(64);
+      expect(status?.apiVersion).toHaveLength(16);
+      expect(status?.errorCode).toBe('internal_error');
+      expect(status?.sdkVersion).toBeNull();
+      expect(status?.license).toBeNull();
+      expect(streams).toHaveLength(50);
+      expect(streams[0]).toMatchObject({
+        sourceName: 's'.repeat(200),
+        encoder: 'e'.repeat(100),
+        fps: 1000,
+        state: 'error',
+        error: 'internal_error',
+        framesDropped: 0,
+      });
+    });
+
+    it('drops stream fields of the wrong type', async () => {
+      transport.routes.set('GET /v1/status', ok(statusFixture()));
+      transport.routes.set(
+        'GET /v1/streams',
+        ok({
+          streams: [
+            {
+              streamId: STREAM_ID.toUpperCase(),
+              state: 'streaming',
+              sourceName: 5,
+              encoder: {},
+              fps: 'fast',
+              framesDropped: 1.5,
+              error: null,
+            },
+          ],
+        }),
+      );
+
+      await client.poll();
+
+      expect(client.snapshot().streams).toEqual([
+        {
+          streamId: STREAM_ID,
+          state: 'streaming',
+          sourceName: null,
+          encoder: null,
+          fps: null,
+          framesDropped: 0,
+          error: null,
+        },
+      ]);
+    });
+
+    it('keeps valid license hashes and a plugin error code it knows', async () => {
+      transport.routes.set(
+        'GET /v1/status',
+        ok(statusFixture({ state: 'error', errorCode: 'runtime_missing' })),
+      );
+
+      await client.poll();
+
+      expect(client.snapshot().status?.errorCode).toBe('runtime_missing');
+      expect(client.snapshot().status?.license?.termsSha256).toBe('c'.repeat(64));
+    });
+
+    it('warns once, clearly, when the socket path is not a socket', async () => {
+      transport.routes.set(
+        'GET /v1/status',
+        new PluginUnreachableError('/run/x/plugin.sock is not a unix socket', 'ENOTSOCK'),
+      );
+
+      await client.poll();
+      await client.poll();
+
+      expect(client.snapshot().state).toBe('absent');
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('not a unix socket'));
     });
 
     it('is in error when the status call fails with an HTTP error', async () => {

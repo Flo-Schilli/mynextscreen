@@ -40,7 +40,8 @@ export interface PluginStatus {
   apiVersion: string;
   pluginVersion: string;
   state: PluginState;
-  errorCode: PluginErrorCode | null;
+  /** `internal_error` is the agent's own stand-in for a code it does not recognise. */
+  errorCode: PluginErrorCode | 'internal_error' | null;
   sdkVersion: string | null;
   license: PluginLicenseInfo | null;
   acceptance: PluginLicenseAcceptance | null;

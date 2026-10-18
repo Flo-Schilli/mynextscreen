@@ -254,6 +254,88 @@ describe('NdiStreamManager', () => {
     });
   });
 
+  describe('before a real config is known', () => {
+    it('neither starts nor deletes anything when a poll comes first', async () => {
+      plugin.current = { ...plugin.current, streams: [running(ID_A), running(ID_B)] };
+
+      await plugin.pollResult({});
+      await plugin.pollResult({ state: 'ready' });
+
+      expect(plugin.deleteStream).not.toHaveBeenCalled();
+      expect(plugin.putStream).not.toHaveBeenCalled();
+      expect(manager.status()).toEqual([]);
+    });
+
+    it('stays unknown for a null config and never deletes', async () => {
+      plugin.current = { ...plugin.current, streams: [running(ID_A)] };
+
+      await manager.reconcile(null);
+      await plugin.pollResult({});
+
+      expect(plugin.deleteStream).not.toHaveBeenCalled();
+    });
+
+    it('keeps the previous list when a later config load fails', async () => {
+      await manager.reconcile([stream()]);
+
+      await manager.reconcile(null);
+      await plugin.pollResult({});
+
+      expect(plugin.deleteStream).not.toHaveBeenCalled();
+      expect(manager.status()).toHaveLength(1);
+    });
+
+    it('deletes only for an explicitly loaded, empty list', async () => {
+      await manager.reconcile([stream()]);
+
+      await manager.reconcile([]);
+
+      expect(plugin.deleteStream).toHaveBeenCalledWith(ID_A);
+    });
+
+    it('runs nothing after destroy, even for a poll that was in flight', async () => {
+      await manager.reconcile([stream()]);
+      plugin.putStream.mockClear();
+      plugin.current = { ...plugin.current, streams: [running(ID_A), running(ID_B)] };
+
+      const destroying = manager.onModuleDestroy();
+      await plugin.pollResult({});
+      await destroying;
+
+      expect(plugin.deleteStream).not.toHaveBeenCalled();
+      expect(plugin.putStream).not.toHaveBeenCalled();
+      await manager.reconcile([stream({ streamId: ID_B })]);
+      expect(plugin.putStream).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('stream ids', () => {
+    it('compares ids case-insensitively on both sides, and sends them in lower case', async () => {
+      const upper = ID_A.toUpperCase();
+
+      await manager.reconcile([stream({ streamId: upper })]);
+      await plugin.pollResult({});
+
+      expect(plugin.putStream).toHaveBeenCalledTimes(1);
+      expect(plugin.putStream).toHaveBeenCalledWith(ID_A, expect.anything());
+      expect(plugin.deleteStream).not.toHaveBeenCalled();
+      expect(manager.status()[0].streamId).toBe(ID_A);
+    });
+
+    it('matches a plugin entry spelled in upper case and deletes it by its own spelling', async () => {
+      plugin.current = {
+        ...plugin.current,
+        streams: [running(ID_A.toUpperCase()), running(ID_B.toUpperCase())],
+      };
+
+      await manager.reconcile([stream()]);
+
+      expect(manager.status()[0].state).toBe('streaming');
+      expect(plugin.deleteStream).toHaveBeenCalledWith(ID_B.toUpperCase());
+      expect(plugin.deleteStream).not.toHaveBeenCalledWith(ID_A.toUpperCase());
+    });
+  });
+
   describe('following the plugin', () => {
     it('starts the wanted streams once the plugin becomes ready', async () => {
       plugin.current = { ...plugin.current, state: 'license_required', streams: [] };
