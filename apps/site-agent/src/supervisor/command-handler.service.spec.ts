@@ -45,6 +45,7 @@ describe('CommandHandlerService', () => {
   let ssh: { run: jest.Mock; upload: jest.Mock };
   let ssapKeys: { load: jest.Mock; save: jest.Mock };
   let updates: { requestUpdate: jest.Mock };
+  let ptz: { handle: jest.Mock };
 
   const config = (screens: AgentScreenConfigMessage[]): AgentConfigMessage => ({
     agentId: 'agent-1',
@@ -90,6 +91,8 @@ describe('CommandHandlerService', () => {
     ssapKeys = { load: jest.fn().mockResolvedValue('granted-key'), save: jest.fn() };
     updates = { requestUpdate: jest.fn().mockResolvedValue(undefined) };
 
+    ptz = { handle: jest.fn().mockResolvedValue(undefined) };
+
     handler = new CommandHandlerService(
       stream as never,
       supervisor as never,
@@ -100,6 +103,7 @@ describe('CommandHandlerService', () => {
       ssh as never,
       ssapKeys as never,
       updates as never,
+      ptz as never,
     );
   });
 
@@ -116,6 +120,26 @@ describe('CommandHandlerService', () => {
       await handler.handle({ commandId: 'c1', type: 'reload_config' });
 
       expect(supervisor.refreshConfigIfDue).toHaveBeenCalledWith(true);
+    });
+  });
+
+  describe('ptz', () => {
+    it('hands the command to the PTZ service without needing a screen id', async () => {
+      await handler.handle({
+        commandId: 'c1',
+        type: 'ptz',
+        streamId: 'st1',
+        ptz: { action: 'home' },
+      });
+
+      expect(ptz.handle).toHaveBeenCalledWith('st1', { action: 'home' });
+      expect(supervisor.runAction).not.toHaveBeenCalled();
+    });
+
+    it('ignores a ptz command without stream or payload', async () => {
+      await handler.handle({ commandId: 'c1', type: 'ptz' });
+
+      expect(ptz.handle).not.toHaveBeenCalled();
     });
   });
 

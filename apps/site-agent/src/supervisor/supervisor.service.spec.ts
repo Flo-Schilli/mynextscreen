@@ -201,6 +201,7 @@ describe('SupervisorService', () => {
       fps: 30,
       bitrateKbps: 3000,
       encoderPref: 'auto' as const,
+      ptz: null,
     };
     const status = {
       streamId: stream.streamId,
