@@ -437,6 +437,10 @@ Optional `--json` für maschinenlesbare Logs (Integrationstest).
 
 ## Vor dem Release (offen)
 
+- **NDI-Lizenzmodell:** Umbau auf ein separat lizenziertes Capture-Plugin (eigenes Repo,
+  Apache-2.0) mit Lizenzannahme im Produkt, siehe `docs/ndi-plugin-plan.md`. Phase 0 (Verifikation +
+  Anfrage an NDI) blockiert den Release.
+
 - ~~**Schlankes FFmpeg**~~ erledigt: eigener FFmpeg-7.1.5-Build (Stage `ffmpeg-builder` in
   `apps/site-agent/Dockerfile.prod`, SHA-256-verifiziert, `--disable-everything`, nur
   `libx264`/`h264_v4l2m2m`/`h264_vaapi`, rawvideo-Input, `pipe`/`file`, HLS+MPEG-TS). Image
