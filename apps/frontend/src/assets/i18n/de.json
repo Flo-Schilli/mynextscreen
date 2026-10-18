@@ -1194,7 +1194,8 @@
       "updateQualityPreset": "Qualitätsstufe konnte nicht geändert werden.",
       "ptz": "Kamerabefehl konnte nicht gesendet werden. Ist der Site Agent online?",
       "updatePtz": "PTZ-Einstellungen konnten nicht gespeichert werden.",
-      "capturePluginNotReady": "Das Capture-Plugin dieses Site Agents ist nicht bereit oder die Lizenz wurde nicht akzeptiert. Siehe Agent-Seite."
+      "capturePluginNotReady": "Das Capture-Plugin dieses Site Agents ist nicht bereit oder die Lizenz wurde nicht akzeptiert. Siehe Agent-Seite.",
+      "capturePluginStatusPending": "Der Plugin-Status wird noch geladen. In ein paar Sekunden erneut versuchen."
     },
     "toast": {
       "created": "Live-Stream erstellt.",
@@ -1270,6 +1271,14 @@
       "connecting": "Verbindet",
       "streaming": "Streamt",
       "error": "Fehler"
+    },
+    "ndiError": {
+      "source_not_found": "Kamera-Quelle nicht gefunden.",
+      "ffmpeg_exited": "Der Encoder wurde unerwartet beendet.",
+      "no_frames": "Es kommen keine Videobilder an.",
+      "resolution_changed": "Die Kamera hat ihre Auflösung geändert.",
+      "license_required": "Die Lizenz des Capture-Plugins wurde nicht akzeptiert.",
+      "internal_error": "Interner Fehler. Siehe Plugin-Status auf der Agent-Seite."
     }
   },
   "siteAgents": {

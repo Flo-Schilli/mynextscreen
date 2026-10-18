@@ -271,6 +271,11 @@ export class CapturePluginAcceptanceModal implements OnInit {
   }
 
   private markIfAtEnd(pane: Pane, el: HTMLElement): void {
+    // A pane that is not laid out yet (hidden, or not rendered) measures 0 and
+    // would pass the arithmetic below; it has not been read.
+    if (el.clientHeight <= 0 || el.scrollHeight <= 0) {
+      return;
+    }
     const atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_END_TOLERANCE_PX;
     if (atEnd && !this.read()[pane]) {
       this.read.update((r) => ({ ...r, [pane]: true }));

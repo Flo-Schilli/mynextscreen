@@ -269,6 +269,18 @@ describe('LiveStreams (list container)', () => {
       expect(component.creating).toBe(false);
       expect(component.showCreateForm).toBe(true);
     });
+
+    it.each([
+      ['capture_plugin_not_ready', 'not ready or its license has not been accepted'],
+      ['capture_plugin_status_pending', 'status is still loading'],
+    ])('explains a %s refusal on create', async (code, fragment) => {
+      await setUp();
+      streams.createResult = throwError(() => httpError(409, code));
+      component.openCreateForm();
+      component.submitCreate({ name: 'X', sourceUrl: 'rtmp://x', protocol: 'rtmp' });
+      await fixture.whenStable();
+      expect(component.createError).toContain(fragment);
+    });
   });
 
   describe('quick toggle from a card', () => {

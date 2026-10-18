@@ -126,6 +126,25 @@ describe('CapturePluginAcceptanceModal', () => {
     expect(acceptDisabled()).toBe(false);
   });
 
+  it('does not mark a pane read while it has no layout (zero height)', async () => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get: () => 0,
+    });
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+      configurable: true,
+      get: () => 0,
+    });
+    await create();
+    (q('accept-checkbox') as HTMLInputElement).click();
+    scrollToEnd(q('pane-ndi') as HTMLElement);
+    scrollToEnd(q('pane-terms') as HTMLElement);
+    fixture.detectChanges();
+
+    expect(q('scroll-hint')).not.toBeNull();
+    expect(acceptDisabled()).toBe(true);
+  });
+
   it('posts the hash of the loaded text and reports success', async () => {
     await create();
     const accepted = vi.fn();

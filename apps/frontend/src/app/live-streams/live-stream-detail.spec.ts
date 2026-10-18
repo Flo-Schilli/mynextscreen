@@ -308,6 +308,60 @@ describe('LiveStreamDetail', () => {
     expect(toast.success).toHaveBeenCalledWith('Stream restarted.');
   });
 
+  it.each([
+    ['capture_plugin_not_ready', 'not ready or its license has not been accepted'],
+    ['capture_plugin_status_pending', 'status is still loading'],
+  ])('explains a %s refusal on start', async (code, fragment) => {
+    streams.getOneResult = of(makeStream({ status: 'idle' }));
+    await setUp();
+    streams.activateResult = throwError(() => ({ status: 409, error: { message: code } }));
+    (instance()['selectedScreenIds'] as { set: (v: string[]) => void }).set(['s1']);
+
+    component['goLive']();
+    await fixture.whenStable();
+
+    expect(String(toast.error.mock.calls.at(-1)?.[0])).toContain(fragment);
+  });
+
+  it.each([
+    ['capture_plugin_not_ready', 'not ready or its license has not been accepted'],
+    ['capture_plugin_status_pending', 'status is still loading'],
+  ])('explains a %s refusal on restart', async (code, fragment) => {
+    streams.getOneResult = of(makeStream({ status: 'active' }));
+    await setUp();
+    streams.activateResult = throwError(() => ({ status: 409, error: { message: code } }));
+    (instance()['selectedScreenIds'] as { set: (v: string[]) => void }).set(['s1']);
+
+    component['restart']();
+    await fixture.whenStable();
+
+    expect(String(toast.error.mock.calls.at(-1)?.[0])).toContain(fragment);
+  });
+
+  it('labels the error codes an agent reports and shows unknown ones as they came', async () => {
+    streams.getOneResult = of(
+      makeStream({
+        status: 'active',
+        sourceType: 'ndi',
+        ndiStatus: {
+          state: 'error',
+          sourceName: null,
+          encoder: null,
+          fps: null,
+          framesDropped: 0,
+          uploadLagMs: null,
+          error: 'license_required',
+        },
+      }),
+    );
+    await setUp();
+    expect(fixture.nativeElement.querySelector('.ndi-error')?.textContent).toContain(
+      'license has not been accepted',
+    );
+
+    expect(component['ndiErrorLabel']('something_new')).toBe('something_new');
+  });
+
   it('toggles audio only when idle', async () => {
     streams.getOneResult = of(makeStream({ status: 'idle', audioEnabled: true }));
     streams.updateResult = of(makeStream({ audioEnabled: false }));
