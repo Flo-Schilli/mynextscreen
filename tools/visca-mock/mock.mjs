@@ -63,7 +63,8 @@ const tcp = createServer((socket) => {
       socket.write(Buffer.from([...ACK, ...COMPLETION]));
     }
   });
-  socket.on('error', (error) => console.error(`TCP-Fehler: ${oneLine(error.message)}`));
+  // Fixed text: the socket error stems from the peer and stays out of the log.
+  socket.on('error', () => console.error('TCP-Verbindung mit Fehler beendet'));
 });
 tcp.listen(TCP_PORT, () => console.error(`VISCA-Mock: TCP ${TCP_PORT}`));
 
