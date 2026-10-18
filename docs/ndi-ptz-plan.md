@@ -190,9 +190,22 @@ in den Active-Streams-Select (Z. 61) aufnehmen.
   optional `MNS_NDI_ENABLED`.
 
 ### B3. Deployment (höchstes Risiko)
-- **`Dockerfile.prod` (`node:26-alpine`/musl):** grandi-Addon + NDI-Runtime + avahi sind
-  glibc-orientiert → Alpine wird sehr wahrscheinlich scheitern. **Runtime-Stage auf
-  glibc-Base (`node:26-bookworm-slim`) umstellen** oder `gcompat` beweisen. Pflicht-Gate.
+- **`Dockerfile.prod`: Runtime auf `node:26-trixie-slim`.** Verifiziert 2026-10-18:
+  `grandi@2.0.2` x64 braucht `GLIBCXX_3.4.31` → bookworm scheitert, trixie läuft. grandi
+  installiert ohne Build-Tools (prebuilt `@grandi/linux-*` als `optionalDependencies`,
+  enthalten `libndi.so.6`); nie `--omit=optional`. Image braucht nur
+  `libavahi-client3 libavahi-common3` + `ffmpeg` (trixie 7.1: libx264, h264_v4l2m2m,
+  h264_vaapi; ~445 MB, statische Builds als spätere Option).
+- **Discovery braucht einen avahi-daemon über D-Bus** (ohne liefert `find()` `[]`).
+  Bevorzugt: Host-Avahi via gemountetem `/run/dbus/system_bus_socket`, Agent bleibt `node`.
+  Fallback: `extraIPs` / NDI Discovery Server.
+- **NDI-Lizenz:** Runtime darf nur als Teil des Produkts verteilt werden;
+  `libndi_licenses.txt` bleibt bei den Binaries; Hinweis „NDI® is a registered trademark
+  of Vizrt NDI AB" + Link https://ndi.video im Dashboard (NDI-Auswahl, About) und in der
+  Doku; „NDI" nicht im Produktnamen. **Offen (Legal):** Klausel 1b schließt
+  (ii) Container-/Cloud-Umgebungen ohne OS-Änderungsrecht und (iii) Embedded-Linux-Geräte
+  aus. Öffentliches, modifizierbares Image auf Standard-Pi ist vermutlich gedeckt, muss vor
+  Release geprüft werden.
 - Runtime-Deps: `avahi` + `libavahi-common/client`, `dbus`, NDI-Runtime (aus `@grandi/linux-*`),
   `ffmpeg` mit `h264_v4l2m2m` (Pi) / `h264_vaapi` (x86) / `libx264`. CI: `ffmpeg -encoders`
   + grandi-Load-Smoke je Arch vor Publish.
@@ -249,6 +262,46 @@ Ziel v1: **3–4 s** Kamera → Screen, per Short-HLS ohne Architekturwechsel.
 
 ---
 
+## Spike-Ergebnis (PR 1, 2026-10-18)
+
+Testquelle `tools/ndi-test-source/` → `tools/ndi-spike/spike.mjs`, libx264, 1280×720-Quelle
+(1080p nativ: 1920×1080), Host i7-1165G7. CPU in % eines Kerns. 0 Drops in allen Läufen;
+Segmente exakt 1,000 s, Keyframe am Anfang, kein Audio.
+
+| Preset | avg fps | ffmpeg CPU | Agent CPU |
+|---|---|---|---|
+| preview (Lowest, 640×360) | 30,05 | 17,6 % | 6,2 % |
+| 720p30 | 30,01 | 62,8 % | 18,5 % |
+| 1080p30 aus 720p hochskaliert | 30,00 | 179,1 % | 20,0 % |
+| 1080p30 native Quelle | 29,79 | 67,1 % | 19,6 % |
+
+- **Im Prod-Agent-Image verifiziert:** User `node`, `--network host`, Host-Avahi über
+  gemounteten `/run/dbus/system_bus_socket` → Quelle in 24 ms gefunden, 720p30 mit 30,06 fps,
+  0 Drops. Unter SELinux (Fedora) braucht der Socket-Mount `label=disable`
+  → im Quadlet (PR 2) `SecurityLabelDisable=true` oder passendes Label.
+- **Folgerung:** Nie hochskalieren (Preset-Höhe auf Quellhöhe cappen). Pi-Messung mit
+  `h264_v4l2m2m` steht aus.
+
+### Aus dem Security-Review für PR 2
+- **Host-D-Bus-Socket nicht ungefiltert mounten.** Der System-Bus erreicht jeden Dienst,
+  den die Policy erlaubt (systemd1, NetworkManager, hostnamed …); `DropCapability=ALL`
+  greift dort nicht. Optionen, vor PR 2 testen: (a) D-Bus-Policy-Datei auf dem Host, die
+  der gemappten Agent-UID nur `org.freedesktop.Avahi` erlaubt; (b) Avahi-Sidecar;
+  (c) Discovery ohne mDNS per `extraIPs`/NDI Discovery Server.
+- **Rootless Podman testen:** Der Spike lief mit rootful Docker. Unter rootless wird `node`
+  auf eine subuid gemappt; EXTERNAL-Auth am System-Bus scheitert dann vermutlich. Kein
+  `label=disable` als Dauerlösung, SELinux-Label/Policy sauber setzen.
+- **FFmpeg-Argumente fix halten:** `-f rawvideo` vor `-i pipe:0`, `-protocol_whitelist
+  pipe,file`, keine Quellnamen in Argumente/Pfade, exakter argv-Unit-Test.
+
+## Vor dem Release (offen)
+
+- **Schlankes FFmpeg:** Debian-`ffmpeg` bläht das Agent-Image von 137 MB auf 334 MB
+  (komprimiert) auf und bringt ~208 HIGH/CRITICAL-CVEs ohne Debian-Fix mit (v. a. libav*;
+  CI-Gate mit `ignore-unfixed` bleibt grün). Eigenen Build mit nur `libx264`,
+  `h264_v4l2m2m`, `h264_vaapi`, rawvideo-Input und HLS-Muxer bzw. statischen Build prüfen.
+- **NDI-Lizenz Klausel 1b(ii)/(iii)** durch Legal prüfen lassen.
+
 ## Risiken (priorisiert)
 1. **grandi auf arm64 / musl** — glibc-Base nötig; Hardware-Spike auf echtem Pi **vor** dem
    Feature-Aufbau. Per-Arch-CI-Smoke (`require('grandi')`, `ffmpeg -encoders`).
@@ -276,16 +329,10 @@ Ziel v1: **3–4 s** Kamera → Screen, per Short-HLS ohne Architekturwechsel.
 
 Bis auf den finalen Hardware-Check läuft alles ohne Kamera.
 
-- **NDI-Testquelle (Linux, Docker mit `--network host`):** GStreamer `ndisink` aus
-  gst-plugins-rs:
-  ```bash
-  gst-launch-1.0 videotestsrc is-live=true pattern=smpte \
-    ! clockoverlay time-format="%H:%M:%S" \
-    ! video/x-raw,width=1280,height=720,framerate=30/1 \
-    ! ndisinkcombiner name=c ! ndisink ndi-name="TEST-CAM"
-  ```
-  Alternativen: OBS + DistroAV-Plugin, NDI Tools „Test Patterns" (Windows/macOS), oder
-  grandi selbst als Sender in einem Node-Skript.
+- **NDI-Testquelle (`tools/ndi-test-source/`):** grandi als Sender, gespeist von FFmpeg
+  `testsrc2` + Uhr-Overlay mit Millisekunden (raw UYVY → `grandi.send().video()`).
+  GStreamer `ndisink` ist in Debian/Ubuntu nicht paketiert (gst-plugins-rs selbst bauen,
+  zu schwer). Alternativen: OBS + DistroAV, NDI Tools „Test Patterns" (Windows/macOS).
 - **mDNS:** Sender und Agent müssen im selben L2-Netz liegen (`--network host`), sonst
   findet `grandi.find()` nichts. Gleichzeitig der Test für Avahi unter rootless Podman.
 - **VISCA-Mock (`tools/visca-mock/`, Node, UDP 52381):** loggt empfangene Bytes,
