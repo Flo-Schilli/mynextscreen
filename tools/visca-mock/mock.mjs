@@ -15,12 +15,17 @@ const TYPE_CONTROL_REPLY = 0x0201;
 const ACK = [0x90, 0x41, 0xff];
 const COMPLETION = [0x90, 0x51, 0xff];
 
+/** Network-derived text must not be able to forge extra log lines. */
+function oneLine(value) {
+  return String(value).replace(/[\r\n\u2028\u2029]/g, ' ');
+}
+
 function log(proto, decoded, extra = {}) {
   if (JSON_OUTPUT) {
     const { text, ...fields } = decoded;
     console.log(JSON.stringify({ proto, ...extra, ...fields }));
   } else {
-    console.log(`[${proto}] ${decoded.text}`);
+    console.log(`[${proto}] ${oneLine(decoded.text)}`);
   }
 }
 
@@ -45,7 +50,7 @@ udp.on('message', (datagram, remote) => {
     udp.send(buildIpFrame(TYPE_REPLY, frame.seq, reply), remote.port, remote.address);
   }
 });
-udp.on('error', (error) => console.error(`UDP-Fehler: ${error.message}`));
+udp.on('error', (error) => console.error(`UDP-Fehler: ${oneLine(error.message)}`));
 udp.bind(UDP_PORT, () => console.error(`VISCA-Mock: UDP ${UDP_PORT}`));
 
 const tcp = createServer((socket) => {
@@ -58,7 +63,7 @@ const tcp = createServer((socket) => {
       socket.write(Buffer.from([...ACK, ...COMPLETION]));
     }
   });
-  socket.on('error', (error) => console.error(`TCP-Fehler: ${error.message}`));
+  socket.on('error', (error) => console.error(`TCP-Fehler: ${oneLine(error.message)}`));
 });
 tcp.listen(TCP_PORT, () => console.error(`VISCA-Mock: TCP ${TCP_PORT}`));
 
