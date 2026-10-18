@@ -17,6 +17,7 @@ import { SiteAgentConfigService } from './site-agent-config.service';
 import { SiteAgentSseService } from './site-agent-sse.service';
 import { ScreenRemoteCommandService } from './screen-remote-command.service';
 import { NdiStreamStatusService } from './ndi-stream-status.service';
+import { CapturePluginStatusService } from './capture-plugin-status.service';
 
 @Module({
   imports: [DatabaseModule, CommonModule, AuthModule, UserModule, ScreenModule, PlayerAppsModule],
@@ -31,6 +32,7 @@ import { NdiStreamStatusService } from './ndi-stream-status.service';
     SiteAgentSseService,
     ScreenRemoteCommandService,
     NdiStreamStatusService,
+    CapturePluginStatusService,
   ],
   exports: [
     SiteAgentService,
@@ -38,6 +40,7 @@ import { NdiStreamStatusService } from './ndi-stream-status.service';
     ScreenRemoteControlService,
     SiteAgentSseService,
     NdiStreamStatusService,
+    CapturePluginStatusService,
   ],
 })
 export class SiteAgentModule {}
