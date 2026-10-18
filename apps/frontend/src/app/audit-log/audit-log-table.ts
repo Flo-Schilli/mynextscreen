@@ -69,6 +69,7 @@ const ACTION_META: Record<string, ActionMeta> = {
   'live_stream.activated': { tone: 'online', icon: 'Stream' },
   'live_stream.deactivated': { tone: 'neutral', icon: 'Stream' },
   'live_stream.failed': { tone: 'offline', icon: 'Stream' },
+  'live_stream.ptz': { tone: 'info', icon: 'Stream' },
   'auth.user_registered': { tone: 'accent', icon: 'User' },
   'auth.email_verified': { tone: 'online', icon: 'CheckCircle' },
   'auth.email_change_requested': { tone: 'info', icon: 'Mail' },

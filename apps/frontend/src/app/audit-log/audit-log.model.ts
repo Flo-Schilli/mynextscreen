@@ -56,6 +56,7 @@ export const AUDIT_ACTIONS = [
   'live_stream.activated',
   'live_stream.deactivated',
   'live_stream.failed',
+  'live_stream.ptz',
   'screen.bulk_deleted',
   'screen.bulk_group_assigned',
   'content.bulk_deleted',

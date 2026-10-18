@@ -22,6 +22,9 @@ import {
   ActivateLiveStreamRequest,
   ActivateStreamResponse,
   LiveStream,
+  parsePtzPort,
+  PtzCommand,
+  PtzProtocol,
   QualityPreset,
   QUALITY_PRESETS,
   StreamHealthState,
@@ -39,6 +42,10 @@ import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { ToastService } from '../shared/toast/toast.service';
 import { BackLink } from '../shared/back-link';
+import { PtzControlPanel } from './ptz-control-panel';
+import { PtzSettingsFields } from './ptz-settings-fields';
+
+const PTZ_ERROR_TOAST_INTERVAL_MS = 3000;
 
 type TargetMode = 'screens' | 'group';
 
@@ -68,6 +75,8 @@ type TargetMode = 'screens' | 'group';
     CardComponent,
     CardHeadComponent,
     LiveStreamMonitor,
+    PtzControlPanel,
+    PtzSettingsFields,
     TranslocoDirective,
   ],
   template: `
@@ -251,6 +260,20 @@ type TargetMode = 'screens' | 'group';
                   }
                 </div>
 
+                <div class="src-label preset-label">{{ t('liveStreams.ptz.settingsTitle') }}</div>
+                <div class="ptz-settings">
+                  <app-ptz-settings-fields
+                    [(enabled)]="ptzEnabledDraft"
+                    [(protocol)]="ptzProtocolDraft"
+                    [(port)]="ptzPortDraft"
+                  />
+                  @if (ptzDirty()) {
+                    <mns-btn variant="primary" [disabled]="busy()" (mnsClick)="savePtzSettings()">
+                      {{ t('liveStreams.ptz.saveSettings') }}
+                    </mns-btn>
+                  }
+                </div>
+
                 @if (s.ndiStatus; as ns) {
                   <div class="src-label preset-label">{{ t('liveStreams.detail.ndiStatus') }}</div>
                   <div class="ndi-state">
@@ -327,6 +350,17 @@ type TargetMode = 'screens' | 'group';
                 </div>
               </div>
             </mns-card>
+
+            @if (showPtz()) {
+              <mns-card>
+                <mns-card-head
+                  [title]="t('liveStreams.ptz.panel.title')"
+                  [sub]="t('liveStreams.ptz.panel.sub')"
+                  icon="Cast"
+                />
+                <app-ptz-control-panel [disabled]="busy()" (ptzCommand)="sendPtz($event)" />
+              </mns-card>
+            }
 
             <mns-card>
               <mns-card-head
@@ -603,6 +637,12 @@ type TargetMode = 'screens' | 'group';
     .preset-row {
       margin-top: 8px;
     }
+    .ptz-settings {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 8px;
+    }
     .ndi-state {
       margin: 8px 0 12px;
     }
@@ -822,7 +862,13 @@ export class LiveStreamDetail implements OnInit {
   protected readonly selectedScreenIds = signal<string[]>([]);
   protected readonly selectedGroupId = signal<string | null>(null);
 
+  // PTZ settings draft (committed explicitly via "Save settings").
+  protected readonly ptzEnabledDraft = signal(false);
+  protected readonly ptzProtocolDraft = signal<PtzProtocol>('visca_udp');
+  protected readonly ptzPortDraft = signal('');
+
   private orgId = '';
+  private lastPtzErrorAt = 0;
 
   protected readonly live = computed(() => this.stream()?.status === 'active');
   protected readonly statusLabel = computed(() =>
@@ -830,6 +876,21 @@ export class LiveStreamDetail implements OnInit {
       this.live() ? 'liveStreams.status.live' : 'liveStreams.status.offline',
     ),
   );
+
+  protected readonly showPtz = computed(() => {
+    const s = this.stream();
+    return !!s && s.sourceType === 'ndi' && s.ptzEnabled && s.status === 'active';
+  });
+
+  protected readonly ptzDirty = computed(() => {
+    const s = this.stream();
+    if (!s) return false;
+    return (
+      this.ptzEnabledDraft() !== s.ptzEnabled ||
+      this.ptzProtocolDraft() !== s.ptzProtocol ||
+      this.ptzPortDraft().trim() !== (s.ptzPort === null ? '' : String(s.ptzPort))
+    );
+  });
 
   protected readonly protocolLabel = computed(() => {
     const s = this.stream();
@@ -964,6 +1025,9 @@ export class LiveStreamDetail implements OnInit {
   private applyStream(stream: LiveStream): void {
     this.stream.set(stream);
     this.nameDraft = stream.name;
+    this.ptzEnabledDraft.set(stream.ptzEnabled);
+    this.ptzProtocolDraft.set(stream.ptzProtocol);
+    this.ptzPortDraft.set(stream.ptzPort === null ? '' : String(stream.ptzPort));
   }
 
   // --- Inline rename ---
@@ -1013,6 +1077,52 @@ export class LiveStreamDetail implements OnInit {
           err.error?.message || this.transloco.translate('liveStreams.errors.updateAudio'),
         ),
     });
+  }
+
+  protected savePtzSettings(): void {
+    const s = this.stream();
+    if (!s || this.busy()) return;
+    const port = parsePtzPort(this.ptzPortDraft());
+    if (!port.valid) {
+      this.toast.error(this.transloco.translate('liveStreams.ptz.errorPortInvalid'));
+      return;
+    }
+    this.busy.set(true);
+    this.liveStreamService
+      .update(this.orgId, s.id, {
+        ptzEnabled: this.ptzEnabledDraft(),
+        ptzProtocol: this.ptzProtocolDraft(),
+        ptzPort: port.value,
+      })
+      .subscribe({
+        next: (updated) => {
+          this.busy.set(false);
+          this.applyStream(updated);
+          this.toast.success(this.transloco.translate('liveStreams.ptz.toast.saved'));
+        },
+        error: (err) => {
+          this.busy.set(false);
+          this.toast.error(
+            err.error?.message || this.transloco.translate('liveStreams.errors.updatePtz'),
+          );
+        },
+      });
+  }
+
+  protected sendPtz(command: PtzCommand): void {
+    const s = this.stream();
+    if (!s || !this.showPtz()) return;
+    this.liveStreamService.sendPtz(this.orgId, s.id, command).subscribe({
+      error: (err) => this.toastPtzError(err),
+    });
+  }
+
+  /** Rate-limited so a failing hold gesture cannot flood the toast stack. */
+  private toastPtzError(err: { error?: { message?: string } }): void {
+    const now = Date.now();
+    if (now - this.lastPtzErrorAt < PTZ_ERROR_TOAST_INTERVAL_MS) return;
+    this.lastPtzErrorAt = now;
+    this.toast.error(err.error?.message || this.transloco.translate('liveStreams.errors.ptz'));
   }
 
   protected ndiTone(state: 'connecting' | 'streaming' | 'error'): 'online' | 'neutral' | 'offline' {

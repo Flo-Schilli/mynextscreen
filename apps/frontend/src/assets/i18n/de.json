@@ -1187,7 +1187,9 @@
       "renameStream": "Stream konnte nicht umbenannt werden.",
       "updateAudio": "Audio konnte nicht aktualisiert werden.",
       "copyUrl": "URL konnte nicht kopiert werden.",
-      "updateQualityPreset": "Qualitätsstufe konnte nicht geändert werden."
+      "updateQualityPreset": "Qualitätsstufe konnte nicht geändert werden.",
+      "ptz": "Kamerabefehl konnte nicht gesendet werden. Ist der Site Agent online?",
+      "updatePtz": "PTZ-Einstellungen konnten nicht gespeichert werden."
     },
     "toast": {
       "created": "Live-Stream erstellt.",
@@ -1214,6 +1216,50 @@
       "auto": "Automatisch",
       "software": "Software",
       "hardware": "Hardware"
+    },
+    "ptz": {
+      "settingsTitle": "PTZ-Kamerasteuerung",
+      "enableLabel": "PTZ-Steuerung aktivieren",
+      "enableDesc": "Kamera per VISCA von der Stream-Seite aus steuern",
+      "protocolLabel": "VISCA-Protokoll",
+      "protocol": {
+        "visca_udp": "VISCA UDP",
+        "visca_tcp": "VISCA TCP"
+      },
+      "portLabel": "Port (optional)",
+      "portHint": "Leer = Standard (UDP 52381, TCP 5678)",
+      "errorPortInvalid": "Gib einen Port zwischen 1 und 65535 an.",
+      "saveSettings": "PTZ-Einstellungen speichern",
+      "toast": {
+        "saved": "PTZ-Einstellungen gespeichert."
+      },
+      "panel": {
+        "title": "Kamerasteuerung",
+        "sub": "Taste gedrückt halten, um die Kamera zu bewegen",
+        "padAria": "Schwenken und Neigen",
+        "direction": {
+          "up": "Nach oben neigen",
+          "down": "Nach unten neigen",
+          "left": "Nach links schwenken",
+          "right": "Nach rechts schwenken",
+          "up_left": "Links oben",
+          "up_right": "Rechts oben",
+          "down_left": "Links unten",
+          "down_right": "Rechts unten"
+        },
+        "stop": "Stopp",
+        "speed": "Geschwindigkeit",
+        "speedAria": "Schwenk- und Neigegeschwindigkeit",
+        "zoom": "Zoom",
+        "zoom_in": "Hineinzoomen",
+        "zoom_out": "Herauszoomen",
+        "home": "Home",
+        "presets": "Presets",
+        "save": "Speichern",
+        "saveHint": "Preset anklicken, um die aktuelle Position zu speichern.",
+        "presetRecallAria": "Preset {n} abrufen",
+        "presetStoreAria": "Preset {n} speichern"
+      }
     },
     "ndiState": {
       "connecting": "Verbindet",
@@ -1584,6 +1630,7 @@
       "live_stream.activated": "Live-Stream aktiviert",
       "live_stream.deactivated": "Live-Stream deaktiviert",
       "live_stream.failed": "Live-Stream fehlgeschlagen",
+      "live_stream.ptz": "Live-Stream: Kamera gesteuert",
       "screen.bulk_deleted": "Bildschirm gelöscht (Sammel)",
       "screen.bulk_group_assigned": "Bildschirmgruppe zugewiesen (Sammel)",
       "content.bulk_deleted": "Inhalt gelöscht (Sammel)",

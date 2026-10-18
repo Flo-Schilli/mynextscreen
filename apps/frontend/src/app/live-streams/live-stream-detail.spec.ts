@@ -14,6 +14,7 @@ import {
   ActivateLiveStreamRequest,
   ActivateStreamResponse,
   LiveStream,
+  PtzCommand,
   StreamHealthState,
   UpdateLiveStreamRequest,
 } from './live-stream.model';
@@ -41,6 +42,9 @@ function makeStream(overrides: Partial<LiveStream> = {}): LiveStream {
     status: 'idle',
     transcodingPreset: 'high_1080p',
     audioEnabled: true,
+    ptzEnabled: false,
+    ptzProtocol: 'visca_udp',
+    ptzPort: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
@@ -147,6 +151,12 @@ class LiveStreamServiceStub {
   }
   getHealth(): Observable<StreamHealthState> {
     return this.healthResult;
+  }
+  ptzResult: Observable<void> = of(undefined);
+  ptzCommands: PtzCommand[] = [];
+  sendPtz(_org: string, _id: string, command: PtzCommand): Observable<void> {
+    this.ptzCommands.push(command);
+    return this.ptzResult;
   }
 }
 
@@ -417,6 +427,90 @@ describe('LiveStreamDetail', () => {
       await setUp();
       component['changeQualityPreset']('720p30');
       expect(streams.updateArgs).toBeNull();
+    });
+
+    describe('PTZ', () => {
+      const panel = (): HTMLElement | null =>
+        fixture.nativeElement.querySelector('app-ptz-control-panel');
+      const ptzStream = (overrides: Partial<LiveStream> = {}): LiveStream =>
+        ndiStream({ status: 'active', ptzEnabled: true, ...overrides });
+      const move: PtzCommand = { action: 'move', direction: 'up', speed: 5 };
+
+      it('renders the panel only for an active NDI stream with PTZ enabled', async () => {
+        streams.getOneResult = of(ptzStream());
+        await setUp();
+        expect(panel()).not.toBeNull();
+      });
+
+      it.each([
+        ['idle', { status: 'idle' as const }],
+        ['ptz disabled', { ptzEnabled: false }],
+        ['pull source', { sourceType: 'pull' as const }],
+      ])('hides the panel when %s', async (_name, overrides) => {
+        streams.getOneResult = of(ptzStream(overrides));
+        await setUp();
+        expect(panel()).toBeNull();
+      });
+
+      it('forwards panel commands to sendPtz without toasting on success', async () => {
+        streams.getOneResult = of(ptzStream());
+        await setUp();
+        component['sendPtz'](move);
+        expect(streams.ptzCommands).toEqual([move]);
+        expect(toast.error).not.toHaveBeenCalled();
+        expect(toast.success).not.toHaveBeenCalled();
+      });
+
+      it('does not send when the panel is not available', async () => {
+        streams.getOneResult = of(ptzStream({ status: 'idle' }));
+        await setUp();
+        component['sendPtz'](move);
+        expect(streams.ptzCommands).toEqual([]);
+      });
+
+      it('toasts the server message on a 409', async () => {
+        streams.getOneResult = of(ptzStream());
+        streams.ptzResult = throwError(() => ({
+          status: 409,
+          error: { message: 'Site agent offline' },
+        }));
+        await setUp();
+        component['sendPtz'](move);
+        expect(toast.error).toHaveBeenCalledWith('Site agent offline');
+      });
+
+      it('toasts a fallback message and rate-limits repeated errors', async () => {
+        streams.getOneResult = of(ptzStream());
+        streams.ptzResult = throwError(() => ({ status: 409 }));
+        await setUp();
+        component['sendPtz'](move);
+        component['sendPtz'](move);
+        expect(toast.error).toHaveBeenCalledTimes(1);
+        expect(toast.error.mock.calls[0][0]).toContain('camera command');
+      });
+
+      it('saves PTZ settings with a parsed port', async () => {
+        streams.getOneResult = of(ptzStream());
+        streams.updateResult = of(ptzStream({ ptzProtocol: 'visca_tcp', ptzPort: 5000 }));
+        await setUp();
+        component['ptzProtocolDraft'].set('visca_tcp');
+        component['ptzPortDraft'].set('5000');
+        component['savePtzSettings']();
+        expect(streams.updateArgs).toEqual({
+          id: STREAM_ID,
+          dto: { ptzEnabled: true, ptzProtocol: 'visca_tcp', ptzPort: 5000 },
+        });
+        expect(toast.success).toHaveBeenCalled();
+      });
+
+      it('rejects an invalid port without calling the API', async () => {
+        streams.getOneResult = of(ptzStream());
+        await setUp();
+        component['ptzPortDraft'].set('70000');
+        component['savePtzSettings']();
+        expect(streams.updateArgs).toBeNull();
+        expect(toast.error).toHaveBeenCalled();
+      });
     });
   });
 });

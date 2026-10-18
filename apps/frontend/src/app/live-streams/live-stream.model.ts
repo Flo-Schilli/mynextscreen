@@ -3,6 +3,7 @@ export type LiveStreamProtocol = 'rtmp' | 'rtp';
 export type LiveStreamSourceType = 'pull' | 'ndi';
 export type QualityPreset = 'preview' | '720p30' | '1080p30';
 export type EncoderPref = 'auto' | 'software' | 'hardware';
+export type PtzProtocol = 'visca_udp' | 'visca_tcp';
 export type NdiStreamState = 'connecting' | 'streaming' | 'error';
 export type TranscodingPreset =
   'low_480p' | 'medium_720p' | 'high_1080p' | 'full_hd_plus_1440p' | 'passthrough';
@@ -24,6 +25,10 @@ export interface LiveStream {
   status: LiveStreamStatus;
   transcodingPreset: TranscodingPreset;
   audioEnabled: boolean;
+  ptzEnabled: boolean;
+  ptzProtocol: PtzProtocol;
+  /** `null` = protocol default (visca_udp 52381, visca_tcp 5678). */
+  ptzPort: number | null;
   ndiStatus?: NdiStatus;
   health?: StreamHealthState;
   createdAt: string;
@@ -59,6 +64,9 @@ export interface CreateLiveStreamRequest {
   encoderPref?: EncoderPref;
   transcodingPreset?: TranscodingPreset;
   audioEnabled?: boolean;
+  ptzEnabled?: boolean;
+  ptzProtocol?: PtzProtocol;
+  ptzPort?: number | null;
 }
 
 export interface UpdateLiveStreamRequest {
@@ -72,6 +80,39 @@ export interface UpdateLiveStreamRequest {
   encoderPref?: EncoderPref;
   transcodingPreset?: TranscodingPreset;
   audioEnabled?: boolean;
+  ptzEnabled?: boolean;
+  ptzProtocol?: PtzProtocol;
+  ptzPort?: number | null;
+}
+
+export type PtzDirection =
+  'up' | 'down' | 'left' | 'right' | 'up_left' | 'up_right' | 'down_left' | 'down_right';
+
+export type PtzCommand =
+  | { action: 'move'; direction: PtzDirection; speed: number }
+  | { action: 'stop' }
+  | { action: 'zoom'; direction: 'in' | 'out'; speed: number }
+  | { action: 'home' }
+  | { action: 'preset_recall'; preset: number }
+  | { action: 'preset_store'; preset: number };
+
+export const PTZ_PROTOCOLS: PtzProtocol[] = ['visca_udp', 'visca_tcp'];
+export const PTZ_DEFAULT_PORTS: Record<PtzProtocol, number> = {
+  visca_udp: 52381,
+  visca_tcp: 5678,
+};
+export const PTZ_MIN_PORT = 1;
+export const PTZ_MAX_PORT = 65535;
+
+export type PtzPortParse = { valid: true; value: number | null } | { valid: false };
+
+/** Empty input = protocol default (`null`); otherwise an integer in 1..65535. */
+export function parsePtzPort(raw: string): PtzPortParse {
+  const text = raw.trim();
+  if (!text) return { valid: true, value: null };
+  if (!/^\d+$/.test(text)) return { valid: false };
+  const value = Number(text);
+  return value >= PTZ_MIN_PORT && value <= PTZ_MAX_PORT ? { valid: true, value } : { valid: false };
 }
 
 export interface ActivateLiveStreamRequest {
