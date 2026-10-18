@@ -29,8 +29,8 @@ FROM node:26-alpine
 # instead of replayed from the buildx cache. Without it the cached layer keeps
 # whatever package set existed when it was first built, and the Trivy gate then
 # fails on advisories Alpine has already shipped a fix for.
-ARG ALPINE_REFRESH=unset
-RUN echo "alpine package refresh: ${ALPINE_REFRESH}" \
+ARG PACKAGE_REFRESH=unset
+RUN echo "alpine package refresh: ${PACKAGE_REFRESH}" \
     && apk upgrade --no-cache
 
 # ffmpeg for transcoding + live streaming; tini as PID 1 for clean signal handling.
@@ -45,8 +45,11 @@ COPY package.json package-lock.json ./
 # npm is a build-time tool only — the container runs `node dist/...`. Removing it
 # again drops ~30 advisories that Trivy reports against npm's own bundled
 # dependencies and that no runtime code can reach.
+# grandi (NDI) is a root dependency for the site-agent only; its glibc binaries
+# (~55 MB) cannot even load on Alpine, so they are dropped here.
 RUN npm i -g npm@12.2.0 \
     && npm ci --omit=dev \
+    && rm -rf node_modules/grandi node_modules/@grandi \
     && npm cache clean --force \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 

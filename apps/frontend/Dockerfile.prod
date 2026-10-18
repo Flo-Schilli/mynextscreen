@@ -34,8 +34,8 @@ USER root
 # instead of replayed from the buildx cache. Without it the cached layer keeps
 # whatever package set existed when it was first built, and the Trivy gate then
 # fails on advisories Alpine has already shipped a fix for.
-ARG ALPINE_REFRESH=unset
-RUN echo "alpine package refresh: ${ALPINE_REFRESH}" \
+ARG PACKAGE_REFRESH=unset
+RUN echo "alpine package refresh: ${PACKAGE_REFRESH}" \
     && apk upgrade --no-cache
 
 RUN apk add --no-cache gettext

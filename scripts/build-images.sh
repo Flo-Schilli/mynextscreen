@@ -6,8 +6,8 @@ set -euo pipefail
 APP_VERSION="${APP_VERSION:-0.0.0-dev}"
 GIT_COMMIT="${GIT_COMMIT:-unknown}"
 BUILD_DATE="${BUILD_DATE:-unknown}"
-# Date only: busts the `apk upgrade` layer once a day instead of every build.
-ALPINE_REFRESH="${ALPINE_REFRESH:-$(date -u +%Y-%m-%d)}"
+# Date only: busts the OS package-upgrade layer once a day instead of every build.
+PACKAGE_REFRESH="${PACKAGE_REFRESH:-$(date -u +%Y-%m-%d)}"
 REGISTRY="${REGISTRY:-ghcr.io/flo-schilli/mynextscreen}"
 # Container engine: docker by default, override with ENGINE=podman
 ENGINE="${ENGINE:-docker}"
@@ -20,7 +20,7 @@ for svc in backend frontend player site-agent; do
     --build-arg "APP_VERSION=${APP_VERSION}" \
     --build-arg "GIT_COMMIT=${GIT_COMMIT}" \
     --build-arg "BUILD_DATE=${BUILD_DATE}" \
-    --build-arg "ALPINE_REFRESH=${ALPINE_REFRESH}" \
+    --build-arg "PACKAGE_REFRESH=${PACKAGE_REFRESH}" \
     -f "apps/${svc}/Dockerfile.prod" \
     -t "${REGISTRY}/${svc}:${APP_VERSION}" \
     -t "${REGISTRY}/${svc}:latest" \

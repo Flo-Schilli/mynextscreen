@@ -1,8 +1,16 @@
 # Build context = repo root (Nx monorepo: one root package.json + lockfile).
 # Build:  docker build -f apps/site-agent/Dockerfile.prod -t mynextscreen-site-agent .
+#
+# Debian trixie (glibc), not Alpine: the NDI bindings (`grandi`) ship prebuilt
+# glibc binaries only. The x64 `grandi.node` needs GLIBCXX_3.4.31, which
+# bookworm's libstdc++ does not provide, so trixie is the oldest Debian release
+# that loads it.
 
 # Stage 1: Build
-FROM node:26-alpine AS builder
+# Same base as the runtime on purpose: one image to pull, cache and patch, and
+# `npm ci` resolves the same glibc optional binaries (@grandi/*, nx, sharp) as
+# the runtime stage does, so a build that works here works there.
+FROM node:26-trixie-slim AS builder
 
 WORKDIR /app
 
@@ -18,31 +26,47 @@ COPY libs libs
 RUN npx nx build site-agent
 
 # Stage 2: Production runtime
-FROM node:26-alpine
+FROM node:26-trixie-slim
 
-# Pull the current Alpine package set: the base image tag is rebuilt less often
+# Pull the current Debian package set: the base image tag is rebuilt less often
 # than its packages are fixed, and the CI image scan gates on exactly these.
 # Changes daily (CI passes the build date), so the layer below is re-resolved
 # instead of replayed from the buildx cache. Without it the cached layer keeps
 # whatever package set existed when it was first built, and the Trivy gate then
-# fails on advisories Alpine has already shipped a fix for.
-ARG ALPINE_REFRESH=unset
-RUN echo "alpine package refresh: ${ALPINE_REFRESH}" \
-    && apk upgrade --no-cache
-
+# fails on advisories Debian has already shipped a fix for.
+#
 # tini as PID 1 for clean signal handling. Deliberately no openssh-client: the
 # agent speaks SSH through the `ssh2` library, which also means the host's
 # OpenSSL crypto policy cannot break it against a TV's OpenSSH 6.1.
 #
 # iw reads the Wi-Fi network name over nl80211 for the dashboard. It needs no
 # capability, so it works under DropCapability=ALL with host networking.
-RUN apk add --no-cache tini iw
+#
+# ffmpeg encodes NDI camera frames to HLS. Debian's build carries libx264 plus
+# the hardware encoders h264_v4l2m2m (Raspberry Pi) and h264_vaapi (Intel/AMD).
+#
+# libavahi-client3 + libavahi-common3: libndi resolves NDI sources over mDNS
+# through the Avahi client API. Only the client libraries: the agent talks to
+# the HOST's avahi-daemon over its D-Bus system socket (mounted at runtime), so
+# neither avahi-daemon nor a D-Bus daemon runs inside the container.
+ARG PACKAGE_REFRESH=unset
+RUN echo "debian package refresh: ${PACKAGE_REFRESH}" \
+    && apt-get update \
+    && apt-get -y upgrade \
+    && apt-get install -y --no-install-recommends \
+       tini iw ffmpeg libavahi-client3 libavahi-common3 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY package.json package-lock.json ./
 # npm is a build-time tool only — the container runs `node dist/...`. Removing
 # it drops the advisories Trivy reports against npm's own bundled dependencies.
+#
+# Never `--omit=optional`: the NDI runtime (grandi.node + libndi.so.6) and its
+# required licence files (LICENSE, libndi_licenses.txt) arrive as the
+# per-architecture optional dependency @grandi/linux-<arch>.
 RUN npm i -g npm@12.2.0 \
     && npm ci --omit=dev \
     && npm cache clean --force \
@@ -79,5 +103,5 @@ EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:8787/api/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "dist/apps/site-agent/main.js"]

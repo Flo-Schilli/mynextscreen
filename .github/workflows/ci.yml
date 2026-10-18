@@ -150,10 +150,10 @@ jobs:
             echo "app_version=${APP_VERSION}"
             echo "short_sha=${SHORT_SHA}"
             echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            # Date only, so the apk layer is re-resolved once a day rather than
-            # on every build: Alpine ships package fixes faster than the base
+            # Date only, so the OS package layer is re-resolved once a day rather than
+            # on every build: distros ship package fixes faster than the base
             # image tag is rebuilt, and the scan below gates on exactly those.
-            echo "alpine_refresh=$(date -u +%Y-%m-%d)"
+            echo "package_refresh=$(date -u +%Y-%m-%d)"
           } >> "$GITHUB_OUTPUT"
 
       # Build and package the LG webOS player app (.ipk) so it can be served
@@ -198,11 +198,37 @@ jobs:
             APP_VERSION=${{ steps.meta.outputs.app_version }}
             GIT_COMMIT=${{ steps.meta.outputs.short_sha }}
             BUILD_DATE=${{ steps.meta.outputs.build_date }}
-            ALPINE_REFRESH=${{ steps.meta.outputs.alpine_refresh }}
+            PACKAGE_REFRESH=${{ steps.meta.outputs.package_refresh }}
           # Scoped per architecture: one cache key for both would have the two
           # runners overwrite each other's layers on every run.
           cache-from: type=gha,scope=${{ matrix.app }}-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}-${{ matrix.arch }}
+
+      # The NDI runtime arrives as a per-architecture optional dependency and
+      # ffmpeg's encoder set differs per architecture, so both are checked in
+      # the image actually built on this runner. A wrong base image (missing
+      # GLIBCXX), a dropped @grandi/* binary or an ffmpeg build without the
+      # expected H.264 encoders fails here instead of on a venue host.
+      - name: Smoke-test NDI runtime + ffmpeg encoders
+        if: matrix.app == 'site-agent'
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          image=mynextscreen-site-agent:scan
+          init_check="import grandi from 'grandi'; if (!grandi.isSupportedCPU() || !grandi.initialize()) process.exit(1); console.log('grandi ok:', grandi.version()); grandi.destroy();"
+          docker run --rm --entrypoint node "$image" --input-type=module -e "$init_check"
+          # Same check on a read-only rootfs: libndi must not need a writable
+          # filesystem beyond /tmp, which keeps a read-only container an option.
+          docker run --rm --read-only --tmpfs /tmp --entrypoint node "$image" --input-type=module -e "$init_check"
+          docker run --rm --entrypoint sh "$image" -c \
+            'ls node_modules/@grandi/*/LICENSE node_modules/@grandi/*/libndi_licenses.txt'
+          encoders="$(docker run --rm --entrypoint ffmpeg "$image" -hide_banner -encoders)"
+          if [ "$ARCH" = "arm64" ]; then hw=h264_v4l2m2m; else hw=h264_vaapi; fi
+          for enc in libx264 "$hw"; do
+            grep -qw "$enc" <<<"$encoders" || { echo "::error::ffmpeg encoder $enc missing"; exit 1; }
+            echo "ffmpeg encoder ok: $enc"
+          done
 
       # `ignore-unfixed` on purpose: an advisory with no upstream fix cannot be
       # acted on here, and blocking every release on one would mean turning the
@@ -232,7 +258,7 @@ jobs:
             APP_VERSION=${{ steps.meta.outputs.app_version }}
             GIT_COMMIT=${{ steps.meta.outputs.short_sha }}
             BUILD_DATE=${{ steps.meta.outputs.build_date }}
-            ALPINE_REFRESH=${{ steps.meta.outputs.alpine_refresh }}
+            PACKAGE_REFRESH=${{ steps.meta.outputs.package_refresh }}
           cache-from: type=gha,scope=${{ matrix.app }}-${{ matrix.arch }}
           # Attach an SBOM and build provenance so a deployed image can be traced
           # back to the commit and its contents listed without unpacking it.
