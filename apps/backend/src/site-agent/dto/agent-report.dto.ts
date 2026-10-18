@@ -11,6 +11,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -170,6 +171,72 @@ export class AgentNdiStreamReportDto {
   error?: string | null;
 }
 
+export const CAPTURE_PLUGIN_STATES = [
+  'license_required',
+  'ready',
+  'error',
+  'incompatible',
+  'absent',
+] as const;
+export type CapturePluginState = (typeof CAPTURE_PLUGIN_STATES)[number];
+
+/** Reasons the plugin or the agent gives for `error` and `incompatible`. */
+export const CAPTURE_PLUGIN_ERROR_CODES = [
+  'unsupported_platform',
+  'runtime_missing',
+  'runtime_mismatch',
+  'ndi_load_failed',
+  'unsupported_api_version',
+  'internal_error',
+] as const;
+export type CapturePluginErrorCode = (typeof CAPTURE_PLUGIN_ERROR_CODES)[number];
+
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+
+/** Hashes of the exact license texts the plugin ships; what an acceptance must quote. */
+export class AgentCapturePluginLicenseDto {
+  @Matches(SHA256_HEX)
+  licenseSha256!: string;
+
+  @Matches(SHA256_HEX)
+  ndiLicenseSha256!: string;
+
+  @Matches(SHA256_HEX)
+  termsSha256!: string;
+}
+
+/**
+ * What the agent knows about the capture plugin (the separate NDI container).
+ * Sent only while the plugin answers, so an agent without it omits the block.
+ */
+export class AgentCapturePluginReportDto {
+  @IsIn(CAPTURE_PLUGIN_STATES)
+  state!: CapturePluginState;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  pluginVersion?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  apiVersion?: string;
+
+  @IsOptional()
+  @Matches(/^\d+(\.\d+){1,3}$/)
+  sdkVersion?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AgentCapturePluginLicenseDto)
+  license?: AgentCapturePluginLicenseDto;
+
+  @IsOptional()
+  @IsIn(CAPTURE_PLUGIN_ERROR_CODES)
+  errorCode?: CapturePluginErrorCode;
+}
+
 /** Batched because an agent reports for every screen it looks after each round. */
 export class AgentReportDto {
   @IsArray()
@@ -185,4 +252,10 @@ export class AgentReportDto {
   @ValidateNested({ each: true })
   @Type(() => AgentNdiStreamReportDto)
   ndiStreams?: AgentNdiStreamReportDto[];
+
+  /** Optional: an agent without the capture plugin omits it. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AgentCapturePluginReportDto)
+  capturePlugin?: AgentCapturePluginReportDto;
 }

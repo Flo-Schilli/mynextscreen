@@ -29,15 +29,26 @@ import {
 import type {
   AgentConfigMessage,
   AgentScreenConfigMessage,
+  AgentCapturePluginMessage,
   AgentNdiStreamStatusMessage,
   AgentScreenReportMessage,
   AgentMetricsMessage,
 } from '../protocol/server-protocol';
 
+/** The NDI part of a report: stream status and the capture plugin block, each optional. */
+interface NdiReport {
+  ndiStreams?: AgentNdiStreamStatusMessage[];
+  capturePlugin?: AgentCapturePluginMessage;
+}
+
+const hasNdiReport = (report: NdiReport): boolean =>
+  report.ndiStreams !== undefined || report.capturePlugin !== undefined;
+
 /** How often the agent checks in, independent of the probe interval. */
 const HEARTBEAT_INTERVAL_MS = 60_000;
 /**
- * How often NDI status is reported while any NDI stream exists. The backend
+ * How often NDI status is reported while any NDI stream exists or the capture
+ * plugin answers. The backend
  * drops a status after 30 s, so this must stay well below that.
  */
 export const NDI_REPORT_INTERVAL_MS = 10_000;
@@ -176,8 +187,8 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
       reports.push(await this.visit(screen, config.appId));
     }
 
-    const ndiStreams = this.ndi.status();
-    if ((reports.length > 0 || ndiStreams.length > 0) && (await this.send(reports, ndiStreams))) {
+    const ndiReport = this.ndiReport();
+    if ((reports.length > 0 || hasNdiReport(ndiReport)) && (await this.send(reports, ndiReport))) {
       for (const report of reports) {
         if (report.localIp) {
           this.runtimeFor(report.screenId).pendingLocalIp = null;
@@ -191,11 +202,21 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
    * view stays fresh (it expires a status after 30 s). A no-op without streams.
    */
   async reportNdiStatus(): Promise<void> {
-    const ndiStreams = this.ndi.status();
-    if (ndiStreams.length === 0 || !(await this.connections.load())) {
+    const ndiReport = this.ndiReport();
+    if (!hasNdiReport(ndiReport) || !(await this.connections.load())) {
       return;
     }
-    await this.send([], ndiStreams);
+    await this.send([], ndiReport);
+  }
+
+  /** Stream status plus the plugin block; each only when there is something to say. */
+  private ndiReport(): NdiReport {
+    const ndiStreams = this.ndi.status();
+    const capturePlugin = this.ndi.capturePlugin();
+    return {
+      ...(ndiStreams.length > 0 ? { ndiStreams } : {}),
+      ...(capturePlugin ? { capturePlugin } : {}),
+    };
   }
 
   private scheduleNdiReport(): void {
@@ -700,10 +721,10 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   /** True when the server took the reports. */
   private async send(
     screens: AgentScreenReportMessage[],
-    ndiStreams: AgentNdiStreamStatusMessage[] = [],
+    ndiReport: NdiReport = {},
   ): Promise<boolean> {
     try {
-      await this.client.sendReports(ndiStreams.length > 0 ? { screens, ndiStreams } : { screens });
+      await this.client.sendReports({ screens, ...ndiReport });
       return true;
     } catch (error) {
       // Dropped on the floor on purpose. The next round re-observes everything
@@ -718,7 +739,9 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   /** Brings the NDI pipelines in line with the config; never lets a failure stop the round. */
   private async reconcileNdi(config: AgentConfigMessage | null): Promise<void> {
     try {
-      await this.ndi.reconcile(config?.ndiStreams ?? []);
+      // No config (cache missing or unreadable) is not "no streams": the manager
+      // keeps what it has rather than stopping every running stream.
+      await this.ndi.reconcile(config ? (config.ndiStreams ?? []) : null);
     } catch (error) {
       this.logger.error(`Could not reconcile NDI streams: ${describe(error)}`);
     }

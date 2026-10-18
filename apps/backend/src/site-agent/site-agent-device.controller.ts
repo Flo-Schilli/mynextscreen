@@ -21,6 +21,7 @@ import { SiteAgentService } from './site-agent.service';
 import { SiteAgentConfigService } from './site-agent-config.service';
 import { SiteAgentSseService } from './site-agent-sse.service';
 import { NdiStreamStatusService } from './ndi-stream-status.service';
+import { CapturePluginStatusService } from './capture-plugin-status.service';
 import { ScreenRemoteCommandService } from './screen-remote-command.service';
 import { AgentMetricsService } from '../observability/agent-metrics.service';
 import type { AgentConfig } from './agent-config.types';
@@ -73,6 +74,7 @@ export class SiteAgentDeviceController {
     private readonly playerApps: PlayerAppsService,
     private readonly agentMetrics: AgentMetricsService,
     private readonly ndiStatus: NdiStreamStatusService,
+    private readonly capturePluginStatus: CapturePluginStatusService,
   ) {}
 
   /**
@@ -177,6 +179,9 @@ export class SiteAgentDeviceController {
         req.agentId,
         dto.ndiStreams.filter((report) => allowed.has(report.streamId)),
       );
+    }
+    if (dto.capturePlugin) {
+      this.capturePluginStatus.record(req.agentId, dto.capturePlugin);
     }
   }
 

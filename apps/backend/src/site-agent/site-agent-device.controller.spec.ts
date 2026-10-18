@@ -11,6 +11,7 @@ import { SiteAgentConfigService } from './site-agent-config.service';
 import { SiteAgentSseService } from './site-agent-sse.service';
 import { ScreenRemoteCommandService } from './screen-remote-command.service';
 import { NdiStreamStatusService } from './ndi-stream-status.service';
+import { CapturePluginStatusService } from './capture-plugin-status.service';
 import { AgentMetricsService } from '../observability/agent-metrics.service';
 import { ScreenReachability } from './screen-reachability.enum';
 import { IS_AGENT_AUTH_KEY } from '../auth/agent-auth.decorator';
@@ -30,6 +31,7 @@ describe('SiteAgentDeviceController', () => {
   let emitter: { emit: jest.Mock };
   let agentMetrics: { record: jest.Mock };
   let ndiStatus: { record: jest.Mock };
+  let capturePluginStatus: { record: jest.Mock };
 
   const agentId = '660e8400-e29b-41d4-a716-446655440000';
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
@@ -51,6 +53,7 @@ describe('SiteAgentDeviceController', () => {
     emitter = { emit: jest.fn() };
     agentMetrics = { record: jest.fn() };
     ndiStatus = { record: jest.fn() };
+    capturePluginStatus = { record: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SiteAgentDeviceController],
@@ -68,6 +71,7 @@ describe('SiteAgentDeviceController', () => {
         },
         { provide: AgentMetricsService, useValue: agentMetrics },
         { provide: NdiStreamStatusService, useValue: ndiStatus },
+        { provide: CapturePluginStatusService, useValue: capturePluginStatus },
       ],
     }).compile();
 
@@ -281,6 +285,21 @@ describe('SiteAgentDeviceController', () => {
       await controller.reports(agentReq, { screens: [], ndiStreams: [] });
 
       expect(ndiStatus.record).not.toHaveBeenCalled();
+    });
+
+    it('stores the capture plugin block under the calling agent', async () => {
+      const capturePlugin = { state: 'license_required' as const, pluginVersion: '0.1.0' };
+
+      await controller.reports(agentReq, { screens: [], capturePlugin });
+
+      expect(capturePluginStatus.record).toHaveBeenCalledWith(agentId, capturePlugin);
+      expect(configService.activeNdiStreamIds).not.toHaveBeenCalled();
+    });
+
+    it('does not touch the plugin store when the block is absent', async () => {
+      await controller.reports(agentReq, { screens: [] });
+
+      expect(capturePluginStatus.record).not.toHaveBeenCalled();
     });
 
     it('applies every screen in the batch', async () => {

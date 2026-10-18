@@ -189,10 +189,37 @@ export interface AgentScreenReportMessage {
   appLaunchInSeconds?: number;
 }
 
+/**
+ * What the agent knows about the capture plugin (the separate NDI container).
+ * Sent only when the plugin answers: an agent without it omits the block.
+ */
+export type CapturePluginStateValue = 'license_required' | 'ready' | 'error' | 'incompatible';
+
+/** Reason behind `error` and `incompatible`; the plugin's codes plus the agent's own. */
+export type CapturePluginErrorCode =
+  | 'unsupported_platform'
+  | 'runtime_missing'
+  | 'runtime_mismatch'
+  | 'ndi_load_failed'
+  | 'unsupported_api_version'
+  | 'internal_error';
+
+export interface AgentCapturePluginMessage {
+  state: CapturePluginStateValue;
+  pluginVersion?: string;
+  apiVersion?: string;
+  sdkVersion?: string;
+  /** What an acceptance covers: hashes of the shipped NDI license text and plugin terms. */
+  license?: { licenseSha256: string; ndiLicenseSha256: string; termsSha256: string };
+  errorCode?: CapturePluginErrorCode;
+}
+
 export interface AgentReportMessage {
   screens: AgentScreenReportMessage[];
   /** Optional: an older server rejects the unknown field with 400. */
   ndiStreams?: AgentNdiStreamStatusMessage[];
+  /** Optional, same fallback as `ndiStreams`. */
+  capturePlugin?: AgentCapturePluginMessage;
 }
 
 /**

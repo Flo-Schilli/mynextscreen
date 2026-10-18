@@ -207,31 +207,28 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.app }}-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}-${{ matrix.arch }}
 
-      # The NDI runtime arrives as a per-architecture optional dependency and
-      # ffmpeg's encoder set differs per architecture, so both are checked in
-      # the image actually built on this runner. A wrong base image (missing
-      # GLIBCXX), a dropped @grandi/* binary or an ffmpeg build without the
-      # expected H.264 encoders fails here instead of on a venue host.
-      - name: Smoke-test NDI runtime + ffmpeg encoders
+      # The agent must stay free of NDI: capture runs in the separate plugin
+      # image, which carries the NDI runtime under its own terms. A grandi
+      # package, a libndi file or an ffmpeg binary here would put a proprietary
+      # library (or a GPL one) back into the AGPL agent image.
+      - name: Assert the agent image contains no NDI runtime or FFmpeg
         if: matrix.app == 'site-agent'
-        env:
-          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
           image=mynextscreen-site-agent:scan
-          init_check="import grandi from 'grandi'; if (!grandi.isSupportedCPU() || !grandi.initialize()) process.exit(1); console.log('grandi ok:', grandi.version()); grandi.destroy();"
-          docker run --rm --entrypoint node "$image" --input-type=module -e "$init_check"
-          # Same check on a read-only rootfs: libndi must not need a writable
-          # filesystem beyond /tmp, which keeps a read-only container an option.
-          docker run --rm --read-only --tmpfs /tmp --entrypoint node "$image" --input-type=module -e "$init_check"
-          docker run --rm --entrypoint sh "$image" -c \
-            'ls node_modules/@grandi/*/LICENSE node_modules/@grandi/*/libndi_licenses.txt'
-          encoders="$(docker run --rm --entrypoint ffmpeg "$image" -hide_banner -encoders)"
-          if [ "$ARCH" = "arm64" ]; then hw=h264_v4l2m2m; else hw=h264_vaapi; fi
-          for enc in libx264 "$hw"; do
-            grep -qw "$enc" <<<"$encoders" || { echo "::error::ffmpeg encoder $enc missing"; exit 1; }
-            echo "ffmpeg encoder ok: $enc"
-          done
+          found="$(docker run --rm --entrypoint sh "$image" -c '
+            find / -xdev \( -name "libndi*" -o -name "ffmpeg" -o -name "ffmpeg.exe" \) 2>/dev/null
+            for dir in /app/node_modules/grandi /app/node_modules/@grandi; do
+              [ -e "$dir" ] && echo "$dir"
+            done
+            true
+          ')"
+          if [ -n "$found" ]; then
+            echo "::error::NDI or FFmpeg files in the agent image:"
+            echo "$found"
+            exit 1
+          fi
+          echo "no libndi*, grandi, @grandi or ffmpeg in the agent image"
 
       # `ignore-unfixed` on purpose: an advisory with no upstream fix cannot be
       # acted on here, and blocking every release on one would mean turning the

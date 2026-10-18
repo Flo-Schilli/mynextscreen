@@ -59,7 +59,12 @@ describe('SupervisorService', () => {
   let ssapKeys: { load: jest.Mock; save: jest.Mock };
   let network: { collect: jest.Mock };
   let discovery: { locate: jest.Mock };
-  let ndi: { reconcile: jest.Mock; status: jest.Mock; onChange: jest.Mock };
+  let ndi: {
+    reconcile: jest.Mock;
+    status: jest.Mock;
+    capturePlugin: jest.Mock;
+    onChange: jest.Mock;
+  };
 
   function build(config: AgentConfigMessage | null) {
     configs.current.mockReturnValue(config);
@@ -140,6 +145,7 @@ describe('SupervisorService', () => {
     ndi = {
       reconcile: jest.fn().mockResolvedValue(undefined),
       status: jest.fn().mockReturnValue([]),
+      capturePlugin: jest.fn().mockReturnValue(null),
       onChange: jest.fn(),
     };
   });
@@ -221,6 +227,16 @@ describe('SupervisorService', () => {
       supervisor.onModuleDestroy();
 
       expect(ndi.reconcile).toHaveBeenCalledWith([stream]);
+    });
+
+    it('passes null, not an empty list, when no config could be loaded', async () => {
+      supervisor = build(null);
+
+      await supervisor.onModuleInit();
+      supervisor.onModuleDestroy();
+
+      expect(ndi.reconcile).toHaveBeenCalledWith(null);
+      expect(ndi.reconcile).not.toHaveBeenCalledWith([]);
     });
 
     it('reconciles against an empty list when the config has no streams', async () => {
@@ -326,12 +342,48 @@ describe('SupervisorService', () => {
       });
     });
 
+    describe('capture plugin block', () => {
+      const plugin = { state: 'license_required' as const, pluginVersion: '0.1.0' };
+
+      it('sends the block with the report, even without screens or streams', async () => {
+        ndi.capturePlugin.mockReturnValue(plugin);
+        supervisor = build(configWith([]));
+
+        await supervisor.tick();
+
+        expect(client.sendReports).toHaveBeenCalledWith({ screens: [], capturePlugin: plugin });
+      });
+
+      it('sends it together with stream status and screens', async () => {
+        ndi.status.mockReturnValue([status]);
+        ndi.capturePlugin.mockReturnValue(plugin);
+        supervisor = build(configWith([screen()]));
+
+        await supervisor.tick();
+
+        expect(client.sendReports.mock.calls.at(-1)[0]).toMatchObject({
+          ndiStreams: [status],
+          capturePlugin: plugin,
+        });
+      });
+
+      it('reports it between rounds while the plugin answers', async () => {
+        ndi.capturePlugin.mockReturnValue(plugin);
+        supervisor = build(configWith([]));
+
+        await supervisor.reportNdiStatus();
+
+        expect(client.sendReports).toHaveBeenCalledWith({ screens: [], capturePlugin: plugin });
+      });
+    });
+
     it('leaves the field out when no stream runs', async () => {
       supervisor = build(configWith([screen()]));
 
       await supervisor.tick();
 
       expect(client.sendReports.mock.calls.at(-1)[0]).not.toHaveProperty('ndiStreams');
+      expect(client.sendReports.mock.calls.at(-1)[0]).not.toHaveProperty('capturePlugin');
     });
   });
 

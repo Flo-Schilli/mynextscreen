@@ -369,6 +369,20 @@ describe('ServerClient', () => {
         expect(fetchMock).toHaveBeenCalledTimes(2);
       });
 
+      it('sends the capture plugin block and retries without it on an older server', async () => {
+        const capturePlugin = { state: 'ready' as const, pluginVersion: '0.1.0', apiVersion: '1' };
+        fetchMock
+          .mockResolvedValueOnce(respond(204))
+          .mockResolvedValueOnce(respond(400))
+          .mockResolvedValueOnce(respond(204));
+
+        await client.sendReports({ screens, capturePlugin });
+        await client.sendReports({ screens, capturePlugin });
+
+        expect(JSON.parse(initOf(1).body as string)).toEqual({ screens, capturePlugin });
+        expect(JSON.parse(initOf(3).body as string)).toEqual({ screens });
+      });
+
       it('does not retry on other failures', async () => {
         fetchMock.mockResolvedValueOnce(respond(500));
 
