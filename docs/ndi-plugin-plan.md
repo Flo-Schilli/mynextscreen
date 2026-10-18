@@ -93,6 +93,22 @@ Trade-offs, and how we handle them:
 - **E2E across repos:** this repo's integration tests pull the pinned plugin image from GHCR.
   The plugin repo tests against the agent only through the contract test.
 
+**Visibility (decision 2026-10-18): public**, like this repo.
+- An Apache-2.0 plugin only makes sense as public open source, and the whole point is a clean
+  separation from the AGPL agent.
+- CI stays free like today: GitHub-hosted runners (including `ubuntu-24.04-arm` for the arm64
+  builds) and CodeQL code scanning cost nothing on public repos. Private repos pay for both.
+- Public repo + public GHCR image keeps today's model, so venues pull without credentials.
+- It shows NDI directly that neither the repo nor the image contains NDI binaries.
+
+**Rule for the public repo: it never contains NDI SDK files.** The SDK, its headers and its
+documentation are "Confidential Information" under clause 3a. The repo uses NDI only through
+the `grandi` npm package and vendors nothing. This is enforced twice:
+- `.gitignore` entries for `libndi*`, `Processing.NDI.*.h`, `NDI SDK*/` and SDK archives.
+- A CI denylist check that fails the build if any of these patterns exist in the repository
+  tree, in a PR diff, or in the built image. In the image it asserts no `libndi*` and no
+  `Processing.NDI.*.h`; the downloaded runtime lives only in the venue's state volume.
+
 Repo layout: a single TypeScript Node project. No Nx is needed for one app. npm with
 `packageManager` pinned like here, Node 26, Prettier, ESLint, Jest with gate 85/75/83/85,
 `Dockerfile`, `openapi.json`, `NOTICE`, `LICENSE` (Apache-2.0), `CHANGELOG.md`, versioning via
@@ -223,7 +239,8 @@ existing per-run segment names stay. The agent's `HlsUploadService` watches that
 
 ## 6. Deployment
 - Plugin repo CI (built natively per arch, amd64 + arm64, like this repo): lint/typecheck/test,
-  contract check of `openapi.json`, image build, Trivy gate, CodeQL, gitleaks. Publishes
+  contract check of `openapi.json`, NDI-SDK denylist check (repo tree, PR diff, image), image
+  build, Trivy gate, CodeQL, gitleaks. Publishes
   `ghcr.io/flo-schilli/mynextscreen-capture-plugin` only on main and tags. Image base
   `node:26-trixie-slim`, with the slim FFmpeg stage moved there from the agent Dockerfile,
   `grandi` installed and then `rm @grandi/linux-*/libndi*`. Same hardening as the agent:
@@ -256,7 +273,7 @@ existing per-run segment names stay. The agent's `HlsUploadService` watches that
 | Phase | Content | Effort (rough) |
 |---|---|---|
 | **0 Verify** (blocking) | (a) `grandi.node` finds `libndi.so.6` via `LD_LIBRARY_PATH` when deleted next to it, on x64 and arm64; (b) official NDI SDK Linux download: URL stability, archive layout, aarch64 libs, license file location, whether the tarball is checksum-stable; (c) a newer 6.x libndi works with grandi 2.0.2; (d) send the NDI questions (section 9) | 1 day + NDI's response time |
-| **1 Plugin repo** | create the repo (Apache-2.0, CI and GHCR publish, branch protection), move pipeline code and `tools/ndi-*` (relicensed), control API + `openapi.json`, license state machine, downloader, specs, first release `v0.1.0` | 3.5–4.5 days |
+| **1 Plugin repo** | create the public repo (Apache-2.0, CI and GHCR publish, branch protection, NDI-SDK denylist check), move pipeline code and `tools/ndi-*` (relicensed), control API + `openapi.json`, license state machine, downloader, specs, first release `v0.1.0` | 3.5–4.5 days |
 | **2 Agent** | `PluginClient` + hand-synced types + contract spec, reconcile via the plugin, report block, remove grandi/FFmpeg/pipeline/`tools/ndi-*` from this repo, image smoke "no libndi, no grandi" | 1–2 days |
 | **3 Backend + dashboard** | migration `capture_plugin_acceptances`, acceptance API + audit, `AgentConfig.ndiPlugin`, gating (409), plugin card + acceptance modal, create-modal gating, i18n | 2–3 days |
 | **4 Deployment** | plugin image + CI matrix + smoke, ansible quadlet + vars, setup-UI acceptance page, device env fallback, docs/NOTICE, weekly SDK check job | 1–2 days |
@@ -288,6 +305,7 @@ off for the AGPL separation, and the downloader becomes optional.
 | NDI says the download model is not acceptable either | feature cannot ship publicly | ask before implementing (phase 0). Alternatives: NDI's own redistributable, or an agreement / Advanced SDK |
 | 1b(iii) applies to the Pi | Pi deployments not covered | NDI answer. If needed, support x86 only or obtain an agreement |
 | Two containers instead of one | more ops surface | plugin optional (default off), shared ansible role, status visible in the dashboard |
+| An NDI SDK file (header, lib, doc) lands in the public repo or image | breach of the SDK confidentiality clause 3a | `.gitignore` + CI denylist on tree, diff and image; repo vendors nothing from the SDK |
 | Agent and plugin versions drift (two repos) | broken control calls in the field | `/v1` API versioning, `incompatible` status, contract tests on both sides, ansible pins both tags |
 | Shared-socket misuse on the host | another local process controls the plugin | socket dir 0700 uid 1000, optional token, plugin accepts only the documented routes |
 | Raw-frame path unchanged, but HLS now crosses a volume | latency +ms | same host, tmpfs-backed volume. Measure in phase 5 (target still ≤ 4 s) |
