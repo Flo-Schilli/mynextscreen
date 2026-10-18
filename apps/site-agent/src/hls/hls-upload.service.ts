@@ -1,6 +1,6 @@
 import { watch, type FSWatcher } from 'node:fs';
 import { constants } from 'node:fs';
-import { lstat, open } from 'node:fs/promises';
+import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Logger } from '@nestjs/common';
 import {
@@ -86,18 +86,13 @@ export function watchDirectory(dir: string, listener: () => void): { close(): vo
 /**
  * The shared directory is written by another container, so a file in it is
  * untrusted: it is opened without following symlinks and only when it is a
- * regular file within the size cap. `O_NOFOLLOW` closes the window between the
- * `lstat` and the `open`.
+ * regular file within the size cap, judged on the opened descriptor.
  */
 export async function readRegularFile(path: string, maxBytes: number): Promise<Buffer> {
-  const info = await lstat(path);
-  if (!info.isFile()) {
-    throw new HlsFileRejectedError('not a regular file');
-  }
-  if (info.size > maxBytes) {
-    throw new HlsFileRejectedError(`larger than ${maxBytes} bytes`);
-  }
-  const flags = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0);
+  // No lstat before the open: that would be a check-then-use race. The open
+  // itself refuses a symlink (ELOOP) and, with O_NONBLOCK, cannot hang on a
+  // FIFO; what was actually opened is then checked through its descriptor.
+  const flags = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0);
   let handle;
   try {
     handle = await open(path, flags);
@@ -109,10 +104,16 @@ export async function readRegularFile(path: string, maxBytes: number): Promise<B
   }
   try {
     const opened = await handle.stat();
-    if (!opened.isFile() || opened.size > maxBytes) {
-      throw new HlsFileRejectedError('not a regular file within the size limit');
+    if (!opened.isFile()) {
+      throw new HlsFileRejectedError('not a regular file');
     }
-    return await handle.readFile();
+    if (opened.size > maxBytes) {
+      throw new HlsFileRejectedError(`larger than ${maxBytes} bytes`);
+    }
+    // Bounded by the size just checked, so a file that grows meanwhile is cut off.
+    const body = Buffer.alloc(opened.size);
+    const { bytesRead } = await handle.read(body, 0, opened.size, 0);
+    return body.subarray(0, bytesRead);
   } finally {
     await handle.close();
   }
