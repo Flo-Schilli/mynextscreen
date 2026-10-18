@@ -294,6 +294,91 @@ Segmente exakt 1,000 s, Keyframe am Anfang, kein Audio.
 - **FFmpeg-Argumente fix halten:** `-f rawvideo` vor `-i pipe:0`, `-protocol_whitelist
   pipe,file`, keine Quellnamen in Argumente/Pfade, exakter argv-Unit-Test.
 
+## Discovery-Entscheidung (2026-10-18, rootless Podman getestet)
+
+Agent mit Prod-Flags (`--network host`, `UserNS=keep-id:uid=1000`, `--cap-drop=ALL`,
+`no-new-privileges`, SELinux aktiv):
+
+| Variante | Ergebnis |
+|---|---|
+| ohne D-Bus, ohne `extraIPs` | keine Quelle |
+| **ohne D-Bus, `extraIPs` = Kamera-IP** (Quelle ohne mDNS-Announce) | **sofort gefunden, ~30 fps** |
+| Host-D-Bus gemountet (mit und ohne `label=disable`) | keine Quelle |
+
+**Entscheidung:** Discovery per `grandi.find({ extraIPs: '<ip>' })` (String, nicht Array).
+Kein mDNS, kein D-Bus-Mount, kein Avahi-Daemon. `cameraHost` (IP) wird Pflichtfeld für
+NDI-Streams. Damit entfallen Avahi-Risiko (B3) und Security-Finding „Host-D-Bus".
+Optional später: NDI Discovery Server.
+
+## PR 2 — Vertrag (Backend ↔ Agent ↔ Frontend)
+
+Ersetzt für PR 2 die abweichenden Details in A1–A5/B1–B2/C. PTZ-Felder kommen erst in PR 3.
+
+**Vereinfachungen:** Keine neuen SSE-Kommandos für Video: activate/deactivate/Preset-Änderung
+→ bestehendes `reload_config`; der Agent reconciled seine Pipelines gegen
+`AgentConfig.ndiStreams` (auch beim periodischen Config-Refresh → selbstheilend nach
+Agent-Neustart). Kein `NdiSourceRegistryService`, kein `/ndi-sources`-Endpoint, kein
+Source-Dropdown: `ndiSourceName` optional, leer → erste Quelle unter `cameraHost`.
+
+**Schema `live_streams` (Migration per `db-generate`):**
+`source_type` (`'pull'|'ndi'`, default `'pull'`), `source_url` nullable, `agent_id` uuid FK
+`site_agents.id` `onDelete restrict` + Index, `camera_host` text, `ndi_source_name` text,
+`quality_preset` (`'preview'|'720p30'|'1080p30'`, default `'720p30'`), `encoder_pref`
+(`'auto'|'software'|'hardware'`, default `'auto'`). NDI-Felder nullable; Pflicht per DTO/Service.
+
+**Preset-Auflösung nur im Backend** (reine Funktion, Agent bekommt fertige Werte):
+
+| Preset | bandwidth | width×height | fps | bitrateKbps |
+|---|---|---|---|---|
+| preview | `lowest` | 640×360 | 30 | 800 |
+| 720p30 | `highest` | 1280×720 | 30 | 3000 |
+| 1080p30 | `highest` | 1920×1080 | 30 | 6000 |
+
+Agent skaliert nie hoch: Zielhöhe = min(Preset-Höhe, Quellhöhe).
+
+**`AgentConfig.ndiStreams`** (Backend `agent-config.types.ts` + Agent `server-protocol.ts`
+hand-synchron), nur Streams mit `status = active`, die an diesen Agent gebunden sind:
+```ts
+interface AgentNdiStreamConfig {
+  streamId: string;
+  cameraHost: string;            // IP, an grandi.find({ extraIPs })
+  ndiSourceName: string | null;  // exakter Name; null = erste Quelle unter cameraHost
+  bandwidth: 'lowest' | 'highest';
+  width: number; height: number; fps: number; bitrateKbps: number;
+  encoderPref: 'auto' | 'software' | 'hardware';
+}
+```
+Reconcile-Schlüssel: `streamId`; jede Feldänderung → Pipeline neu starten.
+
+**HLS-Upload (Agent → Backend), `@AgentAuth()`:**
+`PUT /api/agents/me/live-streams/:streamId/hls/:filename` (Body binär,
+`Content-Type: video/mp2t` bzw. `application/vnd.apple.mpegurl`) → `204`;
+`DELETE` gleicher Pfad → `204`. Filename-Allowlist `^(index\.m3u8|[A-Za-z0-9_-]+\.ts)$`.
+Scoping: Stream gehört zur Org des Agents, `agentId` = Agent, `sourceType = 'ndi'`, Status
+`active`, sonst `404`. Größenlimit `NDI_HLS_MAX_UPLOAD_BYTES` (default 8 MiB) → `413`.
+Agent lädt Segment vor Playlist hoch; Segment-Dateinamen `seg_<n>.ts`.
+
+**Agent-Report (bestehender Heartbeat/Report-Pfad, optionales Feld, Older-Server-400-Fallback):**
+```ts
+ndiStreams?: Array<{
+  streamId: string;
+  state: 'connecting' | 'streaming' | 'error';
+  sourceName: string | null; encoder: string | null;
+  fps: number | null; framesDropped: number; uploadLagMs: number | null;
+  error: string | null;          // kurz, ohne Secrets
+}>;
+```
+Backend hält den letzten Stand in-memory pro `streamId` und liefert ihn als optionales
+`ndiStatus` im Live-Stream-Detail aus.
+
+**Player:** `hls.service.ts` → `liveSyncDurationCount: 2`, `liveMaxLatencyDurationCount: 5`.
+
+**Frontend:** Create-Modal Quelltyp `ndi`: Agent-Picker (Agents der Org), Kamera-IP
+(Pflicht), NDI-Quellname (optional), Qualitäts-Preset, Encoder. Detail: Agent, Kamera-IP,
+Quelle, Preset (auch bei aktivem Stream änderbar → PATCH), `ndiStatus`. NDI-Hinweis
+„NDI® is a registered trademark of Vizrt NDI AB" + Link https://ndi.video an der NDI-Auswahl.
+i18n über Transloco (de + en).
+
 ## Vor dem Release (offen)
 
 - **Schlankes FFmpeg:** Debian-`ffmpeg` bläht das Agent-Image von 137 MB auf 334 MB
