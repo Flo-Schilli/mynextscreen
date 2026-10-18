@@ -437,10 +437,13 @@ Optional `--json` für maschinenlesbare Logs (Integrationstest).
 
 ## Vor dem Release (offen)
 
-- **Schlankes FFmpeg:** Debian-`ffmpeg` bläht das Agent-Image von 137 MB auf 334 MB
-  (komprimiert) auf und bringt ~208 HIGH/CRITICAL-CVEs ohne Debian-Fix mit (v. a. libav*;
-  CI-Gate mit `ignore-unfixed` bleibt grün). Eigenen Build mit nur `libx264`,
-  `h264_v4l2m2m`, `h264_vaapi`, rawvideo-Input und HLS-Muxer bzw. statischen Build prüfen.
+- ~~**Schlankes FFmpeg**~~ erledigt: eigener FFmpeg-7.1.5-Build (Stage `ffmpeg-builder` in
+  `apps/site-agent/Dockerfile.prod`, SHA-256-verifiziert, `--disable-everything`, nur
+  `libx264`/`h264_v4l2m2m`/`h264_vaapi`, rawvideo-Input, `pipe`/`file`, HLS+MPEG-TS). Image
+  komprimiert 331 MB -> 165 MB (disk 1,45 GB -> 833 MB); Trivy HIGH/CRITICAL 208 -> 43
+  (mit `ignore-unfixed` weiterhin 0). Spike-E2E (720p30, 15 s): 0 Drops, FFmpeg Exit 0.
+- **FFmpeg-Version selbst verfolgen** (Trivy sieht den Eigenbau nicht): FFmpeg-Security-
+  Releases beobachten, `FFMPEG_VERSION`/`FFMPEG_SHA256` im Dockerfile anheben.
 - **NDI-Lizenz Klausel 1b(ii)/(iii)** durch Legal prüfen lassen.
 
 ## Risiken (priorisiert)

@@ -244,7 +244,8 @@ function readConfig(env) {
 }
 
 async function findSource(grandi, filter) {
-  const finder = await grandi.find({ showLocalSources: true });
+  const extraIPs = process.env.NDI_EXTRA_IPS;
+  const finder = await grandi.find({ showLocalSources: true, ...(extraIPs ? { extraIPs } : {}) });
   const deadline = Date.now() + FIND_TIMEOUT_MS;
   try {
     while (Date.now() < deadline) {

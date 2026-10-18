@@ -34,6 +34,7 @@ Im Site-Agent-Container: `tools/ndi-spike` nach `/app/tools/ndi-spike` mounten u
 | `NDI_SOURCE`   | `TEST-CAM`            | Teilstring des Quellnamens (Timeout 15 s)           |
 | `PRESET`       | `720p30`              | `preview` (Lowest, Quellgröße), `720p30`, `1080p30` |
 | `ENCODER`      | `libx264`             | `libx264`, `h264_v4l2m2m` (Pi), `h264_vaapi`        |
+| `NDI_EXTRA_IPS` | –                    | Komma-Liste von Quell-IPs, wenn mDNS-Discovery nicht greift |
 | `DURATION_S`   | `20`                  | Laufzeit in Sekunden                                |
 | `OUT_DIR`      | `./hls-out`           | Ausgabeverzeichnis (wird vorher geleert)            |
 | `VAAPI_DEVICE` | `/dev/dri/renderD128` | Render-Node für `h264_vaapi`                        |

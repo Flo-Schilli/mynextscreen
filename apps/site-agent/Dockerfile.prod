@@ -6,7 +6,65 @@
 # bookworm's libstdc++ does not provide, so trixie is the oldest Debian release
 # that loads it.
 
-# Stage 1: Build
+# Stage 1: Minimal FFmpeg
+# Built from source with only what the NDI pipeline uses (raw UYVY on a pipe,
+# scale/fps/format/hwupload, libx264 + h264_v4l2m2m + h264_vaapi, HLS/MPEG-TS
+# output to files). Debian's ffmpeg package adds ~200 MB compressed and a long
+# tail of demuxer/decoder/protocol CVEs the agent can never reach. Keep the
+# component list in sync with apps/site-agent/src/ndi/ndi-ffmpeg-args.ts and
+# ndi-encoder.ts. Same base as the runtime so the glibc matches.
+#
+# Bump: take the new 7.1.x tarball from https://ffmpeg.org/releases/, update
+# FFMPEG_VERSION, and set FFMPEG_SHA256 from `sha256sum ffmpeg-<version>.tar.xz`
+# (or the .asc signature check). Trivy cannot see this build, so follow
+# FFmpeg security releases manually.
+FROM node:26-trixie-slim AS ffmpeg-builder
+
+ARG FFMPEG_VERSION=7.1.5
+ARG FFMPEG_SHA256=de668509caf9e35e3cd162473441fdb29538c6d96ed080292b3cf9e6fc5d558f
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       build-essential pkg-config nasm ca-certificates curl xz-utils \
+       libx264-dev libva-dev libdrm-dev linux-libc-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+RUN curl -fsSL -o ffmpeg.tar.xz "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" \
+    && echo "${FFMPEG_SHA256}  ffmpeg.tar.xz" | sha256sum -c - \
+    && tar xJf ffmpeg.tar.xz --strip-components=1 \
+    && rm ffmpeg.tar.xz
+
+# h264_v4l2m2m only exists on Linux with the V4L2 headers (linux-libc-dev);
+# configure fails loudly if a requested component cannot be built.
+RUN ./configure \
+      --prefix=/usr/local \
+      --disable-everything --disable-autodetect --disable-doc --disable-debug \
+      --disable-network --disable-ffplay --disable-ffprobe \
+      --enable-gpl --enable-libx264 --enable-vaapi --enable-libdrm \
+      --enable-v4l2-m2m \
+      --enable-protocol=pipe,file \
+      --enable-demuxer=rawvideo \
+      --enable-decoder=rawvideo \
+      --enable-filter=scale,fps,format,hwupload,null,anull \
+      --enable-muxer=hls,mpegts \
+      --enable-encoder=libx264,h264_vaapi,h264_v4l2m2m \
+      --enable-parser=h264 \
+      --enable-bsf=h264_mp4toannexb,null \
+    && make -j"$(nproc)" \
+    && make install \
+    && strip /usr/local/bin/ffmpeg \
+    && install -d /licenses \
+    && cp COPYING.GPLv2 COPYING.GPLv3 LICENSE.md /licenses/ \
+    && printf '%s\n' \
+       "FFmpeg ${FFMPEG_VERSION} (GPL, built with libx264)" \
+       "Source: https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" \
+       "SHA-256: ${FFMPEG_SHA256}" \
+       "Build recipe: apps/site-agent/Dockerfile.prod (stage ffmpeg-builder)" \
+       "Configure line: $(sed -n 's/^#define FFMPEG_CONFIGURATION "\(.*\)"$/\1/p' config.h)" \
+       > /licenses/SOURCE
+
+# Stage 2: Build
 # Same base as the runtime on purpose: one image to pull, cache and patch, and
 # `npm ci` resolves the same glibc optional binaries (@grandi/*, nx, sharp) as
 # the runtime stage does, so a build that works here works there.
@@ -25,7 +83,7 @@ COPY libs libs
 
 RUN npx nx build site-agent
 
-# Stage 2: Production runtime
+# Stage 3: Production runtime
 FROM node:26-trixie-slim
 
 # Pull the current Debian package set: the base image tag is rebuilt less often
@@ -42,8 +100,11 @@ FROM node:26-trixie-slim
 # iw reads the Wi-Fi network name over nl80211 for the dashboard. It needs no
 # capability, so it works under DropCapability=ALL with host networking.
 #
-# ffmpeg encodes NDI camera frames to HLS. Debian's build carries libx264 plus
-# the hardware encoders h264_v4l2m2m (Raspberry Pi) and h264_vaapi (Intel/AMD).
+# libx264-164, libva2, libva-drm2, libdrm2: runtime libraries of the minimal
+# ffmpeg from stage 1 (encodes NDI camera frames to HLS). No VA driver
+# (mesa-va-drivers / intel-media-va-driver) is installed, same as with the
+# former Debian ffmpeg and `--no-install-recommends`: h264_vaapi only works
+# when the host provides a driver, otherwise the agent falls back to libx264.
 #
 # libavahi-client3 + libavahi-common3: libndi resolves NDI sources over mDNS
 # through the Avahi client API. Only the client libraries: the agent talks to
@@ -54,9 +115,12 @@ RUN echo "debian package refresh: ${PACKAGE_REFRESH}" \
     && apt-get update \
     && apt-get -y upgrade \
     && apt-get install -y --no-install-recommends \
-       tini iw ffmpeg libavahi-client3 libavahi-common3 \
+       tini iw libx264-164 libva2 libva-drm2 libdrm2 libavahi-client3 libavahi-common3 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ffmpeg-builder /usr/local/bin/ffmpeg /usr/local/bin/ffmpeg
+COPY --from=ffmpeg-builder /licenses /usr/share/licenses/ffmpeg
 
 WORKDIR /app
 
