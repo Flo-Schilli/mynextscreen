@@ -4,10 +4,13 @@ import {
   IsString,
   IsEnum,
   IsBoolean,
+  IsInt,
   IsIP,
   IsUUID,
   Matches,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 import { IsSafeOutboundUrl } from '../../common/outbound-url.validators';
 import { LIVE_STREAM_SCHEMES } from '../live-stream-schemes';
@@ -15,6 +18,7 @@ import { LiveStreamProtocol } from '../live-stream-protocol.enum';
 import { LiveStreamSourceType } from '../live-stream-source-type.enum';
 import { NdiEncoderPref } from '../ndi-encoder-pref.enum';
 import { NdiQualityPreset } from '../ndi-quality-preset.enum';
+import { PtzProtocol } from '../ptz-protocol.enum';
 import { TranscodingPreset } from '../transcoding-preset.enum';
 import { IsRoutableCameraHost } from './camera-host.validator';
 import { NO_CONTROL_CHARS, ValidateIfNdi, ValidateIfPull } from './ndi-stream-fields';
@@ -80,4 +84,20 @@ export class CreateLiveStreamDto {
   @IsOptional()
   @IsEnum(NdiEncoderPref)
   encoderPref?: NdiEncoderPref;
+
+  /** NDI only: whether the camera can be steered over VISCA. */
+  @IsOptional()
+  @IsBoolean()
+  ptzEnabled?: boolean;
+
+  @IsOptional()
+  @IsEnum(PtzProtocol)
+  ptzProtocol?: PtzProtocol;
+
+  /** Absent means the protocol's default port. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  ptzPort?: number;
 }

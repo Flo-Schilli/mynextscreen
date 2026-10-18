@@ -7,6 +7,7 @@ import { ReachabilityService } from '../probe/reachability.service';
 import { SshService } from '../tv/ssh.service';
 import { SsapClient } from '../tv/ssap-client';
 import { SsapKeyStore } from '../tv/ssap-key.store';
+import { PtzService } from '../ptz/ptz.service';
 import { UpdateService } from '../update/update.service';
 import { SupervisorService, classifySsap, describe } from './supervisor.service';
 import type {
@@ -46,6 +47,7 @@ export class CommandHandlerService implements OnModuleInit {
     private readonly ssh: SshService,
     private readonly ssapKeys: SsapKeyStore,
     private readonly updates: UpdateService,
+    private readonly ptz: PtzService,
   ) {}
 
   onModuleInit(): void {
@@ -53,6 +55,15 @@ export class CommandHandlerService implements OnModuleInit {
   }
 
   async handle(command: SiteAgentCommandMessage): Promise<void> {
+    // Before the log line and the screen guard: PTZ ticks arrive many times a
+    // second, and they belong to a stream, not a screen.
+    if (command.type === 'ptz') {
+      if (command.streamId && command.ptz) {
+        await this.ptz.handle(command.streamId, command.ptz);
+      }
+      return;
+    }
+
     this.logger.log(`Command ${command.type}${command.screenId ? ` for ${command.screenId}` : ''}`);
 
     if (command.type === 'reload_config') {

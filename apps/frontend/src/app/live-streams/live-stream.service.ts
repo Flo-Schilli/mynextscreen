@@ -8,6 +8,7 @@ import {
   ActivateLiveStreamRequest,
   ActivateStreamResponse,
   StreamHealthState,
+  PtzCommand,
 } from './live-stream.model';
 
 @Injectable({ providedIn: 'root' })
@@ -62,6 +63,12 @@ export class LiveStreamService {
         headers: this.orgHeader(orgId),
       },
     );
+  }
+
+  sendPtz(orgId: string, id: string, command: PtzCommand): Observable<void> {
+    return this.http.post<void>(`/api/live-streams/${id}/ptz`, command, {
+      headers: this.orgHeader(orgId),
+    });
   }
 
   getHealth(orgId: string, id: string): Observable<StreamHealthState> {

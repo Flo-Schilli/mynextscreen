@@ -21,6 +21,7 @@ import { DIR_MODE, SECRET_MODE } from '../connection/connection.store';
 export class AgentConfigStore {
   private readonly logger = new Logger(AgentConfigStore.name);
   private cached: AgentConfigMessage | null = null;
+  private readonly listeners: Array<(config: AgentConfigMessage) => void> = [];
 
   constructor(private readonly filePath: string) {}
 
@@ -52,6 +53,20 @@ export class AgentConfigStore {
     });
     await chmod(this.filePath, SECRET_MODE);
     this.cached = config;
+    for (const listener of this.listeners) {
+      try {
+        listener(config);
+      } catch (error) {
+        this.logger.warn(
+          `Config listener failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
+  /** Calls `listener` after every saved config (pull or address update). */
+  onChange(listener: (config: AgentConfigMessage) => void): void {
+    this.listeners.push(listener);
   }
 
   /**

@@ -25,6 +25,18 @@ describe('AgentConfigStore', () => {
     await rm(stateDir, { recursive: true, force: true });
   });
 
+  it('notifies listeners after a save and survives a throwing one', async () => {
+    const seen: AgentConfigMessage[] = [];
+    store.onChange(() => {
+      throw new Error('boom');
+    });
+    store.onChange((saved) => seen.push(saved));
+
+    await store.save(config);
+
+    expect(seen).toEqual([config]);
+  });
+
   it('returns null before anything was pulled', async () => {
     expect(await store.load()).toBeNull();
   });

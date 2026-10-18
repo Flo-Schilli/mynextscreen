@@ -62,7 +62,11 @@ export interface NdiManagerOptions {
   probe?: DeviceProbe;
 }
 
-/** True when two stream configs differ in any field. */
+/**
+ * True when two stream configs differ in a field the video pipeline depends on.
+ * `ptz` is left out on purpose: camera control is read from the current config
+ * per command, so changing it must not interrupt the picture.
+ */
 export function configChanged(a: AgentNdiStreamConfig, b: AgentNdiStreamConfig): boolean {
   return (
     a.cameraHost !== b.cameraHost ||

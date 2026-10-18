@@ -18,6 +18,7 @@ import {
   ToggleRowComponent,
 } from '../ui';
 import type { SelectOption } from '../ui';
+import { PtzSettingsFields } from './ptz-settings-fields';
 import { SiteAgentListItem } from '../site-agents/site-agent.model';
 import {
   CreateLiveStreamRequest,
@@ -26,6 +27,8 @@ import {
   isValidIpAddress,
   LiveStreamProtocol,
   LiveStreamSourceType,
+  parsePtzPort,
+  PtzProtocol,
   QualityPreset,
   QUALITY_PRESETS,
   TranscodingPreset,
@@ -64,6 +67,7 @@ const NDI_HOME_URL = 'https://ndi.video';
     SelectComponent,
     ToggleRowComponent,
     BtnComponent,
+    PtzSettingsFields,
     TranslocoDirective,
   ],
   template: `
@@ -197,6 +201,12 @@ const NDI_HOME_URL = 'https://ndi.video';
               </div>
             </div>
 
+            <app-ptz-settings-fields
+              [(enabled)]="ptzEnabled"
+              [(protocol)]="ptzProtocol"
+              [(port)]="ptzPort"
+            />
+
             <p class="trademark">
               {{ t('liveStreams.create.ndiTrademark') }}
               <a [href]="ndiHomeUrl" target="_blank" rel="noopener noreferrer">ndi.video</a>
@@ -317,6 +327,9 @@ export class LiveStreamCreateModal {
   protected readonly ndiSourceName = signal('');
   protected readonly qualityPreset = signal<QualityPreset>('720p30');
   protected readonly encoderPref = signal<EncoderPref>('auto');
+  protected readonly ptzEnabled = signal(false);
+  protected readonly ptzProtocol = signal<PtzProtocol>('visca_udp');
+  protected readonly ptzPort = signal('');
   protected readonly localError = signal('');
 
   protected readonly agentOptions = computed<SelectOption[]>(() =>
@@ -371,6 +384,8 @@ export class LiveStreamCreateModal {
       this.fail('liveStreams.create.errorCameraHostInvalid');
       return null;
     }
+    const ptz = this.buildPtz();
+    if (!ptz) return null;
     const ndiSourceName = this.ndiSourceName().trim();
     return {
       name,
@@ -380,7 +395,22 @@ export class LiveStreamCreateModal {
       ...(ndiSourceName ? { ndiSourceName } : {}),
       qualityPreset: this.qualityPreset(),
       encoderPref: this.encoderPref(),
+      ...ptz,
     };
+  }
+
+  /** PTZ fields for the request; `null` when enabled with an invalid port. */
+  private buildPtz(): Pick<
+    CreateLiveStreamRequest,
+    'ptzEnabled' | 'ptzProtocol' | 'ptzPort'
+  > | null {
+    if (!this.ptzEnabled()) return {};
+    const port = parsePtzPort(this.ptzPort());
+    if (!port.valid) {
+      this.fail('liveStreams.ptz.errorPortInvalid');
+      return null;
+    }
+    return { ptzEnabled: true, ptzProtocol: this.ptzProtocol(), ptzPort: port.value };
   }
 
   private fail(key: string): void {

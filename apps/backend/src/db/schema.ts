@@ -40,6 +40,7 @@ import { LiveStreamProtocol } from '../live-stream/live-stream-protocol.enum';
 import { LiveStreamSourceType } from '../live-stream/live-stream-source-type.enum';
 import { LiveStreamStatus } from '../live-stream/live-stream-status.enum';
 import { NdiEncoderPref } from '../live-stream/ndi-encoder-pref.enum';
+import { PtzProtocol } from '../live-stream/ptz-protocol.enum';
 import { NdiQualityPreset } from '../live-stream/ndi-quality-preset.enum';
 import { TranscodingPreset } from '../live-stream/transcoding-preset.enum';
 import { NotificationEventType } from '../notification/notification-event-type.enum';
@@ -499,6 +500,10 @@ export const liveStreams = pgTable(
     ndiSourceName: text(),
     qualityPreset: text().$type<NdiQualityPreset>().notNull().default(NdiQualityPreset.P720),
     encoderPref: text().$type<NdiEncoderPref>().notNull().default(NdiEncoderPref.Auto),
+    ptzEnabled: boolean().notNull().default(false),
+    ptzProtocol: text().$type<PtzProtocol>().notNull().default(PtzProtocol.ViscaUdp),
+    /** Null means the protocol's default port. */
+    ptzPort: integer(),
     protocol: text().$type<LiveStreamProtocol>().notNull().default(LiveStreamProtocol.Rtmp),
     status: text().$type<LiveStreamStatus>().notNull().default(LiveStreamStatus.Idle),
     transcodingPreset: text()

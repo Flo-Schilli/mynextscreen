@@ -19,6 +19,7 @@ import { LiveStreamSourceType } from '../live-stream/live-stream-source-type.enu
 import { LiveStreamStatus } from '../live-stream/live-stream-status.enum';
 import { NdiQualityPreset } from '../live-stream/ndi-quality-preset.enum';
 import { NdiEncoderPref } from '../live-stream/ndi-encoder-pref.enum';
+import { PtzProtocol } from '../live-stream/ptz-protocol.enum';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 
@@ -133,8 +134,35 @@ describe('SiteAgentConfigService', () => {
           fps: 30,
           bitrateKbps: 800,
           encoderPref: 'software',
+          ptz: null,
         },
       ]);
+    });
+
+    it('resolves the default port of the PTZ protocol', async () => {
+      await seedNdi({ ptzEnabled: true });
+      await seedNdi({ ptzEnabled: true, ptzProtocol: PtzProtocol.ViscaTcp });
+
+      const { ndiStreams } = await service.buildAgentConfig(agentId);
+
+      expect(ndiStreams.map((stream) => stream.ptz)).toEqual(
+        expect.arrayContaining([
+          { protocol: 'visca_udp', port: 52381 },
+          { protocol: 'visca_tcp', port: 5678 },
+        ]),
+      );
+    });
+
+    it('uses an explicit PTZ port and omits PTZ when disabled', async () => {
+      await seedNdi({ ptzEnabled: true, ptzPort: 4000 });
+      await seedNdi({ ptzEnabled: false, ptzPort: 4000 });
+
+      const { ndiStreams } = await service.buildAgentConfig(agentId);
+
+      expect(ndiStreams.map((stream) => stream.ptz)).toEqual(
+        expect.arrayContaining([{ protocol: 'visca_udp', port: 4000 }, null]),
+      );
+      expect(ndiStreams).toHaveLength(2);
     });
 
     it('skips idle streams, pull streams and streams of another agent', async () => {

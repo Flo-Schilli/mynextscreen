@@ -75,6 +75,7 @@ import {
   AUDIT_LIVE_STREAM_ACTIVATED,
   AUDIT_LIVE_STREAM_DEACTIVATED,
   AUDIT_LIVE_STREAM_FAILED,
+  AUDIT_LIVE_STREAM_PTZ,
   AuditLiveStreamEvent,
   AUDIT_USER_REGISTERED,
   AUDIT_EMAIL_VERIFIED,
@@ -619,6 +620,18 @@ export class AuditListener {
   handleLiveStreamFailed(event: AuditLiveStreamEvent): void {
     this.record(
       AuditAction.LiveStreamFailed,
+      'live-stream',
+      event.streamId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  @OnEvent(AUDIT_LIVE_STREAM_PTZ, { async: true })
+  handleLiveStreamPtz(event: AuditLiveStreamEvent): void {
+    this.record(
+      AuditAction.LiveStreamPtz,
       'live-stream',
       event.streamId,
       event.organisationId,

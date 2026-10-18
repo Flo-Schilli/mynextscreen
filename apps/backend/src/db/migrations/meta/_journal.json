@@ -211,6 +211,13 @@
       "when": 1792319739032,
       "tag": "0029_ndi_live_streams",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792324011749,
+      "tag": "0030_live_stream_ptz",
+      "breakpoints": true
     }
   ]
 }

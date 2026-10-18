@@ -17,6 +17,7 @@ const stream = (
   fps: 30,
   bitrateKbps: 3000,
   encoderPref: 'auto',
+  ptz: null,
   ...overrides,
 });
 
@@ -28,6 +29,13 @@ describe('configChanged', () => {
 
   it('is false for an identical copy', () => {
     expect(configChanged(base, { ...base })).toBe(false);
+  });
+
+  it('ignores ptz changes so the video pipeline keeps running', () => {
+    const ptz = { protocol: 'visca_tcp', port: 5678 } as const;
+
+    expect(configChanged(base, { ...base, ptz })).toBe(false);
+    expect(configChanged({ ...base, ptz }, base)).toBe(false);
   });
 
   it.each<Partial<AgentNdiStreamConfig>>([
@@ -124,6 +132,16 @@ describe('NdiStreamManager', () => {
     await settle();
 
     expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not restart the pipeline when only ptz changes', async () => {
+    await manager.reconcile([stream(A)]);
+    await settle();
+    await manager.reconcile([stream(A, { ptz: { protocol: 'visca_tcp', port: 5678 } })]);
+    await settle();
+
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(spawn.calls).toHaveLength(1);
   });
 
   it('restarts a stream when any field changes', async () => {

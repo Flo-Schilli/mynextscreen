@@ -209,5 +209,67 @@ describe('LiveStreamCreateModal', () => {
         encoderPref: 'hardware',
       });
     });
+
+    describe('PTZ', () => {
+      beforeEach(() => {
+        inst()['agentId'].set('ag-1');
+        inst()['cameraHost'].set('192.168.1.50');
+      });
+
+      it('hides protocol and port until PTZ is enabled', () => {
+        expect(fixture.nativeElement.textContent).not.toContain('VISCA UDP');
+        inst()['ptzEnabled'].set(true);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('VISCA UDP');
+        expect(fixture.nativeElement.textContent).toContain('VISCA TCP');
+      });
+
+      it('shows the protocol default port as placeholder', () => {
+        inst()['ptzEnabled'].set(true);
+        fixture.detectChanges();
+        const input = (): HTMLInputElement =>
+          fixture.nativeElement.querySelector('input[type="number"]');
+        expect(input().placeholder).toBe('52381');
+        inst()['ptzProtocol'].set('visca_tcp');
+        fixture.detectChanges();
+        expect(input().placeholder).toBe('5678');
+      });
+
+      it('emits PTZ fields with a null port when the port is empty', () => {
+        inst()['ptzEnabled'].set(true);
+        inst()['ptzProtocol'].set('visca_tcp');
+        component.onSubmit();
+        expect(emitted).toMatchObject({
+          ptzEnabled: true,
+          ptzProtocol: 'visca_tcp',
+          ptzPort: null,
+        });
+      });
+
+      it('emits a numeric port', () => {
+        inst()['ptzEnabled'].set(true);
+        inst()['ptzPort'].set('1259');
+        component.onSubmit();
+        expect(emitted?.ptzPort).toBe(1259);
+      });
+
+      it.each(['0', '65536', 'abc', '12.5', '-1'])('rejects port %s', (port) => {
+        inst()['ptzEnabled'].set(true);
+        inst()['ptzPort'].set(port);
+        component.onSubmit();
+        fixture.detectChanges();
+        expect(emitted).toBeUndefined();
+        expect(fixture.debugElement.query(By.css('.error')).nativeElement.textContent).toContain(
+          'between 1 and 65535',
+        );
+      });
+
+      it('ignores an invalid port while PTZ is disabled', () => {
+        inst()['ptzPort'].set('999999');
+        component.onSubmit();
+        expect(emitted).toBeDefined();
+        expect(emitted).not.toHaveProperty('ptzEnabled');
+      });
+    });
   });
 });

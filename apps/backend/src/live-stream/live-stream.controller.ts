@@ -8,6 +8,8 @@ import {
   Body,
   Req,
   Res,
+  HttpCode,
+  HttpStatus,
   ParseUUIDPipe,
   NotFoundException,
   ServiceUnavailableException,
@@ -18,7 +20,15 @@ import * as path from 'path';
 import { LiveStreamService, ActivateStreamResult } from './live-stream.service';
 import { FfmpegLiveService } from './ffmpeg-live.service';
 import { StreamHealthService, StreamHealthState } from './stream-health.service';
-import { CreateLiveStreamDto, UpdateLiveStreamDto, ActivateLiveStreamDto } from './dto';
+import {
+  CreateLiveStreamDto,
+  UpdateLiveStreamDto,
+  ActivateLiveStreamDto,
+  PtzCommandDto,
+  toPtzCommand,
+} from './dto';
+import { Throttle } from '@nestjs/throttler';
+import { PerUserThrottle } from '../auth/per-user-throttle.decorator';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { ScreenAuthenticatedRequest } from '../auth/api-key-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -33,10 +43,15 @@ import {
   type NdiStreamStatus,
 } from '../site-agent/ndi-stream-status.service';
 
-export interface LiveStreamWithHealth extends Omit<LiveStream, 'qualityPreset' | 'encoderPref'> {
+export interface LiveStreamWithHealth extends Omit<
+  LiveStream,
+  'qualityPreset' | 'encoderPref' | 'ptzProtocol' | 'ptzPort'
+> {
   /** Null for pull streams, where the NDI settings do not apply. */
   qualityPreset: LiveStream['qualityPreset'] | null;
   encoderPref: LiveStream['encoderPref'] | null;
+  ptzProtocol: LiveStream['ptzProtocol'] | null;
+  ptzPort: LiveStream['ptzPort'];
   health?: StreamHealthState;
 }
 
@@ -49,11 +64,21 @@ function toResponse(stream: LiveStream): LiveStreamWithHealth {
   if (stream.sourceType === LiveStreamSourceType.Ndi) {
     return { ...stream };
   }
-  return { ...stream, qualityPreset: null, encoderPref: null };
+  return {
+    ...stream,
+    qualityPreset: null,
+    encoderPref: null,
+    ptzEnabled: false,
+    ptzProtocol: null,
+    ptzPort: null,
+  };
 }
 
 /** An active NDI playlist older than this means the agent stopped uploading. */
 const NDI_PLAYLIST_STALE_MS = 10_000;
+
+/** PTZ commands per second and user; a held joystick sends far fewer. */
+const PTZ_THROTTLE_LIMIT = 20;
 
 @Controller('live-streams')
 export class LiveStreamController {
@@ -176,6 +201,25 @@ export class LiveStreamController {
     @Req() req: AuthenticatedRequest,
   ): Promise<LiveStream> {
     return this.liveStreamService.deactivateStream(organisationId, id, req.user.userId);
+  }
+
+  @Post(':id/ptz')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
+  @HttpCode(HttpStatus.ACCEPTED)
+  @PerUserThrottle()
+  @Throttle({ default: { limit: PTZ_THROTTLE_LIMIT, ttl: 1_000 } })
+  async ptz(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: PtzCommandDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<void> {
+    await this.liveStreamService.sendPtzCommand(
+      organisationId,
+      id,
+      toPtzCommand(dto),
+      req.user.userId,
+    );
   }
 
   @Get(':id/hls/index.m3u8')

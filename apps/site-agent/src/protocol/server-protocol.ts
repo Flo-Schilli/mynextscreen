@@ -31,7 +31,22 @@ export type SiteAgentCommandTypeValue =
   | 'reload_config'
   | 'probe_now'
   | 'check'
-  | 'update_agent';
+  | 'update_agent'
+  | 'ptz';
+
+export type PtzDirectionValue =
+  'up' | 'down' | 'left' | 'right' | 'up_left' | 'up_right' | 'down_left' | 'down_right';
+
+/** One camera movement request. Speeds are the dashboard's scale, see the builders. */
+export type PtzCommandMessage =
+  | { action: 'move'; direction: PtzDirectionValue; speed: number }
+  | { action: 'stop' }
+  | { action: 'zoom'; direction: 'in' | 'out'; speed: number }
+  | { action: 'home' }
+  | { action: 'preset_recall'; preset: number }
+  | { action: 'preset_store'; preset: number };
+
+export type PtzProtocolValue = 'visca_udp' | 'visca_tcp';
 
 /** One instruction pushed down the agent's SSE channel. */
 export interface SiteAgentCommandMessage {
@@ -41,6 +56,10 @@ export interface SiteAgentCommandMessage {
   screenId?: string;
   /** Only for `check`: which onboarding step to run. */
   step?: number;
+  /** Only for `ptz`: the NDI stream whose camera to move. Never an address. */
+  streamId?: string;
+  /** Only for `ptz`. */
+  ptz?: PtzCommandMessage;
 }
 
 /** One screen as the agent sees it. */
@@ -90,6 +109,8 @@ export interface AgentNdiStreamConfig {
   fps: number;
   bitrateKbps: number;
   encoderPref: NdiEncoderPreferenceValue;
+  /** Camera control on `cameraHost`; null when PTZ is off. The port is already resolved. */
+  ptz: { protocol: PtzProtocolValue; port: number } | null;
 }
 
 export type NdiStreamStateValue = 'connecting' | 'streaming' | 'error';

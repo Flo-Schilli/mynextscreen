@@ -1187,7 +1187,9 @@
       "renameStream": "Failed to rename stream.",
       "updateAudio": "Failed to update audio.",
       "copyUrl": "Failed to copy URL.",
-      "updateQualityPreset": "Failed to change the quality preset."
+      "updateQualityPreset": "Failed to change the quality preset.",
+      "ptz": "Failed to send the camera command. Is the site agent online?",
+      "updatePtz": "Failed to save the PTZ settings."
     },
     "toast": {
       "created": "Live stream created.",
@@ -1214,6 +1216,50 @@
       "auto": "Auto",
       "software": "Software",
       "hardware": "Hardware"
+    },
+    "ptz": {
+      "settingsTitle": "PTZ camera control",
+      "enableLabel": "Enable PTZ control",
+      "enableDesc": "Steer the camera via VISCA from the stream page",
+      "protocolLabel": "VISCA protocol",
+      "protocol": {
+        "visca_udp": "VISCA UDP",
+        "visca_tcp": "VISCA TCP"
+      },
+      "portLabel": "Port (optional)",
+      "portHint": "Empty = default (UDP 52381, TCP 5678)",
+      "errorPortInvalid": "Enter a port between 1 and 65535.",
+      "saveSettings": "Save PTZ settings",
+      "toast": {
+        "saved": "PTZ settings saved."
+      },
+      "panel": {
+        "title": "Camera control",
+        "sub": "Hold a button to move the camera",
+        "padAria": "Pan and tilt",
+        "direction": {
+          "up": "Tilt up",
+          "down": "Tilt down",
+          "left": "Pan left",
+          "right": "Pan right",
+          "up_left": "Up left",
+          "up_right": "Up right",
+          "down_left": "Down left",
+          "down_right": "Down right"
+        },
+        "stop": "Stop",
+        "speed": "Speed",
+        "speedAria": "Pan and tilt speed",
+        "zoom": "Zoom",
+        "zoom_in": "Zoom in",
+        "zoom_out": "Zoom out",
+        "home": "Home",
+        "presets": "Presets",
+        "save": "Save",
+        "saveHint": "Click a preset to store the current position.",
+        "presetRecallAria": "Recall preset {n}",
+        "presetStoreAria": "Store preset {n}"
+      }
     },
     "ndiState": {
       "connecting": "Connecting",
@@ -1584,6 +1630,7 @@
       "live_stream.activated": "Live stream activated",
       "live_stream.deactivated": "Live stream deactivated",
       "live_stream.failed": "Live stream failed",
+      "live_stream.ptz": "Live stream: camera controlled",
       "screen.bulk_deleted": "Screen deleted (bulk)",
       "screen.bulk_group_assigned": "Screen group assigned (bulk)",
       "content.bulk_deleted": "Content deleted (bulk)",

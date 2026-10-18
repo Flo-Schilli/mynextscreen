@@ -31,6 +31,7 @@ export enum AuditAction {
   LiveStreamActivated = 'live_stream.activated',
   LiveStreamDeactivated = 'live_stream.deactivated',
   LiveStreamFailed = 'live_stream.failed',
+  LiveStreamPtz = 'live_stream.ptz',
   ScreenBulkDeleted = 'screen.bulk_deleted',
   ScreenBulkGroupAssigned = 'screen.bulk_group_assigned',
   ScreenPairingFailed = 'screen.pairing_failed',

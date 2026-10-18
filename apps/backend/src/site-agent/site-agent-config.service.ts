@@ -7,6 +7,7 @@ import { liveStreams, screens, siteAgents } from '../db/schema';
 import { LiveStreamSourceType } from '../live-stream/live-stream-source-type.enum';
 import { LiveStreamStatus } from '../live-stream/live-stream-status.enum';
 import { resolveNdiPreset } from '../live-stream/ndi-preset';
+import { PTZ_DEFAULT_PORTS } from '../live-stream/ptz-protocol.enum';
 import { ScheduleBoundaryService } from '../screen/schedule-boundary.service';
 import { ScreenRemoteControlService } from './screen-remote-control.service';
 import type { AgentConfig, AgentNdiStreamConfig, AgentScreenConfig } from './agent-config.types';
@@ -121,6 +122,12 @@ export class SiteAgentConfigService {
               ndiSourceName: row.ndiSourceName,
               ...resolveNdiPreset(row.qualityPreset),
               encoderPref: row.encoderPref,
+              ptz: row.ptzEnabled
+                ? {
+                    protocol: row.ptzProtocol,
+                    port: row.ptzPort ?? PTZ_DEFAULT_PORTS[row.ptzProtocol],
+                  }
+                : null,
             },
           ]
         : [],

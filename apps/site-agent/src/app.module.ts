@@ -24,6 +24,8 @@ import { HlsUploadService } from './hls/hls-upload.service';
 import { createGrandiBinding } from './ndi/grandi-binding';
 import { createNdiReceiverFactory } from './ndi/ndi-receiver';
 import { NdiStreamManager } from './ndi/ndi-stream.manager';
+import { PtzService } from './ptz/ptz.service';
+import { ViscaTransport } from './ptz/visca-transport';
 import { UpdateService, updateSentinelPath } from './update/update.service';
 
 /** Reported on heartbeat and shown on the setup page. Injected at build time. */
@@ -105,6 +107,16 @@ export function pinnedServerUrl(env: AgentEnv): string {
       useFactory: (env: AgentEnv) =>
         new UpdateService(updateSentinelPath(env.stateDir), AGENT_VERSION),
       inject: [AgentEnv],
+    },
+    { provide: ViscaTransport, useFactory: () => new ViscaTransport() },
+    {
+      provide: PtzService,
+      useFactory: (configs: AgentConfigStore, transport: ViscaTransport) => {
+        const ptz = new PtzService(configs, transport);
+        configs.onChange(() => ptz.syncTargets());
+        return ptz;
+      },
+      inject: [AgentConfigStore, ViscaTransport],
     },
     CommandHandlerService,
     {

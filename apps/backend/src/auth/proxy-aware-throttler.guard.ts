@@ -1,7 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { ExecutionContext, Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { isInternalIpAddress } from '../common/outbound-url.util';
+
+/** Marks a handler whose rate limit is enforced by a route-level, per-user guard. */
+export const PER_USER_THROTTLE_KEY = 'perUserThrottle';
 
 /**
  * Rate limiting keyed on the real client, not on the proxy.
@@ -20,6 +23,20 @@ import { isInternalIpAddress } from '../common/outbound-url.util';
  */
 @Injectable()
 export class ProxyAwareThrottlerGuard extends ThrottlerGuard {
+  /**
+   * Per-user routes are counted by their own guard (it runs after JWT auth and
+   * so knows the user); counting them per IP here as well would put every user
+   * behind one NAT into a shared bucket.
+   */
+  protected override async shouldSkip(context: ExecutionContext): Promise<boolean> {
+    return (
+      this.reflector.getAllAndOverride<boolean | undefined>(PER_USER_THROTTLE_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]) === true
+    );
+  }
+
   protected override async getTracker(req: Request): Promise<string> {
     const socketAddress = req.socket?.remoteAddress ?? '';
     const forwarded = req.headers['x-real-ip'];

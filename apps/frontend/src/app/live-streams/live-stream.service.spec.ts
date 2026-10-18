@@ -11,6 +11,7 @@ import {
   ActivateLiveStreamRequest,
   ActivateStreamResponse,
   StreamHealthState,
+  PtzCommand,
 } from './live-stream.model';
 
 try {
@@ -37,6 +38,9 @@ function makeStream(overrides: Partial<LiveStream> = {}): LiveStream {
     status: 'idle',
     transcodingPreset: 'high_1080p',
     audioEnabled: true,
+    ptzEnabled: false,
+    ptzProtocol: 'visca_udp',
+    ptzPort: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
@@ -260,6 +264,38 @@ describe('LiveStreamService', () => {
       expect(req.request.headers.get('X-Organisation-Id')).toBe(ORG_ID);
       req.flush(health);
       expect(result).toEqual(health);
+    });
+  });
+
+  describe('sendPtz', () => {
+    it('POSTs the command to /api/live-streams/:id/ptz with the org header', () => {
+      const command: PtzCommand = { action: 'move', direction: 'up_left', speed: 6 };
+
+      service.sendPtz(ORG_ID, 'ls-1', command).subscribe();
+      const req = httpMock.expectOne('/api/live-streams/ls-1/ptz');
+
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual(command);
+      expect(req.request.headers.get('X-Organisation-Id')).toBe(ORG_ID);
+      req.flush(null, { status: 202, statusText: 'Accepted' });
+    });
+
+    it('sends PTZ fields on create and update', () => {
+      service
+        .create(ORG_ID, { name: 'Cam', ptzEnabled: true, ptzProtocol: 'visca_tcp', ptzPort: null })
+        .subscribe();
+      const create = httpMock.expectOne('/api/live-streams');
+      expect(create.request.body).toMatchObject({
+        ptzEnabled: true,
+        ptzProtocol: 'visca_tcp',
+        ptzPort: null,
+      });
+      create.flush(makeStream());
+
+      service.update(ORG_ID, 'ls-1', { ptzPort: 5000 }).subscribe();
+      const update = httpMock.expectOne('/api/live-streams/ls-1');
+      expect(update.request.body).toEqual({ ptzPort: 5000 });
+      update.flush(makeStream());
     });
   });
 

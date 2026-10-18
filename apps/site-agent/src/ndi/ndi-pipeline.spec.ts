@@ -19,6 +19,7 @@ const CONFIG: AgentNdiStreamConfig = {
   fps: 30,
   bitrateKbps: 3000,
   encoderPref: 'software',
+  ptz: null,
 };
 
 const frame = (overrides: Partial<NdiFrame> = {}): NdiFrame => ({

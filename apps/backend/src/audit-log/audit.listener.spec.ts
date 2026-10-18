@@ -507,6 +507,22 @@ describe('AuditListener', () => {
     });
   });
 
+  it('should map live_stream.ptz to LiveStreamPtz audit entry', () => {
+    const streamId = '990e8400-e29b-41d4-a716-446655440000';
+    const details = { streamId, streamName: 'Studio Camera', action: 'preset_recall', preset: 2 };
+
+    listener.handleLiveStreamPtz(new AuditLiveStreamEvent(streamId, orgId, userId, details));
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.LiveStreamPtz,
+      resourceType: 'live-stream',
+      resourceId: streamId,
+      organisationId: orgId,
+      userId,
+      details,
+    });
+  });
+
   it('should map live_stream.failed to LiveStreamFailed audit entry with null userId', () => {
     const streamId = '990e8400-e29b-41d4-a716-446655440000';
     const event = new AuditLiveStreamEvent(streamId, orgId, null, {

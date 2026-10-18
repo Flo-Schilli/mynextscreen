@@ -379,6 +379,62 @@ Quelle, Preset (auch bei aktivem Stream änderbar → PATCH), `ndiStatus`. NDI-H
 „NDI® is a registered trademark of Vizrt NDI AB" + Link https://ndi.video an der NDI-Auswahl.
 i18n über Transloco (de + en).
 
+## PR 3 — Vertrag PTZ (Backend ↔ Agent ↔ Frontend)
+
+PTZ nur für aktive NDI-Streams mit `ptzEnabled`. Das Kommando trägt **nie** eine IP: der
+Agent nimmt `cameraHost`/Port aus seiner aktuellen Config (kein Weg, den Agent per Kommando
+an beliebige Hosts zu schicken).
+
+**Schema `live_streams` (Migration `0030` per `db-generate`):** `ptz_enabled` bool default
+false, `ptz_protocol` (`'visca_udp' | 'visca_tcp'`, default `'visca_udp'`), `ptz_port` int
+nullable (null → Default je Protokoll: `visca_udp` 52381, `visca_tcp` 5678).
+- `visca_udp` = Sony VISCA-over-IP mit 8-Byte-Header (Payload-Type `01 00`, Länge, 32-bit
+  Sequenznummer); beim ersten Kontakt einmal `RESET`-Control (`02 00 00 01` + seq, Payload `01`).
+- `visca_tcp` = rohes VISCA über TCP (z. B. PTZOptics), ohne Header.
+
+**API:** `POST /api/live-streams/:id/ptz`, `@Roles(OrgAdmin, Editor)`, `202 Accepted`,
+`@Throttle` 20/s pro User. `PtzCommandDto`:
+```ts
+type PtzCommand =
+  | { action: 'move'; direction: 'up'|'down'|'left'|'right'|'up_left'|'up_right'|'down_left'|'down_right'; speed: number } // 1..10, Agent skaliert auf Pan 1–0x18 / Tilt 1–0x14
+  | { action: 'stop' }                                   // stoppt Pan/Tilt und Zoom
+  | { action: 'zoom'; direction: 'in'|'out'; speed: number } // 1..7 (0..7 VISCA)
+  | { action: 'home' }
+  | { action: 'preset_recall'; preset: number }          // 0..15
+  | { action: 'preset_store'; preset: number };          // 0..15
+```
+Ablehnen: Stream nicht `ndi` / `ptzEnabled=false` / nicht `active` → `409`; Agent offline → `409`.
+Org-Scope wie alle Live-Stream-Routen. Audit: `AUDIT_LIVE_STREAM_PTZ` nur für `home`,
+`preset_recall`, `preset_store` (keine move/stop/zoom-Ticks).
+
+**SSE-Kommando** `SiteAgentCommandType.Ptz = 'ptz'`, Payload `{ streamId, ptz: PtzCommand }`
+(kein `screenId`; im Agent vor dem `screenId`-Guard behandeln).
+
+**`AgentNdiStreamConfig`** erweitert um `ptz: { protocol: 'visca_udp'|'visca_tcp'; port: number } | null`
+(Backend löst Default-Port auf). Reconcile: PTZ-Änderung startet die Video-Pipeline **nicht** neu.
+
+**Agent `ptz/visca.service.ts`:** reine Byte-Builder (getestete Konstanten, Kameraadresse 1):
+- Pan/Tilt `81 01 06 01 VV WW PP TT FF` (PP: 01 links, 02 rechts, 03 stop; TT: 01 hoch, 02 runter, 03 stop)
+- Stop `81 01 06 01 VV WW 03 03 FF` + Zoom-Stop `81 01 04 07 00 FF`
+- Zoom `81 01 04 07 2p FF` (tele) / `3p FF` (wide)
+- Home `81 01 06 04 FF`; Preset recall `81 01 04 3F 02 pp FF`, store `81 01 04 3F 01 pp FF`
+- Transport: UDP (Header + Seq, ACK/Completion `90 4y FF`/`90 5y FF` optional lesen, Timeout 500 ms,
+  kein Retry für move) bzw. TCP (eine Verbindung pro Kamera, lazy, Reconnect).
+- **Dead-man:** nach `move`/`zoom` ohne Folgekommando binnen 1,5 s sendet der Agent selbst `stop`
+  (verlorenes Loslassen darf die Kamera nicht endlos drehen).
+
+**Frontend:** Create/Detail: PTZ-Toggle, Protokoll, Port (optional, Placeholder = Default).
+Detail bei aktivem NDI-Stream mit PTZ: `ptz-control-panel` (dumb) + Container. Pfeil-Pad
+(Pointer down → `move`, up/leave/cancel → `stop`; Tastatur: Pfeiltasten gedrückt halten),
+Speed-Slider, Zoom ± (halten), Home, Stop, Preset-Buttons 1–6 (Klick = recall,
+„Speichern"-Modus = store). 409 als Toast. **Heartbeat:** solange Pad/Zoom gehalten wird,
+wiederholt das Panel das aktive `move`/`zoom` alle 500 ms (hält den 1,5-s-Dead-man des Agents
+am Leben); Richtungswechsel sofort, Loslassen → `stop`. Throttle des Endpoints pro User.
+
+**Dev-Tool `tools/visca-mock/`:** Node, lauscht UDP 52381 (mit Header) + TCP 5678 (roh),
+dekodiert und loggt Kommandos lesbar (`pan_tilt left speed 8`), antwortet ACK + Completion.
+Optional `--json` für maschinenlesbare Logs (Integrationstest).
+
 ## Vor dem Release (offen)
 
 - **Schlankes FFmpeg:** Debian-`ffmpeg` bläht das Agent-Image von 137 MB auf 334 MB
