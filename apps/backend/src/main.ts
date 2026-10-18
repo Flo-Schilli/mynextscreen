@@ -6,12 +6,18 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 // break jest.spyOn on namespace imports elsewhere).
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import cookieParser = require('cookie-parser');
+import { raw } from 'express';
 import helmet from 'helmet';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
 import * as path from 'path';
 import { AppModule } from './app.module';
+import { resolveNdiHlsMaxUploadBytes } from './live-stream/ndi-hls-limits';
+import { requireBearerHeader } from './live-stream/require-bearer-header';
+
+const NDI_HLS_SEGMENT_TYPE = 'video/mp2t';
+const NDI_HLS_PLAYLIST_TYPE = 'application/vnd.apple.mpegurl';
 
 /**
  * Run pending Drizzle migrations at boot, before the app serves traffic.
@@ -51,6 +57,19 @@ async function bootstrap() {
       // The player and the admin SPA are separate origins and legitimately load
       // media from the API, which helmet's same-origin default would block.
       crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
+  // The HLS upload route takes raw bytes. Registered here, ahead of Nest's own
+  // JSON/urlencoded parsers (which Nest adds at init), and scoped to that path
+  // and two content types, so every other route keeps its normal parsing.
+  // The cheap Bearer-header check runs first so an unauthenticated client
+  // cannot make the server buffer a body; the agent guard verifies the token.
+  app.use(
+    '/api/agents/me/live-streams',
+    requireBearerHeader,
+    raw({
+      type: [NDI_HLS_SEGMENT_TYPE, NDI_HLS_PLAYLIST_TYPE],
+      limit: resolveNdiHlsMaxUploadBytes(config),
     }),
   );
   app.use(cookieParser());

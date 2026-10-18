@@ -16,6 +16,7 @@ import { ScreenRemoteControlService } from './screen-remote-control.service';
 import { SiteAgentConfigService } from './site-agent-config.service';
 import { SiteAgentSseService } from './site-agent-sse.service';
 import { ScreenRemoteCommandService } from './screen-remote-command.service';
+import { NdiStreamStatusService } from './ndi-stream-status.service';
 
 @Module({
   imports: [DatabaseModule, CommonModule, AuthModule, UserModule, ScreenModule, PlayerAppsModule],
@@ -29,12 +30,14 @@ import { ScreenRemoteCommandService } from './screen-remote-command.service';
     SiteAgentConfigService,
     SiteAgentSseService,
     ScreenRemoteCommandService,
+    NdiStreamStatusService,
   ],
   exports: [
     SiteAgentService,
     SiteAgentSessionService,
     ScreenRemoteControlService,
     SiteAgentSseService,
+    NdiStreamStatusService,
   ],
 })
 export class SiteAgentModule {}

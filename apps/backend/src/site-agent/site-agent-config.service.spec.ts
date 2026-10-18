@@ -8,7 +8,17 @@ import { toDashboardDto, MASKED_SECRET } from './screen-remote-control.dto-mappe
 import { ScheduleBoundaryService } from '../screen/schedule-boundary.service';
 import { SecretCipher } from '../common/secret-cipher.service';
 import { DRIZZLE } from '../db/database.constants';
-import { organisations, screenRemoteControls, screens, siteAgents } from '../db/schema';
+import {
+  liveStreams,
+  organisations,
+  screenRemoteControls,
+  screens,
+  siteAgents,
+} from '../db/schema';
+import { LiveStreamSourceType } from '../live-stream/live-stream-source-type.enum';
+import { LiveStreamStatus } from '../live-stream/live-stream-status.enum';
+import { NdiQualityPreset } from '../live-stream/ndi-quality-preset.enum';
+import { NdiEncoderPref } from '../live-stream/ndi-encoder-pref.enum';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 
@@ -79,6 +89,116 @@ describe('SiteAgentConfigService', () => {
       })
       .returning();
     screenId = screen.id;
+  });
+
+  describe('ndiStreams', () => {
+    async function seedNdi(overrides: Partial<typeof liveStreams.$inferInsert> = {}) {
+      const [row] = await db
+        .insert(liveStreams)
+        .values({
+          organisationId: orgId,
+          name: 'Stage cam',
+          sourceType: LiveStreamSourceType.Ndi,
+          sourceUrl: null,
+          agentId,
+          cameraHost: '192.168.1.50',
+          status: LiveStreamStatus.Active,
+          ...overrides,
+        })
+        .returning();
+      return row;
+    }
+
+    it('is empty when the agent has no NDI stream', async () => {
+      expect((await service.buildAgentConfig(agentId)).ndiStreams).toEqual([]);
+    });
+
+    it('lists an active bound stream with the preset resolved', async () => {
+      const row = await seedNdi({
+        ndiSourceName: 'CAM (Stage)',
+        qualityPreset: NdiQualityPreset.Preview,
+        encoderPref: NdiEncoderPref.Software,
+      });
+
+      const { ndiStreams } = await service.buildAgentConfig(agentId);
+
+      expect(ndiStreams).toEqual([
+        {
+          streamId: row.id,
+          cameraHost: '192.168.1.50',
+          ndiSourceName: 'CAM (Stage)',
+          bandwidth: 'lowest',
+          width: 640,
+          height: 360,
+          fps: 30,
+          bitrateKbps: 800,
+          encoderPref: 'software',
+        },
+      ]);
+    });
+
+    it('skips idle streams, pull streams and streams of another agent', async () => {
+      const [other] = await db
+        .insert(siteAgents)
+        .values({ organisationId: orgId, name: 'Other' })
+        .returning();
+      await seedNdi({ status: LiveStreamStatus.Idle });
+      await seedNdi({ agentId: other.id });
+      await seedNdi({
+        sourceType: LiveStreamSourceType.Pull,
+        sourceUrl: 'rtmp://example.com/x',
+        agentId: null,
+        cameraHost: null,
+      });
+
+      expect((await service.buildAgentConfig(agentId)).ndiStreams).toEqual([]);
+    });
+
+    it('skips a stream that has no camera host', async () => {
+      await seedNdi({ cameraHost: null });
+
+      expect((await service.buildAgentConfig(agentId)).ndiStreams).toEqual([]);
+    });
+  });
+
+  describe('activeNdiStreamIds', () => {
+    const seed = async (overrides: Partial<typeof liveStreams.$inferInsert> = {}) => {
+      const [row] = await db
+        .insert(liveStreams)
+        .values({
+          organisationId: orgId,
+          name: 'Stage cam',
+          sourceType: LiveStreamSourceType.Ndi,
+          sourceUrl: null,
+          agentId,
+          cameraHost: '192.168.1.50',
+          status: LiveStreamStatus.Active,
+          ...overrides,
+        })
+        .returning();
+      return row;
+    };
+
+    it('returns only active NDI streams bound to the agent in its organisation', async () => {
+      const mine = await seed();
+      await seed({ status: LiveStreamStatus.Idle });
+      await seed({
+        sourceType: LiveStreamSourceType.Pull,
+        sourceUrl: 'rtmp://example.com/live/k',
+        agentId: null,
+        cameraHost: null,
+      });
+      const [otherAgent] = await db
+        .insert(siteAgents)
+        .values({ organisationId: orgId, name: 'Other' })
+        .returning();
+      await seed({ agentId: otherAgent.id });
+
+      const ids = await service.activeNdiStreamIds(orgId, agentId);
+
+      expect([...ids]).toEqual([mine.id]);
+      expect((await service.activeNdiStreamIds(agentId, agentId)).size).toBe(0);
+    });
   });
 
   describe('buildAgentConfig', () => {

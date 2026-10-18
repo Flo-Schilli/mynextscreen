@@ -349,16 +349,20 @@ export class FfmpegLiveService implements OnModuleInit, OnModuleDestroy {
   }
 
   buildArgs(stream: LiveStream, outputPath: string): string[] {
+    const sourceUrl = stream.sourceUrl;
+    if (!sourceUrl) {
+      throw new Error('FFmpeg ingest needs a source URL');
+    }
     const args: string[] = [
       '-protocol_whitelist',
-      protocolWhitelistFor(stream.sourceUrl, stream.protocol),
+      protocolWhitelistFor(sourceUrl, stream.protocol),
     ];
 
     // A source that accepts the connection and then goes quiet would otherwise
     // hold an encoder forever.
     args.push('-rw_timeout', String(INPUT_RW_TIMEOUT_US));
 
-    args.push('-i', stream.sourceUrl);
+    args.push('-i', sourceUrl);
 
     const preset = stream.transcodingPreset ?? TranscodingPreset.High1080p;
 

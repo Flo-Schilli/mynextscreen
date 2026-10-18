@@ -1,4 +1,8 @@
-import { SupervisorService, sanitizeProbeInterval } from './supervisor.service';
+import {
+  NDI_REPORT_INTERVAL_MS,
+  SupervisorService,
+  sanitizeProbeInterval,
+} from './supervisor.service';
 import { ServerUnreachableError } from '../connection/server-client.service';
 import { SsapClient, SsapUnreachableError } from '../tv/ssap-client';
 import { SETTLE_AFTER_REACHABLE_MS } from './supervision.policy';
@@ -55,6 +59,7 @@ describe('SupervisorService', () => {
   let ssapKeys: { load: jest.Mock; save: jest.Mock };
   let network: { collect: jest.Mock };
   let discovery: { locate: jest.Mock };
+  let ndi: { reconcile: jest.Mock; status: jest.Mock; onChange: jest.Mock };
 
   function build(config: AgentConfigMessage | null) {
     configs.current.mockReturnValue(config);
@@ -71,6 +76,7 @@ describe('SupervisorService', () => {
       ssapKeys as never,
       network as never,
       discovery as never,
+      ndi as never,
       '1.2.3',
     );
   }
@@ -131,6 +137,11 @@ describe('SupervisorService', () => {
     ssapKeys = { load: jest.fn().mockResolvedValue('client-key'), save: jest.fn() };
     network = { collect: jest.fn().mockResolvedValue(WIRED) };
     discovery = { locate: jest.fn().mockResolvedValue(null) };
+    ndi = {
+      reconcile: jest.fn().mockResolvedValue(undefined),
+      status: jest.fn().mockReturnValue([]),
+      onChange: jest.fn(),
+    };
   });
 
   describe('start-up heartbeat', () => {
@@ -176,6 +187,150 @@ describe('SupervisorService', () => {
       await flush();
 
       expect(client.sendHeartbeat).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('NDI streams', () => {
+    const stream = {
+      streamId: '6f1c2a52-7d3e-4c1a-9f0e-2b8d5a1c9e11',
+      cameraHost: '192.168.1.60',
+      ndiSourceName: null,
+      bandwidth: 'highest' as const,
+      width: 1280,
+      height: 720,
+      fps: 30,
+      bitrateKbps: 3000,
+      encoderPref: 'auto' as const,
+    };
+    const status = {
+      streamId: stream.streamId,
+      state: 'streaming' as const,
+      sourceName: 'CAM',
+      encoder: 'libx264',
+      fps: 30,
+      framesDropped: 0,
+      uploadLagMs: 120,
+      error: null,
+    };
+
+    it('starts the cached streams at start-up', async () => {
+      supervisor = build({ ...configWith([]), ndiStreams: [stream] });
+
+      await supervisor.onModuleInit();
+      supervisor.onModuleDestroy();
+
+      expect(ndi.reconcile).toHaveBeenCalledWith([stream]);
+    });
+
+    it('reconciles against an empty list when the config has no streams', async () => {
+      supervisor = build(configWith([]));
+
+      await supervisor.tick();
+
+      expect(ndi.reconcile).toHaveBeenCalledWith([]);
+    });
+
+    it('reconciles after a forced config refresh', async () => {
+      client.fetchConfig.mockResolvedValue({ ...configWith([]), ndiStreams: [stream] });
+      supervisor = build(configWith([]));
+
+      await supervisor.refreshConfigIfDue(true);
+
+      expect(ndi.reconcile).toHaveBeenCalledWith([stream]);
+    });
+
+    it('survives a reconcile failure', async () => {
+      ndi.reconcile.mockRejectedValue(new Error('boom'));
+      supervisor = build(configWith([screen()]));
+
+      await supervisor.tick();
+
+      expect(client.sendReports).toHaveBeenCalled();
+    });
+
+    it('sends stream status with the report, even without screens', async () => {
+      ndi.status.mockReturnValue([status]);
+      supervisor = build(configWith([]));
+
+      await supervisor.tick();
+
+      expect(client.sendReports).toHaveBeenCalledWith({ screens: [], ndiStreams: [status] });
+    });
+
+    describe('status between rounds', () => {
+      beforeEach(() => jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] }));
+      afterEach(() => jest.useRealTimers());
+
+      it('reports status every 10 s with no screens while a stream exists', async () => {
+        ndi.status.mockReturnValue([status]);
+        supervisor = build(configWith([]));
+        await supervisor.onModuleInit();
+        client.sendReports.mockClear();
+
+        await jest.advanceTimersByTimeAsync(NDI_REPORT_INTERVAL_MS * 2);
+        supervisor.onModuleDestroy();
+
+        expect(client.sendReports).toHaveBeenCalledTimes(2);
+        expect(client.sendReports).toHaveBeenCalledWith({ screens: [], ndiStreams: [status] });
+        expect(NDI_REPORT_INTERVAL_MS).toBeLessThan(30_000 / 2);
+      });
+
+      it('sends nothing extra when no NDI stream is configured', async () => {
+        supervisor = build(configWith([]));
+        await supervisor.onModuleInit();
+        client.sendReports.mockClear();
+
+        await jest.advanceTimersByTimeAsync(NDI_REPORT_INTERVAL_MS * 3);
+        supervisor.onModuleDestroy();
+
+        expect(client.sendReports).not.toHaveBeenCalled();
+      });
+
+      it('sends nothing while the agent is not enrolled', async () => {
+        ndi.status.mockReturnValue([status]);
+        connections.load.mockResolvedValue(null);
+        supervisor = build(configWith([]));
+
+        await supervisor.reportNdiStatus();
+
+        expect(client.sendReports).not.toHaveBeenCalled();
+      });
+
+      it('reports a state change at once, coalescing a burst', async () => {
+        ndi.status.mockReturnValue([{ ...status, state: 'error' as const, error: 'no_frames' }]);
+        supervisor = build(configWith([]));
+        await supervisor.onModuleInit();
+        client.sendReports.mockClear();
+        const notify = ndi.onChange.mock.calls[0][0] as () => void;
+
+        notify();
+        notify();
+        notify();
+        await jest.advanceTimersByTimeAsync(500);
+        supervisor.onModuleDestroy();
+
+        expect(client.sendReports).toHaveBeenCalledTimes(1);
+      });
+
+      it('stops reporting once destroyed', async () => {
+        ndi.status.mockReturnValue([status]);
+        supervisor = build(configWith([]));
+        await supervisor.onModuleInit();
+        client.sendReports.mockClear();
+        supervisor.onModuleDestroy();
+
+        await jest.advanceTimersByTimeAsync(NDI_REPORT_INTERVAL_MS * 3);
+
+        expect(client.sendReports).not.toHaveBeenCalled();
+      });
+    });
+
+    it('leaves the field out when no stream runs', async () => {
+      supervisor = build(configWith([screen()]));
+
+      await supervisor.tick();
+
+      expect(client.sendReports.mock.calls.at(-1)[0]).not.toHaveProperty('ndiStreams');
     });
   });
 
@@ -543,7 +698,9 @@ describe('SupervisorService', () => {
     });
 
     function roundIntervals(): unknown[] {
-      return setIntervalSpy.mock.calls.map((call) => call[1]).filter((ms) => ms !== 60_000);
+      return setIntervalSpy.mock.calls
+        .map((call) => call[1])
+        .filter((ms) => ms !== 60_000 && ms !== NDI_REPORT_INTERVAL_MS);
     }
 
     it('starts the rounds at the configured interval', async () => {

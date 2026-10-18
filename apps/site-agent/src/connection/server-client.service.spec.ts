@@ -1,9 +1,12 @@
+import { Logger } from '@nestjs/common';
 import {
   ServerClient,
   ServerUnreachableError,
   SessionRejectedError,
 } from './server-client.service';
 import { ConnectionStore } from './connection.store';
+
+const STREAM = '6f1c2a52-7d3e-4c1a-9f0e-2b8d5a1c9e11';
 
 describe('ServerClient', () => {
   let client: ServerClient;
@@ -303,6 +306,143 @@ describe('ServerClient', () => {
 
       expect(urlOf(1)).toContain('/api/agents/me/reports');
       expect(JSON.parse(initOf(1).body as string).screens).toHaveLength(1);
+    });
+
+    describe('NDI status in reports', () => {
+      const ndiStreams = [
+        {
+          streamId: STREAM,
+          state: 'streaming' as const,
+          sourceName: 'CAM',
+          encoder: 'libx264',
+          fps: 30,
+          framesDropped: 0,
+          uploadLagMs: 120,
+          error: null,
+        },
+      ];
+      const screens = [{ screenId: 's1', reachability: 'reachable' as const }];
+
+      it('sends the status along with the screens', async () => {
+        fetchMock.mockResolvedValueOnce(respond(204));
+
+        await client.sendReports({ screens, ndiStreams });
+
+        expect(JSON.parse(initOf(1).body as string)).toEqual({ screens, ndiStreams });
+      });
+
+      it('retries without the status when an older server rejects it', async () => {
+        fetchMock.mockResolvedValueOnce(respond(400)).mockResolvedValueOnce(respond(204));
+
+        await client.sendReports({ screens, ndiStreams });
+
+        expect(JSON.parse(initOf(2).body as string)).toEqual({ screens });
+      });
+
+      it('warns once per streak of fallbacks and again after a success', async () => {
+        const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+        fetchMock
+          .mockResolvedValueOnce(respond(400)) // 1st report falls back ...
+          .mockResolvedValueOnce(respond(204)) // ... and is retried without status
+          .mockResolvedValueOnce(respond(204)) // 2nd report accepted: streak over
+          .mockResolvedValueOnce(respond(400)) // 3rd report falls back again
+          .mockResolvedValueOnce(respond(204))
+          .mockResolvedValueOnce(respond(400)) // 4th report: same streak, no new warning
+          .mockResolvedValueOnce(respond(204));
+
+        for (let i = 0; i < 4; i += 1) {
+          await client.sendReports({ screens, ndiStreams });
+        }
+
+        const fallbackWarnings = warn.mock.calls.filter(([message]) =>
+          String(message).includes('NDI status'),
+        );
+        expect(fallbackWarnings).toHaveLength(2);
+        warn.mockRestore();
+      });
+
+      it('drops a status-only report an older server rejects', async () => {
+        fetchMock.mockResolvedValueOnce(respond(400));
+
+        await client.sendReports({ screens: [], ndiStreams });
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+      });
+
+      it('does not retry on other failures', async () => {
+        fetchMock.mockResolvedValueOnce(respond(500));
+
+        await expect(client.sendReports({ screens, ndiStreams })).rejects.toThrow(/500/);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    describe('HLS files', () => {
+      it('PUTs a segment as bytes with its content type and the agent token', async () => {
+        fetchMock.mockResolvedValueOnce(respond(204));
+
+        await client.putHlsFile(STREAM, 'seg_00001.ts', Buffer.from([1, 2, 3]), 'video/mp2t');
+
+        expect(urlOf(1)).toBe(
+          `https://signage.example.com/api/agents/me/live-streams/${STREAM}/hls/seg_00001.ts`,
+        );
+        const init = initOf(1);
+        expect(init.method).toBe('PUT');
+        expect(init.headers).toEqual({ Authorization: 'Bearer a1', 'Content-Type': 'video/mp2t' });
+        expect([...(init.body as Uint8Array)]).toEqual([1, 2, 3]);
+      });
+
+      it('DELETEs a file without a body', async () => {
+        fetchMock.mockResolvedValueOnce(respond(204));
+
+        await client.deleteHlsFile(STREAM, 'index.m3u8');
+
+        expect(initOf(1)).toMatchObject({ method: 'DELETE', body: undefined });
+      });
+
+      it('refreshes once on a 401 and repeats the upload', async () => {
+        fetchMock
+          .mockResolvedValueOnce(respond(401))
+          .mockResolvedValueOnce(
+            respond(200, { accessToken: 'a2', refreshToken: 'r3', expiresIn: 900 }),
+          )
+          .mockResolvedValueOnce(respond(204));
+
+        await client.putHlsFile(
+          STREAM,
+          'index.m3u8',
+          Buffer.from('x'),
+          'application/vnd.apple.mpegurl',
+        );
+
+        expect(initOf(3).headers).toMatchObject({ Authorization: 'Bearer a2' });
+      });
+
+      it('reports an unreachable server', async () => {
+        fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+
+        await expect(
+          client.putHlsFile(STREAM, 'seg_00001.ts', Buffer.from('x'), 'video/mp2t'),
+        ).rejects.toThrow(ServerUnreachableError);
+      });
+
+      it('raises on an unexpected status', async () => {
+        fetchMock.mockResolvedValueOnce(respond(413));
+
+        await expect(
+          client.putHlsFile(STREAM, 'seg_00001.ts', Buffer.from('x'), 'video/mp2t'),
+        ).rejects.toThrow(/413/);
+      });
+
+      it.each([
+        ['not-a-uuid', 'seg_00001.ts'],
+        [STREAM, '../seg.ts'],
+        [STREAM, 'seg.mp4'],
+        [STREAM, 'a/b.ts'],
+      ])('refuses id %p with file %p before any request', async (id, name) => {
+        await expect(client.deleteHlsFile(id, name)).rejects.toThrow('Invalid HLS');
+        expect(fetchMock).not.toHaveBeenCalled();
+      });
     });
 
     it('builds the events URL from the stored server', async () => {

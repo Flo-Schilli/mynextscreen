@@ -25,10 +25,10 @@ describe('LiveStreamCreateModal', () => {
     fixture.detectChanges();
   });
 
-  it('renders one segment per transcoding preset plus the two protocol segments', () => {
-    // 2 protocol + 5 preset = 7 segments
+  it('renders one segment per transcoding preset plus source type and protocol segments', () => {
+    // 2 source type + 2 protocol + 5 preset = 9 segments
     const segs = fixture.debugElement.queryAll(By.css('.seg'));
-    expect(segs.length).toBe(7);
+    expect(segs.length).toBe(9);
     expect(segs.some((s) => s.nativeElement.textContent.trim() === 'RTMP')).toBe(true);
     expect(segs.some((s) => s.nativeElement.textContent.trim() === 'RTP')).toBe(true);
     expect(segs.some((s) => s.nativeElement.textContent.includes('Passthrough'))).toBe(true);
@@ -133,5 +133,81 @@ describe('LiveStreamCreateModal', () => {
     cancel!.nativeElement.click();
 
     expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  describe('NDI source type', () => {
+    const inst = (): Record<string, { set: (v: unknown) => void }> =>
+      component as unknown as Record<string, { set: (v: unknown) => void }>;
+    let emitted: CreateLiveStreamRequest | undefined;
+
+    beforeEach(() => {
+      emitted = undefined;
+      component.create.subscribe((dto) => (emitted = dto));
+      inst()['sourceType'].set('ndi');
+      inst()['name'].set('Cam');
+      fixture.detectChanges();
+    });
+
+    const errorText = (): string =>
+      fixture.debugElement.query(By.css('.error')).nativeElement.textContent;
+
+    it('hides pull fields and shows the NDI trademark note with link', () => {
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).not.toContain('Source URL');
+      expect(text).toContain('registered trademark of Vizrt NDI AB');
+      expect(fixture.nativeElement.querySelector('a[href="https://ndi.video"]')).not.toBeNull();
+    });
+
+    it('requires an agent', () => {
+      component.onSubmit();
+      fixture.detectChanges();
+      expect(emitted).toBeUndefined();
+      expect(errorText()).toContain('Site agent is required.');
+    });
+
+    it('requires a camera address', () => {
+      inst()['agentId'].set('ag-1');
+      component.onSubmit();
+      fixture.detectChanges();
+      expect(errorText()).toContain('Camera IP address is required.');
+    });
+
+    it.each(['cam.local', '999.1.1.1', '1.2.3', 'abc::def::1'])('rejects %s', (host) => {
+      inst()['agentId'].set('ag-1');
+      inst()['cameraHost'].set(host);
+      component.onSubmit();
+      fixture.detectChanges();
+      expect(emitted).toBeUndefined();
+      expect(errorText()).toContain('valid IPv4 or IPv6');
+    });
+
+    it('emits NDI defaults without pull fields or an empty source name', () => {
+      inst()['agentId'].set('ag-1');
+      inst()['cameraHost'].set(' 192.168.1.50 ');
+      component.onSubmit();
+      expect(emitted).toEqual({
+        name: 'Cam',
+        sourceType: 'ndi',
+        agentId: 'ag-1',
+        cameraHost: '192.168.1.50',
+        qualityPreset: '720p30',
+        encoderPref: 'auto',
+      });
+    });
+
+    it('accepts IPv6 and passes source name, preset and encoder', () => {
+      inst()['agentId'].set('ag-1');
+      inst()['cameraHost'].set('fe80::1');
+      inst()['ndiSourceName'].set('CAM (Main)');
+      inst()['qualityPreset'].set('1080p30');
+      inst()['encoderPref'].set('hardware');
+      component.onSubmit();
+      expect(emitted).toMatchObject({
+        cameraHost: 'fe80::1',
+        ndiSourceName: 'CAM (Main)',
+        qualityPreset: '1080p30',
+        encoderPref: 'hardware',
+      });
+    });
   });
 });

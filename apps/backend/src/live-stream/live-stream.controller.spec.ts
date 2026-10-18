@@ -2,14 +2,26 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { LiveStreamController } from './live-stream.controller';
 import { LiveStreamService } from './live-stream.service';
 import { FfmpegLiveService } from './ffmpeg-live.service';
+import { NdiStreamStatusService } from '../site-agent/ndi-stream-status.service';
 import { StreamHealthService } from './stream-health.service';
 import type { LiveStream } from '../db/schema';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
+import { LiveStreamSourceType } from './live-stream-source-type.enum';
+import { NdiQualityPreset } from './ndi-quality-preset.enum';
+import { NdiEncoderPref } from './ndi-encoder-pref.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
 import { TranscodingPreset } from './transcoding-preset.enum';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { ScreenAuthenticatedRequest } from '../auth/api-key-auth.guard';
-import { BadGatewayException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  ConflictException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import type { Response } from 'express';
 
 describe('LiveStreamController', () => {
@@ -17,6 +29,7 @@ describe('LiveStreamController', () => {
   let service: Record<string, jest.Mock>;
   let streamHealthService: Record<string, jest.Mock>;
   let ffmpegService: Record<string, jest.Mock>;
+  let ndiStatusService: { get: jest.Mock };
 
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
   const userId = '880e8400-e29b-41d4-a716-446655440000';
@@ -34,7 +47,16 @@ describe('LiveStreamController', () => {
     updatedAt: new Date(),
     transcodingPreset: TranscodingPreset.High1080p,
     audioEnabled: true,
+    sourceType: LiveStreamSourceType.Pull,
+    agentId: null,
+    cameraHost: null,
+    ndiSourceName: null,
+    qualityPreset: NdiQualityPreset.P720,
+    encoderPref: NdiEncoderPref.Auto,
   };
+
+  // Pull streams never expose the NDI settings, even though the columns default.
+  const PULL_RESPONSE = { ...mockStream, qualityPreset: null, encoderPref: null };
 
   beforeEach(async () => {
     service = {
@@ -52,6 +74,8 @@ describe('LiveStreamController', () => {
       getAllHealthStates: jest.fn().mockReturnValue(new Map()),
     };
 
+    ndiStatusService = { get: jest.fn() };
+
     ffmpegService = {
       getHlsOutputDir: jest.fn(),
       isRunning: jest.fn().mockReturnValue(false),
@@ -63,6 +87,7 @@ describe('LiveStreamController', () => {
         { provide: LiveStreamService, useValue: service },
         { provide: FfmpegLiveService, useValue: ffmpegService },
         { provide: StreamHealthService, useValue: streamHealthService },
+        { provide: NdiStreamStatusService, useValue: ndiStatusService },
       ],
     }).compile();
 
@@ -81,7 +106,7 @@ describe('LiveStreamController', () => {
       const result = await controller.create(orgId, dto, mockReq);
 
       expect(service.createLiveStream).toHaveBeenCalledWith(orgId, dto, userId);
-      expect(result).toEqual(mockStream);
+      expect(result).toEqual(PULL_RESPONSE);
     });
   });
 
@@ -171,7 +196,7 @@ describe('LiveStreamController', () => {
       const result = await controller.findOne(orgId, streamId);
 
       expect(service.findOne).toHaveBeenCalledWith(orgId, streamId);
-      expect(result).toEqual(mockStream);
+      expect(result).toEqual(PULL_RESPONSE);
     });
   });
 
@@ -184,7 +209,7 @@ describe('LiveStreamController', () => {
       const result = await controller.update(orgId, streamId, dto, mockReq);
 
       expect(service.updateLiveStream).toHaveBeenCalledWith(orgId, streamId, dto, userId);
-      expect(result).toEqual(updated);
+      expect(result).toEqual({ ...updated, qualityPreset: null, encoderPref: null });
     });
 
     it('should propagate ConflictException when stream is active', async () => {
@@ -291,6 +316,146 @@ describe('LiveStreamController', () => {
       ).rejects.toThrow(NotFoundException);
       expect(service.findOne).toHaveBeenCalledWith(foreignOrgId, streamId);
       expect(ffmpegService.getHlsOutputDir).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('NDI streams', () => {
+    const agentId = '770e8400-e29b-41d4-a716-446655440000';
+    const ndiStream: LiveStream = {
+      ...mockStream,
+      sourceType: LiveStreamSourceType.Ndi,
+      sourceUrl: null,
+      agentId,
+      cameraHost: '192.168.1.50',
+      status: LiveStreamStatus.Active,
+    };
+    const screenReq = { organisationId: orgId } as unknown as ScreenAuthenticatedRequest;
+    let res: { setHeader: jest.Mock; sendFile: jest.Mock };
+
+    beforeEach(() => {
+      res = { setHeader: jest.fn(), sendFile: jest.fn() };
+      ffmpegService.getHlsOutputDir.mockReturnValue('/tmp/hls-missing-dir');
+    });
+
+    it('keeps the NDI settings on the response of an NDI stream', async () => {
+      service.findOne.mockResolvedValue(ndiStream);
+
+      const result = await controller.findOne(orgId, streamId);
+
+      expect(result.qualityPreset).toBe(NdiQualityPreset.P720);
+      expect(result.encoderPref).toBe(NdiEncoderPref.Auto);
+      expect(result.agentId).toBe(agentId);
+    });
+
+    it('adds the agent-reported status to the detail response', async () => {
+      const status = { state: 'streaming' as const, reportedAt: 'now' };
+      service.findOne.mockResolvedValue(ndiStream);
+      ndiStatusService.get.mockReturnValue(status);
+
+      const result = await controller.findOne(orgId, streamId);
+
+      expect(ndiStatusService.get).toHaveBeenCalledWith(streamId, agentId);
+      expect(result.ndiStatus).toBe(status);
+    });
+
+    it('omits ndiStatus when the agent has not reported', async () => {
+      service.findOne.mockResolvedValue(ndiStream);
+      ndiStatusService.get.mockReturnValue(undefined);
+
+      const result = await controller.findOne(orgId, streamId);
+
+      expect(result.ndiStatus).toBeUndefined();
+    });
+
+    it('never asks for ndiStatus on a pull stream', async () => {
+      service.findOne.mockResolvedValue(mockStream);
+
+      const result = await controller.findOne(orgId, streamId);
+
+      expect(ndiStatusService.get).not.toHaveBeenCalled();
+      expect(result.ndiStatus).toBeUndefined();
+    });
+
+    it('answers 503 for a missing playlist of an active NDI stream', async () => {
+      service.findOne.mockResolvedValue(ndiStream);
+
+      await expect(controller.servePlaylist(screenReq, streamId, res as never)).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+    });
+
+    it('answers 404 for a missing playlist of an idle NDI stream', async () => {
+      service.findOne.mockResolvedValue({ ...ndiStream, status: LiveStreamStatus.Idle });
+
+      await expect(controller.servePlaylist(screenReq, streamId, res as never)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('answers 503 for a pull stream whose FFmpeg is still starting', async () => {
+      service.findOne.mockResolvedValue({ ...mockStream, status: LiveStreamStatus.Active });
+      ffmpegService.isRunning.mockReturnValue(true);
+
+      await expect(controller.servePlaylist(screenReq, streamId, res as never)).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+    });
+
+    it('serves an existing playlist with Cache-Control no-cache', async () => {
+      service.findOne.mockResolvedValue(ndiStream);
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ndi-playlist-'));
+      fs.writeFileSync(path.join(dir, 'index.m3u8'), '#EXTM3U');
+      ffmpegService.getHlsOutputDir.mockReturnValue(dir);
+
+      await controller.servePlaylist(screenReq, streamId, res as never);
+
+      expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-cache');
+      expect(res.sendFile).toHaveBeenCalledWith(path.join(dir, 'index.m3u8'));
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    describe('stale NDI playlist', () => {
+      let dir: string;
+      const agePlaylist = (seconds: number): void => {
+        const when = new Date(Date.now() - seconds * 1000);
+        fs.utimesSync(path.join(dir, 'index.m3u8'), when, when);
+      };
+
+      beforeEach(() => {
+        dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ndi-stale-'));
+        fs.writeFileSync(path.join(dir, 'index.m3u8'), '#EXTM3U');
+        ffmpegService.getHlsOutputDir.mockReturnValue(dir);
+      });
+
+      afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+      it('answers 503 when an active stream playlist is older than 10 s', async () => {
+        service.findOne.mockResolvedValue(ndiStream);
+        agePlaylist(30);
+
+        await expect(controller.servePlaylist(screenReq, streamId, res as never)).rejects.toThrow(
+          ServiceUnavailableException,
+        );
+        expect(res.sendFile).not.toHaveBeenCalled();
+      });
+
+      it('serves a playlist that is 5 s old', async () => {
+        service.findOne.mockResolvedValue(ndiStream);
+        agePlaylist(5);
+
+        await controller.servePlaylist(screenReq, streamId, res as never);
+
+        expect(res.sendFile).toHaveBeenCalled();
+      });
+
+      it('does not apply the age check to pull streams', async () => {
+        service.findOne.mockResolvedValue({ ...mockStream, status: LiveStreamStatus.Active });
+        agePlaylist(60);
+
+        await controller.servePlaylist(screenReq, streamId, res as never);
+
+        expect(res.sendFile).toHaveBeenCalled();
+      });
     });
   });
 });

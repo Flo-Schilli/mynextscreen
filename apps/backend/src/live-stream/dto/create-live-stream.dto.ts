@@ -1,8 +1,23 @@
-import { IsNotEmpty, IsOptional, IsString, IsEnum, IsBoolean, MaxLength } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsEnum,
+  IsBoolean,
+  IsIP,
+  IsUUID,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 import { IsSafeOutboundUrl } from '../../common/outbound-url.validators';
 import { LIVE_STREAM_SCHEMES } from '../live-stream-schemes';
 import { LiveStreamProtocol } from '../live-stream-protocol.enum';
+import { LiveStreamSourceType } from '../live-stream-source-type.enum';
+import { NdiEncoderPref } from '../ndi-encoder-pref.enum';
+import { NdiQualityPreset } from '../ndi-quality-preset.enum';
 import { TranscodingPreset } from '../transcoding-preset.enum';
+import { IsRoutableCameraHost } from './camera-host.validator';
+import { NO_CONTROL_CHARS, ValidateIfNdi, ValidateIfPull } from './ndi-stream-fields';
 
 export class CreateLiveStreamDto {
   @IsNotEmpty()
@@ -10,6 +25,12 @@ export class CreateLiveStreamDto {
   @MaxLength(100)
   name!: string;
 
+  @IsOptional()
+  @IsEnum(LiveStreamSourceType)
+  sourceType?: LiveStreamSourceType;
+
+  /** Pull streams only; an NDI stream has a camera instead of a URL. */
+  @ValidateIfPull()
   @IsNotEmpty()
   @MaxLength(2048)
   @IsSafeOutboundUrl(
@@ -19,10 +40,12 @@ export class CreateLiveStreamDto {
         'sourceUrl must be a valid http, https, rtmp, rtsp or rtp URL that does not point at a private or local address',
     },
   )
-  sourceUrl!: string;
+  sourceUrl?: string;
 
+  /** Required for pull streams, ignored for NDI. */
+  @ValidateIfPull()
   @IsEnum(LiveStreamProtocol)
-  protocol!: LiveStreamProtocol;
+  protocol?: LiveStreamProtocol;
 
   @IsOptional()
   @IsEnum(TranscodingPreset)
@@ -31,4 +54,30 @@ export class CreateLiveStreamDto {
   @IsOptional()
   @IsBoolean()
   audioEnabled?: boolean;
+
+  /** NDI only: the site agent that sits next to the camera. */
+  @ValidateIfNdi()
+  @IsUUID()
+  agentId?: string;
+
+  /** NDI only: the camera's address, handed to NDI discovery as an extra IP. */
+  @ValidateIfNdi()
+  @IsIP()
+  @IsRoutableCameraHost()
+  cameraHost?: string;
+
+  /** NDI only: exact source name; empty means the first source on the host. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  @Matches(NO_CONTROL_CHARS, { message: 'ndiSourceName must not contain control characters' })
+  ndiSourceName?: string;
+
+  @IsOptional()
+  @IsEnum(NdiQualityPreset)
+  qualityPreset?: NdiQualityPreset;
+
+  @IsOptional()
+  @IsEnum(NdiEncoderPref)
+  encoderPref?: NdiEncoderPref;
 }

@@ -16,6 +16,7 @@ import { WolService } from '../tv/wol.service';
 import { SsapClient } from '../tv/ssap-client';
 import { SsapKeyStore } from '../tv/ssap-key.store';
 import { NetworkInfoService } from '../network/network-info.service';
+import type { NdiStreamManager } from '../ndi/ndi-stream.manager';
 import { newRuntime, type ScreenRuntime } from './screen-runtime';
 import {
   DEVMODE_JITTER_MAX_MS,
@@ -28,12 +29,20 @@ import {
 import type {
   AgentConfigMessage,
   AgentScreenConfigMessage,
+  AgentNdiStreamStatusMessage,
   AgentScreenReportMessage,
   AgentMetricsMessage,
 } from '../protocol/server-protocol';
 
 /** How often the agent checks in, independent of the probe interval. */
 const HEARTBEAT_INTERVAL_MS = 60_000;
+/**
+ * How often NDI status is reported while any NDI stream exists. The backend
+ * drops a status after 30 s, so this must stay well below that.
+ */
+export const NDI_REPORT_INTERVAL_MS = 10_000;
+/** A state change is reported at once; this only coalesces a burst of them. */
+const NDI_CHANGE_REPORT_DELAY_MS = 250;
 
 /** How often the config is re-pulled even without a push telling it to. */
 const CONFIG_REFRESH_INTERVAL_MS = 60 * 60_000;
@@ -62,6 +71,8 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   private timer: ReturnType<typeof setInterval> | null = null;
   private scheduledIntervalMs = 0;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private ndiReportTimer: ReturnType<typeof setInterval> | null = null;
+  private ndiChangeTimer: ReturnType<typeof setTimeout> | null = null;
   private lastConfigPull = 0;
   private running = false;
   /** Set when a "probe now" arrives during a round, so one more follows it. */
@@ -79,11 +90,16 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     private readonly ssapKeys: SsapKeyStore,
     private readonly network: NetworkInfoService,
     private readonly discovery: DiscoveryService,
+    private readonly ndi: NdiStreamManager,
     private readonly agentVersion: string,
   ) {}
 
   async onModuleInit(): Promise<void> {
-    await this.configs.load();
+    // The cached config restarts NDI pipelines straight after a reboot, before
+    // the server has been asked for anything.
+    this.ndi.onChange(() => this.scheduleNdiReport());
+    await this.reconcileNdi(await this.configs.load());
+    this.ndiReportTimer = setInterval(() => void this.reportNdiStatus(), NDI_REPORT_INTERVAL_MS);
     this.scheduleRounds(await this.probeInterval());
     this.heartbeatTimer = setInterval(() => void this.heartbeat(), HEARTBEAT_INTERVAL_MS);
     // Check in now rather than a full interval from now: the server shows the
@@ -96,6 +112,9 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy(): void {
     if (this.timer) clearInterval(this.timer);
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    if (this.ndiReportTimer) clearInterval(this.ndiReportTimer);
+    if (this.ndiChangeTimer) clearTimeout(this.ndiChangeTimer);
+    // The NDI manager stops its own pipelines in its destroy hook.
   }
 
   /** One round over every screen. Public so a command can preempt the interval. */
@@ -150,18 +169,43 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    await this.reconcileNdi(config);
+
     const reports: AgentScreenReportMessage[] = [];
     for (const screen of config.screens) {
       reports.push(await this.visit(screen, config.appId));
     }
 
-    if (reports.length > 0 && (await this.send(reports))) {
+    const ndiStreams = this.ndi.status();
+    if ((reports.length > 0 || ndiStreams.length > 0) && (await this.send(reports, ndiStreams))) {
       for (const report of reports) {
         if (report.localIp) {
           this.runtimeFor(report.screenId).pendingLocalIp = null;
         }
       }
     }
+  }
+
+  /**
+   * Sends the NDI pipeline status on its own, between rounds, so the server's
+   * view stays fresh (it expires a status after 30 s). A no-op without streams.
+   */
+  async reportNdiStatus(): Promise<void> {
+    const ndiStreams = this.ndi.status();
+    if (ndiStreams.length === 0 || !(await this.connections.load())) {
+      return;
+    }
+    await this.send([], ndiStreams);
+  }
+
+  private scheduleNdiReport(): void {
+    if (this.ndiChangeTimer) {
+      return;
+    }
+    this.ndiChangeTimer = setTimeout(() => {
+      this.ndiChangeTimer = null;
+      void this.reportNdiStatus();
+    }, NDI_CHANGE_REPORT_DELAY_MS);
   }
 
   /** Runs one screen immediately, out of band, for an operator command. */
@@ -598,6 +642,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
       await this.configs.save(config);
       this.lastConfigPull = Date.now();
       this.setup.recordConfigPull();
+      await this.reconcileNdi(config);
       // Only re-arms a loop that is already running; before start-up there is
       // nothing to re-arm, and start-up reads the interval itself.
       if (this.timer) {
@@ -653,9 +698,12 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** True when the server took the reports. */
-  private async send(screens: AgentScreenReportMessage[]): Promise<boolean> {
+  private async send(
+    screens: AgentScreenReportMessage[],
+    ndiStreams: AgentNdiStreamStatusMessage[] = [],
+  ): Promise<boolean> {
     try {
-      await this.client.sendReports({ screens });
+      await this.client.sendReports(ndiStreams.length > 0 ? { screens, ndiStreams } : { screens });
       return true;
     } catch (error) {
       // Dropped on the floor on purpose. The next round re-observes everything
@@ -664,6 +712,15 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
       // is kept on the runtime instead.
       this.reportConnectionFailure(error, 'send reports');
       return false;
+    }
+  }
+
+  /** Brings the NDI pipelines in line with the config; never lets a failure stop the round. */
+  private async reconcileNdi(config: AgentConfigMessage | null): Promise<void> {
+    try {
+      await this.ndi.reconcile(config?.ndiStreams ?? []);
+    } catch (error) {
+      this.logger.error(`Could not reconcile NDI streams: ${describe(error)}`);
     }
   }
 

@@ -71,6 +71,54 @@ export interface AgentScreenConfigMessage {
   onboardingStep: number;
 }
 
+export type NdiBandwidthValue = 'lowest' | 'highest';
+export type NdiEncoderPreferenceValue = 'auto' | 'software' | 'hardware';
+
+/**
+ * One NDI camera the agent should turn into an HLS stream. Quality presets are
+ * resolved server-side; the agent only receives the finished numbers.
+ */
+export interface AgentNdiStreamConfig {
+  streamId: string;
+  /** IP handed to the NDI finder as an extra address; no mDNS discovery is used. */
+  cameraHost: string;
+  /** Exact NDI source name; null takes the first source found under `cameraHost`. */
+  ndiSourceName: string | null;
+  bandwidth: NdiBandwidthValue;
+  width: number;
+  height: number;
+  fps: number;
+  bitrateKbps: number;
+  encoderPref: NdiEncoderPreferenceValue;
+}
+
+export type NdiStreamStateValue = 'connecting' | 'streaming' | 'error';
+
+/**
+ * The only error texts an agent reports. Detail stays in the local log: the
+ * server shows these to dashboard users and must never see camera names,
+ * addresses or FFmpeg output.
+ */
+export type NdiErrorCode =
+  'source_not_found' | 'ffmpeg_exited' | 'no_frames' | 'resolution_changed' | 'internal_error';
+
+/** Mirrors the backend's DTO maximum lengths for the reported fields. */
+export const NDI_STATUS_MAX_SOURCE_NAME = 200;
+export const NDI_STATUS_MAX_ENCODER = 100;
+
+/** Per-stream pipeline status, sent with the report. Never carries secrets. */
+export interface AgentNdiStreamStatusMessage {
+  streamId: string;
+  state: NdiStreamStateValue;
+  sourceName: string | null;
+  encoder: string | null;
+  fps: number | null;
+  framesDropped: number;
+  uploadLagMs: number | null;
+  /** One of {@link NdiErrorCode}; never free text. */
+  error: NdiErrorCode | null;
+}
+
 export interface AgentConfigMessage {
   agentId: string;
   organisationId: string;
@@ -82,6 +130,11 @@ export interface AgentConfigMessage {
   subnetSweepEnabled?: boolean;
   appId: string;
   screens: AgentScreenConfigMessage[];
+  /**
+   * Active NDI streams bound to this agent. Optional because an older server
+   * does not send it, and absent means none.
+   */
+  ndiStreams?: AgentNdiStreamConfig[];
 }
 
 /** One screen's worth of what the agent observed, sent back in a batch. */
@@ -117,6 +170,8 @@ export interface AgentScreenReportMessage {
 
 export interface AgentReportMessage {
   screens: AgentScreenReportMessage[];
+  /** Optional: an older server rejects the unknown field with 400. */
+  ndiStreams?: AgentNdiStreamStatusMessage[];
 }
 
 /**

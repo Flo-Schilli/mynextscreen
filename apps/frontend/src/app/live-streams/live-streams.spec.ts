@@ -7,6 +7,7 @@ import { LiveStreams } from './live-streams';
 import { LiveStreamCard } from './live-stream-card';
 import { LiveStreamService } from './live-stream.service';
 import { ScreenService } from '../screens/screen.service';
+import { SiteAgentService } from '../site-agents/site-agent.service';
 import { ScreenGroupService } from '../screen-groups/screen-group.service';
 import { MemberService } from '../settings/users/member.service';
 import {
@@ -30,6 +31,12 @@ function makeStream(overrides: Partial<LiveStream> = {}): LiveStream {
     name: 'Main Stage',
     sourceUrl: 'rtmp://source/live',
     protocol: 'rtmp',
+    sourceType: 'pull',
+    agentId: null,
+    cameraHost: null,
+    ndiSourceName: null,
+    qualityPreset: null,
+    encoderPref: null,
     status: 'idle',
     transcodingPreset: 'high_1080p',
     audioEnabled: true,
@@ -153,6 +160,7 @@ describe('LiveStreams (list container)', () => {
         { provide: LiveStreamService, useValue: streams },
         { provide: ScreenService, useValue: screens },
         { provide: ScreenGroupService, useValue: groups },
+        { provide: SiteAgentService, useValue: { getAll: () => of([]) } },
         { provide: Router, useValue: { navigate: navigateSpy } },
       ],
     });

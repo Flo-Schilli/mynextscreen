@@ -1,12 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
-import { screens, siteAgents } from '../db/schema';
+import { liveStreams, screens, siteAgents } from '../db/schema';
+import { LiveStreamSourceType } from '../live-stream/live-stream-source-type.enum';
+import { LiveStreamStatus } from '../live-stream/live-stream-status.enum';
+import { resolveNdiPreset } from '../live-stream/ndi-preset';
 import { ScheduleBoundaryService } from '../screen/schedule-boundary.service';
 import { ScreenRemoteControlService } from './screen-remote-control.service';
-import type { AgentConfig, AgentScreenConfig } from './agent-config.types';
+import type { AgentConfig, AgentNdiStreamConfig, AgentScreenConfig } from './agent-config.types';
 
 /** The webOS app the agent keeps in the foreground, unless overridden. */
 /** Also used where the dashboard needs to know which app a TV should run. */
@@ -88,7 +91,59 @@ export class SiteAgentConfigService {
       subnetSweepEnabled: agent?.subnetSweepEnabled ?? false,
       appId: this.appId,
       screens: screenConfigs,
+      ndiStreams: await this.listNdiStreams(agentId),
     };
+  }
+
+  /**
+   * Active NDI streams bound to this agent. Queries the table directly rather
+   * than going through LiveStreamService: that module depends on this one for
+   * the agent's command channel, so the reverse import would be a cycle.
+   */
+  private async listNdiStreams(agentId: string): Promise<AgentNdiStreamConfig[]> {
+    const rows = await this.db
+      .select()
+      .from(liveStreams)
+      .where(
+        and(
+          eq(liveStreams.agentId, agentId),
+          eq(liveStreams.sourceType, LiveStreamSourceType.Ndi),
+          eq(liveStreams.status, LiveStreamStatus.Active),
+        ),
+      );
+
+    return rows.flatMap((row) =>
+      row.cameraHost
+        ? [
+            {
+              streamId: row.id,
+              cameraHost: row.cameraHost,
+              ndiSourceName: row.ndiSourceName,
+              ...resolveNdiPreset(row.qualityPreset),
+              encoderPref: row.encoderPref,
+            },
+          ]
+        : [],
+    );
+  }
+
+  /**
+   * Ids of the active NDI streams of this organisation that are bound to this
+   * agent: the only streams the agent may report status for.
+   */
+  async activeNdiStreamIds(organisationId: string, agentId: string): Promise<Set<string>> {
+    const rows = await this.db
+      .select({ id: liveStreams.id })
+      .from(liveStreams)
+      .where(
+        and(
+          eq(liveStreams.organisationId, organisationId),
+          eq(liveStreams.agentId, agentId),
+          eq(liveStreams.sourceType, LiveStreamSourceType.Ndi),
+          eq(liveStreams.status, LiveStreamStatus.Active),
+        ),
+      );
+    return new Set(rows.map((row) => row.id));
   }
 
   private async toScreenConfig(

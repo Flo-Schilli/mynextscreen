@@ -28,6 +28,12 @@ function makeStream(overrides: Partial<LiveStream> = {}): LiveStream {
     name: 'Main Stage',
     sourceUrl: 'rtmp://source/live',
     protocol: 'rtmp',
+    sourceType: 'pull',
+    agentId: null,
+    cameraHost: null,
+    ndiSourceName: null,
+    qualityPreset: null,
+    encoderPref: null,
     status: 'idle',
     transcodingPreset: 'high_1080p',
     audioEnabled: true,
@@ -115,6 +121,43 @@ describe('LiveStreamService', () => {
       expect(req.request.headers.get('X-Organisation-Id')).toBe(ORG_ID);
       req.flush(created);
       expect(result).toEqual(created);
+    });
+  });
+
+  describe('create (NDI)', () => {
+    it('POSTs the NDI fields without pull fields', () => {
+      const dto: CreateLiveStreamRequest = {
+        name: 'Cam',
+        sourceType: 'ndi',
+        agentId: 'ag-1',
+        cameraHost: '10.0.0.5',
+        qualityPreset: '720p30',
+        encoderPref: 'auto',
+      };
+      service.create(ORG_ID, dto).subscribe();
+      const req = httpMock.expectOne('/api/live-streams');
+      expect(req.request.body).toEqual(dto);
+      expect(req.request.body.sourceUrl).toBeUndefined();
+      req.flush(makeStream({ sourceType: 'ndi', cameraHost: '10.0.0.5' }));
+    });
+
+    it('PATCHes a quality preset change and returns ndiStatus', () => {
+      let result: LiveStream | undefined;
+      service.update(ORG_ID, 'u1', { qualityPreset: '1080p30' }).subscribe((r) => (result = r));
+      const req = httpMock.expectOne('/api/live-streams/u1');
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual({ qualityPreset: '1080p30' });
+      const ndiStatus = {
+        state: 'streaming' as const,
+        sourceName: 'A',
+        encoder: 'libx264',
+        fps: 30,
+        framesDropped: 0,
+        uploadLagMs: 100,
+        error: null,
+      };
+      req.flush(makeStream({ sourceType: 'ndi', qualityPreset: '1080p30', ndiStatus }));
+      expect(result?.ndiStatus).toEqual(ndiStatus);
     });
   });
 

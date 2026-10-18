@@ -6,6 +6,8 @@ import { LiveStreamDetail } from './live-stream-detail';
 import { LiveStreamService } from './live-stream.service';
 import { ScreenService } from '../screens/screen.service';
 import { ScreenGroupService } from '../screen-groups/screen-group.service';
+import { SiteAgentService } from '../site-agents/site-agent.service';
+import { SiteAgentListItem } from '../site-agents/site-agent.model';
 import { MemberService } from '../settings/users/member.service';
 import { ToastService } from '../shared/toast/toast.service';
 import {
@@ -30,6 +32,12 @@ function makeStream(overrides: Partial<LiveStream> = {}): LiveStream {
     name: 'Main Stage',
     sourceUrl: 'rtmp://source/live',
     protocol: 'rtmp',
+    sourceType: 'pull',
+    agentId: null,
+    cameraHost: null,
+    ndiSourceName: null,
+    qualityPreset: null,
+    encoderPref: null,
     status: 'idle',
     transcodingPreset: 'high_1080p',
     audioEnabled: true,
@@ -156,6 +164,12 @@ class ScreenGroupServiceStub {
   }
 }
 
+class SiteAgentServiceStub {
+  getAll(): Observable<SiteAgentListItem[]> {
+    return of([{ id: 'ag-1', name: 'Venue Agent' } as SiteAgentListItem]);
+  }
+}
+
 class ToastServiceStub {
   success = vi.fn();
   error = vi.fn();
@@ -193,6 +207,7 @@ describe('LiveStreamDetail', () => {
         { provide: LiveStreamService, useValue: streams },
         { provide: ScreenService, useClass: ScreenServiceStub },
         { provide: ScreenGroupService, useClass: ScreenGroupServiceStub },
+        { provide: SiteAgentService, useClass: SiteAgentServiceStub },
         { provide: ToastService, useValue: toast },
         { provide: Router, useValue: { navigate: navigateSpy } },
         {
@@ -318,5 +333,90 @@ describe('LiveStreamDetail', () => {
     await setUp();
     (instance()['selectedScreenIds'] as { set: (v: string[]) => void }).set(['s1', 's2']);
     expect((instance()['targetCount'] as () => number)()).toBe(2);
+  });
+
+  describe('NDI stream', () => {
+    const ndiStream = (overrides: Partial<LiveStream> = {}): LiveStream =>
+      makeStream({
+        sourceType: 'ndi',
+        sourceUrl: undefined,
+        protocol: undefined,
+        agentId: 'ag-1',
+        cameraHost: '192.168.1.50',
+        ndiSourceName: null,
+        qualityPreset: '720p30',
+        encoderPref: 'auto',
+        ...overrides,
+      });
+
+    const text = (): string => fixture.nativeElement.textContent as string;
+
+    it('shows agent name, camera IP, fallback source label and encoder', async () => {
+      streams.getOneResult = of(ndiStream());
+      await setUp();
+      expect(text()).toContain('Venue Agent');
+      expect(text()).toContain('192.168.1.50');
+      expect(text()).toContain('First source of the camera');
+      expect(text()).toContain('NDI');
+      expect(fixture.nativeElement.querySelector('.src-url')).toBeNull();
+    });
+
+    it('shows the configured NDI source name', async () => {
+      streams.getOneResult = of(ndiStream({ ndiSourceName: 'CAM (Main)' }));
+      await setUp();
+      expect(text()).toContain('CAM (Main)');
+    });
+
+    it('renders ndiStatus values when present', async () => {
+      streams.getOneResult = of(
+        ndiStream({
+          status: 'active',
+          ndiStatus: {
+            state: 'streaming',
+            sourceName: 'CAM (Actual)',
+            encoder: 'libx264',
+            fps: 29,
+            framesDropped: 7,
+            uploadLagMs: 420,
+            error: null,
+          },
+        }),
+      );
+      await setUp();
+      expect(text()).toContain('Streaming');
+      expect(text()).toContain('CAM (Actual)');
+      expect(text()).toContain('libx264');
+      expect(text()).toContain('420 ms');
+    });
+
+    it('omits the status block without ndiStatus', async () => {
+      streams.getOneResult = of(ndiStream());
+      await setUp();
+      expect(text()).not.toContain('Upload lag');
+    });
+
+    it('PATCHes the quality preset also while the stream is active and toasts success', async () => {
+      streams.getOneResult = of(ndiStream({ status: 'active' }));
+      streams.updateResult = of(ndiStream({ status: 'active', qualityPreset: '1080p30' }));
+      await setUp();
+      component['changeQualityPreset']('1080p30');
+      expect(streams.updateArgs).toEqual({ id: STREAM_ID, dto: { qualityPreset: '1080p30' } });
+      expect(toast.success).toHaveBeenCalled();
+    });
+
+    it('toasts the server error when the preset change fails', async () => {
+      streams.getOneResult = of(ndiStream());
+      streams.updateResult = throwError(() => ({ error: { message: 'nope' } }));
+      await setUp();
+      component['changeQualityPreset']('preview');
+      expect(toast.error).toHaveBeenCalledWith('nope');
+    });
+
+    it('does not PATCH when the preset is unchanged', async () => {
+      streams.getOneResult = of(ndiStream());
+      await setUp();
+      component['changeQualityPreset']('720p30');
+      expect(streams.updateArgs).toBeNull();
+    });
   });
 });

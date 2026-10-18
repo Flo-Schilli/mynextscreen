@@ -17,6 +17,8 @@ const config: Config = {
     '!main.ts', // Bootstrap — no testable logic
     '!**/*.module.ts', // pure DI wiring, no branch logic
     '!test/**', // fake TV harness
+    '!**/testing/**', // fake FFmpeg process for specs
+    '!ndi/grandi-binding.ts', // thin adapter over the native NDI addon; needs a real SDK
   ],
   coverageDirectory: '../coverage',
   // Lower than the backend's on purpose. What is left uncovered here is the

@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import {
   BtnComponent,
@@ -6,16 +14,27 @@ import {
   ModalComponent,
   SInputComponent,
   SFieldComponent,
+  SelectComponent,
   ToggleRowComponent,
 } from '../ui';
+import type { SelectOption } from '../ui';
+import { SiteAgentListItem } from '../site-agents/site-agent.model';
 import {
   CreateLiveStreamRequest,
+  EncoderPref,
+  ENCODER_PREFS,
+  isValidIpAddress,
   LiveStreamProtocol,
+  LiveStreamSourceType,
+  QualityPreset,
+  QUALITY_PRESETS,
   TranscodingPreset,
   TRANSCODING_PRESETS,
 } from './live-stream.model';
 
 const PROTOCOLS: readonly LiveStreamProtocol[] = ['rtmp', 'rtp'];
+const SOURCE_TYPES: readonly LiveStreamSourceType[] = ['pull', 'ndi'];
+const NDI_HOME_URL = 'https://ndi.video';
 
 /**
  * Create-live-stream modal, reskinned onto the shared `mns-overlay`/`mns-modal`
@@ -23,6 +42,11 @@ const PROTOCOLS: readonly LiveStreamProtocol[] = ['rtmp', 'rtp'];
  * preset, audio) as signals and validates required fields locally, emitting a
  * resolved {@link CreateLiveStreamRequest} only when valid. The parent performs
  * the HTTP request and feeds `creating`/`error` back in.
+ *
+ * A source-type segment switches between a pull stream (protocol, URL,
+ * transcoding preset, audio) and an NDI camera ingested by a site agent
+ * (agent, camera address, optional NDI source, quality preset, encoder);
+ * validation follows the selected type.
  *
  * Protocol is a 2-value segmented control (RTMP/RTP) and the quality preset is
  * the five real {@link TranscodingPreset}s — no fabricated 4-protocol /
@@ -37,6 +61,7 @@ const PROTOCOLS: readonly LiveStreamProtocol[] = ['rtmp', 'rtp'];
     ModalComponent,
     SInputComponent,
     SFieldComponent,
+    SelectComponent,
     ToggleRowComponent,
     BtnComponent,
     TranslocoDirective,
@@ -55,47 +80,128 @@ const PROTOCOLS: readonly LiveStreamProtocol[] = ['rtmp', 'rtp'];
           </mns-sfield>
 
           <div>
-            <span class="seg-label">{{ t('liveStreams.create.protocolLabel') }}</span>
+            <span class="seg-label">{{ t('liveStreams.create.sourceTypeLabel') }}</span>
             <div class="seg-row">
-              @for (p of protocols; track p) {
+              @for (type of sourceTypes; track type) {
                 <button
                   type="button"
                   class="seg"
-                  [class.active]="protocol() === p"
-                  (click)="protocol.set(p)"
+                  [class.active]="sourceType() === type"
+                  (click)="sourceType.set(type)"
                 >
-                  {{ p.toUpperCase() }}
+                  {{ t('liveStreams.sourceType.' + type) }}
                 </button>
               }
             </div>
           </div>
 
-          <mns-sfield [label]="t('liveStreams.create.sourceUrlLabel')">
-            <mns-sinput [(value)]="sourceUrl" [mono]="true" [placeholder]="sourceHint()" />
-          </mns-sfield>
-
-          <div>
-            <span class="seg-label">{{ t('liveStreams.create.qualityLabel') }}</span>
-            <div class="seg-grid">
-              @for (preset of presets; track preset) {
-                <button
-                  type="button"
-                  class="seg"
-                  [class.active]="quality() === preset"
-                  (click)="quality.set(preset)"
-                >
-                  {{ t('liveStreams.preset.' + preset) }}
-                </button>
-              }
+          @if (sourceType() === 'pull') {
+            <div>
+              <span class="seg-label">{{ t('liveStreams.create.protocolLabel') }}</span>
+              <div class="seg-row">
+                @for (p of protocols; track p) {
+                  <button
+                    type="button"
+                    class="seg"
+                    [class.active]="protocol() === p"
+                    (click)="protocol.set(p)"
+                  >
+                    {{ p.toUpperCase() }}
+                  </button>
+                }
+              </div>
             </div>
-          </div>
 
-          <mns-toggle-row
-            icon="Wifi"
-            [label]="t('liveStreams.create.enableAudioLabel')"
-            [desc]="t('liveStreams.create.enableAudioDesc')"
-            [(checked)]="audioEnabled"
-          />
+            <mns-sfield [label]="t('liveStreams.create.sourceUrlLabel')">
+              <mns-sinput [(value)]="sourceUrl" [mono]="true" [placeholder]="sourceHint()" />
+            </mns-sfield>
+
+            <div>
+              <span class="seg-label">{{ t('liveStreams.create.qualityLabel') }}</span>
+              <div class="seg-grid">
+                @for (preset of presets; track preset) {
+                  <button
+                    type="button"
+                    class="seg"
+                    [class.active]="quality() === preset"
+                    (click)="quality.set(preset)"
+                  >
+                    {{ t('liveStreams.preset.' + preset) }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <mns-toggle-row
+              icon="Wifi"
+              [label]="t('liveStreams.create.enableAudioLabel')"
+              [desc]="t('liveStreams.create.enableAudioDesc')"
+              [(checked)]="audioEnabled"
+            />
+          } @else {
+            <mns-sfield [label]="t('liveStreams.create.agentLabel')">
+              <mns-select
+                [options]="agentOptions()"
+                [(value)]="agentId"
+                [placeholder]="t('liveStreams.create.agentPlaceholder')"
+              />
+            </mns-sfield>
+
+            <mns-sfield [label]="t('liveStreams.create.cameraHostLabel')">
+              <mns-sinput
+                [(value)]="cameraHost"
+                [mono]="true"
+                [placeholder]="t('liveStreams.create.cameraHostPlaceholder')"
+              />
+            </mns-sfield>
+
+            <mns-sfield
+              [label]="t('liveStreams.create.ndiSourceLabel')"
+              [hint]="t('liveStreams.create.ndiSourceHint')"
+            >
+              <mns-sinput
+                [(value)]="ndiSourceName"
+                [placeholder]="t('liveStreams.create.ndiSourcePlaceholder')"
+              />
+            </mns-sfield>
+
+            <div>
+              <span class="seg-label">{{ t('liveStreams.create.qualityLabel') }}</span>
+              <div class="seg-row">
+                @for (preset of qualityPresets; track preset) {
+                  <button
+                    type="button"
+                    class="seg"
+                    [class.active]="qualityPreset() === preset"
+                    (click)="qualityPreset.set(preset)"
+                  >
+                    {{ t('liveStreams.qualityPreset.' + preset) }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div>
+              <span class="seg-label">{{ t('liveStreams.create.encoderLabel') }}</span>
+              <div class="seg-row">
+                @for (enc of encoderPrefs; track enc) {
+                  <button
+                    type="button"
+                    class="seg"
+                    [class.active]="encoderPref() === enc"
+                    (click)="encoderPref.set(enc)"
+                  >
+                    {{ t('liveStreams.encoder.' + enc) }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <p class="trademark">
+              {{ t('liveStreams.create.ndiTrademark') }}
+              <a [href]="ndiHomeUrl" target="_blank" rel="noopener noreferrer">ndi.video</a>
+            </p>
+          }
 
           @if (localError() || error()) {
             <p class="error">{{ localError() || error() }}</p>
@@ -164,6 +270,14 @@ const PROTOCOLS: readonly LiveStreamProtocol[] = ['rtmp', 'rtp'];
       background: var(--accent-soft);
       color: var(--accent);
     }
+    .trademark {
+      margin: 0;
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+    }
+    .trademark a {
+      text-decoration: underline;
+    }
     .error {
       font-size: 0.8125rem;
       color: var(--color-offline);
@@ -178,6 +292,7 @@ const PROTOCOLS: readonly LiveStreamProtocol[] = ['rtmp', 'rtp'];
 export class LiveStreamCreateModal {
   readonly creating = input.required<boolean>();
   readonly error = input.required<string>();
+  readonly agents = input<readonly SiteAgentListItem[]>([]);
 
   readonly create = output<CreateLiveStreamRequest>();
   readonly dismiss = output<void>();
@@ -186,13 +301,27 @@ export class LiveStreamCreateModal {
 
   protected readonly protocols = PROTOCOLS;
   protected readonly presets = TRANSCODING_PRESETS;
+  protected readonly sourceTypes = SOURCE_TYPES;
+  protected readonly qualityPresets = QUALITY_PRESETS;
+  protected readonly encoderPrefs = ENCODER_PREFS;
+  protected readonly ndiHomeUrl = NDI_HOME_URL;
 
+  protected readonly sourceType = signal<LiveStreamSourceType>('pull');
   protected readonly name = signal('');
   protected readonly sourceUrl = signal('');
   protected readonly protocol = signal<LiveStreamProtocol>('rtmp');
   protected readonly quality = signal<TranscodingPreset>('high_1080p');
   protected readonly audioEnabled = signal(true);
+  protected readonly agentId = signal('');
+  protected readonly cameraHost = signal('');
+  protected readonly ndiSourceName = signal('');
+  protected readonly qualityPreset = signal<QualityPreset>('720p30');
+  protected readonly encoderPref = signal<EncoderPref>('auto');
   protected readonly localError = signal('');
+
+  protected readonly agentOptions = computed<SelectOption[]>(() =>
+    this.agents().map((a) => ({ value: a.id, label: a.name })),
+  );
 
   protected sourceHint(): string {
     return this.protocol() === 'rtmp'
@@ -201,22 +330,60 @@ export class LiveStreamCreateModal {
   }
 
   onSubmit(): void {
-    if (!this.name().trim()) {
-      this.localError.set(this.transloco.translate('liveStreams.create.errorNameRequired'));
+    const name = this.name().trim();
+    if (!name) {
+      this.fail('liveStreams.create.errorNameRequired');
       return;
     }
-    if (!this.sourceUrl().trim()) {
-      this.localError.set(this.transloco.translate('liveStreams.create.errorSourceRequired'));
-      return;
+    const request = this.sourceType() === 'ndi' ? this.buildNdi(name) : this.buildPull(name);
+    if (request) {
+      this.localError.set('');
+      this.create.emit(request);
     }
+  }
 
-    this.localError.set('');
-    this.create.emit({
-      name: this.name().trim(),
-      sourceUrl: this.sourceUrl().trim(),
+  private buildPull(name: string): CreateLiveStreamRequest | null {
+    const sourceUrl = this.sourceUrl().trim();
+    if (!sourceUrl) {
+      this.fail('liveStreams.create.errorSourceRequired');
+      return null;
+    }
+    return {
+      name,
+      sourceUrl,
       protocol: this.protocol(),
       transcodingPreset: this.quality(),
       audioEnabled: this.audioEnabled(),
-    });
+    };
+  }
+
+  private buildNdi(name: string): CreateLiveStreamRequest | null {
+    if (!this.agentId()) {
+      this.fail('liveStreams.create.errorAgentRequired');
+      return null;
+    }
+    const cameraHost = this.cameraHost().trim();
+    if (!cameraHost) {
+      this.fail('liveStreams.create.errorCameraHostRequired');
+      return null;
+    }
+    if (!isValidIpAddress(cameraHost)) {
+      this.fail('liveStreams.create.errorCameraHostInvalid');
+      return null;
+    }
+    const ndiSourceName = this.ndiSourceName().trim();
+    return {
+      name,
+      sourceType: 'ndi',
+      agentId: this.agentId(),
+      cameraHost,
+      ...(ndiSourceName ? { ndiSourceName } : {}),
+      qualityPreset: this.qualityPreset(),
+      encoderPref: this.encoderPref(),
+    };
+  }
+
+  private fail(key: string): void {
+    this.localError.set(this.transloco.translate(key));
   }
 }

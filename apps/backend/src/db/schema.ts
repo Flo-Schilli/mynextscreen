@@ -37,7 +37,10 @@ import { AuditAction } from '../audit-log/audit-action.enum';
 import { ContentType } from '../content/content-type.enum';
 import { TranscodingStatus } from '../content/transcoding-status.enum';
 import { LiveStreamProtocol } from '../live-stream/live-stream-protocol.enum';
+import { LiveStreamSourceType } from '../live-stream/live-stream-source-type.enum';
 import { LiveStreamStatus } from '../live-stream/live-stream-status.enum';
+import { NdiEncoderPref } from '../live-stream/ndi-encoder-pref.enum';
+import { NdiQualityPreset } from '../live-stream/ndi-quality-preset.enum';
 import { TranscodingPreset } from '../live-stream/transcoding-preset.enum';
 import { NotificationEventType } from '../notification/notification-event-type.enum';
 import { TransitionType } from '../playlist/transition-type.enum';
@@ -477,24 +480,36 @@ export const scheduleEntries = pgTable('schedule_entries', {
 
 // ── live streams ─────────────────────────────────────────────────────────────
 
-export const liveStreams = pgTable('live_streams', {
-  id: uuid()
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  organisationId: uuid()
-    .notNull()
-    .references(() => organisations.id, { onDelete: 'cascade' }),
-  name: text().notNull(),
-  sourceUrl: text().notNull(),
-  protocol: text().$type<LiveStreamProtocol>().notNull().default(LiveStreamProtocol.Rtmp),
-  status: text().$type<LiveStreamStatus>().notNull().default(LiveStreamStatus.Idle),
-  transcodingPreset: text()
-    .$type<TranscodingPreset>()
-    .notNull()
-    .default(TranscodingPreset.High1080p),
-  audioEnabled: boolean().notNull().default(true),
-  ...timestamps,
-});
+export const liveStreams = pgTable(
+  'live_streams',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    name: text().notNull(),
+    sourceType: text().$type<LiveStreamSourceType>().notNull().default(LiveStreamSourceType.Pull),
+    /** Null for NDI streams: the source is a camera behind a site agent. */
+    sourceUrl: text(),
+    /** Restrict: an agent with a bound NDI stream must not be deleted. */
+    agentId: uuid().references(() => siteAgents.id, { onDelete: 'restrict' }),
+    cameraHost: text(),
+    ndiSourceName: text(),
+    qualityPreset: text().$type<NdiQualityPreset>().notNull().default(NdiQualityPreset.P720),
+    encoderPref: text().$type<NdiEncoderPref>().notNull().default(NdiEncoderPref.Auto),
+    protocol: text().$type<LiveStreamProtocol>().notNull().default(LiveStreamProtocol.Rtmp),
+    status: text().$type<LiveStreamStatus>().notNull().default(LiveStreamStatus.Idle),
+    transcodingPreset: text()
+      .$type<TranscodingPreset>()
+      .notNull()
+      .default(TranscodingPreset.High1080p),
+    audioEnabled: boolean().notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [index('IDX_live_streams_agent').on(table.agentId)],
+);
 
 export const liveStreamActivations = pgTable(
   'live_stream_activations',

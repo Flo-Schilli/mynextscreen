@@ -39,6 +39,8 @@ docker-compose.override.yml
 # FFmpeg / HLS segments
 *.m3u8
 hls/
+# Source folder of the site-agent HLS uploader, not segment output.
+!apps/site-agent/src/hls/
 
 # Logs
 *.log
