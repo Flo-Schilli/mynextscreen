@@ -24,8 +24,11 @@ export class HlsService implements OnDestroy {
 
     if (Hls.isSupported()) {
       const hls = new Hls({
-        liveSyncDuration: 3,
-        liveMaxLatencyDuration: 10,
+        // Counted in segments, not seconds: NDI streams use 1-s segments and
+        // pull streams 2-s segments, so a fixed time would be a different
+        // number of segments (and a different latency) for each.
+        liveSyncDurationCount: 2,
+        liveMaxLatencyDurationCount: 5,
         manifestLoadingMaxRetry: 10,
         manifestLoadingRetryDelay: 2000,
         xhrSetup: (xhr: XMLHttpRequest) => {

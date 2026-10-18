@@ -1091,7 +1091,20 @@
       "creating": "Wird erstellt…",
       "createStream": "Stream erstellen",
       "errorNameRequired": "Name ist erforderlich.",
-      "errorSourceRequired": "Quell-URL ist erforderlich."
+      "errorSourceRequired": "Quell-URL ist erforderlich.",
+      "sourceTypeLabel": "Quelltyp",
+      "agentLabel": "Site Agent",
+      "agentPlaceholder": "Site Agent auswählen",
+      "cameraHostLabel": "Kamera-IP-Adresse",
+      "cameraHostPlaceholder": "z. B. 192.168.1.50",
+      "ndiSourceLabel": "NDI-Quellname (optional)",
+      "ndiSourceHint": "Leer = erste Quelle der Kamera",
+      "ndiSourcePlaceholder": "z. B. CAMERA (Main)",
+      "encoderLabel": "Encoder",
+      "errorAgentRequired": "Site Agent ist erforderlich.",
+      "errorCameraHostRequired": "Kamera-IP-Adresse ist erforderlich.",
+      "errorCameraHostInvalid": "Gültige IPv4- oder IPv6-Adresse eingeben.",
+      "ndiTrademark": "NDI® is a registered trademark of Vizrt NDI AB."
     },
     "delete": {
       "title": "Live-Stream löschen",
@@ -1146,7 +1159,19 @@
       "targetScreenSummary": "{count, plural, one {# Bildschirm} other {# Bildschirme}}",
       "targetNoScreens": "Keine Bildschirme",
       "screenSub": "{resolution} · {location}",
-      "groupSub": "{mode} · {count, plural, one {# Bildschirm} other {# Bildschirme}}"
+      "groupSub": "{mode} · {count, plural, one {# Bildschirm} other {# Bildschirme}}",
+      "agent": "Site Agent",
+      "cameraHost": "Kamera-IP",
+      "ndiSource": "NDI-Quelle",
+      "firstSource": "Erste Quelle der Kamera",
+      "encoder": "Encoder",
+      "qualityPreset": "Qualitätsstufe",
+      "ndiStatus": "NDI-Status",
+      "actualSource": "Aktive Quelle",
+      "activeEncoder": "Aktiver Encoder",
+      "fps": "FPS",
+      "framesDropped": "Verworfene Frames",
+      "uploadLag": "Upload-Verzögerung"
     },
     "errors": {
       "loadStreams": "Live-Streams konnten nicht geladen werden.",
@@ -1161,7 +1186,8 @@
       "restartStream": "Stream konnte nicht neu gestartet werden.",
       "renameStream": "Stream konnte nicht umbenannt werden.",
       "updateAudio": "Audio konnte nicht aktualisiert werden.",
-      "copyUrl": "URL konnte nicht kopiert werden."
+      "copyUrl": "URL konnte nicht kopiert werden.",
+      "updateQualityPreset": "Qualitätsstufe konnte nicht geändert werden."
     },
     "toast": {
       "created": "Live-Stream erstellt.",
@@ -1172,7 +1198,27 @@
       "renamed": "Stream umbenannt.",
       "audioEnabled": "Audio aktiviert.",
       "audioMuted": "Audio stummgeschaltet.",
-      "urlCopied": "Quell-URL kopiert."
+      "urlCopied": "Quell-URL kopiert.",
+      "qualityPresetChanged": "Qualitätsstufe geändert."
+    },
+    "sourceType": {
+      "pull": "Pull (RTMP/RTP)",
+      "ndi": "NDI"
+    },
+    "qualityPreset": {
+      "preview": "Vorschau (360p)",
+      "720p30": "720p30",
+      "1080p30": "1080p30"
+    },
+    "encoder": {
+      "auto": "Automatisch",
+      "software": "Software",
+      "hardware": "Hardware"
+    },
+    "ndiState": {
+      "connecting": "Verbindet",
+      "streaming": "Streamt",
+      "error": "Fehler"
     }
   },
   "siteAgents": {

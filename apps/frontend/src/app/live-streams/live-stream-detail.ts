@@ -22,8 +22,12 @@ import {
   ActivateLiveStreamRequest,
   ActivateStreamResponse,
   LiveStream,
+  QualityPreset,
+  QUALITY_PRESETS,
   StreamHealthState,
 } from './live-stream.model';
+import { SiteAgentService } from '../site-agents/site-agent.service';
+import { SiteAgentListItem } from '../site-agents/site-agent.model';
 import { LanguageService } from '../i18n/language.service';
 import { LiveStreamService } from './live-stream.service';
 import { LiveStreamMonitor } from './live-stream-monitor';
@@ -98,7 +102,7 @@ type TargetMode = 'screens' | 'group';
                 <mns-badge [tone]="live() ? 'offline' : 'neutral'" icon="Cast">
                   {{ statusLabel() }}
                 </mns-badge>
-                <mns-badge tone="neutral">{{ s.protocol.toUpperCase() }}</mns-badge>
+                <mns-badge tone="neutral">{{ protocolLabel() }}</mns-badge>
                 <mns-badge [tone]="targetCount() ? 'accent' : 'neutral'" icon="Screens">
                   {{ targetSummary() }}
                 </mns-badge>
@@ -190,7 +194,7 @@ type TargetMode = 'screens' | 'group';
                 </div>
                 <div class="tile">
                   <div class="tile-label">{{ t('liveStreams.detail.protocol') }}</div>
-                  <div class="tile-value">{{ s.protocol.toUpperCase() }}</div>
+                  <div class="tile-value">{{ protocolLabel() }}</div>
                 </div>
                 <div class="tile">
                   <div class="tile-label">{{ t('liveStreams.detail.liveSince') }}</div>
@@ -208,24 +212,100 @@ type TargetMode = 'screens' | 'group';
                 [sub]="t('liveStreams.detail.sourceSub')"
                 icon="Cast"
               />
-              <div class="src-label">{{ t('liveStreams.detail.sourceUrl') }}</div>
-              <div class="src-row">
-                <div class="src-url">{{ s.sourceUrl }}</div>
-                <button
-                  type="button"
-                  class="copy-btn"
-                  [class.copied]="copied()"
-                  [title]="t('liveStreams.detail.copyUrl')"
-                  [attr.aria-label]="t('liveStreams.detail.copyUrlAria')"
-                  (click)="copyUrl()"
-                >
-                  <mns-icon [name]="copied() ? 'Check' : 'Copy'" [size]="16" />
-                </button>
-              </div>
+              @if (s.sourceType === 'ndi') {
+                <div class="tiles ndi-info">
+                  <div class="tile">
+                    <div class="tile-label">{{ t('liveStreams.detail.agent') }}</div>
+                    <div class="tile-value">{{ agentName() }}</div>
+                  </div>
+                  <div class="tile">
+                    <div class="tile-label">{{ t('liveStreams.detail.cameraHost') }}</div>
+                    <div class="tile-value">{{ s.cameraHost }}</div>
+                  </div>
+                  <div class="tile">
+                    <div class="tile-label">{{ t('liveStreams.detail.ndiSource') }}</div>
+                    <div class="tile-value">
+                      {{ s.ndiSourceName || t('liveStreams.detail.firstSource') }}
+                    </div>
+                  </div>
+                  <div class="tile">
+                    <div class="tile-label">{{ t('liveStreams.detail.encoder') }}</div>
+                    <div class="tile-value">{{ encoderLabel() }}</div>
+                  </div>
+                </div>
+
+                <div class="src-label preset-label">
+                  {{ t('liveStreams.detail.qualityPreset') }}
+                </div>
+                <div class="seg-row preset-row">
+                  @for (preset of qualityPresets; track preset) {
+                    <button
+                      type="button"
+                      class="seg"
+                      [class.active]="s.qualityPreset === preset"
+                      [disabled]="busy()"
+                      (click)="changeQualityPreset(preset)"
+                    >
+                      {{ t('liveStreams.qualityPreset.' + preset) }}
+                    </button>
+                  }
+                </div>
+
+                @if (s.ndiStatus; as ns) {
+                  <div class="src-label preset-label">{{ t('liveStreams.detail.ndiStatus') }}</div>
+                  <div class="ndi-state">
+                    <mns-badge [tone]="ndiTone(ns.state)">
+                      {{ t('liveStreams.ndiState.' + ns.state) }}
+                    </mns-badge>
+                  </div>
+                  <div class="tiles ndi-status">
+                    <div class="tile">
+                      <div class="tile-label">{{ t('liveStreams.detail.actualSource') }}</div>
+                      <div class="tile-value">{{ ns.sourceName || '—' }}</div>
+                    </div>
+                    <div class="tile">
+                      <div class="tile-label">{{ t('liveStreams.detail.activeEncoder') }}</div>
+                      <div class="tile-value">{{ ns.encoder || '—' }}</div>
+                    </div>
+                    <div class="tile">
+                      <div class="tile-label">{{ t('liveStreams.detail.fps') }}</div>
+                      <div class="tile-value">{{ ns.fps ?? '—' }}</div>
+                    </div>
+                    <div class="tile">
+                      <div class="tile-label">{{ t('liveStreams.detail.framesDropped') }}</div>
+                      <div class="tile-value">{{ ns.framesDropped }}</div>
+                    </div>
+                    <div class="tile">
+                      <div class="tile-label">{{ t('liveStreams.detail.uploadLag') }}</div>
+                      <div class="tile-value">
+                        {{ ns.uploadLagMs === null ? '—' : ns.uploadLagMs + ' ms' }}
+                      </div>
+                    </div>
+                  </div>
+                  @if (ns.error) {
+                    <p class="ndi-error">{{ ns.error }}</p>
+                  }
+                }
+              } @else {
+                <div class="src-label">{{ t('liveStreams.detail.sourceUrl') }}</div>
+                <div class="src-row">
+                  <div class="src-url">{{ s.sourceUrl }}</div>
+                  <button
+                    type="button"
+                    class="copy-btn"
+                    [class.copied]="copied()"
+                    [title]="t('liveStreams.detail.copyUrl')"
+                    [attr.aria-label]="t('liveStreams.detail.copyUrlAria')"
+                    (click)="copyUrl()"
+                  >
+                    <mns-icon [name]="copied() ? 'Check' : 'Copy'" [size]="16" />
+                  </button>
+                </div>
+              }
               <div class="tiles">
                 <div class="tile">
                   <div class="tile-label">{{ t('liveStreams.detail.protocol') }}</div>
-                  <div class="tile-value">{{ s.protocol.toUpperCase() }}</div>
+                  <div class="tile-value">{{ protocolLabel() }}</div>
                 </div>
                 <div class="tile">
                   <div class="tile-label">{{ t('liveStreams.detail.quality') }}</div>
@@ -517,6 +597,20 @@ type TargetMode = 'screens' | 'group';
     .bar.on {
       background: var(--color-online);
     }
+    .preset-label {
+      margin-top: 16px;
+    }
+    .preset-row {
+      margin-top: 8px;
+    }
+    .ndi-state {
+      margin: 8px 0 12px;
+    }
+    .ndi-error {
+      margin: 8px 0 0;
+      font-size: 12.5px;
+      color: var(--color-offline);
+    }
     .tiles {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -704,6 +798,7 @@ export class LiveStreamDetail implements OnInit {
   private screenService = inject(ScreenService);
   private screenGroupService = inject(ScreenGroupService);
   private memberService = inject(MemberService);
+  private siteAgentService = inject(SiteAgentService);
   private toast = inject(ToastService);
   private transloco = inject(TranslocoService);
   private language = inject(LanguageService);
@@ -716,6 +811,8 @@ export class LiveStreamDetail implements OnInit {
   protected readonly busy = signal(false);
   protected readonly copied = signal(false);
   protected readonly health = signal<StreamHealthState | null>(null);
+  protected readonly agents = signal<SiteAgentListItem[]>([]);
+  protected readonly qualityPresets = QUALITY_PRESETS;
 
   // Inline rename draft (plain field bound via ngModel — committed explicitly).
   protected nameDraft = '';
@@ -734,9 +831,28 @@ export class LiveStreamDetail implements OnInit {
     ),
   );
 
+  protected readonly protocolLabel = computed(() => {
+    const s = this.stream();
+    if (!s) return '';
+    return s.sourceType === 'ndi' ? 'NDI' : (s.protocol ?? '').toUpperCase();
+  });
+
+  protected readonly agentName = computed(() => {
+    const id = this.stream()?.agentId;
+    return this.agents().find((a) => a.id === id)?.name ?? id ?? '—';
+  });
+
+  protected readonly encoderLabel = computed(() => {
+    const pref = this.stream()?.encoderPref ?? 'auto';
+    return this.transloco.translate('liveStreams.encoder.' + pref);
+  });
+
   protected readonly presetLabel = computed(() => {
     const s = this.stream();
     if (!s) return '';
+    if (s.sourceType === 'ndi' && s.qualityPreset) {
+      return this.transloco.translate('liveStreams.qualityPreset.' + s.qualityPreset);
+    }
     return this.transloco.translate('liveStreams.preset.' + s.transcodingPreset);
   });
 
@@ -816,8 +932,11 @@ export class LiveStreamDetail implements OnInit {
       stream: this.liveStreamService.getOne(this.orgId, id),
       screens: this.screenService.getAll(this.orgId),
       groups: this.screenGroupService.getAll(this.orgId),
+      // Only used to show the agent name; the page works without it.
+      agents: this.siteAgentService.getAll().pipe(catchError(() => of([] as SiteAgentListItem[]))),
     }).subscribe({
-      next: ({ stream, screens, groups }) => {
+      next: ({ stream, screens, groups, agents }) => {
+        this.agents.set(agents);
         this.applyStream(stream);
         this.screens.set(screens);
         this.groups.set(groups);
@@ -893,6 +1012,30 @@ export class LiveStreamDetail implements OnInit {
         this.toast.error(
           err.error?.message || this.transloco.translate('liveStreams.errors.updateAudio'),
         ),
+    });
+  }
+
+  protected ndiTone(state: 'connecting' | 'streaming' | 'error'): 'online' | 'neutral' | 'offline' {
+    if (state === 'streaming') return 'online';
+    return state === 'error' ? 'offline' : 'neutral';
+  }
+
+  protected changeQualityPreset(preset: QualityPreset): void {
+    const s = this.stream();
+    if (!s || this.busy() || s.qualityPreset === preset) return;
+    this.busy.set(true);
+    this.liveStreamService.update(this.orgId, s.id, { qualityPreset: preset }).subscribe({
+      next: (updated) => {
+        this.busy.set(false);
+        this.applyStream(updated);
+        this.toast.success(this.transloco.translate('liveStreams.toast.qualityPresetChanged'));
+      },
+      error: (err) => {
+        this.busy.set(false);
+        this.toast.error(
+          err.error?.message || this.transloco.translate('liveStreams.errors.updateQualityPreset'),
+        );
+      },
     });
   }
 
@@ -999,6 +1142,7 @@ export class LiveStreamDetail implements OnInit {
   protected copyUrl(): void {
     const s = this.stream();
     if (!s) return;
+    if (!s.sourceUrl) return;
     navigator.clipboard
       .writeText(s.sourceUrl)
       .then(() => {

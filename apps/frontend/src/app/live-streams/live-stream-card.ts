@@ -55,7 +55,7 @@ import { LiveStreamMonitor } from './live-stream-monitor';
             (keydown.enter)="open.emit(stream())"
           >
             <div class="name">{{ stream().name }}</div>
-            <div class="source">{{ stream().sourceUrl }}</div>
+            <div class="source">{{ sourceText() }}</div>
           </div>
 
           <div class="menu-wrap">
@@ -314,11 +314,23 @@ export class LiveStreamCard {
     ),
   );
 
-  protected readonly protocolLabel = computed(() => this.stream().protocol.toUpperCase());
+  protected readonly isNdi = computed(() => this.stream().sourceType === 'ndi');
 
-  protected readonly presetLabel = computed(() =>
-    this.transloco.translate('liveStreams.preset.' + this.stream().transcodingPreset),
+  protected readonly sourceText = computed(() => {
+    const s = this.stream();
+    return s.sourceType === 'ndi' ? (s.cameraHost ?? '') : (s.sourceUrl ?? '');
+  });
+
+  protected readonly protocolLabel = computed(() =>
+    this.isNdi() ? 'NDI' : (this.stream().protocol ?? '').toUpperCase(),
   );
+
+  protected readonly presetLabel = computed(() => {
+    const s = this.stream();
+    return s.sourceType === 'ndi' && s.qualityPreset
+      ? this.transloco.translate('liveStreams.qualityPreset.' + s.qualityPreset)
+      : this.transloco.translate('liveStreams.preset.' + s.transcodingPreset);
+  });
 
   protected toggleMenu(event: Event): void {
     event.stopPropagation();

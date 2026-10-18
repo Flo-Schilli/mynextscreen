@@ -1,7 +1,8 @@
 import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
-import { forkJoin } from 'rxjs';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { LiveStreamService } from './live-stream.service';
 import { LiveStream, CreateLiveStreamRequest } from './live-stream.model';
 import { LiveStreamCard } from './live-stream-card';
@@ -11,6 +12,8 @@ import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
 import { ScreenGroupService } from '../screen-groups/screen-group.service';
 import { ScreenGroup } from '../screen-groups/screen-group.model';
+import { SiteAgentService } from '../site-agents/site-agent.service';
+import { SiteAgentListItem } from '../site-agents/site-agent.model';
 import { MemberService } from '../settings/users/member.service';
 import { MyMembership } from '../settings/users/member.model';
 import { ToastService } from '../shared/toast/toast.service';
@@ -64,6 +67,7 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
         <app-live-stream-create-modal
           [creating]="creating"
           [error]="createError"
+          [agents]="agents"
           (create)="submitCreate($event)"
           (dismiss)="cancelCreate()"
         />
@@ -143,6 +147,7 @@ export class LiveStreams implements OnInit {
   private screenService = inject(ScreenService);
   private screenGroupService = inject(ScreenGroupService);
   private memberService = inject(MemberService);
+  private siteAgentService = inject(SiteAgentService);
   private toast = inject(ToastService);
   private router = inject(Router);
   private transloco = inject(TranslocoService);
@@ -151,6 +156,7 @@ export class LiveStreams implements OnInit {
   streams: LiveStream[] = [];
   screens: Screen[] = [];
   screenGroups: ScreenGroup[] = [];
+  agents: SiteAgentListItem[] = [];
   loading = true;
   loadError = '';
   actionError = '';
@@ -199,8 +205,11 @@ export class LiveStreams implements OnInit {
       streams: this.liveStreamService.getAll(this.orgId),
       screens: this.screenService.getAll(this.orgId),
       groups: this.screenGroupService.getAll(this.orgId),
+      // The agent picker is optional; a failure must not block the stream list.
+      agents: this.siteAgentService.getAll().pipe(catchError(() => of([] as SiteAgentListItem[]))),
     }).subscribe({
-      next: ({ streams, screens, groups }) => {
+      next: ({ streams, screens, groups, agents }) => {
+        this.agents = agents;
         this.streams = streams;
         this.screens = screens;
         this.screenGroups = groups;
