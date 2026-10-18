@@ -17,6 +17,7 @@ import { SsapClient } from '../tv/ssap-client';
 import { SsapKeyStore } from '../tv/ssap-key.store';
 import { NetworkInfoService } from '../network/network-info.service';
 import type { NdiStreamManager } from '../ndi/ndi-stream.manager';
+import type { CaptureLicenseSync } from '../capture/capture-license-sync';
 import { newRuntime, type ScreenRuntime } from './screen-runtime';
 import {
   DEVMODE_JITTER_MAX_MS,
@@ -102,6 +103,7 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
     private readonly network: NetworkInfoService,
     private readonly discovery: DiscoveryService,
     private readonly ndi: NdiStreamManager,
+    private readonly captureLicense: CaptureLicenseSync,
     private readonly agentVersion: string,
   ) {}
 
@@ -744,6 +746,13 @@ export class SupervisorService implements OnModuleInit, OnModuleDestroy {
       await this.ndi.reconcile(config ? (config.ndiStreams ?? []) : null);
     } catch (error) {
       this.logger.error(`Could not reconcile NDI streams: ${describe(error)}`);
+    }
+    try {
+      // Without a config, or from a server that does not send `ndiPlugin`, there
+      // is no instruction, and the license is left as it is.
+      await this.captureLicense.setWanted(config?.ndiPlugin?.acceptance);
+    } catch (error) {
+      this.logger.error(`Could not sync the capture license: ${describe(error)}`);
     }
   }
 

@@ -21,6 +21,8 @@ import {
 import {
   ActivateLiveStreamRequest,
   ActivateStreamResponse,
+  capturePluginErrorKey,
+  isKnownNdiError,
   LiveStream,
   parsePtzPort,
   PtzCommand,
@@ -306,7 +308,9 @@ type TargetMode = 'screens' | 'group';
                     </div>
                   </div>
                   @if (ns.error) {
-                    <p class="ndi-error">{{ ns.error }}</p>
+                    <p class="ndi-error">
+                      {{ ndiErrorLabel(ns.error) }}
+                    </p>
                   }
                 }
               } @else {
@@ -1125,6 +1129,11 @@ export class LiveStreamDetail implements OnInit {
     this.toast.error(err.error?.message || this.transloco.translate('liveStreams.errors.ptz'));
   }
 
+  /** A label for the codes an agent reports; anything else is shown as it came. */
+  protected ndiErrorLabel(code: string): string {
+    return isKnownNdiError(code) ? this.transloco.translate(`liveStreams.ndiError.${code}`) : code;
+  }
+
   protected ndiTone(state: 'connecting' | 'streaming' | 'error'): 'online' | 'neutral' | 'offline' {
     if (state === 'streaming') return 'online';
     return state === 'error' ? 'offline' : 'neutral';
@@ -1186,8 +1195,11 @@ export class LiveStreamDetail implements OnInit {
       },
       error: (err) => {
         this.busy.set(false);
+        const pluginKey = capturePluginErrorKey(err);
         this.toast.error(
-          err.error?.message || this.transloco.translate('liveStreams.errors.startStream'),
+          pluginKey
+            ? this.transloco.translate(pluginKey)
+            : err.error?.message || this.transloco.translate('liveStreams.errors.startStream'),
         );
       },
     });
@@ -1228,8 +1240,11 @@ export class LiveStreamDetail implements OnInit {
         },
         error: (err) => {
           this.busy.set(false);
+          const pluginKey = capturePluginErrorKey(err);
           this.toast.error(
-            err.error?.message || this.transloco.translate('liveStreams.errors.restartStream'),
+            pluginKey
+              ? this.transloco.translate(pluginKey)
+              : err.error?.message || this.transloco.translate('liveStreams.errors.restartStream'),
           );
         },
       });

@@ -79,6 +79,8 @@ export class NdiStreamManager implements OnModuleDestroy {
   private readonly failing = new Set<string>();
   private readonly listeners = new Set<() => void>();
   private lastSignature = '';
+  /** Whether the plugin has answered at least once since this process started. */
+  private pluginSeen = false;
 
   constructor(
     private readonly plugin: CapturePluginPort,
@@ -87,6 +89,10 @@ export class NdiStreamManager implements OnModuleDestroy {
   ) {
     plugin.onPoll(() => {
       // A poll that apply() asked for itself must not queue another apply.
+      const { state } = plugin.snapshot();
+      if (state !== 'unknown' && state !== 'absent') {
+        this.pluginSeen = true;
+      }
       if (!this.applying) {
         this.resync();
       }
@@ -135,9 +141,9 @@ export class NdiStreamManager implements OnModuleDestroy {
           error: stream.error,
         };
       }
-      // Not listed yet: still starting, or the plugin cannot run it. The fixed
-      // error vocabulary has no code for "plugin unavailable"; the plugin block
-      // in the report carries the reason.
+      // Not listed yet: still starting, or the plugin cannot run it. A plugin
+      // waiting for its license gets its own code; for any other reason the
+      // plugin block in the report carries the detail.
       const waiting = state === 'unknown' || state === 'ready';
       return {
         streamId,
@@ -147,20 +153,33 @@ export class NdiStreamManager implements OnModuleDestroy {
         fps: null,
         framesDropped: 0,
         uploadLagMs,
-        error: waiting ? null : 'internal_error',
+        error: waiting
+          ? null
+          : state === 'license_required'
+            ? 'license_required'
+            : 'internal_error',
       };
     });
   }
 
-  /** The plugin block of the report; null while nothing is known or the plugin is absent. */
+  /**
+   * The plugin block of the report. Null while nothing is known, and for an
+   * agent that never had a plugin. Once the plugin has answered in this
+   * process and then goes away, the block is `{ state: 'absent' }`, so the
+   * server flips at once instead of showing a stale `ready` until its TTL.
+   */
   capturePlugin(): AgentCapturePluginMessage | null {
     if (!this.options.enabled) {
       return null;
     }
     const { state, status, agentErrorCode } = this.plugin.snapshot();
-    if (state === 'unknown' || state === 'absent') {
+    if (state === 'unknown') {
       return null;
     }
+    if (state === 'absent') {
+      return this.pluginSeen ? { state: 'absent' } : null;
+    }
+    this.pluginSeen = true;
     const message: AgentCapturePluginMessage = { state };
     if (status) {
       message.pluginVersion = status.pluginVersion;
@@ -175,6 +194,9 @@ export class NdiStreamManager implements OnModuleDestroy {
           termsSha256: status.license.termsSha256,
         };
       }
+    }
+    if (status?.acceptance) {
+      message.acceptedVia = status.acceptance.via === 'env' ? 'environment' : 'api';
     }
     const errorCode = status?.errorCode ?? agentErrorCode;
     if (errorCode) {

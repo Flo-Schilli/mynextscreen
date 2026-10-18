@@ -417,7 +417,14 @@ describe('NdiStreamManager', () => {
       expect(manager.status()[0]).toMatchObject({ state: 'connecting', error: null, fps: null });
     });
 
-    it.each(['absent', 'license_required', 'incompatible', 'error'] as const)(
+    it('reports a wanted stream with the license_required code while the plugin waits for its license', async () => {
+      await manager.reconcile([stream()]);
+      plugin.current = { ...plugin.current, state: 'license_required', streams: [] };
+
+      expect(manager.status()[0]).toMatchObject({ state: 'error', error: 'license_required' });
+    });
+
+    it.each(['absent', 'incompatible', 'error'] as const)(
       'reports a wanted stream as an internal error while the plugin is %s',
       async (state) => {
         await manager.reconcile([stream()]);
@@ -429,11 +436,37 @@ describe('NdiStreamManager', () => {
   });
 
   describe('capturePlugin', () => {
-    it('is null while unknown or absent', () => {
+    it('is null while unknown, and while absent for an agent that never saw the plugin', () => {
       plugin.current = { ...plugin.current, state: 'unknown', status: null };
       expect(manager.capturePlugin()).toBeNull();
-      plugin.current = { ...plugin.current, state: 'absent' };
+      plugin.current = { ...plugin.current, state: 'absent', status: null };
       expect(manager.capturePlugin()).toBeNull();
+    });
+
+    it('reports absent once the plugin that answered before goes away', () => {
+      expect(manager.capturePlugin()).toMatchObject({ state: 'ready' });
+
+      plugin.current = { ...plugin.current, state: 'absent', status: null };
+
+      expect(manager.capturePlugin()).toEqual({ state: 'absent' });
+      expect(manager.capturePlugin()).toEqual({ state: 'absent' });
+    });
+
+    it('notices the plugin from a poll even before any report was built', async () => {
+      await plugin.pollResult({});
+      plugin.current = { ...plugin.current, state: 'absent', status: null };
+
+      expect(manager.capturePlugin()).toEqual({ state: 'absent' });
+    });
+
+    it('reports the plugin again, not absent, after it comes back', () => {
+      manager.capturePlugin();
+      plugin.current = { ...plugin.current, state: 'absent', status: null };
+      expect(manager.capturePlugin()).toEqual({ state: 'absent' });
+
+      plugin.current = { ...plugin.current, state: 'ready', status: pluginStatus() };
+
+      expect(manager.capturePlugin()).toMatchObject({ state: 'ready' });
     });
 
     it('carries state, versions and the license hashes', () => {
@@ -448,6 +481,29 @@ describe('NdiStreamManager', () => {
           termsSha256: 'c'.repeat(64),
         },
       });
+    });
+
+    it.each([
+      ['api', 'api'],
+      ['env', 'environment'],
+    ] as const)('maps an acceptance via %s to acceptedVia %s', (via, acceptedVia) => {
+      plugin.current = {
+        ...plugin.current,
+        status: pluginStatus({
+          acceptance: {
+            sdkVersion: '6.3.2.0',
+            licenseSha256: 'a'.repeat(64),
+            via,
+            acceptedAt: '2026-10-18T12:00:00.000Z',
+          },
+        }),
+      };
+
+      expect(manager.capturePlugin()).toMatchObject({ acceptedVia });
+    });
+
+    it('omits acceptedVia while the license is not accepted', () => {
+      expect(manager.capturePlugin()).not.toHaveProperty('acceptedVia');
     });
 
     it('leaves out what the plugin does not know and adds the error code', () => {

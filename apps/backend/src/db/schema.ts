@@ -760,6 +760,60 @@ export const siteAgents = pgTable(
   (t) => [index('IDX_site_agents_organisation').on(t.organisationId)],
 );
 
+/** Where a capture plugin license acceptance came from. */
+export type CapturePluginAcceptanceSource = 'dashboard' | 'device';
+
+/**
+ * Acceptance of the NDI SDK license and the plugin terms for one site agent,
+ * identified by the hash of the exact shipped text. A row is never deleted:
+ * revoking (or superseding it by a newer acceptance) sets `revokedAt`.
+ * `acceptedByUserId` is null for a `device` acceptance, which the operator
+ * made through the plugin's environment instead of the dashboard.
+ */
+export const capturePluginAcceptances = pgTable(
+  'capture_plugin_acceptances',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    agentId: uuid()
+      .notNull()
+      .references(() => siteAgents.id, { onDelete: 'cascade' }),
+    licenseSha256: text().notNull(),
+    source: text().$type<CapturePluginAcceptanceSource>().notNull(),
+    acceptedByUserId: uuid().references(() => users.id, { onDelete: 'set null' }),
+    acceptedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp({ withTimezone: true }),
+    revokedByUserId: uuid().references(() => users.id, { onDelete: 'set null' }),
+  },
+  (t) => [
+    index('IDX_capture_plugin_acceptances_agent').on(t.agentId),
+    // At most one active acceptance per agent, enforced here so two concurrent
+    // accepts (or a device acceptance racing a dashboard one) cannot both win.
+    uniqueIndex('UQ_capture_plugin_acceptances_active_agent')
+      .on(t.agentId)
+      .where(sql`${t.revokedAt} IS NULL`),
+  ],
+);
+
+/**
+ * The license texts behind an acceptance hash, uploaded by an agent from its
+ * plugin so the dashboard can show exactly what is being accepted. Keyed by
+ * the combined hash: the server recomputes it from the texts, so a row's
+ * content is fixed by its key and shared by every agent that ships it.
+ */
+export const capturePluginLicenseTexts = pgTable('capture_plugin_license_texts', {
+  licenseSha256: text().primaryKey(),
+  ndiLicenseSha256: text().notNull(),
+  termsSha256: text().notNull(),
+  ndiLicenseText: text().notNull(),
+  termsText: text().notNull(),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+});
+
 /**
  * One-time tokens that let an agent exchange itself for a session.
  *
@@ -1010,6 +1064,8 @@ export type NewScreenPairing = typeof screenPairings.$inferInsert;
 
 export type SiteAgent = typeof siteAgents.$inferSelect;
 export type NewSiteAgent = typeof siteAgents.$inferInsert;
+export type CapturePluginAcceptance = typeof capturePluginAcceptances.$inferSelect;
+export type CapturePluginLicenseText = typeof capturePluginLicenseTexts.$inferSelect;
 
 export type SiteAgentEnrolment = typeof siteAgentEnrolments.$inferSelect;
 export type NewSiteAgentEnrolment = typeof siteAgentEnrolments.$inferInsert;

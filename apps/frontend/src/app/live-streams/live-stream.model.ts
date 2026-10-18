@@ -153,3 +153,58 @@ function isValidIpv6(value: string): boolean {
 export function isValidIpAddress(value: string): boolean {
   return IPV4_PATTERN.test(value) || isValidIpv6(value);
 }
+
+function conflictCode(err: unknown): string | null {
+  const e = err as { status?: number; error?: { error?: string; code?: string; message?: string } };
+  if (e?.status !== 409) {
+    return null;
+  }
+  const known = [e.error?.error, e.error?.code, e.error?.message].find(
+    (value) => value === 'capture_plugin_not_ready' || value === 'capture_plugin_status_pending',
+  );
+  return known ?? null;
+}
+
+/**
+ * Whether a failed create/activate is the backend refusing an NDI stream
+ * because the agent's capture plugin is not ready or its license is not
+ * accepted (409 `capture_plugin_not_ready`).
+ */
+export function isCapturePluginNotReady(err: unknown): boolean {
+  return conflictCode(err) === 'capture_plugin_not_ready';
+}
+
+/**
+ * Whether the backend has no plugin status for the agent yet, e.g. right after
+ * a backend restart (409 `capture_plugin_status_pending`). Retrying in a few
+ * seconds helps.
+ */
+export function isCapturePluginStatusPending(err: unknown): boolean {
+  return conflictCode(err) === 'capture_plugin_status_pending';
+}
+
+/** The i18n key for a capture plugin refusal of create/activate, or null for any other error. */
+export function capturePluginErrorKey(err: unknown): string | null {
+  switch (conflictCode(err)) {
+    case 'capture_plugin_not_ready':
+      return 'liveStreams.errors.capturePluginNotReady';
+    case 'capture_plugin_status_pending':
+      return 'liveStreams.errors.capturePluginStatusPending';
+    default:
+      return null;
+  }
+}
+
+/** Error texts an agent reports for an NDI pipeline; each has a label under `liveStreams.ndiError`. */
+export const NDI_ERROR_CODES = [
+  'source_not_found',
+  'ffmpeg_exited',
+  'no_frames',
+  'resolution_changed',
+  'license_required',
+  'internal_error',
+] as const;
+
+export function isKnownNdiError(code: string): boolean {
+  return (NDI_ERROR_CODES as readonly string[]).includes(code);
+}

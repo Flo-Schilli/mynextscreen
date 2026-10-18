@@ -3,11 +3,13 @@ import type { AgentNdiStreamConfig } from '../protocol/server-protocol';
 import {
   CAPTURE_API_MAJOR,
   type PluginErrorResponse,
+  type PluginLicenseRef,
+  type PluginLicenseText,
   type PluginStatus,
   type PluginStreamConfig,
   type PluginStreamStatus,
 } from './capture-plugin-protocol';
-import { sanitizeStatus, sanitizeStreams } from './plugin-sanitize';
+import { sanitizeLicenseText, sanitizeStatus, sanitizeStreams } from './plugin-sanitize';
 import { NOT_A_SOCKET, PluginUnreachableError, type PluginTransport } from './plugin-transport';
 
 export const POLL_INTERVAL_MS = 2_000;
@@ -154,6 +156,31 @@ export class PluginClient implements OnModuleInit, OnModuleDestroy {
     if (response.status !== 204) {
       throw new PluginRequestError(response.status, errorCodeOf(response.body));
     }
+  }
+
+  /** Accepts the shipped license on behalf of the dashboard. Throws on any failure. */
+  async putLicense(ref: PluginLicenseRef): Promise<void> {
+    const response = await this.transport.send('PUT', '/v1/license', ref);
+    if (response.status !== 200) {
+      throw new PluginRequestError(response.status, errorCodeOf(response.body));
+    }
+  }
+
+  /** Revokes an acceptance made through the API. Throws on any failure. */
+  async deleteLicense(): Promise<void> {
+    const response = await this.transport.send('DELETE', '/v1/license');
+    if (response.status !== 200) {
+      throw new PluginRequestError(response.status, errorCodeOf(response.body));
+    }
+  }
+
+  /** The shipped license texts, validated and capped; null when the plugin answers nonsense. */
+  async getLicenseText(): Promise<PluginLicenseText | null> {
+    const response = await this.transport.send('GET', '/v1/license/text');
+    if (response.status !== 200) {
+      throw new PluginRequestError(response.status, errorCodeOf(response.body));
+    }
+    return sanitizeLicenseText(response.body);
   }
 
   private async pollOnce(): Promise<void> {

@@ -22,6 +22,7 @@ import { ScreenRemoteSettings } from './screen-remote-settings';
 import { ScreenOnboardingWizard, ONBOARDING_STEP_COUNT } from './screen-onboarding-wizard';
 import { SiteAgentConfirmModal } from './site-agent-confirm-modal';
 import { SiteAgentNetwork } from './site-agent-network';
+import { CapturePluginCard } from './capture-plugin-card';
 import {
   PROBE_INTERVAL_MAX_MINUTES,
   PROBE_INTERVAL_MIN_MINUTES,
@@ -78,6 +79,7 @@ interface ManagedScreen {
     ScreenOnboardingWizard,
     SiteAgentConfirmModal,
     SiteAgentNetwork,
+    CapturePluginCard,
     TranslocoDirective,
   ],
   template: `
@@ -174,6 +176,8 @@ interface ManagedScreen {
             </div>
           }
         </mns-card>
+
+        <app-capture-plugin-card [agentId]="agent.id" />
 
         @if (agent.updateAvailable) {
           <!-- Server and agent ship from one release; an agent behind the server

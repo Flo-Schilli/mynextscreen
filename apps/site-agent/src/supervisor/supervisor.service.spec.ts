@@ -59,6 +59,7 @@ describe('SupervisorService', () => {
   let ssapKeys: { load: jest.Mock; save: jest.Mock };
   let network: { collect: jest.Mock };
   let discovery: { locate: jest.Mock };
+  let captureLicense: { setWanted: jest.Mock };
   let ndi: {
     reconcile: jest.Mock;
     status: jest.Mock;
@@ -82,6 +83,7 @@ describe('SupervisorService', () => {
       network as never,
       discovery as never,
       ndi as never,
+      captureLicense as never,
       '1.2.3',
     );
   }
@@ -142,6 +144,7 @@ describe('SupervisorService', () => {
     ssapKeys = { load: jest.fn().mockResolvedValue('client-key'), save: jest.fn() };
     network = { collect: jest.fn().mockResolvedValue(WIRED) };
     discovery = { locate: jest.fn().mockResolvedValue(null) };
+    captureLicense = { setWanted: jest.fn().mockResolvedValue(undefined) };
     ndi = {
       reconcile: jest.fn().mockResolvedValue(undefined),
       status: jest.fn().mockReturnValue([]),
@@ -254,6 +257,43 @@ describe('SupervisorService', () => {
       await supervisor.refreshConfigIfDue(true);
 
       expect(ndi.reconcile).toHaveBeenCalledWith([stream]);
+    });
+
+    it('hands the plugin acceptance of the config to the license sync', async () => {
+      supervisor = build({
+        ...configWith([]),
+        ndiPlugin: { acceptance: { licenseSha256: 'a'.repeat(64) } },
+      });
+
+      await supervisor.tick();
+
+      expect(captureLicense.setWanted).toHaveBeenCalledWith({ licenseSha256: 'a'.repeat(64) });
+    });
+
+    it('passes an explicit null acceptance on, so an API acceptance is revoked', async () => {
+      supervisor = build({ ...configWith([]), ndiPlugin: { acceptance: null } });
+
+      await supervisor.tick();
+
+      expect(captureLicense.setWanted).toHaveBeenCalledWith(null);
+    });
+
+    it('gives no instruction without ndiPlugin or without a config', async () => {
+      supervisor = build(configWith([]));
+      await supervisor.tick();
+      expect(captureLicense.setWanted).toHaveBeenLastCalledWith(undefined);
+
+      supervisor = build(null);
+      await supervisor.onModuleInit();
+      supervisor.onModuleDestroy();
+      expect(captureLicense.setWanted).toHaveBeenLastCalledWith(undefined);
+    });
+
+    it('survives a license sync failure', async () => {
+      captureLicense.setWanted.mockRejectedValue(new Error('boom'));
+      supervisor = build(configWith([screen()]));
+
+      await expect(supervisor.tick()).resolves.toBeUndefined();
     });
 
     it('survives a reconcile failure', async () => {

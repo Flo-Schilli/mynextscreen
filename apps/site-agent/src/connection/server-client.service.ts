@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type {
   AgentConfigMessage,
+  CaptureLicenseTextUpload,
   AgentEnrolmentMessage,
   AgentMetricsMessage,
   AgentNetworkMessage,
@@ -44,7 +45,7 @@ export class UnexpectedStatusError extends Error {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'PUT';
   body?: unknown;
   /** Set on the retry after a refresh, so one 401 cannot loop. */
   isRetry?: boolean;
@@ -170,6 +171,11 @@ export class ServerClient {
         await this.request('/api/agents/me/reports', { method: 'POST', body: base });
       }
     }
+  }
+
+  /** Hands the backend the license texts of the capture plugin, so the dashboard can show them. */
+  async putCaptureLicenseText(body: CaptureLicenseTextUpload): Promise<void> {
+    await this.request('/api/agents/me/capture-plugin/license-text', { method: 'PUT', body });
   }
 
   /** Uploads one finished HLS file of an NDI stream (segment or playlist). */

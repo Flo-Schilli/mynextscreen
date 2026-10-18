@@ -22,6 +22,8 @@ import { IconComponent } from './icon.component';
 export interface SelectOption {
   value: string;
   label: string;
+  /** Listed but not selectable; `label` should then say why. */
+  disabled?: boolean;
 }
 
 /**
@@ -122,11 +124,12 @@ const MENU_POSITIONS: ConnectedPosition[] = [
             <button
               type="button"
               role="option"
-              class="flex items-center justify-between w-full px-3 py-2 text-sm text-left transition-colors duration-[120ms]"
+              class="flex items-center justify-between w-full px-3 py-2 text-sm text-left transition-colors duration-[120ms] disabled:opacity-50 disabled:cursor-not-allowed"
               [class.bg-accent-soft]="opt.value === value()"
               [class.text-accent]="opt.value === value()"
-              [class.hover:bg-hover]="opt.value !== value()"
+              [class.hover:bg-hover]="opt.value !== value() && !opt.disabled"
               [attr.aria-selected]="opt.value === value()"
+              [disabled]="opt.disabled === true"
               (click)="select(opt.value)"
             >
               <span>{{ opt.label }}</span>
@@ -255,7 +258,7 @@ export class SelectComponent {
   protected onSearchKeydown(e: KeyboardEvent): void {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    const first = this.filtered()[0];
+    const first = this.filtered().find((o) => !o.disabled);
     if (first) this.select(first.value);
   }
 

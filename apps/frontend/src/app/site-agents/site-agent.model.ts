@@ -10,6 +10,9 @@ export type SsapStatus = 'unknown' | 'ok' | 'awaiting_pairing' | 'rejected' | 'u
 
 export type AgentNetworkKind = 'ethernet' | 'wifi' | 'unknown';
 
+/** What the video capture plugin on an agent's host reports. */
+export type CapturePluginState = 'absent' | 'license_required' | 'ready' | 'error' | 'incompatible';
+
 export interface SiteAgent {
   id: string;
   organisationId: string;
@@ -26,6 +29,8 @@ export interface SiteAgent {
    * detail responses; null on a dev build.
    */
   latestAgentVersion?: string | null;
+  /** State of the video capture plugin; list and detail responses only. */
+  capturePluginState?: CapturePluginState;
   updateAvailable?: boolean;
   /** How often the agent probes its displays, in minutes (1–10). */
   probeIntervalMinutes: number;
@@ -175,3 +180,39 @@ export const DEVMODE_INTERVAL_MAX_DAYS = 40;
  * when it does. Allowed, but worth saying out loud.
  */
 export const DEVMODE_INTERVAL_WARN_DAYS = 30;
+
+export interface CapturePluginLicenseHashes {
+  licenseSha256: string;
+  ndiLicenseSha256: string;
+  termsSha256: string;
+}
+
+export type CapturePluginAcceptanceSource = 'dashboard' | 'device';
+
+export interface CapturePluginAcceptance {
+  licenseSha256: string;
+  source: CapturePluginAcceptanceSource;
+  acceptedAt: string;
+  /** Null for an acceptance given on the device. */
+  acceptedBy: { id: string; name: string } | null;
+}
+
+export interface CapturePluginStatus {
+  state: CapturePluginState;
+  pluginVersion: string | null;
+  sdkVersion: string | null;
+  errorCode: string | null;
+  license: CapturePluginLicenseHashes | null;
+  licenseTextAvailable: boolean;
+  acceptance: CapturePluginAcceptance | null;
+  reportedAt: string | null;
+}
+
+export interface CapturePluginLicenseText {
+  licenseSha256: string;
+  ndiLicenseText: string;
+  termsText: string;
+}
+
+/** Error codes of a 409 from the acceptance endpoint. */
+export type CaptureAcceptanceConflict = 'license_mismatch' | 'license_text_missing';

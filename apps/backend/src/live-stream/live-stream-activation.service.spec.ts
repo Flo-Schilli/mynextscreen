@@ -22,6 +22,7 @@ import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { SiteAgentService } from '../site-agent/site-agent.service';
 import { SiteAgentSseService } from '../site-agent/site-agent-sse.service';
+import { CapturePluginAcceptanceService } from '../site-agent/capture-plugin-acceptance.service';
 import { NdiStreamStatusService } from '../site-agent/ndi-stream-status.service';
 import { NdiHlsStorageService } from './ndi-hls-storage.service';
 import { OutboundGuard } from '../common/outbound-guard.service';
@@ -35,6 +36,7 @@ describe('LiveStreamService – activateStream', () => {
   let siteAgentService: { findOne: jest.Mock };
   let siteAgentSse: { isConnected: jest.Mock; push: jest.Mock };
   let ndiStatus: { clear: jest.Mock; get: jest.Mock };
+  let capturePlugin: { assertNdiReady: jest.Mock };
   let ndiHls: { removeStreamDir: jest.Mock };
 
   let orgId: string;
@@ -115,6 +117,7 @@ describe('LiveStreamService – activateStream', () => {
       push: jest.fn().mockReturnValue(true),
     };
     ndiStatus = { clear: jest.fn(), get: jest.fn() };
+    capturePlugin = { assertNdiReady: jest.fn().mockResolvedValue(undefined) };
     ndiHls = { removeStreamDir: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -128,6 +131,7 @@ describe('LiveStreamService – activateStream', () => {
         { provide: SiteAgentService, useValue: siteAgentService },
         { provide: SiteAgentSseService, useValue: siteAgentSse },
         { provide: NdiStreamStatusService, useValue: ndiStatus },
+        { provide: CapturePluginAcceptanceService, useValue: capturePlugin },
         { provide: NdiHlsStorageService, useValue: ndiHls },
       ],
     }).compile();

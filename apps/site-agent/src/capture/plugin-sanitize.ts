@@ -1,6 +1,8 @@
 import {
   PLUGIN_STATES,
+  type PluginLicenseAcceptance,
   type PluginLicenseInfo,
+  type PluginLicenseText,
   type PluginState,
   type PluginStatus,
   type PluginStreamErrorCode,
@@ -67,7 +69,63 @@ function license(value: unknown): PluginLicenseInfo | null {
   ) {
     return null;
   }
-  return value as unknown as PluginLicenseInfo;
+  return {
+    sdkVersion,
+    licenseSha256: licenseSha256 as string,
+    ndiLicenseSha256: ndiLicenseSha256 as string,
+    termsSha256: termsSha256 as string,
+  };
+}
+
+function acceptance(value: unknown): PluginLicenseAcceptance | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const { sdkVersion, licenseSha256, via, acceptedAt } = value;
+  if (
+    typeof sdkVersion !== 'string' ||
+    !SDK_VERSION.test(sdkVersion) ||
+    typeof licenseSha256 !== 'string' ||
+    !SHA256_HEX.test(licenseSha256) ||
+    (via !== 'api' && via !== 'env')
+  ) {
+    return null;
+  }
+  return { sdkVersion, licenseSha256, via, acceptedAt: text(acceptedAt, 40) ?? '' };
+}
+
+/** Longest license text taken from the plugin, in bytes; the backend caps uploads at the same size. */
+export const MAX_LICENSE_TEXT_BYTES = 256 * 1024;
+
+/**
+ * The answer of `GET /v1/license/text`, or null unless it is an object with
+ * valid hashes and two non-empty strings within {@link MAX_LICENSE_TEXT_BYTES}.
+ */
+export function sanitizeLicenseText(body: unknown): PluginLicenseText | null {
+  if (!isRecord(body)) {
+    return null;
+  }
+  const info = license(body);
+  const { licenseText, pluginTerms } = body;
+  if (
+    !info ||
+    typeof licenseText !== 'string' ||
+    typeof pluginTerms !== 'string' ||
+    licenseText.length === 0 ||
+    pluginTerms.length === 0 ||
+    Buffer.byteLength(licenseText, 'utf8') > MAX_LICENSE_TEXT_BYTES ||
+    Buffer.byteLength(pluginTerms, 'utf8') > MAX_LICENSE_TEXT_BYTES
+  ) {
+    return null;
+  }
+  return {
+    sdkVersion: info.sdkVersion,
+    licenseSha256: info.licenseSha256,
+    ndiLicenseSha256: info.ndiLicenseSha256,
+    termsSha256: info.termsSha256,
+    licenseText,
+    pluginTerms,
+  };
 }
 
 /**
@@ -98,7 +156,7 @@ export function sanitizeStatus(body: unknown): PluginStatus | null {
     errorCode,
     sdkVersion: sdkVersion !== null && SDK_VERSION.test(sdkVersion) ? sdkVersion : null,
     license: license(body.license),
-    acceptance: null,
+    acceptance: acceptance(body.acceptance),
     arch: text(body.arch, 32) ?? '',
     encoders: [],
   };

@@ -1,4 +1,5 @@
 import type {
+  PluginLicenseText,
   PluginStatus,
   PluginStreamConfig,
   PluginStreamList,
@@ -59,5 +60,18 @@ export const streamConfigFixture = (
   fps: 30,
   bitrateKbps: 3000,
   encoderPref: 'auto',
+  ...overrides,
+});
+
+/** The shipped texts and the hashes of them, as `GET /v1/license/text` answers. */
+export const licenseTextFixture = (
+  overrides: Partial<PluginLicenseText> = {},
+): PluginLicenseText => ({
+  sdkVersion: '6.3.2.0',
+  licenseSha256: 'a'.repeat(64),
+  ndiLicenseSha256: 'b'.repeat(64),
+  termsSha256: 'c'.repeat(64),
+  licenseText: 'NDI SDK license text',
+  pluginTerms: 'Plugin terms',
   ...overrides,
 });

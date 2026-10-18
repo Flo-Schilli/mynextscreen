@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { By } from '@angular/platform-browser';
+import { provideRouter } from '@angular/router';
+import type { SiteAgentListItem } from '../site-agents/site-agent.model';
 import { LiveStreamCreateModal } from './live-stream-create-modal';
 import { CreateLiveStreamRequest } from './live-stream.model';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
@@ -15,7 +17,7 @@ describe('LiveStreamCreateModal', () => {
         LiveStreamCreateModal,
         getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } }),
       ],
-      providers: [provideZonelessChangeDetection()],
+      providers: [provideZonelessChangeDetection(), provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(LiveStreamCreateModal);
@@ -156,6 +158,52 @@ describe('LiveStreamCreateModal', () => {
       expect(text).not.toContain('Source URL');
       expect(text).toContain('registered trademark of Vizrt NDI AB');
       expect(fixture.nativeElement.querySelector('a[href="https://ndi.video"]')).not.toBeNull();
+    });
+
+    describe('capture plugin gating', () => {
+      const agent = (id: string, state: SiteAgentListItem['capturePluginState']) =>
+        ({ id, name: `Agent ${id}`, capturePluginState: state }) as SiteAgentListItem;
+      const options = (): { value: string; label: string; disabled?: boolean }[] =>
+        (component as unknown as Record<string, () => never>)['agentOptions']();
+
+      it('lists agents without a ready plugin as disabled with the reason', () => {
+        fixture.componentRef.setInput('agents', [
+          agent('a', 'ready'),
+          agent('b', 'license_required'),
+        ]);
+        fixture.detectChanges();
+
+        expect(options()[0].disabled).toBeUndefined();
+        expect(options()[1].disabled).toBe(true);
+        expect(options()[1].label).toContain('capture plugin not ready');
+      });
+
+      it('hints at the agent page when no agent is ready', () => {
+        fixture.componentRef.setInput('agents', [agent('b', 'absent')]);
+        fixture.detectChanges();
+
+        const hint = fixture.nativeElement.querySelector('[data-testid="no-ready-agent"]');
+        expect(hint).not.toBeNull();
+        expect(hint.querySelector('a[href="/site-agents"]')).not.toBeNull();
+      });
+
+      it('shows no hint when an agent is ready', () => {
+        fixture.componentRef.setInput('agents', [agent('a', 'ready')]);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[data-testid="no-ready-agent"]')).toBeNull();
+      });
+
+      it('refuses to submit for an agent that is not ready', () => {
+        fixture.componentRef.setInput('agents', [agent('b', 'error')]);
+        inst()['agentId'].set('b');
+        inst()['cameraHost'].set('192.168.1.50');
+        component.onSubmit();
+        fixture.detectChanges();
+
+        expect(emitted).toBeUndefined();
+        expect(errorText()).toContain('capture plugin of this site agent is not ready');
+      });
     });
 
     it('requires an agent', () => {

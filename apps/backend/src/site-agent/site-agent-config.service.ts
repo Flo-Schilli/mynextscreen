@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
-import { liveStreams, screens, siteAgents } from '../db/schema';
+import { capturePluginAcceptances, liveStreams, screens, siteAgents } from '../db/schema';
 import { LiveStreamSourceType } from '../live-stream/live-stream-source-type.enum';
 import { LiveStreamStatus } from '../live-stream/live-stream-status.enum';
 import { resolveNdiPreset } from '../live-stream/ndi-preset';
@@ -93,7 +93,30 @@ export class SiteAgentConfigService {
       appId: this.appId,
       screens: screenConfigs,
       ndiStreams: await this.listNdiStreams(agentId),
+      ndiPlugin: { acceptance: await this.activeDashboardAcceptance(agentId) },
     };
+  }
+
+  /**
+   * The active dashboard acceptance for the agent's plugin. Device acceptances
+   * are not pushed: the plugin's environment already holds them.
+   */
+  private async activeDashboardAcceptance(
+    agentId: string,
+  ): Promise<{ licenseSha256: string } | null> {
+    const [row] = await this.db
+      .select({ licenseSha256: capturePluginAcceptances.licenseSha256 })
+      .from(capturePluginAcceptances)
+      .where(
+        and(
+          eq(capturePluginAcceptances.agentId, agentId),
+          eq(capturePluginAcceptances.source, 'dashboard'),
+          isNull(capturePluginAcceptances.revokedAt),
+        ),
+      )
+      .orderBy(desc(capturePluginAcceptances.acceptedAt))
+      .limit(1);
+    return row ? { licenseSha256: row.licenseSha256 } : null;
   }
 
   /**

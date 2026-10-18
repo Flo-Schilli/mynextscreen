@@ -42,6 +42,18 @@ describe('AgentReportDto capturePlugin', () => {
     ).toBe(0);
   });
 
+  it.each(['api', 'environment', null])('accepts acceptedVia %s', async (acceptedVia) => {
+    expect(await errorsFor({ screens: [], capturePlugin: { state: 'ready', acceptedVia } })).toBe(
+      0,
+    );
+  });
+
+  it('rejects an unknown acceptedVia', async () => {
+    expect(
+      await errorsFor({ screens: [], capturePlugin: { state: 'ready', acceptedVia: 'dashboard' } }),
+    ).toBeGreaterThan(0);
+  });
+
   it('accepts the agent-side internal_error code', async () => {
     expect(
       await errorsFor({

@@ -1,4 +1,5 @@
 import {
+  CAPTURE_PLUGIN_STARTUP_GRACE_MS,
   CAPTURE_PLUGIN_STATUS_TTL_MS,
   CapturePluginStatusService,
 } from './capture-plugin-status.service';
@@ -45,6 +46,7 @@ describe('CapturePluginStatusService', () => {
         termsSha256: hash('c'),
       },
       errorCode: null,
+      acceptedVia: null,
       reportedAt: new Date(2_000).toISOString(),
     });
   });
@@ -89,5 +91,27 @@ describe('CapturePluginStatusService', () => {
 
     expect(service.get('one-too-many')).toBeUndefined();
     expect(service.get('agent-0')?.state).toBe('error');
+  });
+
+  describe('isStatusPending', () => {
+    it('is true for an unseen agent inside the startup window only', () => {
+      const started = new CapturePluginStatusService(1_000);
+
+      expect(started.isStatusPending('agent-1', 1_000 + CAPTURE_PLUGIN_STARTUP_GRACE_MS - 1)).toBe(
+        true,
+      );
+      expect(started.isStatusPending('agent-1', 1_000 + CAPTURE_PLUGIN_STARTUP_GRACE_MS)).toBe(
+        false,
+      );
+    });
+
+    it('is false once the agent reported, also after its status expired', () => {
+      const started = new CapturePluginStatusService(1_000);
+
+      started.record('agent-1', { state: 'ready' }, 2_000);
+      started.clear('agent-1');
+
+      expect(started.isStatusPending('agent-1', 3_000)).toBe(false);
+    });
   });
 });

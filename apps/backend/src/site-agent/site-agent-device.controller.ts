@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Put,
   Req,
   Res,
   Sse,
@@ -22,6 +23,8 @@ import { SiteAgentConfigService } from './site-agent-config.service';
 import { SiteAgentSseService } from './site-agent-sse.service';
 import { NdiStreamStatusService } from './ndi-stream-status.service';
 import { CapturePluginStatusService } from './capture-plugin-status.service';
+import { CapturePluginAcceptanceService } from './capture-plugin-acceptance.service';
+import { CapturePluginLicenseTextService } from './capture-plugin-license-text.service';
 import { ScreenRemoteCommandService } from './screen-remote-command.service';
 import { AgentMetricsService } from '../observability/agent-metrics.service';
 import type { AgentConfig } from './agent-config.types';
@@ -31,6 +34,7 @@ import {
   EnrolAgentDto,
   RefreshAgentSessionDto,
   ResetAgentDto,
+  UploadCaptureLicenseTextDto,
 } from './dto';
 import { AgentAuth } from '../auth/agent-auth.decorator';
 import type { AgentAuthenticatedRequest } from '../auth/agent-auth.guard';
@@ -75,6 +79,8 @@ export class SiteAgentDeviceController {
     private readonly agentMetrics: AgentMetricsService,
     private readonly ndiStatus: NdiStreamStatusService,
     private readonly capturePluginStatus: CapturePluginStatusService,
+    private readonly captureAcceptance: CapturePluginAcceptanceService,
+    private readonly captureLicenseTexts: CapturePluginLicenseTextService,
   ) {}
 
   /**
@@ -182,7 +188,28 @@ export class SiteAgentDeviceController {
     }
     if (dto.capturePlugin) {
       this.capturePluginStatus.record(req.agentId, dto.capturePlugin);
+      const recorded = this.capturePluginStatus.get(req.agentId);
+      if (recorded) {
+        await this.captureAcceptance.recordDeviceAcceptance(
+          req.organisationId,
+          req.agentId,
+          recorded,
+        );
+      }
     }
+  }
+
+  /**
+   * The license texts the agent read from its capture plugin, so the dashboard
+   * can show exactly what an admin accepts. Hashes are recomputed server-side.
+   * Idempotent; the body limit for this route is raised in `main.ts`.
+   */
+  @Put('me/capture-plugin/license-text')
+  @AgentAuth()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async uploadCaptureLicenseText(@Body() dto: UploadCaptureLicenseTextDto): Promise<void> {
+    await this.captureLicenseTexts.store(dto);
   }
 
   @Post('me/heartbeat')

@@ -2,6 +2,7 @@ import type { AgentNdiStreamConfig } from '../protocol/server-protocol';
 import { PluginClient, toPluginConfig } from './plugin-client';
 import type { PluginResponse, PluginTransport } from './plugin-transport';
 import {
+  licenseTextFixture,
   statusFixture,
   STREAM_ID,
   streamConfigFixture,
@@ -30,6 +31,8 @@ class RecordingTransport implements PluginTransport {
     if (path === '/v1/streams' && method === 'GET') {
       return { status: 200, body: streamListFixture() };
     }
+    if (path === '/v1/license/text') return { status: 200, body: licenseTextFixture() };
+    if (path === '/v1/license') return { status: 200, body: statusFixture() };
     if (method === 'PUT') return { status: 200, body: streamStatusFixture() };
     return { status: 204, body: undefined };
   }
@@ -68,6 +71,14 @@ describe('capture plugin contract (vendored openapi.json)', () => {
         { error: { code: 'license_required', message: 'x' } },
       ],
       ['DELETE', `/v1/streams/${STREAM_ID}`, 204, undefined],
+      ['GET', '/v1/license/text', 200, licenseTextFixture()],
+      ['PUT', '/v1/license', 200, statusFixture()],
+      [
+        'DELETE',
+        '/v1/license',
+        200,
+        statusFixture({ state: 'license_required', acceptance: null }),
+      ],
     ])('%s %s %i matches the documented schema', (method, path, status, body) => {
       expect(() => assertResponseMatches(method, path, status, body)).not.toThrow();
     });
@@ -93,6 +104,24 @@ describe('capture plugin contract (vendored openapi.json)', () => {
       expect(() => assertRequestMatches('PUT', request.path, request.body)).not.toThrow();
       expect(request.body).not.toHaveProperty('ptz');
       expect(request.body).not.toHaveProperty('streamId');
+    });
+
+    it('sends only the documented fields for the license calls', async () => {
+      const transport = new RecordingTransport();
+      const client = new PluginClient(transport, { enabled: true });
+
+      await client.putLicense({ sdkVersion: '6.3.2.0', licenseSha256: 'a'.repeat(64) });
+      await client.deleteLicense();
+      await client.getLicenseText();
+
+      const [put, del, get] = transport.requests;
+      expect(put).toMatchObject({ method: 'PUT', path: '/v1/license' });
+      expect(() => assertRequestMatches('PUT', put.path, put.body)).not.toThrow();
+      expect(del).toMatchObject({ method: 'DELETE', path: '/v1/license' });
+      expect(get).toMatchObject({ method: 'GET', path: '/v1/license/text' });
+      expect(() =>
+        assertRequestMatches('PUT', '/v1/license', { ...(put.body as object), extra: 1 }),
+      ).toThrow(/violates/);
     });
 
     it('would catch a leaked field', () => {

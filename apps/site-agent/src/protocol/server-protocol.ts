@@ -121,7 +121,12 @@ export type NdiStreamStateValue = 'connecting' | 'streaming' | 'error';
  * addresses or FFmpeg output.
  */
 export type NdiErrorCode =
-  'source_not_found' | 'ffmpeg_exited' | 'no_frames' | 'resolution_changed' | 'internal_error';
+  | 'source_not_found'
+  | 'ffmpeg_exited'
+  | 'no_frames'
+  | 'resolution_changed'
+  | 'license_required'
+  | 'internal_error';
 
 /** Mirrors the backend's DTO maximum lengths for the reported fields. */
 export const NDI_STATUS_MAX_SOURCE_NAME = 200;
@@ -156,6 +161,25 @@ export interface AgentConfigMessage {
    * does not send it, and absent means none.
    */
   ndiStreams?: AgentNdiStreamConfig[];
+  /**
+   * What the agent hands the capture plugin. Optional because an older server
+   * does not send it; absent means "no instruction", which never revokes.
+   */
+  ndiPlugin?: AgentNdiPluginConfig;
+}
+
+export interface AgentNdiPluginConfig {
+  /** The dashboard acceptance in force; null means none, and revokes an API acceptance. */
+  acceptance: { licenseSha256: string } | null;
+}
+
+/** Body of `PUT /api/agents/me/capture-plugin/license-text`. */
+export interface CaptureLicenseTextUpload {
+  licenseSha256: string;
+  ndiLicenseSha256: string;
+  termsSha256: string;
+  ndiLicenseText: string;
+  termsText: string;
 }
 
 /** One screen's worth of what the agent observed, sent back in a batch. */
@@ -193,7 +217,8 @@ export interface AgentScreenReportMessage {
  * What the agent knows about the capture plugin (the separate NDI container).
  * Sent only when the plugin answers: an agent without it omits the block.
  */
-export type CapturePluginStateValue = 'license_required' | 'ready' | 'error' | 'incompatible';
+export type CapturePluginStateValue =
+  'license_required' | 'ready' | 'error' | 'incompatible' | 'absent';
 
 /** Reason behind `error` and `incompatible`; the plugin's codes plus the agent's own. */
 export type CapturePluginErrorCode =
@@ -212,6 +237,8 @@ export interface AgentCapturePluginMessage {
   /** What an acceptance covers: hashes of the shipped NDI license text and plugin terms. */
   license?: { licenseSha256: string; ndiLicenseSha256: string; termsSha256: string };
   errorCode?: CapturePluginErrorCode;
+  /** How the plugin's acceptance was made; omitted while the license is not accepted. */
+  acceptedVia?: 'api' | 'environment';
 }
 
 export interface AgentReportMessage {
