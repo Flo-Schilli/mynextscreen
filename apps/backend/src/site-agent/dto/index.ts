@@ -11,4 +11,5 @@ export { UpdateScreenRemoteControlDto } from './update-screen-remote-control.dto
 export { ScreenRemoteCommandDto, MANUAL_COMMANDS } from './screen-remote-command.dto';
 export type { ManualCommandType } from './screen-remote-command.dto';
 export { ScreenOnboardingCheckDto } from './screen-onboarding-check.dto';
-export { AgentReportDto } from './agent-report.dto';
+export { AgentReportDto, AgentNdiStreamReportDto, NDI_STREAM_STATES } from './agent-report.dto';
+export type { NdiStreamState } from './agent-report.dto';

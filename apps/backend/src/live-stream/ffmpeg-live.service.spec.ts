@@ -251,6 +251,12 @@ describe('FfmpegLiveService', () => {
   describe('buildArgs', () => {
     const outputPath = '/tmp/out/index.m3u8';
 
+    it('refuses a stream without a source URL', () => {
+      const stream = createStream({ sourceUrl: null });
+
+      expect(() => service.buildArgs(stream, outputPath)).toThrow('source URL');
+    });
+
     it('should build correct args for high_1080p preset (default)', () => {
       const stream = createStream();
       const args = service.buildArgs(stream, outputPath);

@@ -48,6 +48,21 @@ export interface AgentScreenConfig {
   onboardingStep: number;
 }
 
+/** One NDI camera the agent turns into an uploaded HLS stream. */
+export interface AgentNdiStreamConfig {
+  streamId: string;
+  /** IP handed to NDI discovery as an extra address. */
+  cameraHost: string;
+  /** Exact source name; null means the first source found under `cameraHost`. */
+  ndiSourceName: string | null;
+  bandwidth: 'lowest' | 'highest';
+  width: number;
+  height: number;
+  fps: number;
+  bitrateKbps: number;
+  encoderPref: 'auto' | 'software' | 'hardware';
+}
+
 export interface AgentConfig {
   agentId: string;
   organisationId: string;
@@ -57,4 +72,6 @@ export interface AgentConfig {
   /** The webOS application the agent keeps in the foreground. */
   appId: string;
   screens: AgentScreenConfig[];
+  /** Active NDI streams bound to this agent; the agent reconciles against it. */
+  ndiStreams: AgentNdiStreamConfig[];
 }

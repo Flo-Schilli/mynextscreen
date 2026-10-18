@@ -7,6 +7,7 @@ import {
   IsIn,
   IsInt,
   IsIP,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -126,6 +127,49 @@ export class AgentScreenReportDto {
   appLaunchInSeconds?: number;
 }
 
+export const NDI_STREAM_STATES = ['connecting', 'streaming', 'error'] as const;
+export type NdiStreamState = (typeof NDI_STREAM_STATES)[number];
+
+/** Pipeline status of one NDI stream, as reported by the agent. */
+export class AgentNdiStreamReportDto {
+  @IsUUID()
+  streamId!: string;
+
+  @IsIn(NDI_STREAM_STATES)
+  state!: NdiStreamState;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  sourceName?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  encoder?: string | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1000)
+  fps?: number | null;
+
+  @IsInt()
+  @Min(0)
+  framesDropped!: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  uploadLagMs?: number | null;
+
+  /** Short and free of secrets by contract; bounded anyway. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  error?: string | null;
+}
+
 /** Batched because an agent reports for every screen it looks after each round. */
 export class AgentReportDto {
   @IsArray()
@@ -133,4 +177,12 @@ export class AgentReportDto {
   @ValidateNested({ each: true })
   @Type(() => AgentScreenReportDto)
   screens!: AgentScreenReportDto[];
+
+  /** Optional: an agent without NDI streams omits it. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => AgentNdiStreamReportDto)
+  ndiStreams?: AgentNdiStreamReportDto[];
 }

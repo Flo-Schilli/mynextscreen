@@ -7,6 +7,7 @@ import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { liveStreams } from '../db/schema';
 import { LiveStreamStatus } from './live-stream-status.enum';
+import { LiveStreamSourceType } from './live-stream-source-type.enum';
 import { FfmpegLiveService } from './ffmpeg-live.service';
 import {
   LIVE_STREAM_HEALTH_CHANGED,
@@ -59,12 +60,18 @@ export class StreamHealthService implements OnModuleDestroy {
 
   async runHealthChecks(): Promise<void> {
     const activeStreams = await this.db
-      .select()
+      .select({
+        id: liveStreams.id,
+        name: liveStreams.name,
+        organisationId: liveStreams.organisationId,
+        status: liveStreams.status,
+        sourceType: liveStreams.sourceType,
+      })
       .from(liveStreams)
       .where(eq(liveStreams.status, LiveStreamStatus.Active));
 
     for (const stream of activeStreams) {
-      const health = this.checkStreamHealth(stream.id);
+      const health = this.checkStreamHealth(stream.id, stream.sourceType);
       const checkedAt = new Date().toISOString();
 
       const state: StreamHealthState = {
@@ -110,10 +117,15 @@ export class StreamHealthService implements OnModuleDestroy {
     }
   }
 
-  private checkStreamHealth(streamId: string): StreamHealthStatus {
-    const isRunning = this.ffmpegLiveService.isRunning(streamId);
-
-    if (!isRunning) {
+  private checkStreamHealth(
+    streamId: string,
+    sourceType: LiveStreamSourceType,
+  ): StreamHealthStatus {
+    // An NDI stream has no local FFmpeg, so `isRunning` is always false for it.
+    // Treating that as "stopped" would tear down every NDI stream within ten
+    // seconds; only the freshness of the uploaded segments says anything.
+    const isNdi = sourceType === LiveStreamSourceType.Ndi;
+    if (!isNdi && !this.ffmpegLiveService.isRunning(streamId)) {
       return 'stopped';
     }
 

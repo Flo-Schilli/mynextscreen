@@ -27,10 +27,33 @@ import { CurrentOrganisation } from '../organisation/current-organisation.decora
 import { OrganisationRole } from '../user/organisation-role.enum';
 import type { LiveStream } from '../db/schema';
 import { LiveStreamStatus } from './live-stream-status.enum';
+import { LiveStreamSourceType } from './live-stream-source-type.enum';
+import {
+  NdiStreamStatusService,
+  type NdiStreamStatus,
+} from '../site-agent/ndi-stream-status.service';
 
-export interface LiveStreamWithHealth extends LiveStream {
+export interface LiveStreamWithHealth extends Omit<LiveStream, 'qualityPreset' | 'encoderPref'> {
+  /** Null for pull streams, where the NDI settings do not apply. */
+  qualityPreset: LiveStream['qualityPreset'] | null;
+  encoderPref: LiveStream['encoderPref'] | null;
   health?: StreamHealthState;
 }
+
+export interface LiveStreamDetail extends LiveStreamWithHealth {
+  ndiStatus?: NdiStreamStatus;
+}
+
+/** The NDI settings carry column defaults on pull streams; the API hides them. */
+function toResponse(stream: LiveStream): LiveStreamWithHealth {
+  if (stream.sourceType === LiveStreamSourceType.Ndi) {
+    return { ...stream };
+  }
+  return { ...stream, qualityPreset: null, encoderPref: null };
+}
+
+/** An active NDI playlist older than this means the agent stopped uploading. */
+const NDI_PLAYLIST_STALE_MS = 10_000;
 
 @Controller('live-streams')
 export class LiveStreamController {
@@ -38,16 +61,19 @@ export class LiveStreamController {
     private readonly liveStreamService: LiveStreamService,
     private readonly ffmpegLiveService: FfmpegLiveService,
     private readonly streamHealthService: StreamHealthService,
+    private readonly ndiStatusService: NdiStreamStatusService,
   ) {}
 
   @Post()
   @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
-  create(
+  async create(
     @CurrentOrganisation() organisationId: string,
     @Body() dto: CreateLiveStreamDto,
     @Req() req: AuthenticatedRequest,
-  ): Promise<LiveStream> {
-    return this.liveStreamService.createLiveStream(organisationId, dto, req.user.userId);
+  ): Promise<LiveStreamWithHealth> {
+    return toResponse(
+      await this.liveStreamService.createLiveStream(organisationId, dto, req.user.userId),
+    );
   }
 
   @Get()
@@ -56,7 +82,7 @@ export class LiveStreamController {
     const streams = await this.liveStreamService.findAll(organisationId);
 
     return streams.map((stream) => {
-      const result: LiveStreamWithHealth = { ...stream };
+      const result = toResponse(stream);
       if (stream.status === LiveStreamStatus.Active) {
         const health = this.streamHealthService.getHealth(stream.id);
         if (health) {
@@ -92,22 +118,33 @@ export class LiveStreamController {
 
   @Get(':id')
   @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
-  findOne(
+  async findOne(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<LiveStream> {
-    return this.liveStreamService.findOne(organisationId, id);
+  ): Promise<LiveStreamDetail> {
+    const stream = await this.liveStreamService.findOne(organisationId, id);
+    const detail: LiveStreamDetail = toResponse(stream);
+    const ndiStatus =
+      stream.sourceType === LiveStreamSourceType.Ndi
+        ? this.ndiStatusService.get(stream.id, stream.agentId)
+        : undefined;
+    if (ndiStatus) {
+      detail.ndiStatus = ndiStatus;
+    }
+    return detail;
   }
 
   @Patch(':id')
   @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor)
-  update(
+  async update(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateLiveStreamDto,
     @Req() req: AuthenticatedRequest,
-  ): Promise<LiveStream> {
-    return this.liveStreamService.updateLiveStream(organisationId, id, dto, req.user.userId);
+  ): Promise<LiveStreamWithHealth> {
+    return toResponse(
+      await this.liveStreamService.updateLiveStream(organisationId, id, dto, req.user.userId),
+    );
   }
 
   @Delete(':id')
@@ -151,21 +188,35 @@ export class LiveStreamController {
     // A valid screen API key only proves *some* screen; it says nothing about
     // which tenant owns this stream. Without this check any screen could pull
     // any other organisation's live stream given its UUID.
-    await this.liveStreamService.findOne(req.organisationId, id);
+    const stream = await this.liveStreamService.findOne(req.organisationId, id);
 
     const hlsDir = this.ffmpegLiveService.getHlsOutputDir(id);
     const filePath = path.resolve(path.join(hlsDir, 'index.m3u8'));
 
     if (!fs.existsSync(filePath)) {
-      // If FFmpeg is still starting up, return 503 so hls.js retries
-      if (this.ffmpegLiveService.isRunning(id)) {
+      // While FFmpeg (pull) or the agent's first upload (NDI) is still on its
+      // way, return 503 so hls.js retries instead of giving up on a 404.
+      const isNdiStarting =
+        stream.sourceType === LiveStreamSourceType.Ndi && stream.status === LiveStreamStatus.Active;
+      if (isNdiStarting || this.ffmpegLiveService.isRunning(id)) {
         throw new ServiceUnavailableException('HLS playlist not ready yet');
       }
       throw new NotFoundException('HLS playlist not found');
     }
 
+    // The agent rewrites an NDI playlist every segment. One that has not been
+    // touched for a while means the agent stopped uploading; answer 503 so the
+    // player retries or falls back instead of looping on stale segments.
+    if (
+      stream.sourceType === LiveStreamSourceType.Ndi &&
+      stream.status === LiveStreamStatus.Active &&
+      Date.now() - fs.statSync(filePath).mtimeMs > NDI_PLAYLIST_STALE_MS
+    ) {
+      throw new ServiceUnavailableException('HLS playlist is stale');
+    }
+
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-    res.setHeader('Cache-Control', 'no-cache, no-store');
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(filePath);
   }
 

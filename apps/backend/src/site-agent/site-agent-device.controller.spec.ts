@@ -10,6 +10,7 @@ import { SiteAgentService } from './site-agent.service';
 import { SiteAgentConfigService } from './site-agent-config.service';
 import { SiteAgentSseService } from './site-agent-sse.service';
 import { ScreenRemoteCommandService } from './screen-remote-command.service';
+import { NdiStreamStatusService } from './ndi-stream-status.service';
 import { AgentMetricsService } from '../observability/agent-metrics.service';
 import { ScreenReachability } from './screen-reachability.enum';
 import { IS_AGENT_AUTH_KEY } from '../auth/agent-auth.decorator';
@@ -28,6 +29,7 @@ describe('SiteAgentDeviceController', () => {
   let commands: Record<string, jest.Mock>;
   let emitter: { emit: jest.Mock };
   let agentMetrics: { record: jest.Mock };
+  let ndiStatus: { record: jest.Mock };
 
   const agentId = '660e8400-e29b-41d4-a716-446655440000';
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
@@ -43,11 +45,12 @@ describe('SiteAgentDeviceController', () => {
     enrolments = { redeem: jest.fn() };
     sessions = { refresh: jest.fn() };
     siteAgentService = { recordHeartbeat: jest.fn(), resetFromAgent: jest.fn() };
-    configService = { buildAgentConfig: jest.fn() };
+    configService = { buildAgentConfig: jest.fn(), activeNdiStreamIds: jest.fn() };
     sse = { subscribe: jest.fn().mockReturnValue('stream') };
     commands = { applyReport: jest.fn() };
     emitter = { emit: jest.fn() };
     agentMetrics = { record: jest.fn() };
+    ndiStatus = { record: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SiteAgentDeviceController],
@@ -64,6 +67,7 @@ describe('SiteAgentDeviceController', () => {
           useValue: { getBinaryPath: () => '/tmp/x.ipk', getBinaryFilename: () => 'x.ipk' },
         },
         { provide: AgentMetricsService, useValue: agentMetrics },
+        { provide: NdiStreamStatusService, useValue: ndiStatus },
       ],
     }).compile();
 
@@ -251,6 +255,34 @@ describe('SiteAgentDeviceController', () => {
   });
 
   describe('reports', () => {
+    it('stores NDI status under the calling agent, even with no screens', async () => {
+      const ndiStreams = [{ streamId: 'x', state: 'streaming' as const, framesDropped: 0 }];
+      configService.activeNdiStreamIds.mockResolvedValue(new Set(['x']));
+
+      await controller.reports(agentReq, { screens: [], ndiStreams });
+
+      expect(commands.applyReport).not.toHaveBeenCalled();
+      expect(configService.activeNdiStreamIds).toHaveBeenCalledWith(orgId, agentId);
+      expect(ndiStatus.record).toHaveBeenCalledWith(agentId, ndiStreams);
+    });
+
+    it('drops status for streams that are not active NDI streams bound to the agent', async () => {
+      const known = { streamId: 'x', state: 'streaming' as const, framesDropped: 0 };
+      const foreign = { streamId: 'y', state: 'streaming' as const, framesDropped: 0 };
+      configService.activeNdiStreamIds.mockResolvedValue(new Set(['x']));
+
+      await controller.reports(agentReq, { screens: [], ndiStreams: [known, foreign] });
+
+      expect(ndiStatus.record).toHaveBeenCalledWith(agentId, [known]);
+    });
+
+    it('does not touch the status store when no NDI streams were reported', async () => {
+      await controller.reports(agentReq, { screens: [] });
+      await controller.reports(agentReq, { screens: [], ndiStreams: [] });
+
+      expect(ndiStatus.record).not.toHaveBeenCalled();
+    });
+
     it('applies every screen in the batch', async () => {
       await controller.reports(agentReq, {
         screens: [

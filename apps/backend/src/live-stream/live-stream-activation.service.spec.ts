@@ -20,6 +20,10 @@ import {
 } from '../db/schema';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
+import { SiteAgentService } from '../site-agent/site-agent.service';
+import { SiteAgentSseService } from '../site-agent/site-agent-sse.service';
+import { NdiStreamStatusService } from '../site-agent/ndi-stream-status.service';
+import { NdiHlsStorageService } from './ndi-hls-storage.service';
 import { OutboundGuard } from '../common/outbound-guard.service';
 
 describe('LiveStreamService – activateStream', () => {
@@ -28,6 +32,10 @@ describe('LiveStreamService – activateStream', () => {
   let ffmpegLiveService: Record<string, jest.Mock>;
   let screenGroupService: { findOne: jest.Mock };
   let eventEmitter: { emit: jest.Mock };
+  let siteAgentService: { findOne: jest.Mock };
+  let siteAgentSse: { isConnected: jest.Mock; push: jest.Mock };
+  let ndiStatus: { clear: jest.Mock; get: jest.Mock };
+  let ndiHls: { removeStreamDir: jest.Mock };
 
   let orgId: string;
   let streamId: string;
@@ -101,6 +109,14 @@ describe('LiveStreamService – activateStream', () => {
     screenGroupService = { findOne: jest.fn() };
     eventEmitter = { emit: jest.fn() };
 
+    siteAgentService = { findOne: jest.fn() };
+    siteAgentSse = {
+      isConnected: jest.fn().mockReturnValue(true),
+      push: jest.fn().mockReturnValue(true),
+    };
+    ndiStatus = { clear: jest.fn(), get: jest.fn() };
+    ndiHls = { removeStreamDir: jest.fn().mockResolvedValue(undefined) };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LiveStreamService,
@@ -109,6 +125,10 @@ describe('LiveStreamService – activateStream', () => {
         { provide: ScreenGroupService, useValue: screenGroupService },
         { provide: EventEmitter2, useValue: eventEmitter },
         { provide: OutboundGuard, useValue: outbound },
+        { provide: SiteAgentService, useValue: siteAgentService },
+        { provide: SiteAgentSseService, useValue: siteAgentSse },
+        { provide: NdiStreamStatusService, useValue: ndiStatus },
+        { provide: NdiHlsStorageService, useValue: ndiHls },
       ],
     }).compile();
 

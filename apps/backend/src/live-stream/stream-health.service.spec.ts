@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { eq } from 'drizzle-orm';
 import { StreamHealthService } from './stream-health.service';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
+import { LiveStreamSourceType } from './live-stream-source-type.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
 import { TranscodingPreset } from './transcoding-preset.enum';
 import { FfmpegLiveService, LIVE_STREAM_PROCESS_EXITED } from './ffmpeg-live.service';
@@ -319,6 +320,33 @@ describe('StreamHealthService', () => {
 
       const states = service.getAllHealthStates();
       expect(states.size).toBe(2);
+    });
+  });
+
+  describe('NDI streams', () => {
+    it('does not treat a missing local FFmpeg as stopped', async () => {
+      await db.update(liveStreams).set({ sourceType: LiveStreamSourceType.Ndi, sourceUrl: null });
+      ffmpegLiveService.isRunning.mockReturnValue(false);
+      setupFreshSegments();
+
+      await service.runHealthChecks();
+
+      expect(service.getHealth(streamId)!.health).toBe('healthy');
+      expect(ffmpegLiveService.isRunning).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('reports degraded, never stopped, when uploads went stale', async () => {
+      await db.update(liveStreams).set({ sourceType: LiveStreamSourceType.Ndi, sourceUrl: null });
+      setupStaleSegments();
+
+      await service.runHealthChecks();
+
+      expect(service.getHealth(streamId)!.health).toBe('degraded');
+      expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+        'live-stream.process-exited',
+        expect.anything(),
+      );
     });
   });
 });

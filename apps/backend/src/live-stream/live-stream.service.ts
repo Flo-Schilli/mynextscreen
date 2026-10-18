@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   BadGatewayException,
@@ -6,14 +7,27 @@ import {
   Injectable,
   Logger,
   Inject,
+  NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { and, eq, inArray } from 'drizzle-orm';
 import { OrganisationScopedService } from '../organisation/organisation-scope.service';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
-import { liveStreams, liveStreamActivations, screens, type LiveStream } from '../db/schema';
+import {
+  liveStreams,
+  liveStreamActivations,
+  screens,
+  type LiveStream,
+  type NewLiveStream,
+} from '../db/schema';
 import { LiveStreamStatus } from './live-stream-status.enum';
+import { LiveStreamSourceType } from './live-stream-source-type.enum';
+import { NdiHlsStorageService } from './ndi-hls-storage.service';
+import { SiteAgentService } from '../site-agent/site-agent.service';
+import { SiteAgentSseService } from '../site-agent/site-agent-sse.service';
+import { NdiStreamStatusService } from '../site-agent/ndi-stream-status.service';
+import { SiteAgentCommandType } from '../site-agent/site-agent-command.enum';
 import { CreateLiveStreamDto } from './dto/create-live-stream.dto';
 import { UpdateLiveStreamDto } from './dto/update-live-stream.dto';
 import { ActivateLiveStreamDto } from './dto/activate-live-stream.dto';
@@ -56,8 +70,41 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     private readonly outbound: OutboundGuard,
     private readonly screenGroupService: ScreenGroupService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly siteAgentService: SiteAgentService,
+    private readonly siteAgentSse: SiteAgentSseService,
+    private readonly ndiHls: NdiHlsStorageService,
+    private readonly ndiStatus: NdiStreamStatusService,
   ) {
     super(db, liveStreams, 'LiveStream');
+  }
+
+  /**
+   * The active NDI stream an agent is allowed to upload for. One answer for
+   * "does not exist", "someone else's" and "not active": the caller must not
+   * learn which of those it hit.
+   */
+  async findActiveNdiStreamForAgent(
+    organisationId: string,
+    agentId: string,
+    streamId: string,
+  ): Promise<LiveStream> {
+    const [stream] = await this.db
+      .select()
+      .from(liveStreams)
+      .where(
+        and(
+          eq(liveStreams.id, streamId),
+          eq(liveStreams.organisationId, organisationId),
+          eq(liveStreams.agentId, agentId),
+          eq(liveStreams.sourceType, LiveStreamSourceType.Ndi),
+          eq(liveStreams.status, LiveStreamStatus.Active),
+        ),
+      )
+      .limit(1);
+    if (!stream) {
+      throw new NotFoundException('Live stream not found');
+    }
+    return stream;
   }
 
   async createLiveStream(
@@ -65,15 +112,21 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     dto: CreateLiveStreamDto,
     userId: string | null = null,
   ): Promise<LiveStream> {
-    const stream = await this.create(organisationId, dto);
+    const stream = await this.create(
+      organisationId,
+      await this.toInsertValues(organisationId, dto),
+    );
 
     this.eventEmitter.emit(
       AUDIT_LIVE_STREAM_CREATED,
       new AuditLiveStreamEvent(stream.id, organisationId, userId, {
         streamId: stream.id,
         streamName: stream.name,
-        sourceUrl: stream.sourceUrl,
+        sourceType: stream.sourceType,
+        sourceUrl: stream.sourceUrl ?? null,
         protocol: stream.protocol,
+        agentId: stream.agentId ?? null,
+        cameraHost: stream.cameraHost ?? null,
       }),
     );
 
@@ -87,26 +140,53 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     userId: string | null = null,
   ): Promise<LiveStream> {
     const stream = await this.findOne(organisationId, id);
+    const isNdi = stream.sourceType === LiveStreamSourceType.Ndi;
+    const isActive = stream.status === LiveStreamStatus.Active;
 
-    if (stream.status === LiveStreamStatus.Active) {
+    // A pull stream's FFmpeg is already running with the old settings; an NDI
+    // stream's agent is told to re-read its config instead.
+    if (isActive && !isNdi) {
       throw new ConflictException(
         'Cannot update a live stream that is currently active. Deactivate the stream first.',
       );
     }
+    if (dto.sourceType && dto.sourceType !== stream.sourceType) {
+      throw new BadRequestException('The source type of a live stream cannot be changed.');
+    }
+    if (isActive && dto.agentId && dto.agentId !== stream.agentId) {
+      throw new ConflictException(
+        'Cannot move an active live stream to another site agent. Deactivate the stream first.',
+      );
+    }
+
+    const patch = await this.toUpdateValues(organisationId, stream, dto);
+    if (Object.keys(patch).length === 0) {
+      return stream;
+    }
 
     const [saved] = await this.db
       .update(liveStreams)
-      .set(dto)
+      .set(patch)
       .where(and(eq(liveStreams.id, id), eq(liveStreams.organisationId, organisationId)))
       .returning();
+
+    if (isNdi && saved.agentId !== stream.agentId) {
+      this.ndiStatus.clear(id, stream.agentId);
+    }
+    if (isNdi && isActive) {
+      this.pushReloadConfig(saved.agentId);
+    }
 
     this.eventEmitter.emit(
       AUDIT_LIVE_STREAM_UPDATED,
       new AuditLiveStreamEvent(id, organisationId, userId, {
         streamId: id,
         streamName: saved.name,
-        sourceUrl: saved.sourceUrl,
+        sourceType: saved.sourceType,
+        sourceUrl: saved.sourceUrl ?? null,
         protocol: saved.protocol,
+        agentId: saved.agentId ?? null,
+        cameraHost: saved.cameraHost ?? null,
       }),
     );
 
@@ -127,6 +207,7 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     }
 
     const { id: streamId, name: streamName, sourceUrl, protocol } = stream;
+    this.ndiStatus.clear(streamId, stream.agentId);
 
     await this.db
       .delete(liveStreams)
@@ -137,7 +218,7 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       new AuditLiveStreamEvent(streamId, organisationId, userId, {
         streamId,
         streamName,
-        sourceUrl,
+        sourceUrl: sourceUrl ?? null,
         protocol,
       }),
     );
@@ -165,10 +246,11 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
 
     // Probe source stream for passthrough compatibility
     let warnings: string[] = [];
-    if (stream.transcodingPreset === TranscodingPreset.Passthrough) {
+    const isNdi = stream.sourceType === LiveStreamSourceType.Ndi;
+    if (!isNdi && stream.transcodingPreset === TranscodingPreset.Passthrough) {
       try {
         const probeResult = await this.ffmpegLiveService.probeSourceStream(
-          stream.sourceUrl,
+          this.requireSourceUrl(stream),
           stream.protocol,
         );
         const compatibility = this.ffmpegLiveService.checkPassthroughCompatibility(probeResult);
@@ -212,19 +294,12 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       );
     }
 
-    // Checked against the resolved addresses, and deliberately outside the try
-    // below: the DTO only sees the string, so a hostname that resolves into the
-    // private ranges (or started doing so after it was saved) would otherwise be
-    // dialled by FFmpeg — and a blocked target is a bad request, not a failing
-    // encoder.
-    await this.assertSourceReachable(stream.sourceUrl);
-
-    // Start FFmpeg (idempotent — reuses if already running)
-    try {
-      await this.ffmpegLiveService.start(stream);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      throw new BadGatewayException(`Failed to start FFmpeg transcoding: ${message}`);
+    if (isNdi) {
+      // Fail fast, before any state changes: a stream that is "active" with no
+      // agent to feed it would just show a black screen.
+      this.assertAgentConnected(stream);
+    } else {
+      await this.startPullIngest(stream);
     }
 
     // Handle duplicate overrides: deactivate any previous stream on these screens
@@ -255,11 +330,14 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
         );
 
         if (remainingCount === 0) {
-          await this.db
+          const [otherStream] = await this.db
             .update(liveStreams)
             .set({ status: LiveStreamStatus.Idle })
-            .where(eq(liveStreams.id, otherStreamId));
-          await this.ffmpegLiveService.stop(otherStreamId);
+            .where(eq(liveStreams.id, otherStreamId))
+            .returning();
+          if (otherStream) {
+            await this.stopIngest(otherStream);
+          }
         }
       }
     }
@@ -279,6 +357,11 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       .where(eq(liveStreams.id, id))
       .returning();
 
+    // The agent reconciles against its config, which now lists this stream.
+    if (isNdi) {
+      this.pushReloadConfig(saved.agentId);
+    }
+
     // Send SSE events to target screens
     for (const screenId of targetScreenIds) {
       this.eventEmitter.emit(
@@ -293,6 +376,7 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       new AuditLiveStreamEvent(id, organisationId, userId, {
         streamId: id,
         streamName: stream.name,
+        sourceType: stream.sourceType,
         protocol: stream.protocol,
         targetScreenIds,
         ...(dto.targetGroupId ? { targetGroupId: dto.targetGroupId } : {}),
@@ -308,9 +392,6 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     userId: string | null = null,
   ): Promise<LiveStream> {
     const stream = await this.findOne(organisationId, id);
-
-    // Stop FFmpeg process (safe even if not running)
-    await this.ffmpegLiveService.stop(id);
 
     // Resolve active target screens before clearing
     const activations = await this.db
@@ -330,6 +411,10 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       .set({ status: LiveStreamStatus.Idle })
       .where(eq(liveStreams.id, id))
       .returning();
+
+    // After the status flip, so an NDI agent re-reading its config no longer
+    // finds the stream. Safe even if nothing is running.
+    await this.stopIngest(stream);
 
     // Send SSE stop events to previously targeted screens
     for (const screenId of targetScreenIds) {
@@ -407,6 +492,146 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
         exitCode: event.exitCode,
       }),
     );
+  }
+
+  private async toInsertValues(
+    organisationId: string,
+    dto: CreateLiveStreamDto,
+  ): Promise<NewLiveStream> {
+    if (dto.sourceType !== LiveStreamSourceType.Ndi) {
+      return {
+        organisationId,
+        name: dto.name,
+        sourceType: LiveStreamSourceType.Pull,
+        sourceUrl: dto.sourceUrl,
+        protocol: dto.protocol,
+        transcodingPreset: dto.transcodingPreset,
+        audioEnabled: dto.audioEnabled,
+      };
+    }
+
+    // The DTO cannot see the database: confirm the agent is this org's own.
+    const agent = await this.siteAgentService.findOne(organisationId, dto.agentId!);
+    return {
+      organisationId,
+      name: dto.name,
+      sourceType: LiveStreamSourceType.Ndi,
+      sourceUrl: null,
+      agentId: agent.id,
+      cameraHost: dto.cameraHost,
+      ndiSourceName: dto.ndiSourceName?.trim() || null,
+      qualityPreset: dto.qualityPreset,
+      encoderPref: dto.encoderPref,
+      transcodingPreset: dto.transcodingPreset,
+      audioEnabled: dto.audioEnabled,
+    };
+  }
+
+  /** Only the fields that belong to the stream's source type are ever written. */
+  private async toUpdateValues(
+    organisationId: string,
+    stream: LiveStream,
+    dto: UpdateLiveStreamDto,
+  ): Promise<Partial<NewLiveStream>> {
+    const common = this.definedOnly({
+      name: dto.name,
+      transcodingPreset: dto.transcodingPreset,
+      audioEnabled: dto.audioEnabled,
+    });
+
+    if (stream.sourceType !== LiveStreamSourceType.Ndi) {
+      return {
+        ...common,
+        ...this.definedOnly({ sourceUrl: dto.sourceUrl, protocol: dto.protocol }),
+      };
+    }
+
+    if (dto.agentId) {
+      await this.siteAgentService.findOne(organisationId, dto.agentId);
+    }
+    return {
+      ...common,
+      ...this.definedOnly({
+        agentId: dto.agentId,
+        cameraHost: dto.cameraHost,
+        ndiSourceName:
+          dto.ndiSourceName === undefined ? undefined : dto.ndiSourceName.trim() || null,
+        qualityPreset: dto.qualityPreset,
+        encoderPref: dto.encoderPref,
+      }),
+    };
+  }
+
+  private definedOnly<T extends object>(values: T): Partial<T> {
+    return Object.fromEntries(
+      Object.entries(values).filter(([, value]) => value !== undefined),
+    ) as Partial<T>;
+  }
+
+  private requireSourceUrl(stream: LiveStream): string {
+    if (!stream.sourceUrl) {
+      throw new BadRequestException('The live stream has no source URL.');
+    }
+    return stream.sourceUrl;
+  }
+
+  private assertAgentConnected(stream: LiveStream): void {
+    if (!stream.agentId) {
+      throw new BadRequestException('The NDI stream has no site agent assigned.');
+    }
+    if (!this.siteAgentSse.isConnected(stream.agentId)) {
+      throw new ConflictException('Site agent offline');
+    }
+  }
+
+  private async startPullIngest(stream: LiveStream): Promise<void> {
+    // Checked against the resolved addresses, and deliberately outside the try
+    // below: the DTO only sees the string, so a hostname that resolves into the
+    // private ranges (or started doing so after it was saved) would otherwise be
+    // dialled by FFmpeg — and a blocked target is a bad request, not a failing
+    // encoder.
+    await this.assertSourceReachable(this.requireSourceUrl(stream));
+
+    // Start FFmpeg (idempotent — reuses if already running)
+    try {
+      await this.ffmpegLiveService.start(stream);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      throw new BadGatewayException(`Failed to start FFmpeg transcoding: ${message}`);
+    }
+  }
+
+  /**
+   * Stops whatever produces the stream's HLS. Pull: the local FFmpeg. NDI: the
+   * encoder lives on the agent, which is told to re-read its config (the stream
+   * is no longer active there), and the uploaded files are removed here. Call
+   * after the status change is persisted.
+   */
+  private async stopIngest(stream: LiveStream): Promise<void> {
+    if (stream.sourceType === LiveStreamSourceType.Ndi) {
+      this.ndiStatus.clear(stream.id, stream.agentId);
+      await this.ndiHls.removeStreamDir(stream.id);
+      this.pushReloadConfig(stream.agentId);
+      return;
+    }
+    await this.ffmpegLiveService.stop(stream.id);
+  }
+
+  /**
+   * Tells the agent to re-read its config. Not an error when it is offline: it
+   * reconciles on reconnect and on its periodic refresh.
+   */
+  private pushReloadConfig(agentId: string | null): void {
+    if (!agentId) {
+      return;
+    }
+    const pushed = this.siteAgentSse.push(agentId, {
+      commandId: randomUUID(),
+      type: SiteAgentCommandType.ReloadConfig,
+    });
+    if (!pushed) {
+      this.logger.warn(`Site agent ${agentId} is not connected; it will pick up the change later`);
+    }
   }
 
   /**

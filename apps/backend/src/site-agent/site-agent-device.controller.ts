@@ -20,6 +20,7 @@ import { SiteAgentSessionService, type SiteAgentSessionTokens } from './site-age
 import { SiteAgentService } from './site-agent.service';
 import { SiteAgentConfigService } from './site-agent-config.service';
 import { SiteAgentSseService } from './site-agent-sse.service';
+import { NdiStreamStatusService } from './ndi-stream-status.service';
 import { ScreenRemoteCommandService } from './screen-remote-command.service';
 import { AgentMetricsService } from '../observability/agent-metrics.service';
 import type { AgentConfig } from './agent-config.types';
@@ -71,6 +72,7 @@ export class SiteAgentDeviceController {
     private readonly eventEmitter: EventEmitter2,
     private readonly playerApps: PlayerAppsService,
     private readonly agentMetrics: AgentMetricsService,
+    private readonly ndiStatus: NdiStreamStatusService,
   ) {}
 
   /**
@@ -166,6 +168,15 @@ export class SiteAgentDeviceController {
   async reports(@Req() req: AgentAuthenticatedRequest, @Body() dto: AgentReportDto): Promise<void> {
     for (const screen of dto.screens) {
       await this.commands.applyReport(req.agentId, req.organisationId, screen);
+    }
+    if (dto.ndiStreams?.length) {
+      // An agent may name any stream id; keep only the active NDI streams of
+      // its own organisation that are bound to it.
+      const allowed = await this.configService.activeNdiStreamIds(req.organisationId, req.agentId);
+      this.ndiStatus.record(
+        req.agentId,
+        dto.ndiStreams.filter((report) => allowed.has(report.streamId)),
+      );
     }
   }
 
