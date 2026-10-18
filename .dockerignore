@@ -11,6 +11,8 @@ dist
 coverage
 **/coverage
 test-data
+# Standalone dev tools (own images / not part of any app build)
+tools
 *.log
 .env
 .env.*
