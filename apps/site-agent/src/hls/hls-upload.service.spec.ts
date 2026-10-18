@@ -1,9 +1,14 @@
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   HlsUploadService,
+  REWATCH_INTERVAL_MS,
   PLAYLIST_NAME,
   UPLOAD_ATTEMPTS,
   UPLOAD_CONCURRENCY,
   parsePlaylistSegments,
+  watchDirectory,
   type HlsFileSystem,
   type HlsUploadHandle,
   type HlsUploadTarget,
@@ -301,5 +306,84 @@ describe('HlsUploadService', () => {
     await new Promise((resolve) => setTimeout(resolve, 30));
 
     expect(target.putHlsFile.mock.calls.length).toBe(calls);
+  });
+});
+
+describe('unchanged playlist', () => {
+  it('is not uploaded again', async () => {
+    const files = new Map<string, string>([
+      [`${DIR}/seg_00001.ts`, 'a'],
+      [`${DIR}/${PLAYLIST_NAME}`, playlist('seg_00001.ts')],
+    ]);
+    let trigger: () => void = () => undefined;
+    const target = { putHlsFile: jest.fn(async () => undefined), deleteHlsFile: jest.fn() };
+    const handle = new HlsUploadService(
+      target as HlsUploadTarget,
+      {
+        watch: (_dir, listener) => {
+          trigger = listener;
+          return { close: () => undefined };
+        },
+        readFile: async (path) => Buffer.from(files.get(path) ?? ''),
+      },
+      1,
+    ).start(STREAM, DIR);
+
+    trigger();
+    await idle();
+    trigger();
+    await idle();
+
+    expect(target.putHlsFile).toHaveBeenCalledTimes(2); // segment + playlist, once
+    await handle.stop();
+  });
+});
+
+describe('watchDirectory', () => {
+  let base: string;
+
+  beforeEach(async () => {
+    base = await mkdtemp(join(tmpdir(), 'mns-watch-'));
+  });
+
+  afterEach(async () => {
+    await rm(base, { recursive: true, force: true });
+  });
+
+  const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+  it('reports changes in an existing directory', async () => {
+    const listener = jest.fn();
+    const watcher = watchDirectory(base, listener);
+
+    await writeFile(join(base, 'index.m3u8'), 'x');
+    await wait(100);
+    watcher.close();
+
+    expect(listener).toHaveBeenCalled();
+  });
+
+  it('keeps calling the listener while the directory does not exist yet, and after it appears', async () => {
+    const dir = join(base, 'later');
+    const listener = jest.fn();
+    const watcher = watchDirectory(dir, listener);
+
+    await wait(REWATCH_INTERVAL_MS + 200);
+    const whileMissing = listener.mock.calls.length;
+    await mkdir(dir);
+    await wait(REWATCH_INTERVAL_MS + 200);
+    watcher.close();
+
+    expect(whileMissing).toBeGreaterThan(0);
+    expect(listener.mock.calls.length).toBeGreaterThan(whileMissing);
+  });
+
+  it('stops calling the listener after close', async () => {
+    const listener = jest.fn();
+    watchDirectory(base, listener).close();
+
+    await wait(REWATCH_INTERVAL_MS + 200);
+
+    expect(listener).not.toHaveBeenCalled();
   });
 });

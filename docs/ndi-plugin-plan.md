@@ -1,6 +1,6 @@
 # Plan: NDI® capture as a separately licensed plugin with in-product license acceptance
 
-Status: **phase 0 done (2026-10-18), nothing else implemented.** Builds on the NDI feature
+Status: **phase 0 done (2026-10-18), phase 1 done (plugin repo), phase 2 in review (PR into `develop`).** Builds on the NDI feature
 currently on `develop` (PR #156–#159, see `docs/ndi-ptz-plan.md`). The plugin repository
 `Flo-Schilli/mynextscreen-capture-plugin` exists (public, Apache-2.0, created 2026-10-18).
 
@@ -311,7 +311,7 @@ identified by the hash of the exact shipped text.
 |---|---|---|
 | **0 Verify** | **Done 2026-10-18** (section 2) | done |
 | **1 Plugin repo** | repo exists. Add CI and GHCR publish (amd64), branch protection, NDI denylist (tree, diff, image sha256), move pipeline code and `tools/ndi-*` (relicensed), control API + `openapi.json`, license gate, platform check, bundled runtime + notices, specs, first release `v0.1.0` | 2.5–3.5 days |
-| **2 Agent** | `PluginClient` + hand-synced types + contract spec, reconcile via the plugin, report block, remove grandi/FFmpeg/pipeline/`tools/ndi-*` from this repo, image smoke "no libndi, no grandi" | 1–2 days |
+| **2 Agent** | **In review.** `PluginClient` + hand-synced types + contract spec, reconcile via the plugin, report block, remove grandi/FFmpeg/pipeline/`tools/ndi-*` from this repo, image smoke "no libndi, no grandi" | 1–2 days |
 | **3 Backend + dashboard** | migration `capture_plugin_acceptances`, acceptance API + audit, `AgentConfig.ndiPlugin`, gating (409), plugin card + acceptance modal, create-modal gating, i18n | 2–3 days |
 | **4 Deployment** | ansible quadlet + vars (x86-64 only), setup-UI acceptance page, device env fallback, docs/NOTICE, weekly SDK check job | 1–2 days |
 | **5 E2E** | rootless on x86-64: test source → plugin → agent → backend → player; acceptance/revocation/license-change paths. The Pi run (`h264_v4l2m2m`) is an optional dev test, not a release blocker | 1 day |

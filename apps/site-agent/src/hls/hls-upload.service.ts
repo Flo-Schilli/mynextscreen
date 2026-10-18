@@ -1,4 +1,4 @@
-import { watch } from 'node:fs';
+import { watch, type FSWatcher } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Logger } from '@nestjs/common';
@@ -30,8 +30,43 @@ export interface HlsFileSystem {
   readFile(path: string): Promise<Buffer>;
 }
 
+/**
+ * How often the watch is re-armed and the listener called regardless of events.
+ * The plugin recreates a stream's directory on every encoder run, which leaves
+ * an `fs.watch` on the old one deaf, and the directory may not exist yet when
+ * the uploader starts. Re-arming bounds that blind spot to this interval.
+ */
+export const REWATCH_INTERVAL_MS = 1_000;
+
+/** Watches `dir` for changes, surviving its removal, recreation and late creation. */
+export function watchDirectory(dir: string, listener: () => void): { close(): void } {
+  let watcher: FSWatcher | null = null;
+  const arm = (): void => {
+    watcher?.close();
+    watcher = null;
+    try {
+      watcher = watch(dir, () => listener());
+      watcher.on('error', () => undefined);
+    } catch {
+      // No directory yet; the next tick tries again.
+    }
+  };
+  arm();
+  const timer = setInterval(() => {
+    arm();
+    listener();
+  }, REWATCH_INTERVAL_MS);
+  return {
+    close: () => {
+      clearInterval(timer);
+      watcher?.close();
+      watcher = null;
+    },
+  };
+}
+
 export const systemHlsFileSystem: HlsFileSystem = {
-  watch: (dir, listener) => watch(dir, () => listener()),
+  watch: watchDirectory,
   readFile: (path) => readFile(path),
 };
 
@@ -60,11 +95,12 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  * player that fetches the playlist must find every segment it names. Segments
  * that left the playlist are deleted on the server afterwards.
  *
- * Segments of an earlier FFmpeg run are not known to a fresh uploader and are
- * not deleted by it: that would need a list endpoint. Their names carry the
- * run id, so they never collide with new ones; the backend removes the whole
- * stream directory on deactivation, and each run leaves at most a few
- * one-second segments behind.
+ * One uploader lives as long as the stream is wanted and spans the plugin's
+ * encoder runs: segment names carry the run id, so a restarted run never
+ * collides with a segment the server still holds, and the segments of the old
+ * run are deleted once the new playlist no longer lists them. Segments of a run
+ * from before an agent restart are not known to a fresh uploader; the backend
+ * removes the whole stream directory on deactivation.
  */
 class StreamUploader implements HlsUploadHandle {
   private readonly logger = new Logger('HlsUpload');
@@ -76,6 +112,8 @@ class StreamUploader implements HlsUploadHandle {
   private current: Promise<void> = Promise.resolve();
   private lagMs: number | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Playlist the server holds; an unchanged one is not sent again. */
+  private lastPlaylist: string | null = null;
 
   constructor(
     private readonly streamId: string,
@@ -142,9 +180,13 @@ class StreamUploader implements HlsUploadHandle {
     } catch {
       return true; // not written yet, or already cleaned up
     }
-    const listed = parsePlaylistSegments(playlist.toString('utf8'));
+    const playlistText = playlist.toString('utf8');
+    const listed = parsePlaylistSegments(playlistText);
     const detectedAt = Date.now();
     const fresh = listed.filter((name) => !this.uploaded.has(name));
+    if (fresh.length === 0 && playlistText === this.lastPlaylist) {
+      return true;
+    }
 
     if (!(await this.uploadSegments(fresh, detectedAt))) {
       return false;
@@ -154,6 +196,7 @@ class StreamUploader implements HlsUploadHandle {
     ) {
       return false;
     }
+    this.lastPlaylist = playlistText;
     await this.removeRolledOff(new Set(listed));
     return true;
   }

@@ -1,5 +1,13 @@
 # Plan: NDI PTZ-Kamera in myNextScreen
 
+> **Hinweis (2026-10-18):** Die in diesem Plan beschriebene Pipeline im Site Agent
+> (grandi, Receiver, FFmpeg, Encoder-Wahl, Agent-Image mit FFmpeg und NDI-Runtime) wurde
+> in das separate Capture-Plugin ausgelagert (`Flo-Schilli/mynextscreen-capture-plugin`,
+> Apache-2.0). Der Agent steuert es per `PluginClient` über einen Unix-Socket und lädt das
+> HLS aus dem geteilten Volume hoch. PTZ (VISCA) bleibt im Agent. Maßgeblich ist
+> `docs/ndi-plugin-plan.md`; die Abschnitte zu Receiver, Transcoder, Encoder und Image
+> unten sind historisch.
+
 ## Context
 
 Eine NDI-PTZ-Kamera soll als Live-Stream-Quelle verfügbar werden. NDI ist für den

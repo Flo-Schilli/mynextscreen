@@ -21,8 +21,8 @@ import { SupervisorService } from './supervisor/supervisor.service';
 import { NetworkInfoService } from './network/network-info.service';
 import { CommandHandlerService } from './supervisor/command-handler.service';
 import { HlsUploadService } from './hls/hls-upload.service';
-import { createGrandiBinding } from './ndi/grandi-binding';
-import { createNdiReceiverFactory } from './ndi/ndi-receiver';
+import { PluginClient } from './capture/plugin-client';
+import { UnixSocketTransport } from './capture/plugin-transport';
 import { NdiStreamManager } from './ndi/ndi-stream.manager';
 import { PtzService } from './ptz/ptz.service';
 import { ViscaTransport } from './ptz/visca-transport';
@@ -125,15 +125,21 @@ export function pinnedServerUrl(env: AgentEnv): string {
       inject: [ServerClient],
     },
     {
-      provide: NdiStreamManager,
-      useFactory: (uploader: HlsUploadService, env: AgentEnv) =>
-        new NdiStreamManager(createNdiReceiverFactory(createGrandiBinding()), uploader, {
+      provide: PluginClient,
+      useFactory: (env: AgentEnv) =>
+        new PluginClient(new UnixSocketTransport(env.captureSocket), {
           enabled: env.ndiEnabled,
-          ffmpegPath: env.ffmpegPath,
-          encoderOverride: env.ndiEncoderOverride,
-          arch: process.arch,
         }),
-      inject: [HlsUploadService, AgentEnv],
+      inject: [AgentEnv],
+    },
+    {
+      provide: NdiStreamManager,
+      useFactory: (plugin: PluginClient, uploader: HlsUploadService, env: AgentEnv) =>
+        new NdiStreamManager(plugin, uploader, {
+          enabled: env.ndiEnabled,
+          hlsDir: env.captureHlsDir,
+        }),
+      inject: [PluginClient, HlsUploadService, AgentEnv],
     },
     {
       provide: DevmodeKeyService,

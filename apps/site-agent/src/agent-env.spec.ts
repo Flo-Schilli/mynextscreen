@@ -1,5 +1,11 @@
 import { ConfigService } from '@nestjs/config';
-import { AgentEnv, DEFAULT_FFMPEG_PATH, DEFAULT_SETUP_PORT, DEFAULT_STATE_DIR } from './agent-env';
+import {
+  AgentEnv,
+  DEFAULT_CAPTURE_HLS_DIR,
+  DEFAULT_CAPTURE_SOCKET,
+  DEFAULT_SETUP_PORT,
+  DEFAULT_STATE_DIR,
+} from './agent-env';
 
 describe('AgentEnv', () => {
   function envWith(values: Record<string, string>): AgentEnv {
@@ -50,13 +56,13 @@ describe('AgentEnv', () => {
     });
   });
 
-  describe('NDI', () => {
-    it('is enabled with the system FFmpeg and no encoder override by default', () => {
+  describe('NDI and the capture plugin', () => {
+    it('is enabled, with the shared-volume defaults', () => {
       const env = envWith({});
 
       expect(env.ndiEnabled).toBe(true);
-      expect(env.ffmpegPath).toBe(DEFAULT_FFMPEG_PATH);
-      expect(env.ndiEncoderOverride).toBeNull();
+      expect(env.captureSocket).toBe(DEFAULT_CAPTURE_SOCKET);
+      expect(env.captureHlsDir).toBe(DEFAULT_CAPTURE_HLS_DIR);
     });
 
     it('is switched off only by an explicit false', () => {
@@ -65,18 +71,21 @@ describe('AgentEnv', () => {
       expect(envWith({ MNS_NDI_ENABLED: '0' }).ndiEnabled).toBe(true);
     });
 
-    it('takes an FFmpeg path and an encoder override', () => {
-      const env = envWith({ MNS_FFMPEG_PATH: '/opt/ffmpeg', MNS_NDI_ENCODER: ' h264_vaapi ' });
+    it('takes a socket path and an HLS directory', () => {
+      const env = envWith({
+        MNS_CAPTURE_SOCKET: ' /srv/capture/run/plugin.sock ',
+        MNS_CAPTURE_HLS_DIR: '/srv/capture/hls',
+      });
 
-      expect(env.ffmpegPath).toBe('/opt/ffmpeg');
-      expect(env.ndiEncoderOverride).toBe('h264_vaapi');
+      expect(env.captureSocket).toBe('/srv/capture/run/plugin.sock');
+      expect(env.captureHlsDir).toBe('/srv/capture/hls');
     });
 
     it('falls back for blank values', () => {
-      const env = envWith({ MNS_FFMPEG_PATH: '', MNS_NDI_ENCODER: '  ' });
+      const env = envWith({ MNS_CAPTURE_SOCKET: '  ', MNS_CAPTURE_HLS_DIR: '' });
 
-      expect(env.ffmpegPath).toBe(DEFAULT_FFMPEG_PATH);
-      expect(env.ndiEncoderOverride).toBeNull();
+      expect(env.captureSocket).toBe(DEFAULT_CAPTURE_SOCKET);
+      expect(env.captureHlsDir).toBe(DEFAULT_CAPTURE_HLS_DIR);
     });
   });
 });

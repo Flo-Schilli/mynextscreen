@@ -145,8 +145,8 @@ export class ServerClient {
   }
 
   async sendReports(report: AgentReportMessage): Promise<void> {
-    const { ndiStreams, ...base } = report;
-    if (!ndiStreams) {
+    const { ndiStreams, capturePlugin, ...base } = report;
+    if (!ndiStreams && !capturePlugin) {
       await this.request('/api/agents/me/reports', { method: 'POST', body: report });
       return;
     }
@@ -154,8 +154,9 @@ export class ServerClient {
       await this.request('/api/agents/me/reports', { method: 'POST', body: report });
       this.warnedNdiFallback = false;
     } catch (error) {
-      // A server older than this agent rejects the unknown `ndiStreams` field.
-      // The screen reports matter more than the NDI status, so retry without it.
+      // A server older than this agent rejects the unknown `ndiStreams` or
+      // `capturePlugin` field. The screen reports matter more than the NDI
+      // status, so retry without it.
       if (!(error instanceof UnexpectedStatusError) || error.status !== 400) {
         throw error;
       }
