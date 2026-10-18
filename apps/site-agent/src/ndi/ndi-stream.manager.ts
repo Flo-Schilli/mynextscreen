@@ -176,6 +176,9 @@ export class NdiStreamManager implements OnModuleDestroy {
         };
       }
     }
+    if (status?.acceptance) {
+      message.acceptedVia = status.acceptance.via === 'env' ? 'environment' : 'api';
+    }
     const errorCode = status?.errorCode ?? agentErrorCode;
     if (errorCode) {
       message.errorCode = errorCode;

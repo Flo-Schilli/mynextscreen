@@ -308,6 +308,39 @@ describe('ServerClient', () => {
       expect(JSON.parse(initOf(1).body as string).screens).toHaveLength(1);
     });
 
+    describe('capture license text', () => {
+      it('PUTs the texts with the bearer token', async () => {
+        fetchMock.mockResolvedValueOnce(respond(204));
+        const body = {
+          licenseSha256: 'a'.repeat(64),
+          ndiLicenseSha256: 'b'.repeat(64),
+          termsSha256: 'c'.repeat(64),
+          ndiLicenseText: 'ndi',
+          termsText: 'terms',
+        };
+
+        await client.putCaptureLicenseText(body);
+
+        expect(urlOf(1)).toContain('/api/agents/me/capture-plugin/license-text');
+        expect(initOf(1).method).toBe('PUT');
+        expect(JSON.parse(initOf(1).body as string)).toEqual(body);
+      });
+
+      it('throws on a rejected upload', async () => {
+        fetchMock.mockResolvedValueOnce(respond(400));
+
+        await expect(
+          client.putCaptureLicenseText({
+            licenseSha256: 'x',
+            ndiLicenseSha256: 'x',
+            termsSha256: 'x',
+            ndiLicenseText: 'x',
+            termsText: 'x',
+          }),
+        ).rejects.toThrow(/400/);
+      });
+    });
+
     describe('NDI status in reports', () => {
       const ndiStreams = [
         {

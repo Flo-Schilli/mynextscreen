@@ -450,6 +450,29 @@ describe('NdiStreamManager', () => {
       });
     });
 
+    it.each([
+      ['api', 'api'],
+      ['env', 'environment'],
+    ] as const)('maps an acceptance via %s to acceptedVia %s', (via, acceptedVia) => {
+      plugin.current = {
+        ...plugin.current,
+        status: pluginStatus({
+          acceptance: {
+            sdkVersion: '6.3.2.0',
+            licenseSha256: 'a'.repeat(64),
+            via,
+            acceptedAt: '2026-10-18T12:00:00.000Z',
+          },
+        }),
+      };
+
+      expect(manager.capturePlugin()).toMatchObject({ acceptedVia });
+    });
+
+    it('omits acceptedVia while the license is not accepted', () => {
+      expect(manager.capturePlugin()).not.toHaveProperty('acceptedVia');
+    });
+
     it('leaves out what the plugin does not know and adds the error code', () => {
       plugin.current = {
         ...plugin.current,

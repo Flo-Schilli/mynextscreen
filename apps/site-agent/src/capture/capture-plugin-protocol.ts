@@ -35,6 +35,18 @@ export interface PluginLicenseAcceptance {
   acceptedAt: string;
 }
 
+/** Body of `PUT /v1/license`. */
+export interface PluginLicenseRef {
+  sdkVersion: string;
+  licenseSha256: string;
+}
+
+/** `GET /v1/license/text`. */
+export interface PluginLicenseText extends PluginLicenseInfo {
+  licenseText: string;
+  pluginTerms: string;
+}
+
 /** `GET /v1/status`. */
 export interface PluginStatus {
   apiVersion: string;

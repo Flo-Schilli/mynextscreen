@@ -6,7 +6,9 @@ import {
   type PluginResponse,
   type PluginTransport,
 } from './plugin-transport';
+import { MAX_LICENSE_TEXT_BYTES } from './plugin-sanitize';
 import {
+  licenseTextFixture,
   statusFixture,
   STREAM_ID,
   streamConfigFixture,
@@ -404,6 +406,92 @@ describe('PluginClient', () => {
       transport.routes.set(`DELETE /v1/streams/${STREAM_ID}`, { status: 500, body: undefined });
 
       await expect(client.deleteStream(STREAM_ID)).rejects.toMatchObject({ status: 500 });
+    });
+  });
+
+  describe('license', () => {
+    const ref = { sdkVersion: '6.3.2.0', licenseSha256: 'a'.repeat(64) };
+
+    it('keeps a valid acceptance from the status and drops a malformed one', async () => {
+      transport.routes.set('GET /v1/status', ok(statusFixture()));
+      transport.routes.set('GET /v1/streams', ok(streamListFixture()));
+      await client.poll();
+      expect(client.snapshot().status?.acceptance).toEqual(statusFixture().acceptance);
+
+      transport.routes.set(
+        'GET /v1/status',
+        ok({ ...statusFixture(), acceptance: { via: 'magic', licenseSha256: 'x' } }),
+      );
+      await client.poll();
+      expect(client.snapshot().status?.acceptance).toBeNull();
+    });
+
+    it('PUTs and DELETEs /v1/license', async () => {
+      transport.routes.set('PUT /v1/license', ok(statusFixture()));
+      transport.routes.set('DELETE /v1/license', ok(statusFixture()));
+
+      await client.putLicense(ref);
+      await client.deleteLicense();
+
+      expect(transport.calls).toEqual(['PUT /v1/license', 'DELETE /v1/license']);
+      expect(transport.bodies[0]).toEqual(ref);
+    });
+
+    it('throws a PluginRequestError with the plugin code on a refusal', async () => {
+      transport.routes.set('PUT /v1/license', {
+        status: 409,
+        body: { error: { code: 'license_mismatch', message: 'x' } },
+      });
+      transport.routes.set('DELETE /v1/license', {
+        status: 409,
+        body: { error: { code: 'accepted_via_environment', message: 'x' } },
+      });
+
+      await expect(client.putLicense(ref)).rejects.toMatchObject({ code: 'license_mismatch' });
+      await expect(client.deleteLicense()).rejects.toMatchObject({
+        code: 'accepted_via_environment',
+      });
+    });
+
+    it('reads the license text', async () => {
+      transport.routes.set('GET /v1/license/text', ok(licenseTextFixture()));
+
+      expect(await client.getLicenseText()).toEqual(licenseTextFixture());
+    });
+
+    it('treats an unusable text as null and an error status as a failure', async () => {
+      transport.routes.set('GET /v1/license/text', ok({ ...licenseTextFixture(), licenseText: 5 }));
+      expect(await client.getLicenseText()).toBeNull();
+
+      transport.routes.set(
+        'GET /v1/license/text',
+        ok({ ...licenseTextFixture(), pluginTerms: '' }),
+      );
+      expect(await client.getLicenseText()).toBeNull();
+
+      transport.routes.set(
+        'GET /v1/license/text',
+        ok({
+          ...licenseTextFixture(),
+          licenseText: 'x'.repeat(MAX_LICENSE_TEXT_BYTES + 1),
+        }),
+      );
+      expect(await client.getLicenseText()).toBeNull();
+
+      transport.routes.set('GET /v1/license/text', {
+        status: 409,
+        body: { error: { code: 'plugin_error', message: 'x' } },
+      });
+      await expect(client.getLicenseText()).rejects.toBeInstanceOf(PluginRequestError);
+    });
+
+    it('drops fields the plugin adds to the text', async () => {
+      transport.routes.set(
+        'GET /v1/license/text',
+        ok({ ...licenseTextFixture(), injected: '<script>' }),
+      );
+
+      expect(await client.getLicenseText()).not.toHaveProperty('injected');
     });
   });
 });

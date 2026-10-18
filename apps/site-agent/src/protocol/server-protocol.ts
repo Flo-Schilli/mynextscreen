@@ -156,6 +156,25 @@ export interface AgentConfigMessage {
    * does not send it, and absent means none.
    */
   ndiStreams?: AgentNdiStreamConfig[];
+  /**
+   * What the agent hands the capture plugin. Optional because an older server
+   * does not send it; absent means "no instruction", which never revokes.
+   */
+  ndiPlugin?: AgentNdiPluginConfig;
+}
+
+export interface AgentNdiPluginConfig {
+  /** The dashboard acceptance in force; null means none, and revokes an API acceptance. */
+  acceptance: { licenseSha256: string } | null;
+}
+
+/** Body of `PUT /api/agents/me/capture-plugin/license-text`. */
+export interface CaptureLicenseTextUpload {
+  licenseSha256: string;
+  ndiLicenseSha256: string;
+  termsSha256: string;
+  ndiLicenseText: string;
+  termsText: string;
 }
 
 /** One screen's worth of what the agent observed, sent back in a batch. */
@@ -212,6 +231,8 @@ export interface AgentCapturePluginMessage {
   /** What an acceptance covers: hashes of the shipped NDI license text and plugin terms. */
   license?: { licenseSha256: string; ndiLicenseSha256: string; termsSha256: string };
   errorCode?: CapturePluginErrorCode;
+  /** How the plugin's acceptance was made; omitted while the license is not accepted. */
+  acceptedVia?: 'api' | 'environment';
 }
 
 export interface AgentReportMessage {

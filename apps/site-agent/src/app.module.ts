@@ -22,6 +22,7 @@ import { NetworkInfoService } from './network/network-info.service';
 import { CommandHandlerService } from './supervisor/command-handler.service';
 import { HlsUploadService } from './hls/hls-upload.service';
 import { PluginClient } from './capture/plugin-client';
+import { CaptureLicenseSync } from './capture/capture-license-sync';
 import { UnixSocketTransport } from './capture/plugin-transport';
 import { NdiStreamManager } from './ndi/ndi-stream.manager';
 import { PtzService } from './ptz/ptz.service';
@@ -133,6 +134,12 @@ export function pinnedServerUrl(env: AgentEnv): string {
       inject: [AgentEnv],
     },
     {
+      provide: CaptureLicenseSync,
+      useFactory: (plugin: PluginClient, client: ServerClient) =>
+        new CaptureLicenseSync(plugin, client),
+      inject: [PluginClient, ServerClient],
+    },
+    {
       provide: NdiStreamManager,
       useFactory: (plugin: PluginClient, uploader: HlsUploadService, env: AgentEnv) =>
         new NdiStreamManager(plugin, uploader, {
@@ -166,6 +173,7 @@ export function pinnedServerUrl(env: AgentEnv): string {
         network: NetworkInfoService,
         discovery: DiscoveryService,
         ndi: NdiStreamManager,
+        captureLicense: CaptureLicenseSync,
       ) =>
         new SupervisorService(
           connections,
@@ -180,6 +188,7 @@ export function pinnedServerUrl(env: AgentEnv): string {
           network,
           discovery,
           ndi,
+          captureLicense,
           AGENT_VERSION,
         ),
       inject: [
@@ -195,6 +204,7 @@ export function pinnedServerUrl(env: AgentEnv): string {
         NetworkInfoService,
         DiscoveryService,
         NdiStreamManager,
+        CaptureLicenseSync,
       ],
     },
     {
