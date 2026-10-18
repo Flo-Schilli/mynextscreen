@@ -1,7 +1,8 @@
 # Plan: NDI® capture as a separately licensed plugin with in-product license acceptance
 
-Status: **plan only, nothing implemented.** Builds on the NDI feature currently on `develop`
-(PR #156–#159, see `docs/ndi-ptz-plan.md`).
+Status: **phase 0 done (2026-10-18), nothing else implemented.** Builds on the NDI feature
+currently on `develop` (PR #156–#159, see `docs/ndi-ptz-plan.md`). The plugin repository
+`Flo-Schilli/mynextscreen-capture-plugin` exists (public, Apache-2.0, created 2026-10-18).
 
 ## 1. Why
 
@@ -10,72 +11,112 @@ The NDI feature on `develop` works end to end, but its distribution model has th
 
 1. **AGPL vs. proprietary runtime.** The site agent (AGPL-3.0) loads `libndi.so.6` into its own
    process via the `grandi` addon. That makes a combined work with a proprietary library.
-2. **We redistribute the NDI runtime** inside a public GHCR image. Clause 2a only allows
-   distribution "in accordance with the SDK Documentation", clause 3d requires our distribution
-   terms to carry NDI's conditions, clause 2b requires the latest SDK version.
-3. **Clause 1b(iii) (embedded devices)** is a grey zone for a Raspberry Pi used as a venue agent.
+2. **We redistribute the NDI runtime** inside a public GHCR image. Phase 0 showed that this is
+   permitted (SDK docs §4.2 and §4.5), but only if our distribution terms carry NDI's conditions
+   (clause 3d), the license text ships with the binary, and we track the latest SDK (clause 2b).
+   The current agent image has no such terms.
+3. **Clause 1b (excluded "Products": locked appliances, fixed-purpose containers, embedded
+   hardware including Linux)** applied to a Raspberry Pi used as a venue agent. Solved by scope:
+   production is **x86-64 general-purpose hardware only** (section 2.1).
 
 Goal: the AGPL agent contains **no NDI code and no NDI binaries**. NDI capture lives in a
-separate, permissively licensed plugin process. The NDI runtime is **never shipped by us**: the
-plugin downloads it from NDI only after an organisation admin has explicitly accepted the NDI
-license for that agent. Problem 3 is not solved by architecture and stays a question for NDI
-(section 9).
+separate, permissively licensed plugin container. The plugin image ships the **unmodified**
+`libndi.so.6` under plugin terms that cover clause 3d. The plugin refuses to run until an
+organisation admin has accepted the NDI SDK license and our plugin terms for that agent.
 
 Out of scope: PTZ. VISCA has no NDI dependency and stays in the agent unchanged.
 
-## 2. Target architecture
+## 2. Phase 0 results (verified 2026-10-18)
+
+**Loading mechanism**
+- x64 `grandi.node`: RUNPATH `$ORIGIN`. arm64: RPATH `$ORIGIN`. Both are searched before
+  `LD_LIBRARY_PATH`. grandi 2.0.2 loads the addon eagerly at import.
+- Setting `process.env.LD_LIBRARY_PATH` at runtime does not work, and a `process.dlopen` preload
+  does not help.
+- A symlink next to `grandi.node` works: retrying the import in the same process succeeds once the
+  target exists. Only relevant if a download model ever returns.
+- `libndi` needs `libavahi-client3` and `libavahi-common3`. The plugin image installs them. No
+  daemon is needed, discovery runs via `extraIPs`.
+
+**SDK and license**
+- The official SDK is only available at a moving "latest" URL
+  (`https://downloads.ndi.tv/SDK/NDI_SDK_Linux/Install_NDI_SDK_v6_Linux.tar.gz`). There are no
+  versioned URLs and the tarball sha changes with every release. There is no Linux redistributable
+  runtime package (redist exists only for Windows).
+- SDK 6.3.2.0 `libndi.so.6.3.2` is byte-identical to the one bundled in `@grandi/linux-x64` 2.0.2.
+  A receive test via the SDK lib delivered 150 frames at 30.0 fps.
+- SDK docs §4.2: "BINARY FILES … You may distribute these files within your application if your
+  EULA terms cover the specific requirements…". §4.5: "You can of course include the NDI runtime
+  within your application folder." Shipping libndi inside our image is therefore permitted,
+  provided our plugin license terms cover clause 3d.
+- EULA 1b excludes from "Products": fixed-purpose locked appliances (i), fixed-purpose restricted
+  virtual/container environments (ii), embedded hardware with an embedded OS including Linux
+  (iii). Using the SDK for these needs a commercial agreement with NDI. A download model does
+  **not** solve 1b: it concerns where the software runs, not who downloads the runtime.
+
+### 2.1 Decisions (2026-10-18)
+1. **Production platform = x86-64 only** (general-purpose hardware, operator-controlled
+   unrestricted Linux). The Raspberry Pi is used **only internally for development testing**
+   (EULA 2a, "for the sole purpose of developing Products").
+   - The plugin publishes **amd64 images only**. An arm64 build may be produced locally for dev
+     tests and is **never pushed**.
+   - Docs, README and dashboard state the supported platform. We never offer preconfigured locked
+     devices (1b(i)).
+   - The site agent itself (no NDI) stays multi-arch.
+   - `h264_v4l2m2m` leaves the release scope. The encoder code may stay but is not a supported
+     path. The Pi test is no longer a release blocker.
+2. **No downloader.** The plugin image ships the unmodified `libndi.so.6` (from
+   `@grandi/linux-x64`) per SDK docs §4.2, with `NOTICE`/plugin terms covering 3d,
+   `libndi_licenses.txt` and the NDI license text. The **license acceptance stays** (section 5).
+
+## 3. Target architecture
 
 ```mermaid
 flowchart LR
-  subgraph Venue host
+  subgraph Venue host x86-64
     subgraph agent[site agent container AGPL]
       M[NdiStreamManager<br/>reconcile] --> PC[PluginClient]
       U[HlsUploadService]
       P[PtzService VISCA]
     end
     subgraph plugin[capture plugin container Apache-2.0]
-      API[control API<br/>unix socket] --> PIPE[receiver -> queue -> ffmpeg]
-      DL[runtime downloader<br/>license gate]
+      API[control API<br/>unix socket + license gate] --> PIPE[receiver -> queue -> ffmpeg]
+      LIB[(bundled libndi.so.6<br/>unmodified)]
     end
     PC -- HTTP over unix socket --> API
     PIPE -- HLS files --> VOL[(shared volume<br/>hls/streamId)]
     VOL --> U
-    DL -- after acceptance --> RT[(plugin state:<br/>runtime/libndi.so.6)]
   end
   U -- PUT segments --> BE[backend]
   BE -- config: ndiPlugin + ndiStreams --> agent
-  DL -- download --> NDI[downloads.ndi.tv]
   CAM[NDI camera] -- NDI --> PIPE
 ```
 
 | Component | License | Contains | Ships NDI binaries |
 |---|---|---|---|
 | site agent (`apps/site-agent`) | AGPL-3.0 | control, HLS upload, PTZ, status reporting | **no**: grandi and FFmpeg removed from the image |
-| capture plugin (separate repo `Flo-Schilli/mynextscreen-capture-plugin`) | Apache-2.0 | grandi addon (`grandi.node`), slim FFmpeg, pipeline, downloader | **no**: `libndi*.so` deleted at build time, CI asserts absence |
-| NDI runtime | NDI SDK License | `libndi.so.6` | downloaded by the plugin on the venue host after acceptance |
+| capture plugin (separate repo `Flo-Schilli/mynextscreen-capture-plugin`) | Apache-2.0 plus NDI notices | grandi addon, **unmodified `libndi.so.6`**, slim FFmpeg, pipeline, license gate | **yes, unmodified runtime only**, amd64 image, under terms covering 3d |
 | backend / dashboard | AGPL-3.0 | acceptance records, gating, UI | no |
 
 **Why the process boundary keeps the AGPL clean:** the agent and the plugin are separate
 programs that exchange plain JSON over a socket and HLS files on disk. No shared memory, no
 linked code, no AGPL code in the plugin. The plugin may load a proprietary library because its
-own license (Apache-2.0) allows that.
+own license allows that.
 
 **Naming:** the NDI trademark policy forbids "NDI" in a product name (clause 3f). The plugin is
 called **"mynextscreen capture plugin"** (repo `Flo-Schilli/mynextscreen-capture-plugin`, image
 `ghcr.io/flo-schilli/mynextscreen-capture-plugin`) and is described as "NDI®-compatible".
 
-## 3. Plugin (separate repository)
+## 4. Plugin (separate repository)
 
-### 3.0 Repository
-**Decision (2026-10-18): the plugin lives in its own repository, `Flo-Schilli/mynextscreen-capture-plugin`,
-under Apache-2.0.** Reasons:
-- **License clarity:** one license per repo, correctly detected by GitHub. No mixed-license
-  monorepo, and no way to import AGPL code into the plugin by accident. The separation is
-  enforced by the repo boundary rather than by convention, and it is easy to point NDI to.
+### 4.0 Repository
+**Decision (2026-10-18): the plugin lives in its own public repository
+`Flo-Schilli/mynextscreen-capture-plugin` under Apache-2.0.** Reasons:
+- **License clarity:** one license per repo. No mixed-license monorepo, and no way to import AGPL
+  code into the plugin by accident. The separation is enforced by the repo boundary.
 - **No NDI dependency left in this repo:** `grandi` leaves the root `package.json` and the
   lockfile, and the backend image no longer has to prune it. `tools/ndi-test-source` and
-  `tools/ndi-spike` move with the plugin (they use grandi and libndi). `tools/visca-mock` stays
-  here, since PTZ stays in the agent.
+  `tools/ndi-spike` move with the plugin. `tools/visca-mock` stays here.
 - **Own release cadence:** clause 2b ("latest SDK version") turns every SDK update into a plugin
   release, without a platform release.
 - **Smaller surface here:** FFmpeg and grandi updates and CVEs only touch the plugin repo.
@@ -83,141 +124,134 @@ under Apache-2.0.** Reasons:
 Trade-offs, and how we handle them:
 - **Protocol types in two places:** the plugin repo is the source of truth and publishes
   `openapi.json` with each release. The agent keeps hand-synced types (same pattern as
-  `protocol/server-protocol.ts`), and both sides run a contract test against the schema. A
-  separate npm package is not worth it for six routes.
-- **Duplicated CI** (multi-arch build, Trivy, CodeQL, gitleaks, Dependabot): copy and trim the
-  workflows from this repo, about half a day once.
+  `protocol/server-protocol.ts`), and both sides run a contract test against the schema.
+- **Duplicated CI** (build, Trivy, CodeQL, gitleaks, Dependabot): copy and trim the workflows from
+  this repo. With amd64 only, the arm64 runner matrix is dropped.
 - **Version compatibility:** the API is versioned (`/v1`). The agent reads `pluginVersion` and
-  `apiVersion` from `GET /v1/status` and rejects an unknown major version with a clear status
-  (`incompatible`) instead of misbehaving. Ansible pins both image tags.
+  `apiVersion` from `GET /v1/status` and rejects an unknown major version with status
+  `incompatible`. Ansible pins both image tags.
 - **E2E across repos:** this repo's integration tests pull the pinned plugin image from GHCR.
-  The plugin repo tests against the agent only through the contract test.
 
-**Visibility (decision 2026-10-18): public**, like this repo.
-- An Apache-2.0 plugin only makes sense as public open source, and the whole point is a clean
-  separation from the AGPL agent.
-- CI stays free like today: GitHub-hosted runners (including `ubuntu-24.04-arm` for the arm64
-  builds) and CodeQL code scanning cost nothing on public repos. Private repos pay for both.
-- Public repo + public GHCR image keeps today's model, so venues pull without credentials.
-- It shows NDI directly that neither the repo nor the image contains NDI binaries.
+**Visibility: public.** An Apache-2.0 plugin only makes sense as public open source. GitHub-hosted
+CI and CodeQL are free on public repos, and a public GHCR image keeps today's credential-free pull.
 
-**Rule for the public repo: it never contains NDI SDK files.** The SDK, its headers and its
-documentation are "Confidential Information" under clause 3a. The repo uses NDI only through
-the `grandi` npm package and vendors nothing. This is enforced twice:
+**Rule for the repository tree and PR diffs: they never contain NDI SDK files** (headers, libs,
+docs, archives). The SDK, its headers and documentation are "Confidential Information" under
+clause 3a. The only NDI binary that reaches the image is the `libndi.so.6` that comes with the
+`@grandi/linux-x64` npm package. Enforced three times:
 - `.gitignore` entries for `libndi*`, `Processing.NDI.*.h`, `NDI SDK*/` and SDK archives.
-- A CI denylist check that fails the build if any of these patterns exist in the repository
-  tree, in a PR diff, or in the built image. In the image it asserts no `libndi*` and no
-  `Processing.NDI.*.h`; the downloaded runtime lives only in the venue's state volume.
+- CI denylist on the **repo tree and PR diffs**: fails on any of those patterns.
+- CI check on the **built image**: it must contain exactly the expected `libndi.so.6` (sha256
+  equals the one from `@grandi/linux-x64`, pinned in the repo) and no headers and no SDK docs. The
+  license text and `libndi_licenses.txt` are the only permitted SDK-derived documents, shipped
+  under `/usr/share/licenses/capture-plugin/`.
 
-Repo layout: a single TypeScript Node project. No Nx is needed for one app. npm with
-`packageManager` pinned like here, Node 26, Prettier, ESLint, Jest with gate 85/75/83/85,
-`Dockerfile`, `openapi.json`, `NOTICE`, `LICENSE` (Apache-2.0), `CHANGELOG.md`, versioning via
-`npm version` and tags `v*.*.*` (same scheme as this repo).
+Repo layout: a single TypeScript Node project. npm with `packageManager` pinned like here, Node 26,
+Prettier, ESLint, Jest with gate 85/75/83/85, `Dockerfile`, `openapi.json`, `NOTICE`, `LICENSE`
+(Apache-2.0), `CHANGELOG.md`, versioning via `npm version` and tags `v*.*.*`.
 
-### 3.1 Code moved out of the agent
+### 4.1 Code moved out of the agent
 From `apps/site-agent/src/ndi/`: `grandi-binding.ts`, `ndi-receiver.ts`, `bounded-queue.ts`,
 `ndi-transcoder.ts`, `ndi-ffmpeg-args.ts`, `ndi-encoder.ts`, `ndi-pipeline.ts`, `stream-id.ts`,
 `testing/fake-ffmpeg.ts` plus specs, and `tools/ndi-test-source/` and `tools/ndi-spike/`. The
-author is the sole copyright holder of this code (all commits are by the author, plus Dependabot
-dependency bumps), so it can be relicensed to Apache-2.0 when it moves. History may optionally be
-carried over with `git filter-repo`; relicensing does not depend on it. The plugin never imports
-code from this repo.
+author is the sole copyright holder of this code (plus Dependabot bumps), so it can be relicensed
+to Apache-2.0 when it moves. History may optionally be carried over with `git filter-repo`.
+The plugin never imports code from this repo.
 
-Framework: plain Node `http` server plus the moved services. NestJS is not needed for one
-socket and a handful of routes.
+Framework: plain Node `http` server plus the moved services. NestJS is not needed for one socket
+and a handful of routes.
 
-### 3.2 License gate and runtime downloader
+### 4.2 License gate and bundled runtime
 State machine reported in every status response:
 
-`license_required` → (acceptance with matching hash) → `downloading` → `verifying` → `ready`.
-Error states: `download_failed`, `checksum_mismatch`, `sdk_changed`, `load_failed`, all with
-backoff and retry.
+`license_required` → (acceptance with matching hash) → `ready`. Other states: `error` (grandi load
+failure, runtime missing), `incompatible` (unsupported platform or API major version).
 
-- **Pinned SDK catalogue** in the plugin image (data, not binaries), per supported SDK release:
-  `sdkVersion`, official download URL, `tarballSha256`, path of `libndi.so.6` per arch inside the
-  archive (`x86_64-linux-gnu`, `aarch64-…`), and the **full NDI license text** of that release
-  plus its `licenseSha256`. Redistributing the license text is fine. Redistributing the binary is not.
+- **Bundled runtime:** the image contains the unmodified `libndi.so.6` next to `grandi.node` (as
+  shipped by `@grandi/linux-x64`, so `$ORIGIN` resolves it). Nothing is modified, repacked or
+  stripped. The image installs `libavahi-client3` and `libavahi-common3`.
+- **License text in the image:** `NDI SDK License Agreement.txt` of the bundled SDK version
+  (currently sha256 `c49f407ee25f2bc31c8ea947f874c4c242b5bc2213176384b1838a84d9d5b3b0`), its
+  `licenseSha256` computed at build time, plus `libndi_licenses.txt` and our plugin terms.
 - **Acceptance input:** `PUT /v1/license { sdkVersion, licenseSha256 }`. This comes from the agent,
-  which forwards it from the backend config or from the local fallback (section 5). The plugin
-  rejects a hash that does not match its catalogue entry.
-- **Download:** HTTPS from the catalogue URL. The plugin streams the tarball to a temp file in its
-  state volume, verifies `tarballSha256`, extracts **only** `libndi.so.6` for the host arch plus
-  the license files, and writes them to `/var/lib/mns-capture/runtime/<sdkVersion>/` (mode 0700).
-  It never runs the SDK's install script. It deletes the tarball afterwards. It then verifies that
-  the license file inside the archive hashes to the accepted `licenseSha256`. A mismatch means NDI
-  changed the license, so the plugin goes to `sdk_changed` and acceptance is required again.
-- **Loading:** the grandi addon is imported lazily (as today) only in state `ready`, with
-  `LD_LIBRARY_PATH=/var/lib/mns-capture/runtime/<sdkVersion>`. The image deletes the
-  `libndi*.so` that `@grandi/linux-*` ships next to `grandi.node`, so the loader falls back to
-  `LD_LIBRARY_PATH`. **Must be verified in phase 0** (RPATH vs. RUNPATH of `grandi.node`).
-- **Version check** after load: `grandi.version()` must report the accepted major version 6. Newer
-  6.x minors are expected to be ABI compatible (same soname). Verified in phase 0.
-- **Revocation:** acceptance removed in config → plugin stops all pipelines, deletes the runtime
-  directory and returns to `license_required`.
+  which forwards it from the backend config or from the local fallback (section 6). The plugin
+  rejects a hash that does not match the text it ships.
+- **Gate:** until an acceptance with the matching hash is present, the plugin **refuses to start
+  pipelines** (`409`) and does not import grandi.
+- **Platform check:** the plugin refuses to start on a non-`x86_64` host (state `incompatible`)
+  unless `MNS_CAPTURE_DEV_ALLOW_ARM=1` is set (dev only, documented as unsupported for production).
+- **Version check** after load: `grandi.version()` must report major version 6.
+- **Revocation:** acceptance removed in config → plugin stops all pipelines and returns to
+  `license_required`.
+- **License change:** a grandi/SDK bump changes the license-text hash. Existing acceptances no
+  longer match, the state becomes `license_required` and the admin must accept again (section 6.3).
 
-### 3.3 Control API (agent ↔ plugin)
+### 4.3 Control API (agent ↔ plugin)
 HTTP/1.1 over a unix socket `/run/mns-capture/plugin.sock` on a shared volume. The directory has
 mode 0700 and is owned by uid 1000. Both containers run as uid 1000 (`keep-id`), so filesystem
 permissions are the authentication. A shared token in an env var is an optional second factor.
-The contract is `openapi.json` in the plugin repo (section 3.0). The agent keeps hand-synced
-types plus a contract test.
+The contract is `openapi.json` in the plugin repo.
 
 | Route | Purpose |
 |---|---|
-| `GET /v1/status` | `apiVersion`, plugin version, license state, sdkVersion, catalogue `{ sdkVersion, licenseSha256 }` (the agent forwards these to the backend), arch, available encoders |
+| `GET /v1/status` | `apiVersion`, plugin version, license state, sdkVersion, `{ sdkVersion, licenseSha256 }` of the shipped text (the agent forwards it to the backend), arch, available encoders |
 | `PUT /v1/license` | accept `{ sdkVersion, licenseSha256 }`; `DELETE` = revoke |
-| `GET /v1/license/text?sdkVersion=` | license text from the catalogue (for the setup UI and the backend) |
+| `GET /v1/license/text` | shipped license text and plugin terms (for the setup UI and the backend) |
 | `PUT /v1/streams/:streamId` | start or replace a pipeline: `AgentNdiStreamConfig` without `ptz` (cameraHost, sourceName, bandwidth, size, fps, bitrate, encoderPref) |
 | `DELETE /v1/streams/:streamId` | stop a pipeline |
 | `GET /v1/streams` | per-stream status (`state`, `sourceName`, `encoder`, `fps`, `framesDropped`, error code) |
 
-The plugin writes HLS to `/var/lib/mns-capture/hls/<streamId>/` on the shared volume. The
-existing per-run segment names stay. The agent's `HlsUploadService` watches that directory instead of its own temp dir.
+The plugin writes HLS to `/var/lib/mns-capture/hls/<streamId>/` on the shared volume. The existing
+per-run segment names stay. The agent's `HlsUploadService` watches that directory instead of its
+own temp dir.
 
-## 4. Agent changes (`apps/site-agent`)
+## 5. Agent changes (`apps/site-agent`)
 - `NdiStreamManager.reconcile()` calls `PluginClient` (`PUT`/`DELETE /v1/streams`) instead of
-  creating pipelines in-process. The reconcile semantics stay the same, including that PTZ changes
-  never restart video.
-- New `PluginClient` with a socket-path seam for tests. It polls `GET /v1/status` and `GET /v1/streams` every 2 s. Plugin
-  absent or socket missing → state `absent`, never an error loop. Unknown API major version →
-  state `incompatible`.
-- Hand-synced protocol types (`protocol/capture-plugin-protocol.ts`, with a sync note pointing
-  to the plugin repo's `openapi.json` and its version) plus a contract spec that validates the
-  agent's requests and the fixtures against a vendored copy of `openapi.json`.
+  creating pipelines in-process. Reconcile semantics stay, including that PTZ changes never
+  restart video.
+- New `PluginClient` with a socket-path seam for tests. It polls `GET /v1/status` and
+  `GET /v1/streams` every 2 s. Plugin absent or socket missing → state `absent`, never an error
+  loop. Unknown API major version → `incompatible`.
+- Hand-synced protocol types (`protocol/capture-plugin-protocol.ts`, with a sync note pointing to
+  the plugin repo's `openapi.json` and version) plus a contract spec against a vendored copy.
 - License: forwards `config.ndiPlugin.acceptance` to the plugin (`PUT /v1/license`) and reports the
-  plugin's state and catalogue to the backend.
-- Report: new optional `capturePlugin` block (`state`, `pluginVersion`, `sdkVersion`, `catalogue`,
-  `acceptedVia: 'dashboard' | 'device'`). Existing `ndiStreams` status is filled from the plugin.
-  The older-server 400 fallback stays.
+  plugin's state and shipped license hash to the backend.
+- Report: new optional `capturePlugin` block (`state`, `pluginVersion`, `sdkVersion`,
+  `licenseSha256`, `acceptedVia: 'dashboard' | 'device'`). Existing `ndiStreams` status is filled
+  from the plugin. The older-server 400 fallback stays.
 - Removed from the agent: grandi import, `ndi/` pipeline code, FFmpeg in the image (back to the
-  slim pre-NDI image size of about 137 MB), `/dev/video*`/`/dev/dri` needs (they move to the plugin).
+  slim pre-NDI size of about 137 MB), `/dev/video*`/`/dev/dri` needs (they move to the plugin).
+  The agent image stays multi-arch.
 - Root `package.json`/`package-lock.json`: `grandi` removed (lockfile regenerated in node:26 +
   npm 12.2.0). The prune step in `apps/backend/Dockerfile.prod`, the slim FFmpeg stage and the
-  grandi/encoder smoke checks in `.github/workflows/ci.yml` are removed from this repo. A new
-  smoke check asserts that no `libndi*` file and no `grandi` package exists in the agent image.
-- `tools/ndi-test-source/` and `tools/ndi-spike/` are deleted here after they land in the
-  plugin repo.
+  grandi/encoder smoke checks in `.github/workflows/ci.yml` are removed. A new smoke check asserts
+  that no `libndi*` file and no `grandi` package exists in the agent image.
+- `tools/ndi-test-source/` and `tools/ndi-spike/` are deleted here after they land in the plugin
+  repo.
 
-## 5. License acceptance flow ("Dashboard + Agent")
+## 6. License acceptance flow ("Dashboard + Agent")
+The accepted terms are the NDI SDK license **and** our plugin terms (clause 3d conditions),
+identified by the hash of the exact shipped text.
 
-### 5.1 Primary: dashboard
-1. The agent reports `capturePlugin.state = license_required` with the catalogue entry.
+### 6.1 Primary: dashboard
+1. The agent reports `capturePlugin.state = license_required` with `sdkVersion` and `licenseSha256`.
 2. The site-agent detail page shows a "Video capture plugin (NDI®-compatible)" card with state,
-   plugin and SDK version, and an **"Enable"** action for OrgAdmins only.
-3. "Enable" opens a modal with the **full NDI license text** (fetched via backend → agent → plugin
-   `GET /v1/license/text`, or cached in the backend per `licenseSha256`). It also shows our plugin
-   terms (clause 3d conditions), the trademark notice, a link to https://ndi.video and an unticked
-   checkbox "I accept the NDI SDK License on behalf of <organisation>". Accept is enabled only after
-   scrolling to the end and ticking the box.
+   plugin and SDK version, the supported-platform note (x86-64) and an **"Enable"** action for
+   OrgAdmins only.
+3. "Enable" opens a modal with the **full NDI license text** and our plugin terms (fetched via
+   backend → agent → plugin `GET /v1/license/text`, or cached in the backend per `licenseSha256`),
+   the trademark notice, a link to https://ndi.video and an unticked checkbox "I accept the NDI SDK
+   License and the plugin terms on behalf of <organisation>". Accept is enabled only after scrolling
+   to the end and ticking the box.
 4. `POST /api/site-agents/:id/capture-plugin/acceptance { sdkVersion, licenseSha256 }` (OrgAdmin)
    → row in the new table `capture_plugin_acceptances` (`id`, `organisationId`, `agentId`,
    `sdkVersion`, `licenseSha256`, `acceptedByUserId`, `acceptedAt`, `revokedAt`, `revokedByUserId`)
    plus audit `site_agent.capture_license_accepted`. Then the backend pushes `reload_config`.
 5. `AgentConfig.ndiPlugin = { acceptance: { sdkVersion, licenseSha256 } | null }` → agent →
-   plugin downloads → status `ready` → card shows "ready".
+   plugin → status `ready` → card shows "ready".
 6. `DELETE …/acceptance` (OrgAdmin) revokes, with audit `site_agent.capture_license_revoked`.
 
-### 5.2 Fallback: on the device (unattended / offline installs)
+### 6.2 Fallback: on the device (unattended / offline installs)
 - Env `MNS_CAPTURE_ACCEPT_NDI_LICENSE=<licenseSha256>` on the **plugin** container, set via the
   ansible var `capture_plugin_accept_ndi_license_sha256`. Having to paste the hash forces the
   operator to look at the exact license version. A bare `true` is deliberately not accepted.
@@ -227,90 +261,89 @@ existing per-run segment names stay. The agent's `HlsUploadService` watches that
   the device" with a timestamp. The backend stores it as an acceptance row with
   `acceptedByUserId = null`, `source = 'device'`.
 
-### 5.3 Gating
+### 6.3 Gating
 - Dashboard: source type "NDI" in the live-stream create modal is offered only for agents with
   `capturePlugin.state = ready`. Other agents are shown disabled with a reason.
 - Backend: creating or activating an NDI stream for an agent without an active acceptance or whose
-  plugin is not `ready` → `409` with a clear message. The existing NDI streams on `develop` keep
-  their schema. Only gating is added.
-- A new SDK release with a new `licenseSha256` → the card shows "new license version, acceptance
-  required". Existing streams keep running on the old runtime until the admin accepts, and are not
-  silently upgraded.
+  plugin is not `ready` → `409` with a clear message. The existing NDI stream schema stays. Only
+  gating is added.
+- A new image with a new `licenseSha256` (after a grandi/SDK bump) → the card shows "new license
+  version, acceptance required". Streams stop until the admin accepts again, because the plugin
+  refuses to run without a matching hash.
 
-## 6. Deployment
-- Plugin repo CI (built natively per arch, amd64 + arm64, like this repo): lint/typecheck/test,
-  contract check of `openapi.json`, NDI-SDK denylist check (repo tree, PR diff, image), image
-  build, Trivy gate, CodeQL, gitleaks. Publishes
-  `ghcr.io/flo-schilli/mynextscreen-capture-plugin` only on main and tags. Image base
-  `node:26-trixie-slim`, with the slim FFmpeg stage moved there from the agent Dockerfile,
-  `grandi` installed and then `rm @grandi/linux-*/libndi*`. Same hardening as the agent:
-  rootless, `keep-id`, `DropCapability=ALL`, `NoNewPrivileges`, read-only rootfs plus tmpfs,
-  host network (the plugin needs LAN access to the camera's NDI ports).
-- CI smoke for the plugin image: no `libndi*` in the image (hard fail), FFmpeg encoders per arch,
-  the plugin starts and reports `license_required`, `grandi.node` present.
+## 7. Deployment
+- Plugin repo CI (**amd64 only**): lint/typecheck/test, contract check of `openapi.json`, NDI
+  denylist (repo tree, PR diff, image, section 4.0), image build, Trivy gate, CodeQL, gitleaks.
+  Publishes `ghcr.io/flo-schilli/mynextscreen-capture-plugin` (amd64) only on main and tags. An
+  arm64 image is built locally for dev tests and never pushed. Image base `node:26-trixie-slim`,
+  with the slim FFmpeg stage moved there from the agent Dockerfile and `grandi` installed.
+  Same hardening as the agent: rootless, `keep-id`, `DropCapability=ALL`, `NoNewPrivileges`,
+  read-only rootfs plus tmpfs, host network (LAN access to the camera's NDI ports).
+- CI smoke for the plugin image: the expected `libndi.so.6` is present (sha256 match), no headers
+  or SDK docs, FFmpeg encoders (x264, vaapi), the plugin starts and reports `license_required`,
+  `grandi.node` loads after acceptance.
 - Ansible (this repo) pins `capture_plugin_image_tag` separately from `signage_image_tag`.
 - Ansible: new optional quadlet `mynextscreen-capture-plugin.container.j2`, enabled by
-  `capture_plugin_enabled: false` (default off). Shared volumes `%h/capture/state` (runtime,
-  mode 0700) and `%h/capture/shared` (socket plus HLS, mounted into both containers). `AddDevice`
-  for `/dev/video*` (Pi) or `/dev/dri` (x86) per inventory var, on the plugin only.
+  `capture_plugin_enabled: false` (default off), only for x86-64 hosts. Shared volumes
+  `%h/capture/state` and `%h/capture/shared` (socket plus HLS, mounted into both containers).
+  `AddDevice` for `/dev/dri` per inventory var, on the plugin only.
 - Agent quadlet: mounts `%h/capture/shared` and gets `MNS_CAPTURE_SOCKET` set.
-- Docs: install section with the NDI notice, the link and the acceptance steps.
+- Docs: install section with the supported platform, the NDI notice, the link and the acceptance
+  steps. We never offer preconfigured locked devices.
 
-## 7. Notices and terms (clause 3d / 3f)
-- `apps/capture-plugin/NOTICE` (also in the image under `/usr/share/licenses/capture-plugin/`):
-  NDI copyright, "NDI® is a registered trademark of Vizrt NDI AB", link, and the 3d conditions
-  (no modification or reverse engineering of NDI components, warranty and liability disclaimer on
-  behalf of NDI, export compliance). The acceptance modal shows the same text.
-- Repo `README`: state that the AGPL agent contains no NDI code, the plugin is Apache-2.0, and
-  the NDI runtime is obtained from NDI under the NDI license.
+## 8. Notices and terms (clause 2b / 3d / 3f)
+- `NOTICE` in the plugin repo (also in the image under `/usr/share/licenses/capture-plugin/`, next
+  to the NDI license text and `libndi_licenses.txt`): NDI copyright, "NDI® is a registered
+  trademark of Vizrt NDI AB", link, and the 3d conditions (no modification or reverse engineering of
+  NDI components, warranty and liability disclaimer on behalf of NDI, export compliance). The
+  acceptance modal shows the same text.
+- Repo `README`: the AGPL agent contains no NDI code, the plugin is Apache-2.0, the image ships the
+  unmodified NDI runtime under the NDI license, supported platform is x86-64.
 - Dashboard "About/Info": trademark notice plus link (still open from PR 2).
-- Process for clause 2b ("latest SDK version"): a weekly CI job checks the catalogue download URL
-  (ETag / Last-Modified / checksum). On a change it opens an issue, and we then add the new release
-  to the catalogue.
+- Clause 2b ("latest SDK version"): a **weekly CI job** compares the grandi releases and the SDK
+  "latest" URL (ETag / Last-Modified) against the pinned state and opens an issue when a newer SDK
+  appears. We then bump grandi, rebuild and release the plugin, which changes the license hash if
+  NDI changed the text (section 6.3).
 
-## 8. Phases
+## 9. Phases
 
 | Phase | Content | Effort (rough) |
 |---|---|---|
-| **0 Verify** (blocking) | (a) `grandi.node` finds `libndi.so.6` via `LD_LIBRARY_PATH` when deleted next to it, on x64 and arm64; (b) official NDI SDK Linux download: URL stability, archive layout, aarch64 libs, license file location, whether the tarball is checksum-stable; (c) a newer 6.x libndi works with grandi 2.0.2; (d) send the NDI questions (section 9) | 1 day + NDI's response time |
-| **1 Plugin repo** | create the public repo (Apache-2.0, CI and GHCR publish, branch protection, NDI-SDK denylist check), move pipeline code and `tools/ndi-*` (relicensed), control API + `openapi.json`, license state machine, downloader, specs, first release `v0.1.0` | 3.5–4.5 days |
+| **0 Verify** | **Done 2026-10-18** (section 2) | done |
+| **1 Plugin repo** | repo exists. Add CI and GHCR publish (amd64), branch protection, NDI denylist (tree, diff, image sha256), move pipeline code and `tools/ndi-*` (relicensed), control API + `openapi.json`, license gate, platform check, bundled runtime + notices, specs, first release `v0.1.0` | 2.5–3.5 days |
 | **2 Agent** | `PluginClient` + hand-synced types + contract spec, reconcile via the plugin, report block, remove grandi/FFmpeg/pipeline/`tools/ndi-*` from this repo, image smoke "no libndi, no grandi" | 1–2 days |
 | **3 Backend + dashboard** | migration `capture_plugin_acceptances`, acceptance API + audit, `AgentConfig.ndiPlugin`, gating (409), plugin card + acceptance modal, create-modal gating, i18n | 2–3 days |
-| **4 Deployment** | plugin image + CI matrix + smoke, ansible quadlet + vars, setup-UI acceptance page, device env fallback, docs/NOTICE, weekly SDK check job | 1–2 days |
-| **5 E2E** | rootless: test source → plugin → agent → backend → player; acceptance/revocation/license-change paths; Pi run (`h264_v4l2m2m`, ≥ 38 min) | 1 day |
+| **4 Deployment** | ansible quadlet + vars (x86-64 only), setup-UI acceptance page, device env fallback, docs/NOTICE, weekly SDK check job | 1–2 days |
+| **5 E2E** | rootless on x86-64: test source → plugin → agent → backend → player; acceptance/revocation/license-change paths. The Pi run (`h264_v4l2m2m`) is an optional dev test, not a release blocker | 1 day |
 
-Delivery: plugin-repo work through PRs in the plugin repo. This repo keeps one PR per phase
-into `develop`. Phase 2 in this repo requires a published plugin release from phase 1, so the
-agent and the integration tests have a pinned image. Phase 0 is decided before any code moves. If NDI answers that shipping the runtime in the image is fine, phases 1–2 still pay
-off for the AGPL separation, and the downloader becomes optional.
+Delivery: plugin-repo work through PRs in the plugin repo. This repo keeps one PR per phase into
+`develop`. Phase 2 requires a published plugin release from phase 1, so the agent and the
+integration tests have a pinned image.
 
-## 9. Questions for NDI (licensing@ndi.video), part of phase 0
-1. May an open-source plugin (Apache-2.0) **download the NDI 6 SDK for Linux from your official URL on
-   the end user's machine** after the end user has explicitly accepted the NDI SDK License in our
-   UI, and extract only `libndi.so.6` for runtime use? Or is there a redistributable runtime
-   package for Linux we should use instead?
-2. Does a capture agent running on **customer-owned Raspberry Pi or x86 machines with an unrestricted,
-   user-modifiable Linux** qualify as a "Product", or does it fall under 1b(iii) (embedded devices)?
-3. Is the end user (venue operator) or we as the project the licensee in this model, and which
-   terms must our plugin license carry under 3d?
-4. Does the Standard SDK have any runtime limitation on Linux ARM64? (We measured none on x86-64:
-   38 min, 68 402 frames.)
+## 10. Question for NDI (licensing@ndi.video)
+Recommended before releasing to `main`, **not a blocker** for starting phase 1. One confirmation
+question:
 
-## 10. Risks
+> May we ship the unmodified NDI 6 Linux runtime (`libndi.so.6`) in a public amd64 container image
+> under plugin terms that cover clause 3d, for use on x86-64 general-purpose hosts with an
+> operator-controlled, unrestricted Linux?
+
+## 11. Risks
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| `grandi.node` only finds libndi via `$ORIGIN` (RPATH) | the downloader design breaks | phase 0 (a). Fallback: copy the downloaded lib next to `grandi.node` into a writable overlay dir and point Node's module resolution there |
-| NDI changes the tarball at a versionless URL | download fails (`checksum_mismatch`) | weekly CI check, catalogue update, clear plugin status in the dashboard |
-| NDI says the download model is not acceptable either | feature cannot ship publicly | ask before implementing (phase 0). Alternatives: NDI's own redistributable, or an agreement / Advanced SDK |
-| 1b(iii) applies to the Pi | Pi deployments not covered | NDI answer. If needed, support x86 only or obtain an agreement |
+| NDI does not confirm the shipping model | public image cannot be released | SDK docs §4.2/§4.5 already permit it. If NDI objects: agreement or Advanced SDK, otherwise keep the plugin private |
+| Third parties run the amd64-only plugin on arm64 or locked devices despite the docs (1b) | license breach on their side, reputational risk | docs and README state the platform, no arm64 images are published, platform check refuses to start on non-`x86_64` unless `MNS_CAPTURE_DEV_ALLOW_ARM=1` (dev only) |
+| NDI changes terms with a new SDK / grandi release | acceptance no longer valid | acceptance is bound to the license-text hash. A changed hash puts the plugin in `license_required` until the admin accepts again |
+| New SDK release not tracked (clause 2b) | stale runtime | weekly CI job on grandi releases and the SDK "latest" URL opens an issue |
+| An NDI SDK file (header, doc, archive) lands in the repo, a PR or the image | breach of clause 3a | `.gitignore` + CI denylist on tree and diff, image check allows only the expected `libndi.so.6` (sha256) and the license texts |
 | Two containers instead of one | more ops surface | plugin optional (default off), shared ansible role, status visible in the dashboard |
-| An NDI SDK file (header, lib, doc) lands in the public repo or image | breach of the SDK confidentiality clause 3a | `.gitignore` + CI denylist on tree, diff and image; repo vendors nothing from the SDK |
 | Agent and plugin versions drift (two repos) | broken control calls in the field | `/v1` API versioning, `incompatible` status, contract tests on both sides, ansible pins both tags |
 | Shared-socket misuse on the host | another local process controls the plugin | socket dir 0700 uid 1000, optional token, plugin accepts only the documented routes |
-| Raw-frame path unchanged, but HLS now crosses a volume | latency +ms | same host, tmpfs-backed volume. Measure in phase 5 (target still ≤ 4 s) |
+| HLS now crosses a volume | latency +ms | same host, tmpfs-backed volume. Measure in phase 5 (target still ≤ 4 s) |
 
-## 11. Explicit non-goals
+## 12. Explicit non-goals
 - No change to PTZ, the player, the HLS upload protocol to the backend, or the live-stream schema.
 - No in-product purchase or licensing of the NDI Advanced SDK.
 - No automatic acceptance on behalf of an organisation, ever.
+- No arm64 production support, no preconfigured locked devices, no runtime downloader.
