@@ -47,7 +47,7 @@ export class NdiHlsStorageService {
     if (!Buffer.isBuffer(body)) {
       throw new UnsupportedMediaTypeException('Upload body must be binary');
     }
-    if (body.length > this.maxUploadBytes) {
+    if (body.byteLength > this.maxUploadBytes) {
       throw new PayloadTooLargeException(
         `Upload exceeds the limit of ${this.maxUploadBytes} bytes`,
       );
