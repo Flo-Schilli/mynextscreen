@@ -5,7 +5,7 @@ on:
     branches: [main]
     tags: ["v*.*.*"]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -68,6 +68,9 @@ jobs:
       - name: Derive nx SHAs
         if: github.event_name == 'pull_request'
         uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
+        with:
+          # PRs target main or develop; diff against the PR's own target branch.
+          main-branch-name: ${{ github.base_ref }}
 
       # On the default branch we run the full graph (run-many) so nothing is skipped;
       # on PRs we run only what the change set affects.
