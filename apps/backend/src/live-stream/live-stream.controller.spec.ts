@@ -8,6 +8,13 @@ import type { LiveStream } from '../db/schema';
 import { LiveStreamProtocol } from './live-stream-protocol.enum';
 import { LiveStreamSourceType } from './live-stream-source-type.enum';
 import { NdiQualityPreset } from './ndi-quality-preset.enum';
+import { plainToInstance } from 'class-transformer';
+import { Reflector } from '@nestjs/core';
+import { PtzCommandDto } from './dto';
+import { ROLES_KEY } from '../auth/roles.decorator';
+import { OrganisationRole } from '../user/organisation-role.enum';
+import { PtzProtocol } from './ptz-protocol.enum';
+import { PER_USER_THROTTLE_KEY } from '../auth/proxy-aware-throttler.guard';
 import { NdiEncoderPref } from './ndi-encoder-pref.enum';
 import { LiveStreamStatus } from './live-stream-status.enum';
 import { TranscodingPreset } from './transcoding-preset.enum';
@@ -53,10 +60,20 @@ describe('LiveStreamController', () => {
     ndiSourceName: null,
     qualityPreset: NdiQualityPreset.P720,
     encoderPref: NdiEncoderPref.Auto,
+    ptzEnabled: false,
+    ptzProtocol: PtzProtocol.ViscaUdp,
+    ptzPort: null,
   };
 
   // Pull streams never expose the NDI settings, even though the columns default.
-  const PULL_RESPONSE = { ...mockStream, qualityPreset: null, encoderPref: null };
+  const PULL_RESPONSE = {
+    ...mockStream,
+    qualityPreset: null,
+    encoderPref: null,
+    ptzEnabled: false,
+    ptzProtocol: null,
+    ptzPort: null,
+  };
 
   beforeEach(async () => {
     service = {
@@ -209,7 +226,12 @@ describe('LiveStreamController', () => {
       const result = await controller.update(orgId, streamId, dto, mockReq);
 
       expect(service.updateLiveStream).toHaveBeenCalledWith(orgId, streamId, dto, userId);
-      expect(result).toEqual({ ...updated, qualityPreset: null, encoderPref: null });
+      expect(result).toEqual({
+        ...updated,
+        qualityPreset: null,
+        encoderPref: null,
+        ptzProtocol: null,
+      });
     });
 
     it('should propagate ConflictException when stream is active', async () => {
@@ -316,6 +338,77 @@ describe('LiveStreamController', () => {
       ).rejects.toThrow(NotFoundException);
       expect(service.findOne).toHaveBeenCalledWith(foreignOrgId, streamId);
       expect(ffmpegService.getHlsOutputDir).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('ptz', () => {
+    it('forwards the stripped command with org and user', async () => {
+      service.sendPtzCommand = jest.fn().mockResolvedValue(undefined);
+      const dto = plainToInstance(PtzCommandDto, { action: 'home', speed: 9 });
+
+      await expect(controller.ptz(orgId, streamId, dto, mockReq)).resolves.toBeUndefined();
+
+      expect(service.sendPtzCommand).toHaveBeenCalledWith(
+        orgId,
+        streamId,
+        { action: 'home' },
+        userId,
+      );
+    });
+
+    it('propagates ConflictException from the service', async () => {
+      service.sendPtzCommand = jest.fn().mockRejectedValue(new ConflictException('offline'));
+
+      await expect(
+        controller.ptz(
+          orgId,
+          streamId,
+          plainToInstance(PtzCommandDto, { action: 'stop' }),
+          mockReq,
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('is limited to admins and editors and answers 202', () => {
+      const handler = LiveStreamController.prototype.ptz;
+
+      expect(new Reflector().get(ROLES_KEY, handler)).toEqual([
+        OrganisationRole.OrgAdmin,
+        OrganisationRole.Editor,
+      ]);
+      expect(Reflect.getMetadata('__httpCode__', handler)).toBe(202);
+    });
+
+    it('is rate-limited per user, not per IP', () => {
+      const handler = LiveStreamController.prototype.ptz;
+
+      expect(Reflect.getMetadata(PER_USER_THROTTLE_KEY, handler)).toBe(true);
+    });
+
+    it('shows PTZ off and no protocol for pull streams, settings for NDI streams', async () => {
+      service.findOne.mockResolvedValue({
+        ...mockStream,
+        ptzEnabled: true,
+        ptzProtocol: PtzProtocol.ViscaTcp,
+        ptzPort: 1,
+      });
+      const pull = await controller.findOne(orgId, streamId);
+
+      service.findOne.mockResolvedValue({
+        ...mockStream,
+        sourceType: LiveStreamSourceType.Ndi,
+        ptzEnabled: true,
+        ptzProtocol: PtzProtocol.ViscaTcp,
+        ptzPort: 1,
+      });
+      const ndi = await controller.findOne(orgId, streamId);
+
+      expect(pull).toEqual(
+        expect.objectContaining({ ptzEnabled: false, ptzProtocol: null, ptzPort: null }),
+      );
+      expect(ndi).toEqual(
+        expect.objectContaining({ ptzEnabled: true, ptzProtocol: 'visca_tcp', ptzPort: 1 }),
+      );
     });
   });
 

@@ -36,6 +36,7 @@ import {
   LIVE_STREAM_PROCESS_EXITED,
   LiveStreamProcessExitedEvent,
 } from './ffmpeg-live.service';
+import { isAuditedPtzAction, type PtzCommand } from './ptz-command';
 import { TranscodingPreset } from './transcoding-preset.enum';
 import { ScreenGroupService } from '../screen-group/screen-group.service';
 import {
@@ -50,6 +51,7 @@ import {
   AUDIT_LIVE_STREAM_ACTIVATED,
   AUDIT_LIVE_STREAM_DEACTIVATED,
   AUDIT_LIVE_STREAM_FAILED,
+  AUDIT_LIVE_STREAM_PTZ,
   AuditLiveStreamEvent,
 } from '../audit-log/audit.events';
 import { OutboundGuard } from '../common/outbound-guard.service';
@@ -191,6 +193,48 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
     );
 
     return saved;
+  }
+
+  /**
+   * Forwards a PTZ command to the agent next to the camera. Fire-and-forget:
+   * 202 means "handed to the agent", not "the camera moved". Only discrete
+   * actions are audited; move/stop/zoom arrive many times a second.
+   */
+  async sendPtzCommand(
+    organisationId: string,
+    id: string,
+    command: PtzCommand,
+    userId: string | null = null,
+  ): Promise<void> {
+    const stream = await this.findOne(organisationId, id);
+
+    if (stream.sourceType !== LiveStreamSourceType.Ndi || !stream.ptzEnabled) {
+      throw new ConflictException('PTZ is not enabled for this live stream.');
+    }
+    if (stream.status !== LiveStreamStatus.Active || !stream.agentId) {
+      throw new ConflictException('The live stream is not active.');
+    }
+
+    const pushed = this.siteAgentSse.push(stream.agentId, {
+      commandId: randomUUID(),
+      type: SiteAgentCommandType.Ptz,
+      streamId: stream.id,
+      ptz: command,
+    });
+    if (!pushed) {
+      throw new ConflictException('Site agent offline');
+    }
+
+    if (isAuditedPtzAction(command.action)) {
+      this.eventEmitter.emit(
+        AUDIT_LIVE_STREAM_PTZ,
+        new AuditLiveStreamEvent(id, organisationId, userId, {
+          streamId: id,
+          streamName: stream.name,
+          ...command,
+        }),
+      );
+    }
   }
 
   async removeLiveStream(
@@ -522,6 +566,9 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       ndiSourceName: dto.ndiSourceName?.trim() || null,
       qualityPreset: dto.qualityPreset,
       encoderPref: dto.encoderPref,
+      ptzEnabled: dto.ptzEnabled,
+      ptzProtocol: dto.ptzProtocol,
+      ptzPort: dto.ptzPort ?? null,
       transcodingPreset: dto.transcodingPreset,
       audioEnabled: dto.audioEnabled,
     };
@@ -558,6 +605,9 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
           dto.ndiSourceName === undefined ? undefined : dto.ndiSourceName.trim() || null,
         qualityPreset: dto.qualityPreset,
         encoderPref: dto.encoderPref,
+        ptzEnabled: dto.ptzEnabled,
+        ptzProtocol: dto.ptzProtocol,
+        ptzPort: dto.ptzPort,
       }),
     };
   }

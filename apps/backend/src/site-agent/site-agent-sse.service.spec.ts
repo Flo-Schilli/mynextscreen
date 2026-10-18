@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { firstValueFrom, take, toArray } from 'rxjs';
 import { SiteAgentSseService } from './site-agent-sse.service';
 import { SiteAgentCommandType } from './site-agent-command.enum';
+import type { SiteAgentCommand } from './site-agent-command.types';
 
 describe('SiteAgentSseService', () => {
   let service: SiteAgentSseService;
@@ -9,7 +10,7 @@ describe('SiteAgentSseService', () => {
   const agentId = '660e8400-e29b-41d4-a716-446655440000';
   const otherAgentId = '770e8400-e29b-41d4-a716-446655440000';
 
-  const command = {
+  const command: SiteAgentCommand = {
     commandId: 'cmd-1',
     type: SiteAgentCommandType.Launch,
     screenId: '880e8400-e29b-41d4-a716-446655440000',

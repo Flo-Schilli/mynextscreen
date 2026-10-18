@@ -121,3 +121,31 @@ describe('UpdateLiveStreamDto NDI fields', () => {
     expect(await failed({ [property]: value })).toEqual([property]);
   });
 });
+
+describe('PTZ fields on create and update', () => {
+  const ndi = { name: 'Cam', sourceType: 'ndi', agentId: AGENT_ID, cameraHost: '192.168.1.50' };
+
+  it('accepts PTZ settings', async () => {
+    expect(
+      await failedProperties({ ...ndi, ptzEnabled: true, ptzProtocol: 'visca_tcp', ptzPort: 5678 }),
+    ).toEqual([]);
+  });
+
+  it.each([
+    ['ptzEnabled', 'yes'],
+    ['ptzProtocol', 'onvif'],
+    ['ptzPort', 0],
+    ['ptzPort', 65536],
+    ['ptzPort', 80.5],
+  ])('rejects invalid %s=%s on create', async (property, value) => {
+    expect(await failedProperties({ ...ndi, [property]: value })).toEqual([property]);
+  });
+
+  it('validates the same fields on update', async () => {
+    const errors = await validate(
+      plainToInstance(UpdateLiveStreamDto, { ptzEnabled: 1, ptzProtocol: 'x', ptzPort: 70000 }),
+    );
+
+    expect(errors.map((e) => e.property).sort()).toEqual(['ptzEnabled', 'ptzPort', 'ptzProtocol']);
+  });
+});

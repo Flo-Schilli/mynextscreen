@@ -257,6 +257,7 @@ export const AUDIT_LIVE_STREAM_DELETED = 'audit.live_stream.deleted';
 export const AUDIT_LIVE_STREAM_ACTIVATED = 'audit.live_stream.activated';
 export const AUDIT_LIVE_STREAM_DEACTIVATED = 'audit.live_stream.deactivated';
 export const AUDIT_LIVE_STREAM_FAILED = 'audit.live_stream.failed';
+export const AUDIT_LIVE_STREAM_PTZ = 'audit.live_stream.ptz';
 
 export class AuditLiveStreamEvent {
   constructor(

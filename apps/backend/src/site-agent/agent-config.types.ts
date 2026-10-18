@@ -1,4 +1,5 @@
 import type { DevmodeKeyStatus } from './devmode-key-status.enum';
+import type { PtzProtocol } from '../live-stream/ptz-protocol.enum';
 import type { SshStatus } from './ssh-status.enum';
 import type { SsapStatus } from './ssap-status.enum';
 
@@ -61,6 +62,8 @@ export interface AgentNdiStreamConfig {
   fps: number;
   bitrateKbps: number;
   encoderPref: 'auto' | 'software' | 'hardware';
+  /** Null when PTZ is off. The port is already resolved to the protocol default. */
+  ptz: { protocol: PtzProtocol; port: number } | null;
 }
 
 export interface AgentConfig {

@@ -44,6 +44,11 @@ export enum SiteAgentCommandType {
    * healthcheck-gated rollback.
    */
   UpdateAgent = 'update_agent',
+  /**
+   * Steer an NDI camera. Carries `streamId` + a PTZ command and never an
+   * address: the agent resolves the camera from its own config.
+   */
+  Ptz = 'ptz',
 }
 
 /**

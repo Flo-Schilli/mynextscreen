@@ -7,6 +7,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import Redis from 'ioredis';
 import { RedisThrottlerStorage } from './redis-throttler.storage';
 import { ProxyAwareThrottlerGuard } from './proxy-aware-throttler.guard';
+import { UserThrottlerGuard } from './user-throttler.guard';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
 import { AgentAuthGuard } from './agent-auth.guard';
@@ -50,7 +51,7 @@ import { UserModule } from '../user/user.module';
     TokenService,
     UnverifiedSignupCleanupService,
     // Order matters: ProxyAwareThrottlerGuard first (rate limit before any work),
-    // then JWT (sets req.user), then API-key (screen routes), then agent (site
+    // then JWT (sets req.user), then the per-user throttle, then API-key (screen routes), then agent (site
     // agent routes), then roles — which default-denies anything that declared
     // none of them.
     {
@@ -60,6 +61,12 @@ import { UserModule } from '../user/user.module';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    // Per-user limits (`@PerUserThrottle()` routes) need req.user, so they are
+    // counted here; the first guard skips those routes.
+    {
+      provide: APP_GUARD,
+      useClass: UserThrottlerGuard,
     },
     {
       provide: APP_GUARD,

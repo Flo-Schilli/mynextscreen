@@ -13,6 +13,7 @@ import {
 } from '../audit-log/audit.events';
 import { ScreenRemoteControlService } from './screen-remote-control.service';
 import { SiteAgentSseService } from './site-agent-sse.service';
+import type { SiteAgentBasicCommandType } from './site-agent-command.types';
 import { ONBOARDING_LAST_STEP, SiteAgentCommandType } from './site-agent-command.enum';
 import { ScreenReachability } from './screen-reachability.enum';
 import {
@@ -329,7 +330,7 @@ export class ScreenRemoteCommandService {
   private async push(
     organisationId: string,
     screenId: string,
-    command: { type: SiteAgentCommandType; step?: number },
+    command: { type: SiteAgentBasicCommandType; step?: number },
   ): Promise<string> {
     const remote = await this.remoteControls.getForScreen(organisationId, screenId);
     if (!remote.agentId) {

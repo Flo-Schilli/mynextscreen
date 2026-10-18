@@ -14,7 +14,9 @@ import { SiteAgentService } from '../site-agent/site-agent.service';
 import { SiteAgentSseService } from '../site-agent/site-agent-sse.service';
 import { NdiStreamStatusService } from '../site-agent/ndi-stream-status.service';
 import { SiteAgentCommandType } from '../site-agent/site-agent-command.enum';
-import { AUDIT_LIVE_STREAM_CREATED } from '../audit-log/audit.events';
+import { AUDIT_LIVE_STREAM_CREATED, AUDIT_LIVE_STREAM_PTZ } from '../audit-log/audit.events';
+import type { PtzCommand } from './ptz-command';
+import { PtzProtocol } from './ptz-protocol.enum';
 import { DRIZZLE } from '../db/database.constants';
 import {
   liveStreams,
@@ -496,6 +498,156 @@ describe('LiveStreamService (NDI)', () => {
       await expect(service.findActiveNdiStreamForAgent(orgId, agentId, pull.id)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('PTZ fields', () => {
+    it('defaults to PTZ off on creation', async () => {
+      const stream = await service.createLiveStream(orgId, ndiDto());
+
+      expect(stream).toEqual(
+        expect.objectContaining({ ptzEnabled: false, ptzProtocol: 'visca_udp', ptzPort: null }),
+      );
+    });
+
+    it('stores PTZ settings on creation', async () => {
+      const stream = await service.createLiveStream(
+        orgId,
+        ndiDto({ ptzEnabled: true, ptzProtocol: PtzProtocol.ViscaTcp, ptzPort: 5679 }),
+      );
+
+      expect(stream).toEqual(
+        expect.objectContaining({ ptzEnabled: true, ptzProtocol: 'visca_tcp', ptzPort: 5679 }),
+      );
+    });
+
+    it('pushes reload_config when PTZ settings of an active stream change', async () => {
+      const stream = await seedNdi({ status: LiveStreamStatus.Active });
+
+      const saved = await service.updateLiveStream(orgId, stream.id, {
+        ptzEnabled: true,
+        ptzPort: 1234,
+      });
+
+      expect(saved).toEqual(expect.objectContaining({ ptzEnabled: true, ptzPort: 1234 }));
+      expect(sse.push).toHaveBeenCalledWith(
+        agentId,
+        expect.objectContaining({ type: SiteAgentCommandType.ReloadConfig }),
+      );
+    });
+
+    it('clears the port with null', async () => {
+      const stream = await seedNdi({ ptzPort: 1234 });
+
+      const saved = await service.updateLiveStream(orgId, stream.id, {
+        ptzPort: null as unknown as undefined,
+      });
+
+      expect(saved.ptzPort).toBeNull();
+    });
+  });
+
+  describe('sendPtzCommand', () => {
+    const move: PtzCommand = { action: 'move', direction: 'left', speed: 5 };
+
+    const seedPtz = (overrides: Partial<typeof liveStreams.$inferInsert> = {}) =>
+      seedNdi({ status: LiveStreamStatus.Active, ptzEnabled: true, ...overrides });
+
+    it('pushes the command with the stream id and no address', async () => {
+      const stream = await seedPtz();
+
+      await service.sendPtzCommand(orgId, stream.id, move, 'user-1');
+
+      expect(sse.push).toHaveBeenCalledWith(agentId, {
+        commandId: expect.any(String),
+        type: SiteAgentCommandType.Ptz,
+        streamId: stream.id,
+        ptz: move,
+      });
+      expect(JSON.stringify(sse.push.mock.calls[0][1])).not.toContain('192.168');
+    });
+
+    it.each<PtzCommand>([
+      { action: 'move', direction: 'up', speed: 3 },
+      { action: 'stop' },
+      { action: 'zoom', direction: 'in', speed: 2 },
+    ])('does not audit $action', async (command) => {
+      const stream = await seedPtz();
+
+      await service.sendPtzCommand(orgId, stream.id, command, 'user-1');
+
+      expect(emitter.emit).not.toHaveBeenCalledWith(AUDIT_LIVE_STREAM_PTZ, expect.anything());
+    });
+
+    it.each<PtzCommand>([
+      { action: 'home' },
+      { action: 'preset_recall', preset: 3 },
+      { action: 'preset_store', preset: 4 },
+    ])('audits $action', async (command) => {
+      const stream = await seedPtz();
+
+      await service.sendPtzCommand(orgId, stream.id, command, 'user-1');
+
+      expect(emitter.emit).toHaveBeenCalledWith(
+        AUDIT_LIVE_STREAM_PTZ,
+        expect.objectContaining({
+          streamId: stream.id,
+          organisationId: orgId,
+          userId: 'user-1',
+          details: expect.objectContaining({ ...command, streamName: 'Stage cam' }),
+        }),
+      );
+    });
+
+    it('answers 404 for a stream of another organisation', async () => {
+      const stream = await seedPtz();
+
+      await expect(service.sendPtzCommand(otherOrgId, stream.id, move)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(sse.push).not.toHaveBeenCalled();
+    });
+
+    it('answers 409 when PTZ is disabled', async () => {
+      const stream = await seedPtz({ ptzEnabled: false });
+
+      await expect(service.sendPtzCommand(orgId, stream.id, move)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(sse.push).not.toHaveBeenCalled();
+    });
+
+    it('answers 409 for a pull stream', async () => {
+      const [pull] = await db
+        .insert(liveStreams)
+        .values({
+          organisationId: orgId,
+          name: 'Pull',
+          sourceUrl: 'rtmp://example.com/x',
+          status: LiveStreamStatus.Active,
+          ptzEnabled: true,
+        })
+        .returning();
+
+      await expect(service.sendPtzCommand(orgId, pull.id, move)).rejects.toThrow(ConflictException);
+    });
+
+    it('answers 409 when the stream is not active', async () => {
+      const stream = await seedPtz({ status: LiveStreamStatus.Idle });
+
+      await expect(service.sendPtzCommand(orgId, stream.id, move)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('answers 409 and audits nothing when the agent is offline', async () => {
+      const stream = await seedPtz();
+      sse.push.mockReturnValue(false);
+
+      await expect(
+        service.sendPtzCommand(orgId, stream.id, { action: 'home' }, 'user-1'),
+      ).rejects.toThrow(ConflictException);
+      expect(emitter.emit).not.toHaveBeenCalledWith(AUDIT_LIVE_STREAM_PTZ, expect.anything());
     });
   });
 
