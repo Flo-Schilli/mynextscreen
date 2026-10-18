@@ -447,8 +447,9 @@ Optional `--json` für maschinenlesbare Logs (Integrationstest).
 
 - **NDI-Lizenzmodell:** Umbau auf ein separat lizenziertes Capture-Plugin (eigenes Repo,
   Apache-2.0, nur x86-64, liefert die unveränderte Runtime mit) mit Lizenzannahme im Produkt,
-  siehe `docs/ndi-plugin-plan.md`. Phase 0 ist erledigt; die Bestätigungsfrage an NDI ist vor dem
-  Release auf main empfohlen, blockiert aber nicht den Start.
+  siehe `docs/ndi-plugin-plan.md`. Phasen 0–2 erledigt, Plugin `v0.1.0` veröffentlicht; offen sind
+  Phase 3 (Lizenzannahme im Dashboard), 4 (Deployment) und 5 (E2E). Keine Anfrage an NDI: Betrieb nur
+  auf x86-64, Pi nur zur Entwicklung (Begründung im Plugin-Plan, Abschnitt 10).
 
 - ~~**Schlankes FFmpeg**~~ erledigt: eigener FFmpeg-7.1.5-Build (Stage `ffmpeg-builder` in
   `apps/site-agent/Dockerfile.prod`, SHA-256-verifiziert, `--disable-everything`, nur
