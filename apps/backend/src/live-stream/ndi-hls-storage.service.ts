@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, Injectable, Logger, PayloadTooLargeException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  PayloadTooLargeException,
+  UnsupportedMediaTypeException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -35,7 +41,12 @@ export class NdiHlsStorageService {
   }
 
   /** Writes a file atomically: temp file in the same directory, then rename. */
-  async write(streamId: string, filename: string, body: Buffer): Promise<void> {
+  async write(streamId: string, filename: string, body: unknown): Promise<void> {
+    // The raw parser only yields a Buffer for the allowed content types; any
+    // other request leaves the body as a parsed object or string.
+    if (!Buffer.isBuffer(body)) {
+      throw new UnsupportedMediaTypeException('Upload body must be binary');
+    }
     if (body.length > this.maxUploadBytes) {
       throw new PayloadTooLargeException(
         `Upload exceeds the limit of ${this.maxUploadBytes} bytes`,

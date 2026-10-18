@@ -1,4 +1,8 @@
-import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
+import {
+  BadRequestException,
+  PayloadTooLargeException,
+  UnsupportedMediaTypeException,
+} from '@nestjs/common';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -61,6 +65,13 @@ describe('NdiHlsStorageService', () => {
       const dir = path.join(root, streamId);
       expect(fs.readdirSync(dir)).toEqual(['index.m3u8']);
       expect(fs.readFileSync(path.join(dir, 'index.m3u8'), 'utf8')).toBe('two');
+    });
+
+    it('rejects a body that is not a Buffer with 415', async () => {
+      await expect(service.write(streamId, 'seg_1.ts', ['a', 'b'])).rejects.toThrow(
+        UnsupportedMediaTypeException,
+      );
+      expect(fs.existsSync(path.join(root, streamId))).toBe(false);
     });
 
     it('rejects a body above the size cap with 413', async () => {
