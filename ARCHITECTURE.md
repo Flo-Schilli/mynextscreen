@@ -53,6 +53,7 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
 | **PlaylistModule**       | Playlist CRUD, ordered items with per-item duration; dynamic playlists: rule DTO, pure resolver, `playlist-resolve` queue, rule scheduler          |
 | **ContentSourceModule**  | Website adapters, guarded HTTP client, `content-source-sync` queue (sync + daily cleanup), slide renderer (sharp), event pool + facets API         |
 | **ScheduleModule**       | Calendar-based schedule CRUD, recurring rules (RRULE/iCal standard), conflict detection (no overlaps), fallback resolution                         |
+| **EventScheduleModule**  | Event schedule rules: schedules a playlist on the event days of a content source; pure planner, reconcile, listener + hourly tick                  |
 | **LiveStreamModule**     | Stream URL management, FFmpeg process lifecycle, override/fallback logic                                                                           |
 | **ScreenProtocolModule** | Protocol abstraction layer; JSON adapter (first), renders screen state for pull + SSE push                                                         |
 | **NotificationModule**   | Notification hub: in-app, email (abstract interface), ntfy; per-user channel preferences                                                           |
@@ -77,6 +78,11 @@ The repository is an **Nx integrated monorepo** with a single root `package.json
   - `source_event_slides` — rendered slide per `(sourceEventId, format)`, pointing at a content row, with the `renderHash` of everything it shows
   - `contents.managedBySourceId` — set on slides; such content is hidden from library, search, bulk operations and dashboard counters (storage totals still include it)
   - `playlists.kind` (`static` | `dynamic`), `rule` (jsonb), `nextResolveAt`, `lastResolvedAt`
+- **Event-schedule tables** (migration `0029_event_schedule_rules`):
+  - `event_schedule_rules` — per source: canonical `venues` (jsonb), `playlistId`, local `windowStart`/`windowEnd` (`HH:MM`), `excludeCancelled`, `colour`, `enabled`, `lastReconciledAt`, `lastReconcileSummary` (jsonb, incl. conflicts)
+  - `event_schedule_rule_targets` — one screen or one group per row (check constraint), so deleted screens and groups drop out by foreign key
+  - `event_schedule_rule_exclusions` — `(ruleId, sourceEventId)` of events a rule leaves out
+  - `schedule_entries.managedByRuleId` + `managedSourceEventId` — set on generated entries; two partial unique indexes (screen and group target) keep one entry per rule, event and target
 
 ## Site Agents
 
@@ -253,6 +259,54 @@ playlists (kind=dynamic, rule) ◀──(playlist-resolve: resolve-<playlistId>)
 
 From materialised items onward nothing is special: screen state, schedules,
 slicing and SSE treat a dynamic playlist like any other.
+
+### Event schedule rules
+
+A rule turns a source's events into schedule entries: "on every event day at
+these venues, play this playlist from `windowStart` to `windowEnd` on these
+screens and groups". Times are local to the organisation; an end at or before
+the start lies on the next day (`18:00`–`01:00`).
+
+- **Planner** (`event-schedule-planner.ts`, pure): events that are listed (no
+  `goneAt`), not excluded, not cancelled when the rule skips those, at a rule
+  venue by canonical name (a rule venue aliased later means its canonical
+  venue), inside a 90-day horizon and not over yet. Each end of the window is
+  resolved on its own wall clock with `zonedTimeToUtc`, so a DST night changes
+  the duration, not the times shown.
+- **Reconcile** (`EventScheduleReconcileService`): one transaction under
+  `pg_advisory_xact_lock(hashtext(organisationId))`, so two rules of one
+  organisation never fill a slot concurrently. It diffs the planned slots ×
+  targets against the rule's generated entries: insert, update times,
+  playlist, name or colour, delete what is no longer wanted. Ended entries
+  stay as history and are pruned 14 days after their end.
+- **Manual entries win**: a slot that any other entry on the same screen or
+  group overlaps (manual, or another rule's entry that was there first,
+  recurrences expanded) is left out or removed and reported in
+  `lastReconcileSummary.conflicts`. `ScheduleService.checkOverlap` ignores
+  generated entries, so a manual entry can always be created; the following
+  reconcile steps aside. Unlike manual overlap checks, group targets are
+  checked too.
+- **Locking**: `PATCH`/`DELETE /schedules/:id` answer `409` for generated
+  entries; they change only through their rule. The calendar shows a lock,
+  blocks drag and resize, and links to the rule.
+- **Push**: `ScheduleService.announceManagedChanges` emits
+  `SCHEDULE_ENTRY_CHANGED`/`GROUP_SCHEDULE_CHANGED` per touched screen or group
+  with `managed = true` and queues slice jobs for split groups, so screen
+  state, boundary timers and SSE work as for manual entries.
+- **Triggers** (`EventScheduleListener`): `content_source.synced` and
+  `content_source.venue_aliases_updated` reconcile the source's rules; a
+  manual schedule change (`managed = false`) reconciles the rules targeting
+  that screen or group; rule create, update and exclusion changes reconcile at
+  once; an hourly tick reconciles every rule (rolling horizon, retries after a
+  failure). Deleting a source deletes its rules and their entries by cascade;
+  `content_source.removed` then makes every screen and group of the
+  organisation re-resolve.
+- **API**: `content-sources/:sourceId/event-schedules` — CRUD (targets as
+  `screenIds`/`groupIds`), `GET :id/preview` (upcoming events with the status
+  per target: scheduled, conflict, pending, excluded) and
+  `PUT`/`DELETE :id/exclusions/:eventId`; read for all roles, write for Org
+  Admin and Editor. Audit actions `event_schedule_rule.created/updated/deleted`
+  and `.reconciled` (only when entries changed).
 
 ## Screen Communication
 
