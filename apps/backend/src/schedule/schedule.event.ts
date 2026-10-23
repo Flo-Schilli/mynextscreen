@@ -5,6 +5,8 @@ export class ScheduleEntryChangedEvent {
   constructor(
     public readonly screenId: string,
     public readonly organisationId: string,
+    /** True when an event schedule rule made the change, not a person. */
+    public readonly managed = false,
   ) {}
 }
 
@@ -19,5 +21,7 @@ export class GroupScheduleChangedEvent {
      * as a hint, not as the source of truth.
      */
     public readonly playlistId: string | null,
+    /** True when an event schedule rule made the change, not a person. */
+    public readonly managed = false,
   ) {}
 }

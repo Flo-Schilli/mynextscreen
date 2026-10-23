@@ -15,6 +15,7 @@ import { MediaModule } from './media';
 import { DashboardModule } from './dashboard';
 import { PlaylistModule } from './playlist';
 import { ScheduleEntryModule } from './schedule';
+import { EventScheduleModule } from './event-schedule/event-schedule.module';
 import { AuditLogModule } from './audit-log';
 import { ScreenGroupModule } from './screen-group/screen-group.module';
 import { SiteAgentModule } from './site-agent';
@@ -61,6 +62,7 @@ import { validateEnv } from './config/env.validation';
     DashboardModule,
     PlaylistModule,
     ScheduleEntryModule,
+    EventScheduleModule,
     AuditLogModule,
     ScreenGroupModule,
     SiteAgentModule,

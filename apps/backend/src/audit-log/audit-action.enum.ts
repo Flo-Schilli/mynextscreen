@@ -64,6 +64,11 @@ export enum AuditAction {
   ContentSourceDeleted = 'content_source.deleted',
   ContentSourceSynced = 'content_source.synced',
   ContentSourceSyncFailed = 'content_source.sync_failed',
+  // Event schedule rules (playlists scheduled on event days)
+  EventScheduleRuleCreated = 'event_schedule_rule.created',
+  EventScheduleRuleUpdated = 'event_schedule_rule.updated',
+  EventScheduleRuleDeleted = 'event_schedule_rule.deleted',
+  EventScheduleRuleReconciled = 'event_schedule_rule.reconciled',
   // Auth / account (instance-level — organisationId is null for self-signup/setup)
   UserRegistered = 'auth.user_registered',
   EmailVerified = 'auth.email_verified',

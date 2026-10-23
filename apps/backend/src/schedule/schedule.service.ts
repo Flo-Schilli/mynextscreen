@@ -6,7 +6,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import {
@@ -41,6 +41,12 @@ import { SliceStatus } from '../slice-content/slice-status.enum';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 
 const OVERLAP_WINDOW_DAYS = 365;
+
+/** Entry as the calendar lists it, with the rule that generated it, if any. */
+export type ListedScheduleEntry = ScheduleEntry & {
+  sliceStatus?: SliceJob | null;
+  managedByRule?: { id: string; name: string; sourceId: string } | null;
+};
 
 /**
  * Epoch used to anchor deterministic playback for the fallback/default playlist
@@ -142,6 +148,7 @@ export class ScheduleService {
     dto: UpdateScheduleEntryDto,
   ): Promise<ScheduleEntry> {
     const entry = await this.findOneOrFail(id, organisationId);
+    this.assertNotManaged(entry);
 
     const startTime = dto.startTime ? new Date(dto.startTime) : entry.startTime;
     const endTime = dto.endTime ? new Date(dto.endTime) : entry.endTime;
@@ -196,6 +203,7 @@ export class ScheduleService {
 
   async delete(id: string, organisationId: string): Promise<void> {
     const entry = await this.findOneOrFail(id, organisationId);
+    this.assertNotManaged(entry);
     const screenId = entry.screenId;
     const groupId = entry.groupId;
     const playlistId = entry.playlistId;
@@ -234,10 +242,15 @@ export class ScheduleService {
     organisationId: string,
     _from: Date,
     _to: Date,
-  ): Promise<(ScheduleEntry & { sliceStatus?: SliceJob | null })[]> {
+  ): Promise<ListedScheduleEntry[]> {
     const entries = await this.db.query.scheduleEntries.findMany({
       where: eq(scheduleEntries.organisationId, organisationId),
-      with: { playlist: true, screen: true, group: true },
+      with: {
+        playlist: true,
+        screen: true,
+        group: true,
+        managedByRule: { columns: { id: true, name: true, sourceId: true } },
+      },
       orderBy: asc(scheduleEntries.startTime),
     });
 
@@ -438,7 +451,8 @@ export class ScheduleService {
     // Get new entry's occurrences
     const newOccurrences = getOccurrences(startTime, endTime, rrule, windowStart, windowEnd);
 
-    // Get all existing entries for this screen
+    // Existing manual entries of this screen. Generated ones never block a
+    // manual entry: the rule steps aside on its next reconcile.
     const existingEntries = await this.db
       .select()
       .from(scheduleEntries)
@@ -446,6 +460,7 @@ export class ScheduleService {
         and(
           eq(scheduleEntries.screenId, screenId),
           eq(scheduleEntries.organisationId, organisationId),
+          isNull(scheduleEntries.managedByRuleId),
         ),
       );
 
@@ -491,6 +506,47 @@ export class ScheduleService {
       );
     }
     return entry;
+  }
+
+  /**
+   * Pushes what an event schedule rule wrote, like `create`/`update`/`delete`
+   * do for manual entries: one change event per touched screen or group, and
+   * a slice job for split groups that now show a generated entry.
+   */
+  async announceManagedChanges(
+    written: readonly ScheduleEntry[],
+    removed: readonly ScheduleEntry[],
+  ): Promise<void> {
+    const screensTouched = new Map<string, string>();
+    const groupsTouched = new Map<string, ScheduleEntry>();
+    for (const entry of [...written, ...removed]) {
+      if (entry.screenId) screensTouched.set(entry.screenId, entry.organisationId);
+      if (entry.groupId) groupsTouched.set(entry.groupId, entry);
+    }
+    for (const [screenId, organisationId] of screensTouched) {
+      this.eventEmitter.emit(
+        SCHEDULE_ENTRY_CHANGED,
+        new ScheduleEntryChangedEvent(screenId, organisationId, true),
+      );
+    }
+    for (const [groupId, entry] of groupsTouched) {
+      this.eventEmitter.emit(
+        GROUP_SCHEDULE_CHANGED,
+        new GroupScheduleChangedEvent(groupId, entry.organisationId, entry.playlistId, true),
+      );
+    }
+    for (const entry of written) {
+      await this.enqueueSliceJobIfNeeded(entry);
+    }
+  }
+
+  /** Generated entries belong to their rule; changing one by hand would be undone. */
+  private assertNotManaged(entry: ScheduleEntry): void {
+    if (entry.managedByRuleId) {
+      throw new ConflictException(
+        'Schedule entry is managed by an event schedule rule; change the rule instead',
+      );
+    }
   }
 
   private validateTarget(screenId?: string, groupId?: string): void {

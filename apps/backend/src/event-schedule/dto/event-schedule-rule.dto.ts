@@ -1,0 +1,127 @@
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
+  IsBoolean,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
+
+/** Local wall-clock time, `HH:MM` from 00:00 to 23:59. */
+const HH_MM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const HEX_COLOUR = /^#[0-9a-fA-F]{6}$/;
+export const MAX_RULE_VENUES = 50;
+export const MAX_RULE_TARGETS = 100;
+
+export class CreateEventScheduleRuleDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name!: string;
+
+  /** Canonical venue names. */
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_RULE_VENUES)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  @MaxLength(200, { each: true })
+  venues!: string[];
+
+  @IsUUID()
+  playlistId!: string;
+
+  @Matches(HH_MM, { message: 'windowStart must be a time HH:MM' })
+  windowStart!: string;
+
+  /** At or before `windowStart` means the next day. */
+  @Matches(HH_MM, { message: 'windowEnd must be a time HH:MM' })
+  windowEnd!: string;
+
+  @IsArray()
+  @ArrayMaxSize(MAX_RULE_TARGETS)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  screenIds!: string[];
+
+  @IsArray()
+  @ArrayMaxSize(MAX_RULE_TARGETS)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  groupIds!: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  excludeCancelled?: boolean;
+
+  @IsOptional()
+  @Matches(HEX_COLOUR, { message: 'colour must be a hex colour (e.g. #FF5733)' })
+  colour?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+}
+
+/** Every field optional; sending `screenIds` or `groupIds` replaces that target list. */
+export class UpdateEventScheduleRuleDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_RULE_VENUES)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  @MaxLength(200, { each: true })
+  venues?: string[];
+
+  @IsOptional()
+  @IsUUID()
+  playlistId?: string;
+
+  @IsOptional()
+  @Matches(HH_MM, { message: 'windowStart must be a time HH:MM' })
+  windowStart?: string;
+
+  @IsOptional()
+  @Matches(HH_MM, { message: 'windowEnd must be a time HH:MM' })
+  windowEnd?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_RULE_TARGETS)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  screenIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_RULE_TARGETS)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  groupIds?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  excludeCancelled?: boolean;
+
+  @IsOptional()
+  @Matches(HEX_COLOUR, { message: 'colour must be a hex colour (e.g. #FF5733)' })
+  colour?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+}
