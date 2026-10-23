@@ -4,6 +4,22 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.25.1
+
+### Security — patched dependencies
+
+The backend image ships follow-redirects 1.16.1 (pulled in by axios), which
+closes GHSA-q3jh-wrc6-jgq8 and GHSA-8r9p-f939-6h3c, and nodemailer 10.1.2,
+which bounds the work a single message can make the mailer do. The content
+source client follows no redirect through axios, so the follow-redirects
+advisories were not reachable here, but they failed the production audit.
+vite (8.3.3) and the undici copy used by Nx (7.29.1) are build tooling and do
+not reach the images; they are lifted through scoped overrides because
+`@angular/build` and `nx` pin the vulnerable versions exactly. Angular CLI,
+ESLint and the CI actions moved up by patch and minor versions.
+
+**Operator action:** none beyond updating the server. There is no migration.
+
 ## 0.25.0
 
 ### Added — content sources and dynamic playlists
