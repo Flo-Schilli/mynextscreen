@@ -71,6 +71,10 @@ export const AUDIT_ACTIONS = [
   'content_source.deleted',
   'content_source.synced',
   'content_source.sync_failed',
+  'event_schedule_rule.created',
+  'event_schedule_rule.updated',
+  'event_schedule_rule.deleted',
+  'event_schedule_rule.reconciled',
 ];
 
 export const RESOURCE_TYPES = [
@@ -83,6 +87,7 @@ export const RESOURCE_TYPES = [
   'screen-group',
   'live-stream',
   'content_source',
+  'event_schedule_rule',
 ];
 
 /**

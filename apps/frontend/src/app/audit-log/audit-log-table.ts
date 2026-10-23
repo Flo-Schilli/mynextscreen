@@ -42,6 +42,10 @@ const ACTION_META: Record<string, ActionMeta> = {
   'content_source.deleted': { tone: 'offline', icon: 'Trash' },
   'content_source.synced': { tone: 'online', icon: 'Refresh' },
   'content_source.sync_failed': { tone: 'offline', icon: 'Alert' },
+  'event_schedule_rule.created': { tone: 'accent', icon: 'Calendar' },
+  'event_schedule_rule.updated': { tone: 'info', icon: 'Pencil' },
+  'event_schedule_rule.deleted': { tone: 'offline', icon: 'Trash' },
+  'event_schedule_rule.reconciled': { tone: 'neutral', icon: 'Schedules' },
   'schedule.create': { tone: 'accent', icon: 'Schedules' },
   'schedule.update': { tone: 'info', icon: 'Pencil' },
   'schedule.delete': { tone: 'offline', icon: 'Trash' },
@@ -440,6 +444,10 @@ type TableRow =
       color: var(--color-online);
     }
     .action-badge[data-category='content_source'] mns-badge span {
+      background: var(--info-dim);
+      color: var(--color-info);
+    }
+    .action-badge[data-category='event_schedule_rule'] mns-badge span {
       background: var(--info-dim);
       color: var(--color-info);
     }

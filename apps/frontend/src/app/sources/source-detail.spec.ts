@@ -7,6 +7,10 @@ import { SourceAccess } from './source-access';
 import { ContentSourceService } from './content-source.service';
 import { AdapterDescriptor, ContentSource, SourceEvent } from './content-source.model';
 import { ContentService } from '../content/content.service';
+import { EventScheduleService } from './event-schedule.service';
+import { PlaylistService } from '../playlists/playlist.service';
+import { ScreenService } from '../screens/screen.service';
+import { ScreenGroupService } from '../screen-groups/screen-group.service';
 import { TranslocoService } from '@jsverse/transloco';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
@@ -111,6 +115,10 @@ describe('SourceDetail', () => {
           },
         },
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ id: 's1' })) } },
+        { provide: EventScheduleService, useValue: { getAll: () => of([]) } },
+        { provide: PlaylistService, useValue: { getAll: () => of([]) } },
+        { provide: ScreenService, useValue: { getAll: () => of([]) } },
+        { provide: ScreenGroupService, useValue: { getAll: () => of([]) } },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(SourceDetail);

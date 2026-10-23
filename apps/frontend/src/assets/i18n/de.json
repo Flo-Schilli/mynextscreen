@@ -1035,6 +1035,12 @@
       "createEntry": "Eintrag konnte nicht erstellt werden.",
       "updateEntry": "Eintrag konnte nicht aktualisiert werden.",
       "deleteEntry": "Eintrag konnte nicht gelöscht werden."
+    },
+    "managed": {
+      "managedBadge": "Automatisch",
+      "managedTitle": "Automatisch eingeplant",
+      "managedBody": "Diesen Eintrag hat die Regel „{rule}“ aus einem Event angelegt. Ändern kannst du ihn nur über die Regel; ein manueller Eintrag zur selben Zeit hat Vorrang.",
+      "managedOpenRule": "Zur Regel"
     }
   },
   "liveStreams": {
@@ -1561,7 +1567,11 @@
       "content_source.updated": "Inhaltsquelle geändert",
       "content_source.deleted": "Inhaltsquelle gelöscht",
       "content_source.synced": "Inhaltsquelle synchronisiert",
-      "content_source.sync_failed": "Sync der Inhaltsquelle fehlgeschlagen"
+      "content_source.sync_failed": "Sync der Inhaltsquelle fehlgeschlagen",
+      "event_schedule_rule.created": "Einplanungsregel erstellt",
+      "event_schedule_rule.updated": "Einplanungsregel aktualisiert",
+      "event_schedule_rule.deleted": "Einplanungsregel gelöscht",
+      "event_schedule_rule.reconciled": "Einplanungsregel angewendet"
     }
   },
   "notifications": {
@@ -2299,6 +2309,64 @@
         "tooLong": "Höchstens 200 Zeichen."
       },
       "keep": "wie auf der Website"
+    },
+    "schedules": {
+      "title": "Automatische Einplanung",
+      "sub": "Legt an jedem Event-Tag eines Spielorts eine Playlist auf Bildschirme und Gruppen. Manuelle Einträge im Zeitplan haben immer Vorrang.",
+      "empty": "Noch keine Regeln. Lege eine an, damit Event-Tage von selbst eingeplant werden.",
+      "add": "Regel hinzufügen",
+      "createTitle": "Regel anlegen",
+      "editTitle": "Regel bearbeiten",
+      "paused": "Pausiert",
+      "conflicts": "{count, plural, one {# Konflikt} other {# Konflikte}}",
+      "nextDay": "Ende am Folgetag",
+      "preview": "Kommende Events",
+      "previewEmpty": "Keine kommenden Events an diesen Spielorten.",
+      "cancelled": "abgesagt",
+      "exclude": "Auslassen",
+      "include": "Wieder einplanen",
+      "groupOption": "Gruppe · {name}",
+      "status": {
+        "scheduled": "eingeplant",
+        "conflict": "belegt",
+        "pending": "ausstehend",
+        "excluded": "ausgelassen"
+      },
+      "deleteTitle": "Regel löschen",
+      "deleteConfirm": "Regel „{name}“ löschen? Ihre kommenden Einträge verschwinden aus dem Zeitplan.",
+      "form": {
+        "nameLabel": "Name",
+        "namePlaceholder": "z. B. Konzertabend Hirsch",
+        "venuesLabel": "Spielorte",
+        "venuesHint": "Kanonische Namen, wie in den Spielort-Aliasen festgelegt.",
+        "venuesPlaceholder": "Spielorte wählen",
+        "playlistLabel": "Playlist",
+        "windowLabel": "Zeitfenster am Event-Tag",
+        "windowHint": "In der Zeitzone der Organisation.",
+        "windowNextDay": "Das Ende liegt am Folgetag.",
+        "targetsLabel": "Bildschirme und Gruppen",
+        "targetsHint": "Hier läuft die Playlist im Zeitfenster.",
+        "targetsPlaceholder": "Bildschirme oder Gruppen wählen",
+        "colourLabel": "Farbe im Kalender",
+        "excludeCancelledLabel": "Abgesagte Events überspringen",
+        "excludeCancelledDesc": "Ein abgesagtes Event bekommt keinen Eintrag.",
+        "enabledLabel": "Aktiv",
+        "enabledDesc": "Pausiert entfernt die kommenden Einträge, bis du die Regel wieder aktivierst.",
+        "errors": {
+          "name": "Gib der Regel einen Namen.",
+          "venues": "Wähle mindestens einen Spielort.",
+          "playlist": "Wähle eine Playlist.",
+          "window": "Gib Beginn und Ende als Uhrzeit an.",
+          "targets": "Wähle mindestens einen Bildschirm oder eine Gruppe."
+        }
+      },
+      "toast": {
+        "saved": "Regel gespeichert und eingeplant",
+        "saveFailed": "Regel konnte nicht gespeichert werden",
+        "deleted": "Regel gelöscht",
+        "deleteFailed": "Regel konnte nicht gelöscht werden",
+        "loadFailed": "Regeln konnten nicht geladen werden"
+      }
     }
   }
 }

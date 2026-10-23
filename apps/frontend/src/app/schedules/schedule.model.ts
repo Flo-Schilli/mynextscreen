@@ -32,6 +32,8 @@ export interface ScheduleEntry {
   };
   /** Split pre-transcoding status for group entries; null/absent when not slicing. */
   sliceStatus?: SliceJobStatus | null;
+  /** The event schedule rule that generated the entry; such entries are locked. */
+  managedByRule?: { id: string; name: string; sourceId: string } | null;
 }
 
 export interface CreateScheduleEntryRequest {

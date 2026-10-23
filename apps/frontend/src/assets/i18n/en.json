@@ -1035,6 +1035,12 @@
       "createEntry": "Failed to create entry.",
       "updateEntry": "Failed to update entry.",
       "deleteEntry": "Failed to delete entry."
+    },
+    "managed": {
+      "managedBadge": "Automatic",
+      "managedTitle": "Scheduled automatically",
+      "managedBody": "The rule “{rule}” created this entry from an event. You can change it only through the rule; a manual entry at the same time takes precedence.",
+      "managedOpenRule": "Open rule"
     }
   },
   "liveStreams": {
@@ -1561,7 +1567,11 @@
       "content_source.updated": "Content source updated",
       "content_source.deleted": "Content source deleted",
       "content_source.synced": "Content source synced",
-      "content_source.sync_failed": "Content source sync failed"
+      "content_source.sync_failed": "Content source sync failed",
+      "event_schedule_rule.created": "Scheduling rule created",
+      "event_schedule_rule.updated": "Scheduling rule updated",
+      "event_schedule_rule.deleted": "Scheduling rule deleted",
+      "event_schedule_rule.reconciled": "Scheduling rule applied"
     }
   },
   "notifications": {
@@ -2299,6 +2309,64 @@
         "tooLong": "At most 200 characters."
       },
       "keep": "as on the website"
+    },
+    "schedules": {
+      "title": "Automatic scheduling",
+      "sub": "Puts a playlist on screens and groups on every event day at a venue. Manual schedule entries always take precedence.",
+      "empty": "No rules yet. Add one to schedule event days automatically.",
+      "add": "Add rule",
+      "createTitle": "Add rule",
+      "editTitle": "Edit rule",
+      "paused": "Paused",
+      "conflicts": "{count, plural, one {# conflict} other {# conflicts}}",
+      "nextDay": "ends the next day",
+      "preview": "Upcoming events",
+      "previewEmpty": "No upcoming events at these venues.",
+      "cancelled": "cancelled",
+      "exclude": "Leave out",
+      "include": "Schedule again",
+      "groupOption": "Group · {name}",
+      "status": {
+        "scheduled": "scheduled",
+        "conflict": "taken",
+        "pending": "pending",
+        "excluded": "left out"
+      },
+      "deleteTitle": "Delete rule",
+      "deleteConfirm": "Delete rule “{name}”? Its upcoming entries disappear from the schedule.",
+      "form": {
+        "nameLabel": "Name",
+        "namePlaceholder": "e.g. Concert night Hirsch",
+        "venuesLabel": "Venues",
+        "venuesHint": "Canonical names, as set in the venue aliases.",
+        "venuesPlaceholder": "Pick venues",
+        "playlistLabel": "Playlist",
+        "windowLabel": "Time window on the event day",
+        "windowHint": "In the organisation's time zone.",
+        "windowNextDay": "The end is on the next day.",
+        "targetsLabel": "Screens and groups",
+        "targetsHint": "The playlist runs here during the window.",
+        "targetsPlaceholder": "Pick screens or groups",
+        "colourLabel": "Calendar colour",
+        "excludeCancelledLabel": "Skip cancelled events",
+        "excludeCancelledDesc": "A cancelled event gets no entry.",
+        "enabledLabel": "Active",
+        "enabledDesc": "Pausing removes the upcoming entries until you activate the rule again.",
+        "errors": {
+          "name": "Give the rule a name.",
+          "venues": "Pick at least one venue.",
+          "playlist": "Pick a playlist.",
+          "window": "Enter the start and end as times.",
+          "targets": "Pick at least one screen or group."
+        }
+      },
+      "toast": {
+        "saved": "Rule saved and scheduled",
+        "saveFailed": "Could not save the rule",
+        "deleted": "Rule deleted",
+        "deleteFailed": "Could not delete the rule",
+        "loadFailed": "Could not load the rules"
+      }
     }
   }
 }
