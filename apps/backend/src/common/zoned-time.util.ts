@@ -76,8 +76,9 @@ export function localDate(instant: Date, timeZone: string): string {
 
 /**
  * The instant at which the wall clock in `timeZone` shows `date` + `time`
- * (`HH:MM`, midnight when null). A time skipped by a DST jump resolves to the
- * instant after the jump.
+ * (`HH:MM`, midnight when null). A time that happens twice when the clocks go
+ * back resolves to the later instant; a time skipped by a DST jump resolves
+ * to the instant after the jump.
  */
 export function zonedTimeToUtc(date: string, time: string | null, timeZone: string): Date {
   const [year, month, day] = date.split('-').map(Number);
@@ -86,7 +87,19 @@ export function zonedTimeToUtc(date: string, time: string | null, timeZone: stri
   const first = guess - offsetMinutes(new Date(guess), timeZone) * MS_PER_MINUTE;
   // Re-evaluate at the candidate: the offset differs when a DST change lies in between.
   const second = guess - offsetMinutes(new Date(first), timeZone) * MS_PER_MINUTE;
-  return new Date(Math.max(first, second));
+  // Near a switch only one candidate may show the wanted wall clock (e.g. 01:30
+  // just before the clocks go back); take that one. None does inside a gap.
+  const matching = [first, second].filter((candidate) => {
+    const local = wallClock(new Date(candidate), timeZone);
+    return (
+      local.year === year &&
+      local.month === month &&
+      local.day === day &&
+      local.hour === hour &&
+      local.minute === minute
+    );
+  });
+  return new Date(Math.max(...(matching.length > 0 ? matching : [first, second])));
 }
 
 /** `date` shifted by whole days. */

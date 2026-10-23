@@ -48,6 +48,13 @@ describe('windowOf', () => {
     expect(endTime.toISOString()).toBe('2026-11-06T00:00:00.000Z');
   });
 
+  it('ends in summer time when the window closes before the clocks go back', () => {
+    // 01:00 on 25 October 2026 is still CEST; the switch is at 03:00.
+    const { endTime } = windowOf('2026-10-24', '18:00', '01:00', TZ);
+
+    expect(endTime.toISOString()).toBe('2026-10-24T23:00:00.000Z');
+  });
+
   it('keeps the wall-clock window across a DST switch', () => {
     // Summer time ends in the night to 25 October 2026.
     const { startTime, endTime } = windowOf('2026-10-24', '20:00', '04:00', TZ);
