@@ -235,13 +235,16 @@ export class ScheduleService {
     organisationId: string,
     _from: Date,
     _to: Date,
-  ): Promise<(ScheduleEntry & { playlist: Playlist })[]> {
+  ): Promise<(ListedScheduleEntry & { playlist: Playlist })[]> {
     return this.db.query.scheduleEntries.findMany({
       where: and(
         eq(scheduleEntries.screenId, screenId),
         eq(scheduleEntries.organisationId, organisationId),
       ),
-      with: { playlist: true },
+      with: {
+        playlist: true,
+        managedByRule: { columns: { id: true, name: true, sourceId: true } },
+      },
       orderBy: asc(scheduleEntries.startTime),
     });
   }

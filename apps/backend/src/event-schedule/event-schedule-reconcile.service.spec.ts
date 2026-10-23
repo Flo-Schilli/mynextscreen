@@ -421,6 +421,8 @@ describe('Event schedule rules', () => {
       const [listed] = await schedule.findByOrganisation(org.id, new Date(), new Date());
 
       expect(listed.managedByRule).toEqual({ id: rule.id, name: rule.name, sourceId: source.id });
+      const [ofScreen] = await schedule.findByScreen(screen.id, org.id, new Date(), new Date());
+      expect(ofScreen.managedByRule).toEqual(listed.managedByRule);
     });
   });
 
