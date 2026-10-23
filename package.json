@@ -85,8 +85,8 @@
   "devDependencies": {
     "@analogjs/vite-plugin-angular": "2.8.1",
     "@analogjs/vitest-angular": "2.8.1",
-    "@angular/build": "22.2.2",
-    "@angular/cli": "22.2.2",
+    "@angular/build": "22.2.3",
+    "@angular/cli": "22.2.3",
     "@angular/compiler-cli": "22.2.3",
     "@eslint/js": "^10.0.1",
     "@jsverse/transloco-keys-manager": "^8.1.1",
