@@ -15,6 +15,7 @@ import { Screen } from '../screens/screen.model';
 import { PlaylistService } from '../playlists/playlist.service';
 import { Playlist } from '../playlists/playlist.model';
 import { MemberService } from '../settings/users/member.service';
+import { OrganisationStateService } from '../shell/organisation-state.service';
 import { MyMembership } from '../settings/users/member.model';
 import { OrganisationService } from '../admin/organisations/organisation.service';
 import { Organisation } from '../admin/organisations/organisation.model';
@@ -300,6 +301,36 @@ describe('Schedules', () => {
 
       // Assert: no super-admin-only organisation lookup needed
       expect(component.selectedTargetId).toBe('screen:s1');
+      expect(component.orgTimeZone).toBe('Europe/Berlin');
+    });
+
+    it('uses the organisation picked in the shell, not the first admin membership', async () => {
+      // Arrange: admin of an own UTC org, editor of the selected venue in Berlin
+      member.memberships = [
+        {
+          id: 'm0',
+          userId: 'u1',
+          organisationId: 'own-org',
+          role: 'org_admin',
+          createdAt: '',
+          organisation: { id: 'own-org', name: 'Own', timeZone: 'UTC' },
+        },
+        {
+          id: 'm1',
+          userId: 'u1',
+          organisationId: ORG_ID,
+          role: 'editor',
+          createdAt: '',
+          organisation: { id: ORG_ID, name: 'Venue', timeZone: 'Europe/Berlin' },
+        },
+      ];
+      TestBed.inject(OrganisationStateService).selectedOrgId.set(ORG_ID);
+
+      // Act
+      await setUp();
+
+      // Assert
+      expect(component.orgId).toBe(ORG_ID);
       expect(component.orgTimeZone).toBe('Europe/Berlin');
     });
 

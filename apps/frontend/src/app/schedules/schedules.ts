@@ -22,6 +22,7 @@ import { Screen } from '../screens/screen.model';
 import { PlaylistService } from '../playlists/playlist.service';
 import { Playlist } from '../playlists/playlist.model';
 import { MemberService } from '../settings/users/member.service';
+import { OrganisationStateService } from '../shell/organisation-state.service';
 import { MyMembership } from '../settings/users/member.model';
 import { ScreenGroupService } from '../screen-groups/screen-group.service';
 import { ScreenGroup, SliceJobStatus } from '../screen-groups/screen-group.model';
@@ -268,6 +269,7 @@ export class Schedules implements OnInit, OnDestroy {
   private sse = inject(DashboardSseService);
   private destroyRef = inject(DestroyRef);
   private router = inject(Router);
+  private orgState = inject(OrganisationStateService);
 
   orgId = '';
   orgTimeZone = 'UTC';
@@ -506,7 +508,13 @@ export class Schedules implements OnInit, OnDestroy {
   private loadCurrentOrg(): void {
     this.memberService.getMyMemberships().subscribe({
       next: (memberships: MyMembership[]) => {
-        const membership = memberships.find((m) => m.role === 'org_admin') ?? memberships[0];
+        // The organisation picked in the shell: the interceptor sends its id with
+        // every request, so the zone must come from the same membership.
+        const selectedId = this.orgState.selectedOrgId();
+        const membership =
+          memberships.find((m) => m.organisationId === selectedId) ??
+          memberships.find((m) => m.role === 'org_admin') ??
+          memberships[0];
         if (!membership) {
           this.loadError = this.transloco.translate('common.errors.noOrgMembership');
           this.loading = false;
