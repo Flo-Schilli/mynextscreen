@@ -1,5 +1,12 @@
 import { Injectable } from '@angular/core';
 import { ScheduleEntry } from './schedule.model';
+import {
+  addZonedDays,
+  zonedDateKey,
+  zonedParts,
+  zonedTimeKey,
+  zonedTimeToInstant,
+} from './org-time';
 
 export type RecurrenceType = 'none' | 'daily' | 'weekly' | 'weekdays';
 
@@ -79,16 +86,17 @@ export class ScheduleRecurrenceService {
     return { recurrence: 'weekly', weekdays: [] };
   }
 
-  /** Whether the given day matches the entry's recurrence pattern. */
-  doesDayMatchRrule(day: Date, entryStart: Date, rule: ParsedRrule): boolean {
+  /** Whether the given day matches the entry's recurrence pattern, in the organisation's zone. */
+  doesDayMatchRrule(day: Date, entryStart: Date, rule: ParsedRrule, timeZone: string): boolean {
     if (rule.freq === 'DAILY') return true;
 
     if (rule.freq === 'WEEKLY') {
+      const weekday = zonedParts(day, timeZone).weekday;
       if (rule.byday && rule.byday.length > 0) {
-        return rule.byday.includes(WEEKDAY_BY_DAY_INDEX[day.getDay()]);
+        return rule.byday.includes(WEEKDAY_BY_DAY_INDEX[weekday]);
       }
       // Weekly with no BYDAY: same weekday as original
-      return day.getDay() === entryStart.getDay();
+      return weekday === zonedParts(entryStart, timeZone).weekday;
     }
 
     return false;
@@ -97,11 +105,11 @@ export class ScheduleRecurrenceService {
   /**
    * Returns the concrete occurrences of an entry that fall on the given day.
    * Non-recurring entries return their single range if it overlaps the day;
-   * recurring entries are expanded against their RRULE.
+   * recurring entries are expanded against their RRULE at the entry's wall
+   * time. `dayStart` is local midnight in `timeZone`, the organisation's zone.
    */
-  getOccurrencesOnDay(entry: ScheduleEntry, dayStart: Date): Occurrence[] {
-    const dayEnd = new Date(dayStart);
-    dayEnd.setDate(dayEnd.getDate() + 1);
+  getOccurrencesOnDay(entry: ScheduleEntry, dayStart: Date, timeZone: string): Occurrence[] {
+    const dayEnd = addZonedDays(dayStart, 1, timeZone);
     const entryStart = new Date(entry.startTime);
     const entryEnd = new Date(entry.endTime);
     const duration = entryEnd.getTime() - entryStart.getTime();
@@ -123,15 +131,13 @@ export class ScheduleRecurrenceService {
       return [];
     }
 
-    if (this.doesDayMatchRrule(dayStart, entryStart, rule)) {
-      const occStart = new Date(dayStart);
-      occStart.setHours(entryStart.getHours(), entryStart.getMinutes(), entryStart.getSeconds());
+    if (this.doesDayMatchRrule(dayStart, entryStart, rule, timeZone)) {
+      const dayKey = zonedDateKey(dayStart, timeZone);
+      const occStart = zonedTimeToInstant(dayKey, zonedTimeKey(entryStart, timeZone), timeZone);
       const occEnd = new Date(occStart.getTime() + duration);
 
-      // Only include if the occurrence start is on or after the original entry start date
-      if (
-        occStart >= new Date(entryStart.getFullYear(), entryStart.getMonth(), entryStart.getDate())
-      ) {
+      // Only include if the occurrence falls on or after the original entry's day
+      if (dayKey >= zonedDateKey(entryStart, timeZone)) {
         return [{ start: occStart, end: occEnd }];
       }
     }
