@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ConflictException,
   BadRequestException,
@@ -29,6 +30,8 @@ import {
   ScheduleEntryChangedEvent,
   GROUP_SCHEDULE_CHANGED,
   GroupScheduleChangedEvent,
+  SCHEDULE_ENTRIES_EDITED,
+  ScheduleEntriesEditedEvent,
 } from './schedule.event';
 import {
   AUDIT_SCHEDULE_CREATED,
@@ -76,6 +79,8 @@ export interface CurrentPlaylistResult {
 
 @Injectable()
 export class ScheduleService {
+  private readonly logger = new Logger(ScheduleService.name);
+
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly sliceEnqueue: SliceEnqueueService,
@@ -128,6 +133,7 @@ export class ScheduleService {
     if (saved.groupId) {
       this.emitGroupScheduleChanged(saved.groupId, organisationId, saved.playlistId);
     }
+    this.emitEdited(saved);
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_CREATED,
       new AuditScheduleEvent(saved.id, organisationId, null, {
@@ -189,6 +195,7 @@ export class ScheduleService {
     if (saved.groupId) {
       this.emitGroupScheduleChanged(saved.groupId, organisationId, saved.playlistId);
     }
+    this.emitEdited(saved);
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_UPDATED,
       new AuditScheduleEvent(saved.id, organisationId, null, {
@@ -216,6 +223,7 @@ export class ScheduleService {
     if (groupId) {
       this.emitGroupScheduleChanged(groupId, organisationId, playlistId);
     }
+    this.emitEdited(entry);
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_DELETED,
       new AuditScheduleEvent(id, organisationId, null, { screenId, groupId }),
@@ -510,34 +518,45 @@ export class ScheduleService {
 
   /**
    * Pushes what an event schedule rule wrote, like `create`/`update`/`delete`
-   * do for manual entries: one change event per touched screen or group, and
-   * a slice job for split groups that now show a generated entry.
+   * do for manual entries: one change event per touched screen or group.
    */
-  async announceManagedChanges(
-    written: readonly ScheduleEntry[],
-    removed: readonly ScheduleEntry[],
-  ): Promise<void> {
+  announceManagedChanges(entries: readonly ScheduleEntry[]): void {
     const screensTouched = new Map<string, string>();
     const groupsTouched = new Map<string, ScheduleEntry>();
-    for (const entry of [...written, ...removed]) {
+    for (const entry of entries) {
       if (entry.screenId) screensTouched.set(entry.screenId, entry.organisationId);
       if (entry.groupId) groupsTouched.set(entry.groupId, entry);
     }
     for (const [screenId, organisationId] of screensTouched) {
-      this.eventEmitter.emit(
-        SCHEDULE_ENTRY_CHANGED,
-        new ScheduleEntryChangedEvent(screenId, organisationId, true),
-      );
+      this.emitScheduleChanged(screenId, organisationId);
     }
     for (const [groupId, entry] of groupsTouched) {
-      this.eventEmitter.emit(
-        GROUP_SCHEDULE_CHANGED,
-        new GroupScheduleChangedEvent(groupId, entry.organisationId, entry.playlistId, true),
-      );
+      this.emitGroupScheduleChanged(groupId, entry.organisationId, entry.playlistId);
     }
-    for (const entry of written) {
-      await this.enqueueSliceJobIfNeeded(entry);
+  }
+
+  /**
+   * Queues one slice job per split group and playlist of these entries. A
+   * failure is logged, not thrown: the caller's entries are already stored.
+   * Returns how many pairs could not be queued.
+   */
+  async enqueueSlicesFor(entries: readonly ScheduleEntry[]): Promise<number> {
+    const pairs = new Map<string, ScheduleEntry>();
+    for (const entry of entries) {
+      if (entry.groupId) pairs.set(`${entry.groupId}:${entry.playlistId}`, entry);
     }
+    let failed = 0;
+    for (const entry of pairs.values()) {
+      try {
+        await this.enqueueSliceJobIfNeeded(entry);
+      } catch (error) {
+        failed += 1;
+        this.logger.warn(
+          `Queueing slices of group ${entry.groupId} failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+    return failed;
   }
 
   /** Generated entries belong to their rule; changing one by hand would be undone. */
@@ -617,6 +636,13 @@ export class ScheduleService {
       epoch: FALLBACK_EPOCH,
       source: 'fallback',
     };
+  }
+
+  private emitEdited(entry: ScheduleEntry): void {
+    this.eventEmitter.emit(
+      SCHEDULE_ENTRIES_EDITED,
+      new ScheduleEntriesEditedEvent(entry.organisationId, entry.screenId, entry.groupId),
+    );
   }
 
   private emitScheduleChanged(screenId: string, organisationId: string): void {

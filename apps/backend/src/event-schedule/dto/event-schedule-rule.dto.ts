@@ -15,12 +15,14 @@ import {
 /** Local wall-clock time, `HH:MM` from 00:00 to 23:59. */
 const HH_MM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const HEX_COLOUR = /^#[0-9a-fA-F]{6}$/;
+/** Something other than whitespace: the name is stored trimmed. */
+const NOT_BLANK = /\S/;
 export const MAX_RULE_VENUES = 50;
 export const MAX_RULE_TARGETS = 100;
 
 export class CreateEventScheduleRuleDto {
   @IsString()
-  @MinLength(1)
+  @Matches(NOT_BLANK, { message: 'name must not be blank' })
   @MaxLength(80)
   name!: string;
 
@@ -73,7 +75,7 @@ export class CreateEventScheduleRuleDto {
 export class UpdateEventScheduleRuleDto {
   @IsOptional()
   @IsString()
-  @MinLength(1)
+  @Matches(NOT_BLANK, { message: 'name must not be blank' })
   @MaxLength(80)
   name?: string;
 

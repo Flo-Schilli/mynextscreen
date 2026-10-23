@@ -12,11 +12,13 @@ import {
   type Organisation,
   type Playlist,
   type Content,
+  screens,
 } from '../db/schema';
 import { ContentType } from '../content/content-type.enum';
 import { TranscodingStatus } from '../content/transcoding-status.enum';
 import { TransitionType } from './transition-type.enum';
 import { PLAYLIST_UPDATED } from './playlist.event';
+import { SCHEDULE_ENTRIES_EDITED, SCHEDULE_ENTRY_CHANGED } from '../schedule/schedule.event';
 import { PlaylistKind } from './playlist-kind.enum';
 import type { PlaylistRule } from './playlist-rule.types';
 import { plainToInstance } from 'class-transformer';
@@ -815,6 +817,35 @@ describe('PlaylistService', () => {
         .where(eq(playlistItems.id, stale.id));
       expect(alreadyRow.durationSeconds).toBe(42);
       expect(staleRow.durationSeconds).toBe(42);
+    });
+  });
+
+  describe('bulkAssignScreen', () => {
+    it('pushes the new entries to the screen and announces the manual edit', async () => {
+      const org = await seedOrg();
+      const playlist = await seedPlaylist(org.id);
+      const [screen] = await db
+        .insert(screens)
+        .values({
+          organisationId: org.id,
+          name: 'Foyer',
+          resolution: '1920x1080',
+          location: 'Lobby',
+          apiKeyHash: `hash-${Math.random()}`,
+        })
+        .returning();
+
+      const result = await service.bulkAssignScreen(org.id, [playlist.id], screen.id, null);
+
+      expect(result.assigned).toBe(1);
+      expect(emit).toHaveBeenCalledWith(
+        SCHEDULE_ENTRY_CHANGED,
+        expect.objectContaining({ screenId: screen.id, organisationId: org.id }),
+      );
+      expect(emit).toHaveBeenCalledWith(
+        SCHEDULE_ENTRIES_EDITED,
+        expect.objectContaining({ screenId: screen.id, groupId: null }),
+      );
     });
   });
 

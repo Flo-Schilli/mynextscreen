@@ -12,6 +12,7 @@ import {
   scheduleEntries,
   screenGroups,
   screens,
+  sliceJobs,
   sourceEvents,
   type ContentSource,
   type Organisation,
@@ -23,7 +24,11 @@ import {
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import { SLICE_CONTENT_QUEUE, SliceEnqueueService, SliceStatusService } from '../slice-content';
 import { ScheduleService } from '../schedule/schedule.service';
-import { GROUP_SCHEDULE_CHANGED, SCHEDULE_ENTRY_CHANGED } from '../schedule/schedule.event';
+import {
+  GROUP_SCHEDULE_CHANGED,
+  SCHEDULE_ENTRIES_EDITED,
+  SCHEDULE_ENTRY_CHANGED,
+} from '../schedule/schedule.event';
 import { AUDIT_EVENT_SCHEDULE_RULE_RECONCILED } from '../audit-log/audit.events';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { EventScheduleReconcileService } from './event-schedule-reconcile.service';
@@ -38,6 +43,7 @@ const SLOT_END = new Date('2026-11-05T22:30:00Z');
 describe('Event schedule rules', () => {
   let db: DrizzleDB;
   let emit: jest.Mock;
+  let sliceAdd: jest.Mock;
   let rules: EventScheduleRuleService;
   let reconcile: EventScheduleReconcileService;
   let schedule: ScheduleService;
@@ -62,6 +68,7 @@ describe('Event schedule rules', () => {
       doNotFake: ['nextTick', 'setImmediate'],
     });
     emit = jest.fn();
+    sliceAdd = jest.fn().mockResolvedValue(undefined);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EventScheduleRuleService,
@@ -70,7 +77,7 @@ describe('Event schedule rules', () => {
         SliceEnqueueService,
         SliceStatusService,
         { provide: DRIZZLE, useValue: db },
-        { provide: getQueueToken(SLICE_CONTENT_QUEUE), useValue: { add: jest.fn() } },
+        { provide: getQueueToken(SLICE_CONTENT_QUEUE), useValue: { add: sliceAdd } },
         { provide: EventEmitter2, useValue: { emit } },
       ],
     }).compile();
@@ -115,10 +122,10 @@ describe('Event schedule rules', () => {
     return row;
   }
 
-  async function seedGroup(): Promise<ScreenGroup> {
+  async function seedGroup(mode = ScreenGroupMode.Mirror): Promise<ScreenGroup> {
     const [row] = await db
       .insert(screenGroups)
-      .values({ organisationId: org.id, name: 'Wall', mode: ScreenGroupMode.Mirror })
+      .values({ organisationId: org.id, name: 'Wall', mode })
       .returning();
     return row;
   }
@@ -202,7 +209,7 @@ describe('Event schedule rules', () => {
 
       expect(emit).toHaveBeenCalledWith(
         SCHEDULE_ENTRY_CHANGED,
-        expect.objectContaining({ screenId: screen.id, managed: true }),
+        expect.objectContaining({ screenId: screen.id }),
       );
       expect(emit).toHaveBeenCalledWith(
         AUDIT_EVENT_SCHEDULE_RULE_RECONCILED,
@@ -223,7 +230,7 @@ describe('Event schedule rules', () => {
       expect(entry.groupId).toBe(group.id);
       expect(emit).toHaveBeenCalledWith(
         GROUP_SCHEDULE_CHANGED,
-        expect.objectContaining({ groupId: group.id, managed: true }),
+        expect.objectContaining({ groupId: group.id }),
       );
     });
 
@@ -480,23 +487,115 @@ describe('Event schedule rules', () => {
       expect(await managedEntries()).toEqual([]);
       expect(emit).toHaveBeenCalledWith(
         SCHEDULE_ENTRY_CHANGED,
-        expect.objectContaining({ screenId: screen.id, managed: true }),
+        expect.objectContaining({ screenId: screen.id }),
       );
       await expect(rules.findOne(org.id, source.id, rule.id)).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('lookups for the listener', () => {
-    it('finds rules by source, by target and in total', async () => {
+    it('finds rules by source, organisation, target and in total', async () => {
       const group = await seedGroup();
       const rule = await rules.create(org.id, source.id, dto({ groupIds: [group.id] }), null);
 
-      expect(await rules.ruleIdsOfSource(source.id)).toEqual([rule.id]);
-      expect(await rules.ruleIdsTargeting({ screenId: screen.id })).toEqual([rule.id]);
-      expect(await rules.ruleIdsTargeting({ groupId: group.id })).toEqual([rule.id]);
-      expect(await rules.ruleIdsTargeting({})).toEqual([]);
-      expect(await rules.allRuleIds()).toEqual([rule.id]);
+      expect(await reconcile.ruleIdsOfSource(source.id)).toEqual([rule.id]);
+      expect(await reconcile.ruleIdsOfOrganisation(org.id)).toEqual([rule.id]);
+      expect(await reconcile.ruleIdsTargeting([{ screenId: screen.id, groupId: null }])).toEqual([
+        rule.id,
+      ]);
+      expect(await reconcile.ruleIdsTargeting([{ screenId: null, groupId: group.id }])).toEqual([
+        rule.id,
+      ]);
+      expect(await reconcile.ruleIdsTargeting([])).toEqual([]);
+      expect(await reconcile.allRuleIds()).toEqual([rule.id]);
       expect(await rules.findAll(org.id, source.id)).toHaveLength(1);
+    });
+  });
+
+  describe('freed slots', () => {
+    it('go to the waiting rule when the rule holding them is deleted', async () => {
+      await seedEvent();
+      const first = await rules.create(org.id, source.id, dto({ name: 'First' }), null);
+      const second = await rules.create(org.id, source.id, dto({ name: 'Second' }), null);
+
+      await rules.remove(org.id, source.id, first.id, null);
+
+      const entries = await managedEntries();
+      expect(entries.map((e) => e.managedByRuleId)).toEqual([second.id]);
+    });
+
+    it('go to the waiting rule when the rule holding them is paused', async () => {
+      await seedEvent();
+      const first = await rules.create(org.id, source.id, dto({ name: 'First' }), null);
+      const second = await rules.create(org.id, source.id, dto({ name: 'Second' }), null);
+
+      await rules.update(org.id, source.id, first.id, { enabled: false }, null);
+
+      expect((await managedEntries()).map((e) => e.managedByRuleId)).toEqual([second.id]);
+    });
+
+    it('come back after the manual entry holding them is deleted', async () => {
+      await seedEvent();
+      const manual = await seedManual({ screenId: screen.id }, SLOT_START, SLOT_END);
+      const rule = await rules.create(org.id, source.id, dto(), null);
+      expect(await managedEntries()).toHaveLength(1);
+
+      await schedule.delete(manual.id, org.id);
+      await reconcile.reconcileRulesOn([{ screenId: screen.id, groupId: null }]);
+
+      const [entry] = await managedEntries();
+      expect(entry.managedByRuleId).toBe(rule.id);
+    });
+  });
+
+  describe('manual edits', () => {
+    it('are announced for the listener, generated entries are not', async () => {
+      await seedEvent();
+      await rules.create(org.id, source.id, dto(), null);
+      expect(emit).not.toHaveBeenCalledWith(SCHEDULE_ENTRIES_EDITED, expect.anything());
+
+      await seedManual({ screenId: screen.id }, SLOT_END, new Date('2026-11-05T23:00:00Z'));
+
+      expect(emit).toHaveBeenCalledWith(
+        SCHEDULE_ENTRIES_EDITED,
+        expect.objectContaining({ organisationId: org.id, screenId: screen.id, groupId: null }),
+      );
+    });
+  });
+
+  describe('split groups', () => {
+    it('slice each playlist once, however many events', async () => {
+      const wall = await seedGroup(ScreenGroupMode.Split);
+      await seedEvent();
+      await seedEvent({ eventDate: '2026-11-12' });
+
+      await rules.create(org.id, source.id, dto({ screenIds: [], groupIds: [wall.id] }), null);
+
+      expect(sliceAdd).toHaveBeenCalledTimes(1);
+      expect(sliceAdd).toHaveBeenCalledWith(
+        'slice',
+        expect.objectContaining({ groupId: wall.id, playlistId: playlist.id }),
+      );
+    });
+
+    it('queue a slice job again when the first one could not be queued', async () => {
+      const wall = await seedGroup(ScreenGroupMode.Split);
+      await seedEvent();
+      sliceAdd.mockRejectedValueOnce(new Error('redis down'));
+
+      const rule = await rules.create(
+        org.id,
+        source.id,
+        dto({ screenIds: [], groupIds: [wall.id] }),
+        null,
+      );
+      // markQueued wrote a row before the queue failed; a lost row is what the heal looks for.
+      await db.delete(sliceJobs);
+      sliceAdd.mockClear();
+
+      await reconcile.reconcile(rule.id);
+
+      expect(sliceAdd).toHaveBeenCalledTimes(1);
     });
   });
 });

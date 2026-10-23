@@ -41,6 +41,12 @@ import {
   AUDIT_PLAYLIST_BULK_SCREEN_ASSIGNED,
   AuditPlaylistEvent,
 } from '../audit-log/audit.events';
+import {
+  SCHEDULE_ENTRIES_EDITED,
+  SCHEDULE_ENTRY_CHANGED,
+  ScheduleEntriesEditedEvent,
+  ScheduleEntryChangedEvent,
+} from '../schedule/schedule.event';
 
 /** Fallback item durations when neither the video nor the request has one. */
 const DEFAULT_VIDEO_DURATION_SECONDS = 30;
@@ -668,6 +674,18 @@ export class PlaylistService {
         rrule: null,
         colour: defaultColour,
       });
+    }
+
+    if (found.length > 0) {
+      // Push the new entries to the screen and let event schedule rules step aside.
+      this.eventEmitter.emit(
+        SCHEDULE_ENTRY_CHANGED,
+        new ScheduleEntryChangedEvent(screenId, organisationId),
+      );
+      this.eventEmitter.emit(
+        SCHEDULE_ENTRIES_EDITED,
+        new ScheduleEntriesEditedEvent(organisationId, screenId, null),
+      );
     }
 
     const bulkOperationSize = ids.length;

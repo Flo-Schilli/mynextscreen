@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { and, asc, eq, gte, inArray, isNull, or } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNull } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import {
@@ -28,7 +28,10 @@ import {
 } from '../audit-log/audit.events';
 import { CreateEventScheduleRuleDto, UpdateEventScheduleRuleDto } from './dto';
 import { planEventSlots, slotKey } from './event-schedule-planner';
-import { EventScheduleReconcileService } from './event-schedule-reconcile.service';
+import {
+  EventScheduleReconcileService,
+  lockOrganisationSchedules,
+} from './event-schedule-reconcile.service';
 
 /** Upcoming events a preview lists at most. */
 export const PREVIEW_LIMIT = 50;
@@ -180,6 +183,8 @@ export class EventScheduleRuleService {
   ): Promise<void> {
     const rule = await this.findRule(organisationId, sourceId, id);
     const removed = await this.db.transaction(async (tx) => {
+      // Under the lock no reconcile can add an entry between reading and deleting.
+      await lockOrganisationSchedules(tx, organisationId);
       const entries = await tx
         .select()
         .from(scheduleEntries)
@@ -187,11 +192,13 @@ export class EventScheduleRuleService {
       await tx.delete(eventScheduleRules).where(eq(eventScheduleRules.id, id));
       return entries;
     });
-    await this.scheduleService.announceManagedChanges([], removed);
+    this.scheduleService.announceManagedChanges(removed);
     this.eventEmitter.emit(
       AUDIT_EVENT_SCHEDULE_RULE_DELETED,
       new AuditEventScheduleRuleEvent(id, organisationId, userId, { sourceId, name: rule.name }),
     );
+    // The freed slots may be what other rules on these targets were waiting for.
+    await this.reconcileService.reconcileRulesOn(removed, new Date(), new Set([id]));
   }
 
   /** Leaves one event out of the rule, or takes it back in. */
@@ -315,34 +322,6 @@ export class EventScheduleRuleService {
         }),
       };
     });
-  }
-
-  /** Rules fed by a source. */
-  async ruleIdsOfSource(sourceId: string): Promise<string[]> {
-    const rows = await this.db
-      .select({ id: eventScheduleRules.id })
-      .from(eventScheduleRules)
-      .where(eq(eventScheduleRules.sourceId, sourceId));
-    return rows.map((row) => row.id);
-  }
-
-  /** Rules that schedule onto a screen or a group. */
-  async ruleIdsTargeting(target: { screenId?: string; groupId?: string }): Promise<string[]> {
-    const conditions = [
-      ...(target.screenId ? [eq(eventScheduleRuleTargets.screenId, target.screenId)] : []),
-      ...(target.groupId ? [eq(eventScheduleRuleTargets.groupId, target.groupId)] : []),
-    ];
-    if (conditions.length === 0) return [];
-    const rows = await this.db
-      .selectDistinct({ id: eventScheduleRuleTargets.ruleId })
-      .from(eventScheduleRuleTargets)
-      .where(or(...conditions));
-    return rows.map((row) => row.id);
-  }
-
-  async allRuleIds(): Promise<string[]> {
-    const rows = await this.db.select({ id: eventScheduleRules.id }).from(eventScheduleRules);
-    return rows.map((row) => row.id);
   }
 
   private async findRule(

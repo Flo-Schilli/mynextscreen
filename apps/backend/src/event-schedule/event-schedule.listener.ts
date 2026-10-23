@@ -16,11 +16,12 @@ import {
 import {
   GROUP_SCHEDULE_CHANGED,
   GroupScheduleChangedEvent,
+  SCHEDULE_ENTRIES_EDITED,
   SCHEDULE_ENTRY_CHANGED,
+  ScheduleEntriesEditedEvent,
   ScheduleEntryChangedEvent,
 } from '../schedule/schedule.event';
 import { EventScheduleReconcileService } from './event-schedule-reconcile.service';
-import { EventScheduleRuleService } from './event-schedule-rule.service';
 
 /** Rolls every rule's horizon on and heals a reconcile that failed. */
 export const EVENT_SCHEDULE_TICK_MS = 60 * 60 * 1000;
@@ -32,8 +33,8 @@ function errorMessage(error: unknown): string {
 /**
  * Reconciles rules whenever their inputs change: a sync or new aliases of
  * their source, a manual entry on one of their targets, or the hourly tick.
- * Changes a rule makes itself carry `managed` and are ignored here, so a
- * reconcile never triggers another one.
+ * Generated entries never raise `SCHEDULE_ENTRIES_EDITED`, so a reconcile
+ * never triggers another one through this listener.
  */
 @Injectable()
 export class EventScheduleListener {
@@ -41,38 +42,37 @@ export class EventScheduleListener {
 
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
-    private readonly ruleService: EventScheduleRuleService,
     private readonly reconcileService: EventScheduleReconcileService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
   @OnEvent(CONTENT_SOURCE_SYNCED, { async: true })
   async onSourceSynced(event: ContentSourceSyncedEvent): Promise<void> {
-    await this.reconcileAll(() => this.ruleService.ruleIdsOfSource(event.sourceId));
+    await this.reconcileAll(() => this.reconcileService.ruleIdsOfSource(event.sourceId));
   }
 
   @OnEvent(CONTENT_SOURCE_VENUE_ALIASES_UPDATED, { async: true })
   async onVenueAliasesUpdated(event: ContentSourceVenueAliasesUpdatedEvent): Promise<void> {
-    await this.reconcileAll(() => this.ruleService.ruleIdsOfSource(event.sourceId));
+    await this.reconcileAll(() => this.reconcileService.ruleIdsOfSource(event.sourceId));
   }
 
-  /** A manual entry may now hold a slot a rule filled: the rule steps aside. */
-  @OnEvent(SCHEDULE_ENTRY_CHANGED, { async: true })
-  async onScreenScheduleChanged(event: ScheduleEntryChangedEvent): Promise<void> {
-    if (event.managed) return;
-    await this.reconcileAll(() => this.ruleService.ruleIdsTargeting({ screenId: event.screenId }));
-  }
-
-  @OnEvent(GROUP_SCHEDULE_CHANGED, { async: true })
-  async onGroupScheduleChanged(event: GroupScheduleChangedEvent): Promise<void> {
-    if (event.managed) return;
-    await this.reconcileAll(() => this.ruleService.ruleIdsTargeting({ groupId: event.groupId }));
+  /** A manual entry may now hold a slot a rule filled, or free one: the rules adjust. */
+  @OnEvent(SCHEDULE_ENTRIES_EDITED, { async: true })
+  async onScheduleEdited(event: ScheduleEntriesEditedEvent): Promise<void> {
+    try {
+      await this.reconcileService.reconcileRulesOn([
+        { screenId: event.screenId, groupId: event.groupId },
+      ]);
+    } catch (error) {
+      this.logger.warn(`Reconciling rules after a schedule edit failed: ${errorMessage(error)}`);
+    }
   }
 
   /**
    * Deleting a source deleted its rules and their entries by cascade, before
    * anyone could say which screens showed them. Every screen and group of the
-   * organisation re-resolves instead; removing a source is rare.
+   * organisation re-resolves instead, and the organisation's other rules may
+   * take the freed slots; removing a source is rare.
    */
   @OnEvent(CONTENT_SOURCE_REMOVED, { async: true })
   async onSourceRemoved(event: ContentSourceRemovedEvent): Promise<void> {
@@ -90,13 +90,13 @@ export class EventScheduleListener {
       for (const { id } of orgScreens) {
         this.eventEmitter.emit(
           SCHEDULE_ENTRY_CHANGED,
-          new ScheduleEntryChangedEvent(id, event.organisationId, true),
+          new ScheduleEntryChangedEvent(id, event.organisationId),
         );
       }
       for (const { id } of orgGroups) {
         this.eventEmitter.emit(
           GROUP_SCHEDULE_CHANGED,
-          new GroupScheduleChangedEvent(id, event.organisationId, null, true),
+          new GroupScheduleChangedEvent(id, event.organisationId, null),
         );
       }
     } catch (error) {
@@ -104,11 +104,14 @@ export class EventScheduleListener {
         `Announcing schedules after removing source ${event.sourceId} failed: ${errorMessage(error)}`,
       );
     }
+    await this.reconcileAll(() =>
+      this.reconcileService.ruleIdsOfOrganisation(event.organisationId),
+    );
   }
 
   @Interval(EVENT_SCHEDULE_TICK_MS)
   async tick(): Promise<void> {
-    await this.reconcileAll(() => this.ruleService.allRuleIds());
+    await this.reconcileAll(() => this.reconcileService.allRuleIds());
   }
 
   /** One failing rule must not stop the others; the next tick retries it. */

@@ -31,6 +31,7 @@ describe('event schedule rule DTOs', () => {
 
   it.each([
     [{ name: '' }, 'name'],
+    [{ name: '   ' }, 'name'],
     [{ venues: [] }, 'venues'],
     [{ venues: ['Hirsch', 'Hirsch'] }, 'venues'],
     [{ playlistId: 'nope' }, 'playlistId'],
