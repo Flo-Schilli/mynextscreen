@@ -127,7 +127,7 @@ const STATUS_TONE: Record<string, BadgeTone> = {
                     {{ rule.venues.join(', ') }} · {{ playlistName(rule.playlistId) }} ·
                     <span class="font-mono">{{ rule.windowStart }}–{{ rule.windowEnd }}</span>
                     @if (nextDay(rule)) {
-                      <span>({{ t('sources.schedules.nextDay') }})</span>
+                      <span>&nbsp;({{ t('sources.schedules.nextDay') }})</span>
                     }
                   </div>
                   <div class="mt-0.5 text-[12.5px] text-faint">
