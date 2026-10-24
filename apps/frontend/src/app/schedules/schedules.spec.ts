@@ -2,7 +2,8 @@ import { TestBed, getTestBed, ComponentFixture } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { Router } from '@angular/router';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
+import { delay } from 'rxjs/operators';
 import { Schedules } from './schedules';
 import { ScheduleService } from './schedule.service';
 import {
@@ -332,6 +333,69 @@ describe('Schedules', () => {
       // Assert
       expect(component.orgId).toBe(ORG_ID);
       expect(component.orgTimeZone).toBe('Europe/Berlin');
+    });
+
+    describe('when the shell switches organisation', () => {
+      // Like the real HTTP call, the memberships answer after the switch's change detection.
+      async function switchOrganisation(orgId: string): Promise<void> {
+        member.getMyMemberships = () => of(member.memberships).pipe(delay(0));
+        TestBed.inject(OrganisationStateService).selectedOrgId.set(orgId);
+        await fixture.whenStable();
+        await new Promise((resolve) => setTimeout(resolve));
+      }
+
+      beforeEach(() => {
+        member.memberships = [
+          {
+            id: 'm0',
+            userId: 'u1',
+            organisationId: 'own-org',
+            role: 'org_admin',
+            createdAt: '',
+            organisation: { id: 'own-org', name: 'Own', timeZone: 'UTC' },
+          },
+          {
+            id: 'm1',
+            userId: 'u1',
+            organisationId: ORG_ID,
+            role: 'editor',
+            createdAt: '',
+            organisation: { id: ORG_ID, name: 'Venue', timeZone: 'Europe/Berlin' },
+          },
+        ];
+        TestBed.inject(OrganisationStateService).selectedOrgId.set('own-org');
+      });
+
+      it('reloads the calendar for the new organisation', async () => {
+        // Arrange
+        await setUp();
+        const screens = TestBed.inject(ScreenService) as unknown as ScreenServiceStub;
+        screens.screens = [makeScreen({ id: 'venue-screen' })];
+
+        // Act
+        await switchOrganisation(ORG_ID);
+
+        // Assert
+        expect(component.orgId).toBe(ORG_ID);
+        expect(component.orgTimeZone).toBe('Europe/Berlin');
+        expect(component.selectedTargetId).toBe('screen:venue-screen');
+      });
+
+      it('ignores entries that arrive late for the previous organisation', async () => {
+        // Arrange
+        const late = new Subject<ScheduleEntry[]>();
+        schedule.getByScreen = () => late;
+        await setUp();
+        schedule.getByScreen = () => of([]);
+
+        // Act
+        await switchOrganisation(ORG_ID);
+        late.next([makeEntry({ id: 'stale' })]);
+
+        // Assert
+        expect(component.orgId).toBe(ORG_ID);
+        expect(component.entries).toEqual([]);
+      });
     });
 
     it('falls back to UTC when the membership carries no time zone', async () => {
