@@ -5,6 +5,8 @@ import {
   OnDestroy,
   DestroyRef,
   ChangeDetectionStrategy,
+  effect,
+  untracked,
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -273,6 +275,12 @@ export class Schedules implements OnInit, OnDestroy {
 
   orgId = '';
   orgTimeZone = 'UTC';
+
+  // Loads the calendar initially and again whenever the shell switches organisation.
+  private orgEffect = effect(() => {
+    this.orgState.selectedOrgId();
+    untracked(() => this.loadCurrentOrg());
+  });
   loading = true;
   loadError = '';
 
@@ -405,7 +413,6 @@ export class Schedules implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.loadCurrentOrg();
     this.subscribeToSlicing();
     document.addEventListener('mousemove', this.boundMouseMove);
     document.addEventListener('mouseup', this.boundMouseUp);
@@ -520,9 +527,8 @@ export class Schedules implements OnInit, OnDestroy {
           this.loading = false;
           return;
         }
-        this.orgId = membership.organisationId;
         // The membership carries the zone; GET /organisations/:id is for super admins only.
-        this.orgTimeZone = membership.organisation?.timeZone || 'UTC';
+        this.resetOrgState(membership.organisationId, membership.organisation?.timeZone || 'UTC');
         this.loadScreens();
         this.loadScreenGroups();
         this.loadPlaylists();
@@ -534,9 +540,31 @@ export class Schedules implements OnInit, OnDestroy {
     });
   }
 
+  /** Drops everything of the previous organisation before loading `orgId`'s. */
+  private resetOrgState(orgId: string, timeZone: string): void {
+    this.orgId = orgId;
+    this.orgTimeZone = timeZone;
+    this.loading = true;
+    this.loadError = '';
+    this.screens = [];
+    this.screenGroups = [];
+    this.playlists = [];
+    this.entries = [];
+    this.targetOptions = [];
+    this.selectedTargetId = '';
+    this.rebuildCalendar();
+  }
+
+  /** Whether a response requested for `orgId` still belongs to the shown organisation. */
+  private isCurrentOrg(orgId: string): boolean {
+    return orgId === this.orgId;
+  }
+
   private loadScreens(): void {
-    this.screenService.getAll(this.orgId).subscribe({
+    const orgId = this.orgId;
+    this.screenService.getAll(orgId).subscribe({
       next: (screens) => {
+        if (!this.isCurrentOrg(orgId)) return;
         this.screens = screens;
         this.buildTargetOptions();
         if (!this.selectedTargetId && this.targetOptions.length > 0) {
@@ -554,8 +582,10 @@ export class Schedules implements OnInit, OnDestroy {
   }
 
   private loadScreenGroups(): void {
-    this.screenGroupService.getAll(this.orgId).subscribe({
+    const orgId = this.orgId;
+    this.screenGroupService.getAll(orgId).subscribe({
       next: (groups) => {
+        if (!this.isCurrentOrg(orgId)) return;
         this.screenGroups = groups;
         this.buildTargetOptions();
         if (!this.selectedTargetId && this.targetOptions.length > 0) {
@@ -585,8 +615,10 @@ export class Schedules implements OnInit, OnDestroy {
   }
 
   private loadPlaylists(): void {
-    this.playlistService.getAll(this.orgId).subscribe({
+    const orgId = this.orgId;
+    this.playlistService.getAll(orgId).subscribe({
       next: (playlists) => {
+        if (!this.isCurrentOrg(orgId)) return;
         this.playlists = playlists;
       },
     });
@@ -594,13 +626,15 @@ export class Schedules implements OnInit, OnDestroy {
 
   loadEntries(): void {
     if (!this.selectedTargetId) return;
+    const orgId = this.orgId;
     const range = this.calendar.getQueryRange(this.viewMode, this.currentDate, this.orgTimeZone);
 
     if (this.selectedTargetType === 'screen') {
       this.scheduleService
-        .getByScreen(this.orgId, this.selectedTargetRawId, range.from, range.to)
+        .getByScreen(orgId, this.selectedTargetRawId, range.from, range.to)
         .subscribe({
           next: (entries) => {
+            if (!this.isCurrentOrg(orgId)) return;
             this.entries = entries;
             this.loading = false;
             this.rebuildCalendar();
@@ -612,8 +646,9 @@ export class Schedules implements OnInit, OnDestroy {
         });
     } else {
       // For group targets, fetch all entries by date range and filter client-side
-      this.scheduleService.getByDateRange(this.orgId, range.from, range.to).subscribe({
+      this.scheduleService.getByDateRange(orgId, range.from, range.to).subscribe({
         next: (entries) => {
+          if (!this.isCurrentOrg(orgId)) return;
           this.entries = entries.filter((e) => e.groupId === this.selectedTargetRawId);
           this.loading = false;
           this.rebuildCalendar();
