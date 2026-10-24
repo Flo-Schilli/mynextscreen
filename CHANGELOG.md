@@ -4,6 +4,26 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.26.3
+
+### Fixed — paired screens asking to be paired again
+
+A paired screen could come up with the pairing dialog after being switched
+off, although its credentials were still valid. Two cases did this:
+
+- The screen started before its network, TLS or the server was ready. It now
+  keeps its credentials and retries every minute instead of giving up.
+- The screen was switched off right after renewing its session, before the TV
+  had saved the new token. The server now recognises the old token and issues
+  a new one, as long as the new token was never used. Such a recovery is
+  logged as a warning ("Recovered a lost refresh rotation").
+
+Screens that already show the pairing dialog because of the second case
+recover by themselves after the update, unless they were paired again in the
+meantime; restarting the app on the TV helps in the first case.
+
+**Operator action:** none beyond updating the server. There is no migration.
+
 ## 0.26.2
 
 ### Fixed — calendar after switching organisation
