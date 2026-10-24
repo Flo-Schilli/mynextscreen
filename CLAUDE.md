@@ -58,7 +58,9 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
   ├── Playlist        { kind(static|dynamic), rule(jsonb), nextResolveAt } └── PlaylistItem { contentId, durationMs (für Bilder) }
   ├── ContentSource   { adapterType, params, formats, style, syncInterval, lastSync* }
   │     └── SourceEvent { externalId, eventDate, venue, genres, status, goneAt } └── SourceEventSlide { format, contentId(managed), renderHash }
-  ├── Schedule        { screen|group, playlist, start/end, RRULE(recurring), color }
+  ├── Schedule        { screen|group, playlist, start/end, RRULE(recurring), color, managedByRuleId? }
+  ├── EventScheduleRule { source, venues(canonical), playlist, windowStart/End(HH:MM lokal), excludeCancelled, enabled }
+  │     ├── Target { screen|group } └── Exclusion { sourceEvent }
   ├── LiveStream      { sourceUrl, target screen(s)/group, ffmpeg lifecycle → HLS }
   ├── SiteAgent       { name, location, version, network(kind/ssid/ip), heartbeat; Enrolment + rotierende Sessions }
   │     └── ScreenRemoteControl { screenId 1:1, agentId, localIp, mac, devmodePassphrase(enc), Toggles, Telemetrie }
@@ -139,6 +141,7 @@ apps/
       playlist/           # Playlist-CRUD, geordnete Items mit Dauer; dynamische Playlists (Regel, Resolver, Resolve-Queue)
       content-source/     # Website-Adapter, Sync-Queue (+ täglicher Cleanup), Slide-Renderer (sharp), Event-Pool
       schedule/           # Kalender-CRUD, RRULE-Recurrence, Overlap/Fallback
+      event-schedule/     # Event-Schedule-Regeln: Planer (pure), Reconcile (Advisory-Lock je Org), Listener + Stunden-Tick
       live-stream/        # Stream-URL, FFmpeg-Lifecycle, Override/Fallback (HLS)
       screen-protocol/    # Adapter-Abstraktion; JsonProtocolAdapter (erster Impl)
       notification/       # Hub + channels/ (in-app, email, ntfy)

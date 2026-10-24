@@ -517,6 +517,48 @@ describe('Schedules', () => {
     });
   });
 
+  describe('generated entries', () => {
+    const managedByRule = { id: 'r1', name: 'Hirsch-Abend', sourceId: 'src1' };
+
+    it('opens an explanation instead of the edit form', async () => {
+      await setUp();
+      const entry = makeEntry({ managedByRule });
+
+      component.openEditModal(entry);
+
+      expect(component.showModal).toBe(false);
+      expect(component.managedEntry).toBe(entry);
+    });
+
+    it('links to the rule on its source page', async () => {
+      await setUp();
+      routerStub.navigate.mockClear();
+      component.managedEntry = makeEntry({ managedByRule });
+
+      component.openManagingRule(component.managedEntry);
+
+      expect(component.managedEntry).toBeNull();
+      expect(routerStub.navigate).toHaveBeenCalledWith(['/sources', 'src1']);
+    });
+
+    it('cannot be dragged or resized', async () => {
+      await setUp();
+      const block = makeBlock({ entry: makeEntry({ managedByRule }) });
+      const event = {
+        clientY: 100,
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+        target: document.createElement('div'),
+      } as unknown as MouseEvent;
+
+      component.onBlockMouseDown(event, block);
+      component.onResizeMouseDown(event, block, 'bottom');
+
+      expect(component.dragState).toBeNull();
+      expect(component.resizeState).toBeNull();
+    });
+  });
+
   describe('closeModal', () => {
     it('hides the modal and clears the editing entry', async () => {
       // Arrange

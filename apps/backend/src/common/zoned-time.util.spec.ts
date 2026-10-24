@@ -32,6 +32,17 @@ describe('zoned-time util', () => {
       expect(zonedTimeToUtc('2026-10-25', '20:00', 'Europe/Berlin').toISOString()).toBe(
         '2026-10-25T19:00:00.000Z',
       );
+      // 25 Oct 2026, the hour before the switch at 03:00 CEST is still summer time.
+      expect(zonedTimeToUtc('2026-10-25', '01:00', 'Europe/Berlin').toISOString()).toBe(
+        '2026-10-24T23:00:00.000Z',
+      );
+      expect(zonedTimeToUtc('2026-10-25', '01:59', 'Europe/Berlin').toISOString()).toBe(
+        '2026-10-24T23:59:00.000Z',
+      );
+      // 02:30 happens twice that night; the later one (winter time) is taken.
+      expect(zonedTimeToUtc('2026-10-25', '02:30', 'Europe/Berlin').toISOString()).toBe(
+        '2026-10-25T01:30:00.000Z',
+      );
       // 29 Mar 2026: 02:30 does not exist and resolves past the jump.
       expect(zonedTimeToUtc('2026-03-29', '02:30', 'Europe/Berlin').toISOString()).toBe(
         '2026-03-29T01:30:00.000Z',

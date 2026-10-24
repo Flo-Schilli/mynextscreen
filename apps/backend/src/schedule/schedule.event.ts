@@ -21,3 +21,18 @@ export class GroupScheduleChangedEvent {
     public readonly playlistId: string | null,
   ) {}
 }
+
+/**
+ * Someone created, changed or deleted a schedule entry by hand. Unlike the two
+ * events above, which also fire on schedule boundaries and for generated
+ * entries, this one means the stored schedule of the target changed.
+ */
+export const SCHEDULE_ENTRIES_EDITED = 'schedule-entries.edited';
+
+export class ScheduleEntriesEditedEvent {
+  constructor(
+    public readonly organisationId: string,
+    public readonly screenId: string | null,
+    public readonly groupId: string | null,
+  ) {}
+}

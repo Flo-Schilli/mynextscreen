@@ -77,6 +77,10 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
 - A **dynamic playlist** holds a rule instead of hand-picked items: sources, genres (any/all), venues, date window (from today / a fixed date / N days ahead, until open / a fixed date / N days ahead), exclude cancelled or sold-out events, sort order, limit, slide format, item duration and transition. The editor shows a live preview and a plain-language summary of the rule
 - The rule keeps itself current: after every sync, on its refresh interval (default 15 minutes) and the moment a shown event expires. An event drops out at the end of its local event day plus a per-playlist **grace period** (default 4 hours), in the organisation's time zone. Its items cannot be edited by hand
 - Slides of events that ended more than 14 days ago, or that the source no longer lists, are deleted once a day when no playlist shows them, which frees their storage
+- **Event schedule rules** put a playlist on screens and groups on event days without touching the calendar: "on every event day at these venues, play this playlist from 18:00 to 01:00 on the foyer screens". The window is local to the organisation; an end at or before the start lies on the next day. The playlist is any existing one, static or dynamic
+- A rule plans up to 90 days ahead and follows the source: after every sync, an alias change and once an hour. New events get an entry, a moved or cancelled one moves or loses it. Single events can be left out per rule
+- **Manual entries always win**: where a manual entry (or another rule that was first) already holds the time, the rule skips that screen or group and shows the conflict. A manual entry created later over a generated one pushes it out
+- Generated entries appear in the calendar with a lock; they cannot be moved, resized or edited there, only through their rule
 
 ### Schedules
 
@@ -149,7 +153,7 @@ A **multi-tenant digital signage platform** for concert venues. Organisations ma
   - Dynamic playlists: rule editor (sources, genres, venues, date window, exclusions, limit, format) with live preview instead of the item list
 - **Sources** — content sources with the state of their last sync
   - Form: adapter and its parameters, slide formats, style (background, accent colour), sync interval, enabled
-  - Detail view: "sync now", venue aliases (every raw venue name of the current events with its canonical name, plus aliases for spellings not listed right now; read-only for viewers) and the event pool with status badges and slide thumbnails, filterable by venue, genre and date, paged with "load more" and a total count
+  - Detail view: "sync now", venue aliases (every raw venue name of the current events with its canonical name, plus aliases for spellings not listed right now; read-only for viewers), event schedule rules (venues, playlist, time window, screens and groups; conflict count; upcoming events with the status per target and "leave out") and the event pool with status badges and slide thumbnails, filterable by venue, genre and date, paged with "load more" and a total count
 - **Schedules** — calendar view (day / week / month)
   - Drag-and-drop playlist blocks onto time slots per screen or group
   - Colour-coded by playlist, visual gap detection (shows where fallback would activate)

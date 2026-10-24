@@ -91,6 +91,22 @@ export class AuditContentSourceEvent {
   ) {}
 }
 
+// ── Event schedule rules ─────────────────────────────────────────────────────
+export const AUDIT_EVENT_SCHEDULE_RULE_CREATED = 'audit.event_schedule_rule.created';
+export const AUDIT_EVENT_SCHEDULE_RULE_UPDATED = 'audit.event_schedule_rule.updated';
+export const AUDIT_EVENT_SCHEDULE_RULE_DELETED = 'audit.event_schedule_rule.deleted';
+export const AUDIT_EVENT_SCHEDULE_RULE_RECONCILED = 'audit.event_schedule_rule.reconciled';
+
+/** `userId` is null when a sync or the hourly tick reconciled the rule. */
+export class AuditEventScheduleRuleEvent {
+  constructor(
+    public readonly ruleId: string,
+    public readonly organisationId: string,
+    public readonly userId: string | null,
+    public readonly details: Record<string, unknown> | null,
+  ) {}
+}
+
 // ── Site agents ──────────────────────────────────────────────────────────────
 export const AUDIT_SITE_AGENT_CREATED = 'audit.site_agent.created';
 export const AUDIT_SITE_AGENT_UPDATED = 'audit.site_agent.updated';

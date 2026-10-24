@@ -22,10 +22,12 @@ import { relations, sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
+  check,
   index,
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -50,6 +52,7 @@ import type {
   SlideFormat,
   SlideStyle,
 } from '../content-source/content-source.types';
+import type { EventScheduleReconcileSummary } from '../event-schedule/event-schedule.types';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { DevmodeKeyStatus } from '../site-agent/devmode-key-status.enum';
 import { ScreenReachability } from '../site-agent/screen-reachability.enum';
@@ -454,26 +457,123 @@ export const playlistItems = pgTable('playlist_items', {
 
 // ── schedule entries ───────────────────────────────────────────────────────────
 
-export const scheduleEntries = pgTable('schedule_entries', {
-  id: uuid()
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  organisationId: uuid()
-    .notNull()
-    .references(() => organisations.id, { onDelete: 'cascade' }),
-  screenId: uuid().references(() => screens.id, { onDelete: 'cascade' }),
-  groupId: uuid().references(() => screenGroups.id, { onDelete: 'cascade' }),
-  playlistId: uuid()
-    .notNull()
-    .references(() => playlists.id, { onDelete: 'cascade' }),
-  name: text(),
-  priority: text().$type<SchedulePriority>().notNull().default('normal'),
-  startTime: timestamp({ withTimezone: true }).notNull(),
-  endTime: timestamp({ withTimezone: true }).notNull(),
-  rrule: text(),
-  colour: text().notNull().default('#6d6cf6'),
-  ...timestamps,
-});
+export const scheduleEntries = pgTable(
+  'schedule_entries',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    screenId: uuid().references(() => screens.id, { onDelete: 'cascade' }),
+    groupId: uuid().references(() => screenGroups.id, { onDelete: 'cascade' }),
+    playlistId: uuid()
+      .notNull()
+      .references(() => playlists.id, { onDelete: 'cascade' }),
+    name: text(),
+    priority: text().$type<SchedulePriority>().notNull().default('normal'),
+    startTime: timestamp({ withTimezone: true }).notNull(),
+    endTime: timestamp({ withTimezone: true }).notNull(),
+    rrule: text(),
+    colour: text().notNull().default('#6d6cf6'),
+    // Set for entries an event schedule rule generates. Such entries are locked
+    // against manual edits; the rule owns their lifecycle.
+    managedByRuleId: uuid().references((): AnyPgColumn => eventScheduleRules.id, {
+      onDelete: 'cascade',
+    }),
+    managedSourceEventId: uuid().references(() => sourceEvents.id, { onDelete: 'cascade' }),
+    ...timestamps,
+  },
+  (t) => [
+    // One generated entry per (rule, event, target); keeps a reconcile idempotent.
+    // Split per target kind: Postgres treats NULLs as distinct in a unique index.
+    uniqueIndex('UQ_schedule_entries_managed_screen')
+      .on(t.managedByRuleId, t.managedSourceEventId, t.screenId)
+      .where(sql`${t.managedByRuleId} IS NOT NULL AND ${t.screenId} IS NOT NULL`),
+    uniqueIndex('UQ_schedule_entries_managed_group')
+      .on(t.managedByRuleId, t.managedSourceEventId, t.groupId)
+      .where(sql`${t.managedByRuleId} IS NOT NULL AND ${t.groupId} IS NOT NULL`),
+    index('IDX_schedule_entries_screen').on(t.screenId),
+    index('IDX_schedule_entries_group').on(t.groupId),
+  ],
+);
+
+// ── event schedule rules ─────────────────────────────────────────────────────
+
+/**
+ * "When a source lists an event at one of these venues, schedule the playlist
+ * from `windowStart` to `windowEnd` on the targets." Times are local to the
+ * organisation; an end at or before the start lies on the next day.
+ */
+export const eventScheduleRules = pgTable(
+  'event_schedule_rules',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    sourceId: uuid()
+      .notNull()
+      .references(() => contentSources.id, { onDelete: 'cascade' }),
+    name: text().notNull(),
+    /** Canonical venue names (after aliases). */
+    venues: jsonb().$type<string[]>().notNull(),
+    playlistId: uuid()
+      .notNull()
+      .references(() => playlists.id, { onDelete: 'cascade' }),
+    /** Local `HH:MM`. */
+    windowStart: text().notNull(),
+    /** Local `HH:MM`; at or before `windowStart` means the next day. */
+    windowEnd: text().notNull(),
+    excludeCancelled: boolean().notNull().default(true),
+    colour: text().notNull().default('#6d6cf6'),
+    enabled: boolean().notNull().default(true),
+    lastReconciledAt: timestamp({ withTimezone: true }),
+    lastReconcileSummary: jsonb().$type<EventScheduleReconcileSummary>(),
+    ...timestamps,
+  },
+  (t) => [index('IDX_event_schedule_rules_source').on(t.sourceId)],
+);
+
+/** A screen or a group a rule schedules onto; exactly one of both is set. */
+export const eventScheduleRuleTargets = pgTable(
+  'event_schedule_rule_targets',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    ruleId: uuid()
+      .notNull()
+      .references(() => eventScheduleRules.id, { onDelete: 'cascade' }),
+    screenId: uuid().references(() => screens.id, { onDelete: 'cascade' }),
+    groupId: uuid().references(() => screenGroups.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    index('IDX_event_schedule_rule_targets_rule').on(t.ruleId),
+    check(
+      'CHK_event_schedule_rule_targets_one',
+      sql`(${t.screenId} IS NULL) <> (${t.groupId} IS NULL)`,
+    ),
+  ],
+);
+
+/** An event a rule leaves out, although it matches. */
+export const eventScheduleRuleExclusions = pgTable(
+  'event_schedule_rule_exclusions',
+  {
+    ruleId: uuid()
+      .notNull()
+      .references(() => eventScheduleRules.id, { onDelete: 'cascade' }),
+    sourceEventId: uuid()
+      .notNull()
+      .references(() => sourceEvents.id, { onDelete: 'cascade' }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.ruleId, t.sourceEventId] })],
+);
 
 // ── live streams ─────────────────────────────────────────────────────────────
 
@@ -959,6 +1059,21 @@ export const scheduleEntriesRelations = relations(scheduleEntries, ({ one }) => 
     fields: [scheduleEntries.playlistId],
     references: [playlists.id],
   }),
+  managedByRule: one(eventScheduleRules, {
+    fields: [scheduleEntries.managedByRuleId],
+    references: [eventScheduleRules.id],
+  }),
+}));
+
+export const eventScheduleRulesRelations = relations(eventScheduleRules, ({ many }) => ({
+  targets: many(eventScheduleRuleTargets),
+}));
+
+export const eventScheduleRuleTargetsRelations = relations(eventScheduleRuleTargets, ({ one }) => ({
+  rule: one(eventScheduleRules, {
+    fields: [eventScheduleRuleTargets.ruleId],
+    references: [eventScheduleRules.id],
+  }),
 }));
 
 export const liveStreamActivationsRelations = relations(liveStreamActivations, ({ one }) => ({
@@ -1020,6 +1135,12 @@ export type NewPlaylistItem = typeof playlistItems.$inferInsert;
 
 export type ScheduleEntry = typeof scheduleEntries.$inferSelect;
 export type NewScheduleEntry = typeof scheduleEntries.$inferInsert;
+
+export type EventScheduleRule = typeof eventScheduleRules.$inferSelect;
+export type NewEventScheduleRule = typeof eventScheduleRules.$inferInsert;
+
+export type EventScheduleRuleTarget = typeof eventScheduleRuleTargets.$inferSelect;
+export type NewEventScheduleRuleTarget = typeof eventScheduleRuleTargets.$inferInsert;
 
 export type LiveStream = typeof liveStreams.$inferSelect;
 export type NewLiveStream = typeof liveStreams.$inferInsert;

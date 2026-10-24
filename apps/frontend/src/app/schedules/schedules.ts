@@ -6,6 +6,7 @@ import {
   DestroyRef,
   ChangeDetectionStrategy,
 } from '@angular/core';
+import { Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { ScheduleService } from './schedule.service';
@@ -40,7 +41,7 @@ import { ScheduleSidePanel } from './schedule-side-panel';
 import { ScheduleCalendarGrid } from './schedule-calendar-grid';
 import { ScheduleFormModal, ScheduleFormResult, PRESET_COLOURS } from './schedule-form-modal';
 import { ToastService } from '../shared/toast/toast.service';
-import { PageHeaderComponent, OverlayComponent, ModalComponent } from '../ui';
+import { BtnComponent, PageHeaderComponent, OverlayComponent, ModalComponent } from '../ui';
 import { LanguageService } from '../i18n/language.service';
 
 const HOUR_HEIGHT = 60;
@@ -54,6 +55,7 @@ const HOUR_HEIGHT = 60;
     ScheduleCalendarGrid,
     ScheduleFormModal,
     PageHeaderComponent,
+    BtnComponent,
     OverlayComponent,
     ModalComponent,
     TranslocoDirective,
@@ -205,6 +207,29 @@ const HOUR_HEIGHT = 60;
           </mns-modal>
         </mns-overlay>
       }
+
+      @if (managedEntry; as entry) {
+        <mns-overlay (closed)="managedEntry = null">
+          <mns-modal
+            [title]="t('schedules.managed.managedTitle')"
+            icon="Lock"
+            [widthPx]="420"
+            (closed)="managedEntry = null"
+          >
+            <p class="managed-body text-[13px] text-muted leading-relaxed">
+              {{ t('schedules.managed.managedBody', { rule: entry.managedByRule?.name ?? '' }) }}
+            </p>
+            <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
+              <mns-btn variant="outline" (mnsClick)="managedEntry = null">{{
+                t('common.actions.close')
+              }}</mns-btn>
+              <mns-btn class="open-rule" icon="Arrow" (mnsClick)="openManagingRule(entry)">{{
+                t('schedules.managed.managedOpenRule')
+              }}</mns-btn>
+            </div>
+          </mns-modal>
+        </mns-overlay>
+      }
     </div>
   `,
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -234,6 +259,7 @@ export class Schedules implements OnInit, OnDestroy {
   private language = inject(LanguageService);
   private sse = inject(DashboardSseService);
   private destroyRef = inject(DestroyRef);
+  private router = inject(Router);
 
   orgId = '';
   orgTimeZone = 'UTC';
@@ -268,6 +294,8 @@ export class Schedules implements OnInit, OnDestroy {
   // Live slice progress overlay, shown after assigning content to a split group.
   // Fed by the slice.* SSE stream; null when no run is being surfaced.
   sliceModal: SliceJobStatus | null = null;
+  /** A generated entry the user clicked: it opens an explanation, not the edit form. */
+  managedEntry: ScheduleEntry | null = null;
   private sliceModalAutoClose: ReturnType<typeof setTimeout> | null = null;
 
   // Modal state (form state itself lives in the modal child)
@@ -746,6 +774,10 @@ export class Schedules implements OnInit, OnDestroy {
   }
 
   openEditModal(entry: ScheduleEntry): void {
+    if (entry.managedByRule) {
+      this.managedEntry = entry;
+      return;
+    }
     // A split entry that is still slicing (or failed) shows its live progress
     // instead of the edit form when clicked — editing is meaningless until the
     // wall renditions are ready.
@@ -778,6 +810,13 @@ export class Schedules implements OnInit, OnDestroy {
 
     this.modalError = '';
     this.showModal = true;
+  }
+
+  /** Rules live on their source's page. */
+  openManagingRule(entry: ScheduleEntry): void {
+    const sourceId = entry.managedByRule?.sourceId;
+    this.managedEntry = null;
+    if (sourceId) void this.router.navigate(['/sources', sourceId]);
   }
 
   closeModal(): void {
@@ -929,6 +968,8 @@ export class Schedules implements OnInit, OnDestroy {
 
   // --- Drag & Drop ---
   onBlockMouseDown(event: MouseEvent, block: CalendarBlock): void {
+    // Generated entries belong to their rule and cannot be moved.
+    if (block.entry.managedByRule) return;
     // Ignore if it was a resize handle
     if ((event.target as HTMLElement).classList.contains('resize-handle')) return;
     event.preventDefault();
@@ -943,6 +984,7 @@ export class Schedules implements OnInit, OnDestroy {
   }
 
   onResizeMouseDown(event: MouseEvent, block: CalendarBlock, edge: 'top' | 'bottom'): void {
+    if (block.entry.managedByRule) return;
     event.preventDefault();
     event.stopPropagation();
 

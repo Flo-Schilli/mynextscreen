@@ -13,6 +13,7 @@ import {
   AuditAuthEvent,
   AuditEmailEvent,
   AuditContentSourceEvent,
+  AuditEventScheduleRuleEvent,
 } from './audit.events';
 
 describe('AuditListener', () => {
@@ -870,6 +871,28 @@ describe('AuditListener', () => {
       organisationId: orgId,
       userId: null,
       details: { rendered: 3 },
+    });
+  });
+
+  // ── Event Schedule Rule Events ────────────────────────────────────────
+
+  it.each([
+    ['handleEventScheduleRuleCreated', AuditAction.EventScheduleRuleCreated],
+    ['handleEventScheduleRuleUpdated', AuditAction.EventScheduleRuleUpdated],
+    ['handleEventScheduleRuleDeleted', AuditAction.EventScheduleRuleDeleted],
+    ['handleEventScheduleRuleReconciled', AuditAction.EventScheduleRuleReconciled],
+  ] as const)('should map %s to %s', (handler, action) => {
+    const event = new AuditEventScheduleRuleEvent(resourceId, orgId, null, { created: 2 });
+
+    listener[handler](event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action,
+      resourceType: 'event_schedule_rule',
+      resourceId,
+      organisationId: orgId,
+      userId: null,
+      details: { created: 2 },
     });
   });
 

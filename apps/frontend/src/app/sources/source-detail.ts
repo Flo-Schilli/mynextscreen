@@ -25,6 +25,8 @@ import {
 import { SourceForm } from './source-form';
 import { SourceEventPool } from './source-event-pool';
 import { SourceVenueAliases } from './source-venue-aliases';
+import { SourceEventSchedules } from './source-event-schedules';
+import { aliasRows, canonicalSuggestions } from './venue-alias-state';
 import { SourceAccess } from './source-access';
 import { ToastService } from '../shared/toast/toast.service';
 import { BackLink } from '../shared/back-link';
@@ -45,7 +47,8 @@ const SYNC_POLL_MAX = 60;
 
 /**
  * One content source: sync status with "sync now", the settings form, the
- * venue aliases and the event pool with slide previews. Viewers see everything read-only.
+ * venue aliases, the event schedule rules and the event pool with slide
+ * previews. Viewers see everything read-only.
  */
 @Component({
   selector: 'app-source-detail',
@@ -64,6 +67,7 @@ const SYNC_POLL_MAX = 60;
     SourceForm,
     SourceEventPool,
     SourceVenueAliases,
+    SourceEventSchedules,
     TranslocoDirective,
   ],
   template: `
@@ -173,8 +177,19 @@ const SYNC_POLL_MAX = 60;
           />
         </div>
 
-        <!-- event pool -->
         @if (access.orgId(); as orgId) {
+          <!-- event schedule rules -->
+          <div class="mt-[var(--gap)]">
+            <app-source-event-schedules
+              [orgId]="orgId"
+              [sourceId]="source.id"
+              [venues]="canonicalVenues()"
+              [canEdit]="access.canEdit()"
+              [reload]="poolVersion()"
+            />
+          </div>
+
+          <!-- event pool -->
           <div class="mt-[var(--gap)]">
             <app-source-event-pool
               [orgId]="orgId"
@@ -252,6 +267,10 @@ export class SourceDetail {
   });
   protected readonly statusTone = computed(() =>
     syncStatusTone(this.source()?.lastSyncStatus ?? null),
+  );
+  /** Venue names as rules filter by them: canonical names after the aliases. */
+  protected readonly canonicalVenues = computed(() =>
+    canonicalSuggestions(aliasRows(this.venues(), this.source()?.venueAliases ?? [])),
   );
   private readonly schema = computed(
     () => this.adapters().find((a) => a.type === this.source()?.adapterType)?.paramsSchema ?? [],

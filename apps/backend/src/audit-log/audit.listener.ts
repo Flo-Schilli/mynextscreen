@@ -39,6 +39,11 @@ import {
   AUDIT_CONTENT_SOURCE_SYNCED,
   AUDIT_CONTENT_SOURCE_SYNC_FAILED,
   AuditContentSourceEvent,
+  AUDIT_EVENT_SCHEDULE_RULE_CREATED,
+  AUDIT_EVENT_SCHEDULE_RULE_UPDATED,
+  AUDIT_EVENT_SCHEDULE_RULE_DELETED,
+  AUDIT_EVENT_SCHEDULE_RULE_RECONCILED,
+  AuditEventScheduleRuleEvent,
   AUDIT_SITE_AGENT_CREATED,
   AUDIT_SITE_AGENT_UPDATED,
   AUDIT_SITE_AGENT_DELETED,
@@ -754,6 +759,28 @@ export class AuditListener {
     this.recordContentSource(AuditAction.ContentSourceSyncFailed, event);
   }
 
+  // ── Event schedule rules ───────────────────────────────────────────────────
+
+  @OnEvent(AUDIT_EVENT_SCHEDULE_RULE_CREATED, { async: true })
+  handleEventScheduleRuleCreated(event: AuditEventScheduleRuleEvent): void {
+    this.recordEventScheduleRule(AuditAction.EventScheduleRuleCreated, event);
+  }
+
+  @OnEvent(AUDIT_EVENT_SCHEDULE_RULE_UPDATED, { async: true })
+  handleEventScheduleRuleUpdated(event: AuditEventScheduleRuleEvent): void {
+    this.recordEventScheduleRule(AuditAction.EventScheduleRuleUpdated, event);
+  }
+
+  @OnEvent(AUDIT_EVENT_SCHEDULE_RULE_DELETED, { async: true })
+  handleEventScheduleRuleDeleted(event: AuditEventScheduleRuleEvent): void {
+    this.recordEventScheduleRule(AuditAction.EventScheduleRuleDeleted, event);
+  }
+
+  @OnEvent(AUDIT_EVENT_SCHEDULE_RULE_RECONCILED, { async: true })
+  handleEventScheduleRuleReconciled(event: AuditEventScheduleRuleEvent): void {
+    this.recordEventScheduleRule(AuditAction.EventScheduleRuleReconciled, event);
+  }
+
   // ── Site agents ────────────────────────────────────────────────────────────
 
   @OnEvent(AUDIT_SITE_AGENT_CREATED, { async: true })
@@ -831,6 +858,17 @@ export class AuditListener {
       action,
       'content_source',
       event.sourceId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
+  private recordEventScheduleRule(action: AuditAction, event: AuditEventScheduleRuleEvent): void {
+    this.record(
+      action,
+      'event_schedule_rule',
+      event.ruleId,
       event.organisationId,
       event.userId,
       event.details,

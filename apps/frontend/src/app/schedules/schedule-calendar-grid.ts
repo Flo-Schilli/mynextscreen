@@ -219,7 +219,9 @@ const NOW_TICK_MS = 60_000;
                   <!-- Schedule blocks -->
                   @for (block of getBlocksForDay(dayIdx); track block.entry.id) {
                     <div
-                      class="schedule-block absolute left-0.5 right-0.5 rounded-[8px] cursor-grab z-[2] overflow-hidden min-h-[1.25rem] select-none transition-shadow duration-[150ms]"
+                      class="schedule-block absolute left-0.5 right-0.5 rounded-[8px] z-[2] overflow-hidden min-h-[1.25rem] select-none transition-shadow duration-[150ms]"
+                      [class.cursor-grab]="!block.entry.managedByRule"
+                      [class.cursor-pointer]="!!block.entry.managedByRule"
                       [class.dragging]="draggingEntryId() === block.entry.id"
                       [class.conflict]="hasConflict(block)"
                       [style.top.px]="block.top"
@@ -233,21 +235,31 @@ const NOW_TICK_MS = 60_000;
                       role="button"
                       tabindex="0"
                     >
-                      <div
-                        class="resize-handle resize-handle-top absolute left-0 right-0 top-0 h-1.5 cursor-ns-resize z-[5]"
-                        (mousedown)="resizeMouseDown.emit({ event: $event, block, edge: 'top' })"
-                        (keydown.enter)="$event.preventDefault()"
-                        role="separator"
-                        tabindex="0"
-                        [attr.aria-label]="t('schedules.grid.resizeTop')"
-                        aria-valuenow="0"
-                      ></div>
+                      @if (!block.entry.managedByRule) {
+                        <div
+                          class="resize-handle resize-handle-top absolute left-0 right-0 top-0 h-1.5 cursor-ns-resize z-[5]"
+                          (mousedown)="resizeMouseDown.emit({ event: $event, block, edge: 'top' })"
+                          (keydown.enter)="$event.preventDefault()"
+                          role="separator"
+                          tabindex="0"
+                          [attr.aria-label]="t('schedules.grid.resizeTop')"
+                          aria-valuenow="0"
+                        ></div>
+                      }
                       <div class="block-content px-2 py-1 flex flex-col gap-0.5 h-full box-border">
                         <span
                           class="block-title text-[11.5px] font-bold text-text truncate leading-[1.2] flex items-center gap-1"
                         >
                           @if (hasConflict(block)) {
                             <mns-icon name="Alert" [size]="11" class="text-offline flex-shrink-0" />
+                          }
+                          @if (block.entry.managedByRule) {
+                            <span
+                              class="managed-badge flex-shrink-0 inline-flex text-muted"
+                              [title]="t('schedules.managed.managedBadge')"
+                            >
+                              <mns-icon name="Lock" [size]="11" />
+                            </span>
                           }
                           @if (block.entry.groupId) {
                             <span
@@ -295,15 +307,19 @@ const NOW_TICK_MS = 60_000;
                           {{ formatBlockTime(block.occurrenceEnd) }}
                         </span>
                       </div>
-                      <div
-                        class="resize-handle resize-handle-bottom absolute left-0 right-0 bottom-0 h-1.5 cursor-ns-resize z-[5]"
-                        (mousedown)="resizeMouseDown.emit({ event: $event, block, edge: 'bottom' })"
-                        (keydown.enter)="$event.preventDefault()"
-                        role="separator"
-                        tabindex="0"
-                        [attr.aria-label]="t('schedules.grid.resizeBottom')"
-                        aria-valuenow="0"
-                      ></div>
+                      @if (!block.entry.managedByRule) {
+                        <div
+                          class="resize-handle resize-handle-bottom absolute left-0 right-0 bottom-0 h-1.5 cursor-ns-resize z-[5]"
+                          (mousedown)="
+                            resizeMouseDown.emit({ event: $event, block, edge: 'bottom' })
+                          "
+                          (keydown.enter)="$event.preventDefault()"
+                          role="separator"
+                          tabindex="0"
+                          [attr.aria-label]="t('schedules.grid.resizeBottom')"
+                          aria-valuenow="0"
+                        ></div>
+                      }
                     </div>
                   }
                 </div>

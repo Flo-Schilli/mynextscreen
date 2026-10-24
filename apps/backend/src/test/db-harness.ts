@@ -49,6 +49,9 @@ const TABLE_NAMES = [
   'content_sources',
   'source_events',
   'source_event_slides',
+  'event_schedule_rules',
+  'event_schedule_rule_targets',
+  'event_schedule_rule_exclusions',
 ];
 
 function baseUri(): string {
