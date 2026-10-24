@@ -4,6 +4,25 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.26.2
+
+### Fixed — calendar after switching organisation
+
+Switching organisation in the top bar now reloads the schedules page with the
+new organisation's screens, groups, playlists, entries and time zone. Before,
+it kept showing the previous organisation until the page was reloaded.
+
+### Fixed — video walls stuck waiting for slicing
+
+A split group only switches to a new playlist once its slices are ready. When
+the slice job could not be queued, for example while Redis restarted, the
+group waited for good and saving the schedule entry reported an error although
+it was saved. The entry now saves normally, and every five minutes the server
+re-queues slice jobs that have been waiting for more than ten minutes without
+a job in the queue.
+
+**Operator action:** none beyond updating the server. There is no migration.
+
 ## 0.26.1
 
 ### Fixed — live stream dialog
