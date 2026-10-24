@@ -4,6 +4,16 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.26.1
+
+### Fixed — live stream dialog
+
+The two buttons at the bottom of the "New live stream" dialog now share the
+width evenly, and "Create" stays disabled until a name and a source URL are
+filled in.
+
+**Operator action:** none beyond updating the server. There is no migration.
+
 ## 0.26.0
 
 ### Added — event schedule rules
