@@ -4,6 +4,7 @@ import { SliceContentProcessor } from './slice-content.processor';
 import { SliceStatusService } from './slice-status.service';
 import { SliceEnqueueService } from './slice-enqueue.service';
 import { PlaylistSliceBridgeService } from './playlist-slice-bridge.service';
+import { SliceRequeueScheduler } from './slice-requeue.scheduler';
 import { SLICE_CONTENT_QUEUE } from './slice-content.constants';
 
 export { SLICE_CONTENT_QUEUE };
@@ -26,6 +27,7 @@ export { SLICE_CONTENT_QUEUE };
     SliceStatusService,
     SliceEnqueueService,
     PlaylistSliceBridgeService,
+    SliceRequeueScheduler,
   ],
   exports: [BullModule, SliceStatusService, SliceEnqueueService],
 })
