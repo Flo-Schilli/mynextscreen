@@ -71,7 +71,7 @@ describe('ScreenSessionService', () => {
       expect(request.request.body).toEqual({ refreshToken: 'refresh-1' });
       request.flush(sessionBody('access-2', 'refresh-2'));
 
-      await expect(promise).resolves.toBe(true);
+      await expect(promise).resolves.toBe('renewed');
       expect(service.token()).toBe('access-2');
       expect(localStorage.getItem('mynextscreen_refresh_token')).toBe('refresh-2');
     });
@@ -88,7 +88,7 @@ describe('ScreenSessionService', () => {
       await Promise.resolve();
       httpMock.expectOne(`${SERVER}/api/screens/session`).flush(sessionBody('access-3', 'fresh'));
 
-      await expect(promise).resolves.toBe(true);
+      await expect(promise).resolves.toBe('renewed');
       expect(service.token()).toBe('access-3');
     });
 
@@ -96,11 +96,68 @@ describe('ScreenSessionService', () => {
       const promise = service.refresh(SERVER, API_KEY);
       httpMock.expectOne(`${SERVER}/api/screens/session`).flush(sessionBody('access-4', 'r4'));
 
-      await expect(promise).resolves.toBe(true);
+      await expect(promise).resolves.toBe('renewed');
     });
 
     it('gives up when there is neither a refresh token nor a key', async () => {
-      await expect(service.refresh(SERVER, '')).resolves.toBe(false);
+      await expect(service.refresh(SERVER, '')).resolves.toBe('rejected');
+    });
+
+    it('keeps the refresh token and reports unreachable when the network is down', async () => {
+      // A TV that boots before its network is up must retry, not ask for pairing.
+      localStorage.setItem('mynextscreen_refresh_token', 'refresh-1');
+
+      const promise = service.refresh(SERVER, API_KEY);
+      httpMock
+        .expectOne(`${SERVER}/api/screens/session/refresh`)
+        .error(new ProgressEvent('error'), { status: 0 });
+
+      await expect(promise).resolves.toBe('unreachable');
+      expect(localStorage.getItem('mynextscreen_refresh_token')).toBe('refresh-1');
+      httpMock.expectNone(`${SERVER}/api/screens/session`);
+    });
+
+    it.each([
+      [503, 'Service Unavailable'],
+      [429, 'Too Many Requests'],
+    ])('reports unreachable on %s', async (status, statusText) => {
+      localStorage.setItem('mynextscreen_refresh_token', 'refresh-1');
+
+      const promise = service.refresh(SERVER, '');
+      httpMock.expectOne(`${SERVER}/api/screens/session/refresh`).flush({}, { status, statusText });
+
+      await expect(promise).resolves.toBe('unreachable');
+    });
+
+    it('reports rejected when the refresh token is refused and there is no key', async () => {
+      localStorage.setItem('mynextscreen_refresh_token', 'stale');
+
+      const promise = service.refresh(SERVER, '');
+      httpMock
+        .expectOne(`${SERVER}/api/screens/session/refresh`)
+        .flush({}, { status: 401, statusText: 'Unauthorized' });
+
+      await expect(promise).resolves.toBe('rejected');
+    });
+
+    it('treats an unexpected client error as rejected, so the screen cannot retry forever', async () => {
+      localStorage.setItem('mynextscreen_refresh_token', 'refresh-1');
+
+      const promise = service.refresh(SERVER, '');
+      httpMock
+        .expectOne(`${SERVER}/api/screens/session/refresh`)
+        .flush({}, { status: 400, statusText: 'Bad Request' });
+
+      await expect(promise).resolves.toBe('rejected');
+    });
+
+    it('reports unreachable when the key exchange cannot reach the server', async () => {
+      const promise = service.refresh(SERVER, API_KEY);
+      httpMock
+        .expectOne(`${SERVER}/api/screens/session`)
+        .flush({}, { status: 502, statusText: 'Bad Gateway' });
+
+      await expect(promise).resolves.toBe('unreachable');
     });
 
     it('is single-flight: five racing callers produce one rotation', async () => {
@@ -120,7 +177,13 @@ describe('ScreenSessionService', () => {
       expect(requests).toHaveLength(1);
       requests[0].flush(sessionBody('access-5', 'refresh-5'));
 
-      expect(await Promise.all(promises)).toEqual([true, true, true, true, true]);
+      expect(await Promise.all(promises)).toEqual([
+        'renewed',
+        'renewed',
+        'renewed',
+        'renewed',
+        'renewed',
+      ]);
     });
 
     it('allows a new rotation once the previous one finished', async () => {
@@ -137,7 +200,7 @@ describe('ScreenSessionService', () => {
         .expectOne(`${SERVER}/api/screens/session/refresh`)
         .flush(sessionBody('access-b', 'refresh-b'));
 
-      await expect(second).resolves.toBe(true);
+      await expect(second).resolves.toBe('renewed');
       expect(service.token()).toBe('access-b');
     });
   });

@@ -465,6 +465,62 @@ describe('ConnectionService auto-reconnect', () => {
     httpMock.expectNone(STATE_URL);
   });
 
+  describe('resuming with only a refresh token (the API key is gone after the first session)', () => {
+    const REFRESH_URL = `${SERVER}/api/screens/session/refresh`;
+
+    function seedResumableScreen(): void {
+      localStorage.setItem('mynextscreen_server_url', SERVER);
+      localStorage.setItem('mynextscreen_screen_id', 'screen-1');
+      localStorage.setItem('mynextscreen_org_id', 'org-1');
+      localStorage.setItem('mynextscreen_refresh_token', 'refresh-1');
+    }
+
+    it('retries instead of asking for pairing when the network is not up yet at boot', async () => {
+      // Arrange
+      seedResumableScreen();
+
+      // Act
+      const first = service.tryAutoConnect();
+      await flushMicrotasks();
+      httpMock.expectOne(REFRESH_URL).error(new ProgressEvent('error'), { status: 0 });
+
+      // Assert: no state probe with an empty bearer, and the loop keeps going.
+      await expect(first).resolves.toBe(false);
+      httpMock.expectNone(STATE_URL);
+      expect(service.reconnecting()).toBe(true);
+      expect(localStorage.getItem('mynextscreen_refresh_token')).toBe('refresh-1');
+
+      // The network is back on the next attempt.
+      vi.advanceTimersByTime(60_000);
+      await flushMicrotasks();
+      httpMock
+        .expectOne(REFRESH_URL)
+        .flush({ accessToken: 'access-2', refreshToken: 'refresh-2', expiresIn: 900 });
+      await flushMicrotasks();
+      const state = httpMock.expectOne(STATE_URL);
+      expect(state.request.headers.get('Authorization')).toBe('Bearer access-2');
+      state.flush({});
+      await flushMicrotasks();
+
+      expect(service.connected()).toBe(true);
+    });
+
+    it('stops when the server rejects the refresh token', async () => {
+      // Arrange
+      seedResumableScreen();
+
+      // Act
+      const promise = service.tryAutoConnect();
+      await flushMicrotasks();
+      httpMock.expectOne(REFRESH_URL).flush('nope', { status: 401, statusText: 'Unauthorized' });
+
+      // Assert
+      await expect(promise).resolves.toBe(false);
+      httpMock.expectNone(STATE_URL);
+      expect(service.reconnecting()).toBe(false);
+    });
+  });
+
   it('does nothing when there are no saved settings', async () => {
     await expect(service.tryAutoConnect()).resolves.toBe(false);
     expect(service.reconnecting()).toBe(false);

@@ -8,6 +8,8 @@ import { hashToken } from '../auth/token-hash.util';
 import { TokenService } from '../auth/token.service';
 import type { IssuedAccessToken } from '../auth/token.types';
 
+type Tx = Parameters<Parameters<DrizzleDB['transaction']>[0]>[0];
+
 /**
  * Screen sessions: a short-lived access token plus a rotating refresh token,
  * so the screen API key is only ever used once, to enrol.
@@ -26,6 +28,13 @@ import type { IssuedAccessToken } from '../auth/token.types';
  *   only outside it is the presentation treated as a replay — and even then the
  *   family is *not* revoked, because a replay buys read access to one playlist
  *   while a revocation buys a service call.
+ * - **A lost rotation is recovered.** A TV that powers off between the server
+ *   rotating and its localStorage flushing the successor presents the consumed
+ *   token on the next boot. As long as that is the family's latest consumed
+ *   token and its successor was never used, the device evidently never got the
+ *   successor: the family moves on to a new token instead of leaving the
+ *   screen on the pairing dialog. Once the successor was used, the old token
+ *   stays dead.
  */
 const GRACE_WINDOW_MS = 60_000;
 
@@ -120,6 +129,22 @@ export class ScreenSessionService {
       };
     }
 
+    const recovered = await this.recoverLostRotation({
+      screenId: existing.screenId,
+      organisationId: existing.organisationId,
+      familyId: existing.familyId,
+      consumedAt: existing.consumedAt,
+    });
+    if (recovered) {
+      // Warn, not log: a stolen token played against the device shows up as a series of these.
+      this.logger.warn(
+        `Recovered a lost refresh rotation for screen ${existing.screenId} (token consumed ${Math.round(
+          consumedAgoMs / 1000,
+        )}s ago, successor never used)`,
+      );
+      return { status: 'ok', screenId: existing.screenId, tokens: recovered };
+    }
+
     this.logger.warn(
       `Replayed screen refresh token for screen ${existing.screenId} (consumed ${Math.round(
         consumedAgoMs / 1000,
@@ -133,10 +158,21 @@ export class ScreenSessionService {
    * deleting the screen itself is handled by the foreign key.
    */
   async revokeForScreen(screenId: string): Promise<number> {
-    const revoked = await this.db
-      .delete(screenSessions)
-      .where(eq(screenSessions.screenId, screenId))
-      .returning({ id: screenSessions.id });
+    const revoked = await this.db.transaction(async (tx) => {
+      // Takes the recovery lock of every family, so a recovery running right now
+      // cannot add a session after this delete.
+      const families = await tx
+        .selectDistinct({ familyId: screenSessions.familyId })
+        .from(screenSessions)
+        .where(eq(screenSessions.screenId, screenId));
+      for (const { familyId } of families) {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${familyId}))`);
+      }
+      return tx
+        .delete(screenSessions)
+        .where(eq(screenSessions.screenId, screenId))
+        .returning({ id: screenSessions.id });
+    });
     if (revoked.length > 0) {
       this.logger.log(`Revoked ${revoked.length} session(s) for screen ${screenId}`);
     }
@@ -152,13 +188,56 @@ export class ScreenSessionService {
     return removed.length;
   }
 
+  /**
+   * New tokens for a family whose latest successor never reached the device, or
+   * null when the presented token is a real replay. Serialised per family, so of
+   * two recoveries racing with the same token only one wins.
+   */
+  private async recoverLostRotation(presented: {
+    screenId: string;
+    organisationId: string;
+    familyId: string;
+    consumedAt: Date;
+  }): Promise<ScreenSessionTokens | null> {
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${presented.familyId}))`);
+      const family = await tx
+        .select({ consumedAt: screenSessions.consumedAt, expiresAt: screenSessions.expiresAt })
+        .from(screenSessions)
+        .where(eq(screenSessions.familyId, presented.familyId));
+
+      const now = Date.now();
+      const usedLater = family.some(
+        (row) => row.consumedAt && row.consumedAt.getTime() > presented.consumedAt.getTime(),
+      );
+      const unusedSuccessor = family.some(
+        (row) => !row.consumedAt && row.expiresAt.getTime() > now,
+      );
+      if (usedLater || !unusedSuccessor) return null;
+
+      // The successor the device never stored must not stay valid next to the new one.
+      // A normal rotation can consume it between the read and here; then nothing
+      // was recovered and the presented token is a replay after all.
+      const superseded = await tx
+        .update(screenSessions)
+        .set({ consumedAt: new Date(now) })
+        .where(
+          and(eq(screenSessions.familyId, presented.familyId), isNull(screenSessions.consumedAt)),
+        )
+        .returning({ id: screenSessions.id });
+      if (superseded.length === 0) return null;
+      return this.issue(presented.screenId, presented.organisationId, presented.familyId, tx);
+    });
+  }
+
   private async issue(
     screenId: string,
     organisationId: string,
     familyId: string,
+    db: DrizzleDB | Tx = this.db,
   ): Promise<ScreenSessionTokens> {
     const refreshToken = randomBytes(32).toString('base64url');
-    await this.db.insert(screenSessions).values({
+    await db.insert(screenSessions).values({
       screenId,
       organisationId,
       familyId,

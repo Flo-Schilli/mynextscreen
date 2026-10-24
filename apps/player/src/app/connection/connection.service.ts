@@ -331,8 +331,16 @@ export class ConnectionService implements OnDestroy {
     try {
       // A session now has to exist before anything else: the API key is only a
       // credential on the enrolment route. `refresh` rotates the stored token
-      // and falls back to exchanging the key, so it covers both cases.
-      await this.session.refresh(serverUrl, apiKey);
+      // and falls back to exchanging the key, so it covers both cases. Without
+      // a session there is nothing to verify: an empty bearer would earn a 401
+      // and send a screen with a valid token to pairing.
+      const outcome = await this.session.refresh(serverUrl, apiKey);
+      if (outcome !== 'renewed') {
+        throw new ConnectionError(
+          outcome === 'unreachable' ? 'Server unreachable' : 'Session rejected',
+          outcome === 'unreachable',
+        );
+      }
       await this.verifyConnection(serverUrl, this.session.token(), screenId);
       this.forgetStoredApiKey();
       this._connected.set(true);
@@ -605,10 +613,11 @@ export class ConnectionService implements OnDestroy {
         }),
       );
     } catch (err: unknown) {
-      // status 0 (network error) or 5xx ⇒ server down/restarting → retryable.
-      // 401/403 ⇒ the credential itself was rejected → re-pairing required.
+      // status 0 (network error), 429 (throttled) or 5xx ⇒ server down,
+      // restarting or busy → retryable. 401/403 ⇒ the credential itself was
+      // rejected → re-pairing required.
       const status = err instanceof HttpErrorResponse ? err.status : 0;
-      const unreachable = status === 0 || status >= 500;
+      const unreachable = status === 0 || status === 429 || status >= 500;
       throw new ConnectionError(
         unreachable ? 'Server unreachable' : 'Invalid API key',
         unreachable,
