@@ -7,12 +7,13 @@ import { screens, scheduleEntries } from '../db/schema';
 import {
   ScheduleService,
   getOccurrences,
+  loadOrganisationTimeZone,
   SCHEDULE_ENTRY_CHANGED,
   ScheduleEntryChangedEvent,
   GROUP_SCHEDULE_CHANGED,
   GroupScheduleChangedEvent,
 } from '../schedule';
-import type { DateRange, CurrentPlaylistSource } from '../schedule';
+import type { DateRange, CurrentPlaylistSource, ScheduleEntry } from '../schedule';
 import { SCHEDULE_CHANGED, ScreenStateChangeEvent } from './screen-state.event';
 import {
   SCREEN_GROUP_MEMBERSHIP_CHANGED,
@@ -315,31 +316,27 @@ export class ScheduleBoundaryService implements OnModuleDestroy {
     const occurrences: DateRange[] = [];
     const windowStart = new Date(now.getTime() - LOOK_AHEAD_MS);
 
+    const [screen] = await this.db.select().from(screens).where(eq(screens.id, screenId)).limit(1);
+    if (!screen) return { occurrences, groupId: null };
+    const timeZone = await loadOrganisationTimeZone(this.db, screen.organisationId);
+    const occurrencesOf = (entry: ScheduleEntry): DateRange[] =>
+      getOccurrences(entry.startTime, entry.endTime, entry.rrule, windowStart, windowEnd, timeZone);
+
     const directEntries = await this.db
       .select()
       .from(scheduleEntries)
       .where(eq(scheduleEntries.screenId, screenId));
+    occurrences.push(...directEntries.flatMap(occurrencesOf));
 
-    for (const entry of directEntries) {
-      occurrences.push(
-        ...getOccurrences(entry.startTime, entry.endTime, entry.rrule, windowStart, windowEnd),
-      );
-    }
-
-    const [screen] = await this.db.select().from(screens).where(eq(screens.id, screenId)).limit(1);
-    if (screen?.groupId) {
+    if (screen.groupId) {
       const groupEntries = await this.db
         .select()
         .from(scheduleEntries)
         .where(eq(scheduleEntries.groupId, screen.groupId));
-      for (const entry of groupEntries) {
-        occurrences.push(
-          ...getOccurrences(entry.startTime, entry.endTime, entry.rrule, windowStart, windowEnd),
-        );
-      }
+      occurrences.push(...groupEntries.flatMap(occurrencesOf));
     }
 
-    return { occurrences, groupId: screen?.groupId ?? null };
+    return { occurrences, groupId: screen.groupId };
   }
 
   private async onBoundaryReached(screenId: string): Promise<void> {

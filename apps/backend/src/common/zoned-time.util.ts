@@ -75,31 +75,50 @@ export function localDate(instant: Date, timeZone: string): string {
 }
 
 /**
- * The instant at which the wall clock in `timeZone` shows `date` + `time`
- * (`HH:MM`, midnight when null). A time that happens twice when the clocks go
+ * The wall clock in `timeZone` at `instant`, encoded as a UTC instant: the
+ * returned date's UTC fields read as the local time. Lets calendar arithmetic
+ * that only knows UTC, such as RRULE expansion, run on local time.
+ */
+export function toWallClock(instant: Date, timeZone: string): Date {
+  const local = wallClock(instant, timeZone);
+  const asUtc = Date.UTC(
+    local.year,
+    local.month - 1,
+    local.day,
+    local.hour,
+    local.minute,
+    local.second,
+  );
+  return new Date(asUtc + (((instant.getTime() % 1000) + 1000) % 1000));
+}
+
+/**
+ * The instant at which the wall clock in `timeZone` shows `wallTime` (encoded
+ * as by {@link toWallClock}). A time that happens twice when the clocks go
  * back resolves to the later instant; a time skipped by a DST jump resolves
  * to the instant after the jump.
  */
-export function zonedTimeToUtc(date: string, time: string | null, timeZone: string): Date {
-  const [year, month, day] = date.split('-').map(Number);
-  const [hour, minute] = (time ?? '00:00').split(':').map(Number);
-  const guess = Date.UTC(year, month - 1, day, hour, minute);
+export function fromWallClock(wallTime: Date, timeZone: string): Date {
+  const guess = wallTime.getTime();
   const first = guess - offsetMinutes(new Date(guess), timeZone) * MS_PER_MINUTE;
   // Re-evaluate at the candidate: the offset differs when a DST change lies in between.
   const second = guess - offsetMinutes(new Date(first), timeZone) * MS_PER_MINUTE;
   // Near a switch only one candidate may show the wanted wall clock (e.g. 01:30
   // just before the clocks go back); take that one. None does inside a gap.
-  const matching = [first, second].filter((candidate) => {
-    const local = wallClock(new Date(candidate), timeZone);
-    return (
-      local.year === year &&
-      local.month === month &&
-      local.day === day &&
-      local.hour === hour &&
-      local.minute === minute
-    );
-  });
+  const matching = [first, second].filter(
+    (candidate) => toWallClock(new Date(candidate), timeZone).getTime() === guess,
+  );
   return new Date(Math.max(...(matching.length > 0 ? matching : [first, second])));
+}
+
+/**
+ * The instant at which the wall clock in `timeZone` shows `date` + `time`
+ * (`HH:MM`, midnight when null), resolved as by {@link fromWallClock}.
+ */
+export function zonedTimeToUtc(date: string, time: string | null, timeZone: string): Date {
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = (time ?? '00:00').split(':').map(Number);
+  return fromWallClock(new Date(Date.UTC(year, month - 1, day, hour, minute)), timeZone);
 }
 
 /** `date` shifted by whole days. */

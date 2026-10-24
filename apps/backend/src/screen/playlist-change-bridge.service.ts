@@ -8,7 +8,7 @@ import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { ScreenStateService } from './screen-state.service';
 import { PLAYLIST_CHANGED, ScreenStateChangeEvent } from './screen-state.event';
 import { PLAYLIST_UPDATED, PlaylistUpdatedEvent } from '../playlist/playlist.event';
-import { getOccurrences } from '../schedule';
+import { getOccurrences, loadOrganisationTimeZone } from '../schedule';
 
 @Injectable()
 export class PlaylistChangeBridgeService {
@@ -88,6 +88,7 @@ export class PlaylistChangeBridgeService {
       );
 
     const connectedSet = new Set(connectedIds);
+    const timeZone = await loadOrganisationTimeZone(this.db, organisationId);
 
     for (const entry of entries) {
       const occurrences = getOccurrences(
@@ -96,6 +97,7 @@ export class PlaylistChangeBridgeService {
         entry.rrule,
         windowStart,
         windowEnd,
+        timeZone,
       );
 
       const isActive = occurrences.some((occ) => occ.start <= now && occ.end > now);
