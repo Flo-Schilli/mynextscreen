@@ -24,6 +24,7 @@ import {
 import { CreateScheduleEntryDto } from './dto/create-schedule-entry.dto';
 import { UpdateScheduleEntryDto } from './dto/update-schedule-entry.dto';
 import { getOccurrences, DateRange } from './rrule.util';
+import { loadOrganisationTimeZone } from './organisation-time-zone';
 import { sortScheduleEntries } from './schedule-entry-order.util';
 import {
   SCHEDULE_ENTRY_CHANGED,
@@ -309,6 +310,12 @@ export class ScheduleService {
   async getCurrentPlaylist(screenId: string): Promise<CurrentPlaylistResult> {
     const now = new Date();
 
+    const [screen] = await this.db.select().from(screens).where(eq(screens.id, screenId)).limit(1);
+    if (!screen) {
+      return { playlist: null, isDefault: false, epoch: FALLBACK_EPOCH, source: 'fallback' };
+    }
+    const timeZone = await loadOrganisationTimeZone(this.db, screen.organisationId);
+
     // Find all direct entries for this screen
     const entries = await this.db.query.scheduleEntries.findMany({
       where: eq(scheduleEntries.screenId, screenId),
@@ -326,6 +333,7 @@ export class ScheduleService {
         entry.rrule,
         new Date(now.getTime() - 24 * 60 * 60 * 1000), // 1 day before
         new Date(now.getTime() + 24 * 60 * 60 * 1000), // 1 day after
+        timeZone,
       );
 
       for (const occ of occurrences) {
@@ -343,13 +351,8 @@ export class ScheduleService {
     }
 
     // No direct schedule active — check group schedule as fallback
-    const [screen] = await this.db.select().from(screens).where(eq(screens.id, screenId)).limit(1);
-    if (!screen) {
-      return { playlist: null, isDefault: false, epoch: FALLBACK_EPOCH, source: 'fallback' };
-    }
-
     if (screen.groupId) {
-      const group = await this.resolveGroupEntry(screen.groupId, now);
+      const group = await this.resolveGroupEntry(screen.groupId, now, timeZone);
       if (group) {
         return { playlist: group.playlist, isDefault: false, epoch: group.epoch, source: 'group' };
       }
@@ -369,11 +372,6 @@ export class ScheduleService {
    */
   async getCurrentGroupPlaylist(groupId: string): Promise<CurrentPlaylistResult> {
     const now = new Date();
-    const entry = await this.resolveGroupEntry(groupId, now);
-    if (entry) {
-      return { playlist: entry.playlist, isDefault: false, epoch: entry.epoch, source: 'group' };
-    }
-
     const [group] = await this.db
       .select()
       .from(screenGroups)
@@ -382,6 +380,12 @@ export class ScheduleService {
     if (!group) {
       return { playlist: null, isDefault: true, epoch: FALLBACK_EPOCH, source: 'fallback' };
     }
+
+    const timeZone = await loadOrganisationTimeZone(this.db, group.organisationId);
+    const entry = await this.resolveGroupEntry(groupId, now, timeZone);
+    if (entry) {
+      return { playlist: entry.playlist, isDefault: false, epoch: entry.epoch, source: 'group' };
+    }
     return this.getFallbackPlaylist(group.organisationId);
   }
 
@@ -389,6 +393,7 @@ export class ScheduleService {
   private async resolveGroupEntry(
     groupId: string,
     now: Date,
+    timeZone: string,
   ): Promise<{ playlist: Playlist; epoch: number } | null> {
     const groupEntries = await this.db.query.scheduleEntries.findMany({
       where: eq(scheduleEntries.groupId, groupId),
@@ -413,6 +418,7 @@ export class ScheduleService {
         entry.rrule,
         new Date(now.getTime() - 24 * 60 * 60 * 1000),
         new Date(now.getTime() + 24 * 60 * 60 * 1000),
+        timeZone,
       );
 
       for (const occ of occurrences) {
@@ -460,7 +466,15 @@ export class ScheduleService {
     const windowEnd = new Date(windowStart.getTime() + OVERLAP_WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
     // Get new entry's occurrences
-    const newOccurrences = getOccurrences(startTime, endTime, rrule, windowStart, windowEnd);
+    const timeZone = await loadOrganisationTimeZone(this.db, organisationId);
+    const newOccurrences = getOccurrences(
+      startTime,
+      endTime,
+      rrule,
+      windowStart,
+      windowEnd,
+      timeZone,
+    );
 
     // Existing manual entries of this screen. Generated ones never block a
     // manual entry: the rule steps aside on its next reconcile.
@@ -484,6 +498,7 @@ export class ScheduleService {
         existing.rrule,
         windowStart,
         windowEnd,
+        timeZone,
       );
 
       if (this.rangesOverlap(newOccurrences, existingOccurrences)) {

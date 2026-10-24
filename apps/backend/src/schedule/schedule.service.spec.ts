@@ -583,6 +583,77 @@ describe('ScheduleService', () => {
     });
   });
 
+  describe('recurring entries in the organisation time zone', () => {
+    // Daily 20:00–22:00 Berlin, created in winter (CET, UTC+1).
+    async function seedWinterEvening(screenId: string, orgId: string): Promise<Playlist> {
+      const playlist = await seedPlaylist(orgId, 'Evening');
+      await db.insert(scheduleEntries).values({
+        organisationId: orgId,
+        screenId,
+        playlistId: playlist.id,
+        startTime: new Date('2026-01-05T19:00:00Z'),
+        endTime: new Date('2026-01-05T21:00:00Z'),
+        rrule: 'FREQ=DAILY',
+        colour: '#FF5733',
+      });
+      return playlist;
+    }
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('plays a winter entry at the same local time in summer', async () => {
+      // Arrange
+      const org = await seedOrg({ timeZone: 'Europe/Berlin' });
+      const screen = await seedScreen(org.id);
+      await seedWinterEvening(screen.id, org.id);
+      // 20:30 CEST: inside the local window, before it in UTC terms (19:00Z).
+      jest.useFakeTimers({
+        now: new Date('2026-07-01T18:30:00Z'),
+        doNotFake: [
+          'nextTick',
+          'setImmediate',
+          'clearImmediate',
+          'setInterval',
+          'clearInterval',
+          'setTimeout',
+          'clearTimeout',
+          'queueMicrotask',
+          'hrtime',
+          'performance',
+        ],
+      });
+
+      // Act
+      const result = await service.getCurrentPlaylist(screen.id);
+
+      // Assert
+      expect(result.playlist).toEqual(expect.objectContaining({ name: 'Evening' }));
+      expect(result.epoch).toBe(new Date('2026-07-01T18:00:00Z').getTime());
+    });
+
+    it('detects an overlap at the local time after summer time starts', async () => {
+      // Arrange
+      const org = await seedOrg({ timeZone: 'Europe/Berlin' });
+      const screen = await seedScreen(org.id);
+      await seedWinterEvening(screen.id, org.id);
+
+      // Act
+      const check = service.checkOverlap(
+        screen.id,
+        org.id,
+        new Date('2026-07-01T18:00:00Z'), // 20:00 CEST
+        new Date('2026-07-01T18:45:00Z'),
+        null,
+        null,
+      );
+
+      // Assert
+      await expect(check).rejects.toThrow(ConflictException);
+    });
+  });
+
   describe('getCurrentPlaylist', () => {
     it('should return the active playlist when a schedule entry is active', async () => {
       const org = await seedOrg();

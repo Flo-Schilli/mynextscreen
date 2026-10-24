@@ -81,6 +81,27 @@ function sameTarget(
   return target.screenId ? entry.screenId === target.screenId : entry.groupId === target.groupId;
 }
 
+/** The first blocker on `target` that overlaps the slot, expanded in the organisation's zone. */
+function findBlocker(
+  blockers: readonly ScheduleEntry[],
+  slot: PlannedSlot<SourceEvent>,
+  target: EventScheduleRuleTarget,
+  timeZone: string,
+): ScheduleEntry | undefined {
+  return blockers.find(
+    (entry) =>
+      sameTarget(entry, target) &&
+      getOccurrences(
+        entry.startTime,
+        entry.endTime,
+        entry.rrule,
+        slot.startTime,
+        slot.endTime,
+        timeZone,
+      ).some((occ) => occ.start < slot.endTime && occ.end > slot.startTime),
+  );
+}
+
 /**
  * Brings a rule's generated schedule entries in line with the events its
  * source lists. Manual entries always win: a slot one of them overlaps is
@@ -240,7 +261,7 @@ export class EventScheduleReconcileService {
       .where(eq(eventScheduleRules.id, ruleId));
     if (!rule) return null;
 
-    const slots = await this.plan(tx, rule, now);
+    const { slots, timeZone } = await this.plan(tx, rule, now);
     const targets = await tx
       .select()
       .from(eventScheduleRuleTargets)
@@ -270,7 +291,8 @@ export class EventScheduleReconcileService {
         const key = slotKey(slot.event.id, target.screenId, target.groupId);
         const current = existingByKey.get(key);
         existingByKey.delete(key);
-        await this.applySlot(tx, rule, slot, target, current, blockers, changes);
+        const blocking = findBlocker(blockers, slot, target, timeZone);
+        await this.applySlot(tx, rule, slot, target, current, blocking, changes);
       }
     }
 
@@ -308,12 +330,12 @@ export class EventScheduleReconcileService {
     return changes;
   }
 
-  /** The slots the rule wants, from the source's current events. */
+  /** The slots the rule wants, from the source's current events, and the organisation's zone. */
   private async plan(
     tx: Tx,
     rule: EventScheduleRule,
     now: Date,
-  ): Promise<PlannedSlot<SourceEvent>[]> {
+  ): Promise<{ slots: PlannedSlot<SourceEvent>[]; timeZone: string }> {
     const [org] = await tx
       .select({ timeZone: organisations.timeZone })
       .from(organisations)
@@ -322,7 +344,8 @@ export class EventScheduleReconcileService {
       .select({ venueAliases: contentSources.venueAliases })
       .from(contentSources)
       .where(eq(contentSources.id, rule.sourceId));
-    if (!org || !source) return [];
+    if (!org) return { slots: [], timeZone: 'UTC' };
+    if (!source) return { slots: [], timeZone: org.timeZone };
 
     // A window may run past midnight, so yesterday's event can still be on.
     const fromDate = addDays(localDate(now, org.timeZone), -1);
@@ -342,7 +365,7 @@ export class EventScheduleReconcileService {
         .from(eventScheduleRuleExclusions)
         .where(eq(eventScheduleRuleExclusions.ruleId, rule.id)),
     ]);
-    return planEventSlots(
+    const slots = planEventSlots(
       rule,
       events,
       toVenueAliasMap(source.venueAliases),
@@ -350,6 +373,7 @@ export class EventScheduleReconcileService {
       now,
       org.timeZone,
     );
+    return { slots, timeZone: org.timeZone };
   }
 
   /** Every other entry on the rule's targets: manual ones and those of other rules. */
@@ -382,20 +406,9 @@ export class EventScheduleReconcileService {
     slot: PlannedSlot<SourceEvent>,
     target: EventScheduleRuleTarget,
     current: ScheduleEntry | undefined,
-    blockers: readonly ScheduleEntry[],
+    blocking: ScheduleEntry | undefined,
     changes: ReconcileChanges,
   ): Promise<void> {
-    const blocking = blockers.find(
-      (entry) =>
-        sameTarget(entry, target) &&
-        getOccurrences(
-          entry.startTime,
-          entry.endTime,
-          entry.rrule,
-          slot.startTime,
-          slot.endTime,
-        ).some((occ) => occ.start < slot.endTime && occ.end > slot.startTime),
-    );
     if (blocking) {
       changes.summary.conflicts.push(this.conflictOf(slot.event, target, blocking));
       if (current) {

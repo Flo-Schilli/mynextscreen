@@ -6,6 +6,7 @@ export { compareScheduleEntries, sortScheduleEntries } from './schedule-entry-or
 export { ScheduleController } from './schedule.controller';
 export { expandRRule, getOccurrences } from './rrule.util';
 export type { DateRange } from './rrule.util';
+export { loadOrganisationTimeZone } from './organisation-time-zone';
 export {
   SCHEDULE_ENTRY_CHANGED,
   ScheduleEntryChangedEvent,
