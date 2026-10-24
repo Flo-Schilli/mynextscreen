@@ -4,6 +4,57 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.26.0
+
+### Added — event schedule rules
+
+Event nights no longer have to be placed in the calendar by hand. On a
+source's page an editor adds a rule: venues (canonical names), a playlist
+(static or dynamic), a local time window such as 18:00–01:00 (an end at or
+before the start means the next day), the screens and groups to play on,
+whether to skip cancelled events, and a colour. On every event day at one of
+those venues the server creates the schedule entry itself and keeps it in
+line with the source: after every sync, after an alias change, after rule or
+calendar edits, and once an hour. The preview lists the upcoming events with
+their status per screen or group, and single events can be left out.
+
+Manual entries always win. A slot that overlaps a manual entry, or the entry
+of an earlier rule, is skipped and shown as a conflict; a manual entry created
+later pushes the generated one out, and the slot returns once the manual entry
+is gone. Generated entries are locked in the calendar: they cannot be moved,
+resized, edited or deleted there, and link to their rule instead.
+
+### Fixed — schedules in the organisation's time zone
+
+The calendar laid entries out in UTC for everyone but the super admin, and
+ignored the organisation picked in the shell. It now uses the selected
+organisation and its time zone.
+
+Recurring entries were expanded in UTC on the server: a daily 20:00 entry
+created in winter played at 21:00 in summer, and weekday rules matched the UTC
+weekday. They now repeat at the same local time in the organisation's time
+zone, in the calendar and on the screens. When the clocks go back, a time in
+the repeated hour means its second occurrence; a time in the hour skipped in
+spring moves to just after the jump. A time between 01:00 and 01:59 on the
+night summer time ends no longer resolves an hour late (this also affected
+event start times in that hour). Changing an organisation's time zone moves
+its recurring entries to the same local time in the new zone.
+
+### Security — patched dependencies
+
+The backend image ships multer 2.5.0 (GHSA-q7qp-rjg7-q26m), body-parser 2.4.0
+(GHSA-27r3-jxmh-p828) and nodemailer 10.2.1 (GHSA-8c8m-p3m8-cjg8,
+GHSA-m943-m63m-w62w, GHSA-85x2-q946-cp5h). `@nestjs/platform-express` pins
+multer exactly, so it is lifted through an override.
+
+**Operator action:** update the server. The backend migration `0029` adds
+`event_schedule_rules`, `event_schedule_rule_targets`,
+`event_schedule_rule_exclusions` and the `schedule_entries` columns
+`managed_by_rule_id` and `managed_source_event_id`, and runs on start. No new
+environment variable. Check recurring entries in organisations outside UTC:
+entries that were moved by hand to compensate for the old drift now play at
+their stored local time.
+
 ## 0.25.1
 
 ### Security — patched dependencies
