@@ -457,14 +457,13 @@ describe('Schedules', () => {
       // Arrange
       await setUp();
       component.viewMode = 'month';
-      component.currentDate = new Date(2026, 5, 15);
+      component.currentDate = new Date('2026-06-15T10:00:00Z');
 
       // Act
       component.navigateNext();
 
       // Assert
-      expect(component.currentDate.getMonth()).toBe(6);
-      expect(component.currentDate.getDate()).toBe(1);
+      expect(component.currentDate.toISOString()).toBe('2026-06-30T22:00:00.000Z');
     });
 
     it('resets both current and selected date to today', async () => {
