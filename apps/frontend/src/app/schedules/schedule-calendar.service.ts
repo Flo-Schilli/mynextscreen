@@ -3,6 +3,17 @@ import { TranslocoService } from '@jsverse/transloco';
 import { ScheduleEntry } from './schedule.model';
 import { ScheduleRecurrenceService } from './schedule-recurrence.service';
 import { LanguageService } from '../i18n/language.service';
+import {
+  MINUTES_PER_DAY,
+  addZonedDays,
+  addZonedMonths,
+  minutesToTime,
+  startOfZonedDay,
+  zonedDateKey,
+  zonedMinutesOfDay,
+  zonedParts,
+  zonedTimeToInstant,
+} from './org-time';
 
 export type ScheduleViewMode = 'day' | 'week' | 'month';
 
@@ -66,74 +77,71 @@ export class ScheduleCalendarService {
   private transloco = inject(TranslocoService);
   private language = inject(LanguageService);
 
-  /** Monday-based start of the week containing `date`, at 00:00 local. */
-  getWeekStart(date: Date): Date {
-    const d = new Date(date);
-    const day = d.getDay();
+  /** Monday-based start of the week containing `date`, at local midnight in `timeZone`. */
+  getWeekStart(date: Date, timeZone: string): Date {
+    const day = zonedParts(date, timeZone).weekday;
     const diff = day === 0 ? -6 : 1 - day; // Monday as first day
-    d.setDate(d.getDate() + diff);
-    d.setHours(0, 0, 0, 0);
-    return d;
+    return addZonedDays(date, diff, timeZone);
   }
 
-  /** The days rendered as columns for the current view (1 for day, 7 for week). */
-  getVisibleDays(viewMode: ScheduleViewMode, currentDate: Date): Date[] {
+  /** The days rendered as columns for the current view (1 for day, 7 for week), as local midnights. */
+  getVisibleDays(viewMode: ScheduleViewMode, currentDate: Date, timeZone: string): Date[] {
     if (viewMode === 'day') {
-      return [new Date(currentDate)];
+      return [startOfZonedDay(currentDate, timeZone)];
     }
     // week (month view does not use day columns)
-    const start = this.getWeekStart(currentDate);
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(start);
-      d.setDate(d.getDate() + i);
-      return d;
-    });
+    const start = this.getWeekStart(currentDate, timeZone);
+    return Array.from({ length: 7 }, (_, i) => addZonedDays(start, i, timeZone));
   }
 
   /** The ISO from/to window to request entries for, per view. */
-  getQueryRange(viewMode: ScheduleViewMode, currentDate: Date): DateRangeQuery {
+  getQueryRange(viewMode: ScheduleViewMode, currentDate: Date, timeZone: string): DateRangeQuery {
     if (viewMode === 'day') {
-      const start = new Date(currentDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 1);
+      const start = startOfZonedDay(currentDate, timeZone);
+      const end = addZonedDays(start, 1, timeZone);
       return { from: start.toISOString(), to: end.toISOString() };
     }
     if (viewMode === 'week') {
-      const start = this.getWeekStart(currentDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 7);
+      const start = this.getWeekStart(currentDate, timeZone);
+      const end = addZonedDays(start, 7, timeZone);
       return { from: start.toISOString(), to: end.toISOString() };
     }
     // month: fetch wider range
-    const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    start.setDate(start.getDate() - 7);
-    const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 7);
+    const start = addZonedDays(addZonedMonths(currentDate, 0, timeZone), -7, timeZone);
+    const end = addZonedDays(addZonedMonths(currentDate, 1, timeZone), 6, timeZone);
     return { from: start.toISOString(), to: end.toISOString() };
   }
 
-  /** Positions entries as absolute blocks within the day columns and computes fallback gaps. */
-  buildTimeGridBlocks(entries: ScheduleEntry[], days: Date[], hourHeight: number): TimeGridBlocks {
+  /**
+   * Positions entries as absolute blocks within the day columns and computes
+   * fallback gaps. `days` are local midnights in `timeZone`; positions follow
+   * the organisation's wall clock, like the hour labels.
+   */
+  buildTimeGridBlocks(
+    entries: ScheduleEntry[],
+    days: Date[],
+    hourHeight: number,
+    timeZone: string,
+  ): TimeGridBlocks {
     const blocks: CalendarBlock[] = [];
     const gaps: GapBlock[] = [];
 
     for (let dayIdx = 0; dayIdx < days.length; dayIdx++) {
-      const dayStart = new Date(days[dayIdx]);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(dayStart);
-      dayEnd.setDate(dayEnd.getDate() + 1);
+      const dayStart = startOfZonedDay(days[dayIdx], timeZone);
+      const dayEnd = addZonedDays(dayStart, 1, timeZone);
 
       const dayBlocks: CalendarBlock[] = [];
 
       for (const entry of entries) {
-        const occurrences = this.recurrence.getOccurrencesOnDay(entry, dayStart);
-        for (const occ of occurrences) {
+        for (const occ of this.occurrencesTouchingDay(entry, dayStart, timeZone)) {
           const clippedStart = occ.start < dayStart ? dayStart : occ.start;
           const clippedEnd = occ.end > dayEnd ? dayEnd : occ.end;
 
-          const startMinutes = clippedStart.getHours() * 60 + clippedStart.getMinutes();
-          const endMinutes = clippedEnd.getHours() * 60 + clippedEnd.getMinutes();
+          const startMinutes = zonedMinutesOfDay(clippedStart, timeZone);
+          const endMinutes =
+            clippedEnd.getTime() >= dayEnd.getTime()
+              ? MINUTES_PER_DAY
+              : zonedMinutesOfDay(clippedEnd, timeZone);
           const top = (startMinutes / 60) * hourHeight;
           const height = Math.max(
             ((endMinutes - startMinutes) / 60) * hourHeight,
@@ -172,35 +180,24 @@ export class ScheduleCalendarService {
     return { blocks, gaps };
   }
 
-  /** Builds the 6-week month grid (Monday-first) with per-day entry chips. */
-  buildMonthWeeks(entries: ScheduleEntry[], currentDate: Date): MonthDayCell[][] {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const firstOfMonth = new Date(year, month, 1);
-
-    // Find Monday of the first week
-    const start = new Date(firstOfMonth);
-    const dayOfWeek = start.getDay();
-    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    start.setDate(start.getDate() + diff);
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  /** Builds the 6-week month grid (Monday-first) with per-day entry chips, in `timeZone`. */
+  buildMonthWeeks(entries: ScheduleEntry[], currentDate: Date, timeZone: string): MonthDayCell[][] {
+    const firstOfMonth = addZonedMonths(currentDate, 0, timeZone);
+    const month = zonedParts(firstOfMonth, timeZone).month;
+    const todayKey = zonedDateKey(new Date(), timeZone);
 
     const weeks: MonthDayCell[][] = [];
-    const current = new Date(start);
+    let current = this.getWeekStart(firstOfMonth, timeZone);
 
     for (let w = 0; w < 6; w++) {
       const week: MonthDayCell[] = [];
       for (let d = 0; d < 7; d++) {
-        const cellDate = new Date(current);
-        const dayStart = new Date(cellDate);
-        dayStart.setHours(0, 0, 0, 0);
+        const cellDate = current;
+        const parts = zonedParts(cellDate, timeZone);
 
         const blocks: CalendarBlock[] = [];
         for (const entry of entries) {
-          const occurrences = this.recurrence.getOccurrencesOnDay(entry, dayStart);
-          for (const occ of occurrences) {
+          for (const occ of this.occurrencesTouchingDay(entry, cellDate, timeZone)) {
             blocks.push({
               entry,
               top: 0,
@@ -215,16 +212,17 @@ export class ScheduleCalendarService {
 
         week.push({
           date: cellDate,
-          dayNumber: cellDate.getDate(),
-          isCurrentMonth: cellDate.getMonth() === month,
-          isToday: cellDate.getTime() === today.getTime(),
+          dayNumber: parts.day,
+          isCurrentMonth: parts.month === month,
+          isToday: zonedDateKey(cellDate, timeZone) === todayKey,
           blocks,
         });
-        current.setDate(current.getDate() + 1);
+        current = addZonedDays(current, 1, timeZone);
       }
       weeks.push(week);
       // Stop if we've passed the month
-      if (current.getMonth() !== month && current.getDate() > 7) break;
+      const next = zonedParts(current, timeZone);
+      if (next.month !== month && next.day > 7) break;
     }
 
     return weeks;
@@ -236,13 +234,11 @@ export class ScheduleCalendarService {
     selectedDate: Date,
     orgTimeZone: string,
   ): DayTimeline[] {
-    const dayStart = new Date(selectedDate);
-    dayStart.setHours(0, 0, 0, 0);
+    const dayStart = startOfZonedDay(selectedDate, orgTimeZone);
 
     const items: DayTimeline[] = [];
     for (const entry of entries) {
-      const occurrences = this.recurrence.getOccurrencesOnDay(entry, dayStart);
-      for (const occ of occurrences) {
+      for (const occ of this.occurrencesTouchingDay(entry, dayStart, orgTimeZone)) {
         const isGroup = !!entry.groupId;
         let targetName = '';
         if (isGroup && entry.group) {
@@ -266,25 +262,47 @@ export class ScheduleCalendarService {
     return items;
   }
 
-  /** Converts a block's pixel position back into a concrete start/end time on `dayDate`. */
+  /**
+   * Converts a block's pixel position back into a concrete start/end time on
+   * `dayDate`, reading the pixels as the organisation's wall clock. A bottom
+   * edge at the end of the grid means local midnight of the next day.
+   */
   pixelsToTimeRange(
     top: number,
     height: number,
     dayDate: Date,
     hourHeight: number,
+    timeZone: string,
   ): { start: Date; end: Date } {
     const startMinutes = (top / hourHeight) * 60;
     const endMinutes = ((top + height) / hourHeight) * 60;
+    const dayKey = zonedDateKey(dayDate, timeZone);
 
-    const start = new Date(dayDate);
-    start.setHours(0, 0, 0, 0);
-    start.setMinutes(startMinutes);
-
-    const end = new Date(dayDate);
-    end.setHours(0, 0, 0, 0);
-    end.setMinutes(endMinutes);
+    const start = zonedTimeToInstant(dayKey, minutesToTime(startMinutes), timeZone);
+    const end =
+      endMinutes >= MINUTES_PER_DAY
+        ? addZonedDays(dayDate, 1, timeZone)
+        : zonedTimeToInstant(dayKey, minutesToTime(endMinutes), timeZone);
 
     return { start, end };
+  }
+
+  /**
+   * Occurrences that overlap the local day starting at `dayStart`: those that
+   * start on it plus a recurring one from the day before that runs past
+   * midnight, so a 22:00–02:00 block shows on both days.
+   */
+  private occurrencesTouchingDay(
+    entry: ScheduleEntry,
+    dayStart: Date,
+    timeZone: string,
+  ): { start: Date; end: Date }[] {
+    const today = this.recurrence.getOccurrencesOnDay(entry, dayStart, timeZone);
+    if (!entry.rrule) return today;
+    const yesterday = this.recurrence
+      .getOccurrencesOnDay(entry, addZonedDays(dayStart, -1, timeZone), timeZone)
+      .filter((occ) => occ.end > dayStart);
+    return [...yesterday, ...today];
   }
 
   private formatTimeInTz(date: Date, orgTimeZone: string): string {

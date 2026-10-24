@@ -11,6 +11,9 @@ import { ScheduleEntry } from './schedule.model';
 import { CalendarBlock, GapBlock, MonthDayCell } from './schedule-calendar.service';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
+/** The cases build dates on the runner's clock, so the organisation shares its zone. */
+const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
 } catch {
@@ -74,7 +77,7 @@ describe('ScheduleCalendarGrid', () => {
     fixture.componentRef.setInput('blocks', overrides?.blocks ?? []);
     fixture.componentRef.setInput('gaps', overrides?.gaps ?? []);
     fixture.componentRef.setInput('hourHeight', HOUR_HEIGHT);
-    fixture.componentRef.setInput('orgTimeZone', 'UTC');
+    fixture.componentRef.setInput('orgTimeZone', LOCAL_TZ);
     if (overrides?.draggingEntryId !== undefined) {
       fixture.componentRef.setInput('draggingEntryId', overrides.draggingEntryId);
     }
@@ -256,12 +259,13 @@ describe('ScheduleCalendarGrid', () => {
     it('formats a date as 24h HH:mm in the org timezone', async () => {
       // Arrange
       await setUp();
+      fixture.componentRef.setInput('orgTimeZone', 'America/New_York');
 
       // Act
       const formatted = component.formatBlockTime(new Date('2026-06-01T08:30:00.000Z'));
 
-      // Assert (UTC tz, 24h)
-      expect(formatted).toBe('08:30');
+      // Assert (New York summer time, 24h)
+      expect(formatted).toBe('04:30');
     });
   });
 

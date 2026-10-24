@@ -19,6 +19,14 @@ import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { CardComponent, CardHeadComponent, IconComponent } from '../ui';
 import { ScheduleAgendaList } from './schedule-agenda-list';
 import { LanguageService } from '../i18n/language.service';
+import {
+  isSameZonedDay,
+  minutesToTime,
+  zonedDateKey,
+  zonedMinutesOfDay,
+  zonedParts,
+  zonedTimeToInstant,
+} from './org-time';
 
 export interface CreateSlot {
   start: Date;
@@ -438,8 +446,7 @@ export class ScheduleCalendarGrid {
   });
 
   readonly nowTopPx = computed<number | null>(() => {
-    const now = new Date(this.nowMs());
-    const minutes = now.getHours() * 60 + now.getMinutes();
+    const minutes = zonedMinutesOfDay(new Date(this.nowMs()), this.orgTimeZone());
     const top = (minutes / 60) * this.hourHeight();
     const maxTop = 24 * this.hourHeight();
     if (top < 0 || top > maxTop) return null;
@@ -515,12 +522,7 @@ export class ScheduleCalendarGrid {
   }
 
   isDayToday(day: Date): boolean {
-    const today = new Date();
-    return (
-      day.getFullYear() === today.getFullYear() &&
-      day.getMonth() === today.getMonth() &&
-      day.getDate() === today.getDate()
-    );
+    return isSameZonedDay(day, new Date(), this.orgTimeZone());
   }
 
   formatHour(hour: number): string {
@@ -553,18 +555,8 @@ export class ScheduleCalendarGrid {
   emitMobileSlot(): void {
     const day = this.mobileDay();
     if (!day) return;
-    const start = new Date(day);
-    const startHour = this.isDayToday(day) ? new Date().getHours() : 9;
-    start.setHours(Math.min(23, startHour), 0, 0, 0);
-    const end = new Date(start);
-    if (start.getHours() >= 23) {
-      // Keep the slot inside the same day window: 23:00 ends at end-of-day,
-      // never rolling over to 00:00 of the next calendar day.
-      end.setHours(23, 59, 59, 999);
-    } else {
-      end.setHours(start.getHours() + 1);
-    }
-    this.createSlot.emit({ start, end });
+    const startHour = this.isDayToday(day) ? zonedParts(new Date(), this.orgTimeZone()).hour : 9;
+    this.createSlot.emit(this.hourSlot(day, startHour));
   }
 
   onTimeGridClick(event: MouseEvent): void {
@@ -581,19 +573,20 @@ export class ScheduleCalendarGrid {
     const rect = dayColumn.getBoundingClientRect();
     const y = event.clientY - rect.top + dayColumn.scrollTop;
     const hour = Math.floor(y / this.hourHeight());
-    const clampedHour = Math.max(0, Math.min(23, hour));
 
-    const start = new Date(day);
-    start.setHours(clampedHour, 0, 0, 0);
-    const end = new Date(start);
-    if (clampedHour >= 23) {
-      // Keep the slot inside the same day window: 23:00 ends at end-of-day,
-      // never rolling over to 00:00 of the next calendar day.
-      end.setHours(23, 59, 59, 999);
-    } else {
-      end.setHours(clampedHour + 1);
-    }
+    this.createSlot.emit(this.hourSlot(day, hour));
+  }
 
-    this.createSlot.emit({ start, end });
+  /**
+   * One-hour slot from `hour` on `day`, on the organisation's wall clock.
+   * 23:00 ends at 23:59 so the slot never rolls over into the next day.
+   */
+  private hourSlot(day: Date, hour: number): { start: Date; end: Date } {
+    const timeZone = this.orgTimeZone();
+    const clamped = Math.max(0, Math.min(23, hour));
+    const dayKey = zonedDateKey(day, timeZone);
+    const start = zonedTimeToInstant(dayKey, minutesToTime(clamped * 60), timeZone);
+    const end = zonedTimeToInstant(dayKey, minutesToTime((clamped + 1) * 60), timeZone);
+    return { start, end };
   }
 }

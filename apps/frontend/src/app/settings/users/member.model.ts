@@ -29,7 +29,7 @@ export interface MyMembership {
   organisationId: string;
   role: OrganisationRole;
   createdAt: string;
-  organisation?: { id: string; name: string };
+  organisation?: { id: string; name: string; timeZone: string };
 }
 
 export type OrganisationRole = 'org_admin' | 'editor' | 'viewer';

@@ -22,8 +22,8 @@ import { Screen } from '../screens/screen.model';
 import { PlaylistService } from '../playlists/playlist.service';
 import { Playlist } from '../playlists/playlist.model';
 import { MemberService } from '../settings/users/member.service';
+import { OrganisationStateService } from '../shell/organisation-state.service';
 import { MyMembership } from '../settings/users/member.model';
-import { OrganisationService } from '../admin/organisations/organisation.service';
 import { ScreenGroupService } from '../screen-groups/screen-group.service';
 import { ScreenGroup, SliceJobStatus } from '../screen-groups/screen-group.model';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
@@ -43,6 +43,15 @@ import { ScheduleFormModal, ScheduleFormResult, PRESET_COLOURS } from './schedul
 import { ToastService } from '../shared/toast/toast.service';
 import { BtnComponent, PageHeaderComponent, OverlayComponent, ModalComponent } from '../ui';
 import { LanguageService } from '../i18n/language.service';
+import {
+  addZonedDays,
+  addZonedMonths,
+  isSameZonedDay,
+  minutesToTime,
+  zonedDateKey,
+  zonedParts,
+  zonedTimeToInstant,
+} from './org-time';
 
 const HOUR_HEIGHT = 60;
 
@@ -149,6 +158,7 @@ const HOUR_HEIGHT = 60;
           [initialColour]="modalInitialColour"
           [initialRecurrence]="modalInitialRecurrence"
           [initialWeekdays]="modalInitialWeekdays"
+          [timeZone]="orgTimeZone"
           (save)="submitModal($event)"
           (remove)="deleteEntry()"
           (dismiss)="closeModal()"
@@ -250,7 +260,6 @@ export class Schedules implements OnInit, OnDestroy {
   private screenService = inject(ScreenService);
   private playlistService = inject(PlaylistService);
   private memberService = inject(MemberService);
-  private organisationService = inject(OrganisationService);
   private screenGroupService = inject(ScreenGroupService);
   private recurrence = inject(ScheduleRecurrenceService);
   private calendar = inject(ScheduleCalendarService);
@@ -260,6 +269,7 @@ export class Schedules implements OnInit, OnDestroy {
   private sse = inject(DashboardSseService);
   private destroyRef = inject(DestroyRef);
   private router = inject(Router);
+  private orgState = inject(OrganisationStateService);
 
   orgId = '';
   orgTimeZone = 'UTC';
@@ -355,7 +365,7 @@ export class Schedules implements OnInit, OnDestroy {
   }
 
   get visibleDays(): Date[] {
-    return this.calendar.getVisibleDays(this.viewMode, this.currentDate);
+    return this.calendar.getVisibleDays(this.viewMode, this.currentDate, this.orgTimeZone);
   }
 
   get currentRangeLabel(): string {
@@ -498,17 +508,21 @@ export class Schedules implements OnInit, OnDestroy {
   private loadCurrentOrg(): void {
     this.memberService.getMyMemberships().subscribe({
       next: (memberships: MyMembership[]) => {
-        const adminMembership = memberships.find((m) => m.role === 'org_admin');
-        if (adminMembership) {
-          this.orgId = adminMembership.organisationId;
-        } else if (memberships.length > 0) {
-          this.orgId = memberships[0].organisationId;
-        } else {
+        // The organisation picked in the shell: the interceptor sends its id with
+        // every request, so the zone must come from the same membership.
+        const selectedId = this.orgState.selectedOrgId();
+        const membership =
+          memberships.find((m) => m.organisationId === selectedId) ??
+          memberships.find((m) => m.role === 'org_admin') ??
+          memberships[0];
+        if (!membership) {
           this.loadError = this.transloco.translate('common.errors.noOrgMembership');
           this.loading = false;
           return;
         }
-        this.loadOrgDetails();
+        this.orgId = membership.organisationId;
+        // The membership carries the zone; GET /organisations/:id is for super admins only.
+        this.orgTimeZone = membership.organisation?.timeZone || 'UTC';
         this.loadScreens();
         this.loadScreenGroups();
         this.loadPlaylists();
@@ -516,17 +530,6 @@ export class Schedules implements OnInit, OnDestroy {
       error: () => {
         this.loadError = this.transloco.translate('common.errors.loadOrgContext');
         this.loading = false;
-      },
-    });
-  }
-
-  private loadOrgDetails(): void {
-    this.organisationService.getOne(this.orgId).subscribe({
-      next: (org) => {
-        this.orgTimeZone = org.timeZone || 'UTC';
-      },
-      error: () => {
-        // Fall back to UTC
       },
     });
   }
@@ -591,7 +594,7 @@ export class Schedules implements OnInit, OnDestroy {
 
   loadEntries(): void {
     if (!this.selectedTargetId) return;
-    const range = this.calendar.getQueryRange(this.viewMode, this.currentDate);
+    const range = this.calendar.getQueryRange(this.viewMode, this.currentDate, this.orgTimeZone);
 
     if (this.selectedTargetType === 'screen') {
       this.scheduleService
@@ -625,12 +628,17 @@ export class Schedules implements OnInit, OnDestroy {
 
   private rebuildCalendar(): void {
     if (this.viewMode === 'month') {
-      this.monthWeeks = this.calendar.buildMonthWeeks(this.entries, this.currentDate);
+      this.monthWeeks = this.calendar.buildMonthWeeks(
+        this.entries,
+        this.currentDate,
+        this.orgTimeZone,
+      );
     } else {
       const { blocks, gaps } = this.calendar.buildTimeGridBlocks(
         this.entries,
         this.visibleDays,
         this.hourHeight,
+        this.orgTimeZone,
       );
       this.calendarBlocks = blocks;
       this.gapBlocks = gaps;
@@ -660,45 +668,29 @@ export class Schedules implements OnInit, OnDestroy {
       return;
     }
     const days = this.visibleDays;
-    const idx = days.findIndex(
-      (d) =>
-        d.getFullYear() === this.selectedDate.getFullYear() &&
-        d.getMonth() === this.selectedDate.getMonth() &&
-        d.getDate() === this.selectedDate.getDate(),
-    );
+    const idx = days.findIndex((d) => isSameZonedDay(d, this.selectedDate, this.orgTimeZone));
     this.mobileDayIndex = idx >= 0 ? idx : 0;
   }
 
   navigatePrev(): void {
-    if (this.viewMode === 'day') {
-      this.currentDate = new Date(this.currentDate.getTime() - 86400000);
-    } else if (this.viewMode === 'week') {
-      this.currentDate = new Date(this.currentDate.getTime() - 7 * 86400000);
-    } else {
-      this.currentDate = new Date(
-        this.currentDate.getFullYear(),
-        this.currentDate.getMonth() - 1,
-        1,
-      );
-    }
+    this.currentDate = this.shiftView(-1);
     this.syncMobileDayIndex();
     this.loadEntries();
   }
 
   navigateNext(): void {
-    if (this.viewMode === 'day') {
-      this.currentDate = new Date(this.currentDate.getTime() + 86400000);
-    } else if (this.viewMode === 'week') {
-      this.currentDate = new Date(this.currentDate.getTime() + 7 * 86400000);
-    } else {
-      this.currentDate = new Date(
-        this.currentDate.getFullYear(),
-        this.currentDate.getMonth() + 1,
-        1,
-      );
-    }
+    this.currentDate = this.shiftView(1);
     this.syncMobileDayIndex();
     this.loadEntries();
+  }
+
+  /** The current date moved by one view (day, week or month) on the organisation's calendar. */
+  private shiftView(direction: 1 | -1): Date {
+    if (this.viewMode === 'day') return addZonedDays(this.currentDate, direction, this.orgTimeZone);
+    if (this.viewMode === 'week') {
+      return addZonedDays(this.currentDate, 7 * direction, this.orgTimeZone);
+    }
+    return addZonedMonths(this.currentDate, direction, this.orgTimeZone);
   }
 
   navigateToday(): void {
@@ -716,7 +708,7 @@ export class Schedules implements OnInit, OnDestroy {
    */
   stepMobileDay(delta: number): void {
     if (this.viewMode === 'day') {
-      this.currentDate = new Date(this.currentDate.getTime() + delta * 86400000);
+      this.currentDate = addZonedDays(this.currentDate, delta, this.orgTimeZone);
       this.selectedDate = new Date(this.currentDate);
       this.mobileDayIndex = 0;
       this.loadEntries();
@@ -725,10 +717,10 @@ export class Schedules implements OnInit, OnDestroy {
     // Week view: 7 day-columns; step the index and roll over to the next week.
     const next = this.mobileDayIndex + delta;
     if (next < 0) {
-      this.currentDate = new Date(this.currentDate.getTime() - 7 * 86400000);
+      this.currentDate = addZonedDays(this.currentDate, -7, this.orgTimeZone);
       this.mobileDayIndex = 6;
     } else if (next > 6) {
-      this.currentDate = new Date(this.currentDate.getTime() + 7 * 86400000);
+      this.currentDate = addZonedDays(this.currentDate, 7, this.orgTimeZone);
       this.mobileDayIndex = 0;
     } else {
       this.mobileDayIndex = next;
@@ -750,11 +742,14 @@ export class Schedules implements OnInit, OnDestroy {
 
   // --- Modal ---
   openCreateModal(): void {
+    // The current full hour on the organisation's clock, for one hour.
     const now = new Date();
-    const start = new Date(now);
-    start.setMinutes(0, 0, 0);
-    const end = new Date(start);
-    end.setHours(start.getHours() + 1);
+    const start = zonedTimeToInstant(
+      zonedDateKey(now, this.orgTimeZone),
+      minutesToTime(zonedParts(now, this.orgTimeZone).hour * 60),
+      this.orgTimeZone,
+    );
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
     this.openCreateModalWithTimes(start, end);
   }
 
@@ -825,10 +820,9 @@ export class Schedules implements OnInit, OnDestroy {
   }
 
   submitModal(result: ScheduleFormResult): void {
-    const startStr = `${result.startDate}T${result.startTime}:00`;
-    const endStr = `${result.endDate}T${result.endTime}:00`;
-    const start = new Date(startStr);
-    const end = new Date(endStr);
+    // The form shows the organisation's wall clock, whatever zone the browser is in.
+    const start = zonedTimeToInstant(result.startDate, result.startTime, this.orgTimeZone);
+    const end = zonedTimeToInstant(result.endDate, result.endTime, this.orgTimeZone);
 
     if (end <= start) {
       this.modalError = this.transloco.translate('schedules.errors.endAfterStart');
@@ -1071,6 +1065,7 @@ export class Schedules implements OnInit, OnDestroy {
       block.height,
       dayDate,
       this.hourHeight,
+      this.orgTimeZone,
     );
 
     const dto: UpdateScheduleEntryRequest = {

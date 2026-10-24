@@ -16,6 +16,7 @@ import {
   DateInputComponent,
   TimeInputComponent,
 } from '../ui';
+import { zonedDateKey, zonedTimeKey, zonedTimeToInstant } from './org-time';
 
 export const PRESET_COLOURS = [
   '#3b82f6',
@@ -469,6 +470,8 @@ export class ScheduleFormModal implements OnInit {
   readonly initialColour = input.required<string>();
   readonly initialRecurrence = input.required<RecurrenceType>();
   readonly initialWeekdays = input.required<string[]>();
+  /** The organisation's zone: dates and times are entered on its wall clock. */
+  readonly timeZone = input.required<string>();
 
   readonly save = output<ScheduleFormResult>();
   readonly remove = output<void>();
@@ -579,8 +582,8 @@ export class ScheduleFormModal implements OnInit {
     if (!this.startDate || !this.startTime || !this.endDate || !this.endTime) {
       return false;
     }
-    const start = new Date(`${this.startDate}T${this.startTime}:00`);
-    const end = new Date(`${this.endDate}T${this.endTime}:00`);
+    const start = zonedTimeToInstant(this.startDate, this.startTime, this.timeZone());
+    const end = zonedTimeToInstant(this.endDate, this.endTime, this.timeZone());
     return end <= start;
   }
 
@@ -601,15 +604,10 @@ export class ScheduleFormModal implements OnInit {
   }
 
   private toDateInputValue(date: Date): string {
-    const y = date.getFullYear();
-    const m = (date.getMonth() + 1).toString().padStart(2, '0');
-    const d = date.getDate().toString().padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    return zonedDateKey(date, this.timeZone());
   }
 
   private toTimeInputValue(date: Date): string {
-    const h = date.getHours().toString().padStart(2, '0');
-    const m = date.getMinutes().toString().padStart(2, '0');
-    return `${h}:${m}`;
+    return zonedTimeKey(date, this.timeZone());
   }
 }

@@ -15,6 +15,7 @@ import { Screen } from '../screens/screen.model';
 import { PlaylistService } from '../playlists/playlist.service';
 import { Playlist } from '../playlists/playlist.model';
 import { MemberService } from '../settings/users/member.service';
+import { OrganisationStateService } from '../shell/organisation-state.service';
 import { MyMembership } from '../settings/users/member.model';
 import { OrganisationService } from '../admin/organisations/organisation.service';
 import { Organisation } from '../admin/organisations/organisation.model';
@@ -134,7 +135,14 @@ function makeForm(overrides: Partial<ScheduleFormResult> = {}): ScheduleFormResu
 
 class MemberServiceStub {
   memberships: MyMembership[] = [
-    { id: 'm1', userId: 'u1', organisationId: ORG_ID, role: 'org_admin', createdAt: '' },
+    {
+      id: 'm1',
+      userId: 'u1',
+      organisationId: ORG_ID,
+      role: 'org_admin',
+      createdAt: '',
+      organisation: { id: ORG_ID, name: 'Org', timeZone: 'Europe/Berlin' },
+    },
   ];
   getMyMemberships(): Observable<MyMembership[]> {
     return of(this.memberships);
@@ -287,12 +295,55 @@ describe('Schedules', () => {
       expect(component.loading).toBe(false);
     });
 
-    it('auto-selects the first target and reads the org timezone', async () => {
+    it('auto-selects the first target and reads the org timezone from the membership', async () => {
       // Arrange / Act
       await setUp();
 
-      // Assert
+      // Assert: no super-admin-only organisation lookup needed
       expect(component.selectedTargetId).toBe('screen:s1');
+      expect(component.orgTimeZone).toBe('Europe/Berlin');
+    });
+
+    it('uses the organisation picked in the shell, not the first admin membership', async () => {
+      // Arrange: admin of an own UTC org, editor of the selected venue in Berlin
+      member.memberships = [
+        {
+          id: 'm0',
+          userId: 'u1',
+          organisationId: 'own-org',
+          role: 'org_admin',
+          createdAt: '',
+          organisation: { id: 'own-org', name: 'Own', timeZone: 'UTC' },
+        },
+        {
+          id: 'm1',
+          userId: 'u1',
+          organisationId: ORG_ID,
+          role: 'editor',
+          createdAt: '',
+          organisation: { id: ORG_ID, name: 'Venue', timeZone: 'Europe/Berlin' },
+        },
+      ];
+      TestBed.inject(OrganisationStateService).selectedOrgId.set(ORG_ID);
+
+      // Act
+      await setUp();
+
+      // Assert
+      expect(component.orgId).toBe(ORG_ID);
+      expect(component.orgTimeZone).toBe('Europe/Berlin');
+    });
+
+    it('falls back to UTC when the membership carries no time zone', async () => {
+      // Arrange
+      member.memberships = [
+        { id: 'm1', userId: 'u1', organisationId: ORG_ID, role: 'org_admin', createdAt: '' },
+      ];
+
+      // Act
+      await setUp();
+
+      // Assert
       expect(component.orgTimeZone).toBe('UTC');
     });
   });
@@ -385,7 +436,8 @@ describe('Schedules', () => {
       component.navigatePrev();
 
       // Assert
-      expect(component.currentDate.toISOString()).toBe('2026-06-09T00:00:00.000Z');
+      // Local midnight of the previous day in the organisation's zone (Berlin, UTC+2).
+      expect(component.currentDate.toISOString()).toBe('2026-06-08T22:00:00.000Z');
     });
 
     it('moves the current date forward by a week in week view', async () => {
@@ -398,21 +450,20 @@ describe('Schedules', () => {
       component.navigateNext();
 
       // Assert
-      expect(component.currentDate.toISOString()).toBe('2026-06-17T00:00:00.000Z');
+      expect(component.currentDate.toISOString()).toBe('2026-06-16T22:00:00.000Z');
     });
 
     it('jumps to the first of the next month in month view', async () => {
       // Arrange
       await setUp();
       component.viewMode = 'month';
-      component.currentDate = new Date(2026, 5, 15);
+      component.currentDate = new Date('2026-06-15T10:00:00Z');
 
       // Act
       component.navigateNext();
 
       // Assert
-      expect(component.currentDate.getMonth()).toBe(6);
-      expect(component.currentDate.getDate()).toBe(1);
+      expect(component.currentDate.toISOString()).toBe('2026-06-30T22:00:00.000Z');
     });
 
     it('resets both current and selected date to today', async () => {
@@ -625,6 +676,19 @@ describe('Schedules', () => {
       expect(schedule.lastCreateDto?.groupId).toBeUndefined();
       expect(component.showModal).toBe(false);
       expect(lastToast()?.type).toBe('success');
+    });
+
+    it("reads the form's date and time on the organisation's clock", async () => {
+      // Arrange
+      await setUp();
+      component.orgTimeZone = 'America/New_York';
+
+      // Act: 18:00–20:00 in New York
+      component.submitModal(makeForm({ startTime: '18:00', endTime: '20:00' }));
+
+      // Assert
+      expect(schedule.lastCreateDto?.startTime).toBe('2026-06-01T22:00:00.000Z');
+      expect(schedule.lastCreateDto?.endTime).toBe('2026-06-02T00:00:00.000Z');
     });
 
     it('creates a group-targeted entry and opens the slice progress overlay for a split group', async () => {

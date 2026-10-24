@@ -46,7 +46,7 @@ function makeMyMembership(overrides: Partial<MyMembership> = {}): MyMembership {
     organisationId: ORG_ID,
     role: 'org_admin',
     createdAt: '2026-01-01T00:00:00.000Z',
-    organisation: { id: ORG_ID, name: 'Acme Venue' },
+    organisation: { id: ORG_ID, name: 'Acme Venue', timeZone: 'Europe/Berlin' },
     ...overrides,
   };
 }

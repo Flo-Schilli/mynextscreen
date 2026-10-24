@@ -8,6 +8,9 @@ import { ScreenGroup } from '../screen-groups/screen-group.model';
 import { RecurrenceType } from './schedule-recurrence.service';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
+/** The cases build dates on the runner's clock, so the organisation shares its zone. */
+const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
 } catch {
@@ -60,6 +63,7 @@ interface SetUpOptions {
   screenGroups?: ScreenGroup[];
   submitting?: boolean;
   error?: string;
+  timeZone?: string;
 }
 
 describe('ScheduleFormModal', () => {
@@ -84,6 +88,7 @@ describe('ScheduleFormModal', () => {
     fixture.componentRef.setInput('initialColour', opts.initialColour ?? '#3b82f6');
     fixture.componentRef.setInput('initialRecurrence', opts.initialRecurrence ?? 'none');
     fixture.componentRef.setInput('initialWeekdays', opts.initialWeekdays ?? []);
+    fixture.componentRef.setInput('timeZone', opts.timeZone ?? LOCAL_TZ);
     component = fixture.componentInstance;
     fixture.detectChanges();
     await fixture.whenStable();
@@ -116,6 +121,20 @@ describe('ScheduleFormModal', () => {
       expect(component.colour).toBe('#ef4444');
       expect(component.recurrence).toBe('daily');
       expect(component.weekdays).toEqual(['MO', 'TU']);
+    });
+
+    it("shows the start and end on the organisation's wall clock", async () => {
+      // Arrange / Act: 18:00–19:30 in New York, whatever zone the runner is in
+      await setUp({
+        initialStart: new Date('2026-06-10T22:00:00Z'),
+        initialEnd: new Date('2026-06-10T23:30:00Z'),
+        timeZone: 'America/New_York',
+      });
+
+      // Assert
+      expect(component.startDate).toBe('2026-06-10');
+      expect(component.startTime).toBe('18:00');
+      expect(component.endTime).toBe('19:30');
     });
 
     it('copies the initial weekdays array (no shared reference)', async () => {

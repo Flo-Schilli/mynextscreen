@@ -4,6 +4,9 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ScheduleRecurrenceService } from './schedule-recurrence.service';
 import { ScheduleEntry } from './schedule.model';
 
+/** The existing cases build dates on the runner's clock, so the organisation shares its zone. */
+const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
 } catch {
@@ -103,28 +106,36 @@ describe('ScheduleRecurrenceService', () => {
     const entryStart = new Date(2026, 5, 10); // Wed 2026-06-10
 
     it('matches every day for DAILY', () => {
-      expect(service.doesDayMatchRrule(new Date(2026, 5, 11), entryStart, { freq: 'DAILY' })).toBe(
-        true,
-      );
+      expect(
+        service.doesDayMatchRrule(new Date(2026, 5, 11), entryStart, { freq: 'DAILY' }, LOCAL_TZ),
+      ).toBe(true);
     });
 
     it('matches only listed weekdays for WEEKLY+BYDAY', () => {
       const rule = { freq: 'WEEKLY', byday: ['MO', 'WE'] };
-      expect(service.doesDayMatchRrule(new Date(2026, 5, 10), entryStart, rule)).toBe(true); // Wed
-      expect(service.doesDayMatchRrule(new Date(2026, 5, 11), entryStart, rule)).toBe(false); // Thu
+      expect(service.doesDayMatchRrule(new Date(2026, 5, 10), entryStart, rule, LOCAL_TZ)).toBe(
+        true,
+      ); // Wed
+      expect(service.doesDayMatchRrule(new Date(2026, 5, 11), entryStart, rule, LOCAL_TZ)).toBe(
+        false,
+      ); // Thu
     });
 
     it('matches the original weekday for WEEKLY without BYDAY', () => {
       const rule = { freq: 'WEEKLY' };
-      expect(service.doesDayMatchRrule(new Date(2026, 5, 17), entryStart, rule)).toBe(true); // Wed
-      expect(service.doesDayMatchRrule(new Date(2026, 5, 18), entryStart, rule)).toBe(false); // Thu
+      expect(service.doesDayMatchRrule(new Date(2026, 5, 17), entryStart, rule, LOCAL_TZ)).toBe(
+        true,
+      ); // Wed
+      expect(service.doesDayMatchRrule(new Date(2026, 5, 18), entryStart, rule, LOCAL_TZ)).toBe(
+        false,
+      ); // Thu
     });
   });
 
   describe('getOccurrencesOnDay', () => {
     it('returns the single range for a non-recurring entry overlapping the day', () => {
       const entry = makeEntry();
-      const occ = service.getOccurrencesOnDay(entry, new Date(2026, 5, 10));
+      const occ = service.getOccurrencesOnDay(entry, new Date(2026, 5, 10), LOCAL_TZ);
       expect(occ).toHaveLength(1);
       expect(occ[0].start.getHours()).toBe(9);
       expect(occ[0].end.getHours()).toBe(10);
@@ -132,12 +143,12 @@ describe('ScheduleRecurrenceService', () => {
 
     it('returns nothing for a non-recurring entry on a different day', () => {
       const entry = makeEntry();
-      expect(service.getOccurrencesOnDay(entry, new Date(2026, 5, 11))).toHaveLength(0);
+      expect(service.getOccurrencesOnDay(entry, new Date(2026, 5, 11), LOCAL_TZ)).toHaveLength(0);
     });
 
     it('projects a daily entry onto a later day at the original time', () => {
       const entry = makeEntry({ rrule: 'FREQ=DAILY' });
-      const occ = service.getOccurrencesOnDay(entry, new Date(2026, 5, 15));
+      const occ = service.getOccurrencesOnDay(entry, new Date(2026, 5, 15), LOCAL_TZ);
       expect(occ).toHaveLength(1);
       expect(occ[0].start.getHours()).toBe(9);
       expect(occ[0].start.getDate()).toBe(15);
@@ -145,19 +156,55 @@ describe('ScheduleRecurrenceService', () => {
 
     it('only emits weekly+byday occurrences on matching weekdays', () => {
       const entry = makeEntry({ rrule: 'FREQ=WEEKLY;BYDAY=WE' });
-      expect(service.getOccurrencesOnDay(entry, new Date(2026, 5, 17))).toHaveLength(1); // Wed
-      expect(service.getOccurrencesOnDay(entry, new Date(2026, 5, 18))).toHaveLength(0); // Thu
+      expect(service.getOccurrencesOnDay(entry, new Date(2026, 5, 17), LOCAL_TZ)).toHaveLength(1); // Wed
+      expect(service.getOccurrencesOnDay(entry, new Date(2026, 5, 18), LOCAL_TZ)).toHaveLength(0); // Thu
     });
 
     it('excludes recurring occurrences before the entry start date', () => {
       const entry = makeEntry({ rrule: 'FREQ=DAILY' });
-      expect(service.getOccurrencesOnDay(entry, new Date(2026, 5, 9))).toHaveLength(0);
+      expect(service.getOccurrencesOnDay(entry, new Date(2026, 5, 9), LOCAL_TZ)).toHaveLength(0);
     });
 
     it('falls back to the original date when the RRULE has no FREQ', () => {
       const entry = makeEntry({ rrule: 'BYDAY=MO' }); // parseRrule -> null
-      expect(service.getOccurrencesOnDay(entry, new Date(2026, 5, 10))).toHaveLength(1); // original day
-      expect(service.getOccurrencesOnDay(entry, new Date(2026, 5, 11))).toHaveLength(0); // other day
+      expect(service.getOccurrencesOnDay(entry, new Date(2026, 5, 10), LOCAL_TZ)).toHaveLength(1); // original day
+      expect(service.getOccurrencesOnDay(entry, new Date(2026, 5, 11), LOCAL_TZ)).toHaveLength(0); // other day
+    });
+  });
+
+  describe("in the organisation's zone", () => {
+    const NY = 'America/New_York';
+
+    it('repeats at the same wall time across a DST change', () => {
+      // Daily 18:00 in New York, created in summer time.
+      const entry = makeEntry({
+        startTime: '2026-10-30T22:00:00Z',
+        endTime: '2026-10-30T23:00:00Z',
+        rrule: 'FREQ=DAILY',
+      });
+      // 2 November is standard time: 18:00 EST is 23:00 UTC.
+      const day = new Date('2026-11-02T05:00:00Z');
+
+      const [occ] = service.getOccurrencesOnDay(entry, day, NY);
+
+      expect(occ.start.toISOString()).toBe('2026-11-02T23:00:00.000Z');
+      expect(occ.end.toISOString()).toBe('2026-11-03T00:00:00.000Z');
+    });
+
+    it('matches weekdays in the organisation zone', () => {
+      // Wednesday 21:00 in New York is Thursday in UTC.
+      const entry = makeEntry({
+        startTime: '2026-06-11T01:00:00Z',
+        endTime: '2026-06-11T02:00:00Z',
+        rrule: 'FREQ=WEEKLY;BYDAY=WE',
+      });
+
+      expect(service.getOccurrencesOnDay(entry, new Date('2026-06-17T04:00:00Z'), NY)).toHaveLength(
+        1,
+      );
+      expect(service.getOccurrencesOnDay(entry, new Date('2026-06-18T04:00:00Z'), NY)).toHaveLength(
+        0,
+      );
     });
   });
 });
