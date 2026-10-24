@@ -124,6 +124,30 @@ describe('LiveStreamCreateModal', () => {
     expect(submit!.nativeElement.disabled).toBe(true);
   });
 
+  it('disables the submit button until both name and source url are set', () => {
+    const submit = () =>
+      fixture.debugElement
+        .queryAll(By.css('button'))
+        .find((b) => b.nativeElement.textContent.includes('Create stream'))!.nativeElement;
+
+    expect(submit().disabled).toBe(true);
+
+    fixture.componentInstance['name'].set('Lobby Cam');
+    fixture.detectChanges();
+    expect(submit().disabled).toBe(true);
+
+    fixture.componentInstance['sourceUrl'].set('rtmp://x/live');
+    fixture.detectChanges();
+    expect(submit().disabled).toBe(false);
+  });
+
+  it('splits the footer evenly between cancel and submit', () => {
+    const footerButtons = fixture.debugElement.queryAll(By.css('[slot="footer"] mns-btn'));
+
+    expect(footerButtons.length).toBe(2);
+    footerButtons.forEach((b) => expect(b.nativeElement.classList).toContain('flex-1'));
+  });
+
   it('emits dismiss when cancel is clicked', () => {
     const spy = vi.fn();
     component.dismiss.subscribe(spy);
