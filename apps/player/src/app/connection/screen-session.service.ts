@@ -1,8 +1,23 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
 const STORAGE_KEY_REFRESH_TOKEN = 'mynextscreen_refresh_token';
+
+/**
+ * Why a refresh ended the way it did. Only `rejected` means the credential is
+ * dead; `unreachable` (no network, TLS before the clock is set, 5xx, 429) must
+ * be retried, or a TV that boots before its network is up asks for pairing.
+ */
+export type RefreshOutcome = 'renewed' | 'rejected' | 'unreachable';
+
+/** No network, timeout, throttling or a server fault: worth another try. */
+const TRANSIENT_STATUSES = new Set([0, 408, 425, 429]);
+
+function failureOf(error: unknown): RefreshOutcome {
+  const status = error instanceof HttpErrorResponse ? error.status : 0;
+  return TRANSIENT_STATUSES.has(status) || status >= 500 ? 'unreachable' : 'rejected';
+}
 
 interface SessionResponse {
   accessToken: string;
@@ -34,7 +49,7 @@ export class ScreenSessionService {
   readonly accessToken = this._accessToken.asReadonly();
 
   /** Shared by every caller that races into a refresh. */
-  private inFlight: Promise<boolean> | null = null;
+  private inFlight: Promise<RefreshOutcome> | null = null;
 
   /** Bearer value for the next request: the session token, or nothing yet. */
   token(): string {
@@ -52,18 +67,7 @@ export class ScreenSessionService {
 
   /** Exchanges the enrolment credential for a session. */
   async establish(serverUrl: string, apiKey: string): Promise<boolean> {
-    try {
-      const session = await firstValueFrom(
-        this.http.post<SessionResponse>(`${serverUrl}/api/screens/session`, null, {
-          headers: { Authorization: `Bearer ${apiKey}` },
-        }),
-      );
-      this.apply(session);
-      return true;
-    } catch {
-      this._accessToken.set('');
-      return false;
-    }
+    return (await this.exchange(serverUrl, apiKey)) === 'renewed';
   }
 
   /**
@@ -71,7 +75,7 @@ export class ScreenSessionService {
    * exchange with the API key if that fails — a screen whose refresh token was
    * lost or aged out must not need someone standing in front of it.
    */
-  async refresh(serverUrl: string, apiKey: string): Promise<boolean> {
+  async refresh(serverUrl: string, apiKey: string): Promise<RefreshOutcome> {
     this.inFlight ??= this.runRefresh(serverUrl, apiKey).finally(() => {
       this.inFlight = null;
     });
@@ -84,7 +88,7 @@ export class ScreenSessionService {
     localStorage.removeItem(STORAGE_KEY_REFRESH_TOKEN);
   }
 
-  private async runRefresh(serverUrl: string, apiKey: string): Promise<boolean> {
+  private async runRefresh(serverUrl: string, apiKey: string): Promise<RefreshOutcome> {
     const refreshToken = localStorage.getItem(STORAGE_KEY_REFRESH_TOKEN);
     if (refreshToken) {
       try {
@@ -94,13 +98,31 @@ export class ScreenSessionService {
           }),
         );
         this.apply(session);
-        return true;
-      } catch {
-        // Fall through to a fresh exchange rather than giving up.
+        return 'renewed';
+      } catch (error: unknown) {
+        // A transient failure says nothing about either token: keep both and retry later.
+        if (failureOf(error) === 'unreachable') return 'unreachable';
+        // Rejected: fall through to a fresh exchange rather than giving up.
         this._accessToken.set('');
       }
     }
-    return apiKey ? this.establish(serverUrl, apiKey) : false;
+    return apiKey ? this.exchange(serverUrl, apiKey) : 'rejected';
+  }
+
+  private async exchange(serverUrl: string, apiKey: string): Promise<RefreshOutcome> {
+    try {
+      const session = await firstValueFrom(
+        this.http.post<SessionResponse>(`${serverUrl}/api/screens/session`, null, {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        }),
+      );
+      this.apply(session);
+      return 'renewed';
+    } catch (error: unknown) {
+      const outcome = failureOf(error);
+      if (outcome === 'rejected') this._accessToken.set('');
+      return outcome;
+    }
   }
 
   private apply(session: SessionResponse): void {

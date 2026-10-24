@@ -399,7 +399,7 @@ export class PlayerService implements OnDestroy {
         this.connection.serverUrl(),
         this.connection.apiKey(),
       );
-      if (!renewed) {
+      if (renewed !== 'renewed') {
         throw error;
       }
       return run();

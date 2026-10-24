@@ -62,6 +62,14 @@ describe('ScreenSessionService', () => {
     screenId = screen.id;
   });
 
+  /** Moves a token's consumption past the grace window. */
+  async function ageConsumption(token: string): Promise<void> {
+    await db
+      .update(screenSessions)
+      .set({ consumedAt: new Date(Date.now() - 120_000) })
+      .where(eq(screenSessions.tokenHash, hashToken(token)));
+  }
+
   async function rowFor(token: string) {
     const [row] = await db
       .select()
@@ -138,21 +146,75 @@ describe('ScreenSessionService', () => {
         const session = await service.createSession(screenId, orgId);
         const rotated = await service.refresh(session.refreshToken);
         expect(rotated.status).toBe('ok');
-
-        // Age the tombstone past the grace window.
-        await db
-          .update(screenSessions)
-          .set({ consumedAt: new Date(Date.now() - 120_000) })
-          .where(eq(screenSessions.tokenHash, hashToken(session.refreshToken)));
+        if (rotated.status !== 'ok') return;
+        // The device used its successor, so the first token is truly spent.
+        const used = await service.refresh(rotated.tokens.refreshToken);
+        expect(used.status).toBe('ok');
+        await ageConsumption(session.refreshToken);
 
         const replay = await service.refresh(session.refreshToken);
 
         expect(replay.status).toBe('replayed');
-        // The successor still works: revoking the family here would cost a
+        // The latest token still works: revoking the family here would cost a
         // physical visit for what is read access to one playlist.
-        if (rotated.status !== 'ok') return;
-        expect((await service.refresh(rotated.tokens.refreshToken)).status).toBe('ok');
+        if (used.status !== 'ok') return;
+        expect((await service.refresh(used.tokens.refreshToken)).status).toBe('ok');
       });
+    });
+  });
+
+  describe('lost rotation (the TV powered off before storing the successor)', () => {
+    it('issues a new session when the successor was never used', async () => {
+      // Arrange
+      const session = await service.createSession(screenId, orgId);
+      const lost = await service.refresh(session.refreshToken);
+      expect(lost.status).toBe('ok');
+      if (lost.status !== 'ok') return;
+      await ageConsumption(session.refreshToken);
+
+      // Act
+      const recovered = await service.refresh(session.refreshToken);
+
+      // Assert
+      expect(recovered.status).toBe('ok');
+      if (recovered.status !== 'ok') return;
+      expect(recovered.screenId).toBe(screenId);
+      expect((await rowFor(recovered.tokens.refreshToken)).familyId).toBe(
+        (await rowFor(session.refreshToken)).familyId,
+      );
+      // The successor the device never stored is dead now.
+      expect((await rowFor(lost.tokens.refreshToken)).consumedAt).not.toBeNull();
+      expect((await service.refresh(recovered.tokens.refreshToken)).status).toBe('ok');
+    });
+
+    it('does not recover a screen whose sessions were revoked', async () => {
+      // Arrange: the screen was re-paired after the device lost its rotation.
+      const session = await service.createSession(screenId, orgId);
+      await service.refresh(session.refreshToken);
+      await ageConsumption(session.refreshToken);
+      await service.revokeForScreen(screenId);
+
+      // Act
+      const result = await service.refresh(session.refreshToken);
+
+      // Assert
+      expect(result.status).toBe('unknown');
+    });
+
+    it('lets only one of two racing recoveries win', async () => {
+      // Arrange
+      const session = await service.createSession(screenId, orgId);
+      await service.refresh(session.refreshToken);
+      await ageConsumption(session.refreshToken);
+
+      // Act
+      const results = await Promise.all([
+        service.refresh(session.refreshToken),
+        service.refresh(session.refreshToken),
+      ]);
+
+      // Assert
+      expect(results.map((result) => result.status).sort()).toEqual(['ok', 'replayed']);
     });
   });
 
