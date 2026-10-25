@@ -4,6 +4,20 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.26.5
+
+### Added — invited users enter their name
+
+Someone who was invited only chose a password, so they showed up with just
+their email address. The link in the invitation email now opens "Activate
+account", which asks for the name as well as the password. The link for
+resetting a password is unchanged.
+
+Invitations sent before this release still work, without the name field; the
+name can be added later in the profile.
+
+**Operator action:** none beyond updating the server. There is no migration.
+
 ## 0.26.4
 
 ### Fixed — pages showing another organisation
