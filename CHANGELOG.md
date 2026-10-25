@@ -4,6 +4,37 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.26.4
+
+### Fixed — pages showing another organisation
+
+For users in more than one organisation, the playlists, media library,
+screens, screen groups, live streams and user management pages, and the
+live-stream and screen-group detail pages, ignored the organisation picked in
+the top bar. They showed the first organisation in which the user was an org
+admin, with that organisation's role. Every page now loads the selected
+organisation, and switching reloads the page from scratch. A switch on a
+detail page first returns to its list, since the open record belongs to the
+previous organisation.
+
+### Fixed — default playlist for everyone but super admins
+
+The playlists page read the default playlist from an endpoint only super
+admins may call. Everyone else saw no "Default" badge, and an org admin could
+not clear the default from the UI because the toggle never showed it as set.
+Every member can now read it; changing it is still for org admins only.
+
+### Fixed — self-signup organisations in UTC
+
+A self-signup organisation was always created in UTC, so its schedules and
+event rules ran two hours off in Germany. Signup now uses the browser's time
+zone. Organisation time zones are also validated now: an unknown zone is
+rejected instead of breaking the first schedule calculation.
+
+**Operator action:** organisations that signed up before this release are
+still in UTC. As super admin, set their time zone once under Instance admin →
+Organisations. There is no migration.
+
 ## 0.26.3
 
 ### Fixed — paired screens asking to be paired again
