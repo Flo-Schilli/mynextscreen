@@ -123,6 +123,16 @@ describe('AuthController', () => {
       );
     });
 
+    it("creates the organisation in the browser's time zone", async () => {
+      auth.register.mockResolvedValue({ user: makeUser(), verificationToken: 'vtok' });
+
+      await controller.register({ ...dto, timeZone: 'Europe/Berlin' } as never);
+
+      expect(auth.register).toHaveBeenCalledWith(
+        expect.objectContaining({ timeZone: 'Europe/Berlin' }),
+      );
+    });
+
     it('rejects with 403 when signup is disabled', async () => {
       configValues.SIGNUP_ENABLED = false;
       await expect(controller.register(dto as never)).rejects.toThrow(ForbiddenException);

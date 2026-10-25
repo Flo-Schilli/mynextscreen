@@ -1,4 +1,5 @@
 import { IsEmail, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsTimeZone } from '../../common/time-zone.validators';
 
 export class RegisterDto {
   @IsEmail()
@@ -19,4 +20,9 @@ export class RegisterDto {
   @IsNotEmpty()
   @MaxLength(255)
   organisationName!: string;
+
+  /** The browser's zone; the new organisation's schedules run in it. Omitted → UTC. */
+  @IsOptional()
+  @IsTimeZone()
+  timeZone?: string;
 }

@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsString, IsInt, Min, IsOptional } from 'class-validator';
+import { IsTimeZone } from '../../common/time-zone.validators';
 
 export class CreateOrganisationDto {
   @IsNotEmpty()
@@ -6,7 +7,7 @@ export class CreateOrganisationDto {
   name!: string;
 
   @IsNotEmpty()
-  @IsString()
+  @IsTimeZone()
   timeZone!: string;
 
   @IsInt()

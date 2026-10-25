@@ -68,6 +68,19 @@ function offsetMinutes(instant: Date, timeZone: string): number {
   return Math.round((asUtc - Math.floor(instant.getTime() / 1000) * 1000) / MS_PER_MINUTE);
 }
 
+/**
+ * Whether `timeZone` is a zone this runtime knows (IANA name or `UTC`). Every
+ * helper here throws a RangeError on an unknown zone, so stored zones must pass this.
+ */
+export function isValidTimeZone(timeZone: string): boolean {
+  try {
+    formatterFor(timeZone);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Local calendar date of `instant` in `timeZone`. */
 export function localDate(instant: Date, timeZone: string): string {
   const { year, month, day } = wallClock(instant, timeZone);

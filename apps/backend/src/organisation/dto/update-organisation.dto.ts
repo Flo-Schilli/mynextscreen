@@ -1,4 +1,5 @@
 import { IsString, IsInt, Min, IsOptional } from 'class-validator';
+import { IsTimeZone } from '../../common/time-zone.validators';
 
 export class UpdateOrganisationDto {
   @IsOptional()
@@ -6,7 +7,7 @@ export class UpdateOrganisationDto {
   name?: string;
 
   @IsOptional()
-  @IsString()
+  @IsTimeZone()
   timeZone?: string;
 
   @IsOptional()

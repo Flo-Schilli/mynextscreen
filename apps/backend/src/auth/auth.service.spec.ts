@@ -194,6 +194,17 @@ describe('AuthService', () => {
       expect(tokens.issueAccessToken).not.toHaveBeenCalled();
     });
 
+    it('hands the time zone to the new organisation', async () => {
+      passwords.hash.mockResolvedValue('new-hash');
+      users.createUserWithOrganisation.mockResolvedValue(makeUser({ id: 'owner-1' }));
+
+      await service.register({ ...input, timeZone: 'Europe/Berlin' });
+
+      expect(users.createUserWithOrganisation.mock.calls[0][0]).toMatchObject({
+        timeZone: 'Europe/Berlin',
+      });
+    });
+
     it('propagates a ConflictException from the user service', async () => {
       passwords.hash.mockResolvedValue('new-hash');
       users.createUserWithOrganisation.mockRejectedValue(new ConflictException('Email in use'));
