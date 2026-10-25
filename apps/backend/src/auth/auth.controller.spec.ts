@@ -63,6 +63,7 @@ describe('AuthController', () => {
       changeEmail: jest.fn(),
       confirmEmailChange: jest.fn(),
       deleteAccount: jest.fn(),
+      setPassword: jest.fn(),
     };
     users = { hasAnyUser: jest.fn(), findByEmail: jest.fn(), findById: jest.fn() };
     events = { emit: jest.fn() };
@@ -184,6 +185,14 @@ describe('AuthController', () => {
       await controller.resendVerification({ email: 'user@example.com' });
       expect(auth.createEmailVerificationToken).not.toHaveBeenCalled();
       expect(events.emit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('setPassword', () => {
+    it("passes the token, the new password and an invitee's name on", async () => {
+      await controller.setPassword({ token: 'tok', newPassword: 'supersecret', name: 'Jane Doe' });
+
+      expect(auth.setPassword).toHaveBeenCalledWith('tok', 'supersecret', 'Jane Doe');
     });
   });
 

@@ -323,7 +323,7 @@ export class AuthService {
    * so a surviving refresh token would defeat it. No new session is issued: this
    * route is public and the caller is not necessarily the account owner's browser.
    */
-  async setPassword(token: string, newPassword: string): Promise<void> {
+  async setPassword(token: string, newPassword: string, name?: string): Promise<void> {
     const user = await this.users.findByPasswordResetToken(token);
     if (
       !user ||
@@ -333,7 +333,7 @@ export class AuthService {
       throw new NotFoundException('Invalid or expired token');
     }
     const hash = await this.passwords.hash(newPassword);
-    await this.users.setPassword(user.id, hash);
+    await this.users.setPassword(user.id, hash, name);
     const revoked = await this.tokens.revokeAllForUser(user.id);
     this.logger.log(`Password set via token userId=${user.id} revokedSessions=${revoked}`);
   }

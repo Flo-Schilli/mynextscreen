@@ -235,6 +235,27 @@ describe('UserService', () => {
       // unverified-login gate (403 "Email not verified") no longer blocks them.
       expect(persisted.emailVerified).toBe(true);
     });
+
+    it('stores the name an invitee chose while activating', async () => {
+      const [user] = await db.insert(users).values({ email: 'invitee@example.com' }).returning();
+
+      await service.setPassword(user.id, 'hashed-secret', 'Jane Doe');
+
+      const [persisted] = await db.select().from(users).where(eq(users.id, user.id));
+      expect(persisted.name).toBe('Jane Doe');
+    });
+
+    it('keeps the existing name when none is given (password reset)', async () => {
+      const [user] = await db
+        .insert(users)
+        .values({ email: 'named@example.com', name: 'Kept Name' })
+        .returning();
+
+      await service.setPassword(user.id, 'hashed-secret');
+
+      const [persisted] = await db.select().from(users).where(eq(users.id, user.id));
+      expect(persisted.name).toBe('Kept Name');
+    });
   });
 
   describe('getMemberships', () => {

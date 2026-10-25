@@ -106,11 +106,17 @@
     },
     "setPassword": {
       "title": "Passwort festlegen",
+      "inviteTitle": "Konto aktivieren",
       "subtitle": "Wähle ein Passwort für dein Konto. Verwende mindestens 8 Zeichen.",
+      "inviteSubtitle": "Gib deinen Namen ein und wähle ein Passwort. Verwende mindestens 8 Zeichen.",
       "missingToken": "Aktivierungslink fehlt oder ist ungültig. Bitte eine Administratorin oder einen Administrator um eine neue Einladung.",
+      "nameLabel": "Dein Name",
+      "namePlaceholder": "Vor- und Nachname",
+      "nameRequired": "Bitte gib deinen Namen ein.",
       "newPasswordLabel": "Neues Passwort",
       "passwordMinLength": "Verwende mindestens 8 Zeichen.",
       "submit": "Passwort festlegen",
+      "inviteSubmit": "Konto aktivieren",
       "submitting": "Speichern…",
       "errors": {
         "invalidLink": "Dieser Link ist ungültig oder abgelaufen. Bitte eine Administratorin oder einen Administrator um eine neue Einladung."
