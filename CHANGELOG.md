@@ -4,6 +4,26 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.26.6
+
+### Changed — readable audit log
+
+The audit log shows names instead of ids: who acted (also super admins and
+people who have left), the screen, playlist, content, group, stream, source,
+rule or site agent concerned, and the records named in the details, such as
+"Screen: Foyer Left · Playlist: Metal". This works for existing entries too.
+A record that has since been deleted shows the name stored with the entry, or
+its short id marked "deleted". Resource types and the remaining actions
+(site agents, remote control) are translated, and the CSV export has readable
+user, resource and details columns next to the ids.
+
+Uploading, replacing and deleting content, changing playlists and schedule
+entries, pairing and editing screens, and creating or editing organisations
+now record who did it. Entries written before this release still show
+"System" for these actions.
+
+**Operator action:** none beyond updating the server. There is no migration.
+
 ## 0.26.5
 
 ### Added — invited users enter their name
