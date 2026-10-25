@@ -172,6 +172,7 @@ const titleCase = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slic
           [loading]="loading"
           [hasMore]="hasMore"
           [userMap]="userMap"
+          [names]="names"
           [orgMap]="orgMap"
           [showOrganisation]="true"
           (loadMore)="loadMore()"
@@ -198,6 +199,8 @@ export class InstanceAuditLog implements OnInit {
   readonly resourceTypes = INSTANCE_RESOURCE_TYPES;
 
   entries: AuditEntry[] = [];
+  /** Names the audit API resolved for the ids on the loaded pages. */
+  names: Record<string, string> = {};
   total = 0;
   loading = true;
   loadError = '';
@@ -295,6 +298,7 @@ export class InstanceAuditLog implements OnInit {
     this.auditLogService.getAuditLog(this.buildFilters(0)).subscribe({
       next: (response) => {
         this.entries = response.data;
+        this.names = response.names;
         this.total = response.total;
         this.loading = false;
       },
@@ -313,6 +317,7 @@ export class InstanceAuditLog implements OnInit {
     this.auditLogService.getAuditLog(this.buildFilters(this.entries.length)).subscribe({
       next: (response) => {
         this.entries = [...this.entries, ...response.data];
+        this.names = { ...this.names, ...response.names };
         this.total = response.total;
         this.loading = false;
       },
@@ -325,6 +330,7 @@ export class InstanceAuditLog implements OnInit {
 
   applyFilters(): void {
     this.entries = [];
+    this.names = {};
     this.total = 0;
     this.loadEntries();
   }

@@ -1,10 +1,9 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { AuditLogService, AuditLogFilters } from './audit-log.service';
+import { AuditLogService, AuditLogFilters, type AuditLogPage } from './audit-log.service';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { SuperAdminGuard } from '../auth/super-admin.guard';
 import { OrganisationRole } from '../user/organisation-role.enum';
-import type { AuditEntry } from '../db/schema';
 import { AuditLogQueryDto, AdminAuditLogQueryDto } from './audit-log-query.dto';
 
 function buildFilters(query: AuditLogQueryDto): AuditLogFilters {
@@ -45,7 +44,7 @@ export class AuditLogController {
   findByOrganisation(
     @CurrentOrganisation() organisationId: string,
     @Query() query: AuditLogQueryDto,
-  ): Promise<{ data: AuditEntry[]; total: number }> {
+  ): Promise<AuditLogPage> {
     return this.auditLogService.findByOrganisation(organisationId, buildFilters(query));
   }
 }
@@ -56,7 +55,7 @@ export class AdminAuditLogController {
   constructor(private readonly auditLogService: AuditLogService) {}
 
   @Get()
-  findAll(@Query() query: AdminAuditLogQueryDto): Promise<{ data: AuditEntry[]; total: number }> {
+  findAll(@Query() query: AdminAuditLogQueryDto): Promise<AuditLogPage> {
     const filters = buildFilters(query);
 
     if (query.organisationId) {

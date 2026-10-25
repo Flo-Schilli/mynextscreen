@@ -45,8 +45,12 @@ function makeEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
   };
 }
 
-function makeResponse(entries: AuditEntry[], total?: number): AuditLogResponse {
-  return { data: entries, total: total ?? entries.length };
+function makeResponse(
+  entries: AuditEntry[],
+  total?: number,
+  names: Record<string, string> = {},
+): AuditLogResponse {
+  return { data: entries, total: total ?? entries.length, names };
 }
 
 function makeMember(overrides: Partial<Membership> = {}): Membership {
@@ -280,6 +284,20 @@ describe('AuditLog (smart container)', () => {
   });
 
   describe('pagination', () => {
+    it('merges the names of the next page into the known ones', async () => {
+      // Arrange
+      auditService.result = of(makeResponse([makeEntry({ id: 'a1' })], 2, { u1: 'Jane' }));
+      await setUp();
+      auditService.result = of(makeResponse([makeEntry({ id: 'a2' })], 2, { u2: 'Bob' }));
+
+      // Act
+      component.loadMore();
+      await render();
+
+      // Assert
+      expect(component.names()).toEqual({ u1: 'Jane', u2: 'Bob' });
+    });
+
     it('appends the next page and offsets by the current entry count', async () => {
       // Arrange
       auditService.result = of(makeResponse([makeEntry({ id: 'a1' })], 3));
@@ -416,6 +434,74 @@ describe('AuditLog (smart container)', () => {
 
       // Assert
       expect(navigateSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('CSV export', () => {
+    it('writes names next to the ids and readable details next to the raw ones', async () => {
+      // Arrange
+      const screenId = '7277e822-0381-4a8a-85da-d1e81eb53e64';
+      auditService.result = of(
+        makeResponse(
+          [
+            makeEntry({
+              userId: 'u1',
+              action: 'schedule.create',
+              resourceType: 'schedule',
+              resourceId: 'c1',
+              details: { screenId },
+            }),
+          ],
+          1,
+          { u1: 'Jane Doe', c1: 'Doors Open', [screenId]: 'Foyer Left' },
+        ),
+      );
+      await setUp();
+      let blob: Blob | undefined;
+      vi.spyOn(URL, 'createObjectURL').mockImplementation((b) => {
+        blob = b as Blob;
+        return 'blob:audit';
+      });
+      vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+      // Act
+      component.exportCsv();
+
+      // Assert
+      const [header, row] = (await blob!.text()).split('\n');
+      expect(header).toBe(
+        '"id","timestamp","user","userId","organisationId","action","resourceType","resource","resourceId","details","detailsRaw"',
+      );
+      expect(row).toContain('"Jane Doe","u1"');
+      expect(row).toContain('"Doors Open","c1"');
+      expect(row).toContain('"Screen: Foyer Left"');
+      vi.restoreAllMocks();
+    });
+
+    it('keeps names that look like formulas from running in a spreadsheet', async () => {
+      // Arrange
+      auditService.result = of(
+        makeResponse([makeEntry({ resourceId: 'c1', details: null })], 1, {
+          c1: '=HYPERLINK("http://evil")',
+        }),
+      );
+      await setUp();
+      let blob: Blob | undefined;
+      vi.spyOn(URL, 'createObjectURL').mockImplementation((b) => {
+        blob = b as Blob;
+        return 'blob:audit';
+      });
+      vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+      // Act
+      component.exportCsv();
+
+      // Assert
+      const row = (await blob!.text()).split('\n')[1];
+      expect(row).toContain(`"'=HYPERLINK(""http://evil"")"`);
+      vi.restoreAllMocks();
     });
   });
 });

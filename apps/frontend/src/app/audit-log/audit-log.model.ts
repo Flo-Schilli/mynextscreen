@@ -12,6 +12,8 @@ export interface AuditEntry {
 export interface AuditLogResponse {
   data: AuditEntry[];
   total: number;
+  /** Id → name for the actors, resources and ids in `details` of this page. */
+  names: Record<string, string>;
 }
 
 export interface AuditLogFilters {

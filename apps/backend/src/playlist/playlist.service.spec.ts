@@ -18,6 +18,7 @@ import { ContentType } from '../content/content-type.enum';
 import { TranscodingStatus } from '../content/transcoding-status.enum';
 import { TransitionType } from './transition-type.enum';
 import { PLAYLIST_UPDATED } from './playlist.event';
+import { AUDIT_PLAYLIST_CREATED } from '../audit-log/audit.events';
 import { SCHEDULE_ENTRIES_EDITED, SCHEDULE_ENTRY_CHANGED } from '../schedule/schedule.event';
 import { PlaylistKind } from './playlist-kind.enum';
 import type { PlaylistRule } from './playlist-rule.types';
@@ -100,6 +101,18 @@ describe('PlaylistService', () => {
       expect(emit).toHaveBeenCalledWith(
         PLAYLIST_UPDATED,
         expect.objectContaining({ playlistId: result.id, organisationId: org.id }),
+      );
+    });
+
+    it('records who created the playlist', async () => {
+      const org = await seedOrg();
+      const actor = '880e8400-e29b-41d4-a716-446655440000';
+
+      const result = await service.create(org.id, { name: 'Mine' }, actor);
+
+      expect(emit).toHaveBeenCalledWith(
+        AUDIT_PLAYLIST_CREATED,
+        expect.objectContaining({ playlistId: result.id, userId: actor }),
       );
     });
 

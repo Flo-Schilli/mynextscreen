@@ -83,12 +83,13 @@ export class ContentService {
     organisationId: string,
     file: Express.Multer.File,
     dto: UploadContentDto,
+    actorUserId: string | null = null,
   ): Promise<Content> {
     const saved = await this.storeNew(organisationId, file, dto, null);
 
     this.eventEmitter.emit(
       AUDIT_CONTENT_UPLOADED,
-      new AuditContentEvent(saved.id, organisationId, null, {
+      new AuditContentEvent(saved.id, organisationId, actorUserId, {
         filename: file.originalname,
         mimeType: file.mimetype,
         sizeBytes: file.size,
@@ -299,8 +300,12 @@ export class ContentService {
     return saved;
   }
 
-  async delete(organisationId: string, id: string): Promise<void> {
-    await this.remove(await this.findLibraryContent(organisationId, id));
+  async delete(
+    organisationId: string,
+    id: string,
+    actorUserId: string | null = null,
+  ): Promise<void> {
+    await this.remove(await this.findLibraryContent(organisationId, id), actorUserId);
   }
 
   /**
@@ -316,7 +321,8 @@ export class ContentService {
     await this.remove(content);
   }
 
-  private async remove(content: Content): Promise<void> {
+  /** `actorUserId` is null when a content source removes its own slide. */
+  private async remove(content: Content, actorUserId: string | null = null): Promise<void> {
     const { organisationId, id } = content;
     const ext = path.extname(content.originalFilename).replace('.', '') || 'bin';
 
@@ -350,20 +356,26 @@ export class ContentService {
 
     this.eventEmitter.emit(
       AUDIT_CONTENT_DELETED,
-      new AuditContentEvent(id, organisationId, null, {
+      new AuditContentEvent(id, organisationId, actorUserId, {
+        title: content.title,
         filename: content.originalFilename,
       }),
     );
   }
 
-  async reUpload(organisationId: string, id: string, file: Express.Multer.File): Promise<Content> {
+  async reUpload(
+    organisationId: string,
+    id: string,
+    file: Express.Multer.File,
+    actorUserId: string | null = null,
+  ): Promise<Content> {
     const detectedType = this.validateFile(file);
     const content = await this.findLibraryContent(organisationId, id);
     const saved = await this.replaceFile(content, file, detectedType);
 
     this.eventEmitter.emit(
       AUDIT_CONTENT_REUPLOADED,
-      new AuditContentEvent(id, organisationId, null, {
+      new AuditContentEvent(id, organisationId, actorUserId, {
         filename: file.originalname,
         mimeType: file.mimetype,
         sizeBytes: file.size,

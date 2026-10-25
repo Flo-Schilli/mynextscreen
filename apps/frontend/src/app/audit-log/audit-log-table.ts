@@ -14,6 +14,15 @@ import type { IconName } from '../ui';
 import { AuditLogCard } from './audit-log-card';
 import { LanguageService } from '../i18n/language.service';
 import { LocaleDatePipe } from '../i18n/locale-format.pipes';
+import {
+  AuditDetailItem,
+  AuditNames,
+  RESOURCE_NAME_KEYS,
+  detailItems,
+  detailLabel,
+  goneId,
+  resourceName,
+} from './audit-log-details';
 
 // ── action taxonomy ──────────────────────────────────────────────────────────
 
@@ -107,7 +116,7 @@ type TableRow =
  * rows and a "load more" footer. Renders each entry with an action badge,
  * resolved user/resource display and a details tooltip; emits `loadMore` and
  * `selectResource`. The parent owns data loading and navigation, and feeds the
- * resolved `userMap` in.
+ * `names` the audit API resolved (plus a `userMap` fallback) in.
  */
 @Component({
   selector: 'app-audit-log-table',
@@ -231,7 +240,7 @@ type TableRow =
 
                     <!-- resource type -->
                     <div class="resource-type-cell min-w-0 text-[13px] text-muted truncate">
-                      {{ row.entry.resourceType }}
+                      {{ resourceTypeLabel(row.entry.resourceType) }}
                     </div>
 
                     <!-- resource -->
@@ -321,7 +330,7 @@ type TableRow =
                             {{ t('auditLog.table.resourceType') }}
                           </div>
                           <div class="text-[13.5px] font-semibold text-text">
-                            {{ row.entry.resourceType }}
+                            {{ resourceTypeLabel(row.entry.resourceType) }}
                           </div>
                         </div>
                         @if (row.entry.details) {
@@ -373,6 +382,7 @@ type TableRow =
                 [entry]="row.entry"
                 [userDisplay]="getUserDisplay(row.entry.userId)"
                 [resourceDisplay]="getResourceDisplay(row.entry)"
+                [resourceTypeLabel]="resourceTypeLabel(row.entry.resourceType)"
                 [actionLabel]="actionLabel(row.entry.action)"
                 [actionCategory]="actionCategory(row.entry.action)"
                 [actionMeta]="actionMeta(row.entry.action)"
@@ -474,6 +484,8 @@ export class AuditLogTable {
   readonly loading = input.required<boolean>();
   readonly hasMore = input.required<boolean>();
   readonly userMap = input.required<Map<string, string>>();
+  /** Id → name from the audit API; covers actors, resources and ids in the details. */
+  readonly names = input<AuditNames>({});
   /** When true, an Organisation column is rendered (instance-admin view). */
   readonly showOrganisation = input(false);
   /** Maps organisationId → display name; used only when showOrganisation is true. */
@@ -536,6 +548,12 @@ export class AuditLogTable {
     this.expandedId.update((cur) => (cur === id ? null : id));
   }
 
+  protected resourceTypeLabel(type: string): string {
+    const key = 'auditLog.resourceTypes.' + type;
+    const label = this.transloco.translate(key);
+    return label === key ? type : label;
+  }
+
   protected actionLabel(action: string): string {
     const key = 'auditLog.actions.' + action;
     const label = this.transloco.translate(key);
@@ -563,7 +581,7 @@ export class AuditLogTable {
 
   protected getUserDisplay(userId: string | null): string {
     if (!userId) return this.transloco.translate('auditLog.table.system');
-    return this.userMap().get(userId) ?? `${userId.substring(0, 8)}...`;
+    return this.names()[userId] ?? this.userMap().get(userId) ?? goneId(userId, this.goneLabel());
   }
 
   protected getOrgDisplay(organisationId: string | null): string {
@@ -572,38 +590,45 @@ export class AuditLogTable {
   }
 
   protected getResourceDisplay(entry: AuditEntry): string {
-    if (!entry.resourceId) return '—';
-    const details = entry.details;
-    if (details) {
-      const name =
-        (details['name'] as string) ??
-        (details['title'] as string) ??
-        (details['filename'] as string) ??
-        (details['email'] as string);
-      if (name) return name;
-    }
-    return `${entry.resourceId.substring(0, 8)}...`;
+    return resourceName(entry, this.names(), this.goneLabel()) ?? '—';
   }
 
   protected hasDetails(details: Record<string, unknown>): boolean {
-    return Object.keys(details).length > 0;
+    return this.items(details).length > 0;
   }
 
+  /** One-line summary; the resource's own name is already in the resource column. */
   protected formatDetails(details: Record<string, unknown>): string {
-    const parts: string[] = [];
-    for (const [key, value] of Object.entries(details)) {
-      if (key === 'name' || key === 'title' || key === 'filename' || key === 'email') continue;
-      parts.push(`${key}: ${value}`);
-    }
-    return parts.join(', ') || '—';
+    return (
+      this.detailEntries(details)
+        .filter((item) => !RESOURCE_NAME_KEYS.includes(item.rawKey))
+        .map((item) => `${item.key}: ${item.value}`)
+        .join(' · ') || '—'
+    );
   }
 
   protected formatDetailsTooltip(details: Record<string, unknown>): string {
-    return JSON.stringify(details, null, 2);
+    return this.detailEntries(details)
+      .map((item) => `${item.key}: ${item.value}`)
+      .join('\n');
   }
 
-  protected detailEntries(details: Record<string, unknown>): { key: string; value: string }[] {
-    return Object.entries(details).map(([k, v]) => ({ key: k, value: String(v) }));
+  protected detailEntries(
+    details: Record<string, unknown>,
+  ): { key: string; rawKey: string; value: string }[] {
+    return this.items(details).map((item) => ({
+      key: detailLabel((path) => this.transloco.translate(path), item.key),
+      rawKey: item.key,
+      value: item.value,
+    }));
+  }
+
+  private items(details: Record<string, unknown>): AuditDetailItem[] {
+    return detailItems(details, this.names(), this.goneLabel());
+  }
+
+  private goneLabel(): string {
+    return this.transloco.translate('auditLog.table.deleted');
   }
 
   protected relativeTime(iso: string): string {

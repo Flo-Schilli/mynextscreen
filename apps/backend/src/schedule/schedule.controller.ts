@@ -8,7 +8,9 @@ import {
   Body,
   Query,
   ParseUUIDPipe,
+  Req,
 } from '@nestjs/common';
+import { AuthenticatedRequest } from '../auth';
 import { ScheduleService } from './schedule.service';
 import { CreateScheduleEntryDto } from './dto/create-schedule-entry.dto';
 import { UpdateScheduleEntryDto } from './dto/update-schedule-entry.dto';
@@ -26,8 +28,9 @@ export class ScheduleController {
   create(
     @CurrentOrganisation() organisationId: string,
     @Body() dto: CreateScheduleEntryDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<ScheduleEntry> {
-    return this.scheduleService.create(organisationId, dto);
+    return this.scheduleService.create(organisationId, dto, req.user.userId);
   }
 
   @Get()
@@ -70,8 +73,9 @@ export class ScheduleController {
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateScheduleEntryDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<ScheduleEntry> {
-    return this.scheduleService.update(id, organisationId, dto);
+    return this.scheduleService.update(id, organisationId, dto, req.user.userId);
   }
 
   @Delete(':id')
@@ -79,7 +83,8 @@ export class ScheduleController {
   delete(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest,
   ): Promise<void> {
-    return this.scheduleService.delete(id, organisationId);
+    return this.scheduleService.delete(id, organisationId, req.user.userId);
   }
 }

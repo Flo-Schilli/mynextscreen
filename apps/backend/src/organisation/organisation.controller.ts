@@ -51,8 +51,9 @@ export class OrganisationController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateOrganisationDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<Organisation> {
-    return this.organisationService.update(id, dto);
+    return this.organisationService.update(id, dto, req.user.userId);
   }
 
   @Delete(':id')

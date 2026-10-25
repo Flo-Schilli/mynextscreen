@@ -88,7 +88,11 @@ export class ScheduleService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async create(organisationId: string, dto: CreateScheduleEntryDto): Promise<ScheduleEntry> {
+  async create(
+    organisationId: string,
+    dto: CreateScheduleEntryDto,
+    actorUserId: string | null = null,
+  ): Promise<ScheduleEntry> {
     this.validateTarget(dto.screenId, dto.groupId);
 
     if (dto.screenId) {
@@ -137,7 +141,7 @@ export class ScheduleService {
     this.emitEdited(saved);
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_CREATED,
-      new AuditScheduleEvent(saved.id, organisationId, null, {
+      new AuditScheduleEvent(saved.id, organisationId, actorUserId, {
         screenId: dto.screenId ?? null,
         groupId: dto.groupId ?? null,
         playlistId: dto.playlistId,
@@ -153,6 +157,7 @@ export class ScheduleService {
     id: string,
     organisationId: string,
     dto: UpdateScheduleEntryDto,
+    actorUserId: string | null = null,
   ): Promise<ScheduleEntry> {
     const entry = await this.findOneOrFail(id, organisationId);
     this.assertNotManaged(entry);
@@ -199,8 +204,10 @@ export class ScheduleService {
     this.emitEdited(saved);
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_UPDATED,
-      new AuditScheduleEvent(saved.id, organisationId, null, {
+      new AuditScheduleEvent(saved.id, organisationId, actorUserId, {
         screenId: saved.screenId,
+        groupId: saved.groupId,
+        playlistId: saved.playlistId,
       }),
     );
 
@@ -209,7 +216,11 @@ export class ScheduleService {
     return saved;
   }
 
-  async delete(id: string, organisationId: string): Promise<void> {
+  async delete(
+    id: string,
+    organisationId: string,
+    actorUserId: string | null = null,
+  ): Promise<void> {
     const entry = await this.findOneOrFail(id, organisationId);
     this.assertNotManaged(entry);
     const screenId = entry.screenId;
@@ -227,7 +238,7 @@ export class ScheduleService {
     this.emitEdited(entry);
     this.eventEmitter.emit(
       AUDIT_SCHEDULE_DELETED,
-      new AuditScheduleEvent(id, organisationId, null, { screenId, groupId }),
+      new AuditScheduleEvent(id, organisationId, actorUserId, { screenId, groupId, playlistId }),
     );
   }
 

@@ -116,7 +116,11 @@ export class PlaylistService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async create(organisationId: string, dto: CreatePlaylistDto): Promise<Playlist> {
+  async create(
+    organisationId: string,
+    dto: CreatePlaylistDto,
+    actorUserId: string | null = null,
+  ): Promise<Playlist> {
     const kind = dto.kind ?? PlaylistKind.Static;
     if (kind === PlaylistKind.Dynamic && !dto.rule) {
       throw new BadRequestException('A dynamic playlist needs a rule');
@@ -138,7 +142,7 @@ export class PlaylistService {
     this.emitPlaylistChanged(saved.id, organisationId);
     this.eventEmitter.emit(
       AUDIT_PLAYLIST_CREATED,
-      new AuditPlaylistEvent(saved.id, organisationId, null, {
+      new AuditPlaylistEvent(saved.id, organisationId, actorUserId, {
         name: dto.name,
         ...(kind === PlaylistKind.Dynamic && { kind }),
       }),
@@ -177,7 +181,12 @@ export class PlaylistService {
     return playlist;
   }
 
-  async update(id: string, organisationId: string, dto: UpdatePlaylistDto): Promise<Playlist> {
+  async update(
+    id: string,
+    organisationId: string,
+    dto: UpdatePlaylistDto,
+    actorUserId: string | null = null,
+  ): Promise<Playlist> {
     await this.findOne(id, organisationId);
     const [saved] = await this.db
       .update(playlists)
@@ -187,7 +196,7 @@ export class PlaylistService {
     this.emitPlaylistChanged(id, organisationId);
     this.eventEmitter.emit(
       AUDIT_PLAYLIST_UPDATED,
-      new AuditPlaylistEvent(id, organisationId, null, { name: dto.name }),
+      new AuditPlaylistEvent(id, organisationId, actorUserId, { name: dto.name }),
     );
     return saved;
   }
@@ -552,7 +561,11 @@ export class PlaylistService {
     return result;
   }
 
-  async delete(id: string, organisationId: string): Promise<void> {
+  async delete(
+    id: string,
+    organisationId: string,
+    actorUserId: string | null = null,
+  ): Promise<void> {
     const playlist = await this.findOne(id, organisationId);
 
     // If this playlist is the org's default, clear the reference
@@ -565,7 +578,7 @@ export class PlaylistService {
     this.emitPlaylistChanged(id, organisationId);
     this.eventEmitter.emit(
       AUDIT_PLAYLIST_DELETED,
-      new AuditPlaylistEvent(id, organisationId, null, {
+      new AuditPlaylistEvent(id, organisationId, actorUserId, {
         name: playlist.name,
       }),
     );

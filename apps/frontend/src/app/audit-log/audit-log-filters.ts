@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, inject, input, model, output } from '@angular/core';
-import { TitleCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { Membership } from '../settings/users/member.model';
@@ -14,7 +13,7 @@ import { DateInputComponent, IconComponent } from '../ui';
   selector: 'app-audit-log-filters',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TitleCasePipe, FormsModule, IconComponent, DateInputComponent, TranslocoDirective],
+  imports: [FormsModule, IconComponent, DateInputComponent, TranslocoDirective],
   template: `
     <ng-container *transloco="let t">
       <!-- search row -->
@@ -111,7 +110,7 @@ import { DateInputComponent, IconComponent } from '../ui';
             >
               <option value="">{{ t('auditLog.filters.allTypes') }}</option>
               @for (type of resourceTypes(); track type) {
-                <option [value]="type">{{ type | titlecase }}</option>
+                <option [value]="type">{{ t('auditLog.resourceTypes.' + type) }}</option>
               }
             </select>
             <span

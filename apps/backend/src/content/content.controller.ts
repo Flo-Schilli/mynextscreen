@@ -53,8 +53,9 @@ export class ContentController {
     @CurrentOrganisation() organisationId: string,
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadContentDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<Content> {
-    return this.contentService.upload(organisationId, file, dto);
+    return this.contentService.upload(organisationId, file, dto, req.user.userId);
   }
 
   @Post('bulk-delete')
@@ -140,8 +141,9 @@ export class ContentController {
   delete(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest,
   ): Promise<void> {
-    return this.contentService.delete(organisationId, id);
+    return this.contentService.delete(organisationId, id, req.user.userId);
   }
 
   @Post(':id/reupload')
@@ -151,8 +153,9 @@ export class ContentController {
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: Express.Multer.File,
+    @Req() req: AuthenticatedRequest,
   ): Promise<Content> {
-    return this.contentService.reUpload(organisationId, id, file);
+    return this.contentService.reUpload(organisationId, id, file, req.user.userId);
   }
 
   @Get(':id/file/original')

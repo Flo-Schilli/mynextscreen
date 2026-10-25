@@ -34,7 +34,7 @@ describe('InstanceAuditLogService', () => {
   afterEach(() => httpMock.verify());
 
   it('issues a GET to the admin audit-log URL with no params by default', () => {
-    const response: AuditLogResponse = { data: [], total: 0 };
+    const response: AuditLogResponse = { data: [], total: 0, names: {} };
     let received: AuditLogResponse | undefined;
 
     service.getAuditLog().subscribe((r) => (received = r));

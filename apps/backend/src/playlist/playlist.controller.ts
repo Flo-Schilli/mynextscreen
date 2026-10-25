@@ -44,10 +44,11 @@ export class PlaylistController {
   create(
     @CurrentOrganisation() organisationId: string,
     @Body() dto: CreatePlaylistDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<Playlist> {
     return dto.kind === PlaylistKind.Dynamic
-      ? this.ruleService.createDynamic(organisationId, dto)
-      : this.playlistService.create(organisationId, dto);
+      ? this.ruleService.createDynamic(organisationId, dto, req.user.userId)
+      : this.playlistService.create(organisationId, dto, req.user.userId);
   }
 
   /** Live preview of a rule for the editor; stores nothing. */
@@ -82,8 +83,9 @@ export class PlaylistController {
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePlaylistDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<Playlist> {
-    return this.playlistService.update(id, organisationId, dto);
+    return this.playlistService.update(id, organisationId, dto, req.user.userId);
   }
 
   /** Replaces the rule of a dynamic playlist and recomputes its items at once. */
@@ -128,8 +130,9 @@ export class PlaylistController {
   delete(
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthenticatedRequest,
   ): Promise<void> {
-    return this.playlistService.delete(id, organisationId);
+    return this.playlistService.delete(id, organisationId, req.user.userId);
   }
 
   @Post(':id/items')

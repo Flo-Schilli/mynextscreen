@@ -19,7 +19,7 @@ import {
 } from '../db/schema';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { SCHEDULE_ENTRY_CHANGED, GROUP_SCHEDULE_CHANGED } from './schedule.event';
-import { AUDIT_SCHEDULE_DELETED } from '../audit-log/audit.events';
+import { AUDIT_SCHEDULE_CREATED, AUDIT_SCHEDULE_DELETED } from '../audit-log/audit.events';
 import { SLICE_CONTENT_QUEUE, SliceEnqueueService, SliceStatusService } from '../slice-content';
 import { SliceStatus } from '../slice-content/slice-status.enum';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
@@ -120,6 +120,29 @@ describe('ScheduleService', () => {
       expect(emit).toHaveBeenCalledWith(
         SCHEDULE_ENTRY_CHANGED,
         expect.objectContaining({ screenId: screen.id, organisationId: org.id }),
+      );
+    });
+
+    it('records who created the entry', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const playlist = await seedPlaylist(org.id);
+      const actor = '880e8400-e29b-41d4-a716-446655440000';
+
+      await service.create(
+        org.id,
+        {
+          screenId: screen.id,
+          playlistId: playlist.id,
+          startTime: '2026-04-01T10:00:00Z',
+          endTime: '2026-04-01T12:00:00Z',
+        },
+        actor,
+      );
+
+      expect(emit).toHaveBeenCalledWith(
+        AUDIT_SCHEDULE_CREATED,
+        expect.objectContaining({ userId: actor }),
       );
     });
 
@@ -518,12 +541,14 @@ describe('ScheduleService', () => {
         })
         .returning();
 
-      await service.delete(entry.id, org.id);
+      const actor = '880e8400-e29b-41d4-a716-446655440000';
+      await service.delete(entry.id, org.id, actor);
 
       expect(emit).toHaveBeenCalledWith(
         AUDIT_SCHEDULE_DELETED,
         expect.objectContaining({
-          details: expect.objectContaining({ groupId: group.id }),
+          userId: actor,
+          details: expect.objectContaining({ groupId: group.id, playlistId: playlist.id }),
         }),
       );
     });

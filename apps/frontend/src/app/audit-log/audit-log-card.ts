@@ -61,7 +61,7 @@ import { LocaleDatePipe } from '../i18n/locale-format.pipes';
           <span class="text-[10.5px] font-bold tracking-[.07em] uppercase text-faint">
             {{ t('auditLog.table.headerType') }}
           </span>
-          <span class="text-[13px] text-muted truncate">{{ entry().resourceType }}</span>
+          <span class="text-[13px] text-muted truncate">{{ resourceTypeLabel() }}</span>
         </div>
         <div class="flex items-center justify-between gap-3 min-w-0">
           <span
@@ -175,6 +175,7 @@ export class AuditLogCard {
   readonly entry = input.required<AuditEntry>();
   readonly userDisplay = input.required<string>();
   readonly resourceDisplay = input.required<string>();
+  readonly resourceTypeLabel = input.required<string>();
   readonly actionLabel = input.required<string>();
   readonly actionCategory = input.required<string>();
   readonly actionMeta = input.required<{ tone: BadgeTone; icon: IconName }>();
