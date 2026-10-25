@@ -19,6 +19,8 @@ export class SetPassword {
   private readonly transloco = inject(TranslocoService);
 
   private readonly token = this.route.snapshot.queryParamMap.get('t') ?? '';
+  /** Invitation links (`invite=1`) activate a new account, so they also ask for a name. */
+  readonly isInvite = this.route.snapshot.queryParamMap.get('invite') === '1';
 
   readonly submitting = signal(false);
   readonly error = signal<string | null>(null);
@@ -26,6 +28,12 @@ export class SetPassword {
   readonly hasToken = signal(this.token.length > 0);
 
   readonly form = this.fb.nonNullable.group({
+    name: [
+      '',
+      this.isInvite
+        ? [Validators.required, Validators.pattern(/\S/), Validators.maxLength(255)]
+        : [],
+    ],
     newPassword: ['', [Validators.required, Validators.minLength(8)]],
   });
 
@@ -37,7 +45,8 @@ export class SetPassword {
     this.submitting.set(true);
     this.error.set(null);
     try {
-      await this.auth.setPassword(this.token, this.form.getRawValue().newPassword);
+      const { name, newPassword } = this.form.getRawValue();
+      await this.auth.setPassword(this.token, newPassword, this.isInvite ? name.trim() : undefined);
       this.done.set(true);
       await this.router.navigateByUrl('/login');
     } catch {

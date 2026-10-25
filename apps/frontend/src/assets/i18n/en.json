@@ -106,11 +106,17 @@
     },
     "setPassword": {
       "title": "Set your password",
+      "inviteTitle": "Activate your account",
       "subtitle": "Choose a password for your account. Use at least 8 characters.",
+      "inviteSubtitle": "Enter your name and choose a password. Use at least 8 characters.",
       "missingToken": "Missing or invalid activation link. Ask an administrator to re-invite you.",
+      "nameLabel": "Your name",
+      "namePlaceholder": "First and last name",
+      "nameRequired": "Please enter your name.",
       "newPasswordLabel": "New password",
       "passwordMinLength": "Use at least 8 characters.",
       "submit": "Set password",
+      "inviteSubmit": "Activate account",
       "submitting": "Saving…",
       "errors": {
         "invalidLink": "This link is invalid or has expired. Ask an administrator to re-invite you."

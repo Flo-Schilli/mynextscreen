@@ -249,8 +249,9 @@ export class UserService {
    * the account email-verified: an invitee activating via the set-password link
    * has, by definition, proven control of their inbox (the link was emailed to
    * them), so they must not be blocked by the unverified-login gate afterwards.
+   * `name` is what an invitee entered while activating; without it the name stays.
    */
-  async setPassword(userId: string, passwordHash: string): Promise<void> {
+  async setPassword(userId: string, passwordHash: string, name?: string): Promise<void> {
     await this.db
       .update(users)
       .set({
@@ -258,6 +259,7 @@ export class UserService {
         emailVerified: true,
         passwordResetToken: null,
         passwordResetTokenExpiresAt: null,
+        ...(name ? { name } : {}),
       })
       .where(eq(users.id, userId));
   }

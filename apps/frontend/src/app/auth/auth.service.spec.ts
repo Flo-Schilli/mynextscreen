@@ -92,6 +92,19 @@ describe('AuthService', () => {
     await promise;
   });
 
+  it("setPassword sends an invitee's name along", async () => {
+    const { service, httpMock } = setup();
+    const promise = service.setPassword('tok', 'newpassword', 'Jane Doe');
+    const req = httpMock.expectOne('/api/auth/set-password');
+    expect(req.request.body).toEqual({
+      token: 'tok',
+      newPassword: 'newpassword',
+      name: 'Jane Doe',
+    });
+    req.flush(null);
+    await promise;
+  });
+
   it('changePassword posts current and new password', async () => {
     const { service, httpMock } = setup();
     const promise = service.changePassword('old', 'newpassword');

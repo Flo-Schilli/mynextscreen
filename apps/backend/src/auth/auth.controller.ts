@@ -236,7 +236,7 @@ export class AuthController {
   @Post('set-password')
   @HttpCode(HttpStatus.NO_CONTENT)
   async setPassword(@Body() dto: SetPasswordDto): Promise<void> {
-    await this.auth.setPassword(dto.token, dto.newPassword);
+    await this.auth.setPassword(dto.token, dto.newPassword, dto.name);
   }
 
   @Public()

@@ -60,14 +60,14 @@ describe('PlatformMailerService', () => {
     expect(sent.text).toContain('https://app.example.com/verify-email?t=tok%20123');
   });
 
-  it('sends an invite with a /set-password link', async () => {
+  it('sends an invite with a /set-password link that asks for a name', async () => {
     const service = makeService();
 
     await service.handleUserInvited(new AuthUserInvitedEvent('invitee@example.com', 'invtok'));
 
     const sent = mockSendMail.mock.calls[0][0];
     expect(sent.to).toBe('invitee@example.com');
-    expect(sent.text).toContain('https://app.example.com/set-password?t=invtok');
+    expect(sent.text).toContain('https://app.example.com/set-password?t=invtok&invite=1');
   });
 
   it('sends a password reset with a /set-password link', async () => {
@@ -79,6 +79,7 @@ describe('PlatformMailerService', () => {
 
     const sent = mockSendMail.mock.calls[0][0];
     expect(sent.text).toContain('https://app.example.com/set-password?t=resettok');
+    expect(sent.text).not.toContain('invite=1');
   });
 
   it('on email change: confirms the NEW address and notifies the OLD address', async () => {

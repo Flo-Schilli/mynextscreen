@@ -81,7 +81,8 @@ export class PlatformMailerService {
   }
 
   async sendInvite(to: string, token: string): Promise<void> {
-    const url = this.buildUrl('/set-password', token);
+    // `invite=1` makes the page ask for the invitee's name as well.
+    const url = `${this.buildUrl('/set-password', token)}&invite=1`;
     await this.send(
       to,
       'You have been invited to myNextScreen',

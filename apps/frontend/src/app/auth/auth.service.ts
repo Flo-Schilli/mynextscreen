@@ -78,11 +78,12 @@ export class AuthService {
     );
   }
 
-  async setPassword(token: string, newPassword: string): Promise<void> {
+  /** `name` only on an invitation link; a password reset leaves the name alone. */
+  async setPassword(token: string, newPassword: string, name?: string): Promise<void> {
     await firstValueFrom(
       this.http.post<void>(
         '/api/auth/set-password',
-        { token, newPassword },
+        { token, newPassword, name },
         { withCredentials: true },
       ),
     );

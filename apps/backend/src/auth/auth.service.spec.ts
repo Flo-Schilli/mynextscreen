@@ -537,7 +537,21 @@ describe('AuthService', () => {
       passwords.hash.mockResolvedValue('new-hash');
 
       await service.setPassword('tok', 'newpassword');
-      expect(users.setPassword).toHaveBeenCalledWith('user-1', 'new-hash');
+      expect(users.setPassword).toHaveBeenCalledWith('user-1', 'new-hash', undefined);
+    });
+
+    it("stores the invitee's name together with the password", async () => {
+      users.findByPasswordResetToken.mockResolvedValue(
+        makeUser({
+          passwordResetToken: 'tok',
+          passwordResetTokenExpiresAt: new Date(Date.now() + 60_000),
+        }),
+      );
+      passwords.hash.mockResolvedValue('new-hash');
+
+      await service.setPassword('tok', 'newpassword', 'Jane Doe');
+
+      expect(users.setPassword).toHaveBeenCalledWith('user-1', 'new-hash', 'Jane Doe');
     });
 
     it('revokes every existing session (a reset must log out a thief)', async () => {
