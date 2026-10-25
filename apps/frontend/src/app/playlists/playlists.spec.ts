@@ -1,4 +1,5 @@
 import { TestBed, ComponentFixture } from '@angular/core/testing';
+import type { MockInstance } from 'vitest';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -13,8 +14,7 @@ import {
   organisationStateStub,
   orgWithRole,
 } from '../shell/organisation-state.testing';
-import { OrganisationService } from '../admin/organisations/organisation.service';
-import { Organisation } from '../admin/organisations/organisation.model';
+import { PlaylistService } from './playlist.service';
 import { ContentService } from '../content/content.service';
 import { Content } from '../content/content.model';
 import { ScreenService } from '../screens/screen.service';
@@ -92,9 +92,6 @@ function buildScreen(overrides: Partial<Screen> = {}): Screen {
   };
 }
 
-interface OrgStub {
-  getOne: ReturnType<typeof vi.fn>;
-}
 interface ContentStub {
   getAll: ReturnType<typeof vi.fn>;
   getTranscodedUrl: ReturnType<typeof vi.fn>;
@@ -136,7 +133,7 @@ describe('Playlists', () => {
   let component: Playlists;
   let httpMock: HttpTestingController;
   let orgState: OrganisationStateStub;
-  let orgStub: OrgStub;
+  let getDefault: MockInstance<PlaylistService['getDefault']>;
   let contentStub: ContentStub;
   let screenStub: ScreenStub;
   let sourceStub: SourceStub;
@@ -150,7 +147,6 @@ describe('Playlists', () => {
 
   beforeEach(async () => {
     orgState = organisationStateStub(orgWithRole(ORG_ID, 'org_admin'));
-    orgStub = { getOne: vi.fn(() => of({ defaultPlaylistId: null } as Organisation)) };
     contentStub = {
       getAll: vi.fn(() => of([])),
       getTranscodedUrl: vi.fn((id: string) => `/media/${id}`),
@@ -175,7 +171,6 @@ describe('Playlists', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: OrganisationStateService, useValue: orgState },
-        { provide: OrganisationService, useValue: orgStub },
         { provide: ContentService, useValue: contentStub },
         { provide: ScreenService, useValue: screenStub },
         { provide: ContentSourceService, useValue: sourceStub },
@@ -189,6 +184,9 @@ describe('Playlists', () => {
     router = TestBed.inject(Router);
     toastService = TestBed.inject(ToastService);
     vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    getDefault = vi
+      .spyOn(TestBed.inject(PlaylistService), 'getDefault')
+      .mockReturnValue(of({ playlistId: null }));
   });
 
   afterEach(() => {
@@ -236,15 +234,24 @@ describe('Playlists', () => {
       httpMock.expectNone('/api/playlists');
     });
 
-    it('captures the default playlist id from the organisation', () => {
-      orgStub.getOne.mockReturnValue(of({ defaultPlaylistId: 'p9' } as Organisation));
+    it('captures the default playlist id of the selected organisation', () => {
+      getDefault.mockReturnValue(of({ playlistId: 'p9' }));
+      init();
+
+      expect(getDefault).toHaveBeenCalledWith(ORG_ID);
+      expect(component.defaultPlaylistId).toBe('p9');
+    });
+
+    it('reads the default playlist for a viewer too', () => {
+      orgState.selectedOrg.set(orgWithRole(ORG_ID, 'viewer'));
+      getDefault.mockReturnValue(of({ playlistId: 'p9' }));
       init();
 
       expect(component.defaultPlaylistId).toBe('p9');
     });
 
-    it('leaves the default playlist id null when org lookup is forbidden', () => {
-      orgStub.getOne.mockReturnValue(throwError(() => ({ status: 403 })));
+    it('leaves the default playlist id null when the lookup fails', () => {
+      getDefault.mockReturnValue(throwError(() => ({ status: 500 })));
       init();
 
       expect(component.defaultPlaylistId).toBeNull();

@@ -308,6 +308,23 @@ describe('PlaylistService', () => {
     });
   });
 
+  describe('getDefault', () => {
+    it('should GET /api/organisations/:orgId/default-playlist', () => {
+      // Arrange
+      let result: unknown;
+
+      // Act
+      service.getDefault(ORG_ID).subscribe((r) => (result = r));
+
+      // Assert
+      const req = httpMock.expectOne(`/api/organisations/${ORG_ID}/default-playlist`);
+      expect(req.request.method).toBe('GET');
+      expect(req.request.headers.get('X-Organisation-Id')).toBe(ORG_ID);
+      req.flush({ playlistId: 'p1' });
+      expect(result).toEqual({ playlistId: 'p1' });
+    });
+  });
+
   describe('setAsDefault', () => {
     it('should PATCH /api/organisations/:orgId/default-playlist with the playlistId body', () => {
       // Arrange

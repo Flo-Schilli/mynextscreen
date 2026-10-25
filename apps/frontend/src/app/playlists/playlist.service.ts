@@ -15,6 +15,7 @@ import {
   UpdateAllPlaylistItemsResponse,
   PlaylistRule,
   RulePreviewResult,
+  DefaultPlaylist,
 } from './playlist.model';
 
 @Injectable({ providedIn: 'root' })
@@ -134,6 +135,12 @@ export class PlaylistService {
         headers: this.orgHeader(orgId),
       },
     );
+  }
+
+  getDefault(orgId: string): Observable<DefaultPlaylist> {
+    return this.http.get<DefaultPlaylist>(`/api/organisations/${orgId}/default-playlist`, {
+      headers: this.orgHeader(orgId),
+    });
   }
 
   setAsDefault(orgId: string, playlistId: string | null): Observable<unknown> {

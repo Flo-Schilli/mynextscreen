@@ -29,7 +29,6 @@ import { apiErrorMessage } from '../sources/source-form-state';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
 import { OrganisationStateService } from '../shell/organisation-state.service';
-import { OrganisationService } from '../admin/organisations/organisation.service';
 import { SelectionService } from '../shared/selection/selection.service';
 import { BulkAction } from '../shared/selection/bulk-action-toolbar';
 import { BulkConfirmDialogComponent } from '../shared/selection/bulk-confirm-dialog';
@@ -258,7 +257,6 @@ export class Playlists implements OnInit {
   private contentSourceService = inject(ContentSourceService);
   private screenService = inject(ScreenService);
   private orgState = inject(OrganisationStateService);
-  private organisationService = inject(OrganisationService);
   readonly selectionService = inject(SelectionService);
   private toast = inject(ToastService);
   private transloco = inject(TranslocoService);
@@ -433,12 +431,12 @@ export class Playlists implements OnInit {
   }
 
   private loadDefaultPlaylist(): void {
-    this.organisationService.getOne(this.orgId).subscribe({
-      next: (org) => {
-        this.defaultPlaylistId = org.defaultPlaylistId;
+    this.playlistService.getDefault(this.orgId).subscribe({
+      next: ({ playlistId }) => {
+        this.defaultPlaylistId = playlistId;
       },
       error: () => {
-        // Non-superadmin users can't access org details — default badge won't show
+        // Without it the page still works; only the default badge and toggle state are missing.
       },
     });
   }

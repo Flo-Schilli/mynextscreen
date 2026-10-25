@@ -19,6 +19,11 @@ export interface Playlist {
   updatedAt: string;
 }
 
+/** The organisation's default playlist, as every member may read it. */
+export interface DefaultPlaylist {
+  playlistId: string | null;
+}
+
 export function isDynamicPlaylist(playlist: Pick<Playlist, 'kind'>): boolean {
   return playlist.kind === 'dynamic';
 }
