@@ -7,6 +7,7 @@ import { ContentController } from './content.controller';
 import { ContentService } from './content.service';
 import { ConfigService } from '@nestjs/config';
 import type { Content } from '../db/schema';
+import type { AuthenticatedRequest } from '../auth';
 import { ContentType } from './content-type.enum';
 
 describe('ContentController — CRUD endpoints', () => {
@@ -15,6 +16,8 @@ describe('ContentController — CRUD endpoints', () => {
 
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
   const contentId = '770e8400-e29b-41d4-a716-446655440001';
+  const userId = '880e8400-e29b-41d4-a716-446655440002';
+  const req = { user: { userId } } as unknown as AuthenticatedRequest;
 
   const mockContent: Partial<Content> = {
     id: contentId,
@@ -60,9 +63,9 @@ describe('ContentController — CRUD endpoints', () => {
       const dto = { title: 'Test Video' };
       service.upload.mockResolvedValue(mockContent);
 
-      const result = await controller.upload(orgId, file, dto);
+      const result = await controller.upload(orgId, file, dto, req);
 
-      expect(service.upload).toHaveBeenCalledWith(orgId, file, dto);
+      expect(service.upload).toHaveBeenCalledWith(orgId, file, dto, userId);
       expect(result).toEqual(mockContent);
     });
   });
@@ -145,9 +148,9 @@ describe('ContentController — CRUD endpoints', () => {
     it('should call service.delete with organisationId and id', async () => {
       service.delete.mockResolvedValue(undefined);
 
-      await controller.delete(orgId, contentId);
+      await controller.delete(orgId, contentId, req);
 
-      expect(service.delete).toHaveBeenCalledWith(orgId, contentId);
+      expect(service.delete).toHaveBeenCalledWith(orgId, contentId, userId);
     });
   });
 
@@ -156,9 +159,9 @@ describe('ContentController — CRUD endpoints', () => {
       const file = { originalname: 'new.mp4', size: 2048 } as Express.Multer.File;
       service.reUpload.mockResolvedValue(mockContent);
 
-      const result = await controller.reUpload(orgId, contentId, file);
+      const result = await controller.reUpload(orgId, contentId, file, req);
 
-      expect(service.reUpload).toHaveBeenCalledWith(orgId, contentId, file);
+      expect(service.reUpload).toHaveBeenCalledWith(orgId, contentId, file, userId);
       expect(result).toEqual(mockContent);
     });
   });

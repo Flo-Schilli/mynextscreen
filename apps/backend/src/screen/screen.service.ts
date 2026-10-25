@@ -122,7 +122,7 @@ export class ScreenService extends OrganisationScopedService<Screen> {
 
     this.eventEmitter.emit(
       AUDIT_SCREEN_REGISTERED,
-      new AuditScreenEvent(screen.id, organisationId, null, {
+      new AuditScreenEvent(screen.id, organisationId, userId, {
         name: dto.name,
       }),
     );
@@ -135,11 +135,19 @@ export class ScreenService extends OrganisationScopedService<Screen> {
    * (show/hide unmute & disconnect). Pushes a settings refresh to the live
    * screen so a connected player re-fetches its state immediately.
    */
-  async updateScreen(organisationId: string, id: string, dto: UpdateScreenDto): Promise<Screen> {
+  async updateScreen(
+    organisationId: string,
+    id: string,
+    dto: UpdateScreenDto,
+    userId: string | null = null,
+  ): Promise<Screen> {
     const screen = await this.update(organisationId, id, dto);
     this.eventEmitter.emit(
       AUDIT_SCREEN_UPDATED,
-      new AuditScreenEvent(id, organisationId, null, null),
+      new AuditScreenEvent(id, organisationId, userId, {
+        name: screen.name,
+        fields: Object.keys(dto).filter((key) => dto[key as keyof UpdateScreenDto] !== undefined),
+      }),
     );
     this.eventEmitter.emit(SCREEN_SETTINGS_CHANGED, new ScreenStateChangeEvent(id, organisationId));
     return screen;
@@ -211,7 +219,7 @@ export class ScreenService extends OrganisationScopedService<Screen> {
 
     this.eventEmitter.emit(
       AUDIT_SCREEN_KEY_REGENERATED,
-      new AuditScreenEvent(id, organisationId, null, null),
+      new AuditScreenEvent(id, organisationId, userId, null),
     );
 
     return saved;

@@ -102,9 +102,10 @@ describe('OrganisationController', () => {
       const updated = { ...mockOrganisation, name: 'Updated Org' };
       service.update.mockResolvedValue(updated);
 
-      const result = await controller.update(mockOrganisation.id, dto);
+      const mockReq = { user: { userId: 'user-1' } } as unknown as AuthenticatedRequest;
+      const result = await controller.update(mockOrganisation.id, dto, mockReq);
 
-      expect(service.update).toHaveBeenCalledWith(mockOrganisation.id, dto);
+      expect(service.update).toHaveBeenCalledWith(mockOrganisation.id, dto, 'user-1');
       expect(result).toEqual(updated);
     });
   });

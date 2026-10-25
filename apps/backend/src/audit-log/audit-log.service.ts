@@ -4,6 +4,7 @@ import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { auditEntries, type AuditEntry, type NewAuditEntry } from '../db/schema';
 import { AuditAction } from './audit-action.enum';
+import { AuditNameResolver, type AuditNames } from './audit-name-resolver.service';
 
 export interface AuditLogFilters {
   action?: AuditAction;
@@ -16,9 +17,19 @@ export interface AuditLogFilters {
   offset?: number;
 }
 
+/** One page of the audit log, with display names for the ids its entries mention. */
+export interface AuditLogPage {
+  data: AuditEntry[];
+  total: number;
+  names: AuditNames;
+}
+
 @Injectable()
 export class AuditLogService {
-  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
+  constructor(
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
+    private readonly names: AuditNameResolver,
+  ) {}
 
   async record(entry: Omit<NewAuditEntry, 'id' | 'timestamp'>): Promise<AuditEntry> {
     const [saved] = await this.db.insert(auditEntries).values(entry).returning();
@@ -28,14 +39,16 @@ export class AuditLogService {
   async findByOrganisation(
     organisationId: string,
     filters: AuditLogFilters = {},
-  ): Promise<{ data: AuditEntry[]; total: number }> {
+  ): Promise<AuditLogPage> {
     const where = this.buildWhere({ ...filters, organisationId });
-    return this.query(where, filters);
+    const page = await this.query(where, filters);
+    return { ...page, names: await this.names.resolve(page.data, organisationId) };
   }
 
-  async findAll(filters: AuditLogFilters = {}): Promise<{ data: AuditEntry[]; total: number }> {
+  async findAll(filters: AuditLogFilters = {}): Promise<AuditLogPage> {
     const where = this.buildWhere(filters);
-    return this.query(where, filters);
+    const page = await this.query(where, filters);
+    return { ...page, names: await this.names.resolve(page.data) };
   }
 
   private async query(

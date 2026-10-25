@@ -77,9 +77,9 @@ describe('PlaylistController', () => {
       const dto = { name: 'My Playlist' };
       service.create.mockResolvedValue(mockPlaylist);
 
-      const result = await controller.create(orgId, dto);
+      const result = await controller.create(orgId, dto, mockReq);
 
-      expect(service.create).toHaveBeenCalledWith(orgId, dto);
+      expect(service.create).toHaveBeenCalledWith(orgId, dto, userId);
       expect(result).toEqual(mockPlaylist);
     });
   });
@@ -94,9 +94,9 @@ describe('PlaylistController', () => {
       const dto = { name: 'Metal', kind: PlaylistKind.Dynamic, rule };
       ruleService.createDynamic.mockResolvedValue(mockPlaylist);
 
-      const result = await controller.create(orgId, dto);
+      const result = await controller.create(orgId, dto, mockReq);
 
-      expect(ruleService.createDynamic).toHaveBeenCalledWith(orgId, dto);
+      expect(ruleService.createDynamic).toHaveBeenCalledWith(orgId, dto, userId);
       expect(service.create).not.toHaveBeenCalled();
       expect(result).toEqual(mockPlaylist);
     });
@@ -157,9 +157,9 @@ describe('PlaylistController', () => {
       const updated = { ...mockPlaylist, name: 'Updated Name' };
       service.update.mockResolvedValue(updated);
 
-      const result = await controller.update(orgId, playlistId, dto);
+      const result = await controller.update(orgId, playlistId, dto, mockReq);
 
-      expect(service.update).toHaveBeenCalledWith(playlistId, orgId, dto);
+      expect(service.update).toHaveBeenCalledWith(playlistId, orgId, dto, userId);
       expect(result).toEqual(updated);
     });
   });
@@ -168,9 +168,9 @@ describe('PlaylistController', () => {
     it('should call service.delete with organisationId and id', async () => {
       service.delete.mockResolvedValue(undefined);
 
-      await controller.delete(orgId, playlistId);
+      await controller.delete(orgId, playlistId, mockReq);
 
-      expect(service.delete).toHaveBeenCalledWith(playlistId, orgId);
+      expect(service.delete).toHaveBeenCalledWith(playlistId, orgId, userId);
     });
   });
 

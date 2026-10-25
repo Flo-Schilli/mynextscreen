@@ -1,9 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { and, eq } from 'drizzle-orm';
 import { AuditLogService } from './audit-log.service';
+import { AuditNameResolver } from './audit-name-resolver.service';
 import { AuditAction } from './audit-action.enum';
 import { DRIZZLE } from '../db/database.constants';
-import { auditEntries, organisations, type AuditEntry, type Organisation } from '../db/schema';
+import {
+  auditEntries,
+  organisations,
+  users,
+  type AuditEntry,
+  type Organisation,
+} from '../db/schema';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 
@@ -25,7 +32,7 @@ describe('AuditLogService', () => {
   beforeEach(async () => {
     await truncateAll();
     const module: TestingModule = await Test.createTestingModule({
-      providers: [AuditLogService, { provide: DRIZZLE, useValue: db }],
+      providers: [AuditLogService, AuditNameResolver, { provide: DRIZZLE, useValue: db }],
     }).compile();
     service = module.get<AuditLogService>(AuditLogService);
   });
@@ -101,6 +108,40 @@ describe('AuditLogService', () => {
   });
 
   describe('findByOrganisation', () => {
+    it('names the actor and the organisation of the page', async () => {
+      const org = await seedOrg({ name: 'Venue' });
+      const [actor] = await db
+        .insert(users)
+        .values({ email: 'jane@example.com', name: 'Jane Doe' })
+        .returning();
+      await seedEntry({
+        organisationId: org.id,
+        userId: actor.id,
+        action: AuditAction.OrganisationUpdated,
+        resourceType: 'organisation',
+        resourceId: org.id,
+      });
+
+      const result = await service.findByOrganisation(org.id);
+
+      expect(result.names).toEqual({ [actor.id]: 'Jane Doe', [org.id]: 'Venue' });
+    });
+
+    it('does not name records of another organisation', async () => {
+      const org = await seedOrg();
+      const other = await seedOrg({ name: 'Other' });
+      await seedEntry({
+        organisationId: org.id,
+        action: AuditAction.OrganisationUpdated,
+        resourceType: 'organisation',
+        resourceId: other.id,
+      });
+
+      const result = await service.findByOrganisation(org.id);
+
+      expect(result.names).toEqual({});
+    });
+
     it('returns entries scoped to an organisation', async () => {
       const org = await seedOrg();
       const other = await seedOrg();

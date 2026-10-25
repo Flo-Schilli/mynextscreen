@@ -121,9 +121,9 @@ describe('ScreenController', () => {
       const updated = { ...mockScreen, name: 'Updated' };
       service.updateScreen.mockResolvedValue(updated);
 
-      const result = await controller.update(orgId, screenId, dto);
+      const result = await controller.update(orgId, screenId, dto, userReq);
 
-      expect(service.updateScreen).toHaveBeenCalledWith(orgId, screenId, dto);
+      expect(service.updateScreen).toHaveBeenCalledWith(orgId, screenId, dto, userId);
       expect(result.name).toBe('Updated');
     });
   });

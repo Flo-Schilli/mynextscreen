@@ -182,6 +182,18 @@ describe('ContentService', () => {
       expect(row.type).toBe(ContentType.Video);
     });
 
+    it('records who uploaded the file', async () => {
+      const org = await seedOrg();
+      const actor = '880e8400-e29b-41d4-a716-446655440000';
+
+      const result = await service.upload(org.id, createMockFile(), { title: 'Test' }, actor);
+
+      expect(emit).toHaveBeenCalledWith(
+        AUDIT_CONTENT_UPLOADED,
+        expect.objectContaining({ contentId: result.id, userId: actor }),
+      );
+    });
+
     it('should update org storage counter on upload', async () => {
       const org = await seedOrg();
       const file = createMockFile({ size: 5000 });

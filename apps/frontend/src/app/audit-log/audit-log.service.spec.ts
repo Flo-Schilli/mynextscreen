@@ -28,6 +28,7 @@ const RESPONSE: AuditLogResponse = {
     },
   ],
   total: 1,
+  names: { u1: 'Jane Doe' },
 };
 
 describe('AuditLogService', () => {

@@ -108,15 +108,20 @@ export class PlaylistRuleService {
   ) {}
 
   /** Creates a dynamic playlist and fills it right away. */
-  async createDynamic(organisationId: string, dto: CreatePlaylistDto): Promise<Playlist> {
+  async createDynamic(
+    organisationId: string,
+    dto: CreatePlaylistDto,
+    actorUserId: string | null = null,
+  ): Promise<Playlist> {
     if (!dto.rule) {
       throw new BadRequestException('A dynamic playlist needs a rule');
     }
     await this.assertRuleSources(organisationId, toPlaylistRule(dto.rule));
-    const saved = await this.playlistService.create(organisationId, {
-      ...dto,
-      kind: PlaylistKind.Dynamic,
-    });
+    const saved = await this.playlistService.create(
+      organisationId,
+      { ...dto, kind: PlaylistKind.Dynamic },
+      actorUserId,
+    );
     await this.resolveOrDefer(saved.id);
     return this.playlistService.findOne(saved.id, organisationId);
   }

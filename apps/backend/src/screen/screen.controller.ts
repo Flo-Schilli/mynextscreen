@@ -148,8 +148,9 @@ export class ScreenController {
     @CurrentOrganisation() organisationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateScreenDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<Screen> {
-    return this.screenService.updateScreen(organisationId, id, dto);
+    return this.screenService.updateScreen(organisationId, id, dto, req.user.userId);
   }
 
   @Post('bulk-delete')

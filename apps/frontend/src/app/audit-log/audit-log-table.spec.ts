@@ -47,12 +47,14 @@ describe('AuditLogTable', () => {
     loading?: boolean;
     hasMore?: boolean;
     userMap?: Map<string, string>;
+    names?: Record<string, string>;
   }): void {
     fixture.componentRef.setInput('entries', args.entries);
     fixture.componentRef.setInput('total', args.total ?? args.entries.length);
     fixture.componentRef.setInput('loading', args.loading ?? false);
     fixture.componentRef.setInput('hasMore', args.hasMore ?? false);
     fixture.componentRef.setInput('userMap', args.userMap ?? new Map<string, string>());
+    fixture.componentRef.setInput('names', args.names ?? {});
     fixture.detectChanges();
   }
 
@@ -114,13 +116,13 @@ describe('AuditLogTable', () => {
       expect(cell).not.toBeNull();
     });
 
-    it('shows the resource type cell verbatim', () => {
+    it('shows a resource type it has no label for verbatim', () => {
       // Arrange / Act
-      setInputs({ entries: [makeEntry({ resourceType: 'playlist' })] });
+      setInputs({ entries: [makeEntry({ resourceType: 'brand_new_type' })] });
 
       // Assert
       const cell = fixture.debugElement.query(By.css('.resource-type-cell'));
-      expect(cell.nativeElement.textContent.trim()).toBe('playlist');
+      expect(cell.nativeElement.textContent.trim()).toBe('brand_new_type');
     });
   });
 
@@ -137,13 +139,24 @@ describe('AuditLogTable', () => {
       expect(row.nativeElement.textContent).toContain('Alice');
     });
 
-    it('shows a truncated id when the user is not in the map', () => {
+    it('shows the name the audit API resolved, also for users outside the member list', () => {
+      // Arrange / Act
+      setInputs({
+        entries: [makeEntry({ userId: 'abcdef1234567890' })],
+        names: { abcdef1234567890: 'Jane Doe' },
+      });
+
+      // Assert
+      expect(entryRows()[0].nativeElement.textContent).toContain('Jane Doe');
+    });
+
+    it('marks a user it cannot name as deleted', () => {
       // Arrange / Act
       setInputs({ entries: [makeEntry({ userId: 'abcdef1234567890' })] });
 
       // Assert
       const row = entryRows()[0];
-      expect(row.nativeElement.textContent).toContain('abcdef12...');
+      expect(row.nativeElement.textContent).toContain('abcdef12 (deleted)');
     });
 
     it('shows "System" when the entry has no user', () => {
@@ -180,7 +193,30 @@ describe('AuditLogTable', () => {
       ).toBe('My Playlist');
     });
 
-    it('shows a truncated resourceId when no nameable detail exists', () => {
+    it("shows the resource's current name over the one stored with the entry", () => {
+      // Arrange / Act
+      setInputs({
+        entries: [makeEntry({ resourceId: 'abcdef1234567890', details: { name: 'Old name' } })],
+        names: { abcdef1234567890: 'Lobby' },
+      });
+
+      // Assert
+      expect(
+        fixture.debugElement.query(By.css('.resource-link')).nativeElement.textContent.trim(),
+      ).toBe('Lobby');
+    });
+
+    it('shows the resource type in words', () => {
+      // Arrange / Act
+      setInputs({ entries: [makeEntry({ resourceType: 'event_schedule_rule' })] });
+
+      // Assert
+      expect(
+        fixture.debugElement.query(By.css('.resource-type-cell')).nativeElement.textContent.trim(),
+      ).toBe('Scheduling rule');
+    });
+
+    it('marks a resource without any name as deleted', () => {
       // Arrange / Act
       setInputs({
         entries: [makeEntry({ resourceId: 'abcdef1234567890', details: { count: 3 } })],
@@ -189,7 +225,7 @@ describe('AuditLogTable', () => {
       // Assert
       expect(
         fixture.debugElement.query(By.css('.resource-link')).nativeElement.textContent.trim(),
-      ).toBe('abcdef12...');
+      ).toBe('abcdef12 (deleted)');
     });
 
     it('renders a muted dash instead of a link when resourceId is null', () => {
@@ -219,25 +255,34 @@ describe('AuditLogTable', () => {
   });
 
   describe('details cell', () => {
-    it('formats remaining detail key/value pairs, excluding nameable keys', () => {
+    it('summarises the details with labels and names, leaving out the resource name', () => {
       // Arrange / Act
       setInputs({
-        entries: [makeEntry({ details: { name: 'clip.mp4', sizeBytes: 1024, format: 'mp4' } })],
+        entries: [
+          makeEntry({
+            details: {
+              name: 'clip.mp4',
+              screenId: '7277e822-0381-4a8a-85da-d1e81eb53e64',
+              groupId: null,
+              format: 'mp4',
+            },
+          }),
+        ],
+        names: { '7277e822-0381-4a8a-85da-d1e81eb53e64': 'Foyer Left' },
       });
 
       // Assert
       const text = fixture.debugElement.query(By.css('.details-text'));
-      expect(text.nativeElement.textContent.trim()).toBe('sizeBytes: 1024, format: mp4');
+      expect(text.nativeElement.textContent.trim()).toBe('Screen: Foyer Left · Format: mp4');
     });
 
-    it('exposes the full details JSON as the tooltip title', () => {
+    it('lists every detail line by line as the tooltip title', () => {
       // Arrange / Act
-      const details = { name: 'clip.mp4', sizeBytes: 1024 };
-      setInputs({ entries: [makeEntry({ details })] });
+      setInputs({ entries: [makeEntry({ details: { name: 'clip.mp4', sizeBytes: 1024 } })] });
 
       // Assert
       const text = fixture.debugElement.query(By.css('.details-text'));
-      expect(text.attributes['title']).toBe(JSON.stringify(details, null, 2));
+      expect(text.attributes['title']).toBe('Name: clip.mp4\nSize (bytes): 1024');
     });
 
     it('renders a muted dash when details are null', () => {

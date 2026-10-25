@@ -39,7 +39,7 @@ export class OrganisationService {
     const [saved] = await this.db.insert(organisations).values(dto).returning();
     this.eventEmitter.emit(
       AUDIT_ORGANISATION_CREATED,
-      new AuditOrganisationEvent(saved.id, null, { name: dto.name }),
+      new AuditOrganisationEvent(saved.id, creator?.userId ?? null, { name: dto.name }),
     );
 
     // Auto-add the creator as OrgAdmin
@@ -147,14 +147,26 @@ export class OrganisationService {
     this.logger.log(`Organisation deleted orgId=${orgId} removedMembers=${memberUserIds.length}`);
   }
 
-  async update(id: string, dto: UpdateOrganisationDto): Promise<Organisation> {
+  async update(
+    id: string,
+    dto: UpdateOrganisationDto,
+    actorUserId: string | null = null,
+  ): Promise<Organisation> {
     await this.findOne(id);
     const [saved] = await this.db
       .update(organisations)
       .set(dto)
       .where(eq(organisations.id, id))
       .returning();
-    this.eventEmitter.emit(AUDIT_ORGANISATION_UPDATED, new AuditOrganisationEvent(id, null, null));
+    this.eventEmitter.emit(
+      AUDIT_ORGANISATION_UPDATED,
+      new AuditOrganisationEvent(id, actorUserId, {
+        name: saved.name,
+        fields: Object.keys(dto).filter(
+          (key) => dto[key as keyof UpdateOrganisationDto] !== undefined,
+        ),
+      }),
+    );
     return saved;
   }
 

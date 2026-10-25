@@ -27,6 +27,17 @@ import {
   IconComponent,
   PageHeaderComponent,
 } from '../ui';
+import { detailItems, detailLabel, goneId, resourceName } from './audit-log-details';
+
+/**
+ * One quoted CSV cell. Names are user input, and a spreadsheet runs a cell that
+ * starts with = + - @ as a formula, so such a cell gets a leading apostrophe.
+ */
+function csvCell(value: unknown): string {
+  const text = String(value);
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
 
 /**
  * Smart container for the audit-log feature. Owns the org-admin gate, data
@@ -138,6 +149,7 @@ import {
             [loading]="loading()"
             [hasMore]="hasMore()"
             [userMap]="userMap()"
+            [names]="names()"
             (loadMore)="loadMore()"
             (selectResource)="navigateToResource($event.resourceType, $event.resourceId)"
           />
@@ -183,6 +195,8 @@ export class AuditLog implements OnInit {
 
   readonly members = signal<Membership[]>([]);
   readonly userMap = signal<Map<string, string>>(new Map());
+  /** Names the audit API resolved for the ids on the loaded pages. */
+  readonly names = signal<Record<string, string>>({});
 
   // Filter state — mutated only via template two-way bindings, which mark the
   // component dirty on their own, so plain fields are fine here.
@@ -255,6 +269,7 @@ export class AuditLog implements OnInit {
     this.auditLogService.getAuditLog(org.id, this.buildFilters(0)).subscribe({
       next: (response) => {
         this.entries.set(response.data);
+        this.names.set(response.names);
         this.total.set(response.total);
         this.loading.set(false);
       },
@@ -278,6 +293,7 @@ export class AuditLog implements OnInit {
     this.auditLogService.getAuditLog(org.id, this.buildFilters(this.entries().length)).subscribe({
       next: (response) => {
         this.entries.update((cur) => [...cur, ...response.data]);
+        this.names.update((cur) => ({ ...cur, ...response.names }));
         this.total.set(response.total);
         this.loading.set(false);
       },
@@ -300,29 +316,41 @@ export class AuditLog implements OnInit {
 
   exportCsv(): void {
     if (this.entries().length === 0) return;
+    // Readable columns for people, the ids and raw details for machines.
     const headers = [
       'id',
       'timestamp',
+      'user',
       'userId',
       'organisationId',
       'action',
       'resourceType',
+      'resource',
       'resourceId',
       'details',
+      'detailsRaw',
     ];
+    const names = this.names();
+    const gone = this.transloco.translate('auditLog.table.deleted');
+    const translate = (path: string): string => this.transloco.translate(path);
     const rows = this.entries().map((e) => [
       e.id,
       e.timestamp,
+      e.userId
+        ? (names[e.userId] ?? this.userMap().get(e.userId) ?? goneId(e.userId, gone))
+        : this.transloco.translate('auditLog.table.system'),
       e.userId ?? '',
       e.organisationId ?? '',
       e.action,
       e.resourceType,
+      resourceName(e, names, gone) ?? '',
       e.resourceId ?? '',
+      detailItems(e.details, names, gone)
+        .map((item) => `${detailLabel(translate, item.key)}: ${item.value}`)
+        .join('; '),
       e.details ? JSON.stringify(e.details) : '',
     ]);
-    const csv = [headers, ...rows]
-      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
+    const csv = [headers, ...rows].map((r) => r.map(csvCell).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
