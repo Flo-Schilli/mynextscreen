@@ -96,10 +96,12 @@ export class AuthService {
 
   /** Self-signup: create an account + organisation. Backend emails a verify link. */
   async register(email: string, password: string, organisationName: string): Promise<void> {
+    // The new organisation's schedules run in this zone; without it the backend uses UTC.
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
     await firstValueFrom(
       this.http.post<void>(
         '/api/auth/register',
-        { email, password, organisationName },
+        { email, password, organisationName, timeZone },
         { withCredentials: true },
       ),
     );

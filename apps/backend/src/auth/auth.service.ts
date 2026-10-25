@@ -25,6 +25,7 @@ export interface RegisterInput {
   password: string;
   name?: string;
   organisationName: string;
+  timeZone?: string;
   storageOriginalLimitBytes: number;
   storageTranscodedLimitBytes: number;
 }
@@ -114,6 +115,7 @@ export class AuthService {
       passwordHash,
       name: input.name ?? null,
       organisationName: input.organisationName,
+      timeZone: input.timeZone,
       verificationToken,
       verificationTokenExpiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TOKEN_TTL_MS),
       storageOriginalLimitBytes: input.storageOriginalLimitBytes,

@@ -101,7 +101,10 @@ describe('AuthService', () => {
     await promise;
   });
 
-  it('register posts email, password and organisation name', async () => {
+  it("register posts email, password, organisation name and the browser's time zone", async () => {
+    vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({
+      timeZone: 'Europe/Berlin',
+    } as Intl.ResolvedDateTimeFormatOptions);
     const { service, httpMock } = setup();
     const promise = service.register('new@example.com', 'newpassword', 'Acme');
     const req = httpMock.expectOne('/api/auth/register');
@@ -111,9 +114,11 @@ describe('AuthService', () => {
       email: 'new@example.com',
       password: 'newpassword',
       organisationName: 'Acme',
+      timeZone: 'Europe/Berlin',
     });
     req.flush(null);
     await promise;
+    vi.restoreAllMocks();
   });
 
   it('verifyEmail posts the token and stores the auto-login user', async () => {

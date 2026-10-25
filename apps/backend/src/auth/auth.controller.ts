@@ -96,6 +96,7 @@ export class AuthController {
       password: dto.password,
       name: dto.name,
       organisationName: dto.organisationName,
+      timeZone: dto.timeZone,
       storageOriginalLimitBytes: this.config.get<number>(
         'SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES',
         DEFAULT_SIGNUP_STORAGE_BYTES,

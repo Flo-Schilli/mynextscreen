@@ -1,4 +1,4 @@
-import { addDays, localDate, zonedTimeToUtc } from './zoned-time.util';
+import { addDays, isValidTimeZone, localDate, zonedTimeToUtc } from './zoned-time.util';
 
 describe('zoned-time util', () => {
   describe('localDate', () => {
@@ -53,6 +53,16 @@ describe('zoned-time util', () => {
       expect(zonedTimeToUtc('2026-01-31', '23:59', 'UTC').toISOString()).toBe(
         '2026-01-31T23:59:00.000Z',
       );
+    });
+  });
+
+  describe('isValidTimeZone', () => {
+    it.each(['Europe/Berlin', 'America/New_York', 'UTC', 'Etc/GMT+1'])('accepts %s', (zone) => {
+      expect(isValidTimeZone(zone)).toBe(true);
+    });
+
+    it.each(['', 'Europe/Atlantis', 'Berlin', 'GMT+25', '../etc/passwd'])('rejects %p', (zone) => {
+      expect(isValidTimeZone(zone)).toBe(false);
     });
   });
 
