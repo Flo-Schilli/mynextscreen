@@ -72,7 +72,14 @@ const SIDEBAR_KEY = 'mynextscreen_sidebar_collapsed';
       <!-- Main content -->
       <main class="content">
         <div class="content-inner">
-          <router-outlet />
+          <!-- Pages read the selected organisation once, so render them only after it is
+               known, and keyed on it: a switch re-creates the page with nothing of the
+               previous organisation left. -->
+          @if (orgState.loaded()) {
+            @for (orgId of pageKey(); track orgId) {
+              <router-outlet />
+            }
+          }
         </div>
       </main>
     </div>
@@ -179,6 +186,9 @@ export class Layout implements OnInit {
     this.orgState.organisations().length > 0 ? this.navItems : [],
   );
 
+  /** One-element list that changes identity with the organisation (see template). */
+  readonly pageKey = computed(() => [this.orgState.selectedOrgId()]);
+
   private socketEffect = effect(() => {
     const orgId = this.orgState.selectedOrgId();
     if (orgId) {
@@ -231,8 +241,24 @@ export class Layout implements OnInit {
   }
 
   onSelectOrg(orgId: string): void {
-    this.orgState.select(orgId);
     this.showOrgSwitch.set(false);
+    if (orgId === this.orgState.selectedOrgId()) return;
+    const listRoute = this.listRouteOf(this.router.url);
+    if (!listRoute) {
+      this.orgState.select(orgId);
+      return;
+    }
+    // A detail page shows a record of the old organisation: leave it first, or the
+    // re-created page would look that record up in the new one.
+    void this.router.navigateByUrl(listRoute).then((navigated) => {
+      if (navigated) this.orgState.select(orgId);
+    });
+  }
+
+  /** The nav list route a detail URL such as `/screen-groups/:id` belongs to, else null. */
+  private listRouteOf(url: string): string | null {
+    const path = url.split(/[?#]/)[0];
+    return this.navItems.find((item) => path.startsWith(`${item.route}/`))?.route ?? null;
   }
 
   async logout(): Promise<void> {

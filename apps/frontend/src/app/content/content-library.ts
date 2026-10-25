@@ -23,8 +23,7 @@ import { ContentGrid } from './content-grid';
 import { ContentDetail, MetadataUpdate } from './content-detail';
 import { ContentTagModal } from './content-tag-modal';
 import { ContentPlaylistModal } from './content-playlist-modal';
-import { MemberService } from '../settings/users/member.service';
-import { MyMembership } from '../settings/users/member.model';
+import { OrganisationStateService } from '../shell/organisation-state.service';
 import { PlaylistService } from '../playlists/playlist.service';
 import { Playlist, isDynamicPlaylist } from '../playlists/playlist.model';
 import { SelectionService } from '../shared/selection/selection.service';
@@ -379,7 +378,7 @@ import {
 export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
   private contentService = inject(ContentService);
   private contentFilter = inject(ContentFilterService);
-  private memberService = inject(MemberService);
+  private orgState = inject(OrganisationStateService);
   private playlistService = inject(PlaylistService);
   private toast = inject(ToastService);
   private transloco = inject(TranslocoService);
@@ -497,29 +496,19 @@ export class ContentLibrary implements OnInit, AfterViewInit, OnDestroy {
     for (const unlisten of this.dragUnlisten) unlisten();
   }
 
+  /** The organisation selected in the shell; the shell re-creates this page on a switch. */
   private loadCurrentOrg(): void {
-    this.memberService.getMyMemberships().subscribe({
-      next: (memberships: MyMembership[]) => {
-        const membership =
-          memberships.find((m) => m.role === 'org_admin') ||
-          memberships.find((m) => m.role === 'editor') ||
-          memberships[0];
-        if (membership) {
-          this.orgId = membership.organisationId;
-          this.loadContent();
-          this.loadStorage();
-          this.subscribeToTranscoding();
-          this.watchRoute();
-        } else {
-          this.loadError = this.transloco.translate('common.errors.noOrgMembership');
-          this.loading = false;
-        }
-      },
-      error: () => {
-        this.loadError = this.transloco.translate('common.errors.loadOrgContext');
-        this.loading = false;
-      },
-    });
+    const org = this.orgState.selectedOrg();
+    if (!org) {
+      this.loadError = this.transloco.translate('common.errors.noOrgMembership');
+      this.loading = false;
+      return;
+    }
+    this.orgId = org.id;
+    this.loadContent();
+    this.loadStorage();
+    this.subscribeToTranscoding();
+    this.watchRoute();
   }
 
   private subscribeToTranscoding(): void {

@@ -6,7 +6,13 @@ import { By } from '@angular/platform-browser';
 import { of, throwError } from 'rxjs';
 import { Users } from './users';
 import { MemberService } from './member.service';
-import { Membership, MyMembership, OrganisationRole } from './member.model';
+import { Membership } from './member.model';
+import { OrganisationStateService } from '../../shell/organisation-state.service';
+import {
+  OrganisationStateStub,
+  organisationStateStub,
+  orgWithRole,
+} from '../../shell/organisation-state.testing';
 import { getTranslocoTestingModule } from '../../i18n/transloco-testing';
 
 try {
@@ -16,16 +22,6 @@ try {
 }
 
 const ORG_ID = 'org-1';
-
-function myMembership(role: OrganisationRole, orgId = ORG_ID): MyMembership {
-  return {
-    id: `mm-${role}`,
-    userId: 'me',
-    organisationId: orgId,
-    role,
-    createdAt: '2024-01-01T00:00:00.000Z',
-  };
-}
 
 function membership(overrides: Partial<Membership> = {}): Membership {
   return {
@@ -47,7 +43,6 @@ function membership(overrides: Partial<Membership> = {}): Membership {
 }
 
 interface MemberServiceStub {
-  getMyMemberships: ReturnType<typeof vi.fn>;
   listMembers: ReturnType<typeof vi.fn>;
   addMember: ReturnType<typeof vi.fn>;
   updateRole: ReturnType<typeof vi.fn>;
@@ -58,15 +53,16 @@ describe('Users', () => {
   let fixture: ComponentFixture<Users>;
   let component: Users;
   let memberService: MemberServiceStub;
+  let orgState: OrganisationStateStub;
 
   function setup(): void {
     memberService = {
-      getMyMemberships: vi.fn().mockReturnValue(of([myMembership('org_admin')])),
       listMembers: vi.fn().mockReturnValue(of([membership()])),
       addMember: vi.fn().mockReturnValue(of(membership())),
       updateRole: vi.fn().mockReturnValue(of(membership({ role: 'editor' }))),
       removeMember: vi.fn().mockReturnValue(of(undefined)),
     };
+    orgState = organisationStateStub(orgWithRole(ORG_ID));
 
     TestBed.configureTestingModule({
       imports: [Users, getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
@@ -74,6 +70,7 @@ describe('Users', () => {
         provideZonelessChangeDetection(),
         provideRouter([]),
         { provide: MemberService, useValue: memberService },
+        { provide: OrganisationStateService, useValue: orgState },
       ],
     });
 
@@ -103,34 +100,24 @@ describe('Users', () => {
       expect(component.loadError()).toBe('');
     });
 
-    it('should error when member has no org_admin role', () => {
+    it('should error when the user is no org_admin of the selected org', () => {
       setup();
-      memberService.getMyMemberships.mockReturnValue(of([myMembership('editor')]));
+      orgState.selectedOrg.set(orgWithRole(ORG_ID, 'editor'));
 
       fixture.detectChanges();
 
-      expect(component.loadError()).toBe('You do not have Org Admin access to any organisation.');
+      expect(component.loadError()).toBe('You are not an Org Admin of this organisation.');
       expect(component.loading()).toBe(false);
       expect(memberService.listMembers).not.toHaveBeenCalled();
     });
 
-    it('should error when not a member of any org', () => {
+    it('should error when no organisation is selected', () => {
       setup();
-      memberService.getMyMemberships.mockReturnValue(of([]));
+      orgState.selectedOrg.set(null);
 
       fixture.detectChanges();
 
       expect(component.loadError()).toBe('You are not a member of any organisation.');
-      expect(component.loading()).toBe(false);
-    });
-
-    it('should error when memberships call fails', () => {
-      setup();
-      memberService.getMyMemberships.mockReturnValue(throwError(() => new Error('x')));
-
-      fixture.detectChanges();
-
-      expect(component.loadError()).toBe('Failed to load organisation context.');
       expect(component.loading()).toBe(false);
     });
   });
@@ -217,7 +204,7 @@ describe('Users', () => {
 
     it('should render loadError text', () => {
       setup();
-      memberService.getMyMemberships.mockReturnValue(of([]));
+      orgState.selectedOrg.set(null);
 
       fixture.detectChanges();
 

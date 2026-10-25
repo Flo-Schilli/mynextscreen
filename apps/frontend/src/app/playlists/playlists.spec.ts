@@ -7,8 +7,12 @@ import { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { BehaviorSubject, of, throwError } from 'rxjs';
 import { Playlists } from './playlists';
 import { Playlist, PlaylistItem } from './playlist.model';
-import { MemberService } from '../settings/users/member.service';
-import { MyMembership } from '../settings/users/member.model';
+import { OrganisationStateService } from '../shell/organisation-state.service';
+import {
+  OrganisationStateStub,
+  organisationStateStub,
+  orgWithRole,
+} from '../shell/organisation-state.testing';
 import { OrganisationService } from '../admin/organisations/organisation.service';
 import { Organisation } from '../admin/organisations/organisation.model';
 import { ContentService } from '../content/content.service';
@@ -21,16 +25,6 @@ import { ContentSource } from '../sources/content-source.model';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 const ORG_ID = 'org1';
-
-function membership(role: MyMembership['role'], organisationId = ORG_ID): MyMembership {
-  return {
-    id: 'm-' + role,
-    userId: 'u1',
-    organisationId,
-    role,
-    createdAt: '2026-01-01T00:00:00Z',
-  };
-}
 
 function buildPlaylist(overrides: Partial<Playlist> = {}): Playlist {
   return {
@@ -98,9 +92,6 @@ function buildScreen(overrides: Partial<Screen> = {}): Screen {
   };
 }
 
-interface MemberStub {
-  getMyMemberships: ReturnType<typeof vi.fn>;
-}
 interface OrgStub {
   getOne: ReturnType<typeof vi.fn>;
 }
@@ -144,7 +135,7 @@ describe('Playlists', () => {
   let fixture: ComponentFixture<Playlists>;
   let component: Playlists;
   let httpMock: HttpTestingController;
-  let memberStub: MemberStub;
+  let orgState: OrganisationStateStub;
   let orgStub: OrgStub;
   let contentStub: ContentStub;
   let screenStub: ScreenStub;
@@ -158,7 +149,7 @@ describe('Playlists', () => {
   }
 
   beforeEach(async () => {
-    memberStub = { getMyMemberships: vi.fn(() => of([membership('org_admin')])) };
+    orgState = organisationStateStub(orgWithRole(ORG_ID, 'org_admin'));
     orgStub = { getOne: vi.fn(() => of({ defaultPlaylistId: null } as Organisation)) };
     contentStub = {
       getAll: vi.fn(() => of([])),
@@ -183,7 +174,7 @@ describe('Playlists', () => {
         provideZonelessChangeDetection(),
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: MemberService, useValue: memberStub },
+        { provide: OrganisationStateService, useValue: orgState },
         { provide: OrganisationService, useValue: orgStub },
         { provide: ContentService, useValue: contentStub },
         { provide: ScreenService, useValue: screenStub },
@@ -219,40 +210,30 @@ describe('Playlists', () => {
   }
 
   describe('org context resolution', () => {
-    it('prefers an org_admin membership and sets isOrgAdmin', () => {
-      memberStub.getMyMemberships.mockReturnValue(
-        of([membership('viewer', 'orgX'), membership('org_admin', ORG_ID)]),
-      );
+    it('uses the organisation selected in the shell and its role', () => {
+      orgState.selectedOrg.set(orgWithRole('orgV', 'viewer'));
+      fixture.detectChanges();
+      httpMock.expectOne('/api/playlists').flush([]);
+
+      expect(component.orgId).toBe('orgV');
+      expect(component.isOrgAdmin).toBe(false);
+      expect(component.canEdit).toBe(false);
+    });
+
+    it('sets isOrgAdmin for an org_admin of the selected organisation', () => {
       init();
 
       expect(component.orgId).toBe(ORG_ID);
       expect(component.isOrgAdmin).toBe(true);
     });
 
-    it('falls back to the first membership when no admin role exists', () => {
-      memberStub.getMyMemberships.mockReturnValue(of([membership('editor', 'orgE')]));
-      fixture.detectChanges();
-      httpMock.expectOne('/api/playlists').flush([]);
-
-      expect(component.orgId).toBe('orgE');
-      expect(component.isOrgAdmin).toBe(false);
-    });
-
-    it('sets a load error when the user has no memberships', () => {
-      memberStub.getMyMemberships.mockReturnValue(of([]));
+    it('sets a load error when no organisation is selected', () => {
+      orgState.selectedOrg.set(null);
       fixture.detectChanges();
 
       expect(component.loadError).toContain('not a member');
       expect(component.loading).toBe(false);
       httpMock.expectNone('/api/playlists');
-    });
-
-    it('sets a load error when membership lookup fails', () => {
-      memberStub.getMyMemberships.mockReturnValue(throwError(() => new Error('nope')));
-      fixture.detectChanges();
-
-      expect(component.loadError).toContain('organisation context');
-      expect(component.loading).toBe(false);
     });
 
     it('captures the default playlist id from the organisation', () => {

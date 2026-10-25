@@ -14,8 +14,7 @@ import { ScreenGroupEditModal } from './screen-group-edit-modal';
 import { ScreenGroupDeleteModal } from './screen-group-delete-modal';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
-import { MemberService } from '../settings/users/member.service';
-import { MyMembership } from '../settings/users/member.model';
+import { OrganisationStateService } from '../shell/organisation-state.service';
 import { ToastService } from '../shared/toast/toast.service';
 import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
 
@@ -128,7 +127,7 @@ import { PageHeaderComponent, BtnComponent, EmptyComponent } from '../ui';
 export class ScreenGroups implements OnInit {
   private screenGroupService = inject(ScreenGroupService);
   private screenService = inject(ScreenService);
-  private memberService = inject(MemberService);
+  private orgState = inject(OrganisationStateService);
   private router = inject(Router);
   private toast = inject(ToastService);
   private transloco = inject(TranslocoService);
@@ -169,26 +168,16 @@ export class ScreenGroups implements OnInit {
     this.loadCurrentOrg();
   }
 
+  /** The organisation selected in the shell; the shell re-creates this page on a switch. */
   private loadCurrentOrg(): void {
-    this.memberService.getMyMemberships().subscribe({
-      next: (memberships: MyMembership[]) => {
-        const adminMembership = memberships.find((m) => m.role === 'org_admin');
-        if (adminMembership) {
-          this.orgId = adminMembership.organisationId;
-          this.loadGroups();
-        } else if (memberships.length > 0) {
-          this.orgId = memberships[0].organisationId;
-          this.loadGroups();
-        } else {
-          this.loadError = this.transloco.translate('common.errors.noOrgMembership');
-          this.loading = false;
-        }
-      },
-      error: () => {
-        this.loadError = this.transloco.translate('common.errors.loadOrgContext');
-        this.loading = false;
-      },
-    });
+    const org = this.orgState.selectedOrg();
+    if (!org) {
+      this.loadError = this.transloco.translate('common.errors.noOrgMembership');
+      this.loading = false;
+      return;
+    }
+    this.orgId = org.id;
+    this.loadGroups();
   }
 
   loadGroups(): void {

@@ -12,8 +12,12 @@ import {
 } from './screen-group.model';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
-import { MemberService } from '../settings/users/member.service';
-import { MyMembership } from '../settings/users/member.model';
+import { OrganisationStateService } from '../shell/organisation-state.service';
+import {
+  OrganisationStateStub,
+  organisationStateStub,
+  orgWithRole,
+} from '../shell/organisation-state.testing';
 import { ToastService } from '../shared/toast/toast.service';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
@@ -68,10 +72,6 @@ function makeScreen(overrides: Partial<Screen> = {}): Screen {
   };
 }
 
-function membership(role: MyMembership['role'], orgId: string): MyMembership {
-  return { id: 'm', userId: 'u1', organisationId: orgId, role, createdAt: '2026-06-01T00:00:00Z' };
-}
-
 interface HttpLikeError {
   status?: number;
   error?: { message?: string };
@@ -81,14 +81,6 @@ const httpError = (status: number, message?: string): HttpLikeError => ({
   status,
   error: message ? { message } : undefined,
 });
-
-class MemberServiceStub {
-  memberships: MyMembership[] = [membership('org_admin', ORG_ID)];
-  fail = false;
-  getMyMemberships(): Observable<MyMembership[]> {
-    return this.fail ? throwError(() => new Error('boom')) : of(this.memberships);
-  }
-}
 
 class ScreenServiceStub {
   screens: Screen[] = [];
@@ -148,7 +140,7 @@ class ScreenGroupServiceStub {
 describe('ScreenGroupDetail', () => {
   let fixture: ComponentFixture<ScreenGroupDetail>;
   let component: ScreenGroupDetail;
-  let member: MemberServiceStub;
+  let orgState: OrganisationStateStub;
   let screens: ScreenServiceStub;
   let groupSvc: ScreenGroupServiceStub;
   let navigateSpy: ReturnType<typeof vi.fn>;
@@ -163,7 +155,7 @@ describe('ScreenGroupDetail', () => {
   }
 
   beforeEach(() => {
-    member = new MemberServiceStub();
+    orgState = organisationStateStub(orgWithRole(ORG_ID));
     screens = new ScreenServiceStub();
     groupSvc = new ScreenGroupServiceStub();
     navigateSpy = vi.fn().mockResolvedValue(true);
@@ -173,7 +165,7 @@ describe('ScreenGroupDetail', () => {
       imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
-        { provide: MemberService, useValue: member },
+        { provide: OrganisationStateService, useValue: orgState },
         { provide: ScreenService, useValue: screens },
         { provide: ScreenGroupService, useValue: groupSvc },
         { provide: ToastService, useClass: ToastServiceStub },
@@ -184,6 +176,23 @@ describe('ScreenGroupDetail', () => {
         },
       ],
     });
+  });
+
+  it('loads the group from the organisation selected in the shell', async () => {
+    orgState.selectedOrg.set(orgWithRole('orgV', 'viewer'));
+    await setUp();
+
+    expect(component.orgId()).toBe('orgV');
+    expect(groupSvc.getOneCalls[0]).toEqual({ orgId: 'orgV', id: 'g1' });
+  });
+
+  it('reports an error and loads nothing when no organisation is selected', async () => {
+    orgState.selectedOrg.set(null);
+    await setUp();
+
+    expect(component.loadError()).toBe('You are not a member of any organisation.');
+    expect(component.loading()).toBe(false);
+    expect(groupSvc.getOneCalls).toEqual([]);
   });
 
   it('loads the group for the resolved org', async () => {

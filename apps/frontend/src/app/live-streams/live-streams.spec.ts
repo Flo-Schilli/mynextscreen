@@ -8,7 +8,12 @@ import { LiveStreamCard } from './live-stream-card';
 import { LiveStreamService } from './live-stream.service';
 import { ScreenService } from '../screens/screen.service';
 import { ScreenGroupService } from '../screen-groups/screen-group.service';
-import { MemberService } from '../settings/users/member.service';
+import { OrganisationStateService } from '../shell/organisation-state.service';
+import {
+  OrganisationStateStub,
+  organisationStateStub,
+  orgWithRole,
+} from '../shell/organisation-state.testing';
 import {
   LiveStream,
   CreateLiveStreamRequest,
@@ -18,7 +23,6 @@ import {
 } from './live-stream.model';
 import { Screen } from '../screens/screen.model';
 import { ScreenGroup } from '../screen-groups/screen-group.model';
-import { MyMembership } from '../settings/users/member.model';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 const ORG_ID = 'org1';
@@ -39,10 +43,6 @@ function makeStream(overrides: Partial<LiveStream> = {}): LiveStream {
   };
 }
 
-function membership(role: MyMembership['role'], orgId: string): MyMembership {
-  return { id: 'm-' + orgId, userId: 'u1', organisationId: orgId, role, createdAt: 'now' };
-}
-
 interface HttpLikeError {
   status?: number;
   error?: { message?: string };
@@ -51,14 +51,6 @@ const httpError = (status: number, message?: string): HttpLikeError => ({
   status,
   error: message ? { message } : undefined,
 });
-
-class MemberServiceStub {
-  memberships: MyMembership[] = [membership('org_admin', ORG_ID)];
-  failMemberships = false;
-  getMyMemberships(): Observable<MyMembership[]> {
-    return this.failMemberships ? throwError(() => new Error('boom')) : of(this.memberships);
-  }
-}
 
 class LiveStreamServiceStub {
   getAllResult: Observable<LiveStream[]> = of([]);
@@ -125,7 +117,7 @@ class ScreenGroupServiceStub {
 describe('LiveStreams (list container)', () => {
   let fixture: ComponentFixture<LiveStreams>;
   let component: LiveStreams;
-  let member: MemberServiceStub;
+  let orgState: OrganisationStateStub;
   let streams: LiveStreamServiceStub;
   let screens: ScreenServiceStub;
   let groups: ScreenGroupServiceStub;
@@ -140,7 +132,7 @@ describe('LiveStreams (list container)', () => {
   }
 
   beforeEach(() => {
-    member = new MemberServiceStub();
+    orgState = organisationStateStub(orgWithRole(ORG_ID));
     streams = new LiveStreamServiceStub();
     screens = new ScreenServiceStub();
     groups = new ScreenGroupServiceStub();
@@ -149,7 +141,7 @@ describe('LiveStreams (list container)', () => {
       imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
-        { provide: MemberService, useValue: member },
+        { provide: OrganisationStateService, useValue: orgState },
         { provide: LiveStreamService, useValue: streams },
         { provide: ScreenService, useValue: screens },
         { provide: ScreenGroupService, useValue: groups },
@@ -159,32 +151,18 @@ describe('LiveStreams (list container)', () => {
   });
 
   describe('org context resolution', () => {
-    it('prefers the org_admin membership for the org context', async () => {
-      member.memberships = [membership('editor', 'orgE'), membership('org_admin', 'orgA')];
+    it('loads the streams of the organisation selected in the shell', async () => {
+      orgState.selectedOrg.set(orgWithRole('orgV', 'viewer'));
       await setUp();
-      expect(component.orgId).toBe('orgA');
-      expect(streams.getAllCalls).toContain('orgA');
+      expect(component.orgId).toBe('orgV');
+      expect(streams.getAllCalls).toContain('orgV');
       expect(component.loading).toBe(false);
     });
 
-    it('falls back to the first membership when none is org_admin', async () => {
-      member.memberships = [membership('editor', 'orgE'), membership('viewer', 'orgV')];
-      await setUp();
-      expect(component.orgId).toBe('orgE');
-      expect(streams.getAllCalls).toContain('orgE');
-    });
-
-    it('reports an error when the user belongs to no organisation', async () => {
-      member.memberships = [];
+    it('reports an error when no organisation is selected', async () => {
+      orgState.selectedOrg.set(null);
       await setUp();
       expect(component.loadError).toContain('not a member of any organisation');
-      expect(component.loading).toBe(false);
-    });
-
-    it('reports an error when the memberships request fails', async () => {
-      member.failMemberships = true;
-      await setUp();
-      expect(component.loadError).toBe('Failed to load organisation context.');
       expect(component.loading).toBe(false);
     });
   });

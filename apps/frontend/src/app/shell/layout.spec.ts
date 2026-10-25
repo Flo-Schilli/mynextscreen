@@ -2,7 +2,7 @@ import { TestBed, getTestBed, ComponentFixture } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { Component, input, output, signal, provideZonelessChangeDetection } from '@angular/core';
 import { By } from '@angular/platform-browser';
-import { Router } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { vi, type Mock } from 'vitest';
 import { Layout } from './layout';
 import { AppSidebar } from './app-sidebar';
@@ -64,6 +64,7 @@ interface OrgStateStub {
   selectedOrg: ReturnType<typeof signal<unknown | null>>;
   isSuperAdmin: ReturnType<typeof signal<boolean>>;
   avatarUrl: ReturnType<typeof signal<string | null>>;
+  loaded: ReturnType<typeof signal<boolean>>;
   loadOrganisations: Mock;
   select: Mock;
 }
@@ -84,7 +85,9 @@ interface SseStub {
 }
 
 interface RouterStub {
+  url: string;
   navigate: Mock;
+  navigateByUrl: Mock;
 }
 
 function createStubs(): {
@@ -108,6 +111,7 @@ function createStubs(): {
       }),
       isSuperAdmin: signal(false),
       avatarUrl: signal<string | null>(null),
+      loaded: signal(true),
       loadOrganisations: vi.fn(),
       select: vi.fn(),
     },
@@ -121,7 +125,11 @@ function createStubs(): {
       logout: vi.fn().mockResolvedValue(undefined),
     },
     sse: { connect: vi.fn(), disconnect: vi.fn() },
-    router: { navigate: vi.fn() },
+    router: {
+      url: '/dashboard',
+      navigate: vi.fn(),
+      navigateByUrl: vi.fn().mockResolvedValue(true),
+    },
   };
 }
 
@@ -436,6 +444,73 @@ describe('Layout', () => {
       expect(fixture.componentInstance.showOrgSwitch()).toBe(false);
     });
 
+    it('leaves a detail page for its list before switching the organisation', async () => {
+      // Arrange
+      const stubs = createStubs();
+      stubs.orgState.selectedOrgId.set('org-1');
+      stubs.router.url = '/screen-groups/g-1?tab=wall';
+      let finishNavigation: (navigated: boolean) => void = () => undefined;
+      stubs.router.navigateByUrl.mockReturnValue(
+        new Promise<boolean>((resolve) => (finishNavigation = resolve)),
+      );
+      const fixture = await createFixture(stubs);
+
+      // Act
+      fixture.componentInstance.onSelectOrg('org-2');
+      await Promise.resolve();
+
+      // Assert: the switch waits until the detail page has been left
+      expect(stubs.router.navigateByUrl).toHaveBeenCalledExactlyOnceWith('/screen-groups');
+      expect(stubs.orgState.select).not.toHaveBeenCalled();
+      finishNavigation(true);
+      await fixture.whenStable();
+      expect(stubs.orgState.select).toHaveBeenCalledExactlyOnceWith('org-2');
+    });
+
+    it('keeps the organisation when leaving the detail page is refused', async () => {
+      // Arrange
+      const stubs = createStubs();
+      stubs.router.url = '/playlists/p-1';
+      stubs.router.navigateByUrl.mockResolvedValue(false);
+      const fixture = await createFixture(stubs);
+
+      // Act
+      fixture.componentInstance.onSelectOrg('org-2');
+      await fixture.whenStable();
+
+      // Assert
+      expect(stubs.orgState.select).not.toHaveBeenCalled();
+    });
+
+    it('switches in place on a list page', async () => {
+      // Arrange
+      const stubs = createStubs();
+      stubs.router.url = '/screen-groups';
+      const fixture = await createFixture(stubs);
+
+      // Act
+      fixture.componentInstance.onSelectOrg('org-2');
+
+      // Assert
+      expect(stubs.router.navigateByUrl).not.toHaveBeenCalled();
+      expect(stubs.orgState.select).toHaveBeenCalledExactlyOnceWith('org-2');
+    });
+
+    it('does nothing when the already selected organisation is picked', async () => {
+      // Arrange
+      const stubs = createStubs();
+      stubs.orgState.selectedOrgId.set('org-1');
+      stubs.router.url = '/playlists/p-1';
+      const fixture = await createFixture(stubs);
+
+      // Act
+      fixture.componentInstance.onSelectOrg('org-1');
+
+      // Assert
+      expect(stubs.router.navigateByUrl).not.toHaveBeenCalled();
+      expect(stubs.orgState.select).not.toHaveBeenCalled();
+    });
+
     it('closes the modal on dismiss without selecting', async () => {
       // Arrange
       const stubs = createStubs();
@@ -522,6 +597,81 @@ describe('Layout', () => {
 
       // Assert
       expect(stubs.auth.logout).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('page lifecycle', () => {
+    let created: number;
+
+    @Component({ selector: 'app-probe-page', template: 'probe' })
+    class ProbePage {
+      constructor() {
+        created++;
+      }
+    }
+
+    async function createRoutedFixture(
+      stubs: ReturnType<typeof createStubs>,
+    ): Promise<ComponentFixture<Layout>> {
+      await TestBed.configureTestingModule({
+        imports: [Layout],
+        providers: [
+          provideZonelessChangeDetection(),
+          provideRouter([{ path: '', component: ProbePage }]),
+          { provide: OrganisationStateService, useValue: stubs.orgState },
+          { provide: ThemeService, useValue: stubs.theme },
+          { provide: AuthService, useValue: stubs.auth },
+          { provide: DashboardSseService, useValue: stubs.sse },
+        ],
+      })
+        .overrideComponent(Layout, {
+          remove: { imports: [AppSidebar, AppTopbar, OrgSwitchModal] },
+          add: { imports: [StubSidebar, StubTopbar, StubOrgSwitchModal] },
+        })
+        .compileComponents();
+      const fixture = TestBed.createComponent(Layout);
+      await TestBed.inject(Router).navigateByUrl('/');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      return fixture;
+    }
+
+    beforeEach(() => {
+      created = 0;
+    });
+
+    it('renders no page until the organisations are loaded', async () => {
+      // Arrange
+      const stubs = createStubs();
+      stubs.orgState.loaded.set(false);
+      const fixture = await createRoutedFixture(stubs);
+      expect(created).toBe(0);
+
+      // Act
+      stubs.orgState.loaded.set(true);
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      // Assert
+      expect(created).toBe(1);
+      expect(fixture.nativeElement.textContent).toContain('probe');
+    });
+
+    it('re-creates the page when the organisation changes', async () => {
+      // Arrange
+      const stubs = createStubs();
+      stubs.orgState.selectedOrgId.set('org-1');
+      const fixture = await createRoutedFixture(stubs);
+      expect(created).toBe(1);
+
+      // Act
+      stubs.orgState.selectedOrgId.set('org-2');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      // Assert
+      expect(created).toBe(2);
+      expect(fixture.nativeElement.querySelectorAll('app-probe-page').length).toBe(1);
     });
   });
 });

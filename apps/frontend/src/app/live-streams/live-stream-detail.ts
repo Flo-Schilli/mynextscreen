@@ -31,8 +31,7 @@ import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
 import { ScreenGroupService } from '../screen-groups/screen-group.service';
 import { ScreenGroup } from '../screen-groups/screen-group.model';
-import { MemberService } from '../settings/users/member.service';
-import { MyMembership } from '../settings/users/member.model';
+import { OrganisationStateService } from '../shell/organisation-state.service';
 import { ToastService } from '../shared/toast/toast.service';
 import { BackLink } from '../shared/back-link';
 
@@ -703,7 +702,7 @@ export class LiveStreamDetail implements OnInit {
   private liveStreamService = inject(LiveStreamService);
   private screenService = inject(ScreenService);
   private screenGroupService = inject(ScreenGroupService);
-  private memberService = inject(MemberService);
+  private orgState = inject(OrganisationStateService);
   private toast = inject(ToastService);
   private transloco = inject(TranslocoService);
   private language = inject(LanguageService);
@@ -784,22 +783,15 @@ export class LiveStreamDetail implements OnInit {
   });
 
   ngOnInit(): void {
-    this.memberService.getMyMemberships().subscribe({
-      next: (memberships: MyMembership[]) => {
-        const m = memberships.find((x) => x.role === 'org_admin') ?? memberships[0];
-        if (m) {
-          this.orgId = m.organisationId;
-          this.loadData();
-        } else {
-          this.loadError.set(this.transloco.translate('common.errors.noOrgMembership'));
-          this.loading.set(false);
-        }
-      },
-      error: () => {
-        this.loadError.set(this.transloco.translate('common.errors.loadOrgContext'));
-        this.loading.set(false);
-      },
-    });
+    // The organisation selected in the shell; on a switch the shell leaves this page.
+    const org = this.orgState.selectedOrg();
+    if (!org) {
+      this.loadError.set(this.transloco.translate('common.errors.noOrgMembership'));
+      this.loading.set(false);
+      return;
+    }
+    this.orgId = org.id;
+    this.loadData();
   }
 
   private loadData(): void {

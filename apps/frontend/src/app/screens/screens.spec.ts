@@ -5,12 +5,12 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
-import { from, Observable, Subject } from 'rxjs';
+import { Subject } from 'rxjs';
 import { Screens } from './screens';
 import { ScreenListItem } from './screen.model';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
-import { MemberService } from '../settings/users/member.service';
-import { MyMembership } from '../settings/users/member.model';
+import { OrganisationStateService, OrgWithRole } from '../shell/organisation-state.service';
+import { organisationStateStub, orgWithRole } from '../shell/organisation-state.testing';
 import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
 import { ToastService, Toast } from '../shared/toast/toast.service';
 import { PublicConfigService } from '../shared/public-config.service';
@@ -47,16 +47,6 @@ function makeScreen(overrides: Partial<ScreenListItem> = {}): ScreenListItem {
   };
 }
 
-function makeMembership(role: MyMembership['role'], orgId = ORG_ID): MyMembership {
-  return {
-    id: `m-${orgId}-${role}`,
-    userId: 'u1',
-    organisationId: orgId,
-    role,
-    createdAt: '2026-06-01T00:00:00Z',
-  };
-}
-
 // Zoneless: no auto-tick. The container holds state in plain fields, so an
 // HTTP/promise resolution does not mark it dirty under zoneless CD. Drain the
 // microtask queue (promise chains) first so all field mutations have landed,
@@ -87,23 +77,16 @@ describe('Screens', () => {
     return toastService.toasts().at(-1);
   }
 
-  let memberStub: { getMyMemberships: ReturnType<typeof vi.fn> };
   let routerStub: { navigate: ReturnType<typeof vi.fn> };
   let screenOnline$: Subject<DashboardEvent>;
   let screenOffline$: Subject<DashboardEvent>;
 
-  function configure(memberships: MyMembership[]): void {
+  function configure(org: OrgWithRole | null): void {
     // The Transloco testing module eagerly instantiates the injector (preloaded
     // langs), so reset any module left configured by the previous test before
     // reconfiguring — otherwise configureTestingModule throws "already
     // instantiated".
     TestBed.resetTestingModule();
-    // Resolve memberships on a microtask so the subscription callback (which
-    // mutates orgId/loading) never runs during the initial detectChanges pass,
-    // which would otherwise trip NG0100 under zoneless dev-mode checks.
-    memberStub = {
-      getMyMemberships: vi.fn().mockReturnValue(from(Promise.resolve(memberships))),
-    };
     routerStub = { navigate: vi.fn() };
     screenOnline$ = new Subject<DashboardEvent>();
     screenOffline$ = new Subject<DashboardEvent>();
@@ -115,7 +98,7 @@ describe('Screens', () => {
         provideZonelessChangeDetection(),
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: MemberService, useValue: memberStub },
+        { provide: OrganisationStateService, useValue: organisationStateStub(org) },
         { provide: DashboardSseService, useValue: sseStub },
         { provide: Router, useValue: routerStub },
         // Stub the config service so its constructor doesn't fire GET /api/config
@@ -136,7 +119,7 @@ describe('Screens', () => {
     fixture = TestBed.createComponent(Screens);
     component = fixture.componentInstance;
     fixture.detectChanges(false); // run ngOnInit
-    await flush(fixture); // resolve memberships -> initial getAll
+    await flush(fixture);
     const req = httpMock.expectOne('/api/screens');
     req.flush(screens);
     await flush(fixture);
@@ -145,37 +128,23 @@ describe('Screens', () => {
   afterEach(() => httpMock.verify());
 
   describe('organisation context loading', () => {
-    it('prefers the org_admin membership when picking the active org', async () => {
-      configure([makeMembership('viewer', 'org-x'), makeMembership('org_admin', 'org-admin-id')]);
+    it('loads the screens of the organisation selected in the shell', async () => {
+      configure(orgWithRole('org-viewer', 'viewer'));
       fixture = TestBed.createComponent(Screens);
       component = fixture.componentInstance;
       fixture.detectChanges(false); // run ngOnInit
       await flush(fixture);
 
       const req = httpMock.expectOne('/api/screens');
-      expect(req.request.headers.get('X-Organisation-Id')).toBe('org-admin-id');
-      req.flush([]);
-      await flush(fixture);
-
-      expect(component.orgId).toBe('org-admin-id');
-    });
-
-    it('falls back to the first membership when there is no org_admin role', async () => {
-      configure([makeMembership('viewer', 'org-viewer')]);
-      fixture = TestBed.createComponent(Screens);
-      component = fixture.componentInstance;
-      fixture.detectChanges(false); // run ngOnInit
-      await flush(fixture);
-
-      const req = httpMock.expectOne('/api/screens');
+      expect(req.request.headers.get('X-Organisation-Id')).toBe('org-viewer');
       req.flush([]);
       await flush(fixture);
 
       expect(component.orgId).toBe('org-viewer');
     });
 
-    it('shows an error and stops loading when the user has no memberships', async () => {
-      configure([]);
+    it('shows an error and stops loading when no organisation is selected', async () => {
+      configure(null);
       fixture = TestBed.createComponent(Screens);
       component = fixture.componentInstance;
       fixture.detectChanges(false); // run ngOnInit
@@ -185,29 +154,11 @@ describe('Screens', () => {
       expect(component.loadError).toBe('You are not a member of any organisation.');
       httpMock.expectNone('/api/screens');
     });
-
-    it('shows an error when membership loading fails', async () => {
-      configure([]);
-      // Errors on a microtask (mirrors a deferred HTTP failure) without a raw
-      // rejected Promise, which would surface as an unhandled rejection.
-      memberStub.getMyMemberships.mockReturnValue(
-        new Observable((sub) => {
-          queueMicrotask(() => sub.error(new Error('boom')));
-        }),
-      );
-      fixture = TestBed.createComponent(Screens);
-      component = fixture.componentInstance;
-      fixture.detectChanges(false); // run ngOnInit
-      await flush(fixture);
-
-      expect(component.loadError).toBe('Failed to load organisation context.');
-      expect(component.loading).toBe(false);
-    });
   });
 
   describe('screen loading', () => {
     it('renders the grid once screens are loaded', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([makeScreen(), makeScreen({ id: 'screen-2', name: 'Bar TV' })]);
 
       expect(component.loading).toBe(false);
@@ -217,7 +168,7 @@ describe('Screens', () => {
     });
 
     it('renders the empty state when there are no screens', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([]);
 
       expect(fixture.debugElement.query(By.css('.empty-state'))).toBeTruthy();
@@ -225,7 +176,7 @@ describe('Screens', () => {
     });
 
     it('maps a 403 to an access-denied error', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       fixture = TestBed.createComponent(Screens);
       component = fixture.componentInstance;
       fixture.detectChanges(false); // run ngOnInit
@@ -237,7 +188,7 @@ describe('Screens', () => {
     });
 
     it('maps a non-403 failure to a generic error', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       fixture = TestBed.createComponent(Screens);
       component = fixture.componentInstance;
       fixture.detectChanges(false); // run ngOnInit
@@ -251,7 +202,7 @@ describe('Screens', () => {
 
   describe('SSE status updates', () => {
     it('flips a screen to online when a screenOnline event arrives', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([makeScreen({ id: 'screen-1', isOnline: false })]);
 
       screenOnline$.next({
@@ -265,7 +216,7 @@ describe('Screens', () => {
     });
 
     it('flips a screen to offline and updates the open detail view', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([makeScreen({ id: 'screen-1', isOnline: true })]);
       component.selectScreen(component.screens[0]);
       await flush(fixture);
@@ -284,7 +235,7 @@ describe('Screens', () => {
 
   describe('create flow', () => {
     it('sends the pairing code, toasts and reloads after a successful create', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([]);
 
       component.openCreateForm();
@@ -322,7 +273,7 @@ describe('Screens', () => {
     });
 
     it('surfaces the server error message on a failed create', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([]);
 
       component.submitCreate({
@@ -343,7 +294,7 @@ describe('Screens', () => {
 
   describe('edit flow', () => {
     it('opens the unified modal in edit mode when a card is selected', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([makeScreen()]);
 
       component.selectScreen(component.screens[0]);
@@ -357,7 +308,7 @@ describe('Screens', () => {
     });
 
     it('PATCHes the screen and reloads on a successful edit', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([makeScreen()]);
       component.selectScreen(component.screens[0]);
       await flush(fixture);
@@ -375,7 +326,7 @@ describe('Screens', () => {
     });
 
     it('does nothing when submitEdit is called without a selected screen', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([makeScreen()]);
 
       component.selectedScreen = null;
@@ -386,7 +337,7 @@ describe('Screens', () => {
     });
 
     it('surfaces the server error message on a failed edit', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([makeScreen()]);
       component.selectScreen(component.screens[0]);
 
@@ -403,7 +354,7 @@ describe('Screens', () => {
 
   describe('re-pair flow', () => {
     it('POSTs the pairing code to /repair and toasts on success', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([makeScreen()]);
       component.selectScreen(component.screens[0]);
 
@@ -419,7 +370,7 @@ describe('Screens', () => {
     });
 
     it('surfaces an error on a failed re-pair', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([makeScreen()]);
       component.selectScreen(component.screens[0]);
 
@@ -434,7 +385,7 @@ describe('Screens', () => {
     });
 
     it('is a no-op without a selected screen', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([makeScreen()]);
       component.selectedScreen = null;
 
@@ -446,7 +397,7 @@ describe('Screens', () => {
 
   describe('single delete flow', () => {
     it('confirms, deletes the screen and reloads', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([makeScreen({ id: 'screen-1' })]);
 
       component.onDeleteScreen(component.screens[0]);
@@ -471,7 +422,7 @@ describe('Screens', () => {
     });
 
     it('surfaces an error on a failed delete', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([makeScreen({ id: 'screen-1' })]);
 
       component.onDeleteScreen(component.screens[0]);
@@ -486,7 +437,7 @@ describe('Screens', () => {
     });
 
     it('cancels without a request', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([makeScreen({ id: 'screen-1' })]);
 
       component.onDeleteScreen(component.screens[0]);
@@ -499,7 +450,7 @@ describe('Screens', () => {
 
   describe('navigation', () => {
     it('navigates home on goBack', async () => {
-      configure([makeMembership('org_admin')]);
+      configure(orgWithRole(ORG_ID));
       await createAndLoad([]);
 
       component.goBack();

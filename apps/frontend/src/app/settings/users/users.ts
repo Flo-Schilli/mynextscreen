@@ -9,7 +9,8 @@ import {
 import { Router } from '@angular/router';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { MemberService } from './member.service';
-import { Membership, MyMembership, OrganisationRole } from './member.model';
+import { Membership, OrganisationRole } from './member.model';
+import { OrganisationStateService } from '../../shell/organisation-state.service';
 import { ToastService } from '../../shared/toast/toast.service';
 import { SettingsTabsComponent } from '../settings-tabs.component';
 import {
@@ -346,6 +347,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 })
 export class Users implements OnInit {
   private memberService = inject(MemberService);
+  private orgState = inject(OrganisationStateService);
   private router = inject(Router);
   private toast = inject(ToastService);
   private transloco = inject(TranslocoService);
@@ -393,26 +395,21 @@ export class Users implements OnInit {
     this.loadCurrentOrg();
   }
 
+  /** The organisation selected in the shell; the shell re-creates this page on a switch. */
   private loadCurrentOrg(): void {
-    this.memberService.getMyMemberships().subscribe({
-      next: (memberships: MyMembership[]) => {
-        const adminMembership = memberships.find((m) => m.role === 'org_admin');
-        if (adminMembership) {
-          this.orgId = adminMembership.organisationId;
-          this.loadMembers();
-        } else if (memberships.length > 0) {
-          this.loadError.set(this.transloco.translate('settings.users.errors.noOrgAdmin'));
-          this.loading.set(false);
-        } else {
-          this.loadError.set(this.transloco.translate('settings.users.errors.noMembership'));
-          this.loading.set(false);
-        }
-      },
-      error: () => {
-        this.loadError.set(this.transloco.translate('settings.users.errors.loadOrgContext'));
-        this.loading.set(false);
-      },
-    });
+    const org = this.orgState.selectedOrg();
+    if (!org) {
+      this.loadError.set(this.transloco.translate('settings.users.errors.noMembership'));
+      this.loading.set(false);
+      return;
+    }
+    if (org.role !== 'org_admin') {
+      this.loadError.set(this.transloco.translate('settings.users.errors.noOrgAdmin'));
+      this.loading.set(false);
+      return;
+    }
+    this.orgId = org.id;
+    this.loadMembers();
   }
 
   loadMembers(): void {

@@ -21,8 +21,7 @@ import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.
 import { ScreenService } from '../screens/screen.service';
 import { wallResolution } from './wall-resolution';
 import { Screen } from '../screens/screen.model';
-import { MemberService } from '../settings/users/member.service';
-import { MyMembership } from '../settings/users/member.model';
+import { OrganisationStateService } from '../shell/organisation-state.service';
 import { ToastService } from '../shared/toast/toast.service';
 import {
   CardComponent,
@@ -294,7 +293,7 @@ export class ScreenGroupDetail implements OnInit {
   private router = inject(Router);
   private screenGroupService = inject(ScreenGroupService);
   private screenService = inject(ScreenService);
-  private memberService = inject(MemberService);
+  private orgState = inject(OrganisationStateService);
   private toast = inject(ToastService);
   private sse = inject(DashboardSseService);
   private destroyRef = inject(DestroyRef);
@@ -463,23 +462,16 @@ export class ScreenGroupDetail implements OnInit {
 
   ngOnInit(): void {
     this.subscribeToSlicing();
-    this.memberService.getMyMemberships().subscribe({
-      next: (memberships: MyMembership[]) => {
-        const m = memberships.find((x) => x.role === 'org_admin') ?? memberships[0];
-        if (m) {
-          this.orgId.set(m.organisationId);
-          this.loadGroup();
-          this.loadAllScreens();
-        } else {
-          this.loadError.set(this.transloco.translate('common.errors.noOrgMembership'));
-          this.loading.set(false);
-        }
-      },
-      error: () => {
-        this.loadError.set(this.transloco.translate('common.errors.loadOrgContext'));
-        this.loading.set(false);
-      },
-    });
+    // The organisation selected in the shell; on a switch the shell leaves this page.
+    const org = this.orgState.selectedOrg();
+    if (!org) {
+      this.loadError.set(this.transloco.translate('common.errors.noOrgMembership'));
+      this.loading.set(false);
+      return;
+    }
+    this.orgId.set(org.id);
+    this.loadGroup();
+    this.loadAllScreens();
   }
 
   /** Returns true if the SSE event targets the currently displayed group. */
