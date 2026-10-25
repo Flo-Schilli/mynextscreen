@@ -1854,9 +1854,8 @@
         "removed": "Mitglied entfernt."
       },
       "errors": {
-        "noOrgAdmin": "Du hast keinen Org-Admin-Zugriff auf eine Organisation.",
+        "noOrgAdmin": "Du bist in dieser Organisation kein Org-Admin.",
         "noMembership": "Du bist kein Mitglied einer Organisation.",
-        "loadOrgContext": "Organisationskontext konnte nicht geladen werden.",
         "accessDenied": "Zugriff verweigert. Org-Admin-Berechtigungen erforderlich.",
         "loadMembers": "Mitglieder konnten nicht geladen werden.",
         "invalidEmail": "Eine gültige E-Mail ist erforderlich.",

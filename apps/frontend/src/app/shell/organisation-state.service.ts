@@ -39,11 +39,19 @@ export class OrganisationStateService {
     return this.organisations().find((o) => o.id === id) ?? null;
   });
   readonly loading = signal(false);
+  /**
+   * True once the memberships have been fetched (or failed) and `selectedOrgId`
+   * points at a real membership. Pages read their organisation from here, so the
+   * shell only renders them after this flips.
+   */
+  readonly loaded = signal(false);
   readonly isSuperAdmin = signal(false);
   readonly avatarUrl = signal<string | null>(null);
 
   loadOrganisations(): void {
     this.loading.set(true);
+    // The service outlives a logout: pages must not read the previous user's memberships.
+    this.loaded.set(false);
 
     this.http.get<UserProfile>('/api/me/profile').subscribe({
       next: (profile) => {
@@ -71,8 +79,12 @@ export class OrganisationStateService {
           this.select(orgs[0].id);
         }
         this.loading.set(false);
+        this.loaded.set(true);
       },
-      error: () => this.loading.set(false),
+      error: () => {
+        this.loading.set(false);
+        this.loaded.set(true);
+      },
     });
   }
 

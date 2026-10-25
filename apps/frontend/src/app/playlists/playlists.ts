@@ -28,8 +28,7 @@ import { ContentSource, SlideFormat } from '../sources/content-source.model';
 import { apiErrorMessage } from '../sources/source-form-state';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
-import { MemberService } from '../settings/users/member.service';
-import { MyMembership } from '../settings/users/member.model';
+import { OrganisationStateService } from '../shell/organisation-state.service';
 import { OrganisationService } from '../admin/organisations/organisation.service';
 import { SelectionService } from '../shared/selection/selection.service';
 import { BulkAction } from '../shared/selection/bulk-action-toolbar';
@@ -258,7 +257,7 @@ export class Playlists implements OnInit {
   private contentService = inject(ContentService);
   private contentSourceService = inject(ContentSourceService);
   private screenService = inject(ScreenService);
-  private memberService = inject(MemberService);
+  private orgState = inject(OrganisationStateService);
   private organisationService = inject(OrganisationService);
   readonly selectionService = inject(SelectionService);
   private toast = inject(ToastService);
@@ -385,30 +384,19 @@ export class Playlists implements OnInit {
     this.sse.sliceFailed$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(clear);
   }
 
+  /** The organisation selected in the shell; the shell re-creates this page on a switch. */
   private loadCurrentOrg(): void {
-    this.memberService.getMyMemberships().subscribe({
-      next: (memberships: MyMembership[]) => {
-        const adminMembership = memberships.find((m) => m.role === 'org_admin');
-        if (adminMembership) {
-          this.orgId = adminMembership.organisationId;
-          this.userRole = adminMembership.role;
-        } else if (memberships.length > 0) {
-          this.orgId = memberships[0].organisationId;
-          this.userRole = memberships[0].role;
-        } else {
-          this.loadError = this.transloco.translate('common.errors.noOrgMembership');
-          this.loading = false;
-          return;
-        }
-        this.loadPlaylists();
-        this.loadDefaultPlaylist();
-        this.watchRoute();
-      },
-      error: () => {
-        this.loadError = this.transloco.translate('common.errors.loadOrgContext');
-        this.loading = false;
-      },
-    });
+    const org = this.orgState.selectedOrg();
+    if (!org) {
+      this.loadError = this.transloco.translate('common.errors.noOrgMembership');
+      this.loading = false;
+      return;
+    }
+    this.orgId = org.id;
+    this.userRole = org.role;
+    this.loadPlaylists();
+    this.loadDefaultPlaylist();
+    this.watchRoute();
   }
 
   /**

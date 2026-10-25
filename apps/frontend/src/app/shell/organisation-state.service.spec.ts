@@ -267,6 +267,54 @@ describe('OrganisationStateService', () => {
       expect(service.loading()).toBe(false);
       expect(service.organisations()).toEqual([]);
     });
+
+    it('reports loaded only once the selection points at a real membership', () => {
+      // Arrange
+      localStorage.setItem(STORAGE_KEY, 'deleted-org');
+      init();
+
+      // Act
+      service.loadOrganisations();
+      httpMock.expectOne(PROFILE_URL).flush({ userId: 'u1', email: 'a@b.c', isSuperAdmin: false });
+      expect(service.loaded()).toBe(false);
+      httpMock.expectOne(MEMBERSHIPS_URL).flush([membership('org-9', 'Venue Nine', 'Viewer')]);
+
+      // Assert
+      expect(service.loaded()).toBe(true);
+      expect(service.selectedOrg()?.id).toBe('org-9');
+    });
+
+    it('is no longer loaded while a later load (e.g. after re-login) is in flight', () => {
+      // Arrange
+      init();
+      service.loadOrganisations();
+      httpMock.expectOne(PROFILE_URL).flush({ userId: 'u1', email: 'a@b.c', isSuperAdmin: false });
+      httpMock.expectOne(MEMBERSHIPS_URL).flush([membership('org-1', 'Venue One', 'OrgAdmin')]);
+      expect(service.loaded()).toBe(true);
+
+      // Act
+      service.loadOrganisations();
+
+      // Assert
+      expect(service.loaded()).toBe(false);
+      httpMock.expectOne(PROFILE_URL).flush({ userId: 'u2', email: 'b@c.d', isSuperAdmin: false });
+      httpMock.expectOne(MEMBERSHIPS_URL).flush([membership('org-2', 'Venue Two', 'Viewer')]);
+      expect(service.loaded()).toBe(true);
+    });
+
+    it('reports loaded when the memberships request errors', () => {
+      // Arrange
+      init();
+
+      // Act
+      service.loadOrganisations();
+      httpMock.expectOne(PROFILE_URL).flush({ userId: 'u1', email: 'a@b.c', isSuperAdmin: false });
+      httpMock.expectOne(MEMBERSHIPS_URL).error(new ProgressEvent('error'));
+
+      // Assert
+      expect(service.loaded()).toBe(true);
+      expect(service.selectedOrg()).toBeNull();
+    });
   });
 
   describe('select', () => {

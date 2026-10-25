@@ -6,7 +6,12 @@ import { LiveStreamDetail } from './live-stream-detail';
 import { LiveStreamService } from './live-stream.service';
 import { ScreenService } from '../screens/screen.service';
 import { ScreenGroupService } from '../screen-groups/screen-group.service';
-import { MemberService } from '../settings/users/member.service';
+import { OrganisationStateService } from '../shell/organisation-state.service';
+import {
+  OrganisationStateStub,
+  organisationStateStub,
+  orgWithRole,
+} from '../shell/organisation-state.testing';
 import { ToastService } from '../shared/toast/toast.service';
 import {
   ActivateLiveStreamRequest,
@@ -17,7 +22,6 @@ import {
 } from './live-stream.model';
 import { Screen } from '../screens/screen.model';
 import { ScreenGroup } from '../screen-groups/screen-group.model';
-import { MyMembership } from '../settings/users/member.model';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 const ORG_ID = 'org1';
@@ -81,16 +85,6 @@ function makeGroup(id: string, screenCount: number): ScreenGroup {
   };
 }
 
-function membership(orgId: string): MyMembership {
-  return { id: 'm', userId: 'u1', organisationId: orgId, role: 'org_admin', createdAt: 'now' };
-}
-
-class MemberServiceStub {
-  getMyMemberships(): Observable<MyMembership[]> {
-    return of([membership(ORG_ID)]);
-  }
-}
-
 class LiveStreamServiceStub {
   getOneResult: Observable<LiveStream> = of(makeStream());
   updateResult: Observable<LiveStream> = of(makeStream({ name: 'Renamed' }));
@@ -112,8 +106,10 @@ class LiveStreamServiceStub {
   deactivateCount = 0;
   activateCount = 0;
   deleteArgs: string | null = null;
+  getOneOrgIds: string[] = [];
 
-  getOne(): Observable<LiveStream> {
+  getOne(orgId: string): Observable<LiveStream> {
+    this.getOneOrgIds.push(orgId);
     return this.getOneResult;
   }
   update(_org: string, id: string, dto: UpdateLiveStreamRequest): Observable<LiveStream> {
@@ -166,6 +162,7 @@ describe('LiveStreamDetail', () => {
   let fixture: ComponentFixture<LiveStreamDetail>;
   let component: LiveStreamDetail;
   let streams: LiveStreamServiceStub;
+  let orgState: OrganisationStateStub;
   let toast: ToastServiceStub;
   let navigateSpy: ReturnType<typeof vi.fn>;
 
@@ -183,13 +180,14 @@ describe('LiveStreamDetail', () => {
 
   beforeEach(() => {
     streams = new LiveStreamServiceStub();
+    orgState = organisationStateStub(orgWithRole(ORG_ID));
     toast = new ToastServiceStub();
     navigateSpy = vi.fn().mockResolvedValue(true);
     TestBed.configureTestingModule({
       imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
-        { provide: MemberService, useClass: MemberServiceStub },
+        { provide: OrganisationStateService, useValue: orgState },
         { provide: LiveStreamService, useValue: streams },
         { provide: ScreenService, useClass: ScreenServiceStub },
         { provide: ScreenGroupService, useClass: ScreenGroupServiceStub },
@@ -211,6 +209,22 @@ describe('LiveStreamDetail', () => {
     expect((inst['groups'] as () => ScreenGroup[])().length).toBe(1);
     expect((inst['health'] as () => StreamHealthState | null)()?.health).toBe('healthy');
     expect((inst['loading'] as () => boolean)()).toBe(false);
+  });
+
+  it('looks the stream up in the organisation selected in the shell', async () => {
+    orgState.selectedOrg.set(orgWithRole('orgV', 'viewer'));
+    await setUp();
+    expect(streams.getOneOrgIds).toEqual(['orgV']);
+  });
+
+  it('reports an error and loads nothing when no organisation is selected', async () => {
+    orgState.selectedOrg.set(null);
+    await setUp();
+    expect((instance()['loadError'] as () => string)()).toBe(
+      'You are not a member of any organisation.',
+    );
+    expect((instance()['loading'] as () => boolean)()).toBe(false);
+    expect(streams.getOneOrgIds).toEqual([]);
   });
 
   it('shows a not-found error on 404', async () => {

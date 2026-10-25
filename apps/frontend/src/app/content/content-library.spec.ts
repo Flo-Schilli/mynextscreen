@@ -9,8 +9,11 @@ import { ContentLibrary } from './content-library';
 import { Content, StorageInfo } from './content.model';
 import { AuthService } from '../auth/auth.service';
 import { OrganisationStateService } from '../shell/organisation-state.service';
-import { MemberService } from '../settings/users/member.service';
-import { MyMembership } from '../settings/users/member.model';
+import {
+  OrganisationStateStub,
+  organisationStateStub,
+  orgWithRole,
+} from '../shell/organisation-state.testing';
 import { PlaylistService } from '../playlists/playlist.service';
 import { Playlist } from '../playlists/playlist.model';
 import { DashboardSseService, DashboardEvent } from '../dashboard/dashboard-sse.service';
@@ -98,19 +101,11 @@ function makeFileInputEvent(files: File[]): Event {
   return event;
 }
 
-const membership: MyMembership = {
-  id: 'm1',
-  userId: 'u1',
-  organisationId: ORG_ID,
-  role: 'org_admin',
-  createdAt: '2026-01-01T00:00:00Z',
-};
-
 describe('ContentLibrary', () => {
   let fixture: ComponentFixture<ContentLibrary>;
   let component: ContentLibrary;
   let httpMock: HttpTestingController;
-  let memberService: { getMyMemberships: ReturnType<typeof vi.fn> };
+  let orgState: OrganisationStateStub;
   let playlistService: { getAll: ReturnType<typeof vi.fn> };
   let router: { navigate: ReturnType<typeof vi.fn> };
   let paramMap$: Subject<ParamMap>;
@@ -136,7 +131,7 @@ describe('ContentLibrary', () => {
   }
 
   beforeEach(() => {
-    memberService = { getMyMemberships: vi.fn().mockReturnValue(of([membership])) };
+    orgState = organisationStateStub(orgWithRole(ORG_ID));
     playlistService = { getAll: vi.fn() };
     router = { navigate: vi.fn() };
     paramMap$ = new Subject<ParamMap>();
@@ -152,14 +147,7 @@ describe('ContentLibrary', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: AuthService, useValue: { getToken: () => 'tok' } },
-        {
-          provide: OrganisationStateService,
-          useValue: {
-            selectedOrgId: () => ORG_ID,
-            selectedOrg: () => ({ id: ORG_ID, name: 'Org', timeZone: 'UTC', role: 'OrgAdmin' }),
-          },
-        },
-        { provide: MemberService, useValue: memberService },
+        { provide: OrganisationStateService, useValue: orgState },
         { provide: PlaylistService, useValue: playlistService },
         { provide: DashboardSseService, useValue: sse },
         { provide: Router, useValue: router },
@@ -174,7 +162,7 @@ describe('ContentLibrary', () => {
   });
 
   function init(contents: Content[] = [makeContent()]): void {
-    component.ngOnInit(); // getMyMemberships -> loadContent + loadStorage + SSE subs
+    component.ngOnInit(); // selected org -> loadContent + loadStorage + SSE subs
     answerInitialLoad(contents);
   }
 
@@ -191,9 +179,22 @@ describe('ContentLibrary', () => {
     expect(component.contentIds).toEqual(['c1', 'c2']);
   });
 
-  it('reports a "not a member" error when there are no memberships', () => {
+  it('loads the storage of the organisation selected in the shell', () => {
     // Arrange
-    memberService.getMyMemberships.mockReturnValue(of([]));
+    orgState.selectedOrg.set(orgWithRole('orgV', 'viewer'));
+
+    // Act
+    component.ngOnInit();
+
+    // Assert
+    expect(component.orgId).toBe('orgV');
+    httpMock.expectOne('/api/content').flush([]);
+    httpMock.expectOne('/api/organisations/orgV/storage').flush(makeStorage());
+  });
+
+  it('reports a "not a member" error when no organisation is selected', () => {
+    // Arrange
+    orgState.selectedOrg.set(null);
 
     // Act
     component.ngOnInit();

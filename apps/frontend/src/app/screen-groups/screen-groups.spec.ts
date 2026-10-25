@@ -13,8 +13,12 @@ import {
 } from './screen-group.model';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
-import { MemberService } from '../settings/users/member.service';
-import { MyMembership } from '../settings/users/member.model';
+import { OrganisationStateService } from '../shell/organisation-state.service';
+import {
+  OrganisationStateStub,
+  organisationStateStub,
+  orgWithRole,
+} from '../shell/organisation-state.testing';
 import { ToastService } from '../shared/toast/toast.service';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
@@ -33,25 +37,6 @@ function makeGroup(overrides: Partial<ScreenGroup> = {}): ScreenGroup {
     updatedAt: '2026-06-01T00:00:00Z',
     ...overrides,
   };
-}
-
-function membership(role: MyMembership['role'], orgId: string): MyMembership {
-  return {
-    id: 'm-' + orgId,
-    userId: 'u1',
-    organisationId: orgId,
-    role,
-    createdAt: '2026-06-01T00:00:00Z',
-  };
-}
-
-class MemberServiceStub {
-  memberships: MyMembership[] = [membership('org_admin', 'org1')];
-  failMemberships = false;
-
-  getMyMemberships(): Observable<MyMembership[]> {
-    return this.failMemberships ? throwError(() => new Error('boom')) : of(this.memberships);
-  }
 }
 
 class ScreenServiceStub {
@@ -136,7 +121,7 @@ const submit = (
 describe('ScreenGroups', () => {
   let fixture: ComponentFixture<ScreenGroups>;
   let component: ScreenGroups;
-  let member: MemberServiceStub;
+  let orgState: OrganisationStateStub;
   let screens: ScreenServiceStub;
   let groups: ScreenGroupServiceStub;
   let navigateSpy: ReturnType<typeof vi.fn>;
@@ -150,7 +135,7 @@ describe('ScreenGroups', () => {
   }
 
   beforeEach(() => {
-    member = new MemberServiceStub();
+    orgState = organisationStateStub(orgWithRole('org1'));
     screens = new ScreenServiceStub();
     groups = new ScreenGroupServiceStub();
     navigateSpy = vi.fn().mockResolvedValue(true);
@@ -158,7 +143,7 @@ describe('ScreenGroups', () => {
       imports: [getTranslocoTestingModule({ translocoConfig: { defaultLang: 'en' } })],
       providers: [
         provideZonelessChangeDetection(),
-        { provide: MemberService, useValue: member },
+        { provide: OrganisationStateService, useValue: orgState },
         { provide: ScreenService, useValue: screens },
         { provide: ScreenGroupService, useValue: groups },
         { provide: ToastService, useClass: ToastServiceStub },
@@ -167,36 +152,20 @@ describe('ScreenGroups', () => {
     });
   });
 
-  it('prefers the org_admin membership for the org context', async () => {
-    member.memberships = [membership('viewer', 'orgV'), membership('org_admin', 'orgA')];
+  it('loads the groups of the organisation selected in the shell', async () => {
+    orgState.selectedOrg.set(orgWithRole('orgV', 'viewer'));
     await setUp();
 
-    expect(component.orgId).toBe('orgA');
-    expect(groups.getAllCalls).toContain('orgA');
+    expect(component.orgId).toBe('orgV');
+    expect(groups.getAllCalls).toContain('orgV');
     expect(component.loading).toBe(false);
   });
 
-  it('falls back to the first membership when none is org_admin', async () => {
-    member.memberships = [membership('editor', 'orgE'), membership('viewer', 'orgV')];
-    await setUp();
-
-    expect(component.orgId).toBe('orgE');
-    expect(groups.getAllCalls).toContain('orgE');
-  });
-
-  it('reports an error when the user belongs to no organisation', async () => {
-    member.memberships = [];
+  it('reports an error when no organisation is selected', async () => {
+    orgState.selectedOrg.set(null);
     await setUp();
 
     expect(component.loadError).toBe('You are not a member of any organisation.');
-    expect(component.loading).toBe(false);
-  });
-
-  it('reports an error when the memberships request fails', async () => {
-    member.failMemberships = true;
-    await setUp();
-
-    expect(component.loadError).toBe('Failed to load organisation context.');
     expect(component.loading).toBe(false);
   });
 
