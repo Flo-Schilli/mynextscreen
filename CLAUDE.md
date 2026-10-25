@@ -293,23 +293,23 @@ format:check / lint typecheck build / test` auf **PRs** bzw. `nx run-many`
 
 ## Environment (wichtigste Variablen)
 
-| Variable                                                            | Zweck                                                                          |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `DATABASE_URL`                                                      | PostgreSQL-DSN (z. B. `postgres://signage:signage@localhost:5432/signage`)     |
-| `REDIS_URL`                                                         | BullMQ-Queue + Refresh-Tokens (`redis://localhost:6379`)                       |
-| `MEDIA_BASE_PATH`                                                   | Root für Original/Transcoded Media                                             |
-| `JWT_ACCESS_SECRET`                                                 | **Pflicht** — Secret für JWT-Access-Token (`openssl rand -base64 48`)          |
-| `JWT_ACCESS_TTL` / `JWT_REFRESH_TTL`                                | Token-Lebensdauer (z. B. `15m` / `30d`)                                        |
-| `COOKIE_SECURE` / `COOKIE_SAMESITE`                                 | Cookie-Härtung (Secure default nur bei `NODE_ENV=production`)                  |
-| `PUBLIC_BASE_URL`                                                   | Basis-URL der Admin-SPA (Verify/Set-Password/Reset/Confirm-Email-Links + CORS) |
-| `SMTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `_FROM` / `_SECURE` | Platform-Mailer (Account-Mails); Dev → Mailpit (`localhost:1025`)              |
-| `SIGNUP_ENABLED`                                                    | Feature-Flag Self-Signup (default `true`)                                      |
-| `SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES` / `_TRANSCODED_BYTES`       | Default-Storage-Limits einer self-created Org (default 5 GiB)                  |
-| `SIGNUP_UNVERIFIED_TTL_HOURS`                                       | Frist bis Cleanup-Cron nie-verifizierte Signups löscht (default 24)            |
-| `SITE_AGENT_ENROLMENT_TTL_MS`                                       | TTL des Site-Agent-Setup-Codes (default 900000 = 15 min; < 60 s wird ignoriert) |
-| `MAX_FILE_SIZE_BYTES`                                               | Upload-Limit                                                                   |
-| `FFMPEG_PATH`                                                       | FFmpeg-Binary (default: System-PATH)                                           |
-| `FFMPEG_VIDEO_CRF` / `_PRESET` / `_MAXRATE` / `_BUFSIZE`            | Transcoding-Qualität                                                           |
+| Variable                                                            | Zweck                                                                                                  |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`                                                      | PostgreSQL-DSN (z. B. `postgres://signage:signage@localhost:5432/signage`)                             |
+| `REDIS_URL`                                                         | BullMQ-Queue + Refresh-Tokens (`redis://localhost:6379`)                                               |
+| `MEDIA_BASE_PATH`                                                   | Root für Original/Transcoded Media                                                                     |
+| `JWT_ACCESS_SECRET`                                                 | **Pflicht** — Secret für JWT-Access-Token (`openssl rand -base64 48`)                                  |
+| `JWT_ACCESS_TTL` / `JWT_REFRESH_TTL`                                | Token-Lebensdauer (z. B. `15m` / `30d`)                                                                |
+| `COOKIE_SECURE` / `COOKIE_SAMESITE`                                 | Cookie-Härtung (Secure default nur bei `NODE_ENV=production`)                                          |
+| `PUBLIC_BASE_URL`                                                   | Basis-URL der Admin-SPA (Verify/Set-Password/Reset/Confirm-Email-Links + CORS)                         |
+| `SMTP_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `_FROM` / `_SECURE` | Platform-Mailer (Account-Mails); Dev → Mailpit (`localhost:1025`)                                      |
+| `SIGNUP_ENABLED`                                                    | Feature-Flag Self-Signup (default `true`)                                                              |
+| `SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES` / `_TRANSCODED_BYTES`       | Default-Storage-Limits einer self-created Org (default 5 GiB)                                          |
+| `SIGNUP_UNVERIFIED_TTL_HOURS`                                       | Frist bis Cleanup-Cron nie-verifizierte Signups löscht (default 24)                                    |
+| `SITE_AGENT_ENROLMENT_TTL_MS`                                       | TTL des Site-Agent-Setup-Codes (default 900000 = 15 min; < 60 s wird ignoriert)                        |
+| `MAX_FILE_SIZE_BYTES`                                               | Upload-Limit                                                                                           |
+| `FFMPEG_PATH`                                                       | FFmpeg-Binary (default: System-PATH)                                                                   |
+| `FFMPEG_VIDEO_CRF` / `_PRESET` / `_MAXRATE` / `_BUFSIZE`            | Transcoding-Qualität                                                                                   |
 | `METRICS_SCRAPE_TOKEN`                                              | Bearer-Token für `GET /api/metrics` (Prometheus); unset = Endpoint 404-disabled, nie öffentlich routen |
 
 ## Deployment (Prod) — GHCR-Pull-Modell
