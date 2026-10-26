@@ -4,6 +4,41 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.30.0
+
+### Added — genre groups for event schedule rules
+
+A rule whose playlist is dynamic can list genre groups (e.g. "Rock, Metal",
+then "Jazz"). For each event the first group sharing one of its genres wins
+and the slot plays the playlist narrowed to that group's genres; an event no
+group matches plays the playlist as it is. The narrowed copies are hidden
+playlists the rule keeps in step with its base playlist: they never appear in
+the playlist list, search or pickers. The calendar names the matched group on
+each entry, and the entry's dialog says why.
+
+### Added — schedule page rework
+
+- Calendar blocks lead with the event or entry name, then playlist and genre
+  group; status icons sit in the time row and a tooltip carries everything.
+- Week and month use the full width (the day panel stays in the day view), the
+  time grid scrolls on its own and opens at the first entry, and fallback gaps
+  are a faint hatch explained once.
+- A new **List** view shows upcoming entries grouped by day and keeps loading
+  as you scroll. It can show **all screens and groups** at once and marks
+  entries that overlap on a screen, saying which one plays.
+- Automatic entries a manual one displaces no longer vanish: they appear as
+  dashed ghosts (strip, chip, faded row) naming who holds the slot. Nothing
+  plays them; when the holder goes, the rule schedules the slot again.
+- Each entry can show what its playlist plays right now — the events a dynamic
+  playlist selects with their genres, or a static playlist's items — from the
+  automatic-entry dialog or "View content" in the edit form.
+
+New endpoints: `GET /api/schedules/displaced`, `GET /api/schedules/:id/preview`.
+
+**Operator action:** update the server; migration `0030_event_schedule_genre_variants`
+runs on startup. Displaced slots show once each rule has reconciled after the
+update (at the latest on the hourly tick).
+
 ## 0.26.7
 
 ### Added — audit log shows old → new values
