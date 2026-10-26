@@ -18,6 +18,7 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
 import type { ScheduleEntry, Playlist } from '../db/schema';
+import type { DisplacedSlot } from './displaced-slots';
 
 @Controller('schedules')
 export class ScheduleController {
@@ -56,6 +57,13 @@ export class ScheduleController {
       targetType: entry.groupId ? 'group' : 'screen',
       targetId: entry.groupId ?? entry.screenId,
     }));
+  }
+
+  /** Slots event schedule rules left to other entries; shown, never played. */
+  @Get('displaced')
+  @Roles(OrganisationRole.OrgAdmin, OrganisationRole.Editor, OrganisationRole.Viewer)
+  findDisplaced(@CurrentOrganisation() organisationId: string): Promise<DisplacedSlot[]> {
+    return this.scheduleService.findDisplaced(organisationId);
   }
 
   @Get('current')

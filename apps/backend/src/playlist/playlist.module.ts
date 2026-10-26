@@ -3,6 +3,8 @@ import { BullModule } from '@nestjs/bullmq';
 import { ContentSourceModule } from '../content-source/content-source.module';
 import { PlaylistService } from './playlist.service';
 import { PlaylistController } from './playlist.controller';
+import { ScheduleEntryPreviewController } from './schedule-entry-preview.controller';
+import { ScheduleEntryPreviewService } from './schedule-entry-preview.service';
 import { PlaylistRuleService } from './playlist-rule.service';
 import { PlaylistResolveProcessor } from './playlist-resolve.processor';
 import { PlaylistRuleScheduler } from './playlist-rule.scheduler';
@@ -23,13 +25,14 @@ import { PLAYLIST_RESOLVE_QUEUE } from './playlist-resolve.constants';
     }),
     ContentSourceModule,
   ],
-  controllers: [PlaylistController],
+  controllers: [PlaylistController, ScheduleEntryPreviewController],
   providers: [
     PlaylistService,
     PlaylistRuleService,
     PlaylistResolveProcessor,
     PlaylistRuleScheduler,
     PlaylistContentRefreshListener,
+    ScheduleEntryPreviewService,
   ],
   exports: [PlaylistService],
 })

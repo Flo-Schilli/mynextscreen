@@ -1,0 +1,397 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
+import { BtnComponent, CardComponent, EmptyComponent, IconComponent, SwitchComponent } from '../ui';
+import { LanguageService } from '../i18n/language.service';
+import { ListDay } from './schedule-calendar.service';
+import { ScheduleConflict, ScheduleOccurrence } from './schedule-conflicts';
+import { isSameZonedDay } from './org-time';
+import {
+  DisplacedSlot,
+  ScheduleEntry,
+  blockingTitle,
+  entryGenres,
+  entryPlaylistName,
+  entryTitle,
+} from './schedule.model';
+
+/** One line of a list day: an occurrence that plays, or a slot a rule left to it. */
+interface ListRow {
+  key: string;
+  start: number;
+  occurrence?: ScheduleOccurrence;
+  slot?: DisplacedSlot;
+}
+
+/** How far before the list's end it asks for more, so scrolling rarely has to wait. */
+const LOAD_AHEAD_MARGIN = '600px';
+
+/**
+ * Presentational list of upcoming occurrences, grouped by day. It asks for
+ * more days whenever its end scrolls into reach, so the user never pages. Shows where
+ * entries overlap on a screen and which of them plays; selecting a row hands
+ * the entry back to the page, which opens it as the calendar would.
+ */
+@Component({
+  selector: 'app-schedule-list-view',
+  standalone: true,
+  imports: [
+    BtnComponent,
+    CardComponent,
+    EmptyComponent,
+    IconComponent,
+    SwitchComponent,
+    TranslocoDirective,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <mns-card [pad]="false" *transloco="let t">
+      <div
+        class="list-head flex flex-wrap items-center gap-3 px-4 py-3 border-b border-border text-[13px]"
+      >
+        @if (conflictCount() > 0) {
+          <span class="conflict-count inline-flex items-center gap-1.5 font-semibold text-offline">
+            <mns-icon name="Alert" [size]="14" />
+            {{ t('schedules.list.conflicts', { count: conflictCount() }) }}
+          </span>
+        }
+        @if (displacedCount() > 0) {
+          <span class="displaced-count inline-flex items-center gap-1.5 text-muted">
+            <span class="w-2.5 h-3 rounded-sm border-[1.5px] border-dashed border-muted"></span>
+            {{ t('schedules.displaced.count', { count: displacedCount() }) }}
+          </span>
+        }
+        @if (conflictCount() > 0 || displacedCount() > 0) {
+          <div class="only-conflicts ml-auto inline-flex items-center gap-2 text-muted">
+            {{ t('schedules.list.onlyConflicts') }}
+            <mns-switch [checked]="onlyConflicts()" (toggled)="onlyConflicts.set($event)" />
+          </div>
+        } @else {
+          <span class="no-conflicts inline-flex items-center gap-1.5 text-muted">
+            <mns-icon name="CheckCircle" [size]="14" class="text-online" />
+            {{ t('schedules.list.noConflicts') }}
+          </span>
+        }
+      </div>
+
+      @if (shownDays().length === 0 && !hasMore()) {
+        <div class="py-10">
+          <mns-empty icon="Calendar" [title]="t('schedules.list.empty')" />
+        </div>
+      }
+
+      @for (day of shownDays(); track day.date.getTime()) {
+        <section class="list-day">
+          <h3
+            class="list-day-head sticky top-0 z-[1] px-4 py-2 text-[12px] font-bold uppercase tracking-wide bg-surface-2 border-b border-border"
+            [class.text-accent]="isToday(day.date)"
+            [class.text-muted]="!isToday(day.date)"
+          >
+            {{ formatDay(day.date) }}
+          </h3>
+          @for (row of rowsOf(day); track row.key) {
+            @if (row.occurrence; as occurrence) {
+              <button
+                type="button"
+                class="list-row w-full text-left grid grid-cols-[3px_1fr] md:grid-cols-[3px_6.5rem_1fr_minmax(0,11rem)] gap-x-3 gap-y-0.5 px-4 py-2.5 border-b border-border last:border-b-0 transition-colors duration-[120ms] hover:bg-surface-2"
+                [class.has-conflict]="conflictsOf(occurrence).length > 0"
+                (click)="entrySelect.emit(occurrence.entry)"
+              >
+                <span
+                  class="row-colour row-span-3 md:row-span-1 rounded-sm self-stretch"
+                  [style.background]="occurrence.entry.colour || '#6d6cf6'"
+                ></span>
+                <span
+                  class="row-time text-[12.5px] font-mono font-semibold text-muted whitespace-nowrap md:pt-px"
+                >
+                  {{ formatTime(occurrence.start) }}–{{ formatTime(occurrence.end) }}
+                </span>
+                <span class="row-main flex flex-col gap-0.5 min-w-0 col-start-2 md:col-start-auto">
+                  <span class="flex items-center gap-1.5 min-w-0">
+                    @if (conflictsOf(occurrence).length > 0) {
+                      <mns-icon name="Alert" [size]="13" class="text-offline flex-shrink-0" />
+                    }
+                    <span class="row-title text-[13.5px] font-semibold text-text truncate">{{
+                      titleOf(occurrence.entry)
+                    }}</span>
+                    @if (occurrence.entry.managedByRule) {
+                      <span
+                        class="text-faint flex-shrink-0"
+                        [title]="t('schedules.managed.managedBadge')"
+                      >
+                        <mns-icon name="Lock" [size]="12" />
+                      </span>
+                    }
+                    @if (occurrence.entry.rrule) {
+                      <mns-icon name="Refresh" [size]="12" class="text-faint flex-shrink-0" />
+                    }
+                  </span>
+                  <span class="flex items-center gap-1.5 min-w-0 text-[12px] text-muted">
+                    @if (playlistOf(occurrence.entry); as playlist) {
+                      <span class="row-playlist truncate">{{ playlist }}</span>
+                    }
+                    @if (genresOf(occurrence.entry); as genres) {
+                      <span
+                        class="genre-pill inline-flex items-center gap-0.5 min-w-0 rounded px-1 text-[10.5px] font-bold leading-[16px] bg-accent-soft text-accent"
+                        [title]="t('schedules.genreGroup.badgeTitle', { genres })"
+                      >
+                        <mns-icon name="Sparkle" [size]="10" class="flex-shrink-0" />
+                        <span class="truncate">{{ genres }}</span>
+                      </span>
+                    }
+                  </span>
+                  @for (conflict of conflictsOf(occurrence); track conflict.other.id) {
+                    <span class="row-conflict text-[12px] text-offline leading-snug">
+                      {{ conflictText(conflict) }}
+                    </span>
+                  }
+                </span>
+                <span
+                  class="row-target col-start-2 md:col-start-auto flex items-center gap-1.5 min-w-0 text-[12px] text-muted md:justify-end"
+                >
+                  <mns-icon
+                    [name]="occurrence.entry.groupId ? 'Groups' : 'Screens'"
+                    [size]="12"
+                    class="flex-shrink-0 text-faint"
+                  />
+                  <span class="truncate">{{ targetOf(occurrence.entry) }}</span>
+                </span>
+              </button>
+            } @else if (row.slot; as slot) {
+              <button
+                type="button"
+                class="list-row ghost-row w-full text-left grid grid-cols-[3px_1fr] md:grid-cols-[3px_6.5rem_1fr_minmax(0,11rem)] gap-x-3 gap-y-0.5 px-4 py-2.5 border-b border-border last:border-b-0 transition-colors duration-[120ms] hover:bg-surface-2"
+                (click)="displacedSelect.emit(slot)"
+              >
+                <span
+                  class="row-colour ghost-bar row-span-3 md:row-span-1 rounded-sm self-stretch"
+                  [style.borderColor]="slot.colour"
+                ></span>
+                <span
+                  class="row-time text-[12.5px] font-mono font-semibold text-faint whitespace-nowrap md:pt-px"
+                >
+                  {{ formatTime(slotStart(slot)) }}–{{ formatTime(slotEnd(slot)) }}
+                </span>
+                <span class="row-main flex flex-col gap-0.5 min-w-0 col-start-2 md:col-start-auto">
+                  <span class="flex items-center gap-1.5 min-w-0">
+                    <span class="row-title text-[13.5px] font-semibold text-muted truncate">{{
+                      slot.eventTitle
+                    }}</span>
+                    <span
+                      class="text-faint flex-shrink-0"
+                      [title]="t('schedules.managed.managedBadge')"
+                    >
+                      <mns-icon name="Lock" [size]="12" />
+                    </span>
+                  </span>
+                  <span class="flex items-center gap-1.5 min-w-0 text-[12px] text-faint">
+                    @if (slot.playlistName) {
+                      <span class="truncate">{{ slot.playlistName }}</span>
+                    }
+                    @if (slot.genres) {
+                      <span class="truncate">· {{ slot.genres.join(', ') }}</span>
+                    }
+                  </span>
+                  <span class="row-displaced text-[12px] text-muted leading-snug">
+                    {{
+                      t('schedules.displaced.row', {
+                        rule: slot.ruleName,
+                        blocking: blockingOf(slot),
+                      })
+                    }}
+                  </span>
+                </span>
+                <span
+                  class="row-target col-start-2 md:col-start-auto flex items-center gap-1.5 min-w-0 text-[12px] text-faint md:justify-end"
+                >
+                  <mns-icon
+                    [name]="slot.groupId ? 'Groups' : 'Screens'"
+                    [size]="12"
+                    class="flex-shrink-0"
+                  />
+                  <span class="truncate">{{ slot.targetName }}</span>
+                </span>
+              </button>
+            }
+          }
+        </section>
+      }
+      @if (hasMore()) {
+        <div #sentinel class="list-more flex justify-center px-4 py-4">
+          <mns-btn variant="outline" size="sm" (mnsClick)="loadMore.emit()">{{
+            t('schedules.list.loadMore')
+          }}</mns-btn>
+        </div>
+      } @else if (shownDays().length > 0) {
+        <p class="list-end px-4 py-4 text-center text-[12px] text-faint">
+          {{ t('schedules.list.end') }}
+        </p>
+      }
+    </mns-card>
+  `,
+  styles: `
+    .ghost-row {
+      opacity: 0.8;
+    }
+    .ghost-bar {
+      border-left: 3px dashed;
+    }
+    .list-row.has-conflict {
+      background: color-mix(in srgb, var(--color-offline) 7%, transparent);
+    }
+  `,
+})
+export class ScheduleListView {
+  readonly days = input.required<ListDay[]>();
+  readonly conflicts = input.required<Map<string, ScheduleConflict[]>>();
+  readonly orgTimeZone = input.required<string>();
+  /** Whether scrolling further can still show anything. */
+  readonly hasMore = input(false);
+
+  readonly entrySelect = output<ScheduleEntry>();
+  readonly loadMore = output<void>();
+  readonly displacedSelect = output<DisplacedSlot>();
+
+  private readonly transloco = inject(TranslocoService);
+  private readonly language = inject(LanguageService);
+
+  readonly onlyConflicts = signal(false);
+
+  private readonly sentinel = viewChild<ElementRef<HTMLElement>>('sentinel');
+  private observer: IntersectionObserver | null = null;
+
+  /**
+   * Watches the end of the list. Re-created whenever the days change: an
+   * observer reports a sentinel that is still in reach right away, so short
+   * stretches keep loading until the list fills the screen.
+   */
+  private readonly watchEnd = effect(() => {
+    this.days();
+    const el = this.sentinel()?.nativeElement;
+    this.observer?.disconnect();
+    this.observer = null;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    this.observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) this.loadMore.emit();
+      },
+      { rootMargin: LOAD_AHEAD_MARGIN },
+    );
+    this.observer.observe(el);
+  });
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.observer?.disconnect());
+  }
+
+  readonly conflictCount = computed(() => this.conflicts().size);
+  readonly displacedCount = computed(() =>
+    this.days().reduce((sum, day) => sum + day.displaced.length, 0),
+  );
+
+  readonly shownDays = computed<ListDay[]>(() => {
+    if (!this.onlyConflicts()) return this.days();
+    const conflicts = this.conflicts();
+    return this.days()
+      .map((day) => {
+        // An entry that holds a displaced slot belongs to that overlap too.
+        const holding = new Set(day.displaced.map((slot) => slot.blockingEntry.id));
+        const occurrences = day.occurrences.filter(
+          (o) => conflicts.has(o.key) || holding.has(o.entry.id),
+        );
+        return { ...day, occurrences };
+      })
+      .filter((day) => day.occurrences.length > 0 || day.displaced.length > 0);
+  });
+
+  /** The day's occurrences and displaced slots in order of start; a ghost after what holds it. */
+  rowsOf(day: ListDay): ListRow[] {
+    const rows: ListRow[] = [
+      ...day.occurrences.map((occurrence) => ({
+        key: occurrence.key,
+        start: occurrence.start.getTime(),
+        occurrence,
+      })),
+      ...day.displaced.map((slot) => ({
+        key: `displaced:${slot.ruleId}@${slot.startTime}:${slot.screenId ?? slot.groupId}`,
+        start: new Date(slot.startTime).getTime(),
+        slot,
+      })),
+    ];
+    return rows.sort((a, b) => a.start - b.start || Number(!!a.slot) - Number(!!b.slot));
+  }
+
+  slotStart(slot: DisplacedSlot): Date {
+    return new Date(slot.startTime);
+  }
+
+  slotEnd(slot: DisplacedSlot): Date {
+    return new Date(slot.endTime);
+  }
+
+  blockingOf(slot: DisplacedSlot): string {
+    return blockingTitle(slot);
+  }
+
+  conflictsOf(occurrence: ScheduleOccurrence): ScheduleConflict[] {
+    return this.conflicts().get(occurrence.key) ?? [];
+  }
+
+  titleOf(entry: ScheduleEntry): string {
+    return entryTitle(entry) || this.transloco.translate<string>('schedules.grid.playlistFallback');
+  }
+
+  /** The playlist, unless the title already shows it. */
+  playlistOf(entry: ScheduleEntry): string | null {
+    const playlist = entryPlaylistName(entry);
+    return playlist === this.titleOf(entry) ? null : playlist;
+  }
+
+  genresOf(entry: ScheduleEntry): string | null {
+    return entryGenres(entry);
+  }
+
+  targetOf(entry: ScheduleEntry): string {
+    return entry.group?.name ?? entry.screen?.name ?? '';
+  }
+
+  conflictText(conflict: ScheduleConflict): string {
+    return this.transloco.translate<string>(
+      conflict.wins ? 'schedules.list.conflictWins' : 'schedules.list.conflictLoses',
+      { other: this.titleOf(conflict.other), screens: conflict.screenNames.join(', ') },
+    );
+  }
+
+  isToday(day: Date): boolean {
+    return isSameZonedDay(day, new Date(), this.orgTimeZone());
+  }
+
+  formatDay(day: Date): string {
+    return day.toLocaleDateString(this.language.locale(), {
+      timeZone: this.orgTimeZone(),
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+  }
+
+  formatTime(date: Date): string {
+    return date.toLocaleTimeString(this.language.locale(), {
+      timeZone: this.orgTimeZone(),
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  }
+}

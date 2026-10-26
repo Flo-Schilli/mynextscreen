@@ -18,6 +18,8 @@ import {
   UpdateScheduleEntryRequest,
   SchedulePriority,
   TargetOption,
+  DisplacedSlot,
+  blockingTitle,
 } from './schedule.model';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
@@ -35,10 +37,17 @@ import {
   ScheduleViewMode,
   CalendarBlock,
   GapBlock,
+  GhostBlock,
   DayTimeline,
+  ListDay,
+  LIST_MAX_DAYS,
+  LIST_VIEW_DAYS,
   MonthDayCell,
 } from './schedule-calendar.service';
-import { ScheduleToolbar } from './schedule-toolbar';
+import { ScheduleToolbar, ALL_TARGETS } from './schedule-toolbar';
+import { ScheduleListView } from './schedule-list-view';
+import { ScheduleEntryPreviewComponent } from './schedule-entry-preview';
+import { ScheduleConflict, entriesOnTarget, findConflicts } from './schedule-conflicts';
 import { ScheduleSidePanel } from './schedule-side-panel';
 import { ScheduleCalendarGrid } from './schedule-calendar-grid';
 import { ScheduleFormModal, ScheduleFormResult, PRESET_COLOURS } from './schedule-form-modal';
@@ -64,6 +73,8 @@ const HOUR_HEIGHT = 60;
     ScheduleToolbar,
     ScheduleSidePanel,
     ScheduleCalendarGrid,
+    ScheduleListView,
+    ScheduleEntryPreviewComponent,
     ScheduleFormModal,
     PageHeaderComponent,
     BtnComponent,
@@ -113,32 +124,48 @@ const HOUR_HEIGHT = 60;
 
         <div class="calendar-layout">
           <div class="calendar-container">
-            <app-schedule-calendar-grid
-              [viewMode]="viewMode"
-              [visibleDays]="visibleDays"
-              [monthWeeks]="monthWeeks"
-              [blocks]="calendarBlocks"
-              [gaps]="gapBlocks"
-              [hourHeight]="hourHeight"
-              [orgTimeZone]="orgTimeZone"
-              [draggingEntryId]="dragState?.entryId ?? null"
-              [mobileDayIndex]="mobileDayIndex"
-              (monthDayClick)="onMonthDayClick($event)"
-              (createSlot)="openCreateModalWithTimes($event.start, $event.end)"
-              (blockMouseDown)="onBlockMouseDown($event.event, $event.block)"
-              (resizeMouseDown)="onResizeMouseDown($event.event, $event.block, $event.edge)"
-              (blockClick)="onBlockClick($event.event, $event.block)"
-              (blockEnter)="openEditModal($event)"
-              (mobilePrevDay)="stepMobileDay(-1)"
-              (mobileNextDay)="stepMobileDay(1)"
-            />
+            @if (viewMode === 'list') {
+              <app-schedule-list-view
+                [days]="listDays"
+                [conflicts]="listConflicts"
+                [hasMore]="listHasMore"
+                [orgTimeZone]="orgTimeZone"
+                (entrySelect)="openEditModal($event)"
+                (loadMore)="loadMoreList()"
+                (displacedSelect)="displacedSlot = $event"
+              />
+            } @else {
+              <app-schedule-calendar-grid
+                [viewMode]="viewMode"
+                [visibleDays]="visibleDays"
+                [monthWeeks]="monthWeeks"
+                [blocks]="calendarBlocks"
+                [gaps]="gapBlocks"
+                [hourHeight]="hourHeight"
+                [orgTimeZone]="orgTimeZone"
+                [draggingEntryId]="dragState?.entryId ?? null"
+                [ghosts]="ghostBlocks"
+                [mobileDayIndex]="mobileDayIndex"
+                (monthDayClick)="onMonthDayClick($event)"
+                (createSlot)="openCreateModalWithTimes($event.start, $event.end)"
+                (blockMouseDown)="onBlockMouseDown($event.event, $event.block)"
+                (resizeMouseDown)="onResizeMouseDown($event.event, $event.block, $event.edge)"
+                (blockClick)="onBlockClick($event.event, $event.block)"
+                (blockEnter)="openEditModal($event)"
+                (ghostSelect)="displacedSlot = $event"
+                (mobilePrevDay)="stepMobileDay(-1)"
+                (mobileNextDay)="stepMobileDay(1)"
+              />
+            }
           </div>
 
-          <app-schedule-side-panel
-            class="hidden md:block"
-            [dateLabel]="formatSidePanelDate(selectedDate)"
-            [timeline]="dayTimeline"
-          />
+          @if (viewMode === 'day') {
+            <app-schedule-side-panel
+              class="hidden md:block"
+              [dateLabel]="formatSidePanelDate(selectedDate)"
+              [timeline]="dayTimeline"
+            />
+          }
         </div>
       }
 
@@ -163,6 +190,7 @@ const HOUR_HEIGHT = 60;
           [timeZone]="orgTimeZone"
           (save)="submitModal($event)"
           (remove)="deleteEntry()"
+          (preview)="previewEntry = editingEntry"
           (dismiss)="closeModal()"
         />
       }
@@ -225,17 +253,72 @@ const HOUR_HEIGHT = 60;
           <mns-modal
             [title]="t('schedules.managed.managedTitle')"
             icon="Lock"
-            [widthPx]="420"
+            [widthPx]="560"
             (closed)="managedEntry = null"
           >
             <p class="managed-body text-[13px] text-muted leading-relaxed">
               {{ t('schedules.managed.managedBody', { rule: entry.managedByRule?.name ?? '' }) }}
             </p>
+            @if (entry.genreGroup; as group) {
+              <p class="managed-genre-group mt-2 text-[13px] text-muted leading-relaxed">
+                {{
+                  t('schedules.genreGroup.managedBody', {
+                    genres: group.genres.join(', '),
+                    playlist: group.basePlaylistName,
+                  })
+                }}
+              </p>
+            }
+            <app-schedule-entry-preview class="block mt-4" [orgId]="orgId" [entryId]="entry.id" />
             <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
               <mns-btn variant="outline" (mnsClick)="managedEntry = null">{{
                 t('common.actions.close')
               }}</mns-btn>
               <mns-btn class="open-rule" icon="Arrow" (mnsClick)="openManagingRule(entry)">{{
+                t('schedules.managed.managedOpenRule')
+              }}</mns-btn>
+            </div>
+          </mns-modal>
+        </mns-overlay>
+      }
+
+      @if (previewEntry; as entry) {
+        <mns-overlay (closed)="previewEntry = null">
+          <mns-modal
+            [title]="t('schedules.preview.modalTitle')"
+            icon="Eye"
+            [widthPx]="560"
+            (closed)="previewEntry = null"
+          >
+            <app-schedule-entry-preview [orgId]="orgId" [entryId]="entry.id" />
+            <div slot="footer" class="flex justify-end px-6 pb-5">
+              <mns-btn variant="outline" (mnsClick)="previewEntry = null">{{
+                t('common.actions.close')
+              }}</mns-btn>
+            </div>
+          </mns-modal>
+        </mns-overlay>
+      }
+
+      @if (displacedSlot; as slot) {
+        <mns-overlay (closed)="displacedSlot = null">
+          <mns-modal
+            [title]="t('schedules.displaced.title')"
+            icon="Layers"
+            [widthPx]="440"
+            (closed)="displacedSlot = null"
+          >
+            <p class="displaced-body text-[13px] text-muted leading-relaxed">
+              {{ displacedBody(slot) }}
+            </p>
+            <p class="mt-2 text-[13px] text-muted leading-relaxed">
+              {{ t('schedules.displaced.comesBack', { blocking: blockingOf(slot) }) }}
+            </p>
+            <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
+              <mns-btn variant="outline" (mnsClick)="displacedSlot = null">{{
+                t('common.actions.close')
+              }}</mns-btn>
+              <mns-btn class="open-rule" icon="Arrow" (mnsClick)="openDisplacedRule(slot)">{{
                 t('schedules.managed.managedOpenRule')
               }}</mns-btn>
             </div>
@@ -289,7 +372,7 @@ export class Schedules implements OnInit, OnDestroy {
   playlists: Playlist[] = [];
   entries: ScheduleEntry[] = [];
 
-  // Target selector: "screen:<id>" or "group:<id>"
+  // Target selector: "screen:<id>", "group:<id>", or ALL_TARGETS (list view only)
   selectedTargetId = '';
   targetOptions: TargetOption[] = [];
 
@@ -308,12 +391,24 @@ export class Schedules implements OnInit, OnDestroy {
   gapBlocks: GapBlock[] = [];
   monthWeeks: MonthDayCell[][] = [];
   dayTimeline: DayTimeline[] = [];
+  listDays: ListDay[] = [];
+  listConflicts = new Map<string, ScheduleConflict[]>();
+  /** How far the list has been scrolled out, in days from {@link currentDate}. */
+  listDayCount = LIST_VIEW_DAYS;
+  listHasMore = false;
 
   // Live slice progress overlay, shown after assigning content to a split group.
   // Fed by the slice.* SSE stream; null when no run is being surfaced.
   sliceModal: SliceJobStatus | null = null;
   /** A generated entry the user clicked: it opens an explanation, not the edit form. */
   managedEntry: ScheduleEntry | null = null;
+  /** An entry whose playlist content is shown, opened from its edit form. */
+  previewEntry: ScheduleEntry | null = null;
+  /** A displaced slot the user clicked: it explains why the rule stepped aside. */
+  displacedSlot: DisplacedSlot | null = null;
+  /** Every displaced slot of the organisation; narrowed to the target when shown. */
+  private allDisplaced: DisplacedSlot[] = [];
+  ghostBlocks: GhostBlock[] = [];
   private sliceModalAutoClose: ReturnType<typeof setTimeout> | null = null;
 
   // Modal state (form state itself lives in the modal child)
@@ -363,8 +458,9 @@ export class Schedules implements OnInit, OnDestroy {
     return this.targetOptions.filter((t) => t.type === 'group');
   }
 
-  get selectedTargetType(): 'screen' | 'group' | null {
+  get selectedTargetType(): 'screen' | 'group' | 'all' | null {
     if (!this.selectedTargetId) return null;
+    if (this.selectedTargetId === ALL_TARGETS) return 'all';
     return this.selectedTargetId.startsWith('group:') ? 'group' : 'screen';
   }
 
@@ -388,10 +484,19 @@ export class Schedules implements OnInit, OnDestroy {
         year: 'numeric',
       });
     }
+    if (this.viewMode === 'list') {
+      const date = this.currentDate.toLocaleDateString(locale, {
+        ...opts,
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      });
+      return this.transloco.translate('schedules.toolbar.fromDate', { date });
+    }
     if (this.viewMode === 'week') {
       const days = this.visibleDays;
       const first = days[0];
-      const last = days[6];
+      const last = days[days.length - 1];
       const fmtStart = first.toLocaleDateString(locale, {
         ...opts,
         month: 'short',
@@ -627,9 +732,25 @@ export class Schedules implements OnInit, OnDestroy {
   loadEntries(): void {
     if (!this.selectedTargetId) return;
     const orgId = this.orgId;
+    this.loadDisplaced(orgId);
     const range = this.calendar.getQueryRange(this.viewMode, this.currentDate, this.orgTimeZone);
 
-    if (this.selectedTargetType === 'screen') {
+    if (this.viewMode === 'list') {
+      // The list also shows what plays on the target through its group or its
+      // members, so it loads everything and narrows it here.
+      this.scheduleService.getByDateRange(orgId, range.from, range.to).subscribe({
+        next: (entries) => {
+          if (!this.isCurrentOrg(orgId)) return;
+          this.entries = entriesOnTarget(entries, this.listTarget(), this.screens);
+          this.loading = false;
+          this.rebuildCalendar();
+        },
+        error: () => {
+          this.loadError = this.transloco.translate('schedules.errors.loadEntries');
+          this.loading = false;
+        },
+      });
+    } else if (this.selectedTargetType === 'screen') {
       this.scheduleService
         .getByScreen(orgId, this.selectedTargetRawId, range.from, range.to)
         .subscribe({
@@ -661,14 +782,75 @@ export class Schedules implements OnInit, OnDestroy {
     }
   }
 
+  private listTarget(): { type: 'screen' | 'group'; id: string } | null {
+    const type = this.selectedTargetType;
+    if (type === 'screen' || type === 'group') return { type, id: this.selectedTargetRawId };
+    return null;
+  }
+
+  /**
+   * Slots rules left to other entries, shown as ghosts. Optional: if they
+   * cannot be loaded the calendar is still right, it just shows no ghosts.
+   */
+  private loadDisplaced(orgId: string): void {
+    this.scheduleService.getDisplaced(orgId).subscribe({
+      next: (slots) => {
+        if (!this.isCurrentOrg(orgId)) return;
+        this.allDisplaced = slots;
+        this.rebuildCalendar();
+      },
+      error: () => {
+        this.allDisplaced = [];
+      },
+    });
+  }
+
+  /** The displaced slots of the selected target, as the current view narrows entries. */
+  private get shownDisplaced(): DisplacedSlot[] {
+    if (this.viewMode === 'list') {
+      return entriesOnTarget(this.allDisplaced, this.listTarget(), this.screens);
+    }
+    const type = this.selectedTargetType;
+    const id = this.selectedTargetRawId;
+    return this.allDisplaced.filter((slot) =>
+      type === 'group' ? slot.groupId === id : slot.screenId === id,
+    );
+  }
+
+  /** Short explanation of a displaced slot for its dialog. */
+  displacedBody(slot: DisplacedSlot): string {
+    return this.transloco.translate('schedules.displaced.body', {
+      event: slot.eventTitle,
+      rule: slot.ruleName,
+      blocking: this.blockingOf(slot),
+    });
+  }
+
+  blockingOf(slot: DisplacedSlot): string {
+    return blockingTitle(slot);
+  }
+
+  openDisplacedRule(slot: DisplacedSlot): void {
+    this.displacedSlot = null;
+    void this.router.navigate(['/sources', slot.sourceId]);
+  }
+
   private rebuildCalendar(): void {
-    if (this.viewMode === 'month') {
-      this.monthWeeks = this.calendar.buildMonthWeeks(
-        this.entries,
-        this.currentDate,
+    if (this.viewMode === 'list') {
+      this.rebuildList();
+    } else if (this.viewMode === 'month') {
+      this.monthWeeks = this.calendar.withMonthGhosts(
+        this.calendar.buildMonthWeeks(this.entries, this.currentDate, this.orgTimeZone),
+        this.shownDisplaced,
         this.orgTimeZone,
       );
     } else {
+      this.ghostBlocks = this.calendar.buildGhostBlocks(
+        this.shownDisplaced,
+        this.visibleDays,
+        this.hourHeight,
+        this.orgTimeZone,
+      );
       const { blocks, gaps } = this.calendar.buildTimeGridBlocks(
         this.entries,
         this.visibleDays,
@@ -685,9 +867,41 @@ export class Schedules implements OnInit, OnDestroy {
     );
   }
 
+  private rebuildList(): void {
+    const days = this.calendar.getListDays(this.currentDate, this.listDayCount, this.orgTimeZone);
+    const displaced = this.shownDisplaced;
+    this.listDays = this.calendar.buildListDays(this.entries, days, this.orgTimeZone, displaced);
+    this.listConflicts = findConflicts(
+      this.listDays.flatMap((day) => day.occurrences),
+      this.screens,
+    );
+    this.listHasMore = this.calendar.listHasMore(
+      [...this.entries, ...displaced],
+      days,
+      this.orgTimeZone,
+    );
+  }
+
+  /**
+   * The list reached its end: show the next stretch of days. Everything is
+   * already loaded (the API returns the organisation's entries whole), so this
+   * only expands more occurrences.
+   */
+  loadMoreList(): void {
+    if (this.viewMode !== 'list' || !this.listHasMore) return;
+    this.listDayCount = Math.min(this.listDayCount + LIST_VIEW_DAYS, LIST_MAX_DAYS);
+    this.rebuildList();
+  }
+
   // --- Navigation ---
   setView(mode: ScheduleViewMode): void {
     this.viewMode = mode;
+    this.listDayCount = LIST_VIEW_DAYS;
+    // "All screens" is a list-only target; the calendar shows one at a time.
+    if (mode !== 'list' && this.selectedTargetId === ALL_TARGETS) {
+      const first = this.targetOptions[0];
+      this.selectedTargetId = first ? first.type + ':' + first.id : '';
+    }
     this.syncMobileDayIndex();
     this.loadEntries();
   }
@@ -731,6 +945,7 @@ export class Schedules implements OnInit, OnDestroy {
   navigateToday(): void {
     this.currentDate = new Date();
     this.selectedDate = new Date();
+    this.listDayCount = LIST_VIEW_DAYS;
     this.syncMobileDayIndex();
     this.loadEntries();
   }
@@ -766,6 +981,7 @@ export class Schedules implements OnInit, OnDestroy {
 
   onToolbarTargetChange(targetId: string): void {
     this.selectedTargetId = targetId;
+    this.listDayCount = LIST_VIEW_DAYS;
     this.loadEntries();
   }
 
@@ -790,7 +1006,7 @@ export class Schedules implements OnInit, OnDestroy {
 
   openCreateModalWithTimes(start: Date, end: Date): void {
     this.editingEntry = null;
-    this.modalInitialTargetId = this.selectedTargetId;
+    this.modalInitialTargetId = this.selectedTargetId === ALL_TARGETS ? '' : this.selectedTargetId;
     this.modalInitialPlaylistId = this.playlists.length > 0 ? this.playlists[0].id : '';
     this.modalInitialName = '';
     this.modalInitialPriority = 'normal';

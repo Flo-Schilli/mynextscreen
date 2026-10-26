@@ -84,6 +84,67 @@ import {
             />
           </mns-sfield>
 
+          @if (isDynamic()) {
+            <mns-sfield
+              [label]="t('sources.schedules.form.genreGroupsLabel')"
+              [hint]="t('sources.schedules.form.genreGroupsHint')"
+            >
+              <div class="flex flex-col gap-2">
+                @for (
+                  genres of value().genreGroups;
+                  track $index;
+                  let i = $index, first = $first, last = $last
+                ) {
+                  <div class="genre-group flex items-center gap-1.5">
+                    <mns-multi-select
+                      class="min-w-0 flex-1"
+                      [options]="genrePickerOptions()"
+                      [values]="genres"
+                      [placeholder]="t('sources.schedules.form.genreGroupPlaceholder')"
+                      [ariaLabel]="t('sources.schedules.form.genreGroupLabel', { n: i + 1 })"
+                      (changed)="setGroup(i, $event)"
+                    />
+                    <mns-btn
+                      class="move-group-up"
+                      variant="ghost"
+                      size="sm"
+                      icon="ChevronUp"
+                      [disabled]="first"
+                      [title]="t('sources.schedules.form.moveUp')"
+                      (mnsClick)="moveGroup(i, -1)"
+                    />
+                    <mns-btn
+                      class="move-group-down"
+                      variant="ghost"
+                      size="sm"
+                      icon="ChevronDown"
+                      [disabled]="last"
+                      [title]="t('sources.schedules.form.moveDown')"
+                      (mnsClick)="moveGroup(i, 1)"
+                    />
+                    <mns-btn
+                      class="remove-group"
+                      variant="ghost"
+                      size="sm"
+                      icon="Trash"
+                      [title]="t('common.actions.delete')"
+                      (mnsClick)="removeGroup(i)"
+                    />
+                  </div>
+                }
+                <mns-btn
+                  class="add-genre-group self-start"
+                  variant="outline"
+                  size="sm"
+                  icon="Plus"
+                  (mnsClick)="addGroup()"
+                >
+                  {{ t('sources.schedules.form.addGenreGroup') }}
+                </mns-btn>
+              </div>
+            </mns-sfield>
+          }
+
           <mns-sfield
             [label]="t('sources.schedules.form.windowLabel')"
             [hint]="
@@ -189,6 +250,10 @@ export class EventScheduleRuleModal {
   readonly venueOptions = input.required<SelectOption[]>();
   readonly playlistOptions = input.required<SelectOption[]>();
   readonly targetOptions = input.required<SelectOption[]>();
+  /** Genres the source's events carry. */
+  readonly genreOptions = input<string[]>([]);
+  /** Playlists that may get genre groups: only a dynamic one has a genre filter to narrow. */
+  readonly dynamicPlaylistIds = input<readonly string[]>([]);
   readonly saving = input(false);
 
   readonly save = output<EventScheduleFormValue>();
@@ -197,7 +262,19 @@ export class EventScheduleRuleModal {
   protected readonly colours = PRESET_COLOURS;
   protected readonly value = linkedSignal(() => this.initial());
   protected readonly submitted = signal(false);
-  protected readonly errors = computed(() => validateEventScheduleForm(this.value()));
+  protected readonly isDynamic = computed(() =>
+    this.dynamicPlaylistIds().includes(this.value().playlistId),
+  );
+  /** What gets saved: groups only count for a dynamic playlist, where they are shown. */
+  private readonly effective = computed<EventScheduleFormValue>(() =>
+    this.isDynamic() ? this.value() : { ...this.value(), genreGroups: [] },
+  );
+  protected readonly errors = computed(() => validateEventScheduleForm(this.effective()));
+  /** Keeps genres a group names although no current event carries them. */
+  protected readonly genrePickerOptions = computed<SelectOption[]>(() => {
+    const names = new Set([...this.genreOptions(), ...this.value().genreGroups.flat()]);
+    return [...names].map((name) => ({ value: name, label: name }));
+  });
   protected readonly crossesMidnight = computed(() =>
     windowCrossesMidnight(this.value().windowStart, this.value().windowEnd),
   );
@@ -206,9 +283,31 @@ export class EventScheduleRuleModal {
     this.value.update((current) => ({ ...current, ...change }));
   }
 
+  protected addGroup(): void {
+    this.patch({ genreGroups: [...this.value().genreGroups, []] });
+  }
+
+  protected setGroup(index: number, genres: string[]): void {
+    this.patch({
+      genreGroups: this.value().genreGroups.map((group, i) => (i === index ? genres : group)),
+    });
+  }
+
+  protected moveGroup(index: number, step: -1 | 1): void {
+    const groups = [...this.value().genreGroups];
+    const target = index + step;
+    if (target < 0 || target >= groups.length) return;
+    [groups[index], groups[target]] = [groups[target], groups[index]];
+    this.patch({ genreGroups: groups });
+  }
+
+  protected removeGroup(index: number): void {
+    this.patch({ genreGroups: this.value().genreGroups.filter((_, i) => i !== index) });
+  }
+
   submit(): void {
     this.submitted.set(true);
     if (this.errors().length > 0) return;
-    this.save.emit(this.value());
+    this.save.emit(this.effective());
   }
 }

@@ -41,10 +41,24 @@ describe('event schedule rule DTOs', () => {
     [{ groupIds: 'x' }, 'groupIds'],
     [{ colour: 'red' }, 'colour'],
     [{ enabled: 'yes' }, 'enabled'],
+    [{ genreVariants: [{ genres: [] }] }, 'genreVariants'],
+    [{ genreVariants: [{ genres: ['Rock', 'Rock'] }] }, 'genreVariants'],
+    [{ genreVariants: [{ genres: [''] }] }, 'genreVariants'],
+    [{ genreVariants: [{}] }, 'genreVariants'],
   ])('rejects %j', async (patch, property) => {
     await expect(errorsOf(CreateEventScheduleRuleDto, { ...valid, ...patch })).resolves.toContain(
       property,
     );
+  });
+
+  it('accepts genre groups', async () => {
+    await expect(
+      errorsOf(CreateEventScheduleRuleDto, {
+        ...valid,
+        genreVariants: [{ genres: ['Rock', 'Metal'] }, { genres: ['Klassik'] }],
+      }),
+    ).resolves.toEqual([]);
+    await expect(errorsOf(UpdateEventScheduleRuleDto, { genreVariants: [] })).resolves.toEqual([]);
   });
 
   it('accepts an empty update and rejects a bad field in one', async () => {

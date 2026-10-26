@@ -920,21 +920,31 @@
       "newSchedule": "Neuer Zeitplan",
       "viewDay": "Tag",
       "viewWeek": "Woche",
-      "viewMonth": "Monat"
+      "viewMonth": "Monat",
+      "viewList": "Liste",
+      "allTargets": "Alle Bildschirme und Gruppen",
+      "fromDate": "Ab {date}"
     },
     "grid": {
-      "monthTitle": "Monatsplan",
-      "dayTitle": "Tagesplan",
-      "weekTitle": "Wochenplan",
-      "cardSub": "Klicke auf einen Block, um ihn zu bearbeiten",
-      "fallbackPlaylist": "Fallback-Playlist",
       "groupBadge": "Gruppe",
       "oneOff": "1×",
       "resizeTop": "Oben anpassen",
       "resizeBottom": "Unten anpassen",
       "preparingRenditions": "Wall-Renditionen werden vorbereitet… {percent}%",
       "renditionFailed": "Vorab-Transkodierung der Rendition fehlgeschlagen",
-      "playlistFallback": "Playlist"
+      "playlistFallback": "Playlist",
+      "fallbackLegend": "Schraffiert: Hier läuft die Fallback-Playlist der Organisation.",
+      "managedBy": "Automatisch durch Regel „{rule}“"
+    },
+    "list": {
+      "empty": "Keine kommenden Einträge",
+      "conflicts": "{count, plural, one {# Überschneidung} other {# Überschneidungen}}",
+      "noConflicts": "Keine Überschneidungen",
+      "onlyConflicts": "Nur Überschneidungen",
+      "conflictWins": "Überschneidet sich mit „{other}“ auf {screens} – dieser Eintrag läuft.",
+      "conflictLoses": "Überschneidet sich mit „{other}“ auf {screens} – dort läuft „{other}“.",
+      "loadMore": "Weitere Tage laden",
+      "end": "Keine weiteren Einträge"
     },
     "sidePanel": {
       "today": "Heute",
@@ -1047,6 +1057,30 @@
       "managedTitle": "Automatisch eingeplant",
       "managedBody": "Diesen Eintrag hat die Regel „{rule}“ aus einem Event angelegt. Ändern kannst du ihn nur über die Regel; ein manueller Eintrag zur selben Zeit hat Vorrang.",
       "managedOpenRule": "Zur Regel"
+    },
+    "displaced": {
+      "title": "Verdrängter automatischer Eintrag",
+      "body": "Die Regel „{rule}“ würde hier „{event}“ einplanen, aber „{blocking}“ belegt den Slot und hat Vorrang.",
+      "comesBack": "Löschst oder verschiebst du „{blocking}“, plant die Regel den Eintrag automatisch wieder ein.",
+      "tooltip": "„{event}“ (Regel „{rule}“) – überdeckt von „{blocking}“",
+      "short": "überdeckt",
+      "legend": "Gestrichelt: automatischer Eintrag, den ein anderer überdeckt",
+      "count": "{count, plural, one {# verdrängter automatischer Eintrag} other {# verdrängte automatische Einträge}}",
+      "row": "Automatisch durch Regel „{rule}“ · überdeckt von „{blocking}“"
+    },
+    "preview": {
+      "title": "Läuft hier – Stand jetzt",
+      "loading": "Inhalt wird geladen…",
+      "failed": "Der Inhalt konnte nicht geladen werden.",
+      "summary": "{count, plural, one {# Slide} other {# Slides}} aus „{playlist}“",
+      "genres": "gefiltert auf {genres}",
+      "empty": "Die Playlist zeigt gerade nichts.",
+      "open": "Inhalt ansehen",
+      "modalTitle": "Inhalt des Eintrags"
+    },
+    "genreGroup": {
+      "badgeTitle": "Genre-Treffer: Das Event passt zur Gruppe {genres}",
+      "managedBody": "Das Event passt zur Genre-Gruppe {genres}. Deshalb läuft „{playlist}“ hier nur mit Events dieser Genres."
     }
   },
   "liveStreams": {
@@ -1701,7 +1735,8 @@
       "wakeOnUnreachableEnabled": "Bei Nichterreichbarkeit wecken",
       "probeIntervalMinutes": "Prüfintervall (Min.)",
       "subnetSweepEnabled": "Subnetz-Suche",
-      "previousMode": "Vorheriger Modus"
+      "previousMode": "Vorheriger Modus",
+      "genreVariants": "Genre-Gruppen"
     },
     "resourceTypes": {
       "content": "Inhalt",
@@ -2496,12 +2531,20 @@
         "excludeCancelledDesc": "Ein abgesagtes Event bekommt keinen Eintrag.",
         "enabledLabel": "Aktiv",
         "enabledDesc": "Pausiert entfernt die kommenden Einträge, bis du die Regel wieder aktivierst.",
+        "genreGroupsLabel": "Inhalt je Genre",
+        "genreGroupsHint": "Passt zu einem Event eine Gruppe, zeigt die Playlist nur Events dieser Genres. Die erste passende Gruppe gewinnt, sonst läuft die Playlist unverändert.",
+        "genreGroupLabel": "Genre-Gruppe {{n}}",
+        "genreGroupPlaceholder": "Genres wählen…",
+        "addGenreGroup": "Genre-Gruppe hinzufügen",
+        "moveUp": "Nach oben",
+        "moveDown": "Nach unten",
         "errors": {
           "name": "Gib der Regel einen Namen.",
           "venues": "Wähle mindestens einen Spielort.",
           "playlist": "Wähle eine Playlist.",
           "window": "Gib Beginn und Ende als Uhrzeit an.",
-          "targets": "Wähle mindestens einen Bildschirm oder eine Gruppe."
+          "targets": "Wähle mindestens einen Bildschirm oder eine Gruppe.",
+          "genreGroups": "Jede Genre-Gruppe braucht mindestens ein Genre, und keine zwei Gruppen dürfen dieselben Genres haben."
         }
       },
       "toast": {
@@ -2510,7 +2553,8 @@
         "deleted": "Regel gelöscht",
         "deleteFailed": "Regel konnte nicht gelöscht werden",
         "loadFailed": "Regeln konnten nicht geladen werden"
-      }
+      },
+      "genreGroups": "Je Genre: {{groups}}"
     }
   }
 }

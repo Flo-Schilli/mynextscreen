@@ -1,4 +1,5 @@
 import { ScreenGroupMode, SliceJobStatus } from '../screen-groups/screen-group.model';
+import { RulePreviewResult } from '../playlists/playlist.model';
 
 /** Priority of a schedule entry; "high" wins when entries overlap. */
 export type SchedulePriority = 'normal' | 'high';
@@ -34,6 +35,82 @@ export interface ScheduleEntry {
   sliceStatus?: SliceJobStatus | null;
   /** The event schedule rule that generated the entry; such entries are locked. */
   managedByRule?: { id: string; name: string; sourceId: string } | null;
+  /** Set when the entry's event matched one of the rule's genre groups. */
+  genreGroup?: ScheduleGenreGroup | null;
+}
+
+/**
+ * A slot an event schedule rule would fill but left to another entry that
+ * holds it. Nothing plays it; the calendar shows it so the rule's step aside
+ * stays visible.
+ */
+export interface DisplacedSlot {
+  ruleId: string;
+  ruleName: string;
+  sourceId: string;
+  colour: string;
+  eventTitle: string;
+  startTime: string;
+  endTime: string;
+  screenId: string | null;
+  groupId: string | null;
+  targetName: string | null;
+  playlistName: string | null;
+  genres: string[] | null;
+  blockingEntry: { id: string; name: string | null; playlistName: string | null };
+}
+
+/** One item of a static playlist in a schedule entry's preview. */
+export interface StaticPreviewItem {
+  contentId: string;
+  title: string;
+  contentUpdatedAt: string;
+  durationSeconds: number;
+}
+
+/** What a schedule entry's playlist shows now; for a genre group, the narrowed variant. */
+export type ScheduleEntryPreview =
+  | { kind: 'dynamic'; playlistName: string; genres: string[]; result: RulePreviewResult }
+  | { kind: 'static'; playlistName: string; items: StaticPreviewItem[] };
+
+/** How a displaced slot names the entry that holds it. */
+export function blockingTitle(slot: DisplacedSlot): string {
+  return slot.blockingEntry.name || slot.blockingEntry.playlistName || '';
+}
+
+/** The genre group an entry plays, and the playlist that group narrows. */
+export interface ScheduleGenreGroup {
+  genres: string[];
+  basePlaylistName: string;
+}
+
+/**
+ * The name the calendar shows for an entry's playlist: a genre group's hidden
+ * variant playlist is shown by the name of the playlist it narrows, because the
+ * genres appear beside it on their own.
+ */
+export function entryPlaylistName(entry: ScheduleEntry): string | null {
+  return entry.genreGroup?.basePlaylistName || entry.playlist?.name || null;
+}
+
+/**
+ * What an entry is about, for its headline: the event of a generated entry
+ * (its name without the "<rule>: " prefix the rule gives it), a manual entry's
+ * own name, or else its playlist.
+ */
+export function entryTitle(entry: ScheduleEntry): string | null {
+  const name = entry.name?.trim();
+  if (!name) return entryPlaylistName(entry);
+  const rulePrefix = entry.managedByRule ? `${entry.managedByRule.name}: ` : null;
+  if (rulePrefix && name.startsWith(rulePrefix) && name.length > rulePrefix.length) {
+    return name.slice(rulePrefix.length);
+  }
+  return name;
+}
+
+/** "Rock, Metal" for an entry that plays a genre group, null otherwise. */
+export function entryGenres(entry: ScheduleEntry): string | null {
+  return entry.genreGroup ? entry.genreGroup.genres.join(', ') : null;
 }
 
 export interface CreateScheduleEntryRequest {

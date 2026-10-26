@@ -21,6 +21,8 @@ export type IconName =
   | 'Logout'
   | 'Chevron'
   | 'ChevronLeft'
+  | 'ChevronUp'
+  | 'ChevronDown'
   | 'Check'
   | 'CheckCircle'
   | 'Arrow'
@@ -78,6 +80,8 @@ const ICON_PATHS: Record<IconName, string> = {
   Logout: `<path d="M15 4.5H6.5A2 2 0 0 0 4.5 6.5v11a2 2 0 0 0 2 2H15"/><path d="M10 12h10M16.5 8l3.5 4-3.5 4"/>`,
   Chevron: `<path d="m9 6 6 6-6 6"/>`,
   ChevronLeft: `<path d="m15 6-6 6 6 6"/>`,
+  ChevronUp: `<path d="m6 15 6-6 6 6"/>`,
+  ChevronDown: `<path d="m6 9 6 6 6-6"/>`,
   Check: `<path d="m5 12.5 4.5 4.5L19 6.5"/>`,
   CheckCircle: `<circle cx="12" cy="12" r="9"/><path d="m8 12 2.8 2.8L16.2 9.2"/>`,
   Arrow: `<path d="M5 12h14M13 6l6 6-6 6"/>`,

@@ -29,8 +29,15 @@ import {
   SCHEDULE_ENTRIES_EDITED,
   SCHEDULE_ENTRY_CHANGED,
 } from '../schedule/schedule.event';
-import { AUDIT_EVENT_SCHEDULE_RULE_RECONCILED } from '../audit-log/audit.events';
+import {
+  AUDIT_EVENT_SCHEDULE_RULE_RECONCILED,
+  AUDIT_EVENT_SCHEDULE_RULE_UPDATED,
+} from '../audit-log/audit.events';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
+import { PlaylistKind } from '../playlist/playlist-kind.enum';
+import { TransitionType } from '../playlist/transition-type.enum';
+import type { PlaylistRule } from '../playlist/playlist-rule.types';
+import { PLAYLIST_RESOLVE_REQUESTED } from '../playlist/playlist.event';
 import { EventScheduleReconcileService } from './event-schedule-reconcile.service';
 import { EventScheduleRuleService } from './event-schedule-rule.service';
 import type { CreateEventScheduleRuleDto } from './dto';
@@ -347,6 +354,9 @@ describe('Event schedule rules', () => {
           sourceEventId: event.id,
           screenId: screen.id,
           blockingEntryId: manual.id,
+          startTime: SLOT_START.toISOString(),
+          endTime: SLOT_END.toISOString(),
+          playlistId: playlist.id,
         }),
       ]);
     });
@@ -562,6 +572,257 @@ describe('Event schedule rules', () => {
         SCHEDULE_ENTRIES_EDITED,
         expect.objectContaining({ organisationId: org.id, screenId: screen.id, groupId: null }),
       );
+    });
+  });
+
+  describe('displaced slots', () => {
+    const BEFORE = new Date('2026-11-01T00:00:00Z');
+
+    it('lists a slot a manual entry holds, with the rule and the entry that won', async () => {
+      const event = await seedEvent();
+      const manual = await seedManual({ screenId: screen.id }, SLOT_START, SLOT_END);
+      const rule = await rules.create(org.id, source.id, dto(), null);
+
+      const displaced = await schedule.findDisplaced(org.id, BEFORE);
+
+      expect(displaced).toEqual([
+        {
+          ruleId: rule.id,
+          ruleName: rule.name,
+          sourceId: source.id,
+          colour: rule.colour,
+          eventTitle: event.title,
+          startTime: SLOT_START.toISOString(),
+          endTime: SLOT_END.toISOString(),
+          screenId: screen.id,
+          groupId: null,
+          targetName: screen.name,
+          playlistName: playlist.name,
+          genres: null,
+          blockingEntry: { id: manual.id, name: null, playlistName: playlist.name },
+        },
+      ]);
+    });
+
+    it('drops the slot once the rule has it again or it has ended', async () => {
+      await seedEvent();
+      const manual = await seedManual({ screenId: screen.id }, SLOT_START, SLOT_END);
+      const rule = await rules.create(org.id, source.id, dto(), null);
+
+      expect(await schedule.findDisplaced(org.id, new Date(SLOT_END.getTime() + 1))).toEqual([]);
+
+      await schedule.delete(manual.id, org.id);
+      await reconcile.reconcile(rule.id, BEFORE);
+      expect(await schedule.findDisplaced(org.id, BEFORE)).toEqual([]);
+    });
+
+    it('leaves out a disabled rule', async () => {
+      await seedEvent();
+      await seedManual({ screenId: screen.id }, SLOT_START, SLOT_END);
+      const rule = await rules.create(org.id, source.id, dto(), null);
+
+      await rules.update(org.id, source.id, rule.id, { enabled: false }, null);
+
+      expect(await schedule.findDisplaced(org.id, BEFORE)).toEqual([]);
+    });
+  });
+
+  describe('genre variants', () => {
+    const baseRule = (): PlaylistRule => ({
+      sourceIds: [source.id],
+      genres: { match: 'any', values: [] },
+      venues: [],
+      dateFrom: { mode: 'today' },
+      dateTo: { mode: 'none' },
+      excludeCancelled: true,
+      excludeSoldOut: false,
+      sort: 'date_asc',
+      limit: 10,
+      graceHours: 2,
+      refreshIntervalMinutes: 60,
+      format: '1920x1080',
+      itemDurationSeconds: 10,
+      transition: TransitionType.Fade,
+      transitionDurationMs: 500,
+    });
+
+    async function seedDynamic(): Promise<Playlist> {
+      const [row] = await db
+        .insert(playlists)
+        .values({
+          organisationId: org.id,
+          name: 'Demnächst',
+          kind: PlaylistKind.Dynamic,
+          rule: baseRule(),
+        })
+        .returning();
+      return row;
+    }
+
+    async function variantsOf(ruleId: string): Promise<Playlist[]> {
+      return db.select().from(playlists).where(eq(playlists.managedByRuleId, ruleId));
+    }
+
+    it('names the genre group of a displaced slot and the playlist it narrows', async () => {
+      const dynamic = await seedDynamic();
+      await seedEvent({ genres: ['Rock'] });
+      await seedManual({ screenId: screen.id }, SLOT_START, SLOT_END);
+
+      await rules.create(
+        org.id,
+        source.id,
+        dto({ playlistId: dynamic.id, genreVariants: [{ genres: ['Rock', 'Metal'] }] }),
+        null,
+      );
+
+      const [slot] = await schedule.findDisplaced(org.id, new Date('2026-11-01T00:00:00Z'));
+      expect(slot).toMatchObject({ playlistName: 'Demnächst', genres: ['Rock', 'Metal'] });
+    });
+
+    it('plays a narrowed copy of the playlist on events of a genre group', async () => {
+      const dynamic = await seedDynamic();
+      const rock = await seedEvent({ genres: ['Metal', 'Pop'] });
+      const jazz = await seedEvent({ eventDate: '2026-11-12', genres: ['Jazz'] });
+
+      const rule = await rules.create(
+        org.id,
+        source.id,
+        dto({ playlistId: dynamic.id, genreVariants: [{ genres: ['Rock', 'Metal'] }] }),
+        null,
+      );
+
+      const [variant] = await variantsOf(rule.id);
+      expect(variant).toMatchObject({
+        name: 'Demnächst · Rock, Metal',
+        kind: PlaylistKind.Dynamic,
+        rule: { ...baseRule(), genres: { match: 'any', values: ['Rock', 'Metal'] } },
+      });
+      const entries = await managedEntries();
+      const playlistOf = (eventId: string) =>
+        entries.find((e) => e.managedSourceEventId === eventId)?.playlistId;
+      expect(playlistOf(rock.id)).toBe(variant.id);
+      expect(playlistOf(jazz.id)).toBe(dynamic.id);
+      expect(emit).toHaveBeenCalledWith(
+        PLAYLIST_RESOLVE_REQUESTED,
+        expect.objectContaining({ playlistId: variant.id }),
+      );
+    });
+
+    it('follows an event that changes its genre', async () => {
+      const dynamic = await seedDynamic();
+      const event = await seedEvent({ genres: ['Jazz'] });
+      const rule = await rules.create(
+        org.id,
+        source.id,
+        dto({ playlistId: dynamic.id, genreVariants: [{ genres: ['Rock'] }] }),
+        null,
+      );
+      await db
+        .update(sourceEvents)
+        .set({ genres: ['Rock'] })
+        .where(eq(sourceEvents.id, event.id));
+
+      await reconcile.reconcile(rule.id);
+
+      const [variant] = await variantsOf(rule.id);
+      const [entry] = await managedEntries();
+      expect(entry.playlistId).toBe(variant.id);
+    });
+
+    it('keeps an unchanged variant without resolving it again', async () => {
+      const dynamic = await seedDynamic();
+      const rule = await rules.create(
+        org.id,
+        source.id,
+        dto({ playlistId: dynamic.id, genreVariants: [{ genres: ['Rock'] }] }),
+        null,
+      );
+      const [before] = await variantsOf(rule.id);
+      emit.mockClear();
+
+      await reconcile.reconcile(rule.id);
+
+      expect(await variantsOf(rule.id)).toEqual([before]);
+      expect(emit).not.toHaveBeenCalledWith(PLAYLIST_RESOLVE_REQUESTED, expect.anything());
+    });
+
+    it('copies a new rule of the playlist into its variants', async () => {
+      const dynamic = await seedDynamic();
+      const rule = await rules.create(
+        org.id,
+        source.id,
+        dto({ playlistId: dynamic.id, genreVariants: [{ genres: ['Rock'] }] }),
+        null,
+      );
+      await db
+        .update(playlists)
+        .set({ rule: { ...baseRule(), limit: 3 } })
+        .where(eq(playlists.id, dynamic.id));
+
+      expect(await reconcile.ruleIdsWithVariantsOf(dynamic.id)).toEqual([rule.id]);
+      await reconcile.reconcile(rule.id);
+
+      const [variant] = await variantsOf(rule.id);
+      expect(variant.rule).toMatchObject({ limit: 3, genres: { values: ['Rock'] } });
+    });
+
+    it('moves entries back and drops the variants when the groups go', async () => {
+      const dynamic = await seedDynamic();
+      await seedEvent({ genres: ['Rock'] });
+      const rule = await rules.create(
+        org.id,
+        source.id,
+        dto({ playlistId: dynamic.id, genreVariants: [{ genres: ['Rock'] }] }),
+        null,
+      );
+
+      await rules.update(org.id, source.id, rule.id, { genreVariants: [] }, null);
+
+      const [entry] = await managedEntries();
+      expect(entry.playlistId).toBe(dynamic.id);
+      expect(await variantsOf(rule.id)).toEqual([]);
+      expect(emit).toHaveBeenCalledWith(
+        AUDIT_EVENT_SCHEDULE_RULE_UPDATED,
+        expect.objectContaining({
+          details: expect.objectContaining({
+            changes: { genreVariants: { from: ['Rock'], to: [] } },
+          }),
+        }),
+      );
+    });
+
+    it('hides variants from the playlists a rule may use', async () => {
+      const dynamic = await seedDynamic();
+      const rule = await rules.create(
+        org.id,
+        source.id,
+        dto({ playlistId: dynamic.id, genreVariants: [{ genres: ['Rock'] }] }),
+        null,
+      );
+      const [variant] = await variantsOf(rule.id);
+
+      await expect(
+        rules.create(org.id, source.id, dto({ playlistId: variant.id }), null),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rejects genre groups on a static playlist and duplicate groups', async () => {
+      const dynamic = await seedDynamic();
+
+      await expect(
+        rules.create(org.id, source.id, dto({ genreVariants: [{ genres: ['Rock'] }] }), null),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        rules.create(
+          org.id,
+          source.id,
+          dto({
+            playlistId: dynamic.id,
+            genreVariants: [{ genres: ['Rock', 'Pop'] }, { genres: ['Pop', 'Rock'] }],
+          }),
+          null,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 

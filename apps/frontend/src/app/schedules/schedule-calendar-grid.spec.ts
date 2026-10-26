@@ -7,8 +7,8 @@ import {
   BlockPointerEvent,
   ResizePointerEvent,
 } from './schedule-calendar-grid';
-import { ScheduleEntry } from './schedule.model';
-import { CalendarBlock, GapBlock, MonthDayCell } from './schedule-calendar.service';
+import { DisplacedSlot, ScheduleEntry } from './schedule.model';
+import { CalendarBlock, GapBlock, GhostBlock, MonthDayCell } from './schedule-calendar.service';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 /** The cases build dates on the runner's clock, so the organisation shares its zone. */
@@ -65,6 +65,7 @@ describe('ScheduleCalendarGrid', () => {
     monthWeeks?: MonthDayCell[][];
     blocks?: CalendarBlock[];
     gaps?: GapBlock[];
+    ghosts?: GhostBlock[];
     draggingEntryId?: string | null;
   }): Promise<void> {
     fixture = TestBed.createComponent(ScheduleCalendarGrid);
@@ -76,6 +77,7 @@ describe('ScheduleCalendarGrid', () => {
     fixture.componentRef.setInput('monthWeeks', overrides?.monthWeeks ?? []);
     fixture.componentRef.setInput('blocks', overrides?.blocks ?? []);
     fixture.componentRef.setInput('gaps', overrides?.gaps ?? []);
+    fixture.componentRef.setInput('ghosts', overrides?.ghosts ?? []);
     fixture.componentRef.setInput('hourHeight', HOUR_HEIGHT);
     fixture.componentRef.setInput('orgTimeZone', LOCAL_TZ);
     if (overrides?.draggingEntryId !== undefined) {
@@ -166,6 +168,21 @@ describe('ScheduleCalendarGrid', () => {
 
       // Assert
       expect(label).toBe('Playlist');
+    });
+
+    it('names the narrowed playlist, not its variant, for a genre group entry', async () => {
+      // Arrange
+      await setUp();
+      const entry = makeEntry({
+        playlist: { id: 'v1', name: 'Demnächst · Rock, Metal' },
+        genreGroup: { genres: ['Rock', 'Metal'], basePlaylistName: 'Demnächst' },
+      });
+
+      // Act
+      const label = component.getEntryLabel(entry);
+
+      // Assert
+      expect(label).toBe('Demnächst');
     });
   });
 
@@ -331,6 +348,104 @@ describe('ScheduleCalendarGrid', () => {
 
       // Assert
       expect(fixture.nativeElement.querySelector('.schedule-block .group-badge')).toBeTruthy();
+    });
+
+    it('shows the matched genre group on the block', async () => {
+      // Arrange
+      const block = makeBlock({
+        entry: makeEntry({
+          genreGroup: { genres: ['Rock', 'Metal'], basePlaylistName: 'Demnächst' },
+        }),
+      });
+
+      // Act
+      await setUp({ viewMode: 'day', blocks: [block] });
+
+      // Assert
+      const pill = fixture.nativeElement.querySelector('.schedule-block .genre-pill');
+      expect(pill?.textContent.trim()).toBe('Rock, Metal');
+    });
+
+    it('heads a generated block with its event and puts the playlist below', async () => {
+      // Arrange
+      const block = makeBlock({
+        entry: makeEntry({
+          name: 'Abendkasse: ITCHY',
+          managedByRule: { id: 'r1', name: 'Abendkasse', sourceId: 'src1' },
+        }),
+      });
+
+      // Act
+      await setUp({ viewMode: 'day', blocks: [block] });
+
+      // Assert
+      const el = fixture.nativeElement.querySelector('.schedule-block') as HTMLElement;
+      expect(el.querySelector('.block-title')?.textContent?.trim()).toBe('ITCHY');
+      expect(el.querySelector('.block-playlist')?.textContent?.trim()).toBe('Morning Loop');
+      expect(el.querySelector('.managed-badge')).toBeTruthy();
+      expect(el.querySelector('.block-content')?.getAttribute('title')).toContain(
+        'Scheduled by rule “Abendkasse”',
+      );
+    });
+
+    it('shows only the title on a block too short for more', async () => {
+      // Arrange / Act
+      await setUp({ viewMode: 'day', blocks: [makeBlock({ height: 30 })] });
+
+      // Assert
+      const el = fixture.nativeElement.querySelector('.schedule-block') as HTMLElement;
+      expect(el.querySelector('.block-title')?.textContent?.trim()).toBe('Morning Loop');
+      expect(el.querySelector('.block-time')).toBeNull();
+    });
+
+    it('draws fallback gaps without a label and explains them once', async () => {
+      // Arrange / Act
+      await setUp({ viewMode: 'day', gaps: [{ top: 0, height: 120, dayIndex: 0 }] });
+
+      // Assert
+      expect(fixture.nativeElement.querySelector('.gap-indicator')?.textContent?.trim()).toBe('');
+      expect(fixture.nativeElement.querySelector('.fallback-legend')?.textContent).toContain(
+        'fallback playlist',
+      );
+    });
+
+    it('draws a slot a rule left to another entry as a ghost that can be opened', async () => {
+      // Arrange
+      const slot: DisplacedSlot = {
+        ruleId: 'r1',
+        ruleName: 'Abendkasse',
+        sourceId: 'src1',
+        colour: '#6d6cf6',
+        eventTitle: 'ITCHY',
+        startTime: '2026-06-01T08:00:00.000Z',
+        endTime: '2026-06-01T09:00:00.000Z',
+        screenId: 's1',
+        groupId: null,
+        targetName: 'Lobby',
+        playlistName: 'Demnächst',
+        genres: null,
+        blockingEntry: { id: 'e1', name: 'Pressekonferenz', playlistName: 'Morning Loop' },
+      };
+      await setUp({ viewMode: 'day', ghosts: [{ slot, dayIndex: 0, top: 480, height: 60 }] });
+      const selected: DisplacedSlot[] = [];
+      component.ghostSelect.subscribe((s) => selected.push(s));
+
+      // Act
+      const ghost = fixture.nativeElement.querySelector('.ghost-block') as HTMLButtonElement;
+      ghost.click();
+
+      // Assert
+      expect(ghost.title).toBe('“ITCHY” (rule “Abendkasse”) – covered by “Pressekonferenz”');
+      expect(selected).toEqual([slot]);
+      expect(fixture.nativeElement.querySelector('.ghost-legend')).toBeTruthy();
+    });
+
+    it('shows no genre group on a block whose event matched none', async () => {
+      // Arrange / Act
+      await setUp({ viewMode: 'day', blocks: [makeBlock()] });
+
+      // Assert
+      expect(fixture.nativeElement.querySelector('.genre-pill')).toBeNull();
     });
   });
 

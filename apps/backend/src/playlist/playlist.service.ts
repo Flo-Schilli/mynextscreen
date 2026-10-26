@@ -48,6 +48,7 @@ import {
   ScheduleEntriesEditedEvent,
   ScheduleEntryChangedEvent,
 } from '../schedule/schedule.event';
+import { isOwnPlaylist } from './own-playlist';
 
 /** Fallback item durations when neither the video nor the request has one. */
 const DEFAULT_VIDEO_DURATION_SECONDS = 30;
@@ -153,7 +154,7 @@ export class PlaylistService {
 
   async findAll(organisationId: string): Promise<PlaylistWithItemsAndContent[]> {
     return this.db.query.playlists.findMany({
-      where: eq(playlists.organisationId, organisationId),
+      where: and(eq(playlists.organisationId, organisationId), isOwnPlaylist()),
       with: {
         items: {
           with: { content: true },
@@ -166,7 +167,11 @@ export class PlaylistService {
 
   async findOne(id: string, organisationId: string): Promise<PlaylistWithItemsAndContent> {
     const playlist = await this.db.query.playlists.findFirst({
-      where: and(eq(playlists.id, id), eq(playlists.organisationId, organisationId)),
+      where: and(
+        eq(playlists.id, id),
+        eq(playlists.organisationId, organisationId),
+        isOwnPlaylist(),
+      ),
       with: {
         items: {
           with: { content: true },
@@ -762,7 +767,13 @@ export class PlaylistService {
     const found = await this.db
       .select()
       .from(playlists)
-      .where(and(inArray(playlists.id, ids), eq(playlists.organisationId, organisationId)));
+      .where(
+        and(
+          inArray(playlists.id, ids),
+          eq(playlists.organisationId, organisationId),
+          isOwnPlaylist(),
+        ),
+      );
 
     const foundIds = new Set(found.map((p) => p.id));
     const foreignIds: string[] = [];

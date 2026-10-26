@@ -18,6 +18,7 @@ import type {
   DashboardStorageUsage,
   DashboardSummary,
 } from './dto/dashboard-summary.dto';
+import { isOwnPlaylist } from '../playlist/own-playlist';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Default offline threshold (mirrors ScreenScheduler) when env is unset. */
@@ -64,7 +65,7 @@ export class DashboardSummaryService {
     const [screenRows, contentAgg, playlistCount, upcoming24h, storage] = await Promise.all([
       this.loadScreens(organisationId),
       this.loadContentAggregate(organisationId),
-      this.db.$count(playlists, eq(playlists.organisationId, organisationId)),
+      this.db.$count(playlists, and(eq(playlists.organisationId, organisationId), isOwnPlaylist())),
       this.countUpcomingSchedules(organisationId, now),
       this.loadStorage(organisationId),
     ]);

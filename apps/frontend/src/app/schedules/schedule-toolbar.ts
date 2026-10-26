@@ -2,6 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, output } f
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { TargetOption } from './schedule.model';
 import { ScheduleViewMode } from './schedule-calendar.service';
+
+/** Target value for "every screen and group"; offered in the list view only. */
+export const ALL_TARGETS = 'all';
 import { BtnComponent, IconComponent, SelectComponent, SelectOption } from '../ui';
 
 /**
@@ -49,27 +52,31 @@ import { BtnComponent, IconComponent, SelectComponent, SelectOption } from '../u
 
       <!-- Navigation -->
       <div class="flex items-center gap-1.5 nav-buttons">
-        <button
-          type="button"
-          class="grid place-items-center w-8 h-8 rounded-lg border border-border-strong bg-surface text-muted cursor-pointer transition-colors duration-[150ms] hover:bg-surface-3 hover:text-text"
-          [title]="t('schedules.toolbar.previous')"
-          (click)="prev.emit()"
-        >
-          <span class="inline-grid place-items-center rotate-180">
-            <mns-icon name="Chevron" [size]="16" />
-          </span>
-        </button>
+        @if (viewMode() !== 'list') {
+          <button
+            type="button"
+            class="grid place-items-center w-8 h-8 rounded-lg border border-border-strong bg-surface text-muted cursor-pointer transition-colors duration-[150ms] hover:bg-surface-3 hover:text-text"
+            [title]="t('schedules.toolbar.previous')"
+            (click)="prev.emit()"
+          >
+            <span class="inline-grid place-items-center rotate-180">
+              <mns-icon name="Chevron" [size]="16" />
+            </span>
+          </button>
+        }
         <mns-btn variant="outline" size="sm" (mnsClick)="today.emit()">{{
           t('schedules.toolbar.today')
         }}</mns-btn>
-        <button
-          type="button"
-          class="grid place-items-center w-8 h-8 rounded-lg border border-border-strong bg-surface text-muted cursor-pointer transition-colors duration-[150ms] hover:bg-surface-3 hover:text-text"
-          [title]="t('schedules.toolbar.next')"
-          (click)="next.emit()"
-        >
-          <mns-icon name="Chevron" [size]="16" />
-        </button>
+        @if (viewMode() !== 'list') {
+          <button
+            type="button"
+            class="grid place-items-center w-8 h-8 rounded-lg border border-border-strong bg-surface text-muted cursor-pointer transition-colors duration-[150ms] hover:bg-surface-3 hover:text-text"
+            [title]="t('schedules.toolbar.next')"
+            (click)="next.emit()"
+          >
+            <mns-icon name="Chevron" [size]="16" />
+          </button>
+        }
         <span class="current-range text-sm font-semibold text-text min-w-[10rem] ml-1">
           {{ currentRangeLabel() }}
         </span>
@@ -103,6 +110,7 @@ export class ScheduleToolbar {
     { value: 'day', label: this.transloco.translate('schedules.toolbar.viewDay') },
     { value: 'week', label: this.transloco.translate('schedules.toolbar.viewWeek') },
     { value: 'month', label: this.transloco.translate('schedules.toolbar.viewMonth') },
+    { value: 'list', label: this.transloco.translate('schedules.toolbar.viewList') },
   ]);
 
   /**
@@ -111,6 +119,12 @@ export class ScheduleToolbar {
    */
   readonly targetOptions = computed<SelectOption[]>(() => {
     const opts: SelectOption[] = [];
+    if (this.viewMode() === 'list') {
+      opts.push({
+        value: ALL_TARGETS,
+        label: this.transloco.translate('schedules.toolbar.allTargets'),
+      });
+    }
     for (const s of this.screenTargets()) {
       opts.push({
         value: 'screen:' + s.id,

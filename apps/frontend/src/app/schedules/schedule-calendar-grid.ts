@@ -1,22 +1,33 @@
 import {
   Component,
   DestroyRef,
+  ElementRef,
+  afterRenderEffect,
   computed,
   inject,
   input,
   output,
   signal,
+  viewChild,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { ScheduleEntry } from './schedule.model';
+import {
+  DisplacedSlot,
+  ScheduleEntry,
+  blockingTitle,
+  entryGenres,
+  entryPlaylistName,
+  entryTitle,
+} from './schedule.model';
 import {
   CalendarBlock,
   GapBlock,
+  GhostBlock,
   MonthDayCell,
   ScheduleViewMode,
 } from './schedule-calendar.service';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
-import { CardComponent, CardHeadComponent, IconComponent } from '../ui';
+import { CardComponent, IconComponent } from '../ui';
 import { ScheduleAgendaList } from './schedule-agenda-list';
 import { LanguageService } from '../i18n/language.service';
 import {
@@ -46,6 +57,12 @@ export interface ResizePointerEvent extends BlockPointerEvent {
 const WEEKDAY_KEYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const NOW_TICK_MS = 60_000;
+/** Where the time grid opens when nothing earlier is scheduled. */
+const DEFAULT_FIRST_HOUR = 8;
+/** Blocks shorter than this show their title only. */
+const COMPACT_BLOCK_PX = 40;
+/** From this height a block's title may wrap onto a second line. */
+const TALL_BLOCK_PX = 80;
 
 /**
  * Presentational calendar grid — renders the month grid or the day/week time
@@ -56,22 +73,12 @@ const NOW_TICK_MS = 60_000;
 @Component({
   selector: 'app-schedule-calendar-grid',
   standalone: true,
-  imports: [
-    CardComponent,
-    CardHeadComponent,
-    IconComponent,
-    ScheduleAgendaList,
-    TranslocoDirective,
-  ],
+  imports: [CardComponent, IconComponent, ScheduleAgendaList, TranslocoDirective],
   template: `
     <mns-card [pad]="false" *transloco="let t">
-      <div class="px-[var(--card-pad)] pt-[var(--card-pad)] pb-3.5">
-        <mns-card-head [title]="cardTitle()" [sub]="cardSub()" icon="Calendar"></mns-card-head>
-      </div>
-
       @if (viewMode() === 'month') {
         <!-- Month View -->
-        <div class="month-grid border-t border-border">
+        <div class="month-grid">
           <div class="month-header-row grid grid-cols-7 border-b border-border">
             @for (dayName of weekdayNames(); track dayName) {
               <div
@@ -115,7 +122,7 @@ const NOW_TICK_MS = 60_000;
                         class="month-entry-chip flex items-center gap-1 text-[10px] font-semibold text-text px-1.5 py-0.5 rounded truncate"
                         [style.background]="chipBg(block.entry)"
                         [style.borderLeft]="'2px solid ' + getColour(block.entry)"
-                        [title]="getEntryLabel(block.entry)"
+                        [title]="blockTooltip(block)"
                       >
                         @if (block.entry.groupId) {
                           <span class="group-badge-sm text-[9px] font-extrabold text-accent"
@@ -125,8 +132,19 @@ const NOW_TICK_MS = 60_000;
                         @if (block.isRecurring) {
                           <mns-icon name="Refresh" [size]="9" class="text-muted flex-shrink-0" />
                         }
-                        <span class="truncate">{{ getEntryLabel(block.entry) }}</span>
+                        <span class="truncate">{{ titleOf(block.entry) }}</span>
                       </div>
+                    }
+                    @for (slot of day.ghosts ?? []; track $index) {
+                      <button
+                        type="button"
+                        class="month-ghost-chip ghost-chip flex items-center gap-1 text-[10px] font-semibold text-muted px-1.5 py-0.5 rounded truncate text-left"
+                        [style.borderColor]="slot.colour"
+                        [title]="ghostTooltip(slot)"
+                        (click)="$event.stopPropagation(); ghostSelect.emit(slot)"
+                      >
+                        <span class="truncate">{{ slot.eventTitle }}</span>
+                      </button>
                     }
                   </div>
                 </div>
@@ -150,8 +168,13 @@ const NOW_TICK_MS = 60_000;
         </div>
 
         <!-- Day / Week View — desktop time grid (md and up) -->
-        <div class="time-grid border-t border-border hidden md:block">
-          <div class="time-grid-header flex border-b border-border">
+        <div
+          #scroller
+          class="time-grid hidden md:block overflow-y-auto overscroll-contain min-h-[420px] max-h-[calc(100dvh-16rem)]"
+        >
+          <div
+            class="time-grid-header flex border-b border-border sticky top-0 z-[8] bg-surface rounded-t-[inherit]"
+          >
             <div class="time-gutter-header w-14 flex-shrink-0 border-r border-border"></div>
             @for (day of visibleDays(); track $index) {
               <div
@@ -212,17 +235,10 @@ const NOW_TICK_MS = 60_000;
                   <!-- Gap indicators -->
                   @for (gap of getGapsForDay(dayIdx); track $index) {
                     <div
-                      class="gap-indicator absolute left-0.5 right-0.5 rounded-md z-[1] flex items-center justify-center pointer-events-none"
-                      style="background: color-mix(in srgb, var(--color-warn) 8%, transparent); border: 1px dashed color-mix(in srgb, var(--color-warn) 28%, transparent)"
+                      class="gap-indicator gap-hatch absolute left-0 right-0 z-[1] pointer-events-none"
                       [style.top.px]="gap.top"
                       [style.height.px]="gap.height"
-                    >
-                      <span
-                        class="gap-label text-[10px] italic"
-                        style="color: color-mix(in srgb, var(--color-warn) 60%, transparent)"
-                        >{{ t('schedules.grid.fallbackPlaylist') }}</span
-                      >
-                    </div>
+                    ></div>
                   }
                   <!-- Schedule blocks -->
                   @for (block of getBlocksForDay(dayIdx); track block.entry.id) {
@@ -254,66 +270,91 @@ const NOW_TICK_MS = 60_000;
                           aria-valuenow="0"
                         ></div>
                       }
-                      <div class="block-content px-2 py-1 flex flex-col gap-0.5 h-full box-border">
-                        <span
-                          class="block-title text-[11.5px] font-bold text-text truncate leading-[1.2] flex items-center gap-1"
-                        >
-                          @if (hasConflict(block)) {
-                            <mns-icon name="Alert" [size]="11" class="text-offline flex-shrink-0" />
-                          }
-                          @if (block.entry.managedByRule) {
+                      <div
+                        class="block-content px-2 py-1 flex flex-col gap-0.5 h-full box-border min-w-0"
+                        [title]="blockTooltip(block)"
+                      >
+                        @if (isCompact(block)) {
+                          <span
+                            class="block-title text-[11.5px] font-semibold text-text truncate leading-[1.25]"
+                            >{{ titleOf(block.entry) }}</span
+                          >
+                        } @else {
+                          <span class="block-meta flex items-center gap-1 min-w-0 text-muted">
                             <span
-                              class="managed-badge flex-shrink-0 inline-flex text-muted"
-                              [title]="t('schedules.managed.managedBadge')"
+                              class="block-time text-[10.5px] font-mono whitespace-nowrap truncate"
                             >
-                              <mns-icon name="Lock" [size]="11" />
+                              {{ formatBlockTime(block.occurrenceStart) }}–{{
+                                formatBlockTime(block.occurrenceEnd)
+                              }}
                             </span>
-                          }
-                          @if (block.entry.groupId) {
-                            <span
-                              class="group-badge text-[9px] font-extrabold uppercase tracking-wide text-accent flex-shrink-0"
-                              >{{ t('schedules.grid.groupBadge') }}</span
-                            >
-                          }
-                          @if (isSlicePreparing(block.entry)) {
-                            <span
-                              class="flex-shrink-0 inline-flex items-center gap-0.5 text-warn"
-                              [title]="
-                                t('schedules.grid.preparingRenditions', {
-                                  percent: slicePct(block.entry),
-                                })
-                              "
-                            >
-                              <mns-icon name="Layers" [size]="11" class="animate-pulse" />
-                              <span class="text-[9px] font-bold tabular-nums"
-                                >{{ slicePct(block.entry) }}%</span
+                            <span class="ml-auto flex items-center gap-0.5 flex-shrink-0">
+                              @if (hasConflict(block)) {
+                                <mns-icon name="Alert" [size]="11" class="text-offline" />
+                              }
+                              @if (isSlicePreparing(block.entry)) {
+                                <span
+                                  class="inline-flex items-center gap-0.5 text-warn"
+                                  [title]="
+                                    t('schedules.grid.preparingRenditions', {
+                                      percent: slicePct(block.entry),
+                                    })
+                                  "
+                                >
+                                  <mns-icon name="Layers" [size]="11" class="animate-pulse" />
+                                  <span class="text-[9px] font-bold tabular-nums"
+                                    >{{ slicePct(block.entry) }}%</span
+                                  >
+                                </span>
+                              } @else if (block.entry.sliceStatus?.status === 'failed') {
+                                <span [title]="t('schedules.grid.renditionFailed')">
+                                  <mns-icon name="Alert" [size]="11" class="text-offline" />
+                                </span>
+                              }
+                              @if (block.entry.groupId) {
+                                <span
+                                  class="group-badge inline-flex text-accent"
+                                  [title]="t('schedules.grid.groupBadge')"
+                                >
+                                  <mns-icon name="Groups" [size]="11" />
+                                </span>
+                              }
+                              @if (block.entry.managedByRule) {
+                                <span
+                                  class="managed-badge inline-flex"
+                                  [title]="t('schedules.managed.managedBadge')"
+                                >
+                                  <mns-icon name="Lock" [size]="11" />
+                                </span>
+                              }
+                              @if (block.isRecurring) {
+                                <mns-icon name="Refresh" [size]="11" />
+                              }
+                            </span>
+                          </span>
+                          <span
+                            class="block-title text-[12.5px] font-semibold text-text leading-[1.25] break-words"
+                            [class.line-clamp-2]="isTall(block)"
+                            [class.truncate]="!isTall(block)"
+                            >{{ titleOf(block.entry) }}</span
+                          >
+                          <span class="block-sub flex items-center gap-1 min-w-0 leading-[1.25]">
+                            @if (genresOf(block.entry); as genres) {
+                              <span
+                                class="genre-pill inline-flex items-center gap-0.5 min-w-0 max-w-full flex-shrink-0 rounded px-1 text-[9.5px] font-bold leading-[14px] bg-accent-soft text-accent"
+                                [title]="t('schedules.genreGroup.badgeTitle', { genres })"
                               >
-                            </span>
-                          } @else if (block.entry.sliceStatus?.status === 'failed') {
-                            <span
-                              class="flex-shrink-0"
-                              [title]="t('schedules.grid.renditionFailed')"
-                            >
-                              <mns-icon name="Alert" [size]="11" class="text-offline" />
-                            </span>
-                          }
-                          @if (isOneOff(block) && !hasConflict(block)) {
-                            <span
-                              class="one-off-badge text-[9px] font-extrabold flex-shrink-0 rounded px-[3px] leading-[13px] border"
-                              [style.color]="getColour(block.entry)"
-                              [style.borderColor]="getColour(block.entry)"
-                              >1×</span
-                            >
-                          }
-                          @if (block.isRecurring) {
-                            <mns-icon name="Refresh" [size]="11" class="text-muted flex-shrink-0" />
-                          }
-                          <span class="truncate">{{ getEntryLabel(block.entry) }}</span>
-                        </span>
-                        <span class="block-time text-[10px] font-mono text-muted whitespace-nowrap">
-                          {{ formatBlockTime(block.occurrenceStart) }} -
-                          {{ formatBlockTime(block.occurrenceEnd) }}
-                        </span>
+                                <mns-icon name="Sparkle" [size]="9" class="flex-shrink-0" />
+                                <span class="truncate">{{ genres }}</span>
+                              </span>
+                            }
+                            @if (subtitleOf(block.entry); as subtitle) {
+                              <span class="block-playlist text-[11px] text-muted truncate">{{
+                                subtitle
+                              }}</span>
+                            }
+                          </span>
+                        }
                       </div>
                       @if (!block.entry.managedByRule) {
                         <div
@@ -330,10 +371,46 @@ const NOW_TICK_MS = 60_000;
                       }
                     </div>
                   }
+                  <!-- Displaced slots: what a rule would play here but left to another entry -->
+                  @for (ghost of getGhostsForDay(dayIdx); track $index) {
+                    <button
+                      type="button"
+                      class="ghost-block absolute z-[4] rounded-[6px] overflow-hidden text-left px-1.5 py-1"
+                      [class.ghost-wide]="viewMode() === 'day'"
+                      [style.top.px]="ghost.top"
+                      [style.height.px]="ghost.height"
+                      [style.--ghost]="ghost.slot.colour"
+                      [title]="ghostTooltip(ghost.slot)"
+                      [attr.aria-label]="ghostTooltip(ghost.slot)"
+                      (mousedown)="$event.stopPropagation()"
+                      (click)="$event.stopPropagation(); ghostSelect.emit(ghost.slot)"
+                    >
+                      @if (viewMode() === 'day') {
+                        <span class="block text-[11.5px] font-semibold text-muted truncate">{{
+                          ghost.slot.eventTitle
+                        }}</span>
+                        <span class="block text-[10.5px] text-faint truncate">{{
+                          t('schedules.displaced.short')
+                        }}</span>
+                      }
+                    </button>
+                  }
                 </div>
               }
             </div>
           </div>
+        </div>
+        <div
+          class="fallback-legend hidden md:flex items-center gap-2 px-4 py-2.5 border-t border-border text-[11px] text-muted"
+        >
+          <span class="gap-hatch w-5 h-3 rounded-sm border border-border flex-shrink-0"></span>
+          {{ t('schedules.grid.fallbackLegend') }}
+          @if (ghosts().length > 0) {
+            <span
+              class="ghost-legend ml-4 w-2.5 h-3 rounded-sm border-[1.5px] border-dashed border-muted flex-shrink-0"
+            ></span>
+            {{ t('schedules.displaced.legend') }}
+          }
         </div>
       }
     </mns-card>
@@ -348,6 +425,37 @@ const NOW_TICK_MS = 60_000;
       opacity: 0.7;
       cursor: grabbing;
       z-index: 10;
+    }
+    .gap-hatch {
+      background: repeating-linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--color-warn) 5%, transparent) 0 1.5px,
+        transparent 1.5px 9px
+      );
+    }
+    .ghost-block {
+      right: 2px;
+      width: 14px;
+      border: 1.5px dashed var(--ghost);
+      background:
+        repeating-linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--ghost) 35%, transparent) 0 3px,
+          transparent 3px 7px
+        ),
+        var(--surface);
+      opacity: 0.9;
+    }
+    .ghost-block:hover {
+      opacity: 1;
+      box-shadow: var(--shadow);
+    }
+    .ghost-block.ghost-wide {
+      width: 34%;
+    }
+    .ghost-chip {
+      border: 1px dashed;
+      opacity: 0.75;
     }
     .schedule-block.conflict {
       box-shadow: 0 0 0 1px var(--color-offline);
@@ -376,6 +484,8 @@ export class ScheduleCalendarGrid {
   readonly hourHeight = input.required<number>();
   readonly orgTimeZone = input.required<string>();
   readonly draggingEntryId = input<string | null>(null);
+  /** Slots event schedule rules left to other entries, drawn as dashed ghosts. */
+  readonly ghosts = input<GhostBlock[]>([]);
   /**
    * Which of {@link visibleDays} the mobile agenda shows. In week view the grid
    * collapses to a single day on small screens; the parent steps this via the
@@ -389,6 +499,7 @@ export class ScheduleCalendarGrid {
   readonly resizeMouseDown = output<ResizePointerEvent>();
   readonly blockClick = output<BlockPointerEvent>();
   readonly blockEnter = output<ScheduleEntry>();
+  readonly ghostSelect = output<DisplacedSlot>();
   readonly mobilePrevDay = output<void>();
   readonly mobileNextDay = output<void>();
 
@@ -411,14 +522,34 @@ export class ScheduleCalendarGrid {
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
   }
 
-  readonly cardTitle = computed(() => {
-    const mode = this.viewMode();
-    if (mode === 'month') return this.transloco.translate('schedules.grid.monthTitle');
-    if (mode === 'day') return this.transloco.translate('schedules.grid.dayTitle');
-    return this.transloco.translate('schedules.grid.weekTitle');
+  private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
+  /** The range the time grid last scrolled for, so a re-render never yanks it back. */
+  private scrolledFor: { range: string; hadBlocks: boolean } | null = null;
+
+  /**
+   * Opens the time grid just above the first thing scheduled in the visible
+   * range, or at 08:00, instead of at midnight. Runs again only when the range
+   * changes, or once more when its blocks arrive after it did.
+   */
+  private readonly openAtFirstEntry = afterRenderEffect(() => {
+    const el = this.scroller()?.nativeElement;
+    if (!el || this.viewMode() === 'month') return;
+    const range = `${this.viewMode()}:${this.visibleDays()[0]?.getTime() ?? ''}`;
+    const hasBlocks = this.blocks().length > 0;
+    const last = this.scrolledFor;
+    if (last && last.range === range && (last.hadBlocks || !hasBlocks)) return;
+    el.scrollTop = this.initialScrollTop();
+    this.scrolledFor = { range, hadBlocks: hasBlocks };
   });
 
-  readonly cardSub = computed(() => this.transloco.translate('schedules.grid.cardSub'));
+  private initialScrollTop(): number {
+    const hourHeight = this.hourHeight();
+    const firstTop = Math.min(
+      DEFAULT_FIRST_HOUR * hourHeight,
+      ...this.blocks().map((block) => block.top),
+    );
+    return Math.max(0, firstTop - hourHeight);
+  }
 
   /** The visible day the mobile agenda renders (defaults to the first day). */
   private readonly mobileDay = computed<Date | null>(() => {
@@ -457,17 +588,75 @@ export class ScheduleCalendarGrid {
     return this.blocks().filter((b) => b.dayIndex === dayIndex);
   }
 
+  getGhostsForDay(dayIndex: number): GhostBlock[] {
+    return this.ghosts().filter((g) => g.dayIndex === dayIndex);
+  }
+
+  /** What a ghost stands for: the event, its rule, and who holds the slot instead. */
+  ghostTooltip(slot: DisplacedSlot): string {
+    return this.transloco.translate<string>('schedules.displaced.tooltip', {
+      event: slot.eventTitle,
+      rule: slot.ruleName,
+      blocking: blockingTitle(slot),
+    });
+  }
+
   getGapsForDay(dayIndex: number): GapBlock[] {
     return this.gaps().filter((g) => g.dayIndex === dayIndex);
   }
 
   getEntryLabel(entry: ScheduleEntry): string {
     const playlistName =
-      entry.playlist?.name || this.transloco.translate<string>('schedules.grid.playlistFallback');
+      entryPlaylistName(entry) ||
+      this.transloco.translate<string>('schedules.grid.playlistFallback');
     if (entry.groupId && entry.group) {
       return `${playlistName} - ${entry.group.name}`;
     }
     return playlistName;
+  }
+
+  /** Headline of a block: the event or entry name, else the playlist. */
+  titleOf(entry: ScheduleEntry): string {
+    return entryTitle(entry) || this.transloco.translate<string>('schedules.grid.playlistFallback');
+  }
+
+  /** The playlist line under the title, unless the title already is the playlist. */
+  subtitleOf(entry: ScheduleEntry): string | null {
+    const label = this.getEntryLabel(entry);
+    return label === this.titleOf(entry) ? null : label;
+  }
+
+  isCompact(block: CalendarBlock): boolean {
+    return block.height < COMPACT_BLOCK_PX;
+  }
+
+  isTall(block: CalendarBlock): boolean {
+    return block.height >= TALL_BLOCK_PX;
+  }
+
+  /** Everything a block carries, one item per line, for its native tooltip. */
+  blockTooltip(block: CalendarBlock): string {
+    const entry = block.entry;
+    const genres = entryGenres(entry);
+    const target = entry.group?.name ?? entry.screen?.name;
+    return [
+      this.titleOf(entry),
+      `${this.formatBlockTime(block.occurrenceStart)}–${this.formatBlockTime(block.occurrenceEnd)}`,
+      this.subtitleOf(entry),
+      genres && this.transloco.translate<string>('schedules.genreGroup.badgeTitle', { genres }),
+      target,
+      entry.managedByRule &&
+        this.transloco.translate<string>('schedules.grid.managedBy', {
+          rule: entry.managedByRule.name,
+        }),
+    ]
+      .filter((line): line is string => !!line)
+      .join('\n');
+  }
+
+  /** The genre group the entry's event matched, as "Rock, Metal"; null when none did. */
+  genresOf(entry: ScheduleEntry): string | null {
+    return entryGenres(entry);
   }
 
   getColour(entry: ScheduleEntry): string {
@@ -488,7 +677,7 @@ export class ScheduleCalendarGrid {
   }
 
   blockBg(entry: ScheduleEntry): string {
-    return `color-mix(in srgb, ${this.getColour(entry)} 20%, var(--surface))`;
+    return `color-mix(in srgb, ${this.getColour(entry)} 26%, var(--surface))`;
   }
 
   chipBg(entry: ScheduleEntry): string {

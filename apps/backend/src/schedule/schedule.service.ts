@@ -44,6 +44,9 @@ import {
 import { SliceEnqueueService } from '../slice-content';
 import { SliceStatus } from '../slice-content/slice-status.enum';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
+import { isOwnPlaylist } from '../playlist/own-playlist';
+import { attachGenreGroups, type ScheduleGenreGroup } from './schedule-genre-group';
+import { findDisplacedSlots, type DisplacedSlot } from './displaced-slots';
 
 const OVERLAP_WINDOW_DAYS = 365;
 
@@ -51,6 +54,7 @@ const OVERLAP_WINDOW_DAYS = 365;
 export type ListedScheduleEntry = ScheduleEntry & {
   sliceStatus?: SliceJob | null;
   managedByRule?: { id: string; name: string; sourceId: string } | null;
+  genreGroup?: ScheduleGenreGroup | null;
 };
 
 /**
@@ -258,7 +262,7 @@ export class ScheduleService {
     _from: Date,
     _to: Date,
   ): Promise<(ListedScheduleEntry & { playlist: Playlist })[]> {
-    return this.db.query.scheduleEntries.findMany({
+    const entries = await this.db.query.scheduleEntries.findMany({
       where: and(
         eq(scheduleEntries.screenId, screenId),
         eq(scheduleEntries.organisationId, organisationId),
@@ -269,6 +273,7 @@ export class ScheduleService {
       },
       orderBy: asc(scheduleEntries.startTime),
     });
+    return attachGenreGroups(this.db, entries);
   }
 
   async findByOrganisation(
@@ -295,11 +300,17 @@ export class ScheduleService {
       .where(eq(sliceJobs.organisationId, organisationId));
     const byKey = new Map(jobs.map((j) => [`${j.groupId}:${j.playlistId}`, j]));
 
-    return entries.map((entry) =>
+    const withGroups = await attachGenreGroups(this.db, entries);
+    return withGroups.map((entry) =>
       entry.groupId
         ? { ...entry, sliceStatus: byKey.get(`${entry.groupId}:${entry.playlistId}`) ?? null }
         : entry,
     );
+  }
+
+  /** Upcoming slots the organisation's event schedule rules left to other entries. */
+  findDisplaced(organisationId: string, now = new Date()): Promise<DisplacedSlot[]> {
+    return findDisplacedSlots(this.db, organisationId, now);
   }
 
   /**
@@ -646,7 +657,13 @@ export class ScheduleService {
     const [playlist] = await this.db
       .select()
       .from(playlists)
-      .where(and(eq(playlists.id, playlistId), eq(playlists.organisationId, organisationId)))
+      .where(
+        and(
+          eq(playlists.id, playlistId),
+          eq(playlists.organisationId, organisationId),
+          isOwnPlaylist(),
+        ),
+      )
       .limit(1);
     if (!playlist) {
       throw new NotFoundException(

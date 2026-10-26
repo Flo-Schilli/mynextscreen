@@ -920,21 +920,31 @@
       "newSchedule": "New schedule",
       "viewDay": "Day",
       "viewWeek": "Week",
-      "viewMonth": "Month"
+      "viewMonth": "Month",
+      "viewList": "List",
+      "allTargets": "All screens and groups",
+      "fromDate": "From {date}"
     },
     "grid": {
-      "monthTitle": "Month schedule",
-      "dayTitle": "Day schedule",
-      "weekTitle": "Week schedule",
-      "cardSub": "Click any block to edit",
-      "fallbackPlaylist": "Fallback playlist",
       "groupBadge": "Group",
       "oneOff": "1×",
       "resizeTop": "Resize top",
       "resizeBottom": "Resize bottom",
       "preparingRenditions": "Preparing wall renditions… {percent}%",
       "renditionFailed": "Rendition pre-transcoding failed",
-      "playlistFallback": "Playlist"
+      "playlistFallback": "Playlist",
+      "fallbackLegend": "Hatched: the organisation’s fallback playlist plays here.",
+      "managedBy": "Scheduled by rule “{rule}”"
+    },
+    "list": {
+      "empty": "No upcoming entries",
+      "conflicts": "{count, plural, one {# overlap} other {# overlaps}}",
+      "noConflicts": "No overlaps",
+      "onlyConflicts": "Only overlaps",
+      "conflictWins": "Overlaps “{other}” on {screens} – this entry plays.",
+      "conflictLoses": "Overlaps “{other}” on {screens} – “{other}” plays there.",
+      "loadMore": "Load more days",
+      "end": "No further entries"
     },
     "sidePanel": {
       "today": "Today",
@@ -1047,6 +1057,30 @@
       "managedTitle": "Scheduled automatically",
       "managedBody": "The rule “{rule}” created this entry from an event. You can change it only through the rule; a manual entry at the same time takes precedence.",
       "managedOpenRule": "Open rule"
+    },
+    "displaced": {
+      "title": "Displaced automatic entry",
+      "body": "Rule “{rule}” would schedule “{event}” here, but “{blocking}” holds the slot and takes precedence.",
+      "comesBack": "Delete or move “{blocking}” and the rule schedules the entry again by itself.",
+      "tooltip": "“{event}” (rule “{rule}”) – covered by “{blocking}”",
+      "short": "covered",
+      "legend": "Dashed: an automatic entry another one covers",
+      "count": "{count, plural, one {# displaced automatic entry} other {# displaced automatic entries}}",
+      "row": "Scheduled by rule “{rule}” · covered by “{blocking}”"
+    },
+    "preview": {
+      "title": "Plays here – as of now",
+      "loading": "Loading content…",
+      "failed": "The content could not be loaded.",
+      "summary": "{count, plural, one {# slide} other {# slides}} from “{playlist}”",
+      "genres": "filtered to {genres}",
+      "empty": "The playlist shows nothing right now.",
+      "open": "View content",
+      "modalTitle": "Entry content"
+    },
+    "genreGroup": {
+      "badgeTitle": "Genre match: the event fits the group {genres}",
+      "managedBody": "The event matches the genre group {genres}, so “{playlist}” only shows events of these genres here."
     }
   },
   "liveStreams": {
@@ -1701,7 +1735,8 @@
       "wakeOnUnreachableEnabled": "Wake when unreachable",
       "probeIntervalMinutes": "Probe interval (min)",
       "subnetSweepEnabled": "Subnet sweep",
-      "previousMode": "Previous mode"
+      "previousMode": "Previous mode",
+      "genreVariants": "Genre groups"
     },
     "resourceTypes": {
       "content": "Content",
@@ -2496,12 +2531,20 @@
         "excludeCancelledDesc": "A cancelled event gets no entry.",
         "enabledLabel": "Active",
         "enabledDesc": "Pausing removes the upcoming entries until you activate the rule again.",
+        "genreGroupsLabel": "Content per genre",
+        "genreGroupsHint": "When an event matches a group, the playlist shows only events of those genres. The first matching group wins; otherwise the playlist plays as it is.",
+        "genreGroupLabel": "Genre group {{n}}",
+        "genreGroupPlaceholder": "Choose genres…",
+        "addGenreGroup": "Add genre group",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
         "errors": {
           "name": "Give the rule a name.",
           "venues": "Pick at least one venue.",
           "playlist": "Pick a playlist.",
           "window": "Enter the start and end as times.",
-          "targets": "Pick at least one screen or group."
+          "targets": "Pick at least one screen or group.",
+          "genreGroups": "Every genre group needs at least one genre, and no two groups may list the same genres."
         }
       },
       "toast": {
@@ -2510,7 +2553,8 @@
         "deleted": "Rule deleted",
         "deleteFailed": "Could not delete the rule",
         "loadFailed": "Could not load the rules"
-      }
+      },
+      "genreGroups": "Per genre: {{groups}}"
     }
   }
 }

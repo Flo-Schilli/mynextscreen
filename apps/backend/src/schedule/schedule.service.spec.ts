@@ -12,6 +12,7 @@ import {
   playlists,
   scheduleEntries,
   sliceJobs,
+  eventScheduleRules,
   type Organisation,
   type Screen,
   type ScreenGroup,
@@ -24,6 +25,10 @@ import { SLICE_CONTENT_QUEUE, SliceEnqueueService, SliceStatusService } from '..
 import { SliceStatus } from '../slice-content/slice-status.enum';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
+import { seedContentSource } from '../test/content-source-seed';
+import { PlaylistKind } from '../playlist/playlist-kind.enum';
+import { TransitionType } from '../playlist/transition-type.enum';
+import type { PlaylistRule } from '../playlist/playlist-rule.types';
 
 describe('ScheduleService', () => {
   let service: ScheduleService;
@@ -1190,6 +1195,82 @@ describe('ScheduleService', () => {
       expect((groupEntry as unknown as { group: ScreenGroup }).group).toEqual(
         expect.objectContaining({ id: group.id }),
       );
+    });
+  });
+
+  describe('genre groups', () => {
+    const rockRule: PlaylistRule = {
+      sourceIds: [],
+      genres: { match: 'any', values: ['Rock', 'Metal'] },
+      venues: [],
+      dateFrom: { mode: 'today' },
+      dateTo: { mode: 'none' },
+      excludeCancelled: true,
+      excludeSoldOut: false,
+      sort: 'date_asc',
+      limit: 10,
+      graceHours: 2,
+      refreshIntervalMinutes: 60,
+      format: '1920x1080',
+      itemDurationSeconds: 10,
+      transition: TransitionType.Fade,
+      transitionDurationMs: 500,
+    };
+
+    it('names the genre group and base playlist of an entry that plays a variant', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id);
+      const source = await seedContentSource(db, org.id);
+      const base = await seedPlaylist(org.id, 'Demnächst');
+      const [rule] = await db
+        .insert(eventScheduleRules)
+        .values({
+          organisationId: org.id,
+          sourceId: source.id,
+          playlistId: base.id,
+          name: 'Abendkasse',
+          venues: ['Löwensaal'],
+          windowStart: '18:00',
+          windowEnd: '23:00',
+          genreVariants: [{ genres: ['Rock', 'Metal'] }],
+        })
+        .returning();
+      const [variant] = await db
+        .insert(playlists)
+        .values({
+          organisationId: org.id,
+          name: 'Demnächst · Rock, Metal',
+          kind: PlaylistKind.Dynamic,
+          rule: rockRule,
+          managedByRuleId: rule.id,
+          variantKey: '["Metal","Rock"]',
+        })
+        .returning();
+      const entry = (playlistId: string, day: string) => ({
+        organisationId: org.id,
+        screenId: screen.id,
+        playlistId,
+        startTime: new Date(`${day}T18:00:00Z`),
+        endTime: new Date(`${day}T23:00:00Z`),
+        rrule: null,
+        colour: '#FF5733',
+      });
+      await db
+        .insert(scheduleEntries)
+        .values([entry(variant.id, '2026-04-01'), entry(base.id, '2026-04-02')]);
+
+      const listed = await service.findByOrganisation(org.id, new Date(), new Date());
+      const byScreen = await service.findByScreen(screen.id, org.id, new Date(), new Date());
+
+      for (const result of [listed, byScreen]) {
+        const groupOf = (playlistId: string) =>
+          result.find((e) => e.playlistId === playlistId)?.genreGroup;
+        expect(groupOf(variant.id)).toEqual({
+          genres: ['Rock', 'Metal'],
+          basePlaylistName: 'Demnächst',
+        });
+        expect(groupOf(base.id)).toBeNull();
+      }
     });
   });
 

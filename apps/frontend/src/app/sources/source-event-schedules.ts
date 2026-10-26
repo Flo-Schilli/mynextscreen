@@ -27,7 +27,8 @@ import {
 import { EventScheduleRuleModal } from './event-schedule-rule-modal';
 import { apiErrorMessage } from './source-form-state';
 import { PlaylistService } from '../playlists/playlist.service';
-import { Playlist } from '../playlists/playlist.model';
+import { Playlist, isDynamicPlaylist } from '../playlists/playlist.model';
+import { ContentSourceService } from './content-source.service';
 import { ScreenService } from '../screens/screen.service';
 import { ScreenGroupService } from '../screen-groups/screen-group.service';
 import { ToastService } from '../shared/toast/toast.service';
@@ -130,6 +131,11 @@ const STATUS_TONE: Record<string, BadgeTone> = {
                       <span>&nbsp;({{ t('sources.schedules.nextDay') }})</span>
                     }
                   </div>
+                  @if (rule.genreVariants.length > 0) {
+                    <div class="genre-groups mt-0.5 text-[12.5px] text-muted">
+                      {{ t('sources.schedules.genreGroups', { groups: genreGroupsOf(rule) }) }}
+                    </div>
+                  }
                   <div class="mt-0.5 text-[12.5px] text-faint">
                     {{ targetsOf(rule).join(', ') }}
                   </div>
@@ -236,6 +242,8 @@ const STATUS_TONE: Record<string, BadgeTone> = {
           [venueOptions]="venueOptions()"
           [playlistOptions]="playlistOptions()"
           [targetOptions]="targetPickerOptions()"
+          [genreOptions]="genres()"
+          [dynamicPlaylistIds]="dynamicPlaylistIds()"
           [saving]="busy()"
           (save)="save($event)"
           (dismiss)="editing.set(null)"
@@ -277,6 +285,7 @@ export class SourceEventSchedules {
   private readonly playlistService = inject(PlaylistService);
   private readonly screenService = inject(ScreenService);
   private readonly groupService = inject(ScreenGroupService);
+  private readonly sourceService = inject(ContentSourceService);
   private readonly toast = inject(ToastService);
   private readonly transloco = inject(TranslocoService);
   private readonly destroyRef = inject(DestroyRef);
@@ -293,6 +302,8 @@ export class SourceEventSchedules {
   protected readonly playlists = signal<Playlist[]>([]);
   protected readonly screens = signal<NamedRef[]>([]);
   protected readonly groups = signal<NamedRef[]>([]);
+  /** Genres of the source's events, for the genre groups of a rule. */
+  protected readonly genres = signal<string[]>([]);
   protected readonly expandedId = signal<string | null>(null);
   protected readonly preview = signal<EventSchedulePreviewItem[]>([]);
   protected readonly editing = signal<{
@@ -309,6 +320,11 @@ export class SourceEventSchedules {
   });
   protected readonly playlistOptions = computed<SelectOption[]>(() =>
     this.playlists().map((p) => ({ value: p.id, label: p.name })),
+  );
+  protected readonly dynamicPlaylistIds = computed(() =>
+    this.playlists()
+      .filter(isDynamicPlaylist)
+      .map((p) => p.id),
   );
   protected readonly targetPickerOptions = computed<SelectOption[]>(() =>
     targetOptions(this.screens(), this.groups(), (name) =>
@@ -335,6 +351,11 @@ export class SourceEventSchedules {
 
   protected playlistName(id: string): string {
     return this.playlists().find((p) => p.id === id)?.name ?? '?';
+  }
+
+  /** "Rock/Metal · Klassik": groups in the order they are tried. */
+  protected genreGroupsOf(rule: EventScheduleRule): string {
+    return rule.genreVariants.map((variant) => variant.genres.join('/')).join(' · ');
   }
 
   protected targetsOf(rule: EventScheduleRule): string[] {
@@ -446,11 +467,13 @@ export class SourceEventSchedules {
       playlists: this.playlistService.getAll(orgId),
       screens: this.screenService.getAll(orgId),
       groups: this.groupService.getAll(orgId),
+      facets: this.sourceService.getFacets(orgId, [sourceId]),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ playlists, screens, groups }) => {
+        next: ({ playlists, screens, groups, facets }) => {
           this.playlists.set(playlists);
+          this.genres.set(facets.genres);
           this.screens.set(screens.map((s) => ({ id: s.id, name: s.name })));
           this.groups.set(groups.map((g) => ({ id: g.id, name: g.name })));
         },

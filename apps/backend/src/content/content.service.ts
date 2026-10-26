@@ -42,6 +42,7 @@ import { DetectedMediaType, SUPPORTED_MEDIA_TYPES, detectMediaType } from './med
 import { getNumberConfig } from '../config/numeric-config.util';
 import { byNaturalTitle } from '../common/natural-sort.util';
 import { assertStaticPlaylist } from '../playlist/assert-static-playlist';
+import { isOwnPlaylist } from '../playlist/own-playlist';
 
 /** The parts of an uploaded file the service reads; managed slides build it from a buffer. */
 type IncomingFile = Pick<Express.Multer.File, 'buffer' | 'originalname' | 'size' | 'mimetype'>;
@@ -589,7 +590,13 @@ export class ContentService {
     const [playlist] = await this.db
       .select()
       .from(playlists)
-      .where(and(eq(playlists.id, playlistId), eq(playlists.organisationId, organisationId)))
+      .where(
+        and(
+          eq(playlists.id, playlistId),
+          eq(playlists.organisationId, organisationId),
+          isOwnPlaylist(),
+        ),
+      )
       .limit(1);
     if (!playlist) {
       throw new BadRequestException(

@@ -10,6 +10,7 @@ import {
   ScheduleEntry,
   CreateScheduleEntryRequest,
   UpdateScheduleEntryRequest,
+  DisplacedSlot,
 } from './schedule.model';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
@@ -191,6 +192,7 @@ class PlaylistServiceStub {
 
 class ScheduleServiceStub {
   entries: ScheduleEntry[] = [];
+  displaced: DisplacedSlot[] = [];
   createResult: Observable<ScheduleEntry> = of(makeEntry());
   updateResult: Observable<ScheduleEntry> = of(makeEntry());
   deleteResult: Observable<void> = of(undefined);
@@ -204,6 +206,9 @@ class ScheduleServiceStub {
   }
   getByDateRange(): Observable<ScheduleEntry[]> {
     return of(this.entries);
+  }
+  getDisplaced(): Observable<DisplacedSlot[]> {
+    return of(this.displaced);
   }
   create(orgId: string, dto: CreateScheduleEntryRequest): Observable<ScheduleEntry> {
     this.lastCreateDto = dto;
@@ -542,6 +547,45 @@ describe('Schedules', () => {
       // Assert
       expect(component.currentDate.getFullYear()).toBe(new Date().getFullYear());
       expect(component.selectedDate.getFullYear()).toBe(new Date().getFullYear());
+    });
+
+    it('shows the target’s displaced slots as ghosts and explains one on click', async () => {
+      // Arrange
+      const now = new Date();
+      const start = new Date(now.getTime() + 60 * 60 * 1000);
+      const slot = (screenId: string): DisplacedSlot => ({
+        ruleId: 'r1',
+        ruleName: 'Abendkasse',
+        sourceId: 'src1',
+        colour: '#6d6cf6',
+        eventTitle: `Show on ${screenId}`,
+        startTime: start.toISOString(),
+        endTime: new Date(start.getTime() + 60 * 60 * 1000).toISOString(),
+        screenId,
+        groupId: null,
+        targetName: screenId,
+        playlistName: 'Demnächst',
+        genres: null,
+        blockingEntry: { id: 'm1', name: 'Pressekonferenz', playlistName: 'Loop' },
+      });
+      schedule.displaced = [slot('s1'), slot('other')];
+      await setUp();
+
+      // Act
+      component.setView('list');
+
+      // Assert
+      const listed = component.listDays.flatMap((day) => day.displaced);
+      expect(listed.map((s) => s.eventTitle)).toEqual(['Show on s1']);
+
+      component.setView('day');
+      expect(component.ghostBlocks.map((g) => g.slot.eventTitle)).toEqual(['Show on s1']);
+
+      component.displacedSlot = listed[0];
+      expect(component.displacedBody(listed[0])).toContain('Pressekonferenz');
+      component.openDisplacedRule(listed[0]);
+      expect(component.displacedSlot).toBeNull();
+      expect(routerStub.navigate).toHaveBeenCalledWith(['/sources', 'src1']);
     });
 
     it('switches view and reloads on setView', async () => {

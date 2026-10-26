@@ -30,6 +30,11 @@ import {
 import { planEventSlots, slotKey, type PlannedSlot } from './event-schedule-planner';
 import type { EventScheduleConflict, EventScheduleReconcileSummary } from './event-schedule.types';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
+import {
+  PLAYLIST_RESOLVE_REQUESTED,
+  PlaylistResolveRequestedEvent,
+} from '../playlist/playlist.event';
+import { deleteVariantPlaylists, syncVariantPlaylists } from './genre-variant-playlists';
 
 /** Generated entries that ended longer ago than this are pruned. */
 export const MANAGED_ENTRY_RETENTION_DAYS = 14;
@@ -55,6 +60,8 @@ interface ReconcileChanges {
   /** Upcoming group entries the rule keeps, written or not. */
   upcomingGroupEntries: ScheduleEntry[];
   organisationId: string;
+  /** Genre variant playlists created or changed, to resolve once committed. */
+  toResolve: string[];
 }
 
 /**
@@ -139,6 +146,12 @@ export class EventScheduleReconcileService {
       ...changes.written,
       ...(await this.unsliced(changes.upcomingGroupEntries)),
     ]);
+    for (const playlistId of changes.toResolve) {
+      this.eventEmitter.emit(
+        PLAYLIST_RESOLVE_REQUESTED,
+        new PlaylistResolveRequestedEvent(playlistId),
+      );
+    }
     this.audit(ruleId, changes, userId);
     if (changes.removed.length > 0) {
       await this.reconcileRulesOn(changes.removed, now, visited);
@@ -172,6 +185,20 @@ export class EventScheduleReconcileService {
       .select({ id: eventScheduleRules.id })
       .from(eventScheduleRules)
       .where(eq(eventScheduleRules.sourceId, sourceId));
+    return rows.map((row) => row.id);
+  }
+
+  /** Rules that keep genre variants of a playlist. */
+  async ruleIdsWithVariantsOf(playlistId: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ id: eventScheduleRules.id })
+      .from(eventScheduleRules)
+      .where(
+        and(
+          eq(eventScheduleRules.playlistId, playlistId),
+          sql`jsonb_array_length(${eventScheduleRules.genreVariants}) > 0`,
+        ),
+      );
     return rows.map((row) => row.id);
   }
 
@@ -261,6 +288,7 @@ export class EventScheduleReconcileService {
       .where(eq(eventScheduleRules.id, ruleId));
     if (!rule) return null;
 
+    const variants = await syncVariantPlaylists(tx, rule);
     const { slots, timeZone } = await this.plan(tx, rule, now);
     const targets = await tx
       .select()
@@ -278,6 +306,7 @@ export class EventScheduleReconcileService {
       removed: [],
       upcomingGroupEntries: [],
       organisationId: rule.organisationId,
+      toResolve: variants.toResolve,
     };
     const existingByKey = new Map(
       existing.map((entry) => [
@@ -292,7 +321,10 @@ export class EventScheduleReconcileService {
         const current = existingByKey.get(key);
         existingByKey.delete(key);
         const blocking = findBlocker(blockers, slot, target, timeZone);
-        await this.applySlot(tx, rule, slot, target, current, blocking, changes);
+        const playlistId =
+          (slot.variant !== null ? variants.playlistIds[slot.variant] : undefined) ??
+          rule.playlistId;
+        await this.applySlot(tx, rule, playlistId, slot, target, current, blocking, changes);
       }
     }
 
@@ -307,6 +339,9 @@ export class EventScheduleReconcileService {
         changes.removed.push(stale);
       }
     }
+
+    // Every upcoming entry has moved off these by now; ended ones go with them.
+    await deleteVariantPlaylists(tx, variants.stale);
 
     const removedIds = new Set(changes.removed.map((entry) => entry.id));
     const kept = [
@@ -403,6 +438,7 @@ export class EventScheduleReconcileService {
   private async applySlot(
     tx: Tx,
     rule: EventScheduleRule,
+    playlistId: string,
     slot: PlannedSlot<SourceEvent>,
     target: EventScheduleRuleTarget,
     current: ScheduleEntry | undefined,
@@ -410,7 +446,7 @@ export class EventScheduleReconcileService {
     changes: ReconcileChanges,
   ): Promise<void> {
     if (blocking) {
-      changes.summary.conflicts.push(this.conflictOf(slot.event, target, blocking));
+      changes.summary.conflicts.push(this.conflictOf(slot, playlistId, target, blocking));
       if (current) {
         await tx.delete(scheduleEntries).where(eq(scheduleEntries.id, current.id));
         changes.summary.removed += 1;
@@ -420,7 +456,7 @@ export class EventScheduleReconcileService {
     }
 
     const wanted = {
-      playlistId: rule.playlistId,
+      playlistId,
       name: entryName(rule, slot.event),
       colour: rule.colour,
       startTime: slot.startTime,
@@ -458,17 +494,21 @@ export class EventScheduleReconcileService {
   }
 
   private conflictOf(
-    event: SourceEvent,
+    slot: PlannedSlot<SourceEvent>,
+    playlistId: string,
     target: EventScheduleRuleTarget,
     blocking: ScheduleEntry,
   ): EventScheduleConflict {
     return {
-      sourceEventId: event.id,
-      eventTitle: event.title,
-      eventDate: event.eventDate,
+      sourceEventId: slot.event.id,
+      eventTitle: slot.event.title,
+      eventDate: slot.event.eventDate,
       screenId: target.screenId,
       groupId: target.groupId,
       blockingEntryId: blocking.id,
+      startTime: slot.startTime.toISOString(),
+      endTime: slot.endTime.toISOString(),
+      playlistId,
     };
   }
 }
