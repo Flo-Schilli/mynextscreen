@@ -11,6 +11,13 @@ import {
   ScreenReachabilityChangedEvent,
 } from '../site-agent/screen-onboarding.event';
 import { ScheduleEntryChangedEvent } from '../schedule/schedule.event';
+import {
+  SiteAgentBackupExportedEvent,
+  SiteAgentBackupImportAnalysedEvent,
+  SiteAgentBackupImportKeyEvent,
+  SiteAgentBackupImportedEvent,
+  SiteAgentBackupProgressEvent,
+} from '../site-agent/site-agent-backup.event';
 import { LiveStreamHealthChangedEvent } from '../live-stream/stream-health.event';
 import { firstValueFrom, take } from 'rxjs';
 
@@ -344,6 +351,90 @@ describe('DashboardSseService', () => {
       service.onModuleDestroy();
 
       expect(completeSpy).toHaveBeenCalled();
+    });
+  });
+  describe('agent backup events', () => {
+    /** Opens one connection and records every payload it receives. */
+    function listen(isOrgAdmin: boolean): { received: DashboardEventPayload[]; stop: () => void } {
+      const received: DashboardEventPayload[] = [];
+      const sub = service
+        .subscribe(orgId, isOrgAdmin ? 'admin' : 'viewer', isOrgAdmin)
+        .subscribe((msg) => {
+          if (msg.type === 'state-change') {
+            received.push(msg.data as DashboardEventPayload);
+          }
+        });
+      return { received, stop: () => sub.unsubscribe() };
+    }
+
+    const operation = {
+      kind: 'import' as const,
+      id: 'sess-1',
+      step: 'waiting_for_mapping' as const,
+      startedBy: { userId: 'admin', name: 'Admin' },
+      startedAt: '2026-10-26T18:00:00.000Z',
+    };
+
+    it.each([
+      [
+        'site_agent.backup-export',
+        () =>
+          service.handleSiteAgentBackupExported(
+            new SiteAgentBackupExportedEvent('agent-1', orgId, 'cmd-1', null),
+          ),
+        { agentId: 'agent-1', commandId: 'cmd-1', error: null },
+      ],
+      [
+        'site_agent.backup-import-key',
+        () =>
+          service.handleSiteAgentBackupImportKey(
+            new SiteAgentBackupImportKeyEvent('agent-1', orgId, 'sess-1', 'PUB', null),
+          ),
+        { agentId: 'agent-1', sessionId: 'sess-1', publicKey: 'PUB', error: null },
+      ],
+      [
+        'site_agent.backup-import-analysed',
+        () =>
+          service.handleSiteAgentBackupImportAnalysed(
+            new SiteAgentBackupImportAnalysedEvent('agent-1', orgId, 'sess-1'),
+          ),
+        { agentId: 'agent-1', sessionId: 'sess-1' },
+      ],
+      [
+        'site_agent.backup-import',
+        () =>
+          service.handleSiteAgentBackupImported(
+            new SiteAgentBackupImportedEvent('agent-1', orgId, 'sess-1', null, 'Wrong password'),
+          ),
+        { agentId: 'agent-1', sessionId: 'sess-1', summary: null, error: 'Wrong password' },
+      ],
+      [
+        'site_agent.backup-progress',
+        () =>
+          service.handleSiteAgentBackupProgress(
+            new SiteAgentBackupProgressEvent('agent-1', orgId, operation),
+          ),
+        { agentId: 'agent-1', operation },
+      ],
+    ])('sends %s to org admins only', (type, emit, data) => {
+      const admin = listen(true);
+      const viewer = listen(false);
+
+      emit();
+
+      expect(admin.received).toEqual([expect.objectContaining({ type, data })]);
+      expect(viewer.received).toEqual([]);
+      admin.stop();
+      viewer.stop();
+    });
+
+    it('still sends ordinary events to every member', () => {
+      const viewer = listen(false);
+
+      service.handleScreenStatusChanged(new ScreenStatusEvent('screen-1', orgId, true));
+
+      expect(viewer.received).toEqual([expect.objectContaining({ type: 'screen.online' })]);
+      viewer.stop();
     });
   });
 });

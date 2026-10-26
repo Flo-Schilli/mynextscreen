@@ -12,3 +12,13 @@ export { ScreenRemoteCommandDto, MANUAL_COMMANDS } from './screen-remote-command
 export type { ManualCommandType } from './screen-remote-command.dto';
 export { ScreenOnboardingCheckDto } from './screen-onboarding-check.dto';
 export { AgentReportDto } from './agent-report.dto';
+export {
+  StartBackupExportDto,
+  StageBackupImportDto,
+  AgentBackupExportDto,
+  AgentBackupImportKeyDto,
+  AgentBackupRestoreDto,
+  AgentBackupImportResultDto,
+  AgentBackupAnalysisDto,
+  ApplyBackupImportDto,
+} from './site-agent-backup.dto';

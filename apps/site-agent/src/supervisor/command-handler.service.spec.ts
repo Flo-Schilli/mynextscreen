@@ -45,6 +45,13 @@ describe('CommandHandlerService', () => {
   let ssh: { run: jest.Mock; upload: jest.Mock };
   let ssapKeys: { load: jest.Mock; save: jest.Mock };
   let updates: { requestUpdate: jest.Mock };
+  let backups: {
+    export: jest.Mock;
+    beginImport: jest.Mock;
+    import: jest.Mock;
+    apply: jest.Mock;
+    onImported: jest.Mock;
+  };
 
   const config = (screens: AgentScreenConfigMessage[]): AgentConfigMessage => ({
     agentId: 'agent-1',
@@ -89,6 +96,13 @@ describe('CommandHandlerService', () => {
     };
     ssapKeys = { load: jest.fn().mockResolvedValue('granted-key'), save: jest.fn() };
     updates = { requestUpdate: jest.fn().mockResolvedValue(undefined) };
+    backups = {
+      export: jest.fn(),
+      beginImport: jest.fn(),
+      import: jest.fn(),
+      apply: jest.fn(),
+      onImported: jest.fn(),
+    };
 
     handler = new CommandHandlerService(
       stream as never,
@@ -100,7 +114,56 @@ describe('CommandHandlerService', () => {
       ssh as never,
       ssapKeys as never,
       updates as never,
+      backups as never,
     );
+  });
+
+  describe('backup commands', () => {
+    it('hands an export to the backup service with the tab key', async () => {
+      await handler.handle({ commandId: 'c1', type: 'export_backup', recipientPublicKey: 'PUB' });
+
+      expect(backups.export).toHaveBeenCalledWith('c1', 'PUB');
+    });
+
+    it('opens an import session under the command id', async () => {
+      await handler.handle({ commandId: 'c2', type: 'begin_backup_import' });
+
+      expect(backups.beginImport).toHaveBeenCalledWith('c2');
+    });
+
+    it('runs an import for the session it continues', async () => {
+      await handler.handle({ commandId: 'c3', type: 'import_backup', sessionId: 's1' });
+
+      expect(backups.import).toHaveBeenCalledWith('s1');
+    });
+
+    it('applies the opened file of the session it continues', async () => {
+      await handler.handle({ commandId: 'c5', type: 'apply_backup_import', sessionId: 's1' });
+
+      expect(backups.apply).toHaveBeenCalledWith('s1');
+    });
+
+    it('passes an empty session id to apply for the service to refuse', async () => {
+      await handler.handle({ commandId: 'c6', type: 'apply_backup_import' });
+
+      expect(backups.apply).toHaveBeenCalledWith('');
+    });
+
+    it('passes an empty session id through for the service to refuse', async () => {
+      await handler.handle({ commandId: 'c4', type: 'import_backup' });
+
+      expect(backups.import).toHaveBeenCalledWith('');
+    });
+
+    it('re-pulls and probes after an import', async () => {
+      handler.onModuleInit();
+      const listener = backups.onImported.mock.calls[0][0] as () => Promise<void>;
+
+      await listener();
+
+      expect(supervisor.refreshConfigIfDue).toHaveBeenCalledWith(true);
+      expect(supervisor.probeNow).toHaveBeenCalled();
+    });
   });
 
   describe('registration', () => {

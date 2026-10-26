@@ -8,6 +8,7 @@ import { SshService } from '../tv/ssh.service';
 import { SsapClient } from '../tv/ssap-client';
 import { SsapKeyStore } from '../tv/ssap-key.store';
 import { UpdateService } from '../update/update.service';
+import { BackupService } from '../backup/backup.service';
 import { SupervisorService, classifySsap, describe } from './supervisor.service';
 import type {
   AgentScreenConfigMessage,
@@ -46,10 +47,18 @@ export class CommandHandlerService implements OnModuleInit {
     private readonly ssh: SshService,
     private readonly ssapKeys: SsapKeyStore,
     private readonly updates: UpdateService,
+    private readonly backups: BackupService,
   ) {}
 
   onModuleInit(): void {
     this.stream.onCommand((command) => this.handle(command));
+    // Restored keys and settings only matter once the agent looks again: the
+    // server may have just created screens for it, and the sets that were
+    // waiting on a pairing prompt can be reached straight away.
+    this.backups.onImported(async () => {
+      await this.supervisor.refreshConfigIfDue(true);
+      await this.supervisor.probeNow();
+    });
   }
 
   async handle(command: SiteAgentCommandMessage): Promise<void> {
@@ -67,6 +76,26 @@ export class CommandHandlerService implements OnModuleInit {
 
     if (command.type === 'update_agent') {
       await this.updates.requestUpdate(command.commandId);
+      return;
+    }
+
+    if (command.type === 'export_backup') {
+      await this.backups.export(command.commandId, command.recipientPublicKey);
+      return;
+    }
+
+    if (command.type === 'begin_backup_import') {
+      await this.backups.beginImport(command.commandId);
+      return;
+    }
+
+    if (command.type === 'import_backup') {
+      await this.backups.import(command.sessionId ?? '');
+      return;
+    }
+
+    if (command.type === 'apply_backup_import') {
+      await this.backups.apply(command.sessionId ?? '');
       return;
     }
 

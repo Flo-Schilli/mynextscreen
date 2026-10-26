@@ -39,6 +39,13 @@ export class DashboardSseService implements OnDestroy {
   readonly screenReachability$ = new Subject<DashboardEvent>();
   /** Answer to an onboarding check the wizard fired; paired by `commandId`. */
   readonly screenOnboardingCheck$ = new Subject<DashboardEvent>();
+  /** Steps of an agent backup round trip; paired by `commandId` or `sessionId`. */
+  readonly siteAgentBackupExport$ = new Subject<DashboardEvent>();
+  readonly siteAgentBackupImportKey$ = new Subject<DashboardEvent>();
+  readonly siteAgentBackupImport$ = new Subject<DashboardEvent>();
+  readonly siteAgentBackupImportAnalysed$ = new Subject<DashboardEvent>();
+  /** A backup started, moved on or ended on some agent; `operation` null when it ended. */
+  readonly siteAgentBackupProgress$ = new Subject<DashboardEvent>();
 
   connect(): void {
     const orgId = this.orgState.selectedOrgId();
@@ -189,6 +196,21 @@ export class DashboardSseService implements OnDestroy {
         break;
       case 'screen.onboarding-check':
         this.screenOnboardingCheck$.next(event);
+        break;
+      case 'site_agent.backup-export':
+        this.siteAgentBackupExport$.next(event);
+        break;
+      case 'site_agent.backup-import-key':
+        this.siteAgentBackupImportKey$.next(event);
+        break;
+      case 'site_agent.backup-import':
+        this.siteAgentBackupImport$.next(event);
+        break;
+      case 'site_agent.backup-import-analysed':
+        this.siteAgentBackupImportAnalysed$.next(event);
+        break;
+      case 'site_agent.backup-progress':
+        this.siteAgentBackupProgress$.next(event);
         break;
       case 'screen.offline':
         this.screenOffline$.next(event);

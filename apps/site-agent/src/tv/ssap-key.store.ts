@@ -57,9 +57,50 @@ export class SsapKeyStore {
     await rm(this.pathFor(screenId), { force: true });
   }
 
+  /**
+   * The stored entry as it is, whatever manifest it was granted against. For
+   * the backup, which carries the version along so the importing agent can
+   * tell a key it can use from one that will only earn a 401.
+   */
+  async readRaw(screenId: string): Promise<StoredSsapKey | null> {
+    try {
+      const parsed = JSON.parse(await readFile(this.pathFor(screenId), 'utf8')) as unknown;
+      return isStoredSsapKey(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Writes an entry from a backup back exactly as it was stored. */
+  async restoreRaw(screenId: string, stored: StoredSsapKey): Promise<void> {
+    await mkdir(this.dir, { recursive: true, mode: DIR_MODE });
+    const path = this.pathFor(screenId);
+    const body = JSON.stringify({ key: stored.key, manifestVersion: stored.manifestVersion });
+    await writeFile(path, `${body}\n`, { encoding: 'utf8', mode: SECRET_MODE });
+    await chmod(path, SECRET_MODE);
+  }
+
   private pathFor(screenId: string): string {
     return screenFilePath(this.dir, screenId, '.key');
   }
+}
+
+export interface StoredSsapKey {
+  key: string;
+  manifestVersion: number;
+}
+
+export function isStoredSsapKey(value: unknown): value is StoredSsapKey {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.key === 'string' &&
+    candidate.key.length > 0 &&
+    candidate.key.length <= 512 &&
+    Number.isInteger(candidate.manifestVersion)
+  );
 }
 
 export function ssapKeyDir(stateDir: string): string {

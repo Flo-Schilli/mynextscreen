@@ -1492,6 +1492,86 @@
       "ethernet": "LAN",
       "unknown": "Network unknown",
       "notReported": "Network not reported"
+    },
+    "backup": {
+      "title": "Backup",
+      "desc": "Backs up the pairing keys, SSH keys, passphrases and addresses of this agent's displays — encrypted on the agent, with a password only you get to see.",
+      "export": "Export backup",
+      "import": "Import backup",
+      "offlineHint": "The agent has to be connected to create or restore a backup.",
+      "exportTitle": "Export backup",
+      "exportWorking": "The agent is creating and encrypting the backup …",
+      "passwordIntro": "The backup has been downloaded. To restore it you will need this password:",
+      "passwordWarning": "The password is shown only now and stored nowhere. Keep it separate from the file — without it the backup cannot be opened.",
+      "downloadAgain": "Download again",
+      "close": "Close",
+      "cancel": "Cancel",
+      "exportFailed": "The backup could not be created.",
+      "importTitle": "Import backup",
+      "importIntro": "Choose a .mnsbackup file. It is decrypted and restored on this agent.",
+      "previewCreated": "Created",
+      "previewSource": "From agent",
+      "previewSameAgent": "this agent",
+      "previewScreens": "Displays",
+      "passwordLabel": "Backup password",
+      "mergeHint": "Existing settings are not overwritten — only empty fields are filled in. Displays that belong to another agent are left alone.",
+      "importConfirm": "Restore",
+      "importDone": "{screens} display(s) restored: {pairing} pairing key(s), {ssh} SSH key(s).",
+      "skippedTitle": "Skipped",
+      "skipReason": {
+        "screen_not_found": "Display no longer exists in this organisation",
+        "assigned_to_other_agent": "Display belongs to another agent",
+        "target_unavailable": "target display now belongs to another agent"
+      },
+      "stalePairing": "{count} pairing key(s) come from an older agent version; those TVs will ask to pair once more.",
+      "importFailed": "The backup could not be restored.",
+      "wrongOrganisation": "This backup belongs to a different organisation.",
+      "timeout": "The agent did not answer in time. Please try again.",
+      "file": {
+        "too_large": "The file is too large to be a backup.",
+        "not_a_backup": "This is not a myNextScreen agent backup file.",
+        "unsupported_version": "This backup version is not supported.",
+        "damaged": "The backup file is damaged."
+      },
+      "steps": {
+        "file": "File",
+        "password": "Password",
+        "mapping": "Mapping",
+        "result": "Result"
+      },
+      "next": "Next",
+      "openFile": "Open file",
+      "passwordHint": "The password was shown once at export. Case, spaces and dashes do not matter.",
+      "openWorking": "The agent is decrypting the file …",
+      "applyWorking": "The agent is restoring the backup …",
+      "mapping": {
+        "restoreTitle": "Will be restored",
+        "created": "settings are created",
+        "unknownTitle": "Displays that no longer exist",
+        "unknownHint": "These entries belong to displays that no longer exist in this organisation. Map them onto an existing display or skip them.",
+        "selectLabel": "Target for {name}",
+        "skip": "— Skip —",
+        "alreadyChosen": "already chosen for another entry",
+        "ownedBy": "belongs to agent \"{agent}\"",
+        "overwrite": "The settings and keys of \"{name}\" are overwritten with those from the backup.",
+        "otherAgentTitle": "Skipped, belong to another agent"
+      },
+      "mappedCount": "{count} of them mapped onto another display.",
+      "onboardingHint": "Restored displays resume onboarding at the final check, provided the backup carries all their data.",
+      "busyOrOffline": "The agent is not connected, or is already running a backup.",
+      "progress": {
+        "export": "Export running",
+        "import": "Import running",
+        "startedBy": "started by {name}",
+        "steps": {
+          "exporting": "agent is creating the backup",
+          "waiting_for_agent": "waiting for the agent",
+          "waiting_for_file": "waiting for the file",
+          "decrypting": "decrypting the file",
+          "waiting_for_mapping": "waiting for the mapping",
+          "applying": "restoring"
+        }
+      }
     }
   },
   "auditLog": {
@@ -1627,6 +1707,8 @@
       "site_agent.deleted": "Site agent deleted",
       "site_agent.enrolled": "Site agent enrolled",
       "site_agent.offline": "Site agent offline",
+      "site_agent.backup_exported": "Site agent backup exported",
+      "site_agent.backup_imported": "Site agent backup imported",
       "site_agent.online": "Site agent online",
       "site_agent.reset": "Site agent reset",
       "site_agent.revoked": "Site agent revoked",

@@ -31,7 +31,11 @@ export type SiteAgentCommandTypeValue =
   | 'reload_config'
   | 'probe_now'
   | 'check'
-  | 'update_agent';
+  | 'update_agent'
+  | 'export_backup'
+  | 'begin_backup_import'
+  | 'import_backup'
+  | 'apply_backup_import';
 
 /** One instruction pushed down the agent's SSE channel. */
 export interface SiteAgentCommandMessage {
@@ -41,6 +45,71 @@ export interface SiteAgentCommandMessage {
   screenId?: string;
   /** Only for `check`: which onboarding step to run. */
   step?: number;
+  /** Only for `export_backup`: the dashboard tab's key to seal the password for. */
+  recipientPublicKey?: string;
+  /** Only for `import_backup` and `apply_backup_import`: the `begin_backup_import` they continue. */
+  sessionId?: string;
+}
+
+/** The finished export, or why there is none. Exactly one of the two halves. */
+export interface AgentBackupExportMessage {
+  backup?: string;
+  sealedPassword?: string;
+  error?: string;
+}
+
+/** What the dashboard sealed for this agent, fetched once by session. */
+export interface AgentBackupImportPayload {
+  backup: string;
+  sealedPassword: string;
+}
+
+/** One screen's settings from a backup, for the server to fill gaps with. */
+export interface AgentBackupScreenSettings {
+  screenId: string;
+  devmodePassphrase?: string;
+  localIp?: string;
+  macAddress?: string;
+  ssapPort?: number;
+  /** Whether a pairing key / SSH key comes with it; decides where onboarding resumes. */
+  hasSsapKey?: boolean;
+  hasDevmodeKey?: boolean;
+}
+
+/** An opened backup, described for planning: ids and names, never a secret. */
+export interface AgentBackupAnalysisMessage {
+  sourceAgentId: string;
+  entries: Array<{ screenId: string; name?: string }>;
+}
+
+export interface AgentBackupRestoreRequest {
+  sourceAgentId: string;
+  screens: AgentBackupScreenSettings[];
+}
+
+/**
+ * Where a backup entry's keys go: `from` is its id in the file, `to` the screen
+ * it now belongs to. `overwrite` for an entry the operator mapped onto a screen,
+ * whose keys then replace that screen's.
+ */
+export interface AgentBackupAssignment {
+  from: string;
+  to: string;
+  overwrite: boolean;
+}
+
+/** The server's verdict: which keys this agent may write, and where. */
+export interface AgentBackupRestoreResponse {
+  assignments: AgentBackupAssignment[];
+  skipped: Array<{ screenId: string; reason: string }>;
+}
+
+export interface AgentBackupImportResultMessage {
+  ssapRestored?: number;
+  devmodeKeysRestored?: number;
+  /** Screens whose pairing key predates the current manifest; they will prompt again. */
+  staleSsapScreenIds?: string[];
+  error?: string;
 }
 
 /** One screen as the agent sees it. */

@@ -13,6 +13,18 @@ import {
   ScreenReachabilityChangedEvent,
 } from '../site-agent/screen-onboarding.event';
 import {
+  SITE_AGENT_BACKUP_EXPORTED,
+  SITE_AGENT_BACKUP_IMPORTED,
+  SITE_AGENT_BACKUP_IMPORT_KEY,
+  SITE_AGENT_BACKUP_IMPORT_ANALYSED,
+  SITE_AGENT_BACKUP_PROGRESS,
+  SiteAgentBackupImportAnalysedEvent,
+  SiteAgentBackupProgressEvent,
+  SiteAgentBackupExportedEvent,
+  SiteAgentBackupImportKeyEvent,
+  SiteAgentBackupImportedEvent,
+} from '../site-agent/site-agent-backup.event';
+import {
   TRANSCODING_COMPLETED,
   TRANSCODING_FAILED,
   TRANSCODING_PROGRESS,
@@ -51,6 +63,8 @@ interface MessageEvent {
 interface DashboardConnection {
   organisationId: string;
   userId: string;
+  /** Whether this user administers the organisation; gates admin-only events. */
+  isOrgAdmin: boolean;
   events: Subject<DashboardEventPayload>;
   close: Subject<void>;
 }
@@ -74,7 +88,7 @@ export class DashboardSseService implements OnModuleDestroy {
     return this.connections.size;
   }
 
-  subscribe(organisationId: string, userId: string): Observable<MessageEvent> {
+  subscribe(organisationId: string, userId: string, isOrgAdmin = false): Observable<MessageEvent> {
     const connectionId = randomUUID();
     const events = new Subject<DashboardEventPayload>();
     const close = new Subject<void>();
@@ -82,6 +96,7 @@ export class DashboardSseService implements OnModuleDestroy {
     this.connections.set(connectionId, {
       organisationId,
       userId,
+      isOrgAdmin,
       events,
       close,
     });
@@ -141,6 +156,23 @@ export class DashboardSseService implements OnModuleDestroy {
     this.pushToUser(userId, payload);
   }
 
+  /**
+   * For what only the organisation's admins may see: the progress of agent
+   * backups names who is running one and which displays it touches.
+   */
+  private emitToOrgAdmins(organisationId: string, type: string, data: unknown): void {
+    const payload: DashboardEventPayload = {
+      type,
+      data,
+      timestamp: new Date().toISOString(),
+    };
+    for (const conn of this.connections.values()) {
+      if (conn.organisationId === organisationId && conn.isOrgAdmin) {
+        conn.events.next(payload);
+      }
+    }
+  }
+
   private emitToOrg(organisationId: string, type: string, data: unknown): void {
     const payload: DashboardEventPayload = {
       type,
@@ -192,6 +224,57 @@ export class DashboardSseService implements OnModuleDestroy {
       step: event.step,
       ok: event.ok,
       detail: event.detail,
+    });
+  }
+
+  /**
+   * The three steps of a backup round trip. Each names its `commandId` or
+   * `sessionId` so the tab that started it can pick out its own; none carries
+   * any part of the file.
+   */
+  @OnEvent(SITE_AGENT_BACKUP_IMPORT_ANALYSED)
+  handleSiteAgentBackupImportAnalysed(event: SiteAgentBackupImportAnalysedEvent): void {
+    this.emitToOrgAdmins(event.organisationId, 'site_agent.backup-import-analysed', {
+      agentId: event.agentId,
+      sessionId: event.sessionId,
+    });
+  }
+
+  /** A backup started, moved on or ended; drives the agent page in every admin's tab. */
+  @OnEvent(SITE_AGENT_BACKUP_PROGRESS)
+  handleSiteAgentBackupProgress(event: SiteAgentBackupProgressEvent): void {
+    this.emitToOrgAdmins(event.organisationId, 'site_agent.backup-progress', {
+      agentId: event.agentId,
+      operation: event.operation,
+    });
+  }
+
+  @OnEvent(SITE_AGENT_BACKUP_EXPORTED)
+  handleSiteAgentBackupExported(event: SiteAgentBackupExportedEvent): void {
+    this.emitToOrgAdmins(event.organisationId, 'site_agent.backup-export', {
+      agentId: event.agentId,
+      commandId: event.commandId,
+      error: event.error,
+    });
+  }
+
+  @OnEvent(SITE_AGENT_BACKUP_IMPORT_KEY)
+  handleSiteAgentBackupImportKey(event: SiteAgentBackupImportKeyEvent): void {
+    this.emitToOrgAdmins(event.organisationId, 'site_agent.backup-import-key', {
+      agentId: event.agentId,
+      sessionId: event.sessionId,
+      publicKey: event.publicKey,
+      error: event.error,
+    });
+  }
+
+  @OnEvent(SITE_AGENT_BACKUP_IMPORTED)
+  handleSiteAgentBackupImported(event: SiteAgentBackupImportedEvent): void {
+    this.emitToOrgAdmins(event.organisationId, 'site_agent.backup-import', {
+      agentId: event.agentId,
+      sessionId: event.sessionId,
+      summary: event.summary,
+      error: event.error,
     });
   }
 

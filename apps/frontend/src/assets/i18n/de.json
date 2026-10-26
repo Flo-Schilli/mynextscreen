@@ -1492,6 +1492,86 @@
       "ethernet": "LAN",
       "unknown": "Netzwerk unbekannt",
       "notReported": "Netzwerk nicht gemeldet"
+    },
+    "backup": {
+      "title": "Backup",
+      "desc": "Sichert Pairing-Schlüssel, SSH-Schlüssel, Passphrasen und Adressen der Displays dieses Agents – verschlüsselt auf dem Agent, mit einem Passwort, das nur du siehst.",
+      "export": "Backup exportieren",
+      "import": "Backup importieren",
+      "offlineHint": "Der Agent muss verbunden sein, um ein Backup zu erstellen oder einzuspielen.",
+      "exportTitle": "Backup exportieren",
+      "exportWorking": "Der Agent erstellt und verschlüsselt das Backup …",
+      "passwordIntro": "Das Backup wurde heruntergeladen. Zum Einspielen brauchst du dieses Passwort:",
+      "passwordWarning": "Das Passwort wird nur jetzt angezeigt und nirgends gespeichert. Bewahre es getrennt von der Datei auf – ohne Passwort lässt sich das Backup nicht öffnen.",
+      "downloadAgain": "Erneut herunterladen",
+      "close": "Schließen",
+      "cancel": "Abbrechen",
+      "exportFailed": "Das Backup konnte nicht erstellt werden.",
+      "importTitle": "Backup importieren",
+      "importIntro": "Wähle eine .mnsbackup-Datei. Sie wird auf diesem Agent entschlüsselt und eingespielt.",
+      "previewCreated": "Erstellt",
+      "previewSource": "Von Agent",
+      "previewSameAgent": "dieser Agent",
+      "previewScreens": "Displays",
+      "passwordLabel": "Backup-Passwort",
+      "mergeHint": "Bestehende Einstellungen werden nicht überschrieben – nur leere Felder werden ergänzt. Displays, die einem anderen Agent gehören, bleiben unverändert.",
+      "importConfirm": "Wiederherstellen",
+      "importDone": "{screens} Display(s) wiederhergestellt: {pairing} Pairing-Schlüssel, {ssh} SSH-Schlüssel.",
+      "skippedTitle": "Übersprungen",
+      "skipReason": {
+        "screen_not_found": "Display existiert in dieser Organisation nicht mehr",
+        "assigned_to_other_agent": "Display gehört einem anderen Agent",
+        "target_unavailable": "Ziel-Display gehört inzwischen einem anderen Agent"
+      },
+      "stalePairing": "{count} Pairing-Schlüssel stammen von einer älteren Agent-Version; diese TVs fragen einmal neu nach der Kopplung.",
+      "importFailed": "Das Backup konnte nicht eingespielt werden.",
+      "wrongOrganisation": "Dieses Backup gehört zu einer anderen Organisation.",
+      "timeout": "Der Agent hat nicht rechtzeitig geantwortet. Versuche es noch einmal.",
+      "file": {
+        "too_large": "Die Datei ist zu groß für ein Backup.",
+        "not_a_backup": "Das ist keine myNextScreen-Agent-Backup-Datei.",
+        "unsupported_version": "Diese Backup-Version wird nicht unterstützt.",
+        "damaged": "Die Backup-Datei ist beschädigt."
+      },
+      "steps": {
+        "file": "Datei",
+        "password": "Passwort",
+        "mapping": "Zuordnung",
+        "result": "Ergebnis"
+      },
+      "next": "Weiter",
+      "openFile": "Datei öffnen",
+      "passwordHint": "Das Passwort wurde beim Export einmal angezeigt. Groß-/Kleinschreibung, Leerzeichen und Bindestriche sind egal.",
+      "openWorking": "Der Agent entschlüsselt die Datei …",
+      "applyWorking": "Der Agent spielt das Backup ein …",
+      "mapping": {
+        "restoreTitle": "Wird wiederhergestellt",
+        "created": "Einstellungen werden neu angelegt",
+        "unknownTitle": "Displays, die es nicht mehr gibt",
+        "unknownHint": "Diese Einträge gehören zu Displays, die in dieser Organisation nicht mehr existieren. Ordne sie einem vorhandenen Display zu oder überspringe sie.",
+        "selectLabel": "Ziel für {name}",
+        "skip": "— Überspringen —",
+        "alreadyChosen": "schon einem anderen Eintrag zugeordnet",
+        "ownedBy": "gehört Agent „{agent}“",
+        "overwrite": "Einstellungen und Schlüssel von „{name}“ werden mit denen aus dem Backup überschrieben.",
+        "otherAgentTitle": "Übersprungen, gehören einem anderen Agent"
+      },
+      "mappedCount": "{count} davon einem anderen Display zugeordnet.",
+      "onboardingHint": "Wiederhergestellte Displays setzen das Onboarding bei der Abschluss-Prüfung fort, sofern das Backup alle Daten mitbringt.",
+      "busyOrOffline": "Der Agent ist nicht verbunden oder führt gerade schon ein Backup aus.",
+      "progress": {
+        "export": "Export läuft",
+        "import": "Import läuft",
+        "startedBy": "gestartet von {name}",
+        "steps": {
+          "exporting": "Agent erstellt das Backup",
+          "waiting_for_agent": "warte auf den Agent",
+          "waiting_for_file": "warte auf die Datei",
+          "decrypting": "Datei wird entschlüsselt",
+          "waiting_for_mapping": "warte auf die Zuordnung",
+          "applying": "wird eingespielt"
+        }
+      }
     }
   },
   "auditLog": {
@@ -1627,6 +1707,8 @@
       "site_agent.deleted": "Site-Agent gelöscht",
       "site_agent.enrolled": "Site-Agent verbunden",
       "site_agent.offline": "Site-Agent offline",
+      "site_agent.backup_exported": "Site-Agent-Backup exportiert",
+      "site_agent.backup_imported": "Site-Agent-Backup importiert",
       "site_agent.online": "Site-Agent online",
       "site_agent.reset": "Site-Agent zurückgesetzt",
       "site_agent.revoked": "Site-Agent-Zugang entzogen",

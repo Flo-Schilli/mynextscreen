@@ -173,6 +173,39 @@ describe('SelectComponent', () => {
     expect(el('[role=listbox]')).toBeNull();
   });
 
+  it('shows a disabled option with its hint but does not pick it', () => {
+    host.options.set([
+      { value: 'a', label: 'Free' },
+      { value: 'b', label: 'Taken', disabled: true, hint: 'belongs to another agent' },
+    ]);
+    fixture.detectChanges();
+    openDropdown();
+
+    const taken = document.querySelectorAll('[role=option]')[1] as HTMLButtonElement;
+    expect(taken.disabled).toBe(true);
+    expect(taken.textContent).toContain('belongs to another agent');
+    taken.click();
+    fixture.detectChanges();
+    expect(host.picked()).not.toBe('b');
+  });
+
+  it('skips disabled options when Enter picks the first match', () => {
+    host.options.set([
+      { value: 'a', label: 'Stage left', disabled: true },
+      { value: 'b', label: 'Stage right' },
+      ...makeOptions(10),
+    ]);
+    fixture.detectChanges();
+    openDropdown();
+    type('stage');
+    (el('input[type=text]') as HTMLInputElement).dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+    );
+    fixture.detectChanges();
+
+    expect(host.picked()).toBe('b');
+  });
+
   it('Escape closes the menu and leaves whatever is behind it alone', () => {
     setUp(40);
     openDropdown();
