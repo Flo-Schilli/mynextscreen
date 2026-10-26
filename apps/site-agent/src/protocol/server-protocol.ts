@@ -31,7 +31,10 @@ export type SiteAgentCommandTypeValue =
   | 'reload_config'
   | 'probe_now'
   | 'check'
-  | 'update_agent';
+  | 'update_agent'
+  | 'export_backup'
+  | 'begin_backup_import'
+  | 'import_backup';
 
 /** One instruction pushed down the agent's SSE channel. */
 export interface SiteAgentCommandMessage {
@@ -41,6 +44,51 @@ export interface SiteAgentCommandMessage {
   screenId?: string;
   /** Only for `check`: which onboarding step to run. */
   step?: number;
+  /** Only for `export_backup`: the dashboard tab's key to seal the password for. */
+  recipientPublicKey?: string;
+  /** Only for `import_backup`: the `begin_backup_import` this continues. */
+  sessionId?: string;
+}
+
+/** The finished export, or why there is none. Exactly one of the two halves. */
+export interface AgentBackupExportMessage {
+  backup?: string;
+  sealedPassword?: string;
+  error?: string;
+}
+
+/** What the dashboard sealed for this agent, fetched once by session. */
+export interface AgentBackupImportPayload {
+  backup: string;
+  sealedPassword: string;
+}
+
+/** One screen's settings from a backup, for the server to fill gaps with. */
+export interface AgentBackupScreenSettings {
+  screenId: string;
+  devmodePassphrase?: string;
+  localIp?: string;
+  macAddress?: string;
+  ssapPort?: number;
+}
+
+export interface AgentBackupRestoreRequest {
+  sourceAgentId: string;
+  screens: AgentBackupScreenSettings[];
+}
+
+/** The server's verdict: which screens this agent may write keys for. */
+export interface AgentBackupRestoreResponse {
+  assignedScreenIds: string[];
+  skipped: Array<{ screenId: string; reason: string }>;
+}
+
+export interface AgentBackupImportResultMessage {
+  ssapRestored?: number;
+  devmodeKeysRestored?: number;
+  /** Screens whose pairing key predates the current manifest; they will prompt again. */
+  staleSsapScreenIds?: string[];
+  error?: string;
 }
 
 /** One screen as the agent sees it. */

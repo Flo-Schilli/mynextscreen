@@ -21,6 +21,7 @@ import { SupervisorService } from './supervisor/supervisor.service';
 import { NetworkInfoService } from './network/network-info.service';
 import { CommandHandlerService } from './supervisor/command-handler.service';
 import { UpdateService, updateSentinelPath } from './update/update.service';
+import { BackupService } from './backup/backup.service';
 
 /** Reported on heartbeat and shown on the setup page. Injected at build time. */
 export const AGENT_VERSION = process.env.APP_VERSION ?? '0.0.0-dev';
@@ -103,6 +104,17 @@ export function pinnedServerUrl(env: AgentEnv): string {
       inject: [AgentEnv],
     },
     CommandHandlerService,
+    {
+      provide: BackupService,
+      useFactory: (
+        configs: AgentConfigStore,
+        connections: ConnectionStore,
+        client: ServerClient,
+        ssapKeys: SsapKeyStore,
+        devmodeKeys: DevmodeKeyService,
+      ) => new BackupService(configs, connections, client, ssapKeys, devmodeKeys, AGENT_VERSION),
+      inject: [AgentConfigStore, ConnectionStore, ServerClient, SsapKeyStore, DevmodeKeyService],
+    },
     {
       provide: DevmodeKeyService,
       useFactory: (env: AgentEnv) => new DevmodeKeyService(devmodeKeyDir(env.stateDir)),

@@ -147,6 +147,20 @@ export class DevmodeKeyService {
     }
   }
 
+  /** The cached PEM as stored, still encrypted under the TV's passphrase. */
+  cachedPem(screenId: string): Promise<string | null> {
+    return this.readCached(screenId);
+  }
+
+  /**
+   * Puts a PEM from a backup back in the cache. Not checked against a
+   * passphrase here: the next `obtain` does that, and a key that no longer
+   * opens is dropped and fetched fresh exactly as a stale cache would be.
+   */
+  async restorePem(screenId: string, pem: string): Promise<void> {
+    await this.writeCached(screenId, pem);
+  }
+
   private async readCached(screenId: string): Promise<string | null> {
     try {
       return await readFile(this.pathFor(screenId), 'utf8');

@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type {
+  AgentBackupExportMessage,
+  AgentBackupImportPayload,
+  AgentBackupImportResultMessage,
+  AgentBackupRestoreRequest,
+  AgentBackupRestoreResponse,
   AgentConfigMessage,
   AgentEnrolmentMessage,
   AgentMetricsMessage,
@@ -137,6 +142,47 @@ export class ServerClient {
 
   async sendReports(report: AgentReportMessage): Promise<void> {
     await this.request('/api/agents/me/reports', { method: 'POST', body: report });
+  }
+
+  async uploadBackupExport(commandId: string, message: AgentBackupExportMessage): Promise<void> {
+    await this.request(`/api/agents/me/backups/exports/${commandId}`, {
+      method: 'POST',
+      body: message,
+    });
+  }
+
+  async postBackupImportKey(
+    sessionId: string,
+    message: { publicKey?: string; error?: string },
+  ): Promise<void> {
+    await this.request(`/api/agents/me/backups/imports/${sessionId}/key`, {
+      method: 'POST',
+      body: message,
+    });
+  }
+
+  fetchBackupImport(sessionId: string): Promise<AgentBackupImportPayload> {
+    return this.request(`/api/agents/me/backups/imports/${sessionId}`);
+  }
+
+  restoreBackupSettings(
+    sessionId: string,
+    request: AgentBackupRestoreRequest,
+  ): Promise<AgentBackupRestoreResponse> {
+    return this.request(`/api/agents/me/backups/imports/${sessionId}/restore`, {
+      method: 'POST',
+      body: request,
+    });
+  }
+
+  async postBackupImportResult(
+    sessionId: string,
+    message: AgentBackupImportResultMessage,
+  ): Promise<void> {
+    await this.request(`/api/agents/me/backups/imports/${sessionId}/result`, {
+      method: 'POST',
+      body: message,
+    });
   }
 
   /**
