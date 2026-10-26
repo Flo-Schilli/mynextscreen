@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { screenRemoteControls, screens, siteAgents, type ScreenRemoteControl } from '../db/schema';
@@ -20,26 +20,6 @@ import { DevmodeKeyStatus } from './devmode-key-status.enum';
 import { SshStatus } from './ssh-status.enum';
 import { SsapStatus } from './ssap-status.enum';
 import type { UpdateScreenRemoteControlDto } from './dto/update-screen-remote-control.dto';
-
-/** One screen's settings as a backup carries them. */
-export interface BackupScreenSettings {
-  screenId: string;
-  devmodePassphrase?: string;
-  localIp?: string;
-  macAddress?: string;
-  ssapPort?: number;
-}
-
-export type BackupSkipReason = 'screen_not_found' | 'assigned_to_other_agent';
-
-export interface BackupRestoreVerdict {
-  /** Screens now assigned to the importing agent; it may write their keys. */
-  restored: Array<{ screenId: string; created: boolean; filled: string[] }>;
-  skipped: Array<{ screenId: string; reason: BackupSkipReason }>;
-}
-
-/** The settings a backup may fill in, in the order the audit entry lists them. */
-const BACKUP_FIELDS = ['localIp', 'macAddress', 'devmodePassphrase'] as const;
 
 /** Defaults a screen gets before anyone has configured remote control for it. */
 export const REMOTE_CONTROL_DEFAULTS = {
@@ -267,105 +247,6 @@ export class ScreenRemoteControlService {
       .where(eq(screenRemoteControls.agentId, agentId))
       .returning({ screenId: screenRemoteControls.screenId });
     return removed.length;
-  }
-
-  /**
-   * Applies the settings from a backup, filling gaps and never overwriting.
-   *
-   * Per screen:
-   * - not in this organisation (or gone) → skipped
-   * - no settings at all, e.g. because the old agent was deleted → created and
-   *   assigned to the importing agent
-   * - assigned to the importing agent, or to nobody → empty fields filled;
-   *   anything already set stays, because a value someone entered since the
-   *   backup was taken is more current than the file
-   * - assigned to another agent → skipped; moving a screen is an operator's
-   *   decision, not a side effect of an import
-   *
-   * The SSAP port is only taken for a new row: it is never empty on an
-   * existing one, so "fill the gap" has nothing to fill.
-   *
-   * One transaction, so an import is applied in full or not at all.
-   */
-  async restoreFromBackup(
-    organisationId: string,
-    agentId: string,
-    settings: readonly BackupScreenSettings[],
-  ): Promise<BackupRestoreVerdict> {
-    await this.assertAgentInOrg(organisationId, agentId);
-    const verdict: BackupRestoreVerdict = { restored: [], skipped: [] };
-    const screenIds = settings.map((entry) => entry.screenId);
-    if (screenIds.length === 0) {
-      return verdict;
-    }
-
-    await this.db.transaction(async (tx) => {
-      const known = await tx
-        .select({ id: screens.id })
-        .from(screens)
-        .where(and(inArray(screens.id, screenIds), eq(screens.organisationId, organisationId)));
-      const knownIds = new Set(known.map((row) => row.id));
-      const existing = await tx
-        .select()
-        .from(screenRemoteControls)
-        .where(inArray(screenRemoteControls.screenId, screenIds));
-      const rows = new Map(existing.map((row) => [row.screenId, row]));
-      // A repeated id would insert the same primary key twice and abort the
-      // whole import; the first entry wins.
-      const seen = new Set<string>();
-
-      for (const entry of settings) {
-        if (seen.has(entry.screenId)) {
-          continue;
-        }
-        seen.add(entry.screenId);
-        if (!knownIds.has(entry.screenId)) {
-          verdict.skipped.push({ screenId: entry.screenId, reason: 'screen_not_found' });
-          continue;
-        }
-        const row = rows.get(entry.screenId);
-        if (row?.agentId && row.agentId !== agentId) {
-          verdict.skipped.push({ screenId: entry.screenId, reason: 'assigned_to_other_agent' });
-          continue;
-        }
-
-        const gaps = BACKUP_FIELDS.filter(
-          (field) => entry[field] !== undefined && (!row || row[field] === null),
-        );
-        const fill = Object.fromEntries(
-          gaps.map((field) => [
-            field,
-            field === 'devmodePassphrase'
-              ? (this.cipher.encrypt(entry.devmodePassphrase) ?? null)
-              : entry[field],
-          ]),
-        );
-
-        if (row) {
-          await tx
-            .update(screenRemoteControls)
-            .set({ ...fill, agentId, updatedAt: new Date() })
-            .where(eq(screenRemoteControls.screenId, entry.screenId));
-        } else {
-          await tx.insert(screenRemoteControls).values({
-            screenId: entry.screenId,
-            organisationId,
-            agentId,
-            ...fill,
-            ...(entry.ssapPort !== undefined ? { ssapPort: entry.ssapPort } : {}),
-          });
-        }
-        verdict.restored.push({ screenId: entry.screenId, created: !row, filled: gaps });
-      }
-    });
-
-    if (verdict.restored.length > 0) {
-      this.eventEmitter.emit(
-        SCREEN_REMOTE_CONFIG_CHANGED,
-        new ScreenRemoteConfigChangedEvent([agentId]),
-      );
-    }
-    return verdict;
   }
 
   /** True when that screen is assigned to that agent. The agent's authorisation. */

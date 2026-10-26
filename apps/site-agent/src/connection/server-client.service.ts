@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type {
+  AgentBackupAnalysisMessage,
   AgentBackupExportMessage,
   AgentBackupImportPayload,
   AgentBackupImportResultMessage,
@@ -163,6 +164,13 @@ export class ServerClient {
 
   fetchBackupImport(sessionId: string): Promise<AgentBackupImportPayload> {
     return this.request(`/api/agents/me/backups/imports/${sessionId}`);
+  }
+
+  async postBackupAnalysis(sessionId: string, message: AgentBackupAnalysisMessage): Promise<void> {
+    await this.request(`/api/agents/me/backups/imports/${sessionId}/analysis`, {
+      method: 'POST',
+      body: message,
+    });
   }
 
   restoreBackupSettings(

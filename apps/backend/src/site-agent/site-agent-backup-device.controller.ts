@@ -12,8 +12,13 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { AgentAuth } from '../auth/agent-auth.decorator';
 import type { AgentAuthenticatedRequest } from '../auth/agent-auth.guard';
-import { SiteAgentBackupService, type CollectedBackup } from './site-agent-backup.service';
 import {
+  SiteAgentBackupService,
+  type BackupRestoreResponse,
+  type CollectedBackup,
+} from './site-agent-backup.service';
+import {
+  AgentBackupAnalysisDto,
   AgentBackupExportDto,
   AgentBackupImportKeyDto,
   AgentBackupImportResultDto,
@@ -63,6 +68,18 @@ export class SiteAgentBackupDeviceController {
     return this.backups.fetchImport(req.agentId, sessionId);
   }
 
+  @Post('imports/:sessionId/analysis')
+  @AgentAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  receiveAnalysis(
+    @Req() req: AgentAuthenticatedRequest,
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Body() dto: AgentBackupAnalysisDto,
+  ): Promise<void> {
+    return this.backups.receiveAnalysis(req.agentId, sessionId, dto);
+  }
+
   @Post('imports/:sessionId/restore')
   @AgentAuth()
   @HttpCode(HttpStatus.OK)
@@ -71,10 +88,7 @@ export class SiteAgentBackupDeviceController {
     @Req() req: AgentAuthenticatedRequest,
     @Param('sessionId', ParseUUIDPipe) sessionId: string,
     @Body() dto: AgentBackupRestoreDto,
-  ): Promise<{
-    assignedScreenIds: string[];
-    skipped: Array<{ screenId: string; reason: string }>;
-  }> {
+  ): Promise<BackupRestoreResponse> {
     return this.backups.restore(req.agentId, sessionId, dto);
   }
 

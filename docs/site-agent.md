@@ -390,20 +390,37 @@ the browser downloads `<agent>-<date>.mnsbackup` and shows the password
 the password is stored nowhere.
 
 **Import.** Enrol the new box — as the same agent (issue a new setup code for
-it) or as a new one — then *Backup → Import backup* on its page, pick the file
-and type the password. The dashboard shows the file's origin before anything is
-sent. The import:
+it) or as a new one — then *Backup → Import backup* on its page. A four-step
+dialog follows:
 
-- refuses a backup from another organisation;
-- recreates the settings of displays that have none (for example because the
-  old agent was deleted) and assigns them to this agent;
-- fills only **empty** fields of displays this agent already has — anything
-  entered since the backup was taken stays;
-- leaves displays that belong to **another** agent alone and lists them;
-- restores pairing and SSH keys only for displays that end up with this agent.
+1. **File** — the dashboard reads the file's plaintext header and shows where
+   it came from; a backup of another organisation is refused here.
+2. **Password** — the agent opens the file. Nothing is written yet.
+3. **Mapping** — what each display in the backup would do:
+   - displays that still exist are restored by **filling gaps only** —
+     anything entered since the backup was taken stays;
+   - displays that belong to **another** agent are left alone and listed;
+   - displays that **no longer exist** (deleted, or recreated with a new id)
+     can be mapped onto an existing display, or skipped. Mapping says "this
+     TV is now that display": the chosen display's settings *and* keys are
+     overwritten with the backup's, which the dialog warns about. Only free
+     displays and this agent's own can be chosen; another agent's are shown
+     but disabled.
+4. **Result** — what was restored, mapped and skipped.
+
+Displays an import creates, or maps, resume onboarding at the **final check**
+when the backup carries everything (address, passphrase, SSH key, pairing key);
+one click there talks to the set and starts the app. Missing data sends them
+back to the first step that needs it.
 
 Pairing keys from an older agent version are restored but reported: those TVs
 ask to pair once more.
+
+**One at a time, visible to every admin.** An agent runs one backup operation
+at a time. While one runs, the agent page shows it — kind, step, who started
+it — in every organisation admin's tab, and both buttons stay disabled until it
+ends. An import abandoned at the mapping step (dialog closed) is cancelled; one
+abandoned any other way frees the agent after ten minutes.
 
 **How it is protected.**
 
@@ -415,6 +432,10 @@ ask to pair once more.
   the tab seals it for a key the agent made for that one import. The server
   relays sealed data only and keeps it in Redis for at most ten minutes, for the
   person who started the operation.
+- What the server holds while the operator maps entries is names and ids; the
+  passphrases cross only when the import is applied, on their way into the
+  database, where they are stored encrypted as always.
+- Progress events go to organisation admins only.
 - Both operations are recorded in the audit log, without any secret.
 
 A server that has been compromised could swap the keys during an export; the

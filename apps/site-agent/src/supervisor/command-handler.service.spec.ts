@@ -49,6 +49,7 @@ describe('CommandHandlerService', () => {
     export: jest.Mock;
     beginImport: jest.Mock;
     import: jest.Mock;
+    apply: jest.Mock;
     onImported: jest.Mock;
   };
 
@@ -99,6 +100,7 @@ describe('CommandHandlerService', () => {
       export: jest.fn(),
       beginImport: jest.fn(),
       import: jest.fn(),
+      apply: jest.fn(),
       onImported: jest.fn(),
     };
 
@@ -133,6 +135,18 @@ describe('CommandHandlerService', () => {
       await handler.handle({ commandId: 'c3', type: 'import_backup', sessionId: 's1' });
 
       expect(backups.import).toHaveBeenCalledWith('s1');
+    });
+
+    it('applies the opened file of the session it continues', async () => {
+      await handler.handle({ commandId: 'c5', type: 'apply_backup_import', sessionId: 's1' });
+
+      expect(backups.apply).toHaveBeenCalledWith('s1');
+    });
+
+    it('passes an empty session id to apply for the service to refuse', async () => {
+      await handler.handle({ commandId: 'c6', type: 'apply_backup_import' });
+
+      expect(backups.apply).toHaveBeenCalledWith('');
     });
 
     it('passes an empty session id through for the service to refuse', async () => {

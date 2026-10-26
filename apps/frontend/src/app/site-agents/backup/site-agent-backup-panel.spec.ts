@@ -4,16 +4,19 @@ import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { registerLocaleData } from '@angular/common';
 import localeDe from '@angular/common/locales/de';
-import { TimeoutError } from 'rxjs';
+import { BehaviorSubject, TimeoutError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getTranslocoTestingModule } from '../../i18n/transloco-testing';
 import { LANG_STORAGE_KEY } from '../../i18n/i18n.constants';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
 import { SiteAgentBackupPanel } from './site-agent-backup-panel';
-import { BackupAgentError, SiteAgentBackupService } from './site-agent-backup.service';
-import { BackupFileError, type BackupPreview } from './backup-file';
+import {
+  BackupAgentError,
+  SiteAgentBackupService,
+  type BackupOperation,
+} from './site-agent-backup.service';
 
-// The preview renders a date, and the app formats dates for de-DE.
+// The import dialog renders a date, and the app formats dates for de-DE.
 registerLocaleData(localeDe, 'de-DE');
 
 try {
@@ -22,32 +25,22 @@ try {
   // already initialized
 }
 
-const PREVIEW: BackupPreview = {
-  organisationId: 'org-1',
-  sourceAgentId: 'agent-old',
-  createdAt: '2026-10-26T12:00:00.000Z',
-  agentVersion: '0.30.0',
-  screenCount: 2,
-};
-
 describe('SiteAgentBackupPanel', () => {
   let fixture: ComponentFixture<SiteAgentBackupPanel>;
+  let operation: BehaviorSubject<BackupOperation | null>;
   let backups: {
     export: ReturnType<typeof vi.fn>;
     download: ReturnType<typeof vi.fn>;
-    preview: ReturnType<typeof vi.fn>;
-    import: ReturnType<typeof vi.fn>;
+    operation$: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
-    // The preview's date pipe starts the LanguageService, which would otherwise
-    // follow jsdom's navigator.language (en-US) mid-test.
     localStorage.setItem(LANG_STORAGE_KEY, 'de');
+    operation = new BehaviorSubject<BackupOperation | null>(null);
     backups = {
       export: vi.fn(),
       download: vi.fn(),
-      preview: vi.fn().mockResolvedValue(PREVIEW),
-      import: vi.fn(),
+      operation$: vi.fn(() => operation),
     };
     await TestBed.configureTestingModule({
       imports: [SiteAgentBackupPanel, getTranslocoTestingModule()],
@@ -69,40 +62,66 @@ describe('SiteAgentBackupPanel', () => {
     return fixture.nativeElement.querySelector(`[data-testid="${testId}"]`);
   }
 
-  function click(testId: string): void {
-    const host = query(testId);
-    (host?.querySelector('button') ?? host)?.click();
+  function button(testId: string): HTMLButtonElement | null {
+    return query(testId)?.querySelector('button') ?? null;
   }
 
-  async function pickFile(): Promise<void> {
-    click('backup-import');
-    await fixture.whenStable();
-    const input = query('backup-file') as HTMLInputElement;
-    Object.defineProperty(input, 'files', { value: [new File(['x'], 'a.mnsbackup')] });
-    input.dispatchEvent(new Event('change'));
-    await vi.waitFor(() => expect(backups.preview).toHaveBeenCalled());
-    await fixture.whenStable();
-  }
-
-  function typePassword(value: string): void {
-    const input = query('backup-password-input') as HTMLInputElement;
-    input.value = value;
-    input.dispatchEvent(new Event('input'));
-  }
+  it('follows the operations of its own agent', () => {
+    expect(backups.operation$).toHaveBeenCalledWith('agent-1');
+  });
 
   it('disables both actions while the agent is offline', async () => {
     fixture.componentRef.setInput('online', false);
     await fixture.whenStable();
 
-    expect(query('backup-export')?.querySelector('button')?.disabled).toBe(true);
-    expect(query('backup-import')?.querySelector('button')?.disabled).toBe(true);
+    expect(button('backup-export')?.disabled).toBe(true);
+    expect(button('backup-import')?.disabled).toBe(true);
+  });
+
+  it('shows a running backup with its step and who started it, and disables both actions', async () => {
+    operation.next({
+      kind: 'import',
+      id: 'sess-1',
+      step: 'waiting_for_mapping',
+      startedBy: { userId: 'u', name: 'Flo' },
+      startedAt: '2026-10-26T18:00:00.000Z',
+    });
+    await fixture.whenStable();
+
+    const progress = query('backup-progress');
+    expect(progress?.textContent).toContain('Import läuft');
+    expect(progress?.textContent).toContain('warte auf die Zuordnung');
+    expect(progress?.textContent).toContain('gestartet von Flo');
+    expect(progress?.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe(
+      '67',
+    );
+    expect(button('backup-export')?.disabled).toBe(true);
+    expect(button('backup-import')?.disabled).toBe(true);
+  });
+
+  it('enables the actions again once the operation has ended', async () => {
+    operation.next({
+      kind: 'export',
+      id: 'cmd-1',
+      step: 'exporting',
+      startedBy: { userId: 'u', name: 'Flo' },
+      startedAt: '2026-10-26T18:00:00.000Z',
+    });
+    await fixture.whenStable();
+    expect(query('backup-progress')?.textContent).toContain('Export läuft');
+
+    operation.next(null);
+    await fixture.whenStable();
+
+    expect(query('backup-progress')).toBeNull();
+    expect(button('backup-export')?.disabled).toBe(false);
   });
 
   it('shows the password once the export is done and starts the download', async () => {
     const backup = { password: 'K7QM-2XRA', file: new Blob(['x']), fileName: 'a.mnsbackup' };
     backups.export.mockResolvedValue(backup);
 
-    click('backup-export');
+    button('backup-export')?.click();
     await vi.waitFor(() => expect(backups.download).toHaveBeenCalledWith(backup));
     await fixture.whenStable();
 
@@ -113,73 +132,24 @@ describe('SiteAgentBackupPanel', () => {
   it.each([
     [new BackupAgentError('no configuration yet'), 'no configuration yet'],
     [new TimeoutError(), 'nicht rechtzeitig'],
-    [new HttpErrorResponse({ status: 409 }), 'nicht verbunden'],
+    [new HttpErrorResponse({ status: 409 }), 'schon ein Backup'],
     [new Error('boom'), 'konnte nicht erstellt werden'],
   ])('explains a failed export (%s)', async (error, text) => {
     backups.export.mockRejectedValue(error);
 
-    click('backup-export');
+    button('backup-export')?.click();
     await vi.waitFor(() => expect(query('backup-export-error')).not.toBeNull());
 
     expect(query('backup-export-error')?.textContent).toContain(text);
   });
 
-  it('previews a picked file and imports it with the typed password', async () => {
-    backups.import.mockResolvedValue({
-      ssapRestored: 2,
-      devmodeKeysRestored: 1,
-      staleSsapScreenIds: ['s2'],
-      restored: [
-        { screenId: 's1', created: true, filled: [] },
-        { screenId: 's2', created: false, filled: [] },
-      ],
-      skipped: [{ screenId: 's3', reason: 'assigned_to_other_agent' }],
-    });
-    await pickFile();
-
-    expect(query('backup-preview')?.textContent).toContain('agent-old');
-    typePassword('pass-word');
-    await fixture.whenStable();
-    click('backup-import-confirm');
-    await vi.waitFor(() => expect(query('backup-import-done')).not.toBeNull());
-
-    expect(backups.import).toHaveBeenCalledWith('agent-1', expect.any(File), 'pass-word');
-    expect(query('backup-import-done')?.textContent).toContain('2 Display(s)');
-    expect(fixture.nativeElement.textContent).toContain('gehört einem anderen Agent');
-  });
-
-  it('refuses a file from another organisation before asking for a password', async () => {
-    backups.preview.mockResolvedValue({ ...PREVIEW, organisationId: 'org-2' });
-
-    await pickFile();
-
-    expect(query('backup-import-error')?.textContent).toContain('anderen Organisation');
-    expect(query('backup-password-input')).toBeNull();
-  });
-
-  it('explains a file that is not a backup', async () => {
-    backups.preview.mockRejectedValue(new BackupFileError('not_a_backup'));
-
-    await pickFile();
-
-    expect(query('backup-import-error')?.textContent).toContain('keine myNextScreen');
-  });
-
-  it('keeps the file after a wrong password so it can be retried', async () => {
-    backups.import.mockRejectedValue(
-      new BackupAgentError('Wrong password, or the file is damaged'),
-    );
-    await pickFile();
-    typePassword('wrong');
+  it('opens the import dialog and keeps the actions disabled while it is open', async () => {
+    button('backup-import')?.click();
     await fixture.whenStable();
 
-    click('backup-import-confirm');
-    await vi.waitFor(() => expect(query('backup-import-error')).not.toBeNull());
-
-    expect(query('backup-import-error')?.textContent).toContain('Wrong password');
-    expect(query('backup-preview')).not.toBeNull();
-    typePassword('right');
-    await fixture.whenStable();
-    expect(query('backup-import-confirm')?.querySelector('button')?.disabled).toBe(false);
+    expect(
+      fixture.nativeElement.querySelector('app-site-agent-backup-import-dialog'),
+    ).not.toBeNull();
+    expect(button('backup-export')?.disabled).toBe(true);
   });
 });

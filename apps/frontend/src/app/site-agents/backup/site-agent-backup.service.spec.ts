@@ -56,6 +56,8 @@ describe('SiteAgentBackupService', () => {
     siteAgentBackupExport$: Subject<DashboardEvent>;
     siteAgentBackupImportKey$: Subject<DashboardEvent>;
     siteAgentBackupImport$: Subject<DashboardEvent>;
+    siteAgentBackupImportAnalysed$: Subject<DashboardEvent>;
+    siteAgentBackupProgress$: Subject<DashboardEvent>;
   };
 
   beforeEach(() => {
@@ -63,6 +65,8 @@ describe('SiteAgentBackupService', () => {
       siteAgentBackupExport$: new Subject(),
       siteAgentBackupImportKey$: new Subject(),
       siteAgentBackupImport$: new Subject(),
+      siteAgentBackupImportAnalysed$: new Subject(),
+      siteAgentBackupProgress$: new Subject(),
     };
     TestBed.configureTestingModule({
       providers: [
@@ -153,49 +157,78 @@ describe('SiteAgentBackupService', () => {
   });
 
   describe('import', () => {
-    it('seals the password for the agent key and returns the summary', async () => {
-      const agentKey = await generateSealedBoxKeyPair();
-      const summary = {
-        ssapRestored: 1,
-        devmodeKeysRestored: 1,
-        staleSsapScreenIds: [],
-        restored: [{ screenId: 's1', created: true, filled: ['localIp'] }],
-        skipped: [],
-      };
-      const result = service.import(AGENT, backupFile(), 'pass-word');
+    const PLAN = {
+      sourceAgentId: 'agent-old',
+      entries: [
+        {
+          screenId: 'gone',
+          backupName: 'Foyer',
+          status: 'not_found',
+          screenName: null,
+          ownerAgentName: null,
+        },
+      ],
+      targets: [{ screenId: 'new', name: 'Foyer (new)', selectable: true, ownerAgentName: null }],
+    };
 
+    /** Walks phase one up to the request for the file, answering with the agent's key. */
+    async function upToStaging(agentKeyPublic: string): Promise<TestRequest> {
       const begin = await nextRequest(`/api/site-agents/${AGENT}/backups/import-sessions`);
       begin.flush({ sessionId: 'sess-1' });
       await Promise.resolve();
       sse.siteAgentBackupImportKey$.next(
         event('site_agent.backup-import-key', {
           sessionId: 'sess-1',
-          publicKey: agentKey.publicKey,
+          publicKey: agentKeyPublic,
           error: null,
         }),
       );
+      return nextRequest(`/api/site-agents/${AGENT}/backups/import`);
+    }
 
-      const stage = await nextRequest(`/api/site-agents/${AGENT}/backups/import`);
+    it('opens the file on the agent with the password sealed for it, and returns the plan', async () => {
+      const agentKey = await generateSealedBoxKeyPair();
+      const result = service.openImport(AGENT, backupFile(), 'pass-word');
+
+      const stage = await upToStaging(agentKey.publicKey);
       expect(stage.request.body.sessionId).toBe('sess-1');
       expect(await open(agentKey, stage.request.body.sealedPassword)).toBe('pass-word');
       expect(JSON.stringify(stage.request.body)).not.toContain('pass-word');
       stage.flush({ commandId: 'cmd-2' });
       await Promise.resolve();
+      sse.siteAgentBackupImportAnalysed$.next(
+        event('site_agent.backup-import-analysed', { sessionId: 'sess-1' }),
+      );
+      (await nextRequest(`/api/site-agents/${AGENT}/backups/imports/sess-1/plan`)).flush(PLAN);
+
+      await expect(result).resolves.toEqual({ sessionId: 'sess-1', plan: PLAN });
+    });
+
+    it('reports an error the agent hit while opening, such as a wrong password', async () => {
+      const agentKey = await generateSealedBoxKeyPair();
+      const result = service.openImport(AGENT, backupFile(), 'wrong');
+
+      (await upToStaging(agentKey.publicKey)).flush({ commandId: 'c' });
+      await Promise.resolve();
       sse.siteAgentBackupImport$.next(
-        event('site_agent.backup-import', { sessionId: 'sess-1', summary, error: null }),
+        event('site_agent.backup-import', {
+          sessionId: 'sess-1',
+          summary: null,
+          error: 'Wrong password, or the file is damaged',
+        }),
       );
 
-      await expect(result).resolves.toEqual(summary);
+      await expect(result).rejects.toBeInstanceOf(BackupAgentError);
     });
 
     it('refuses a file that is not a backup before contacting anyone', async () => {
-      await expect(service.import(AGENT, new Blob(['nope']), 'x')).rejects.toMatchObject({
+      await expect(service.openImport(AGENT, new Blob(['nope']), 'x')).rejects.toMatchObject({
         problem: 'not_a_backup',
       });
     });
 
     it('reports when the agent could not open a session', async () => {
-      const result = service.import(AGENT, backupFile(), 'x');
+      const result = service.openImport(AGENT, backupFile(), 'x');
 
       const begin = await nextRequest(`/api/site-agents/${AGENT}/backups/import-sessions`);
       begin.flush({ sessionId: 'sess-1' });
@@ -211,35 +244,80 @@ describe('SiteAgentBackupService', () => {
       await expect(result).rejects.toThrow('The agent sent no key');
     });
 
-    it('reports the agent error, such as a wrong password', async () => {
-      const agentKey = await generateSealedBoxKeyPair();
-      const result = service.import(AGENT, backupFile(), 'wrong');
+    it('applies the mapping and returns what was restored', async () => {
+      const summary = {
+        ssapRestored: 1,
+        devmodeKeysRestored: 1,
+        staleSsapScreenIds: [],
+        restored: [
+          { screenId: 'new', sourceScreenId: 'gone', created: false, mapped: true, fields: [] },
+        ],
+        skipped: [],
+      };
+      const result = service.applyImport(AGENT, 'sess-1', [{ from: 'gone', to: 'new' }]);
 
-      (await nextRequest(`/api/site-agents/${AGENT}/backups/import-sessions`)).flush({
-        sessionId: 'sess-1',
-      });
-      await Promise.resolve();
-      sse.siteAgentBackupImportKey$.next(
-        event('site_agent.backup-import-key', {
-          sessionId: 'sess-1',
-          publicKey: agentKey.publicKey,
-        }),
-      );
-      (await nextRequest(`/api/site-agents/${AGENT}/backups/import`)).flush({ commandId: 'c' });
+      const apply = await nextRequest(`/api/site-agents/${AGENT}/backups/imports/sess-1/apply`);
+      expect(apply.request.body).toEqual({ mappings: [{ from: 'gone', to: 'new' }] });
+      apply.flush({ commandId: 'c3' });
       await Promise.resolve();
       sse.siteAgentBackupImport$.next(
-        event('site_agent.backup-import', {
-          sessionId: 'sess-1',
-          summary: null,
-          error: 'Wrong password, or the file is damaged',
-        }),
+        event('site_agent.backup-import', { sessionId: 'sess-1', summary, error: null }),
       );
 
-      await expect(result).rejects.toBeInstanceOf(BackupAgentError);
+      await expect(result).resolves.toEqual(summary);
+    });
+
+    it('cancels an opened import, and does not mind if that fails', async () => {
+      const result = service.cancelImport(AGENT, 'sess-1');
+
+      const cancel = await nextRequest(`/api/site-agents/${AGENT}/backups/imports/sess-1`);
+      expect(cancel.request.method).toBe('DELETE');
+      cancel.flush(null, { status: 500, statusText: 'Server Error' });
+
+      await expect(result).resolves.toBeUndefined();
     });
 
     it('reads the preview of a file', async () => {
       await expect(service.preview(backupFile())).resolves.toMatchObject({ screenCount: 1 });
+    });
+  });
+
+  describe('operation$', () => {
+    const OPERATION = {
+      kind: 'import',
+      id: 'sess-1',
+      step: 'decrypting',
+      startedBy: { userId: 'u', name: 'Flo' },
+      startedAt: '2026-10-26T18:00:00.000Z',
+    };
+
+    it("starts from the current state and follows this agent's announcements only", async () => {
+      const seen: unknown[] = [];
+      const sub = service.operation$(AGENT).subscribe((op) => seen.push(op));
+
+      (await nextRequest(`/api/site-agents/${AGENT}/backups/status`)).flush(OPERATION);
+      sse.siteAgentBackupProgress$.next(
+        event('site_agent.backup-progress', { agentId: 'other', operation: OPERATION }),
+      );
+      sse.siteAgentBackupProgress$.next(
+        event('site_agent.backup-progress', { agentId: AGENT, operation: null }),
+      );
+
+      expect(seen).toEqual([OPERATION, null]);
+      sub.unsubscribe();
+    });
+
+    it('treats an unreadable status as nothing running', async () => {
+      const seen: unknown[] = [];
+      const sub = service.operation$(AGENT).subscribe((op) => seen.push(op));
+
+      (await nextRequest(`/api/site-agents/${AGENT}/backups/status`)).flush(null, {
+        status: 403,
+        statusText: 'Forbidden',
+      });
+
+      expect(seen).toEqual([null]);
+      sub.unsubscribe();
     });
   });
 

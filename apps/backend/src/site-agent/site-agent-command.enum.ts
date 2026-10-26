@@ -51,8 +51,10 @@ export enum SiteAgentCommandType {
   ExportBackup = 'export_backup',
   /** Open an import session: the agent answers with a key for the password. */
   BeginBackupImport = 'begin_backup_import',
-  /** Fetch the staged file for a session and restore it. */
+  /** Fetch the staged file for a session, open it and describe its entries. */
   ImportBackup = 'import_backup',
+  /** Restore the opened file of a session, with the operator's mapping applied. */
+  ApplyBackupImport = 'apply_backup_import',
 }
 
 /**

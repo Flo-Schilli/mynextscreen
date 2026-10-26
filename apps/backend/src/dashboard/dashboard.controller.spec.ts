@@ -3,11 +3,14 @@ import { DashboardSseService } from './dashboard-sse.service';
 import { DashboardSummaryService } from './dashboard-summary.service';
 import type { DashboardSummary } from './dto/dashboard-summary.dto';
 import { of, firstValueFrom, take } from 'rxjs';
+import type { UserService } from '../user/user.service';
+import { OrganisationRole } from '../user/organisation-role.enum';
 
 describe('DashboardController', () => {
   let controller: DashboardController;
   let sseService: jest.Mocked<Pick<DashboardSseService, 'subscribe'>>;
   let summaryService: jest.Mocked<Pick<DashboardSummaryService, 'getSummary'>>;
+  let userService: { getMembership: jest.Mock };
 
   const orgId = '550e8400-e29b-41d4-a716-446655440000';
   const userId = 'user-123';
@@ -19,23 +22,46 @@ describe('DashboardController', () => {
     summaryService = {
       getSummary: jest.fn(),
     };
+    userService = {
+      getMembership: jest.fn().mockResolvedValue({ role: OrganisationRole.Viewer }),
+    };
 
     controller = new DashboardController(
       sseService as unknown as DashboardSseService,
       summaryService as unknown as DashboardSummaryService,
+      userService as unknown as UserService,
     );
   });
 
   describe('events', () => {
-    it('should call DashboardSseService.subscribe with organisationId and userId', () => {
-      const mockObservable = of({ data: '', type: 'keepalive' });
-      sseService.subscribe.mockReturnValue(mockObservable);
-
+    it('subscribes a member who is not an admin without admin-only events', async () => {
+      sseService.subscribe.mockReturnValue(of({ data: '', type: 'keepalive' }));
       const req = { user: { userId, email: 'test@example.com' } } as never;
 
-      controller.events(orgId, req);
+      await firstValueFrom(controller.events(orgId, req));
 
-      expect(sseService.subscribe).toHaveBeenCalledWith(orgId, userId);
+      expect(userService.getMembership).toHaveBeenCalledWith(userId, orgId);
+      expect(sseService.subscribe).toHaveBeenCalledWith(orgId, userId, false);
+    });
+
+    it('subscribes an org admin with admin-only events', async () => {
+      userService.getMembership.mockResolvedValue({ role: OrganisationRole.OrgAdmin });
+      sseService.subscribe.mockReturnValue(of({ data: '', type: 'keepalive' }));
+      const req = { user: { userId, email: 'test@example.com' } } as never;
+
+      await firstValueFrom(controller.events(orgId, req));
+
+      expect(sseService.subscribe).toHaveBeenCalledWith(orgId, userId, true);
+    });
+
+    it('treats a super-admin as an admin without looking up a membership', async () => {
+      sseService.subscribe.mockReturnValue(of({ data: '', type: 'keepalive' }));
+      const req = { user: { userId, email: 'x', isSuperAdmin: true } } as never;
+
+      await firstValueFrom(controller.events(orgId, req));
+
+      expect(userService.getMembership).not.toHaveBeenCalled();
+      expect(sseService.subscribe).toHaveBeenCalledWith(orgId, userId, true);
     });
 
     it('should return the Observable from DashboardSseService.subscribe', async () => {

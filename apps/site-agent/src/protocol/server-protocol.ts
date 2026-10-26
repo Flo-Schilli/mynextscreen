@@ -34,7 +34,8 @@ export type SiteAgentCommandTypeValue =
   | 'update_agent'
   | 'export_backup'
   | 'begin_backup_import'
-  | 'import_backup';
+  | 'import_backup'
+  | 'apply_backup_import';
 
 /** One instruction pushed down the agent's SSE channel. */
 export interface SiteAgentCommandMessage {
@@ -46,7 +47,7 @@ export interface SiteAgentCommandMessage {
   step?: number;
   /** Only for `export_backup`: the dashboard tab's key to seal the password for. */
   recipientPublicKey?: string;
-  /** Only for `import_backup`: the `begin_backup_import` this continues. */
+  /** Only for `import_backup` and `apply_backup_import`: the `begin_backup_import` they continue. */
   sessionId?: string;
 }
 
@@ -70,6 +71,15 @@ export interface AgentBackupScreenSettings {
   localIp?: string;
   macAddress?: string;
   ssapPort?: number;
+  /** Whether a pairing key / SSH key comes with it; decides where onboarding resumes. */
+  hasSsapKey?: boolean;
+  hasDevmodeKey?: boolean;
+}
+
+/** An opened backup, described for planning: ids and names, never a secret. */
+export interface AgentBackupAnalysisMessage {
+  sourceAgentId: string;
+  entries: Array<{ screenId: string; name?: string }>;
 }
 
 export interface AgentBackupRestoreRequest {
@@ -77,9 +87,20 @@ export interface AgentBackupRestoreRequest {
   screens: AgentBackupScreenSettings[];
 }
 
-/** The server's verdict: which screens this agent may write keys for. */
+/**
+ * Where a backup entry's keys go: `from` is its id in the file, `to` the screen
+ * it now belongs to. `overwrite` for an entry the operator mapped onto a screen,
+ * whose keys then replace that screen's.
+ */
+export interface AgentBackupAssignment {
+  from: string;
+  to: string;
+  overwrite: boolean;
+}
+
+/** The server's verdict: which keys this agent may write, and where. */
 export interface AgentBackupRestoreResponse {
-  assignedScreenIds: string[];
+  assignments: AgentBackupAssignment[];
   skipped: Array<{ screenId: string; reason: string }>;
 }
 

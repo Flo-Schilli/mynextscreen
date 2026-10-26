@@ -1,6 +1,18 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, Subject, filter, firstValueFrom, from, merge, take, timeout } from 'rxjs';
+import {
+  Observable,
+  catchError,
+  concat,
+  filter,
+  firstValueFrom,
+  from,
+  map,
+  merge,
+  of,
+  take,
+  timeout,
+} from 'rxjs';
 import { DashboardSseService, type DashboardEvent } from '../../dashboard/dashboard-sse.service';
 import { generateSealedBoxKeyPair, open, seal, fromBase64, toBase64 } from './sealed-box';
 import { readBackupPreview, type BackupPreview } from './backup-file';
@@ -17,11 +29,67 @@ export interface ExportedBackup {
   fileName: string;
 }
 
+export type BackupOperationStep =
+  | 'exporting'
+  | 'waiting_for_agent'
+  | 'waiting_for_file'
+  | 'decrypting'
+  | 'waiting_for_mapping'
+  | 'applying';
+
+/** The backup running on an agent, as every admin's tab sees it. */
+export interface BackupOperation {
+  kind: 'export' | 'import';
+  id: string;
+  step: BackupOperationStep;
+  startedBy: { userId: string; name: string };
+  startedAt: string;
+}
+
+export type BackupEntryStatus = 'fill' | 'create' | 'other_agent' | 'not_found';
+
+export interface BackupPlanEntry {
+  screenId: string;
+  backupName: string | null;
+  status: BackupEntryStatus;
+  screenName: string | null;
+  ownerAgentName: string | null;
+}
+
+export interface BackupTarget {
+  screenId: string;
+  name: string;
+  selectable: boolean;
+  ownerAgentName: string | null;
+}
+
+export interface BackupImportPlan {
+  sourceAgentId: string;
+  entries: BackupPlanEntry[];
+  targets: BackupTarget[];
+}
+
+export interface BackupMapping {
+  from: string;
+  to: string;
+}
+
+export interface OpenedImport {
+  sessionId: string;
+  plan: BackupImportPlan;
+}
+
 export interface BackupImportSummary {
   ssapRestored: number;
   devmodeKeysRestored: number;
   staleSsapScreenIds: string[];
-  restored: { screenId: string; created: boolean; filled: string[] }[];
+  restored: {
+    screenId: string;
+    sourceScreenId: string;
+    created: boolean;
+    mapped: boolean;
+    fields: string[];
+  }[];
   skipped: { screenId: string; reason: string }[];
 }
 
@@ -37,13 +105,31 @@ export class BackupAgentError extends Error {}
  * is sealed for a key the agent made for that one session. The server sees
  * neither in the clear.
  *
- * Each step is fire-and-wait: an HTTP call that answers 202, then the matching
- * event on the dashboard SSE stream.
+ * An import has two halves: {@link openImport} gets the file opened on the
+ * agent and returns what each entry would do; {@link applyImport} sends the
+ * operator's mapping and returns what was restored. Each step is fire-and-wait:
+ * an HTTP call that answers 202, then the matching event on the SSE stream.
  */
 @Injectable({ providedIn: 'root' })
 export class SiteAgentBackupService {
   private readonly http = inject(HttpClient);
   private readonly sse = inject(DashboardSseService);
+
+  /**
+   * The backup running on an agent: the current state first, then every change
+   * as it is announced. Null when nothing runs. A failed first read counts as
+   * "nothing known yet" rather than an error; the stream still follows.
+   */
+  operation$(agentId: string): Observable<BackupOperation | null> {
+    const initial = this.http
+      .get<BackupOperation | null>(`/api/site-agents/${agentId}/backups/status`)
+      .pipe(catchError(() => of(null)));
+    const updates = this.sse.siteAgentBackupProgress$.pipe(
+      filter((event) => event.data['agentId'] === agentId),
+      map((event) => (event.data['operation'] as BackupOperation | null) ?? null),
+    );
+    return concat(initial, updates);
+  }
 
   async export(agentId: string, agentName: string): Promise<ExportedBackup> {
     const keyPair = await generateSealedBoxKeyPair();
@@ -82,7 +168,11 @@ export class SiteAgentBackupService {
     return readBackupPreview(new Uint8Array(await file.arrayBuffer()));
   }
 
-  async import(agentId: string, file: Blob, password: string): Promise<BackupImportSummary> {
+  /**
+   * Phase one: the agent opens the file and the server plans it. Ends with the
+   * plan, before anything is written — the operator maps what needs mapping.
+   */
+  async openImport(agentId: string, file: Blob, password: string): Promise<OpenedImport> {
     const bytes = new Uint8Array(await file.arrayBuffer());
     readBackupPreview(bytes);
 
@@ -100,8 +190,10 @@ export class SiteAgentBackupService {
     }
 
     const sessionId = keyEvent.response.sessionId;
-    const done = await this.dispatchAndAwait(
-      this.sse.siteAgentBackupImport$,
+    // A failure while opening arrives as the import's final event, success as
+    // "analysed"; whichever comes first for this session answers.
+    await this.dispatchAndAwait(
+      merge(this.sse.siteAgentBackupImportAnalysed$, this.sse.siteAgentBackupImport$),
       this.http.post<{ commandId: string }>(`/api/site-agents/${agentId}/backups/import`, {
         sessionId,
         backup: toBase64(bytes),
@@ -109,7 +201,40 @@ export class SiteAgentBackupService {
       }),
       (_response, event) => event.data['sessionId'] === sessionId,
     );
+
+    const plan = await firstValueFrom(
+      this.http.get<BackupImportPlan>(
+        `/api/site-agents/${agentId}/backups/imports/${sessionId}/plan`,
+      ),
+    );
+    return { sessionId, plan };
+  }
+
+  /** Phase two: the mapping goes to the server, the agent restores. */
+  async applyImport(
+    agentId: string,
+    sessionId: string,
+    mappings: BackupMapping[],
+  ): Promise<BackupImportSummary> {
+    const done = await this.dispatchAndAwait(
+      this.sse.siteAgentBackupImport$,
+      this.http.post<{ commandId: string }>(
+        `/api/site-agents/${agentId}/backups/imports/${sessionId}/apply`,
+        { mappings },
+      ),
+      (_response, event) => event.data['sessionId'] === sessionId,
+    );
     return done.event.data['summary'] as BackupImportSummary;
+  }
+
+  /**
+   * Abandons an opened import, freeing the agent for the next one. Best effort:
+   * if it fails, the server lets the operation lapse after ten minutes anyway.
+   */
+  async cancelImport(agentId: string, sessionId: string): Promise<void> {
+    await firstValueFrom(
+      this.http.delete<void>(`/api/site-agents/${agentId}/backups/imports/${sessionId}`),
+    ).catch(() => undefined);
   }
 
   /**
@@ -120,7 +245,7 @@ export class SiteAgentBackupService {
    * listening would leave the dialog waiting until the timeout.
    */
   private async dispatchAndAwait<R>(
-    stream: Subject<DashboardEvent>,
+    stream: Observable<DashboardEvent>,
     request: Observable<R>,
     matches: (response: R, event: DashboardEvent) => boolean,
   ): Promise<{ response: R; event: DashboardEvent }> {
@@ -155,7 +280,7 @@ export function backupFileName(agentName: string, at: Date): string {
       .toLowerCase()
       .normalize('NFKD')
       // Decomposed accents go first, so "Löwensaal" becomes "lowensaal", not "lo-wensaal".
-      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[̀-ͯ]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '') || 'site-agent';
   return `${slug}-${at.toISOString().slice(0, 10)}.mnsbackup`;

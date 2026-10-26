@@ -94,6 +94,11 @@ export class CommandHandlerService implements OnModuleInit {
       return;
     }
 
+    if (command.type === 'apply_backup_import') {
+      await this.backups.apply(command.sessionId ?? '');
+      return;
+    }
+
     if (!command.screenId) {
       return;
     }

@@ -15,6 +15,10 @@ describe('SiteAgentBackupController', () => {
       collectExport: jest.fn().mockResolvedValue({ backup: 'b', sealedPassword: 's' }),
       startImport: jest.fn().mockResolvedValue({ sessionId: session }),
       stageImport: jest.fn().mockResolvedValue({ commandId: 'c2' }),
+      status: jest.fn().mockResolvedValue(null),
+      getPlan: jest.fn().mockResolvedValue({ sourceAgentId: 'a', entries: [], targets: [] }),
+      applyImport: jest.fn().mockResolvedValue({ commandId: 'c3' }),
+      cancelImport: jest.fn().mockResolvedValue(undefined),
     };
     controller = new SiteAgentBackupController(backups as never);
   });
@@ -40,5 +44,22 @@ describe('SiteAgentBackupController', () => {
     const dto = { sessionId: session, backup: 'QUJD', sealedPassword: 'c2Vh' };
     await controller.stageImport(org, agent, dto, req);
     expect(backups.stageImport).toHaveBeenCalledWith(org, agent, 'user-1', dto);
+  });
+
+  it('reports the running operation', async () => {
+    await expect(controller.status(org, agent)).resolves.toBeNull();
+    expect(backups.status).toHaveBeenCalledWith(org, agent);
+  });
+
+  it('fetches, applies and cancels an import as the calling user', async () => {
+    const dto = { mappings: [{ from: session, to: agent }] };
+
+    await controller.plan(org, agent, session, req);
+    await controller.apply(org, agent, session, dto, req);
+    await controller.cancel(org, agent, session, req);
+
+    expect(backups.getPlan).toHaveBeenCalledWith(org, agent, 'user-1', session);
+    expect(backups.applyImport).toHaveBeenCalledWith(org, agent, 'user-1', session, dto);
+    expect(backups.cancelImport).toHaveBeenCalledWith(org, agent, 'user-1', session);
   });
 });

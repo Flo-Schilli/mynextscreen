@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -14,8 +15,13 @@ import { Roles } from '../auth/roles.decorator';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { CurrentOrganisation } from '../organisation/current-organisation.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
-import { SiteAgentBackupService, type CollectedBackup } from './site-agent-backup.service';
-import { StageBackupImportDto, StartBackupExportDto } from './dto';
+import {
+  SiteAgentBackupService,
+  type BackupImportPlanResponse,
+  type CollectedBackup,
+} from './site-agent-backup.service';
+import type { BackupOperation } from './site-agent-backup-operation.service';
+import { ApplyBackupImportDto, StageBackupImportDto, StartBackupExportDto } from './dto';
 
 /**
  * The dashboard's side of agent backups. OrgAdmin only: a backup holds the keys
@@ -79,5 +85,55 @@ export class SiteAgentBackupController {
     @Req() req: AuthenticatedRequest,
   ): Promise<{ commandId: string }> {
     return this.backups.stageImport(organisationId, id, req.user.userId, dto);
+  }
+
+  /** The backup operation running on this agent, or null. */
+  @Get(':id/backups/status')
+  @Roles(OrganisationRole.OrgAdmin)
+  status(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<BackupOperation | null> {
+    return this.backups.status(organisationId, id);
+  }
+
+  /** What the opened backup would do, for the person who started the import. */
+  @Get(':id/backups/imports/:sessionId/plan')
+  @Roles(OrganisationRole.OrgAdmin)
+  plan(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<BackupImportPlanResponse> {
+    return this.backups.getPlan(organisationId, id, req.user.userId, sessionId);
+  }
+
+  /** The operator's mapping; the result follows on the SSE stream. */
+  @Post(':id/backups/imports/:sessionId/apply')
+  @Roles(OrganisationRole.OrgAdmin)
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  apply(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Body() dto: ApplyBackupImportDto,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ commandId: string }> {
+    return this.backups.applyImport(organisationId, id, req.user.userId, sessionId, dto);
+  }
+
+  /** Abandons an import that has not been applied yet, and frees the agent. */
+  @Delete(':id/backups/imports/:sessionId')
+  @Roles(OrganisationRole.OrgAdmin)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  cancel(
+    @CurrentOrganisation() organisationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<void> {
+    return this.backups.cancelImport(organisationId, id, req.user.userId, sessionId);
   }
 }

@@ -13,7 +13,14 @@ about its displays — SSAP pairing keys, cached SSH keys, Developer Mode
 passphrases, addresses and MACs — and import it on another agent, so replacing
 the box at a venue no longer means pairing every TV again. The agent encrypts
 and decrypts the file itself under a password it generates and shows once; the
-server only relays sealed data. An import fills gaps and never overwrites. See
+server only relays sealed data.
+
+The import is a four-step dialog (file, password, mapping, result). Existing
+displays are completed, never overwritten. Displays the organisation no longer
+knows can be mapped onto an existing display — whose settings and keys are then
+replaced, with a warning — or skipped. Restored displays resume onboarding at the
+final check. A running backup is shown on the agent page to every organisation
+admin, and the agent's backup buttons stay disabled until it ends. See
 *Replacing the box* in `docs/site-agent.md`.
 
 **Operator action:** deploy the server before updating the agents; an agent

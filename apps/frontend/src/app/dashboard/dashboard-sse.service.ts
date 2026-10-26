@@ -43,6 +43,9 @@ export class DashboardSseService implements OnDestroy {
   readonly siteAgentBackupExport$ = new Subject<DashboardEvent>();
   readonly siteAgentBackupImportKey$ = new Subject<DashboardEvent>();
   readonly siteAgentBackupImport$ = new Subject<DashboardEvent>();
+  readonly siteAgentBackupImportAnalysed$ = new Subject<DashboardEvent>();
+  /** A backup started, moved on or ended on some agent; `operation` null when it ended. */
+  readonly siteAgentBackupProgress$ = new Subject<DashboardEvent>();
 
   connect(): void {
     const orgId = this.orgState.selectedOrgId();
@@ -202,6 +205,12 @@ export class DashboardSseService implements OnDestroy {
         break;
       case 'site_agent.backup-import':
         this.siteAgentBackupImport$.next(event);
+        break;
+      case 'site_agent.backup-import-analysed':
+        this.siteAgentBackupImportAnalysed$.next(event);
+        break;
+      case 'site_agent.backup-progress':
+        this.siteAgentBackupProgress$.next(event);
         break;
       case 'screen.offline':
         this.screenOffline$.next(event);

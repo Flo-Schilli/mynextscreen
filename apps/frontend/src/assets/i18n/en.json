@@ -1515,25 +1515,62 @@
       "previewScreens": "Displays",
       "passwordLabel": "Backup password",
       "mergeHint": "Existing settings are not overwritten — only empty fields are filled in. Displays that belong to another agent are left alone.",
-      "importConfirm": "Import",
-      "importing": "Importing …",
-      "importWorking": "The agent is decrypting and restoring the backup …",
+      "importConfirm": "Restore",
       "importDone": "{screens} display(s) restored: {pairing} pairing key(s), {ssh} SSH key(s).",
       "skippedTitle": "Skipped",
       "skipReason": {
         "screen_not_found": "Display no longer exists in this organisation",
-        "assigned_to_other_agent": "Display belongs to another agent"
+        "assigned_to_other_agent": "Display belongs to another agent",
+        "target_unavailable": "target display now belongs to another agent"
       },
       "stalePairing": "{count} pairing key(s) come from an older agent version; those TVs will ask to pair once more.",
       "importFailed": "The backup could not be restored.",
       "wrongOrganisation": "This backup belongs to a different organisation.",
       "timeout": "The agent did not answer in time. Please try again.",
-      "agentOffline": "The agent is not connected.",
       "file": {
         "too_large": "The file is too large to be a backup.",
         "not_a_backup": "This is not a myNextScreen agent backup file.",
         "unsupported_version": "This backup version is not supported.",
         "damaged": "The backup file is damaged."
+      },
+      "steps": {
+        "file": "File",
+        "password": "Password",
+        "mapping": "Mapping",
+        "result": "Result"
+      },
+      "next": "Next",
+      "openFile": "Open file",
+      "passwordHint": "The password was shown once at export. Case, spaces and dashes do not matter.",
+      "openWorking": "The agent is decrypting the file …",
+      "applyWorking": "The agent is restoring the backup …",
+      "mapping": {
+        "restoreTitle": "Will be restored",
+        "created": "settings are created",
+        "unknownTitle": "Displays that no longer exist",
+        "unknownHint": "These entries belong to displays that no longer exist in this organisation. Map them onto an existing display or skip them.",
+        "selectLabel": "Target for {name}",
+        "skip": "— Skip —",
+        "alreadyChosen": "already chosen for another entry",
+        "ownedBy": "belongs to agent \"{agent}\"",
+        "overwrite": "The settings and keys of \"{name}\" are overwritten with those from the backup.",
+        "otherAgentTitle": "Skipped, belong to another agent"
+      },
+      "mappedCount": "{count} of them mapped onto another display.",
+      "onboardingHint": "Restored displays resume onboarding at the final check, provided the backup carries all their data.",
+      "busyOrOffline": "The agent is not connected, or is already running a backup.",
+      "progress": {
+        "export": "Export running",
+        "import": "Import running",
+        "startedBy": "started by {name}",
+        "steps": {
+          "exporting": "agent is creating the backup",
+          "waiting_for_agent": "waiting for the agent",
+          "waiting_for_file": "waiting for the file",
+          "decrypting": "decrypting the file",
+          "waiting_for_mapping": "waiting for the mapping",
+          "applying": "restoring"
+        }
       }
     }
   },

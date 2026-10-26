@@ -1,6 +1,11 @@
+import type { BackupOperation } from './site-agent-backup-operation.service';
+import type { BackupRestoreVerdict } from './site-agent-backup-restore.service';
+
 export const SITE_AGENT_BACKUP_EXPORTED = 'site-agent.backup-exported';
 export const SITE_AGENT_BACKUP_IMPORT_KEY = 'site-agent.backup-import-key';
 export const SITE_AGENT_BACKUP_IMPORTED = 'site-agent.backup-imported';
+export const SITE_AGENT_BACKUP_IMPORT_ANALYSED = 'site-agent.backup-import-analysed';
+export const SITE_AGENT_BACKUP_PROGRESS = 'site-agent.backup-progress';
 
 /**
  * An export the dashboard asked for has arrived, or failed on the agent.
@@ -36,8 +41,30 @@ export interface SiteAgentBackupImportSummary {
   ssapRestored: number;
   devmodeKeysRestored: number;
   staleSsapScreenIds: string[];
-  restored: Array<{ screenId: string; created: boolean; filled: string[] }>;
-  skipped: Array<{ screenId: string; reason: string }>;
+  restored: BackupRestoreVerdict['restored'];
+  skipped: BackupRestoreVerdict['skipped'];
+}
+
+/**
+ * The agent has opened the file and the server has worked out what each entry
+ * would do. The plan itself is fetched by the person running the import; this
+ * only says it is ready.
+ */
+export class SiteAgentBackupImportAnalysedEvent {
+  constructor(
+    public readonly agentId: string,
+    public readonly organisationId: string,
+    public readonly sessionId: string,
+  ) {}
+}
+
+/** A backup operation started, moved on or ended (`operation` null). */
+export class SiteAgentBackupProgressEvent {
+  constructor(
+    public readonly agentId: string,
+    public readonly organisationId: string,
+    public readonly operation: BackupOperation | null,
+  ) {}
 }
 
 export class SiteAgentBackupImportedEvent {

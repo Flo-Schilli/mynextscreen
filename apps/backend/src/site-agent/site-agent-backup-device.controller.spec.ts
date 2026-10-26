@@ -12,7 +12,8 @@ describe('SiteAgentBackupDeviceController', () => {
       receiveExport: jest.fn().mockResolvedValue(undefined),
       receiveImportKey: jest.fn().mockResolvedValue(undefined),
       fetchImport: jest.fn().mockResolvedValue({ backup: 'b', sealedPassword: 's' }),
-      restore: jest.fn().mockResolvedValue({ assignedScreenIds: [], skipped: [] }),
+      receiveAnalysis: jest.fn().mockResolvedValue(undefined),
+      restore: jest.fn().mockResolvedValue({ assignments: [], skipped: [] }),
       receiveImportResult: jest.fn().mockResolvedValue(undefined),
     };
     controller = new SiteAgentBackupDeviceController(backups as never);
@@ -22,6 +23,7 @@ describe('SiteAgentBackupDeviceController', () => {
     await controller.receiveExport(req, id, { error: 'x' });
     await controller.receiveImportKey(req, id, { publicKey: 'PUB' });
     await controller.fetchImport(req, id);
+    await controller.receiveAnalysis(req, id, { sourceAgentId: id, entries: [] });
     await controller.restore(req, id, { sourceAgentId: id, screens: [] });
     await controller.receiveImportResult(req, id, { error: 'x' });
 

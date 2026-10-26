@@ -19,6 +19,11 @@ const SESSION = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const PEM =
   '-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nabc\n-----END RSA PRIVATE KEY-----\n';
 
+/** The server's answer when every entry stays on its own screen. */
+function direct(...ids: string[]) {
+  return ids.map((id) => ({ from: id, to: id, overwrite: false }));
+}
+
 function screen(screenId: string, overrides: Partial<AgentScreenConfigMessage> = {}) {
   return {
     screenId,
@@ -47,6 +52,7 @@ interface Agent {
     postBackupImportKey: jest.Mock;
     fetchBackupImport: jest.Mock;
     restoreBackupSettings: jest.Mock;
+    postBackupAnalysis: jest.Mock;
     postBackupImportResult: jest.Mock;
   };
 }
@@ -72,6 +78,7 @@ async function makeAgent(
     postBackupImportKey: jest.fn().mockResolvedValue(undefined),
     fetchBackupImport: jest.fn(),
     restoreBackupSettings: jest.fn(),
+    postBackupAnalysis: jest.fn().mockResolvedValue(undefined),
     postBackupImportResult: jest.fn().mockResolvedValue(undefined),
   };
   const service = new BackupService(
@@ -150,6 +157,7 @@ describe('BackupService', () => {
       expect(payload).toEqual({
         screens: {
           [SCREEN_1]: {
+            name: `Screen ${SCREEN_1.slice(0, 4)}`,
             ssap: { key: 'pairing-key-1', manifestVersion: MANIFEST_VERSION },
             devmodePem: PEM,
             devmodePassphrase: 'A1B2C3',
@@ -158,6 +166,7 @@ describe('BackupService', () => {
             ssapPort: 3001,
           },
           [SCREEN_2]: {
+            name: `Screen ${SCREEN_2.slice(0, 4)}`,
             devmodePassphrase: 'A1B2C3',
             localIp: '192.168.1.20',
             macAddress: 'AA:BB:CC:DD:EE:FF',
@@ -176,6 +185,7 @@ describe('BackupService', () => {
       const { payload } = await openBackup(Buffer.from(backup, 'base64'), password);
 
       expect((payload as { screens: Record<string, object> }).screens[SCREEN_1]).toEqual({
+        name: `Screen ${SCREEN_1.slice(0, 4)}`,
         macAddress: 'AA:BB:CC:DD:EE:FF',
         ssapPort: 3001,
       });
@@ -229,6 +239,110 @@ describe('BackupService', () => {
   });
 
   describe('import', () => {
+    it('opens the file, describes it by name and id, and writes nothing yet', async () => {
+      const source = await seededSource();
+      const { backup, password } = await exportFrom(source);
+      const target = await agent(config(AGENT_B, []));
+      await stageImport(target, backup, password);
+
+      await target.service.import(SESSION);
+
+      expect(target.client.postBackupAnalysis).toHaveBeenCalledWith(SESSION, {
+        sourceAgentId: AGENT_A,
+        entries: [
+          { screenId: SCREEN_1, name: `Screen ${SCREEN_1.slice(0, 4)}` },
+          { screenId: SCREEN_2, name: `Screen ${SCREEN_2.slice(0, 4)}` },
+        ],
+      });
+      expect(JSON.stringify(target.client.postBackupAnalysis.mock.calls)).not.toContain('A1B2C3');
+      expect(target.client.restoreBackupSettings).not.toHaveBeenCalled();
+      expect(target.client.postBackupImportResult).not.toHaveBeenCalled();
+      expect(await target.ssapKeys.readRaw(SCREEN_1)).toBeNull();
+    });
+
+    it("writes a mapped entry under its new screen and replaces that screen's keys", async () => {
+      const source = await seededSource();
+      const { backup, password } = await exportFrom(source);
+      const target = await agent(config(AGENT_B, []));
+      await target.ssapKeys.save(SCREEN_2, 'key-of-the-other-tv');
+      target.client.restoreBackupSettings.mockResolvedValue({
+        assignments: [{ from: SCREEN_1, to: SCREEN_2, overwrite: true }],
+        skipped: [],
+      });
+      await stageImport(target, backup, password);
+
+      await target.service.import(SESSION);
+      await target.service.apply(SESSION);
+
+      expect(await target.ssapKeys.load(SCREEN_2)).toBe('pairing-key-1');
+      expect(await target.devmodeKeys.cachedPem(SCREEN_2)).toBe(PEM);
+      expect(await target.ssapKeys.readRaw(SCREEN_1)).toBeNull();
+    });
+
+    it('applies an opened file once only', async () => {
+      const source = await seededSource();
+      const { backup, password } = await exportFrom(source);
+      const target = await agent(config(AGENT_B, []));
+      target.client.restoreBackupSettings.mockResolvedValue({ assignments: [], skipped: [] });
+      await stageImport(target, backup, password);
+      await target.service.import(SESSION);
+      await target.service.apply(SESSION);
+      target.client.postBackupImportResult.mockClear();
+
+      await target.service.apply(SESSION);
+
+      expect(target.client.restoreBackupSettings).toHaveBeenCalledTimes(1);
+      expect(target.client.postBackupImportResult).toHaveBeenCalledWith(SESSION, {
+        error: 'The import session has expired; start the import again',
+      });
+    });
+
+    it('refuses to apply a session whose file was never opened', async () => {
+      const target = await agent(config(AGENT_B, []));
+      await target.service.beginImport(SESSION);
+
+      await target.service.apply(SESSION);
+
+      expect(target.client.restoreBackupSettings).not.toHaveBeenCalled();
+      expect(target.client.postBackupImportResult).toHaveBeenCalledWith(SESSION, {
+        error: 'The import session has expired; start the import again',
+      });
+    });
+
+    it('refuses to open the same session twice', async () => {
+      const source = await seededSource();
+      const { backup, password } = await exportFrom(source);
+      const target = await agent(config(AGENT_B, []));
+      await stageImport(target, backup, password);
+      await target.service.import(SESSION);
+
+      await target.service.import(SESSION);
+
+      expect(target.client.postBackupAnalysis).toHaveBeenCalledTimes(1);
+      expect(target.client.postBackupImportResult).toHaveBeenCalledWith(SESSION, {
+        error: 'The import session has expired; start the import again',
+      });
+    });
+
+    it('lets an opened file wait for the mapping, but not forever', async () => {
+      const source = await seededSource();
+      const { backup, password } = await exportFrom(source);
+      const target = await agent(config(AGENT_B, []));
+      await stageImport(target, backup, password);
+      const now = Date.now();
+      const clock = jest.spyOn(Date, 'now').mockReturnValue(now);
+      await target.service.import(SESSION);
+      clock.mockReturnValue(now + 11 * 60_000);
+
+      await target.service.apply(SESSION);
+      clock.mockRestore();
+
+      expect(target.client.restoreBackupSettings).not.toHaveBeenCalled();
+      expect(target.client.postBackupImportResult).toHaveBeenCalledWith(SESSION, {
+        error: 'The import session has expired; start the import again',
+      });
+    });
+
     it('restores keys on another agent for the screens the server assigns', async () => {
       const source = await seededSource();
       const { backup, password } = await exportFrom(source);
@@ -236,12 +350,13 @@ describe('BackupService', () => {
       const imported = jest.fn().mockResolvedValue(undefined);
       target.service.onImported(imported);
       target.client.restoreBackupSettings.mockResolvedValue({
-        assignedScreenIds: [SCREEN_1, SCREEN_2],
+        assignments: direct(SCREEN_1, SCREEN_2),
         skipped: [],
       });
       await stageImport(target, backup, password);
 
       await target.service.import(SESSION);
+      await target.service.apply(SESSION);
 
       expect(target.client.restoreBackupSettings).toHaveBeenCalledWith(SESSION, {
         sourceAgentId: AGENT_A,
@@ -252,6 +367,8 @@ describe('BackupService', () => {
             localIp: '192.168.1.20',
             macAddress: 'AA:BB:CC:DD:EE:FF',
             ssapPort: 3001,
+            hasSsapKey: true,
+            hasDevmodeKey: true,
           },
         ]),
       });
@@ -276,12 +393,13 @@ describe('BackupService', () => {
       await target.ssapKeys.save(SCREEN_1, 'newer-pairing-key');
       await target.devmodeKeys.restorePem(SCREEN_1, `${PEM}newer`);
       target.client.restoreBackupSettings.mockResolvedValue({
-        assignedScreenIds: [SCREEN_1],
+        assignments: direct(SCREEN_1),
         skipped: [],
       });
       await stageImport(target, backup, password);
 
       await target.service.import(SESSION);
+      await target.service.apply(SESSION);
 
       expect(await target.ssapKeys.load(SCREEN_1)).toBe('newer-pairing-key');
       expect(await target.devmodeKeys.cachedPem(SCREEN_1)).toBe(`${PEM}newer`);
@@ -297,12 +415,13 @@ describe('BackupService', () => {
       const { backup, password } = await exportFrom(source);
       const target = await agent(config(AGENT_B, []));
       target.client.restoreBackupSettings.mockResolvedValue({
-        assignedScreenIds: [SCREEN_2],
+        assignments: direct(SCREEN_2),
         skipped: [{ screenId: SCREEN_1, reason: 'other_agent' }],
       });
       await stageImport(target, backup, password);
 
       await target.service.import(SESSION);
+      await target.service.apply(SESSION);
 
       expect(await target.ssapKeys.readRaw(SCREEN_1)).toBeNull();
       expect(await target.devmodeKeys.cachedPem(SCREEN_1)).toBeNull();
@@ -319,12 +438,13 @@ describe('BackupService', () => {
       const { backup, password } = await exportFrom(source);
       const target = await agent(config(AGENT_B, []));
       target.client.restoreBackupSettings.mockResolvedValue({
-        assignedScreenIds: [SCREEN_1],
+        assignments: direct(SCREEN_1),
         skipped: [],
       });
       await stageImport(target, backup, password);
 
       await target.service.import(SESSION);
+      await target.service.apply(SESSION);
 
       expect(target.client.postBackupImportResult).toHaveBeenCalledWith(
         SESSION,
@@ -438,12 +558,13 @@ describe('BackupService', () => {
       const { backup, password } = await exportFrom(source);
       const target = await agent(null, ORG);
       target.client.restoreBackupSettings.mockResolvedValue({
-        assignedScreenIds: [SCREEN_1],
+        assignments: direct(SCREEN_1),
         skipped: [],
       });
       await stageImport(target, backup, password);
 
       await target.service.import(SESSION);
+      await target.service.apply(SESSION);
 
       expect(await target.ssapKeys.load(SCREEN_1)).toBe('pairing-key-1');
       expect(target.client.postBackupImportResult).toHaveBeenCalledWith(
@@ -488,7 +609,7 @@ describe('BackupService', () => {
       const target = await agent(config(AGENT_B, []));
       target.service.onImported(() => Promise.reject(new Error('server gone')));
       target.client.restoreBackupSettings.mockResolvedValue({
-        assignedScreenIds: [],
+        assignments: direct(),
         skipped: [],
       });
       await stageImport(target, backup, password);
@@ -531,6 +652,8 @@ describe('BackupService', () => {
       ['a PEM that is not one', { screens: { [SCREEN_1]: { devmodePem: 'rm -rf /' } } }],
       ['a non-string address', { screens: { [SCREEN_1]: { localIp: 42 } } }],
       ['a fractional port', { screens: { [SCREEN_1]: { ssapPort: 3000.5 } } }],
+      ['a name that is not text', { screens: { [SCREEN_1]: { name: 42 } } }],
+      ['an absurdly long name', { screens: { [SCREEN_1]: { name: 'x'.repeat(201) } } }],
     ])('refuses %s', (_label, payload) => {
       expect(() => validatePayload(payload)).toThrow();
     });

@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   Max,
   Min,
   IsBase64,
@@ -110,6 +111,58 @@ export class AgentBackupScreenSettingsDto {
   @IsInt()
   @IsIn(SSAP_PORTS)
   ssapPort?: number;
+
+  /** Whether the agent restores a pairing key / SSH key for it; sets the onboarding start. */
+  @IsOptional()
+  @IsBoolean()
+  hasSsapKey?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  hasDevmodeKey?: boolean;
+}
+
+/**
+ * One entry of an opened backup, as the agent describes it for planning.
+ * Deliberately without the passphrase: the plan waits in Redis while the
+ * operator maps entries, and only sealed data or non-secrets belong there.
+ */
+export class AgentBackupAnalysisEntryDto {
+  @IsUUID()
+  screenId!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  name?: string;
+}
+
+export class AgentBackupAnalysisDto {
+  @IsUUID()
+  sourceAgentId!: string;
+
+  @IsArray()
+  @ArrayMaxSize(MAX_SCREENS)
+  @ValidateNested({ each: true })
+  @Type(() => AgentBackupAnalysisEntryDto)
+  entries!: AgentBackupAnalysisEntryDto[];
+}
+
+export class BackupMappingDto {
+  @IsUUID()
+  from!: string;
+
+  @IsUUID()
+  to!: string;
+}
+
+/** Dashboard → server: where unknown entries go; anything unmapped is skipped. */
+export class ApplyBackupImportDto {
+  @IsArray()
+  @ArrayMaxSize(MAX_SCREENS)
+  @ValidateNested({ each: true })
+  @Type(() => BackupMappingDto)
+  mappings!: BackupMappingDto[];
 }
 
 export class AgentBackupRestoreDto {

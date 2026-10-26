@@ -6,7 +6,7 @@ import type { AgentConfigMessage } from '../protocol/server-protocol';
 import { DevmodeKeyService } from '../tv/devmode-key.service';
 import { MANIFEST_VERSION } from '../tv/ssap-client';
 import { SsapKeyStore, isStoredSsapKey, type StoredSsapKey } from '../tv/ssap-key.store';
-import type { AgentBackupScreenSettings } from '../protocol/server-protocol';
+import type { AgentBackupAssignment, AgentBackupScreenSettings } from '../protocol/server-protocol';
 import {
   BackupOpenError,
   MAX_BACKUP_BYTES,
@@ -16,14 +16,20 @@ import {
 } from './backup-crypto';
 import { generateSealedBoxKeyPair, open, seal, type SealedBoxKeyPair } from './sealed-box';
 
-/** How long a dashboard has to send the file after asking to import. */
+/**
+ * How long a dashboard has to send the file after asking to import, and again
+ * how long the opened file waits while the operator maps entries.
+ */
 const IMPORT_SESSION_TTL_MS = 10 * 60_000;
+const MAX_NAME_LENGTH = 200;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_PEM_BYTES = 16 * 1024;
 const MAX_SCREENS = 1000;
 
 /** One screen's entry inside the encrypted payload. */
 export interface BackupScreenEntry {
+  /** The display's name when the backup was taken, so an operator can recognise it. */
+  name?: string;
   ssap?: StoredSsapKey;
   devmodePem?: string;
   devmodePassphrase?: string;
@@ -36,9 +42,16 @@ export interface BackupPayload {
   screens: Record<string, BackupScreenEntry>;
 }
 
+interface OpenedBackup {
+  sourceAgentId: string;
+  screens: Record<string, BackupScreenEntry>;
+}
+
 interface ImportSession {
   keyPair: SealedBoxKeyPair;
   expiresAt: number;
+  /** The validated contents, held in memory only, between opening and applying. */
+  opened?: OpenedBackup;
 }
 
 /**
@@ -81,6 +94,7 @@ export class BackupService {
       const payload: BackupPayload = { screens: {} };
       for (const screen of config.screens) {
         payload.screens[screen.screenId] = await this.collect(screen.screenId, {
+          name: screen.name,
           devmodePassphrase: screen.devmodePassphrase ?? undefined,
           localIp: screen.localIp ?? undefined,
           macAddress: screen.macAddress ?? undefined,
@@ -123,15 +137,18 @@ export class BackupService {
     await this.client.postBackupImportKey(sessionId, { publicKey: keyPair.publicKey });
   }
 
+  /**
+   * Phase one: fetches, unseals, opens and validates the file, then describes
+   * its entries to the server — names and ids only — so the operator can map
+   * the ones the organisation no longer knows. The contents stay here, in
+   * memory, until {@link apply}; nothing is written yet.
+   */
   async import(sessionId: string): Promise<void> {
     assertUuid(sessionId);
-    // Taken out before anything else, so a session is good for one attempt
-    // whatever happens next.
     const session = this.importSessions.get(sessionId);
-    this.importSessions.delete(sessionId);
 
     try {
-      if (!session || session.expiresAt < Date.now()) {
+      if (!session || session.expiresAt < Date.now() || session.opened) {
         throw new Error('The import session has expired; start the import again');
       }
       // The organisation comes from the session, not the config cache: a box
@@ -157,12 +174,48 @@ export class BackupService {
       }
       const screens = validatePayload(payload);
 
-      const verdict = await this.client.restoreBackupSettings(sessionId, {
+      this.importSessions.set(sessionId, {
+        ...session,
+        expiresAt: Date.now() + IMPORT_SESSION_TTL_MS,
+        opened: { sourceAgentId: header.sourceAgentId, screens },
+      });
+      await this.client.postBackupAnalysis(sessionId, {
         sourceAgentId: header.sourceAgentId,
+        entries: Object.entries(screens).map(([screenId, entry]) => ({
+          screenId,
+          ...(entry.name ? { name: entry.name } : {}),
+        })),
+      });
+    } catch (error) {
+      // One attempt per session: whatever went wrong, the next try starts over.
+      this.importSessions.delete(sessionId);
+      await this.reportImportFailure(sessionId, error);
+    }
+  }
+
+  /**
+   * Phase two, once the operator has mapped what needed mapping: the server
+   * applies the settings and says which keys go where, and only then are they
+   * written.
+   */
+  async apply(sessionId: string): Promise<void> {
+    assertUuid(sessionId);
+    // Taken out before anything else, so the opened file is used at most once.
+    const session = this.importSessions.get(sessionId);
+    this.importSessions.delete(sessionId);
+
+    try {
+      if (!session?.opened || session.expiresAt < Date.now()) {
+        throw new Error('The import session has expired; start the import again');
+      }
+      const { sourceAgentId, screens } = session.opened;
+
+      const verdict = await this.client.restoreBackupSettings(sessionId, {
+        sourceAgentId,
         screens: Object.entries(screens).map(([screenId, entry]) => settingsOf(screenId, entry)),
       });
 
-      const result = await this.writeKeys(screens, verdict.assignedScreenIds);
+      const result = await this.writeKeys(screens, verdict.assignments);
       await this.client.postBackupImportResult(sessionId, result);
       this.logger.log(
         `Backup imported: ${result.ssapRestored} pairing key(s), ${result.devmodeKeysRestored} SSH key(s)`,
@@ -205,37 +258,40 @@ export class BackupService {
   }
 
   /**
-   * Only for screens the server has just confirmed are this agent's. Writing a
-   * key for a screen another agent looks after would leave a second copy of
-   * that venue's credentials somewhere nobody would think to look.
+   * Only where the server says: each assignment names the backup entry and the
+   * screen its keys belong to now. Writing a key for a screen another agent
+   * looks after would leave a second copy of that venue's credentials somewhere
+   * nobody would think to look.
    *
-   * And only where this agent has no key of its own: the same fill-the-gaps
+   * And only where this agent has no key of its own — the same fill-the-gaps
    * rule the server applies to the settings. A TV paired again since the
    * backup was taken holds a newer key than the file, and putting the old one
-   * back would have the set answer 401 to a pairing that was working.
+   * back would have the set answer 401 to a pairing that was working. The
+   * exception is an entry the operator mapped onto a screen: that is an
+   * explicit "this TV is now that display", and its keys replace the screen's.
    */
   private async writeKeys(
     screens: Record<string, BackupScreenEntry>,
-    assignedScreenIds: string[],
+    assignments: AgentBackupAssignment[],
   ): Promise<{ ssapRestored: number; devmodeKeysRestored: number; staleSsapScreenIds: string[] }> {
     let ssapRestored = 0;
     let devmodeKeysRestored = 0;
     const staleSsapScreenIds: string[] = [];
 
-    for (const screenId of assignedScreenIds) {
-      const entry = screens[screenId];
+    for (const { from, to, overwrite } of assignments) {
+      const entry = screens[from];
       if (!entry) {
         continue;
       }
-      if (entry.ssap && !(await this.ssapKeys.readRaw(screenId))) {
-        await this.ssapKeys.restoreRaw(screenId, entry.ssap);
+      if (entry.ssap && (overwrite || !(await this.ssapKeys.readRaw(to)))) {
+        await this.ssapKeys.restoreRaw(to, entry.ssap);
         ssapRestored += 1;
         if (entry.ssap.manifestVersion !== MANIFEST_VERSION) {
-          staleSsapScreenIds.push(screenId);
+          staleSsapScreenIds.push(to);
         }
       }
-      if (entry.devmodePem && !(await this.devmodeKeys.cachedPem(screenId))) {
-        await this.devmodeKeys.restorePem(screenId, entry.devmodePem);
+      if (entry.devmodePem && (overwrite || !(await this.devmodeKeys.cachedPem(to)))) {
+        await this.devmodeKeys.restorePem(to, entry.devmodePem);
         devmodeKeysRestored += 1;
       }
     }
@@ -306,6 +362,12 @@ export function validatePayload(payload: unknown): Record<string, BackupScreenEn
 
 function validateEntry(raw: Record<string, unknown>): BackupScreenEntry {
   const entry: BackupScreenEntry = {};
+  if (raw.name !== undefined) {
+    if (typeof raw.name !== 'string' || raw.name.length > MAX_NAME_LENGTH) {
+      throw new BackupOpenError('The backup contains a malformed display name');
+    }
+    entry.name = raw.name;
+  }
   if (raw.ssap !== undefined) {
     if (!isStoredSsapKey(raw.ssap)) {
       throw new BackupOpenError('The backup contains a malformed pairing key');
@@ -345,6 +407,8 @@ function settingsOf(screenId: string, entry: BackupScreenEntry): AgentBackupScre
     localIp: entry.localIp,
     macAddress: entry.macAddress,
     ssapPort: entry.ssapPort,
+    hasSsapKey: entry.ssap !== undefined,
+    hasDevmodeKey: entry.devmodePem !== undefined,
   };
 }
 

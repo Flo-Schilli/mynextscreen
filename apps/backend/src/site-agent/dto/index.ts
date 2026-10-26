@@ -19,4 +19,6 @@ export {
   AgentBackupImportKeyDto,
   AgentBackupRestoreDto,
   AgentBackupImportResultDto,
+  AgentBackupAnalysisDto,
+  ApplyBackupImportDto,
 } from './site-agent-backup.dto';

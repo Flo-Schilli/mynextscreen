@@ -17,6 +17,8 @@ import { SiteAgentConfigService } from './site-agent-config.service';
 import { SiteAgentSseService } from './site-agent-sse.service';
 import { ScreenRemoteCommandService } from './screen-remote-command.service';
 import { SiteAgentBackupService } from './site-agent-backup.service';
+import { SiteAgentBackupRestoreService } from './site-agent-backup-restore.service';
+import { SiteAgentBackupOperationService } from './site-agent-backup-operation.service';
 import { SiteAgentBackupController } from './site-agent-backup.controller';
 import { SiteAgentBackupDeviceController } from './site-agent-backup-device.controller';
 
@@ -39,6 +41,8 @@ import { SiteAgentBackupDeviceController } from './site-agent-backup-device.cont
     SiteAgentSseService,
     ScreenRemoteCommandService,
     SiteAgentBackupService,
+    SiteAgentBackupRestoreService,
+    SiteAgentBackupOperationService,
   ],
   exports: [
     SiteAgentService,
