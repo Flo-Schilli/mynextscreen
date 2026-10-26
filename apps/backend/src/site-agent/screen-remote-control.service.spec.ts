@@ -241,15 +241,30 @@ describe('ScreenRemoteControlService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('audits which fields changed but never their values', async () => {
+    it('audits a passphrase change without its value', async () => {
       await service.upsert(orgId, screenId, { devmodePassphrase: 'AEBC72' }, userId);
 
       const call = emitter.emit.mock.calls.find(
         ([name]) => name === AUDIT_SCREEN_REMOTE_CONTROL_UPDATED,
       );
       expect(call).toBeDefined();
-      expect(call?.[1].details).toEqual({ changed: ['devmodePassphrase'] });
+      expect(call?.[1].details).toEqual({ changes: { devmodePassphrase: {} } });
       expect(JSON.stringify(call?.[1])).not.toContain('AEBC72');
+    });
+
+    it('audits other fields with their old and new values', async () => {
+      await service.upsert(orgId, screenId, { localIp: '10.0.0.5' }, userId);
+      emitter.emit.mockClear();
+
+      await service.upsert(orgId, screenId, { localIp: '10.0.0.6', ssapPort: 3000 }, userId);
+
+      const call = emitter.emit.mock.calls.find(
+        ([name]) => name === AUDIT_SCREEN_REMOTE_CONTROL_UPDATED,
+      );
+      expect(call?.[1].details.changes).toMatchObject({
+        localIp: { from: '10.0.0.5', to: '10.0.0.6' },
+      });
+      expect(call?.[1].details.changes).not.toHaveProperty('devmodePassphrase');
     });
   });
 

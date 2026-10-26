@@ -34,6 +34,7 @@ import {
   SCHEDULE_ENTRIES_EDITED,
   ScheduleEntriesEditedEvent,
 } from './schedule.event';
+import { auditChanges } from '../audit-log/audit-changes';
 import {
   AUDIT_SCHEDULE_CREATED,
   AUDIT_SCHEDULE_UPDATED,
@@ -208,6 +209,15 @@ export class ScheduleService {
         screenId: saved.screenId,
         groupId: saved.groupId,
         playlistId: saved.playlistId,
+        changes: auditChanges(entry, saved, [
+          'name',
+          'playlistId',
+          'priority',
+          'startTime',
+          'endTime',
+          'rrule',
+          'colour',
+        ]),
       }),
     );
 

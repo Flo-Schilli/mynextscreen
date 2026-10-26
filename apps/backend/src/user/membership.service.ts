@@ -18,6 +18,7 @@ import {
 } from '../db/schema';
 import { OrganisationRole } from './organisation-role.enum';
 import { UserService } from './user.service';
+import { auditChanges } from '../audit-log/audit-changes';
 import {
   AUDIT_USER_INVITED,
   AUDIT_USER_ROLE_CHANGED,
@@ -140,8 +141,7 @@ export class MembershipService {
     this.eventEmitter.emit(
       AUDIT_USER_ROLE_CHANGED,
       new AuditUserEvent(userId, organisationId, actorUserId, {
-        oldRole,
-        newRole: role,
+        changes: auditChanges({ role: oldRole }, { role: saved.role }, ['role']),
       }),
     );
     return { ...saved, user: membership.user };

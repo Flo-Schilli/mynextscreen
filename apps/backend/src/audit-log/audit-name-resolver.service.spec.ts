@@ -136,6 +136,33 @@ describe('AuditNameResolver', () => {
     expect(names).toEqual({ [screenId]: 'Foyer', [playlistA]: 'A', [playlistB]: 'B' });
   });
 
+  it('names the old and new ids of a recorded change', async () => {
+    const org = await seedOrg('Venue');
+    const before = await seedPlaylist(org.id, 'Doors Open');
+    const after = await seedPlaylist(org.id, 'Show');
+    const screenA = await seedScreen(org.id, 'Foyer');
+    const screenB = await seedScreen(org.id, 'Bar');
+
+    const names = await resolver.resolve([
+      entry({
+        details: {
+          changes: {
+            playlistId: { from: before, to: after },
+            screenIds: { from: [screenA], to: [screenA, screenB] },
+            name: { from: before, to: 'not an id field' },
+          },
+        },
+      }),
+    ]);
+
+    expect(names).toEqual({
+      [before]: 'Doors Open',
+      [after]: 'Show',
+      [screenA]: 'Foyer',
+      [screenB]: 'Bar',
+    });
+  });
+
   it("only names records of the given organisation (an org admin's view)", async () => {
     const own = await seedOrg('Own');
     const other = await seedOrg('Other');

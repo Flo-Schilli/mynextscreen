@@ -5,6 +5,9 @@ import { OrganisationRole } from '../user/organisation-role.enum';
 import { DefaultPlaylistController } from './default-playlist.controller';
 import { OrganisationService } from './organisation.service';
 import type { Organisation } from '../db/schema';
+import type { AuthenticatedRequest } from '../auth/jwt-auth.guard';
+
+const req = { user: { userId: 'user-1' } } as unknown as AuthenticatedRequest;
 
 describe('DefaultPlaylistController', () => {
   let controller: DefaultPlaylistController;
@@ -77,11 +80,9 @@ describe('DefaultPlaylistController', () => {
   it('should set the default playlist', async () => {
     service.setDefaultPlaylist.mockResolvedValue(mockOrganisation);
 
-    const result = await controller.setDefaultPlaylist(orgId, {
-      playlistId,
-    });
+    const result = await controller.setDefaultPlaylist(orgId, { playlistId }, req);
 
-    expect(service.setDefaultPlaylist).toHaveBeenCalledWith(orgId, playlistId);
+    expect(service.setDefaultPlaylist).toHaveBeenCalledWith(orgId, playlistId, 'user-1');
     expect(result).toEqual(mockOrganisation);
   });
 
@@ -89,11 +90,9 @@ describe('DefaultPlaylistController', () => {
     const cleared = { ...mockOrganisation, defaultPlaylistId: null };
     service.setDefaultPlaylist.mockResolvedValue(cleared);
 
-    const result = await controller.setDefaultPlaylist(orgId, {
-      playlistId: null,
-    });
+    const result = await controller.setDefaultPlaylist(orgId, { playlistId: null }, req);
 
-    expect(service.setDefaultPlaylist).toHaveBeenCalledWith(orgId, null);
+    expect(service.setDefaultPlaylist).toHaveBeenCalledWith(orgId, null, 'user-1');
     expect(result.defaultPlaylistId).toBeNull();
   });
 });

@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { OrganisationService } from './organisation.service';
+import { AUDIT_ORGANISATION_UPDATED } from '../audit-log/audit.events';
 import { DRIZZLE } from '../db/database.constants';
 import {
   contents,
@@ -265,8 +266,26 @@ describe('OrganisationService', () => {
         .values({ organisationId: org.id, name: 'PL' })
         .returning();
 
-      const result = await service.setDefaultPlaylist(org.id, playlist.id);
+      const result = await service.setDefaultPlaylist(org.id, playlist.id, 'actor-1');
       expect(result.defaultPlaylistId).toBe(playlist.id);
+      expect(emit).toHaveBeenCalledWith(
+        AUDIT_ORGANISATION_UPDATED,
+        expect.objectContaining({
+          userId: 'actor-1',
+          details: {
+            name: org.name,
+            changes: { defaultPlaylistId: { from: null, to: playlist.id } },
+          },
+        }),
+      );
+    });
+
+    it('does not audit setting the playlist it already has', async () => {
+      const org = await seedOrg();
+
+      await service.setDefaultPlaylist(org.id, null);
+
+      expect(emit).not.toHaveBeenCalledWith(AUDIT_ORGANISATION_UPDATED, expect.anything());
     });
 
     it('clears the default playlist when playlistId is null', async () => {

@@ -5,6 +5,7 @@ import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { screenRemoteControls, screens, siteAgents, type ScreenRemoteControl } from '../db/schema';
 import { SecretCipher } from '../common/secret-cipher.service';
+import { auditChanges } from '../audit-log/audit-changes';
 import {
   AUDIT_SCREEN_REMOTE_CONTROL_REMOVED,
   AUDIT_SCREEN_REMOTE_CONTROL_UPDATED,
@@ -164,12 +165,33 @@ export class ScreenRemoteControlService {
       );
     }
 
-    // `details` deliberately records only which fields changed, never their
-    // values: audit entries are shown in the organisation's own audit log.
+    // The passphrase is recorded only as changed, never with its values: audit
+    // entries are shown in the organisation's own audit log.
+    const keptPassphrase = dto.devmodePassphrase === undefined || dto.devmodePassphrase === '';
     this.eventEmitter.emit(
       AUDIT_SCREEN_REMOTE_CONTROL_UPDATED,
       new AuditScreenRemoteEvent(screenId, organisationId, userId, {
-        changed: Object.keys(stripUndefined(dto)),
+        changes: auditChanges(
+          existing,
+          {
+            ...merged,
+            devmodePassphrase: keptPassphrase ? existing.devmodePassphrase : dto.devmodePassphrase,
+          },
+          [
+            'agentId',
+            'localIp',
+            'macAddress',
+            'devmodePassphrase',
+            'ssapPort',
+            'autoLaunchEnabled',
+            'extendDevmodeEnabled',
+            'devmodeExtendIntervalDays',
+            'wakeBeforeScheduleEnabled',
+            'wakeLeadTimeMinutes',
+            'wakeOnUnreachableEnabled',
+          ],
+          { hidden: ['devmodePassphrase'] },
+        ),
       }),
     );
 

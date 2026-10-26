@@ -207,10 +207,26 @@ describe('LiveStreamService', () => {
         details: {
           streamId: stream.id,
           streamName: 'Updated Camera',
-          sourceUrl: stream.sourceUrl,
-          protocol: stream.protocol,
+          changes: { name: { from: stream.name, to: 'Updated Camera' } },
         },
       });
+    });
+
+    it('audits a changed source URL without its credentials', async () => {
+      const stream = await seedStream();
+
+      await service.updateLiveStream(
+        orgId,
+        stream.id,
+        { sourceUrl: 'rtsp://admin:secret@cam.example.com/live' },
+        userId,
+      );
+
+      const [, event] = eventEmitter.emit.mock.calls.find(
+        (c: unknown[]) => c[0] === AUDIT_LIVE_STREAM_UPDATED,
+      );
+      expect(event.details.changes.sourceUrl.to).toBe('rtsp://***@cam.example.com/live');
+      expect(JSON.stringify(event)).not.toContain('secret');
     });
   });
 

@@ -24,6 +24,7 @@ import { SCREEN_STATUS_CHANGED } from './screen-status.event';
 import { SCREEN_SETTINGS_CHANGED, SCREEN_REFRESH_REQUESTED } from './screen-state.event';
 import {
   AUDIT_SCREEN_REGISTERED,
+  AUDIT_SCREEN_UPDATED,
   AUDIT_SCREEN_ONLINE,
   AUDIT_SCREEN_REFRESHED,
   AUDIT_SCREEN_BULK_DELETED,
@@ -459,6 +460,20 @@ describe('ScreenService', () => {
       expect(result.name).toBe('Updated Name');
       const [row] = await db.select().from(screens).where(eq(screens.id, screen.id));
       expect(row.name).toBe('Updated Name');
+    });
+
+    it('audits the old and new value of each changed field', async () => {
+      const org = await seedOrg();
+      const screen = await seedScreen(org.id, { name: 'Foyer' });
+
+      await service.updateScreen(org.id, screen.id, { name: 'Lobby', location: screen.location });
+
+      expect(emit).toHaveBeenCalledWith(
+        AUDIT_SCREEN_UPDATED,
+        expect.objectContaining({
+          details: { name: 'Lobby', changes: { name: { from: 'Foyer', to: 'Lobby' } } },
+        }),
+      );
     });
 
     it('persists the player UI toggles and pushes a settings refresh to the screen', async () => {

@@ -15,6 +15,7 @@ import {
   type SourceEvent,
 } from '../db/schema';
 import { ContentService } from '../content/content.service';
+import { auditChanges } from '../audit-log/audit-changes';
 import {
   AUDIT_CONTENT_SOURCE_CREATED,
   AUDIT_CONTENT_SOURCE_DELETED,
@@ -208,7 +209,15 @@ export class ContentSourceService {
       .where(and(eq(contentSources.id, id), eq(contentSources.organisationId, organisationId)))
       .returning();
 
-    this.audit(AUDIT_CONTENT_SOURCE_UPDATED, saved, userId, { fields: Object.keys(updates) });
+    this.audit(AUDIT_CONTENT_SOURCE_UPDATED, saved, userId, {
+      name: saved.name,
+      changes: auditChanges(
+        existing,
+        saved,
+        ['name', 'params', 'formats', 'style', 'enabled', 'venueAliases', 'syncIntervalMinutes'],
+        { hidden: ['params', 'style'] },
+      ),
+    });
     if (updates.venueAliases) {
       this.eventEmitter.emit(
         CONTENT_SOURCE_VENUE_ALIASES_UPDATED,

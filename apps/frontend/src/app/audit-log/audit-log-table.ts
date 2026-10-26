@@ -18,6 +18,7 @@ import {
   AuditDetailItem,
   AuditNames,
   RESOURCE_NAME_KEYS,
+  auditLabels,
   detailItems,
   detailLabel,
   goneId,
@@ -261,11 +262,11 @@ type TableRow =
 
                     <!-- details -->
                     <div class="details-cell min-w-0">
-                      @if (row.entry.details && hasDetails(row.entry.details)) {
+                      @if (row.entry.details && hasDetails(row.entry)) {
                         <span
                           class="details-text text-[12.5px] text-muted truncate block cursor-help"
-                          [title]="formatDetailsTooltip(row.entry.details)"
-                          >{{ formatDetails(row.entry.details) }}</span
+                          [title]="formatDetailsTooltip(row.entry)"
+                          >{{ formatDetails(row.entry) }}</span
                         >
                       } @else {
                         <span class="text-faint text-[13px]">—</span>
@@ -334,7 +335,7 @@ type TableRow =
                           </div>
                         </div>
                         @if (row.entry.details) {
-                          @for (kv of detailEntries(row.entry.details); track kv.key) {
+                          @for (kv of detailEntries(row.entry); track $index) {
                             <div class="min-w-0">
                               <div
                                 class="text-[10.5px] font-bold tracking-[.06em] uppercase text-faint mb-1"
@@ -386,7 +387,7 @@ type TableRow =
                 [actionLabel]="actionLabel(row.entry.action)"
                 [actionCategory]="actionCategory(row.entry.action)"
                 [actionMeta]="actionMeta(row.entry.action)"
-                [detailEntries]="row.entry.details ? detailEntries(row.entry.details) : []"
+                [detailEntries]="detailEntries(row.entry)"
                 (selectResource)="selectResource.emit($event)"
               />
             }
@@ -593,38 +594,39 @@ export class AuditLogTable {
     return resourceName(entry, this.names(), this.goneLabel()) ?? '—';
   }
 
-  protected hasDetails(details: Record<string, unknown>): boolean {
-    return this.items(details).length > 0;
+  protected hasDetails(entry: AuditEntry): boolean {
+    return this.items(entry).length > 0;
   }
 
   /** One-line summary; the resource's own name is already in the resource column. */
-  protected formatDetails(details: Record<string, unknown>): string {
+  protected formatDetails(entry: AuditEntry): string {
     return (
-      this.detailEntries(details)
-        .filter((item) => !RESOURCE_NAME_KEYS.includes(item.rawKey))
+      this.detailEntries(entry)
+        .filter((item) => item.isChange || !RESOURCE_NAME_KEYS.includes(item.rawKey))
         .map((item) => `${item.key}: ${item.value}`)
         .join(' · ') || '—'
     );
   }
 
-  protected formatDetailsTooltip(details: Record<string, unknown>): string {
-    return this.detailEntries(details)
+  protected formatDetailsTooltip(entry: AuditEntry): string {
+    return this.detailEntries(entry)
       .map((item) => `${item.key}: ${item.value}`)
       .join('\n');
   }
 
   protected detailEntries(
-    details: Record<string, unknown>,
-  ): { key: string; rawKey: string; value: string }[] {
-    return this.items(details).map((item) => ({
+    entry: AuditEntry,
+  ): { key: string; rawKey: string; value: string; isChange?: true }[] {
+    return this.items(entry).map((item) => ({
       key: detailLabel((path) => this.transloco.translate(path), item.key),
       rawKey: item.key,
       value: item.value,
+      isChange: item.isChange,
     }));
   }
 
-  private items(details: Record<string, unknown>): AuditDetailItem[] {
-    return detailItems(details, this.names(), this.goneLabel());
+  private items(entry: AuditEntry): AuditDetailItem[] {
+    return detailItems(entry.details, this.names(), auditLabels(this.transloco), entry.resourceId);
   }
 
   private goneLabel(): string {

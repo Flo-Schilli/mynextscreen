@@ -29,6 +29,7 @@ import {
   LIVE_STREAM_STOPPED,
   ScreenStateChangeEvent,
 } from '../screen/screen-state.event';
+import { auditChanges, withoutUrlCredentials } from '../audit-log/audit-changes';
 import {
   AUDIT_LIVE_STREAM_CREATED,
   AUDIT_LIVE_STREAM_UPDATED,
@@ -105,8 +106,12 @@ export class LiveStreamService extends OrganisationScopedService<LiveStream> {
       new AuditLiveStreamEvent(id, organisationId, userId, {
         streamId: id,
         streamName: saved.name,
-        sourceUrl: saved.sourceUrl,
-        protocol: saved.protocol,
+        changes: auditChanges(
+          stream,
+          saved,
+          ['name', 'sourceUrl', 'protocol', 'transcodingPreset', 'audioEnabled'],
+          { map: { sourceUrl: withoutUrlCredentials } },
+        ),
       }),
     );
 
