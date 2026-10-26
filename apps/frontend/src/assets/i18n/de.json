@@ -1068,6 +1068,16 @@
       "count": "{count, plural, one {# verdrängter automatischer Eintrag} other {# verdrängte automatische Einträge}}",
       "row": "Automatisch durch Regel „{rule}“ · überdeckt von „{blocking}“"
     },
+    "preview": {
+      "title": "Läuft hier – Stand jetzt",
+      "loading": "Inhalt wird geladen…",
+      "failed": "Der Inhalt konnte nicht geladen werden.",
+      "summary": "{count, plural, one {# Slide} other {# Slides}} aus „{playlist}“",
+      "genres": "gefiltert auf {genres}",
+      "empty": "Die Playlist zeigt gerade nichts.",
+      "open": "Inhalt ansehen",
+      "modalTitle": "Inhalt des Eintrags"
+    },
     "genreGroup": {
       "badgeTitle": "Genre-Treffer: Das Event passt zur Gruppe {genres}",
       "managedBody": "Das Event passt zur Genre-Gruppe {genres}. Deshalb läuft „{playlist}“ hier nur mit Events dieser Genres."

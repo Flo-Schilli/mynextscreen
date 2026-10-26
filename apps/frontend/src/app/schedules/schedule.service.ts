@@ -6,6 +6,7 @@ import {
   CreateScheduleEntryRequest,
   UpdateScheduleEntryRequest,
   DisplacedSlot,
+  ScheduleEntryPreview,
 } from './schedule.model';
 
 @Injectable({ providedIn: 'root' })
@@ -30,6 +31,13 @@ export class ScheduleService {
     return this.http.get<ScheduleEntry[]>('/api/schedules', {
       headers: this.orgHeader(orgId),
       params,
+    });
+  }
+
+  /** What the entry's playlist shows now. */
+  getPreview(orgId: string, entryId: string): Observable<ScheduleEntryPreview> {
+    return this.http.get<ScheduleEntryPreview>(`/api/schedules/${entryId}/preview`, {
+      headers: this.orgHeader(orgId),
     });
   }
 

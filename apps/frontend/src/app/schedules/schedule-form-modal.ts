@@ -413,6 +413,9 @@ export interface ScheduleFormResult {
               <mns-btn variant="danger" class="btn-danger" (mnsClick)="remove.emit()">
                 {{ t('common.actions.delete') }}
               </mns-btn>
+              <mns-btn variant="outline" icon="Eye" class="btn-preview" (mnsClick)="preview.emit()">
+                {{ t('schedules.preview.open') }}
+              </mns-btn>
             }
             <div class="flex gap-2.5 ml-auto">
               <mns-btn variant="outline" class="btn-secondary" (mnsClick)="dismiss.emit()">
@@ -475,6 +478,8 @@ export class ScheduleFormModal implements OnInit {
 
   readonly save = output<ScheduleFormResult>();
   readonly remove = output<void>();
+  /** Show what the edited entry's playlist plays. */
+  readonly preview = output<void>();
   readonly dismiss = output<void>();
 
   private readonly transloco = inject(TranslocoService);

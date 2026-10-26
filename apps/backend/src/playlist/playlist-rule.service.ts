@@ -166,6 +166,11 @@ export class PlaylistRuleService {
   async preview(organisationId: string, dto: PlaylistRuleDto): Promise<RulePreviewResult> {
     const rule = toPlaylistRule(dto);
     await this.assertRuleSources(organisationId, rule);
+    return this.previewOf(organisationId, rule);
+  }
+
+  /** What a stored rule shows now; its sources were checked when it was saved. */
+  async previewOf(organisationId: string, rule: PlaylistRule): Promise<RulePreviewResult> {
     const now = new Date();
     const timeZone = await this.timeZoneOf(organisationId);
     const entries = await this.resolveEntries(organisationId, rule, now, timeZone);

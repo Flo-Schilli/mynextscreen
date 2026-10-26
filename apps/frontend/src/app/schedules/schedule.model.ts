@@ -1,4 +1,5 @@
 import { ScreenGroupMode, SliceJobStatus } from '../screen-groups/screen-group.model';
+import { RulePreviewResult } from '../playlists/playlist.model';
 
 /** Priority of a schedule entry; "high" wins when entries overlap. */
 export type SchedulePriority = 'normal' | 'high';
@@ -58,6 +59,19 @@ export interface DisplacedSlot {
   genres: string[] | null;
   blockingEntry: { id: string; name: string | null; playlistName: string | null };
 }
+
+/** One item of a static playlist in a schedule entry's preview. */
+export interface StaticPreviewItem {
+  contentId: string;
+  title: string;
+  contentUpdatedAt: string;
+  durationSeconds: number;
+}
+
+/** What a schedule entry's playlist shows now; for a genre group, the narrowed variant. */
+export type ScheduleEntryPreview =
+  | { kind: 'dynamic'; playlistName: string; genres: string[]; result: RulePreviewResult }
+  | { kind: 'static'; playlistName: string; items: StaticPreviewItem[] };
 
 /** How a displaced slot names the entry that holds it. */
 export function blockingTitle(slot: DisplacedSlot): string {

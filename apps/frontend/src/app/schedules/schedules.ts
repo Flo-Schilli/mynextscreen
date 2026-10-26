@@ -46,6 +46,7 @@ import {
 } from './schedule-calendar.service';
 import { ScheduleToolbar, ALL_TARGETS } from './schedule-toolbar';
 import { ScheduleListView } from './schedule-list-view';
+import { ScheduleEntryPreviewComponent } from './schedule-entry-preview';
 import { ScheduleConflict, entriesOnTarget, findConflicts } from './schedule-conflicts';
 import { ScheduleSidePanel } from './schedule-side-panel';
 import { ScheduleCalendarGrid } from './schedule-calendar-grid';
@@ -73,6 +74,7 @@ const HOUR_HEIGHT = 60;
     ScheduleSidePanel,
     ScheduleCalendarGrid,
     ScheduleListView,
+    ScheduleEntryPreviewComponent,
     ScheduleFormModal,
     PageHeaderComponent,
     BtnComponent,
@@ -188,6 +190,7 @@ const HOUR_HEIGHT = 60;
           [timeZone]="orgTimeZone"
           (save)="submitModal($event)"
           (remove)="deleteEntry()"
+          (preview)="previewEntry = editingEntry"
           (dismiss)="closeModal()"
         />
       }
@@ -250,7 +253,7 @@ const HOUR_HEIGHT = 60;
           <mns-modal
             [title]="t('schedules.managed.managedTitle')"
             icon="Lock"
-            [widthPx]="420"
+            [widthPx]="560"
             (closed)="managedEntry = null"
           >
             <p class="managed-body text-[13px] text-muted leading-relaxed">
@@ -266,12 +269,31 @@ const HOUR_HEIGHT = 60;
                 }}
               </p>
             }
+            <app-schedule-entry-preview class="block mt-4" [orgId]="orgId" [entryId]="entry.id" />
             <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
               <mns-btn variant="outline" (mnsClick)="managedEntry = null">{{
                 t('common.actions.close')
               }}</mns-btn>
               <mns-btn class="open-rule" icon="Arrow" (mnsClick)="openManagingRule(entry)">{{
                 t('schedules.managed.managedOpenRule')
+              }}</mns-btn>
+            </div>
+          </mns-modal>
+        </mns-overlay>
+      }
+
+      @if (previewEntry; as entry) {
+        <mns-overlay (closed)="previewEntry = null">
+          <mns-modal
+            [title]="t('schedules.preview.modalTitle')"
+            icon="Eye"
+            [widthPx]="560"
+            (closed)="previewEntry = null"
+          >
+            <app-schedule-entry-preview [orgId]="orgId" [entryId]="entry.id" />
+            <div slot="footer" class="flex justify-end px-6 pb-5">
+              <mns-btn variant="outline" (mnsClick)="previewEntry = null">{{
+                t('common.actions.close')
               }}</mns-btn>
             </div>
           </mns-modal>
@@ -380,6 +402,8 @@ export class Schedules implements OnInit, OnDestroy {
   sliceModal: SliceJobStatus | null = null;
   /** A generated entry the user clicked: it opens an explanation, not the edit form. */
   managedEntry: ScheduleEntry | null = null;
+  /** An entry whose playlist content is shown, opened from its edit form. */
+  previewEntry: ScheduleEntry | null = null;
   /** A displaced slot the user clicked: it explains why the rule stepped aside. */
   displacedSlot: DisplacedSlot | null = null;
   /** Every displaced slot of the organisation; narrowed to the target when shown. */

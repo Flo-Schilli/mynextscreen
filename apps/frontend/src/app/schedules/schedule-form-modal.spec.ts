@@ -412,6 +412,21 @@ describe('ScheduleFormModal', () => {
       expect(removed).toBe(true);
     });
 
+    it('asks to preview an edited entry, and offers that only when editing', async () => {
+      // Arrange
+      await setUp({ editingEntry: null });
+      expect(fixture.nativeElement.querySelector('.btn-preview')).toBeNull();
+      await setUp({ editingEntry: { ...makeEntryForPreview() } });
+      let previewed = false;
+      component.preview.subscribe(() => (previewed = true));
+
+      // Act
+      (fixture.nativeElement.querySelector('.btn-preview button') as HTMLButtonElement).click();
+
+      // Assert
+      expect(previewed).toBe(true);
+    });
+
     it('selects a preset colour swatch via click', async () => {
       // Arrange
       await setUp({ initialColour: PRESET_COLOURS[0] });
@@ -425,3 +440,21 @@ describe('ScheduleFormModal', () => {
     });
   });
 });
+
+function makeEntryForPreview(): ScheduleEntry {
+  return {
+    id: 'e1',
+    organisationId: 'org1',
+    screenId: 's1',
+    groupId: null,
+    playlistId: 'p1',
+    name: null,
+    priority: 'normal',
+    startTime: '2026-06-01T08:00:00.000Z',
+    endTime: '2026-06-01T10:00:00.000Z',
+    rrule: null,
+    colour: '#3b82f6',
+    createdAt: '',
+    updatedAt: '',
+  };
+}

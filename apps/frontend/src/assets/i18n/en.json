@@ -1068,6 +1068,16 @@
       "count": "{count, plural, one {# displaced automatic entry} other {# displaced automatic entries}}",
       "row": "Scheduled by rule “{rule}” · covered by “{blocking}”"
     },
+    "preview": {
+      "title": "Plays here – as of now",
+      "loading": "Loading content…",
+      "failed": "The content could not be loaded.",
+      "summary": "{count, plural, one {# slide} other {# slides}} from “{playlist}”",
+      "genres": "filtered to {genres}",
+      "empty": "The playlist shows nothing right now.",
+      "open": "View content",
+      "modalTitle": "Entry content"
+    },
     "genreGroup": {
       "badgeTitle": "Genre match: the event fits the group {genres}",
       "managedBody": "The event matches the genre group {genres}, so “{playlist}” only shows events of these genres here."
