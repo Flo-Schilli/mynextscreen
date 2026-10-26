@@ -346,7 +346,7 @@ export class AuditLog implements OnInit {
       e.resourceType,
       resourceName(e, names, gone) ?? '',
       e.resourceId ?? '',
-      detailItems(e.details, names, labels)
+      detailItems(e.details, names, labels, e.resourceId)
         .map((item) => `${detailLabel(translate, item.key)}: ${item.value}`)
         .join('; '),
       e.details ? JSON.stringify(e.details) : '',

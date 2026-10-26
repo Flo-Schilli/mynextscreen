@@ -106,6 +106,20 @@ describe('audit log details', () => {
       expect(item.value.endsWith(' → –')).toBe(true);
     });
 
+    it("leaves out the id of the entry's own resource", () => {
+      expect(
+        detailItems(
+          { streamId: SCREEN.toUpperCase(), streamName: 'Cam', playlistId: PLAYLIST },
+          names,
+          labels,
+          SCREEN,
+        ),
+      ).toEqual([
+        { key: 'streamName', value: 'Cam' },
+        { key: 'playlistId', value: 'Metal' },
+      ]);
+    });
+
     it('returns nothing for missing details', () => {
       expect(detailItems(null, names, labels)).toEqual([]);
     });

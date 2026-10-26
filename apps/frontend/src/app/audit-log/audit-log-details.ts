@@ -87,16 +87,20 @@ export function resourceName(
 }
 
 /**
- * The details worth showing, ids replaced by names; nulls and empty lists are left
- * out. A recorded `changes` map becomes one "old → new" item per field.
+ * The details worth showing, ids replaced by names; nulls, empty lists and the id
+ * of the entry's own resource (already shown as its resource) are left out. A
+ * recorded `changes` map becomes one "old → new" item per field.
  */
 export function detailItems(
   details: Record<string, unknown> | null,
   names: AuditNames,
   labels: AuditLabels,
+  resourceId: string | null = null,
 ): AuditDetailItem[] {
+  const ownId = resourceId?.toLowerCase();
   return Object.entries(details ?? {})
     .filter(([, value]) => value !== null && value !== undefined && value !== '')
+    .filter(([, value]) => !ownId || typeof value !== 'string' || value.toLowerCase() !== ownId)
     .filter(([, value]) => !Array.isArray(value) || value.length > 0)
     .flatMap(([key, value]) =>
       key === 'changes' && isRecord(value)
