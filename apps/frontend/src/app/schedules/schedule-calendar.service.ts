@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { TranslocoService } from '@jsverse/transloco';
-import { ScheduleEntry } from './schedule.model';
+import { ScheduleEntry, entryGenres, entryPlaylistName } from './schedule.model';
 import { ScheduleRecurrenceService } from './schedule-recurrence.service';
 import { LanguageService } from '../i18n/language.service';
 import {
@@ -43,6 +43,8 @@ export interface MonthDayCell {
 
 export interface DayTimeline {
   playlistName: string;
+  /** The genre group the event matched, as "Rock, Metal"; null when none did. */
+  genres: string | null;
   colour: string;
   startTime: string;
   endTime: string;
@@ -248,7 +250,8 @@ export class ScheduleCalendarService {
         }
         items.push({
           playlistName:
-            entry.playlist?.name || this.transloco.translate('schedules.grid.playlistFallback'),
+            entryPlaylistName(entry) || this.transloco.translate('schedules.grid.playlistFallback'),
+          genres: entryGenres(entry),
           colour: entry.colour,
           startTime: this.formatTimeInTz(occ.start, orgTimeZone),
           endTime: this.formatTimeInTz(occ.end, orgTimeZone),

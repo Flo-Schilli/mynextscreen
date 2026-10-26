@@ -1047,6 +1047,10 @@
       "managedTitle": "Scheduled automatically",
       "managedBody": "The rule “{rule}” created this entry from an event. You can change it only through the rule; a manual entry at the same time takes precedence.",
       "managedOpenRule": "Open rule"
+    },
+    "genreGroup": {
+      "badgeTitle": "Genre match: the event fits the group {genres}",
+      "managedBody": "The event matches the genre group {genres}, so “{playlist}” only shows events of these genres here."
     }
   },
   "liveStreams": {

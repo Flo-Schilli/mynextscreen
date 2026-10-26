@@ -34,6 +34,28 @@ export interface ScheduleEntry {
   sliceStatus?: SliceJobStatus | null;
   /** The event schedule rule that generated the entry; such entries are locked. */
   managedByRule?: { id: string; name: string; sourceId: string } | null;
+  /** Set when the entry's event matched one of the rule's genre groups. */
+  genreGroup?: ScheduleGenreGroup | null;
+}
+
+/** The genre group an entry plays, and the playlist that group narrows. */
+export interface ScheduleGenreGroup {
+  genres: string[];
+  basePlaylistName: string;
+}
+
+/**
+ * The name the calendar shows for an entry's playlist: a genre group's hidden
+ * variant playlist is shown by the name of the playlist it narrows, because the
+ * genres appear beside it on their own.
+ */
+export function entryPlaylistName(entry: ScheduleEntry): string | null {
+  return entry.genreGroup?.basePlaylistName || entry.playlist?.name || null;
+}
+
+/** "Rock, Metal" for an entry that plays a genre group, null otherwise. */
+export function entryGenres(entry: ScheduleEntry): string | null {
+  return entry.genreGroup ? entry.genreGroup.genres.join(', ') : null;
 }
 
 export interface CreateScheduleEntryRequest {

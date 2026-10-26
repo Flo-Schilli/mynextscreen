@@ -43,6 +43,15 @@ import { CardComponent, CardHeadComponent, IconComponent } from '../ui';
                   <mns-icon name="Refresh" [size]="10" class="repeat-icon-sm text-faint" />
                 }
               </span>
+              @if (item.genres) {
+                <span
+                  class="genre-pill self-start inline-flex items-center gap-0.5 max-w-full rounded px-1 text-[10px] font-bold leading-[15px] bg-accent-soft text-accent"
+                  [title]="t('schedules.genreGroup.badgeTitle', { genres: item.genres })"
+                >
+                  <mns-icon name="Sparkle" [size]="10" class="flex-shrink-0" />
+                  <span class="truncate">{{ item.genres }}</span>
+                </span>
+              }
               <span class="timeline-target text-[11px] text-muted truncate">{{
                 item.targetName
               }}</span>

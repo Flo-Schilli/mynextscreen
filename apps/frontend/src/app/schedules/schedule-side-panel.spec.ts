@@ -14,6 +14,7 @@ try {
 function makeTimeline(overrides: Partial<DayTimeline> = {}): DayTimeline {
   return {
     playlistName: 'Morning Loop',
+    genres: null,
     colour: '#3b82f6',
     startTime: '08:00',
     endTime: '10:00',
@@ -89,6 +90,16 @@ describe('ScheduleSidePanel', () => {
     const items = fixture.nativeElement.querySelectorAll('.timeline-item');
     expect(items[0].querySelector('.group-badge-inline')).toBeTruthy();
     expect(items[1].querySelector('.group-badge-inline')).toBeNull();
+  });
+
+  it('shows the matched genre group only for entries that have one', async () => {
+    // Arrange / Act
+    await setUp([makeTimeline({ genres: 'Rock, Metal' }), makeTimeline()]);
+
+    // Assert
+    const items = fixture.nativeElement.querySelectorAll('.timeline-item');
+    expect(items[0].querySelector('.genre-pill')?.textContent.trim()).toBe('Rock, Metal');
+    expect(items[1].querySelector('.genre-pill')).toBeNull();
   });
 
   it('shows the recurrence icon only for recurring entries', async () => {

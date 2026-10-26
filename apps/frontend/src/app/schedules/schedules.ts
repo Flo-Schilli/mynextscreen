@@ -231,6 +231,16 @@ const HOUR_HEIGHT = 60;
             <p class="managed-body text-[13px] text-muted leading-relaxed">
               {{ t('schedules.managed.managedBody', { rule: entry.managedByRule?.name ?? '' }) }}
             </p>
+            @if (entry.genreGroup; as group) {
+              <p class="managed-genre-group mt-2 text-[13px] text-muted leading-relaxed">
+                {{
+                  t('schedules.genreGroup.managedBody', {
+                    genres: group.genres.join(', '),
+                    playlist: group.basePlaylistName,
+                  })
+                }}
+              </p>
+            }
             <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
               <mns-btn variant="outline" (mnsClick)="managedEntry = null">{{
                 t('common.actions.close')

@@ -1047,6 +1047,10 @@
       "managedTitle": "Automatisch eingeplant",
       "managedBody": "Diesen Eintrag hat die Regel „{rule}“ aus einem Event angelegt. Ändern kannst du ihn nur über die Regel; ein manueller Eintrag zur selben Zeit hat Vorrang.",
       "managedOpenRule": "Zur Regel"
+    },
+    "genreGroup": {
+      "badgeTitle": "Genre-Treffer: Das Event passt zur Gruppe {genres}",
+      "managedBody": "Das Event passt zur Genre-Gruppe {genres}. Deshalb läuft „{playlist}“ hier nur mit Events dieser Genres."
     }
   },
   "liveStreams": {

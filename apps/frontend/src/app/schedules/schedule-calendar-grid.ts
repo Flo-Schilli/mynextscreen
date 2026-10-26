@@ -8,7 +8,7 @@ import {
   signal,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { ScheduleEntry } from './schedule.model';
+import { ScheduleEntry, entryGenres, entryPlaylistName } from './schedule.model';
 import {
   CalendarBlock,
   GapBlock,
@@ -314,6 +314,15 @@ const NOW_TICK_MS = 60_000;
                           {{ formatBlockTime(block.occurrenceStart) }} -
                           {{ formatBlockTime(block.occurrenceEnd) }}
                         </span>
+                        @if (genresOf(block.entry); as genres) {
+                          <span
+                            class="genre-pill self-start inline-flex items-center gap-0.5 max-w-full rounded px-1 text-[9px] font-bold leading-[13px] bg-accent-soft text-accent"
+                            [title]="t('schedules.genreGroup.badgeTitle', { genres })"
+                          >
+                            <mns-icon name="Sparkle" [size]="9" class="flex-shrink-0" />
+                            <span class="truncate">{{ genres }}</span>
+                          </span>
+                        }
                       </div>
                       @if (!block.entry.managedByRule) {
                         <div
@@ -463,11 +472,17 @@ export class ScheduleCalendarGrid {
 
   getEntryLabel(entry: ScheduleEntry): string {
     const playlistName =
-      entry.playlist?.name || this.transloco.translate<string>('schedules.grid.playlistFallback');
+      entryPlaylistName(entry) ||
+      this.transloco.translate<string>('schedules.grid.playlistFallback');
     if (entry.groupId && entry.group) {
       return `${playlistName} - ${entry.group.name}`;
     }
     return playlistName;
+  }
+
+  /** The genre group the entry's event matched, as "Rock, Metal"; null when none did. */
+  genresOf(entry: ScheduleEntry): string | null {
+    return entryGenres(entry);
   }
 
   getColour(entry: ScheduleEntry): string {

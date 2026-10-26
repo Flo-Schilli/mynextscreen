@@ -188,6 +188,19 @@ describe('ScheduleCalendarService', () => {
       expect(timeline[0].playlistName).toBe('Morning');
       expect(timeline[0].targetName).toBe('Lobby');
       expect(timeline[0].isGroup).toBe(false);
+      expect(timeline[0].genres).toBeNull();
+    });
+
+    it('carries the genre group and the narrowed playlist name of a genre group entry', () => {
+      const entry = makeEntry({
+        startTime: '2026-06-10T18:00:00',
+        endTime: '2026-06-10T19:00:00',
+        playlist: { id: 'v1', name: 'Demnächst · Rock, Metal' },
+        genreGroup: { genres: ['Rock', 'Metal'], basePlaylistName: 'Demnächst' },
+      });
+      const [item] = service.buildDayTimeline([entry], new Date(2026, 5, 10), LOCAL_TZ);
+      expect(item.playlistName).toBe('Demnächst');
+      expect(item.genres).toBe('Rock, Metal');
     });
 
     it('uses the group name and flags isGroup for group entries', () => {

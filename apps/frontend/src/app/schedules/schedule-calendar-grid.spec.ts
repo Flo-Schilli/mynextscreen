@@ -167,6 +167,21 @@ describe('ScheduleCalendarGrid', () => {
       // Assert
       expect(label).toBe('Playlist');
     });
+
+    it('names the narrowed playlist, not its variant, for a genre group entry', async () => {
+      // Arrange
+      await setUp();
+      const entry = makeEntry({
+        playlist: { id: 'v1', name: 'Demnächst · Rock, Metal' },
+        genreGroup: { genres: ['Rock', 'Metal'], basePlaylistName: 'Demnächst' },
+      });
+
+      // Act
+      const label = component.getEntryLabel(entry);
+
+      // Assert
+      expect(label).toBe('Demnächst');
+    });
   });
 
   describe('isOneOff', () => {
@@ -331,6 +346,30 @@ describe('ScheduleCalendarGrid', () => {
 
       // Assert
       expect(fixture.nativeElement.querySelector('.schedule-block .group-badge')).toBeTruthy();
+    });
+
+    it('shows the matched genre group on the block', async () => {
+      // Arrange
+      const block = makeBlock({
+        entry: makeEntry({
+          genreGroup: { genres: ['Rock', 'Metal'], basePlaylistName: 'Demnächst' },
+        }),
+      });
+
+      // Act
+      await setUp({ viewMode: 'day', blocks: [block] });
+
+      // Assert
+      const pill = fixture.nativeElement.querySelector('.schedule-block .genre-pill');
+      expect(pill?.textContent.trim()).toBe('Rock, Metal');
+    });
+
+    it('shows no genre group on a block whose event matched none', async () => {
+      // Arrange / Act
+      await setUp({ viewMode: 'day', blocks: [makeBlock()] });
+
+      // Assert
+      expect(fixture.nativeElement.querySelector('.genre-pill')).toBeNull();
     });
   });
 

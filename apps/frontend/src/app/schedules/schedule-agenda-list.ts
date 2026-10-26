@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
-import { ScheduleEntry } from './schedule.model';
+import { ScheduleEntry, entryGenres, entryPlaylistName } from './schedule.model';
 import { CalendarBlock } from './schedule-calendar.service';
 import { BtnComponent, IconComponent } from '../ui';
 import { LanguageService } from '../i18n/language.service';
@@ -80,8 +80,19 @@ import { LanguageService } from '../i18n/language.service';
                 }
                 <span class="truncate">{{ label(block.entry) }}</span>
               </span>
-              <span class="agenda-time text-[12px] font-mono font-semibold text-muted">
-                {{ formatTime(block.occurrenceStart) }} - {{ formatTime(block.occurrenceEnd) }}
+              <span class="flex items-center gap-1.5 min-w-0">
+                <span class="agenda-time text-[12px] font-mono font-semibold text-muted">
+                  {{ formatTime(block.occurrenceStart) }} - {{ formatTime(block.occurrenceEnd) }}
+                </span>
+                @if (genresOf(block.entry); as genres) {
+                  <span
+                    class="genre-pill inline-flex items-center gap-0.5 min-w-0 rounded px-1 text-[10px] font-bold leading-[15px] bg-accent-soft text-accent"
+                    [title]="t('schedules.genreGroup.badgeTitle', { genres })"
+                  >
+                    <mns-icon name="Sparkle" [size]="10" class="flex-shrink-0" />
+                    <span class="truncate">{{ genres }}</span>
+                  </span>
+                }
               </span>
             </span>
             <span class="self-center text-faint flex-shrink-0">
@@ -121,11 +132,16 @@ export class ScheduleAgendaList {
 
   label(entry: ScheduleEntry): string {
     const playlistName =
-      entry.playlist?.name || this.transloco.translate<string>('schedules.agenda.playlistFallback');
+      entryPlaylistName(entry) ||
+      this.transloco.translate<string>('schedules.agenda.playlistFallback');
     if (entry.groupId && entry.group) {
       return `${playlistName} - ${entry.group.name}`;
     }
     return playlistName;
+  }
+
+  genresOf(entry: ScheduleEntry): string | null {
+    return entryGenres(entry);
   }
 
   colour(entry: ScheduleEntry): string {
