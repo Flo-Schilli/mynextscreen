@@ -25,9 +25,12 @@ export interface EventScheduleReconcileSummary {
 }
 
 /**
- * A group of genres on a rule. An event with one of them plays the rule's
- * playlist narrowed to these genres.
+ * A group of genres on a rule. An event with one of them plays the group's own
+ * playlist when it has one, otherwise the rule's — narrowed to these genres if
+ * that playlist is dynamic, as it is when it is static.
  */
 export interface GenreVariant {
   genres: string[];
+  /** The group's own playlist; absent means the rule's. */
+  playlistId?: string;
 }

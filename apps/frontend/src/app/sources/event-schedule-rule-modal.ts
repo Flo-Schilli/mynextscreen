@@ -2,13 +2,14 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
   linkedSignal,
   output,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { TranslocoDirective } from '@jsverse/transloco';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import {
   BtnComponent,
   ModalComponent,
@@ -24,6 +25,7 @@ import {
 import { PRESET_COLOURS } from '../schedules/schedule-form-modal';
 import {
   EventScheduleFormValue,
+  GenreGroupValue,
   validateEventScheduleForm,
   windowCrossesMidnight,
 } from './event-schedule-state';
@@ -84,52 +86,71 @@ import {
             />
           </mns-sfield>
 
-          @if (isDynamic()) {
+          @if (value().playlistId) {
             <mns-sfield
               [label]="t('sources.schedules.form.genreGroupsLabel')"
-              [hint]="t('sources.schedules.form.genreGroupsHint')"
+              [hint]="
+                isDynamic()
+                  ? t('sources.schedules.form.genreGroupsHint')
+                  : t('sources.schedules.form.genreGroupsHintStatic')
+              "
             >
               <div class="flex flex-col gap-2">
                 @for (
-                  genres of value().genreGroups;
+                  group of value().genreGroups;
                   track $index;
                   let i = $index, first = $first, last = $last
                 ) {
-                  <div class="genre-group flex items-center gap-1.5">
-                    <mns-multi-select
-                      class="min-w-0 flex-1"
-                      [options]="genrePickerOptions()"
-                      [values]="genres"
-                      [placeholder]="t('sources.schedules.form.genreGroupPlaceholder')"
-                      [ariaLabel]="t('sources.schedules.form.genreGroupLabel', { n: i + 1 })"
-                      (changed)="setGroup(i, $event)"
+                  <div
+                    class="genre-group flex flex-col gap-1.5 rounded-lg border border-border p-2"
+                  >
+                    <div class="flex items-center gap-1.5">
+                      <mns-multi-select
+                        class="min-w-0 flex-1"
+                        [options]="genrePickerOptions()"
+                        [values]="group.genres"
+                        [placeholder]="t('sources.schedules.form.genreGroupPlaceholder')"
+                        [ariaLabel]="t('sources.schedules.form.genreGroupLabel', { n: i + 1 })"
+                        (changed)="setGroup(i, { genres: $event })"
+                      />
+                      <mns-btn
+                        class="move-group-up"
+                        variant="ghost"
+                        size="sm"
+                        icon="ChevronUp"
+                        [disabled]="first"
+                        [title]="t('sources.schedules.form.moveUp')"
+                        (mnsClick)="moveGroup(i, -1)"
+                      />
+                      <mns-btn
+                        class="move-group-down"
+                        variant="ghost"
+                        size="sm"
+                        icon="ChevronDown"
+                        [disabled]="last"
+                        [title]="t('sources.schedules.form.moveDown')"
+                        (mnsClick)="moveGroup(i, 1)"
+                      />
+                      <mns-btn
+                        class="remove-group"
+                        variant="ghost"
+                        size="sm"
+                        icon="Trash"
+                        [title]="t('common.actions.delete')"
+                        (mnsClick)="removeGroup(i)"
+                      />
+                    </div>
+                    <mns-select
+                      class="group-playlist"
+                      [options]="groupPlaylistOptions()"
+                      [value]="group.playlistId"
+                      [placeholder]="t('sources.schedules.form.groupPlaylistPlaceholder')"
+                      [ariaLabel]="t('sources.schedules.form.groupPlaylistLabel', { n: i + 1 })"
+                      (changed)="setGroup(i, { playlistId: $event })"
                     />
-                    <mns-btn
-                      class="move-group-up"
-                      variant="ghost"
-                      size="sm"
-                      icon="ChevronUp"
-                      [disabled]="first"
-                      [title]="t('sources.schedules.form.moveUp')"
-                      (mnsClick)="moveGroup(i, -1)"
-                    />
-                    <mns-btn
-                      class="move-group-down"
-                      variant="ghost"
-                      size="sm"
-                      icon="ChevronDown"
-                      [disabled]="last"
-                      [title]="t('sources.schedules.form.moveDown')"
-                      (mnsClick)="moveGroup(i, 1)"
-                    />
-                    <mns-btn
-                      class="remove-group"
-                      variant="ghost"
-                      size="sm"
-                      icon="Trash"
-                      [title]="t('common.actions.delete')"
-                      (mnsClick)="removeGroup(i)"
-                    />
+                    <p class="group-playlist-hint text-[12px] text-muted">
+                      {{ t(groupPlaylistHint(group.playlistId)) }}
+                    </p>
                   </div>
                 }
                 <mns-btn
@@ -245,6 +266,8 @@ import {
   `,
 })
 export class EventScheduleRuleModal {
+  private readonly transloco = inject(TranslocoService);
+
   readonly title = input.required<string>();
   readonly initial = input.required<EventScheduleFormValue>();
   readonly venueOptions = input.required<SelectOption[]>();
@@ -265,14 +288,25 @@ export class EventScheduleRuleModal {
   protected readonly isDynamic = computed(() =>
     this.dynamicPlaylistIds().includes(this.value().playlistId),
   );
-  /** What gets saved: groups only count for a dynamic playlist, where they are shown. */
-  private readonly effective = computed<EventScheduleFormValue>(() =>
-    this.isDynamic() ? this.value() : { ...this.value(), genreGroups: [] },
+  protected readonly errors = computed(() =>
+    validateEventScheduleForm(this.value(), this.isDynamic()),
   );
-  protected readonly errors = computed(() => validateEventScheduleForm(this.effective()));
+  /**
+   * What a group can play: the rule's playlist narrowed to the group's genres
+   * (only when that one is dynamic), or any of the organisation's playlists.
+   */
+  protected readonly groupPlaylistOptions = computed<SelectOption[]>(() => [
+    ...(this.isDynamic()
+      ? [{ value: '', label: this.transloco.translate('sources.schedules.form.groupPlaylistRule') }]
+      : []),
+    ...this.playlistOptions(),
+  ]);
   /** Keeps genres a group names although no current event carries them. */
   protected readonly genrePickerOptions = computed<SelectOption[]>(() => {
-    const names = new Set([...this.genreOptions(), ...this.value().genreGroups.flat()]);
+    const names = new Set([
+      ...this.genreOptions(),
+      ...this.value().genreGroups.flatMap((group) => group.genres),
+    ]);
     return [...names].map((name) => ({ value: name, label: name }));
   });
   protected readonly crossesMidnight = computed(() =>
@@ -284,13 +318,25 @@ export class EventScheduleRuleModal {
   }
 
   protected addGroup(): void {
-    this.patch({ genreGroups: [...this.value().genreGroups, []] });
+    this.patch({ genreGroups: [...this.value().genreGroups, { genres: [], playlistId: '' }] });
   }
 
-  protected setGroup(index: number, genres: string[]): void {
+  protected setGroup(index: number, change: Partial<GenreGroupValue>): void {
     this.patch({
-      genreGroups: this.value().genreGroups.map((group, i) => (i === index ? genres : group)),
+      genreGroups: this.value().genreGroups.map((group, i) =>
+        i === index ? { ...group, ...change } : group,
+      ),
     });
+  }
+
+  /** What the chosen playlist will do with the group's genres. */
+  protected groupPlaylistHint(playlistId: string): string {
+    if (playlistId === '') {
+      return 'sources.schedules.form.groupPlaylistHintRule';
+    }
+    return this.dynamicPlaylistIds().includes(playlistId)
+      ? 'sources.schedules.form.groupPlaylistHintDynamic'
+      : 'sources.schedules.form.groupPlaylistHintStatic';
   }
 
   protected moveGroup(index: number, step: -1 | 1): void {
@@ -308,6 +354,6 @@ export class EventScheduleRuleModal {
   submit(): void {
     this.submitted.set(true);
     if (this.errors().length > 0) return;
-    this.save.emit(this.effective());
+    this.save.emit(this.value());
   }
 }

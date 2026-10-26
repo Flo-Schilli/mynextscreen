@@ -6,7 +6,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
-import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import {
@@ -16,6 +16,7 @@ import {
   organisations,
   screens,
   scheduleEntries,
+  eventScheduleRules,
   type Playlist,
   type PlaylistItem,
   type Content,
@@ -576,6 +577,7 @@ export class PlaylistService {
     actorUserId: string | null = null,
   ): Promise<void> {
     const playlist = await this.findOne(id, organisationId);
+    await this.assertNotUsedByGenreGroups(organisationId, [id]);
 
     // If this playlist is the org's default, clear the reference
     await this.db
@@ -594,6 +596,40 @@ export class PlaylistService {
   }
 
   /**
+   * Refuses to delete a playlist a genre group of an event schedule rule plays.
+   * The reference sits inside the rule's jsonb, so no foreign key guards it,
+   * and silently pointing the group somewhere else would change what venues
+   * show without anyone deciding it. The answer names the rules to edit.
+   */
+  private async assertNotUsedByGenreGroups(
+    organisationId: string,
+    ids: readonly string[],
+  ): Promise<void> {
+    if (ids.length === 0) {
+      return;
+    }
+    const idList = sql.join(
+      ids.map((id) => sql`${id}`),
+      sql`, `,
+    );
+    const rules = await this.db
+      .select({ name: eventScheduleRules.name })
+      .from(eventScheduleRules)
+      .where(
+        and(
+          eq(eventScheduleRules.organisationId, organisationId),
+          sql`EXISTS (SELECT 1 FROM jsonb_array_elements(${eventScheduleRules.genreVariants}) AS v WHERE v->>'playlistId' IN (${idList}))`,
+        ),
+      );
+    if (rules.length > 0) {
+      throw new ConflictException({
+        message: 'The playlist is played by a genre group of an event schedule rule',
+        rules: rules.map((rule) => rule.name),
+      });
+    }
+  }
+
+  /**
    * Bulk delete playlists by IDs, scoped to the given organisation.
    * Validates that all IDs belong to the organisation (400 on foreign IDs).
    * Clears defaultPlaylistId on the org if any deleted playlist was the default.
@@ -607,6 +643,7 @@ export class PlaylistService {
     const found = await this.findScopedOrThrowForeign(organisationId, ids);
     const foundIds = new Set(found.map((p) => p.id));
     const notFound = ids.filter((id) => !foundIds.has(id));
+    await this.assertNotUsedByGenreGroups(organisationId, [...foundIds]);
 
     if (found.length > 0) {
       // Clear defaultPlaylistId on the org if any deleted playlist was the default

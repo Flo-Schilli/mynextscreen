@@ -101,7 +101,7 @@ export class EventScheduleRuleService {
     userId: string | null,
   ): Promise<EventScheduleRuleView> {
     await this.assertSource(organisationId, sourceId);
-    const genreVariants = dto.genreVariants ?? [];
+    const genreVariants = toGenreVariants(dto.genreVariants ?? []);
     await this.assertPlaylist(organisationId, dto.playlistId, genreVariants);
     await this.assertTargets(organisationId, dto.screenIds, dto.groupIds);
 
@@ -145,11 +145,13 @@ export class EventScheduleRuleService {
     userId: string | null,
   ): Promise<EventScheduleRuleView> {
     const [current] = await this.withTargets([await this.findRule(organisationId, sourceId, id)]);
-    if (dto.playlistId !== undefined || dto.genreVariants !== undefined) {
+    const genreVariants =
+      dto.genreVariants !== undefined ? toGenreVariants(dto.genreVariants) : undefined;
+    if (dto.playlistId !== undefined || genreVariants !== undefined) {
       await this.assertPlaylist(
         organisationId,
         dto.playlistId ?? current.playlistId,
-        dto.genreVariants ?? current.genreVariants,
+        genreVariants ?? current.genreVariants,
       );
     }
     const screenIds = dto.screenIds ?? current.screenIds;
@@ -163,7 +165,7 @@ export class EventScheduleRuleService {
           ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
           ...(dto.venues !== undefined ? { venues: dto.venues } : {}),
           ...(dto.playlistId !== undefined ? { playlistId: dto.playlistId } : {}),
-          ...(dto.genreVariants !== undefined ? { genreVariants: dto.genreVariants } : {}),
+          ...(genreVariants !== undefined ? { genreVariants } : {}),
           ...(dto.windowStart !== undefined ? { windowStart: dto.windowStart } : {}),
           ...(dto.windowEnd !== undefined ? { windowEnd: dto.windowEnd } : {}),
           ...(dto.excludeCancelled !== undefined ? { excludeCancelled: dto.excludeCancelled } : {}),
@@ -180,6 +182,10 @@ export class EventScheduleRuleService {
     });
 
     const [saved] = await this.withTargets([await this.findRule(organisationId, sourceId, id)]);
+    const playlistNames = await this.playlistNames([
+      ...current.genreVariants,
+      ...saved.genreVariants,
+    ]);
     this.eventEmitter.emit(
       AUDIT_EVENT_SCHEDULE_RULE_UPDATED,
       new AuditEventScheduleRuleEvent(id, organisationId, userId, {
@@ -201,7 +207,13 @@ export class EventScheduleRuleService {
             'screenIds',
             'groupIds',
           ],
-          { map: { screenIds: sortedIds, groupIds: sortedIds, genreVariants: genreGroupLabels } },
+          {
+            map: {
+              screenIds: sortedIds,
+              groupIds: sortedIds,
+              genreVariants: (value) => genreGroupLabels(value, playlistNames),
+            },
+          },
         ),
       }),
     );
@@ -426,35 +438,59 @@ export class EventScheduleRuleService {
   }
 
   /**
-   * The playlist is one of the organisation's own, not another rule's genre
-   * variant; genre groups need it dynamic, since they narrow its genre filter.
+   * The rule's playlist and every group's own playlist are the organisation's
+   * own, not another rule's hidden copies. The rule's playlist has to be
+   * dynamic only when a group relies on it, since such a group narrows it.
    */
   private async assertPlaylist(
     organisationId: string,
     playlistId: string,
     genreVariants: readonly GenreVariant[],
   ): Promise<void> {
-    const [playlist] = await this.db
+    const groupPlaylistIds = genreVariants
+      .map((variant) => variant.playlistId)
+      .filter((id): id is string => id !== undefined);
+    const wanted = [...new Set([playlistId, ...groupPlaylistIds])];
+    const found = await this.db
       .select({ id: playlists.id, kind: playlists.kind })
       .from(playlists)
       .where(
         and(
-          eq(playlists.id, playlistId),
+          inArray(playlists.id, wanted),
           eq(playlists.organisationId, organisationId),
           isNull(playlists.managedByRuleId),
         ),
-      )
-      .limit(1);
-    if (!playlist) {
-      throw new NotFoundException(`Playlist "${playlistId}" not found`);
+      );
+    const kindOf = new Map(found.map((playlist) => [playlist.id, playlist.kind]));
+    const missing = wanted.find((id) => !kindOf.has(id));
+    if (missing) {
+      throw new NotFoundException(`Playlist "${missing}" not found`);
     }
-    if (genreVariants.length > 0 && playlist.kind !== PlaylistKind.Dynamic) {
-      throw new BadRequestException('Genre groups need a dynamic playlist');
+    const reliesOnRulePlaylist = genreVariants.some((variant) => !variant.playlistId);
+    if (reliesOnRulePlaylist && kindOf.get(playlistId) !== PlaylistKind.Dynamic) {
+      throw new BadRequestException(
+        'A genre group without its own playlist needs the rule playlist to be dynamic',
+      );
     }
     const keys = genreVariants.map(variantKey);
     if (new Set(keys).size !== keys.length) {
       throw new BadRequestException('Two genre groups list the same genres');
     }
+  }
+
+  /** Names of the groups' own playlists, for the audit entry. */
+  private async playlistNames(variants: readonly GenreVariant[]): Promise<Map<string, string>> {
+    const ids = [
+      ...new Set(variants.map((variant) => variant.playlistId).filter((id): id is string => !!id)),
+    ];
+    if (ids.length === 0) {
+      return new Map();
+    }
+    const rows = await this.db
+      .select({ id: playlists.id, name: playlists.name })
+      .from(playlists)
+      .where(inArray(playlists.id, ids));
+    return new Map(rows.map((row) => [row.id, row.name]));
   }
 
   /** At least one target, and every one in the organisation. */
@@ -493,9 +529,24 @@ export class EventScheduleRuleService {
   }
 }
 
-/** Genre groups as the audit log shows them: `["Rock/Metal", "Jazz"]`. */
-function genreGroupLabels(value: unknown): unknown {
+/**
+ * Genre groups as the audit log shows them: `["Rock/Metal → Rock-Abend", "Jazz"]`,
+ * naming a group's own playlist when it has one.
+ */
+function genreGroupLabels(value: unknown, playlistNames: ReadonlyMap<string, string>): unknown {
   return Array.isArray(value)
-    ? value.map((variant: GenreVariant) => variant.genres.join('/'))
+    ? value.map((variant: GenreVariant) => {
+        const genres = variant.genres.join('/');
+        return variant.playlistId
+          ? `${genres} → ${playlistNames.get(variant.playlistId) ?? variant.playlistId}`
+          : genres;
+      })
     : value;
+}
+
+/** Drops an empty or null playlist, so a group without one is stored as before. */
+function toGenreVariants(
+  dtos: readonly { genres: string[]; playlistId?: string | null }[],
+): GenreVariant[] {
+  return dtos.map(({ genres, playlistId }) => (playlistId ? { genres, playlistId } : { genres }));
 }

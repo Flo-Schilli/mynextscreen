@@ -45,6 +45,7 @@ describe('event schedule rule DTOs', () => {
     [{ genreVariants: [{ genres: ['Rock', 'Rock'] }] }, 'genreVariants'],
     [{ genreVariants: [{ genres: [''] }] }, 'genreVariants'],
     [{ genreVariants: [{}] }, 'genreVariants'],
+    [{ genreVariants: [{ genres: ['Rock'], playlistId: 'nope' }] }, 'genreVariants'],
   ])('rejects %j', async (patch, property) => {
     await expect(errorsOf(CreateEventScheduleRuleDto, { ...valid, ...patch })).resolves.toContain(
       property,
@@ -55,7 +56,11 @@ describe('event schedule rule DTOs', () => {
     await expect(
       errorsOf(CreateEventScheduleRuleDto, {
         ...valid,
-        genreVariants: [{ genres: ['Rock', 'Metal'] }, { genres: ['Klassik'] }],
+        genreVariants: [
+          { genres: ['Rock', 'Metal'], playlistId: '660e8400-e29b-41d4-a716-446655440000' },
+          { genres: ['Klassik'], playlistId: null },
+          { genres: ['Jazz'] },
+        ],
       }),
     ).resolves.toEqual([]);
     await expect(errorsOf(UpdateEventScheduleRuleDto, { genreVariants: [] })).resolves.toEqual([]);

@@ -2614,7 +2614,7 @@
         "enabledLabel": "Aktiv",
         "enabledDesc": "Pausiert entfernt die kommenden Einträge, bis du die Regel wieder aktivierst.",
         "genreGroupsLabel": "Inhalt je Genre",
-        "genreGroupsHint": "Passt zu einem Event eine Gruppe, zeigt die Playlist nur Events dieser Genres. Die erste passende Gruppe gewinnt, sonst läuft die Playlist unverändert.",
+        "genreGroupsHint": "Passt zu einem Event eine Gruppe, läuft deren Playlist. Die erste passende Gruppe gewinnt; passt keine, läuft die Playlist der Regel unverändert.",
         "genreGroupLabel": "Genre-Gruppe {{n}}",
         "genreGroupPlaceholder": "Genres wählen…",
         "addGenreGroup": "Genre-Gruppe hinzufügen",
@@ -2627,7 +2627,14 @@
           "window": "Gib Beginn und Ende als Uhrzeit an.",
           "targets": "Wähle mindestens einen Bildschirm oder eine Gruppe.",
           "genreGroups": "Jede Genre-Gruppe braucht mindestens ein Genre, und keine zwei Gruppen dürfen dieselben Genres haben."
-        }
+        },
+        "genreGroupsHintStatic": "Die Playlist der Regel ist statisch: Jede Gruppe braucht eine eigene Playlist. Passt keine Gruppe, läuft die Playlist der Regel.",
+        "groupPlaylistLabel": "Playlist für Gruppe {n}",
+        "groupPlaylistPlaceholder": "Playlist wählen …",
+        "groupPlaylistRule": "Playlist der Regel",
+        "groupPlaylistHintRule": "Die Playlist der Regel, gefiltert auf die Genres dieser Gruppe.",
+        "groupPlaylistHintDynamic": "Dynamische Playlist: wird auf die Genres dieser Gruppe gefiltert.",
+        "groupPlaylistHintStatic": "Statische Playlist: läuft unverändert."
       },
       "toast": {
         "saved": "Regel gespeichert und eingeplant",

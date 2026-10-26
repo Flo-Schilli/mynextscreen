@@ -747,6 +747,37 @@ describe('PlaylistService', () => {
   });
 
   describe('delete', () => {
+    /** A rule whose genre group plays `playlistId` as its own playlist. */
+    async function seedRuleUsing(organisationId: string, playlistId: string): Promise<void> {
+      const source = await seedContentSource(db, organisationId);
+      const base = await seedPlaylist(organisationId, 'Base');
+      await db.insert(eventScheduleRules).values({
+        organisationId,
+        sourceId: source.id,
+        name: 'Rock nights',
+        venues: ['Hall'],
+        playlistId: base.id,
+        windowStart: '19:00',
+        windowEnd: '23:00',
+        genreVariants: [{ genres: ['Rock'], playlistId }],
+      });
+    }
+
+    it('refuses to delete a playlist a genre group plays, naming the rule', async () => {
+      const org = await seedOrg();
+      const used = await seedPlaylist(org.id, 'Rock-Abend');
+      await seedRuleUsing(org.id, used.id);
+
+      await expect(service.delete(used.id, org.id)).rejects.toMatchObject({
+        status: 409,
+        response: expect.objectContaining({ rules: ['Rock nights'] }),
+      });
+      await expect(service.bulkDelete(org.id, [used.id], null)).rejects.toMatchObject({
+        status: 409,
+      });
+      expect(await db.select().from(playlists).where(eq(playlists.id, used.id))).toHaveLength(1);
+    });
+
     it('should delete a playlist and emit event', async () => {
       const org = await seedOrg();
       const playlist = await seedPlaylist(org.id, 'Test');

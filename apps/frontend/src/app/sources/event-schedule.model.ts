@@ -17,6 +17,8 @@ export interface EventScheduleReconcileSummary {
 
 export interface GenreVariant {
   genres: string[];
+  /** The group's own playlist; absent means the rule's. */
+  playlistId?: string | null;
 }
 
 /** "Schedule the playlist from windowStart to windowEnd on every event day at these venues." */

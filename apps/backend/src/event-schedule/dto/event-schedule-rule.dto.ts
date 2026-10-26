@@ -34,6 +34,11 @@ export class GenreVariantDto {
   @MinLength(1, { each: true })
   @MaxLength(100, { each: true })
   genres!: string[];
+
+  /** The group's own playlist; absent or null plays the rule's. */
+  @IsOptional()
+  @IsUUID()
+  playlistId?: string | null;
 }
 
 export class CreateEventScheduleRuleDto {
