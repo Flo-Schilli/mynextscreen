@@ -1,7 +1,7 @@
 import { TestBed, getTestBed } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
-import { ScheduleCalendarService } from './schedule-calendar.service';
+import { LIST_VIEW_DAYS, ScheduleCalendarService } from './schedule-calendar.service';
 import { ScheduleEntry } from './schedule.model';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
@@ -159,6 +159,58 @@ describe('ScheduleCalendarService', () => {
       expect(weeks[0][0].date.getDay()).toBe(1); // Monday
       const someJune = weeks.flat().find((c) => c.date.getMonth() === 5);
       expect(someJune?.isCurrentMonth).toBe(true);
+    });
+  });
+
+  describe('list view', () => {
+    it('covers 14 days from the current date', () => {
+      const days = service.getVisibleDays('list', new Date(2026, 5, 10, 15), LOCAL_TZ);
+      expect(days).toHaveLength(LIST_VIEW_DAYS);
+      expect(days[0]).toEqual(new Date(2026, 5, 10));
+      expect(days[13]).toEqual(new Date(2026, 5, 23));
+      const range = service.getQueryRange('list', new Date(2026, 5, 10, 15), LOCAL_TZ);
+      expect(new Date(range.to)).toEqual(new Date(2026, 5, 24));
+    });
+
+    it('lists each occurrence once under the day it starts on, sorted by start', () => {
+      // Arrange
+      const days = service.getVisibleDays('list', new Date(2026, 5, 10), LOCAL_TZ);
+      const late = makeEntry({
+        id: 'late',
+        startTime: '2026-06-10T22:00:00',
+        endTime: '2026-06-11T02:00:00',
+      });
+      const early = makeEntry({ id: 'early' });
+      const thursdays = makeEntry({
+        id: 'thursdays',
+        startTime: '2026-06-11T08:00:00',
+        endTime: '2026-06-11T08:30:00',
+        rrule: 'FREQ=WEEKLY;BYDAY=TH',
+      });
+
+      // Act
+      const listed = service.buildListDays([late, thursdays, early], days, LOCAL_TZ);
+
+      // Assert
+      expect(listed.map((d) => d.date)).toEqual([
+        new Date(2026, 5, 10),
+        new Date(2026, 5, 11),
+        new Date(2026, 5, 18),
+      ]);
+      expect(listed[0].occurrences.map((o) => o.entry.id)).toEqual(['early', 'late']);
+      expect(listed[1].occurrences.map((o) => o.entry.id)).toEqual(['thursdays']);
+      expect(listed[2].occurrences.map((o) => o.entry.id)).toEqual(['thursdays']);
+    });
+
+    it('puts an entry that began before the range under its first day', () => {
+      const days = service.getVisibleDays('list', new Date(2026, 5, 10), LOCAL_TZ);
+      const running = makeEntry({
+        startTime: '2026-06-09T22:00:00',
+        endTime: '2026-06-10T02:00:00',
+      });
+      const [first] = service.buildListDays([running], days, LOCAL_TZ);
+      expect(first.date).toEqual(new Date(2026, 5, 10));
+      expect(first.occurrences).toHaveLength(1);
     });
   });
 

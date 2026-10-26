@@ -36,9 +36,13 @@ import {
   CalendarBlock,
   GapBlock,
   DayTimeline,
+  ListDay,
+  LIST_VIEW_DAYS,
   MonthDayCell,
 } from './schedule-calendar.service';
-import { ScheduleToolbar } from './schedule-toolbar';
+import { ScheduleToolbar, ALL_TARGETS } from './schedule-toolbar';
+import { ScheduleListView } from './schedule-list-view';
+import { ScheduleConflict, entriesOnTarget, findConflicts } from './schedule-conflicts';
 import { ScheduleSidePanel } from './schedule-side-panel';
 import { ScheduleCalendarGrid } from './schedule-calendar-grid';
 import { ScheduleFormModal, ScheduleFormResult, PRESET_COLOURS } from './schedule-form-modal';
@@ -64,6 +68,7 @@ const HOUR_HEIGHT = 60;
     ScheduleToolbar,
     ScheduleSidePanel,
     ScheduleCalendarGrid,
+    ScheduleListView,
     ScheduleFormModal,
     PageHeaderComponent,
     BtnComponent,
@@ -113,32 +118,43 @@ const HOUR_HEIGHT = 60;
 
         <div class="calendar-layout">
           <div class="calendar-container">
-            <app-schedule-calendar-grid
-              [viewMode]="viewMode"
-              [visibleDays]="visibleDays"
-              [monthWeeks]="monthWeeks"
-              [blocks]="calendarBlocks"
-              [gaps]="gapBlocks"
-              [hourHeight]="hourHeight"
-              [orgTimeZone]="orgTimeZone"
-              [draggingEntryId]="dragState?.entryId ?? null"
-              [mobileDayIndex]="mobileDayIndex"
-              (monthDayClick)="onMonthDayClick($event)"
-              (createSlot)="openCreateModalWithTimes($event.start, $event.end)"
-              (blockMouseDown)="onBlockMouseDown($event.event, $event.block)"
-              (resizeMouseDown)="onResizeMouseDown($event.event, $event.block, $event.edge)"
-              (blockClick)="onBlockClick($event.event, $event.block)"
-              (blockEnter)="openEditModal($event)"
-              (mobilePrevDay)="stepMobileDay(-1)"
-              (mobileNextDay)="stepMobileDay(1)"
-            />
+            @if (viewMode === 'list') {
+              <app-schedule-list-view
+                [days]="listDays"
+                [conflicts]="listConflicts"
+                [orgTimeZone]="orgTimeZone"
+                (entrySelect)="openEditModal($event)"
+              />
+            } @else {
+              <app-schedule-calendar-grid
+                [viewMode]="viewMode"
+                [visibleDays]="visibleDays"
+                [monthWeeks]="monthWeeks"
+                [blocks]="calendarBlocks"
+                [gaps]="gapBlocks"
+                [hourHeight]="hourHeight"
+                [orgTimeZone]="orgTimeZone"
+                [draggingEntryId]="dragState?.entryId ?? null"
+                [mobileDayIndex]="mobileDayIndex"
+                (monthDayClick)="onMonthDayClick($event)"
+                (createSlot)="openCreateModalWithTimes($event.start, $event.end)"
+                (blockMouseDown)="onBlockMouseDown($event.event, $event.block)"
+                (resizeMouseDown)="onResizeMouseDown($event.event, $event.block, $event.edge)"
+                (blockClick)="onBlockClick($event.event, $event.block)"
+                (blockEnter)="openEditModal($event)"
+                (mobilePrevDay)="stepMobileDay(-1)"
+                (mobileNextDay)="stepMobileDay(1)"
+              />
+            }
           </div>
 
-          <app-schedule-side-panel
-            class="hidden md:block"
-            [dateLabel]="formatSidePanelDate(selectedDate)"
-            [timeline]="dayTimeline"
-          />
+          @if (viewMode === 'day') {
+            <app-schedule-side-panel
+              class="hidden md:block"
+              [dateLabel]="formatSidePanelDate(selectedDate)"
+              [timeline]="dayTimeline"
+            />
+          }
         </div>
       }
 
@@ -299,7 +315,7 @@ export class Schedules implements OnInit, OnDestroy {
   playlists: Playlist[] = [];
   entries: ScheduleEntry[] = [];
 
-  // Target selector: "screen:<id>" or "group:<id>"
+  // Target selector: "screen:<id>", "group:<id>", or ALL_TARGETS (list view only)
   selectedTargetId = '';
   targetOptions: TargetOption[] = [];
 
@@ -318,6 +334,8 @@ export class Schedules implements OnInit, OnDestroy {
   gapBlocks: GapBlock[] = [];
   monthWeeks: MonthDayCell[][] = [];
   dayTimeline: DayTimeline[] = [];
+  listDays: ListDay[] = [];
+  listConflicts = new Map<string, ScheduleConflict[]>();
 
   // Live slice progress overlay, shown after assigning content to a split group.
   // Fed by the slice.* SSE stream; null when no run is being surfaced.
@@ -373,8 +391,9 @@ export class Schedules implements OnInit, OnDestroy {
     return this.targetOptions.filter((t) => t.type === 'group');
   }
 
-  get selectedTargetType(): 'screen' | 'group' | null {
+  get selectedTargetType(): 'screen' | 'group' | 'all' | null {
     if (!this.selectedTargetId) return null;
+    if (this.selectedTargetId === ALL_TARGETS) return 'all';
     return this.selectedTargetId.startsWith('group:') ? 'group' : 'screen';
   }
 
@@ -398,10 +417,10 @@ export class Schedules implements OnInit, OnDestroy {
         year: 'numeric',
       });
     }
-    if (this.viewMode === 'week') {
+    if (this.viewMode === 'week' || this.viewMode === 'list') {
       const days = this.visibleDays;
       const first = days[0];
-      const last = days[6];
+      const last = days[days.length - 1];
       const fmtStart = first.toLocaleDateString(locale, {
         ...opts,
         month: 'short',
@@ -639,7 +658,22 @@ export class Schedules implements OnInit, OnDestroy {
     const orgId = this.orgId;
     const range = this.calendar.getQueryRange(this.viewMode, this.currentDate, this.orgTimeZone);
 
-    if (this.selectedTargetType === 'screen') {
+    if (this.viewMode === 'list') {
+      // The list also shows what plays on the target through its group or its
+      // members, so it loads everything and narrows it here.
+      this.scheduleService.getByDateRange(orgId, range.from, range.to).subscribe({
+        next: (entries) => {
+          if (!this.isCurrentOrg(orgId)) return;
+          this.entries = entriesOnTarget(entries, this.listTarget(), this.screens);
+          this.loading = false;
+          this.rebuildCalendar();
+        },
+        error: () => {
+          this.loadError = this.transloco.translate('schedules.errors.loadEntries');
+          this.loading = false;
+        },
+      });
+    } else if (this.selectedTargetType === 'screen') {
       this.scheduleService
         .getByScreen(orgId, this.selectedTargetRawId, range.from, range.to)
         .subscribe({
@@ -671,8 +705,20 @@ export class Schedules implements OnInit, OnDestroy {
     }
   }
 
+  private listTarget(): { type: 'screen' | 'group'; id: string } | null {
+    const type = this.selectedTargetType;
+    if (type === 'screen' || type === 'group') return { type, id: this.selectedTargetRawId };
+    return null;
+  }
+
   private rebuildCalendar(): void {
-    if (this.viewMode === 'month') {
+    if (this.viewMode === 'list') {
+      this.listDays = this.calendar.buildListDays(this.entries, this.visibleDays, this.orgTimeZone);
+      this.listConflicts = findConflicts(
+        this.listDays.flatMap((day) => day.occurrences),
+        this.screens,
+      );
+    } else if (this.viewMode === 'month') {
       this.monthWeeks = this.calendar.buildMonthWeeks(
         this.entries,
         this.currentDate,
@@ -698,6 +744,11 @@ export class Schedules implements OnInit, OnDestroy {
   // --- Navigation ---
   setView(mode: ScheduleViewMode): void {
     this.viewMode = mode;
+    // "All screens" is a list-only target; the calendar shows one at a time.
+    if (mode !== 'list' && this.selectedTargetId === ALL_TARGETS) {
+      const first = this.targetOptions[0];
+      this.selectedTargetId = first ? first.type + ':' + first.id : '';
+    }
     this.syncMobileDayIndex();
     this.loadEntries();
   }
@@ -734,6 +785,9 @@ export class Schedules implements OnInit, OnDestroy {
     if (this.viewMode === 'day') return addZonedDays(this.currentDate, direction, this.orgTimeZone);
     if (this.viewMode === 'week') {
       return addZonedDays(this.currentDate, 7 * direction, this.orgTimeZone);
+    }
+    if (this.viewMode === 'list') {
+      return addZonedDays(this.currentDate, LIST_VIEW_DAYS * direction, this.orgTimeZone);
     }
     return addZonedMonths(this.currentDate, direction, this.orgTimeZone);
   }
@@ -800,7 +854,7 @@ export class Schedules implements OnInit, OnDestroy {
 
   openCreateModalWithTimes(start: Date, end: Date): void {
     this.editingEntry = null;
-    this.modalInitialTargetId = this.selectedTargetId;
+    this.modalInitialTargetId = this.selectedTargetId === ALL_TARGETS ? '' : this.selectedTargetId;
     this.modalInitialPlaylistId = this.playlists.length > 0 ? this.playlists[0].id : '';
     this.modalInitialName = '';
     this.modalInitialPriority = 'normal';

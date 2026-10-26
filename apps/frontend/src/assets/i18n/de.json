@@ -920,21 +920,28 @@
       "newSchedule": "Neuer Zeitplan",
       "viewDay": "Tag",
       "viewWeek": "Woche",
-      "viewMonth": "Monat"
+      "viewMonth": "Monat",
+      "viewList": "Liste",
+      "allTargets": "Alle Bildschirme und Gruppen"
     },
     "grid": {
-      "monthTitle": "Monatsplan",
-      "dayTitle": "Tagesplan",
-      "weekTitle": "Wochenplan",
-      "cardSub": "Klicke auf einen Block, um ihn zu bearbeiten",
-      "fallbackPlaylist": "Fallback-Playlist",
       "groupBadge": "Gruppe",
       "oneOff": "1×",
       "resizeTop": "Oben anpassen",
       "resizeBottom": "Unten anpassen",
       "preparingRenditions": "Wall-Renditionen werden vorbereitet… {percent}%",
       "renditionFailed": "Vorab-Transkodierung der Rendition fehlgeschlagen",
-      "playlistFallback": "Playlist"
+      "playlistFallback": "Playlist",
+      "fallbackLegend": "Schraffiert: Hier läuft die Fallback-Playlist der Organisation.",
+      "managedBy": "Automatisch durch Regel „{rule}“"
+    },
+    "list": {
+      "empty": "Keine Einträge in diesem Zeitraum",
+      "conflicts": "{count, plural, one {# Überschneidung} other {# Überschneidungen}}",
+      "noConflicts": "Keine Überschneidungen",
+      "onlyConflicts": "Nur Überschneidungen",
+      "conflictWins": "Überschneidet sich mit „{other}“ auf {screens} – dieser Eintrag läuft.",
+      "conflictLoses": "Überschneidet sich mit „{other}“ auf {screens} – dort läuft „{other}“."
     },
     "sidePanel": {
       "today": "Heute",

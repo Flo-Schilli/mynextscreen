@@ -1,7 +1,7 @@
 import { TestBed, getTestBed, ComponentFixture } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
-import { ScheduleToolbar } from './schedule-toolbar';
+import { ALL_TARGETS, ScheduleToolbar } from './schedule-toolbar';
 import { TargetOption } from './schedule.model';
 import { ScheduleViewMode } from './schedule-calendar.service';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
@@ -94,6 +94,27 @@ describe('ScheduleToolbar', () => {
       const values = fixture.componentInstance.targetOptions().map((o) => o.value);
       expect(values.some((v) => v.startsWith('screen:'))).toBe(true);
       expect(values.some((v) => v.startsWith('group:'))).toBe(false);
+    });
+  });
+
+  describe('all targets', () => {
+    it('offers "all screens and groups" first in the list view', async () => {
+      // Arrange / Act
+      await setUp({ viewMode: 'list' });
+
+      // Assert
+      const [first] = fixture.componentInstance.targetOptions();
+      expect(first.value).toBe(ALL_TARGETS);
+      expect(first.label).toBe('All screens and groups');
+    });
+
+    it('does not offer it in the calendar views', async () => {
+      // Arrange / Act
+      await setUp({ viewMode: 'week' });
+
+      // Assert
+      const values = fixture.componentInstance.targetOptions().map((o) => o.value);
+      expect(values).not.toContain(ALL_TARGETS);
     });
   });
 

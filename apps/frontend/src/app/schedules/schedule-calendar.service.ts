@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { TranslocoService } from '@jsverse/transloco';
 import { ScheduleEntry, entryGenres, entryPlaylistName } from './schedule.model';
 import { ScheduleRecurrenceService } from './schedule-recurrence.service';
+import { ScheduleOccurrence } from './schedule-conflicts';
 import { LanguageService } from '../i18n/language.service';
 import {
   MINUTES_PER_DAY,
@@ -15,7 +16,16 @@ import {
   zonedTimeToInstant,
 } from './org-time';
 
-export type ScheduleViewMode = 'day' | 'week' | 'month';
+export type ScheduleViewMode = 'day' | 'week' | 'month' | 'list';
+
+/** How many days the list view covers, starting at its current date. */
+export const LIST_VIEW_DAYS = 14;
+
+/** One day of the list view with the occurrences that start on it. */
+export interface ListDay {
+  date: Date;
+  occurrences: ScheduleOccurrence[];
+}
 
 export interface CalendarBlock {
   entry: ScheduleEntry;
@@ -91,6 +101,10 @@ export class ScheduleCalendarService {
     if (viewMode === 'day') {
       return [startOfZonedDay(currentDate, timeZone)];
     }
+    if (viewMode === 'list') {
+      const start = startOfZonedDay(currentDate, timeZone);
+      return Array.from({ length: LIST_VIEW_DAYS }, (_, i) => addZonedDays(start, i, timeZone));
+    }
     // week (month view does not use day columns)
     const start = this.getWeekStart(currentDate, timeZone);
     return Array.from({ length: 7 }, (_, i) => addZonedDays(start, i, timeZone));
@@ -106,6 +120,11 @@ export class ScheduleCalendarService {
     if (viewMode === 'week') {
       const start = this.getWeekStart(currentDate, timeZone);
       const end = addZonedDays(start, 7, timeZone);
+      return { from: start.toISOString(), to: end.toISOString() };
+    }
+    if (viewMode === 'list') {
+      const start = startOfZonedDay(currentDate, timeZone);
+      const end = addZonedDays(start, LIST_VIEW_DAYS, timeZone);
       return { from: start.toISOString(), to: end.toISOString() };
     }
     // month: fetch wider range
@@ -263,6 +282,41 @@ export class ScheduleCalendarService {
     }
     items.sort((a, b) => a.startTime.localeCompare(b.startTime));
     return items;
+  }
+
+  /**
+   * The occurrences of `entries` within `days`, each listed once under the day
+   * it starts on (one that began before the first day goes under that day),
+   * sorted by start. Days without any are left out.
+   */
+  buildListDays(entries: ScheduleEntry[], days: Date[], timeZone: string): ListDay[] {
+    if (days.length === 0) return [];
+    const byKey = new Map<string, ScheduleOccurrence>();
+    for (const day of days) {
+      for (const entry of entries) {
+        for (const occ of this.recurrence.getOccurrencesOnDay(entry, day, timeZone)) {
+          const key = `${entry.id}@${occ.start.getTime()}`;
+          if (!byKey.has(key)) byKey.set(key, { key, entry, start: occ.start, end: occ.end });
+        }
+      }
+    }
+    const firstKey = zonedDateKey(days[0], timeZone);
+    const listed = days.map((date) => ({
+      date,
+      key: zonedDateKey(date, timeZone),
+      occurrences: [] as ScheduleOccurrence[],
+    }));
+    const sorted = [...byKey.values()].sort(
+      (a, b) => a.start.getTime() - b.start.getTime() || a.key.localeCompare(b.key),
+    );
+    for (const occurrence of sorted) {
+      const startKey = zonedDateKey(occurrence.start, timeZone);
+      const day = listed.find((d) => d.key === (startKey < firstKey ? firstKey : startKey));
+      day?.occurrences.push(occurrence);
+    }
+    return listed
+      .filter((day) => day.occurrences.length > 0)
+      .map(({ date, occurrences }) => ({ date, occurrences }));
   }
 
   /**

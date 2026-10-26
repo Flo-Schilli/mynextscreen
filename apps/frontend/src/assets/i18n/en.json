@@ -920,21 +920,28 @@
       "newSchedule": "New schedule",
       "viewDay": "Day",
       "viewWeek": "Week",
-      "viewMonth": "Month"
+      "viewMonth": "Month",
+      "viewList": "List",
+      "allTargets": "All screens and groups"
     },
     "grid": {
-      "monthTitle": "Month schedule",
-      "dayTitle": "Day schedule",
-      "weekTitle": "Week schedule",
-      "cardSub": "Click any block to edit",
-      "fallbackPlaylist": "Fallback playlist",
       "groupBadge": "Group",
       "oneOff": "1×",
       "resizeTop": "Resize top",
       "resizeBottom": "Resize bottom",
       "preparingRenditions": "Preparing wall renditions… {percent}%",
       "renditionFailed": "Rendition pre-transcoding failed",
-      "playlistFallback": "Playlist"
+      "playlistFallback": "Playlist",
+      "fallbackLegend": "Hatched: the organisation’s fallback playlist plays here.",
+      "managedBy": "Scheduled by rule “{rule}”"
+    },
+    "list": {
+      "empty": "No entries in this period",
+      "conflicts": "{count, plural, one {# overlap} other {# overlaps}}",
+      "noConflicts": "No overlaps",
+      "onlyConflicts": "Only overlaps",
+      "conflictWins": "Overlaps “{other}” on {screens} – this entry plays.",
+      "conflictLoses": "Overlaps “{other}” on {screens} – “{other}” plays there."
     },
     "sidePanel": {
       "today": "Today",

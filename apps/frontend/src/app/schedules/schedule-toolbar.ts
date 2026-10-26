@@ -2,6 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, output } f
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { TargetOption } from './schedule.model';
 import { ScheduleViewMode } from './schedule-calendar.service';
+
+/** Target value for "every screen and group"; offered in the list view only. */
+export const ALL_TARGETS = 'all';
 import { BtnComponent, IconComponent, SelectComponent, SelectOption } from '../ui';
 
 /**
@@ -103,6 +106,7 @@ export class ScheduleToolbar {
     { value: 'day', label: this.transloco.translate('schedules.toolbar.viewDay') },
     { value: 'week', label: this.transloco.translate('schedules.toolbar.viewWeek') },
     { value: 'month', label: this.transloco.translate('schedules.toolbar.viewMonth') },
+    { value: 'list', label: this.transloco.translate('schedules.toolbar.viewList') },
   ]);
 
   /**
@@ -111,6 +115,12 @@ export class ScheduleToolbar {
    */
   readonly targetOptions = computed<SelectOption[]>(() => {
     const opts: SelectOption[] = [];
+    if (this.viewMode() === 'list') {
+      opts.push({
+        value: ALL_TARGETS,
+        label: this.transloco.translate('schedules.toolbar.allTargets'),
+      });
+    }
     for (const s of this.screenTargets()) {
       opts.push({
         value: 'screen:' + s.id,

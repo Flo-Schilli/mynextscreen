@@ -53,6 +53,21 @@ export function entryPlaylistName(entry: ScheduleEntry): string | null {
   return entry.genreGroup?.basePlaylistName || entry.playlist?.name || null;
 }
 
+/**
+ * What an entry is about, for its headline: the event of a generated entry
+ * (its name without the "<rule>: " prefix the rule gives it), a manual entry's
+ * own name, or else its playlist.
+ */
+export function entryTitle(entry: ScheduleEntry): string | null {
+  const name = entry.name?.trim();
+  if (!name) return entryPlaylistName(entry);
+  const rulePrefix = entry.managedByRule ? `${entry.managedByRule.name}: ` : null;
+  if (rulePrefix && name.startsWith(rulePrefix) && name.length > rulePrefix.length) {
+    return name.slice(rulePrefix.length);
+  }
+  return name;
+}
+
 /** "Rock, Metal" for an entry that plays a genre group, null otherwise. */
 export function entryGenres(entry: ScheduleEntry): string | null {
   return entry.genreGroup ? entry.genreGroup.genres.join(', ') : null;

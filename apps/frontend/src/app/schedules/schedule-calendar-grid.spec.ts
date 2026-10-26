@@ -364,6 +364,49 @@ describe('ScheduleCalendarGrid', () => {
       expect(pill?.textContent.trim()).toBe('Rock, Metal');
     });
 
+    it('heads a generated block with its event and puts the playlist below', async () => {
+      // Arrange
+      const block = makeBlock({
+        entry: makeEntry({
+          name: 'Abendkasse: ITCHY',
+          managedByRule: { id: 'r1', name: 'Abendkasse', sourceId: 'src1' },
+        }),
+      });
+
+      // Act
+      await setUp({ viewMode: 'day', blocks: [block] });
+
+      // Assert
+      const el = fixture.nativeElement.querySelector('.schedule-block') as HTMLElement;
+      expect(el.querySelector('.block-title')?.textContent?.trim()).toBe('ITCHY');
+      expect(el.querySelector('.block-playlist')?.textContent?.trim()).toBe('Morning Loop');
+      expect(el.querySelector('.managed-badge')).toBeTruthy();
+      expect(el.querySelector('.block-content')?.getAttribute('title')).toContain(
+        'Scheduled by rule “Abendkasse”',
+      );
+    });
+
+    it('shows only the title on a block too short for more', async () => {
+      // Arrange / Act
+      await setUp({ viewMode: 'day', blocks: [makeBlock({ height: 30 })] });
+
+      // Assert
+      const el = fixture.nativeElement.querySelector('.schedule-block') as HTMLElement;
+      expect(el.querySelector('.block-title')?.textContent?.trim()).toBe('Morning Loop');
+      expect(el.querySelector('.block-time')).toBeNull();
+    });
+
+    it('draws fallback gaps without a label and explains them once', async () => {
+      // Arrange / Act
+      await setUp({ viewMode: 'day', gaps: [{ top: 0, height: 120, dayIndex: 0 }] });
+
+      // Assert
+      expect(fixture.nativeElement.querySelector('.gap-indicator')?.textContent?.trim()).toBe('');
+      expect(fixture.nativeElement.querySelector('.fallback-legend')?.textContent).toContain(
+        'fallback playlist',
+      );
+    });
+
     it('shows no genre group on a block whose event matched none', async () => {
       // Arrange / Act
       await setUp({ viewMode: 'day', blocks: [makeBlock()] });
