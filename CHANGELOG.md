@@ -4,6 +4,28 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## 0.26.7
+
+### Added — audit log shows old → new values
+
+Edits now record what changed and how: one line per changed field, such as
+"Name: Foyer → Lobby", "Role: viewer → editor" or "Default playlist: – → Show".
+This covers screens, playlists, schedule entries, screen groups, live streams,
+content sources, event schedule rules (including their target screens and
+groups), organisations, member roles, site agents and screen remote control.
+Fields sent along unchanged are left out. Records named in a change show by
+name, dates and storage sizes are formatted, and switches read yes/no.
+
+The Developer Mode passphrase and a content source's parameters and style are
+recorded only as "changed", never with their values; a stream URL is logged
+without any credentials. Setting an organisation's default playlist is now
+audited too, with who did it. The details no longer repeat the entry's own
+resource (e.g. the stream next to its name).
+
+Entries written before this release keep their earlier details.
+
+**Operator action:** none beyond updating the server. There is no migration.
+
 ## 0.26.6
 
 ### Changed — readable audit log
