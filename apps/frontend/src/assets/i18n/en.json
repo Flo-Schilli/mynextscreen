@@ -1492,6 +1492,49 @@
       "ethernet": "LAN",
       "unknown": "Network unknown",
       "notReported": "Network not reported"
+    },
+    "backup": {
+      "title": "Backup",
+      "desc": "Backs up the pairing keys, SSH keys, passphrases and addresses of this agent's displays — encrypted on the agent, with a password only you get to see.",
+      "export": "Export backup",
+      "import": "Import backup",
+      "offlineHint": "The agent has to be connected to create or restore a backup.",
+      "exportTitle": "Export backup",
+      "exportWorking": "The agent is creating and encrypting the backup …",
+      "passwordIntro": "The backup has been downloaded. To restore it you will need this password:",
+      "passwordWarning": "The password is shown only now and stored nowhere. Keep it separate from the file — without it the backup cannot be opened.",
+      "downloadAgain": "Download again",
+      "close": "Close",
+      "cancel": "Cancel",
+      "exportFailed": "The backup could not be created.",
+      "importTitle": "Import backup",
+      "importIntro": "Choose a .mnsbackup file. It is decrypted and restored on this agent.",
+      "previewCreated": "Created",
+      "previewSource": "From agent",
+      "previewSameAgent": "this agent",
+      "previewScreens": "Displays",
+      "passwordLabel": "Backup password",
+      "mergeHint": "Existing settings are not overwritten — only empty fields are filled in. Displays that belong to another agent are left alone.",
+      "importConfirm": "Import",
+      "importing": "Importing …",
+      "importWorking": "The agent is decrypting and restoring the backup …",
+      "importDone": "{screens} display(s) restored: {pairing} pairing key(s), {ssh} SSH key(s).",
+      "skippedTitle": "Skipped",
+      "skipReason": {
+        "screen_not_found": "Display no longer exists in this organisation",
+        "assigned_to_other_agent": "Display belongs to another agent"
+      },
+      "stalePairing": "{count} pairing key(s) come from an older agent version; those TVs will ask to pair once more.",
+      "importFailed": "The backup could not be restored.",
+      "wrongOrganisation": "This backup belongs to a different organisation.",
+      "timeout": "The agent did not answer in time. Please try again.",
+      "agentOffline": "The agent is not connected.",
+      "file": {
+        "too_large": "The file is too large to be a backup.",
+        "not_a_backup": "This is not a myNextScreen agent backup file.",
+        "unsupported_version": "This backup version is not supported.",
+        "damaged": "The backup file is damaged."
+      }
     }
   },
   "auditLog": {
@@ -1627,6 +1670,8 @@
       "site_agent.deleted": "Site agent deleted",
       "site_agent.enrolled": "Site agent enrolled",
       "site_agent.offline": "Site agent offline",
+      "site_agent.backup_exported": "Site agent backup exported",
+      "site_agent.backup_imported": "Site agent backup imported",
       "site_agent.online": "Site agent online",
       "site_agent.reset": "Site agent reset",
       "site_agent.revoked": "Site agent revoked",
