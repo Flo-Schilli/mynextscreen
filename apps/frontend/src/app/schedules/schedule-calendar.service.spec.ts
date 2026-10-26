@@ -6,7 +6,7 @@ import {
   LIST_VIEW_DAYS,
   ScheduleCalendarService,
 } from './schedule-calendar.service';
-import { ScheduleEntry } from './schedule.model';
+import { DisplacedSlot, ScheduleEntry } from './schedule.model';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 /** The existing cases build dates on the runner's clock, so the organisation shares its zone. */
@@ -35,6 +35,25 @@ function makeEntry(overrides: Partial<ScheduleEntry> = {}): ScheduleEntry {
     colour: '#3b82f6',
     createdAt: '2026-06-01T00:00:00Z',
     updatedAt: '2026-06-01T00:00:00Z',
+    ...overrides,
+  };
+}
+
+function makeDisplaced(overrides: Partial<DisplacedSlot> = {}): DisplacedSlot {
+  return {
+    ruleId: 'r1',
+    ruleName: 'Abendkasse',
+    sourceId: 'src1',
+    colour: '#6d6cf6',
+    eventTitle: 'ITCHY',
+    startTime: '2026-06-10T09:00:00',
+    endTime: '2026-06-10T10:00:00',
+    screenId: 's1',
+    groupId: null,
+    targetName: 'Lobby',
+    playlistName: 'Demnächst',
+    genres: null,
+    blockingEntry: { id: 'm1', name: 'Pressekonferenz', playlistName: 'Loop' },
     ...overrides,
   };
 }
@@ -224,6 +243,21 @@ describe('ScheduleCalendarService', () => {
       expect(listed[2].occurrences.map((o) => o.entry.id)).toEqual(['thursdays']);
     });
 
+    it('lists displaced slots under their day, also on days with nothing else', () => {
+      const days = service.getListDays(new Date(2026, 5, 10), 14, LOCAL_TZ);
+      const slot = makeDisplaced({
+        startTime: '2026-06-12T09:00:00',
+        endTime: '2026-06-12T10:00:00',
+      });
+      const outside = makeDisplaced({
+        startTime: '2026-07-12T09:00:00',
+        endTime: '2026-07-12T10:00:00',
+      });
+      const listed = service.buildListDays([makeEntry()], days, LOCAL_TZ, [slot, outside]);
+      expect(listed.map((d) => d.date)).toEqual([new Date(2026, 5, 10), new Date(2026, 5, 12)]);
+      expect(listed[1]).toMatchObject({ occurrences: [], displaced: [slot] });
+    });
+
     it('puts an entry that began before the range under its first day', () => {
       const days = service.getVisibleDays('list', new Date(2026, 5, 10), LOCAL_TZ);
       const running = makeEntry({
@@ -233,6 +267,37 @@ describe('ScheduleCalendarService', () => {
       const [first] = service.buildListDays([running], days, LOCAL_TZ);
       expect(first.date).toEqual(new Date(2026, 5, 10));
       expect(first.occurrences).toHaveLength(1);
+    });
+  });
+
+  describe('displaced slots', () => {
+    it('positions a ghost in its day column like an entry', () => {
+      const days = service.getVisibleDays('week', new Date(2026, 5, 10), LOCAL_TZ);
+      const slot = makeDisplaced();
+      const [ghost] = service.buildGhostBlocks([slot], days, HOUR_HEIGHT, LOCAL_TZ);
+      expect(ghost).toEqual({ slot, dayIndex: 2, top: 9 * HOUR_HEIGHT, height: HOUR_HEIGHT });
+    });
+
+    it('splits a ghost that runs past midnight', () => {
+      const days = service.getVisibleDays('week', new Date(2026, 5, 10), LOCAL_TZ);
+      const late = makeDisplaced({
+        startTime: '2026-06-10T23:00:00',
+        endTime: '2026-06-11T01:00:00',
+      });
+      const ghosts = service.buildGhostBlocks([late], days, HOUR_HEIGHT, LOCAL_TZ);
+      expect(ghosts.map((g) => [g.dayIndex, g.top, g.height])).toEqual([
+        [2, 23 * HOUR_HEIGHT, HOUR_HEIGHT],
+        [3, 0, HOUR_HEIGHT],
+      ]);
+    });
+
+    it('attaches ghosts to the month cell of their day', () => {
+      const weeks = service.buildMonthWeeks([], new Date(2026, 5, 10), LOCAL_TZ);
+      const slot = makeDisplaced();
+      const withGhosts = service.withMonthGhosts(weeks, [slot], LOCAL_TZ);
+      const cells = withGhosts.flat().filter((cell) => cell.ghosts);
+      expect(cells.map((cell) => cell.date)).toEqual([new Date(2026, 5, 10)]);
+      expect(service.withMonthGhosts(weeks, [], LOCAL_TZ)).toBe(weeks);
     });
   });
 

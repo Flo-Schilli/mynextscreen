@@ -11,10 +11,18 @@ import {
   viewChild,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { ScheduleEntry, entryGenres, entryPlaylistName, entryTitle } from './schedule.model';
+import {
+  DisplacedSlot,
+  ScheduleEntry,
+  blockingTitle,
+  entryGenres,
+  entryPlaylistName,
+  entryTitle,
+} from './schedule.model';
 import {
   CalendarBlock,
   GapBlock,
+  GhostBlock,
   MonthDayCell,
   ScheduleViewMode,
 } from './schedule-calendar.service';
@@ -126,6 +134,17 @@ const TALL_BLOCK_PX = 80;
                         }
                         <span class="truncate">{{ titleOf(block.entry) }}</span>
                       </div>
+                    }
+                    @for (slot of day.ghosts ?? []; track $index) {
+                      <button
+                        type="button"
+                        class="month-ghost-chip ghost-chip flex items-center gap-1 text-[10px] font-semibold text-muted px-1.5 py-0.5 rounded truncate text-left"
+                        [style.borderColor]="slot.colour"
+                        [title]="ghostTooltip(slot)"
+                        (click)="$event.stopPropagation(); ghostSelect.emit(slot)"
+                      >
+                        <span class="truncate">{{ slot.eventTitle }}</span>
+                      </button>
                     }
                   </div>
                 </div>
@@ -352,6 +371,30 @@ const TALL_BLOCK_PX = 80;
                       }
                     </div>
                   }
+                  <!-- Displaced slots: what a rule would play here but left to another entry -->
+                  @for (ghost of getGhostsForDay(dayIdx); track $index) {
+                    <button
+                      type="button"
+                      class="ghost-block absolute z-[4] rounded-[6px] overflow-hidden text-left px-1.5 py-1"
+                      [class.ghost-wide]="viewMode() === 'day'"
+                      [style.top.px]="ghost.top"
+                      [style.height.px]="ghost.height"
+                      [style.--ghost]="ghost.slot.colour"
+                      [title]="ghostTooltip(ghost.slot)"
+                      [attr.aria-label]="ghostTooltip(ghost.slot)"
+                      (mousedown)="$event.stopPropagation()"
+                      (click)="$event.stopPropagation(); ghostSelect.emit(ghost.slot)"
+                    >
+                      @if (viewMode() === 'day') {
+                        <span class="block text-[11.5px] font-semibold text-muted truncate">{{
+                          ghost.slot.eventTitle
+                        }}</span>
+                        <span class="block text-[10.5px] text-faint truncate">{{
+                          t('schedules.displaced.short')
+                        }}</span>
+                      }
+                    </button>
+                  }
                 </div>
               }
             </div>
@@ -362,6 +405,12 @@ const TALL_BLOCK_PX = 80;
         >
           <span class="gap-hatch w-5 h-3 rounded-sm border border-border flex-shrink-0"></span>
           {{ t('schedules.grid.fallbackLegend') }}
+          @if (ghosts().length > 0) {
+            <span
+              class="ghost-legend ml-4 w-2.5 h-3 rounded-sm border-[1.5px] border-dashed border-muted flex-shrink-0"
+            ></span>
+            {{ t('schedules.displaced.legend') }}
+          }
         </div>
       }
     </mns-card>
@@ -383,6 +432,30 @@ const TALL_BLOCK_PX = 80;
         color-mix(in srgb, var(--color-warn) 5%, transparent) 0 1.5px,
         transparent 1.5px 9px
       );
+    }
+    .ghost-block {
+      right: 2px;
+      width: 14px;
+      border: 1.5px dashed var(--ghost);
+      background:
+        repeating-linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--ghost) 35%, transparent) 0 3px,
+          transparent 3px 7px
+        ),
+        var(--surface);
+      opacity: 0.9;
+    }
+    .ghost-block:hover {
+      opacity: 1;
+      box-shadow: var(--shadow);
+    }
+    .ghost-block.ghost-wide {
+      width: 34%;
+    }
+    .ghost-chip {
+      border: 1px dashed;
+      opacity: 0.75;
     }
     .schedule-block.conflict {
       box-shadow: 0 0 0 1px var(--color-offline);
@@ -411,6 +484,8 @@ export class ScheduleCalendarGrid {
   readonly hourHeight = input.required<number>();
   readonly orgTimeZone = input.required<string>();
   readonly draggingEntryId = input<string | null>(null);
+  /** Slots event schedule rules left to other entries, drawn as dashed ghosts. */
+  readonly ghosts = input<GhostBlock[]>([]);
   /**
    * Which of {@link visibleDays} the mobile agenda shows. In week view the grid
    * collapses to a single day on small screens; the parent steps this via the
@@ -424,6 +499,7 @@ export class ScheduleCalendarGrid {
   readonly resizeMouseDown = output<ResizePointerEvent>();
   readonly blockClick = output<BlockPointerEvent>();
   readonly blockEnter = output<ScheduleEntry>();
+  readonly ghostSelect = output<DisplacedSlot>();
   readonly mobilePrevDay = output<void>();
   readonly mobileNextDay = output<void>();
 
@@ -510,6 +586,19 @@ export class ScheduleCalendarGrid {
 
   getBlocksForDay(dayIndex: number): CalendarBlock[] {
     return this.blocks().filter((b) => b.dayIndex === dayIndex);
+  }
+
+  getGhostsForDay(dayIndex: number): GhostBlock[] {
+    return this.ghosts().filter((g) => g.dayIndex === dayIndex);
+  }
+
+  /** What a ghost stands for: the event, its rule, and who holds the slot instead. */
+  ghostTooltip(slot: DisplacedSlot): string {
+    return this.transloco.translate<string>('schedules.displaced.tooltip', {
+      event: slot.eventTitle,
+      rule: slot.ruleName,
+      blocking: blockingTitle(slot),
+    });
   }
 
   getGapsForDay(dayIndex: number): GapBlock[] {

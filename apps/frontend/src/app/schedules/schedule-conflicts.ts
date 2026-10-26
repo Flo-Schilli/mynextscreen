@@ -99,11 +99,11 @@ function screensOf(entry: ScheduleEntry, screens: readonly ConflictScreen[]): Co
  * for a group its own and those of its member screens — the ones that can
  * collide with each other. `null` keeps every entry.
  */
-export function entriesOnTarget(
-  entries: readonly ScheduleEntry[],
+export function entriesOnTarget<T extends Pick<ScheduleEntry, 'screenId' | 'groupId'>>(
+  entries: readonly T[],
   target: { type: 'screen' | 'group'; id: string } | null,
   screens: readonly ConflictScreen[],
-): ScheduleEntry[] {
+): T[] {
   if (!target) return [...entries];
   if (target.type === 'screen') {
     const groupId = screens.find((screen) => screen.id === target.id)?.groupId ?? null;

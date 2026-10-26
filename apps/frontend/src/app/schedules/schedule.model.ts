@@ -38,6 +38,32 @@ export interface ScheduleEntry {
   genreGroup?: ScheduleGenreGroup | null;
 }
 
+/**
+ * A slot an event schedule rule would fill but left to another entry that
+ * holds it. Nothing plays it; the calendar shows it so the rule's step aside
+ * stays visible.
+ */
+export interface DisplacedSlot {
+  ruleId: string;
+  ruleName: string;
+  sourceId: string;
+  colour: string;
+  eventTitle: string;
+  startTime: string;
+  endTime: string;
+  screenId: string | null;
+  groupId: string | null;
+  targetName: string | null;
+  playlistName: string | null;
+  genres: string[] | null;
+  blockingEntry: { id: string; name: string | null; playlistName: string | null };
+}
+
+/** How a displaced slot names the entry that holds it. */
+export function blockingTitle(slot: DisplacedSlot): string {
+  return slot.blockingEntry.name || slot.blockingEntry.playlistName || '';
+}
+
 /** The genre group an entry plays, and the playlist that group narrows. */
 export interface ScheduleGenreGroup {
   genres: string[];

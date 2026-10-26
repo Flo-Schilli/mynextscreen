@@ -7,6 +7,13 @@ export interface EventScheduleConflict {
   groupId: string | null;
   /** The entry that holds the slot. */
   blockingEntryId: string;
+  /**
+   * The slot the rule would have filled, and with which playlist. Absent in
+   * summaries stored before they were recorded.
+   */
+  startTime?: string;
+  endTime?: string;
+  playlistId?: string;
 }
 
 /** Outcome of the last reconcile of a rule, shown next to the rule. */

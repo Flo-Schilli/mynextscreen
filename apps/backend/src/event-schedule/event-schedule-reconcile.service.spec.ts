@@ -354,6 +354,9 @@ describe('Event schedule rules', () => {
           sourceEventId: event.id,
           screenId: screen.id,
           blockingEntryId: manual.id,
+          startTime: SLOT_START.toISOString(),
+          endTime: SLOT_END.toISOString(),
+          playlistId: playlist.id,
         }),
       ]);
     });
@@ -572,6 +575,58 @@ describe('Event schedule rules', () => {
     });
   });
 
+  describe('displaced slots', () => {
+    const BEFORE = new Date('2026-11-01T00:00:00Z');
+
+    it('lists a slot a manual entry holds, with the rule and the entry that won', async () => {
+      const event = await seedEvent();
+      const manual = await seedManual({ screenId: screen.id }, SLOT_START, SLOT_END);
+      const rule = await rules.create(org.id, source.id, dto(), null);
+
+      const displaced = await schedule.findDisplaced(org.id, BEFORE);
+
+      expect(displaced).toEqual([
+        {
+          ruleId: rule.id,
+          ruleName: rule.name,
+          sourceId: source.id,
+          colour: rule.colour,
+          eventTitle: event.title,
+          startTime: SLOT_START.toISOString(),
+          endTime: SLOT_END.toISOString(),
+          screenId: screen.id,
+          groupId: null,
+          targetName: screen.name,
+          playlistName: playlist.name,
+          genres: null,
+          blockingEntry: { id: manual.id, name: null, playlistName: playlist.name },
+        },
+      ]);
+    });
+
+    it('drops the slot once the rule has it again or it has ended', async () => {
+      await seedEvent();
+      const manual = await seedManual({ screenId: screen.id }, SLOT_START, SLOT_END);
+      const rule = await rules.create(org.id, source.id, dto(), null);
+
+      expect(await schedule.findDisplaced(org.id, new Date(SLOT_END.getTime() + 1))).toEqual([]);
+
+      await schedule.delete(manual.id, org.id);
+      await reconcile.reconcile(rule.id, BEFORE);
+      expect(await schedule.findDisplaced(org.id, BEFORE)).toEqual([]);
+    });
+
+    it('leaves out a disabled rule', async () => {
+      await seedEvent();
+      await seedManual({ screenId: screen.id }, SLOT_START, SLOT_END);
+      const rule = await rules.create(org.id, source.id, dto(), null);
+
+      await rules.update(org.id, source.id, rule.id, { enabled: false }, null);
+
+      expect(await schedule.findDisplaced(org.id, BEFORE)).toEqual([]);
+    });
+  });
+
   describe('genre variants', () => {
     const baseRule = (): PlaylistRule => ({
       sourceIds: [source.id],
@@ -607,6 +662,22 @@ describe('Event schedule rules', () => {
     async function variantsOf(ruleId: string): Promise<Playlist[]> {
       return db.select().from(playlists).where(eq(playlists.managedByRuleId, ruleId));
     }
+
+    it('names the genre group of a displaced slot and the playlist it narrows', async () => {
+      const dynamic = await seedDynamic();
+      await seedEvent({ genres: ['Rock'] });
+      await seedManual({ screenId: screen.id }, SLOT_START, SLOT_END);
+
+      await rules.create(
+        org.id,
+        source.id,
+        dto({ playlistId: dynamic.id, genreVariants: [{ genres: ['Rock', 'Metal'] }] }),
+        null,
+      );
+
+      const [slot] = await schedule.findDisplaced(org.id, new Date('2026-11-01T00:00:00Z'));
+      expect(slot).toMatchObject({ playlistName: 'Demnächst', genres: ['Rock', 'Metal'] });
+    });
 
     it('plays a narrowed copy of the playlist on events of a genre group', async () => {
       const dynamic = await seedDynamic();

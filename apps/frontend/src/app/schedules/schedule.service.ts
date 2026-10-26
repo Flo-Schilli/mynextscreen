@@ -5,6 +5,7 @@ import {
   ScheduleEntry,
   CreateScheduleEntryRequest,
   UpdateScheduleEntryRequest,
+  DisplacedSlot,
 } from './schedule.model';
 
 @Injectable({ providedIn: 'root' })
@@ -29,6 +30,13 @@ export class ScheduleService {
     return this.http.get<ScheduleEntry[]>('/api/schedules', {
       headers: this.orgHeader(orgId),
       params,
+    });
+  }
+
+  /** Upcoming slots event schedule rules left to other entries. */
+  getDisplaced(orgId: string): Observable<DisplacedSlot[]> {
+    return this.http.get<DisplacedSlot[]>('/api/schedules/displaced', {
+      headers: this.orgHeader(orgId),
     });
   }
 

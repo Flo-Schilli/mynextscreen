@@ -18,6 +18,8 @@ import {
   UpdateScheduleEntryRequest,
   SchedulePriority,
   TargetOption,
+  DisplacedSlot,
+  blockingTitle,
 } from './schedule.model';
 import { ScreenService } from '../screens/screen.service';
 import { Screen } from '../screens/screen.model';
@@ -35,6 +37,7 @@ import {
   ScheduleViewMode,
   CalendarBlock,
   GapBlock,
+  GhostBlock,
   DayTimeline,
   ListDay,
   LIST_MAX_DAYS,
@@ -127,6 +130,7 @@ const HOUR_HEIGHT = 60;
                 [orgTimeZone]="orgTimeZone"
                 (entrySelect)="openEditModal($event)"
                 (loadMore)="loadMoreList()"
+                (displacedSelect)="displacedSlot = $event"
               />
             } @else {
               <app-schedule-calendar-grid
@@ -138,6 +142,7 @@ const HOUR_HEIGHT = 60;
                 [hourHeight]="hourHeight"
                 [orgTimeZone]="orgTimeZone"
                 [draggingEntryId]="dragState?.entryId ?? null"
+                [ghosts]="ghostBlocks"
                 [mobileDayIndex]="mobileDayIndex"
                 (monthDayClick)="onMonthDayClick($event)"
                 (createSlot)="openCreateModalWithTimes($event.start, $event.end)"
@@ -145,6 +150,7 @@ const HOUR_HEIGHT = 60;
                 (resizeMouseDown)="onResizeMouseDown($event.event, $event.block, $event.edge)"
                 (blockClick)="onBlockClick($event.event, $event.block)"
                 (blockEnter)="openEditModal($event)"
+                (ghostSelect)="displacedSlot = $event"
                 (mobilePrevDay)="stepMobileDay(-1)"
                 (mobileNextDay)="stepMobileDay(1)"
               />
@@ -271,6 +277,32 @@ const HOUR_HEIGHT = 60;
           </mns-modal>
         </mns-overlay>
       }
+
+      @if (displacedSlot; as slot) {
+        <mns-overlay (closed)="displacedSlot = null">
+          <mns-modal
+            [title]="t('schedules.displaced.title')"
+            icon="Layers"
+            [widthPx]="440"
+            (closed)="displacedSlot = null"
+          >
+            <p class="displaced-body text-[13px] text-muted leading-relaxed">
+              {{ displacedBody(slot) }}
+            </p>
+            <p class="mt-2 text-[13px] text-muted leading-relaxed">
+              {{ t('schedules.displaced.comesBack', { blocking: blockingOf(slot) }) }}
+            </p>
+            <div slot="footer" class="flex justify-end gap-2 px-6 pb-5">
+              <mns-btn variant="outline" (mnsClick)="displacedSlot = null">{{
+                t('common.actions.close')
+              }}</mns-btn>
+              <mns-btn class="open-rule" icon="Arrow" (mnsClick)="openDisplacedRule(slot)">{{
+                t('schedules.managed.managedOpenRule')
+              }}</mns-btn>
+            </div>
+          </mns-modal>
+        </mns-overlay>
+      }
     </div>
   `,
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -348,6 +380,11 @@ export class Schedules implements OnInit, OnDestroy {
   sliceModal: SliceJobStatus | null = null;
   /** A generated entry the user clicked: it opens an explanation, not the edit form. */
   managedEntry: ScheduleEntry | null = null;
+  /** A displaced slot the user clicked: it explains why the rule stepped aside. */
+  displacedSlot: DisplacedSlot | null = null;
+  /** Every displaced slot of the organisation; narrowed to the target when shown. */
+  private allDisplaced: DisplacedSlot[] = [];
+  ghostBlocks: GhostBlock[] = [];
   private sliceModalAutoClose: ReturnType<typeof setTimeout> | null = null;
 
   // Modal state (form state itself lives in the modal child)
@@ -671,6 +708,7 @@ export class Schedules implements OnInit, OnDestroy {
   loadEntries(): void {
     if (!this.selectedTargetId) return;
     const orgId = this.orgId;
+    this.loadDisplaced(orgId);
     const range = this.calendar.getQueryRange(this.viewMode, this.currentDate, this.orgTimeZone);
 
     if (this.viewMode === 'list') {
@@ -726,16 +764,69 @@ export class Schedules implements OnInit, OnDestroy {
     return null;
   }
 
+  /**
+   * Slots rules left to other entries, shown as ghosts. Optional: if they
+   * cannot be loaded the calendar is still right, it just shows no ghosts.
+   */
+  private loadDisplaced(orgId: string): void {
+    this.scheduleService.getDisplaced(orgId).subscribe({
+      next: (slots) => {
+        if (!this.isCurrentOrg(orgId)) return;
+        this.allDisplaced = slots;
+        this.rebuildCalendar();
+      },
+      error: () => {
+        this.allDisplaced = [];
+      },
+    });
+  }
+
+  /** The displaced slots of the selected target, as the current view narrows entries. */
+  private get shownDisplaced(): DisplacedSlot[] {
+    if (this.viewMode === 'list') {
+      return entriesOnTarget(this.allDisplaced, this.listTarget(), this.screens);
+    }
+    const type = this.selectedTargetType;
+    const id = this.selectedTargetRawId;
+    return this.allDisplaced.filter((slot) =>
+      type === 'group' ? slot.groupId === id : slot.screenId === id,
+    );
+  }
+
+  /** Short explanation of a displaced slot for its dialog. */
+  displacedBody(slot: DisplacedSlot): string {
+    return this.transloco.translate('schedules.displaced.body', {
+      event: slot.eventTitle,
+      rule: slot.ruleName,
+      blocking: this.blockingOf(slot),
+    });
+  }
+
+  blockingOf(slot: DisplacedSlot): string {
+    return blockingTitle(slot);
+  }
+
+  openDisplacedRule(slot: DisplacedSlot): void {
+    this.displacedSlot = null;
+    void this.router.navigate(['/sources', slot.sourceId]);
+  }
+
   private rebuildCalendar(): void {
     if (this.viewMode === 'list') {
       this.rebuildList();
     } else if (this.viewMode === 'month') {
-      this.monthWeeks = this.calendar.buildMonthWeeks(
-        this.entries,
-        this.currentDate,
+      this.monthWeeks = this.calendar.withMonthGhosts(
+        this.calendar.buildMonthWeeks(this.entries, this.currentDate, this.orgTimeZone),
+        this.shownDisplaced,
         this.orgTimeZone,
       );
     } else {
+      this.ghostBlocks = this.calendar.buildGhostBlocks(
+        this.shownDisplaced,
+        this.visibleDays,
+        this.hourHeight,
+        this.orgTimeZone,
+      );
       const { blocks, gaps } = this.calendar.buildTimeGridBlocks(
         this.entries,
         this.visibleDays,
@@ -754,12 +845,17 @@ export class Schedules implements OnInit, OnDestroy {
 
   private rebuildList(): void {
     const days = this.calendar.getListDays(this.currentDate, this.listDayCount, this.orgTimeZone);
-    this.listDays = this.calendar.buildListDays(this.entries, days, this.orgTimeZone);
+    const displaced = this.shownDisplaced;
+    this.listDays = this.calendar.buildListDays(this.entries, days, this.orgTimeZone, displaced);
     this.listConflicts = findConflicts(
       this.listDays.flatMap((day) => day.occurrences),
       this.screens,
     );
-    this.listHasMore = this.calendar.listHasMore(this.entries, days, this.orgTimeZone);
+    this.listHasMore = this.calendar.listHasMore(
+      [...this.entries, ...displaced],
+      days,
+      this.orgTimeZone,
+    );
   }
 
   /**

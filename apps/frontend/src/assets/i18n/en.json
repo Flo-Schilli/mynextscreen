@@ -1058,6 +1058,16 @@
       "managedBody": "The rule “{rule}” created this entry from an event. You can change it only through the rule; a manual entry at the same time takes precedence.",
       "managedOpenRule": "Open rule"
     },
+    "displaced": {
+      "title": "Displaced automatic entry",
+      "body": "Rule “{rule}” would schedule “{event}” here, but “{blocking}” holds the slot and takes precedence.",
+      "comesBack": "Delete or move “{blocking}” and the rule schedules the entry again by itself.",
+      "tooltip": "“{event}” (rule “{rule}”) – covered by “{blocking}”",
+      "short": "covered",
+      "legend": "Dashed: an automatic entry another one covers",
+      "count": "{count, plural, one {# displaced automatic entry} other {# displaced automatic entries}}",
+      "row": "Scheduled by rule “{rule}” · covered by “{blocking}”"
+    },
     "genreGroup": {
       "badgeTitle": "Genre match: the event fits the group {genres}",
       "managedBody": "The event matches the genre group {genres}, so “{playlist}” only shows events of these genres here."

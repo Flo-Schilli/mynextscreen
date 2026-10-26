@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { TranslocoService } from '@jsverse/transloco';
-import { ScheduleEntry, entryGenres, entryPlaylistName } from './schedule.model';
+import { DisplacedSlot, ScheduleEntry, entryGenres, entryPlaylistName } from './schedule.model';
 import { ScheduleRecurrenceService } from './schedule-recurrence.service';
 import { ScheduleOccurrence } from './schedule-conflicts';
 import { LanguageService } from '../i18n/language.service';
@@ -23,10 +23,19 @@ export const LIST_VIEW_DAYS = 14;
 /** The furthest the list view scrolls ahead of its start. */
 export const LIST_MAX_DAYS = 366;
 
-/** One day of the list view with the occurrences that start on it. */
+/** One day of the list view with the occurrences and displaced slots that start on it. */
 export interface ListDay {
   date: Date;
   occurrences: ScheduleOccurrence[];
+  displaced: DisplacedSlot[];
+}
+
+/** A displaced slot positioned in a day column, like a {@link CalendarBlock}. */
+export interface GhostBlock {
+  slot: DisplacedSlot;
+  top: number;
+  height: number;
+  dayIndex: number;
 }
 
 export interface CalendarBlock {
@@ -51,6 +60,8 @@ export interface MonthDayCell {
   isCurrentMonth: boolean;
   isToday: boolean;
   blocks: CalendarBlock[];
+  /** Displaced slots starting that day; filled by `withMonthGhosts`. */
+  ghosts?: DisplacedSlot[];
 }
 
 export interface DayTimeline {
@@ -285,6 +296,52 @@ export class ScheduleCalendarService {
     return items;
   }
 
+  /** Displaced slots positioned in the day columns, split at midnight like entries. */
+  buildGhostBlocks(
+    slots: readonly DisplacedSlot[],
+    days: Date[],
+    hourHeight: number,
+    timeZone: string,
+  ): GhostBlock[] {
+    return days.flatMap((day, dayIndex) => {
+      const dayStart = startOfZonedDay(day, timeZone);
+      const dayEnd = addZonedDays(dayStart, 1, timeZone);
+      return slots.flatMap((slot) => {
+        const start = new Date(slot.startTime);
+        const end = new Date(slot.endTime);
+        if (start >= dayEnd || end <= dayStart) return [];
+        const startMinutes = start <= dayStart ? 0 : zonedMinutesOfDay(start, timeZone);
+        const endMinutes = end >= dayEnd ? MINUTES_PER_DAY : zonedMinutesOfDay(end, timeZone);
+        return [
+          {
+            slot,
+            dayIndex,
+            top: (startMinutes / 60) * hourHeight,
+            height: Math.max(((endMinutes - startMinutes) / 60) * hourHeight, MIN_BLOCK_HEIGHT),
+          },
+        ];
+      });
+    });
+  }
+
+  /** The month grid with each day's displaced slots attached. */
+  withMonthGhosts(
+    weeks: MonthDayCell[][],
+    slots: readonly DisplacedSlot[],
+    timeZone: string,
+  ): MonthDayCell[][] {
+    if (slots.length === 0) return weeks;
+    return weeks.map((week) =>
+      week.map((cell) => {
+        const key = zonedDateKey(cell.date, timeZone);
+        const ghosts = slots.filter(
+          (slot) => zonedDateKey(new Date(slot.startTime), timeZone) === key,
+        );
+        return ghosts.length > 0 ? { ...cell, ghosts } : cell;
+      }),
+    );
+  }
+
   /** `count` consecutive local midnights from the day of `start`, as the list view shows them. */
   getListDays(start: Date, count: number, timeZone: string): Date[] {
     const first = startOfZonedDay(start, timeZone);
@@ -296,7 +353,11 @@ export class ScheduleCalendarService {
    * recurring entry repeats, or a one-off one ends after the last day. Never
    * beyond {@link LIST_MAX_DAYS}.
    */
-  listHasMore(entries: ScheduleEntry[], days: Date[], timeZone: string): boolean {
+  listHasMore(
+    entries: readonly { endTime: string; rrule?: string | null }[],
+    days: Date[],
+    timeZone: string,
+  ): boolean {
     const last = days[days.length - 1];
     if (!last || days.length >= LIST_MAX_DAYS) return false;
     const end = addZonedDays(last, 1, timeZone);
@@ -308,7 +369,12 @@ export class ScheduleCalendarService {
    * it starts on (one that began before the first day goes under that day),
    * sorted by start. Days without any are left out.
    */
-  buildListDays(entries: ScheduleEntry[], days: Date[], timeZone: string): ListDay[] {
+  buildListDays(
+    entries: ScheduleEntry[],
+    days: Date[],
+    timeZone: string,
+    displaced: readonly DisplacedSlot[] = [],
+  ): ListDay[] {
     if (days.length === 0) return [];
     const byKey = new Map<string, ScheduleOccurrence>();
     for (const day of days) {
@@ -324,18 +390,27 @@ export class ScheduleCalendarService {
       date,
       key: zonedDateKey(date, timeZone),
       occurrences: [] as ScheduleOccurrence[],
+      displaced: [] as DisplacedSlot[],
     }));
+    const dayOf = (start: Date) => {
+      const startKey = zonedDateKey(start, timeZone);
+      return listed.find((d) => d.key === (startKey < firstKey ? firstKey : startKey));
+    };
+    const lastEnd = addZonedDays(days[days.length - 1], 1, timeZone);
+    for (const slot of [...displaced].sort((a, b) => a.startTime.localeCompare(b.startTime))) {
+      const start = new Date(slot.startTime);
+      if (start >= lastEnd || new Date(slot.endTime) <= days[0]) continue;
+      dayOf(start)?.displaced.push(slot);
+    }
     const sorted = [...byKey.values()].sort(
       (a, b) => a.start.getTime() - b.start.getTime() || a.key.localeCompare(b.key),
     );
     for (const occurrence of sorted) {
-      const startKey = zonedDateKey(occurrence.start, timeZone);
-      const day = listed.find((d) => d.key === (startKey < firstKey ? firstKey : startKey));
-      day?.occurrences.push(occurrence);
+      dayOf(occurrence.start)?.occurrences.push(occurrence);
     }
     return listed
-      .filter((day) => day.occurrences.length > 0)
-      .map(({ date, occurrences }) => ({ date, occurrences }));
+      .filter((day) => day.occurrences.length > 0 || day.displaced.length > 0)
+      .map(({ date, occurrences, displaced: onDay }) => ({ date, occurrences, displaced: onDay }));
   }
 
   /**

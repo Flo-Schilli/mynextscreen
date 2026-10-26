@@ -1058,6 +1058,16 @@
       "managedBody": "Diesen Eintrag hat die Regel „{rule}“ aus einem Event angelegt. Ändern kannst du ihn nur über die Regel; ein manueller Eintrag zur selben Zeit hat Vorrang.",
       "managedOpenRule": "Zur Regel"
     },
+    "displaced": {
+      "title": "Verdrängter automatischer Eintrag",
+      "body": "Die Regel „{rule}“ würde hier „{event}“ einplanen, aber „{blocking}“ belegt den Slot und hat Vorrang.",
+      "comesBack": "Löschst oder verschiebst du „{blocking}“, plant die Regel den Eintrag automatisch wieder ein.",
+      "tooltip": "„{event}“ (Regel „{rule}“) – überdeckt von „{blocking}“",
+      "short": "überdeckt",
+      "legend": "Gestrichelt: automatischer Eintrag, den ein anderer überdeckt",
+      "count": "{count, plural, one {# verdrängter automatischer Eintrag} other {# verdrängte automatische Einträge}}",
+      "row": "Automatisch durch Regel „{rule}“ · überdeckt von „{blocking}“"
+    },
     "genreGroup": {
       "badgeTitle": "Genre-Treffer: Das Event passt zur Gruppe {genres}",
       "managedBody": "Das Event passt zur Genre-Gruppe {genres}. Deshalb läuft „{playlist}“ hier nur mit Events dieser Genres."

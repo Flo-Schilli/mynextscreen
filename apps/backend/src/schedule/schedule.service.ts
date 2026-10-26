@@ -46,6 +46,7 @@ import { SliceStatus } from '../slice-content/slice-status.enum';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { isOwnPlaylist } from '../playlist/own-playlist';
 import { attachGenreGroups, type ScheduleGenreGroup } from './schedule-genre-group';
+import { findDisplacedSlots, type DisplacedSlot } from './displaced-slots';
 
 const OVERLAP_WINDOW_DAYS = 365;
 
@@ -305,6 +306,11 @@ export class ScheduleService {
         ? { ...entry, sliceStatus: byKey.get(`${entry.groupId}:${entry.playlistId}`) ?? null }
         : entry,
     );
+  }
+
+  /** Upcoming slots the organisation's event schedule rules left to other entries. */
+  findDisplaced(organisationId: string, now = new Date()): Promise<DisplacedSlot[]> {
+    return findDisplacedSlots(this.db, organisationId, now);
   }
 
   /**

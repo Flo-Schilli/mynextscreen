@@ -446,7 +446,7 @@ export class EventScheduleReconcileService {
     changes: ReconcileChanges,
   ): Promise<void> {
     if (blocking) {
-      changes.summary.conflicts.push(this.conflictOf(slot.event, target, blocking));
+      changes.summary.conflicts.push(this.conflictOf(slot, playlistId, target, blocking));
       if (current) {
         await tx.delete(scheduleEntries).where(eq(scheduleEntries.id, current.id));
         changes.summary.removed += 1;
@@ -494,17 +494,21 @@ export class EventScheduleReconcileService {
   }
 
   private conflictOf(
-    event: SourceEvent,
+    slot: PlannedSlot<SourceEvent>,
+    playlistId: string,
     target: EventScheduleRuleTarget,
     blocking: ScheduleEntry,
   ): EventScheduleConflict {
     return {
-      sourceEventId: event.id,
-      eventTitle: event.title,
-      eventDate: event.eventDate,
+      sourceEventId: slot.event.id,
+      eventTitle: slot.event.title,
+      eventDate: slot.event.eventDate,
       screenId: target.screenId,
       groupId: target.groupId,
       blockingEntryId: blocking.id,
+      startTime: slot.startTime.toISOString(),
+      endTime: slot.endTime.toISOString(),
+      playlistId,
     };
   }
 }

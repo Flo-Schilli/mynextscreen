@@ -7,8 +7,8 @@ import {
   BlockPointerEvent,
   ResizePointerEvent,
 } from './schedule-calendar-grid';
-import { ScheduleEntry } from './schedule.model';
-import { CalendarBlock, GapBlock, MonthDayCell } from './schedule-calendar.service';
+import { DisplacedSlot, ScheduleEntry } from './schedule.model';
+import { CalendarBlock, GapBlock, GhostBlock, MonthDayCell } from './schedule-calendar.service';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 /** The cases build dates on the runner's clock, so the organisation shares its zone. */
@@ -65,6 +65,7 @@ describe('ScheduleCalendarGrid', () => {
     monthWeeks?: MonthDayCell[][];
     blocks?: CalendarBlock[];
     gaps?: GapBlock[];
+    ghosts?: GhostBlock[];
     draggingEntryId?: string | null;
   }): Promise<void> {
     fixture = TestBed.createComponent(ScheduleCalendarGrid);
@@ -76,6 +77,7 @@ describe('ScheduleCalendarGrid', () => {
     fixture.componentRef.setInput('monthWeeks', overrides?.monthWeeks ?? []);
     fixture.componentRef.setInput('blocks', overrides?.blocks ?? []);
     fixture.componentRef.setInput('gaps', overrides?.gaps ?? []);
+    fixture.componentRef.setInput('ghosts', overrides?.ghosts ?? []);
     fixture.componentRef.setInput('hourHeight', HOUR_HEIGHT);
     fixture.componentRef.setInput('orgTimeZone', LOCAL_TZ);
     if (overrides?.draggingEntryId !== undefined) {
@@ -405,6 +407,37 @@ describe('ScheduleCalendarGrid', () => {
       expect(fixture.nativeElement.querySelector('.fallback-legend')?.textContent).toContain(
         'fallback playlist',
       );
+    });
+
+    it('draws a slot a rule left to another entry as a ghost that can be opened', async () => {
+      // Arrange
+      const slot: DisplacedSlot = {
+        ruleId: 'r1',
+        ruleName: 'Abendkasse',
+        sourceId: 'src1',
+        colour: '#6d6cf6',
+        eventTitle: 'ITCHY',
+        startTime: '2026-06-01T08:00:00.000Z',
+        endTime: '2026-06-01T09:00:00.000Z',
+        screenId: 's1',
+        groupId: null,
+        targetName: 'Lobby',
+        playlistName: 'Demnächst',
+        genres: null,
+        blockingEntry: { id: 'e1', name: 'Pressekonferenz', playlistName: 'Morning Loop' },
+      };
+      await setUp({ viewMode: 'day', ghosts: [{ slot, dayIndex: 0, top: 480, height: 60 }] });
+      const selected: DisplacedSlot[] = [];
+      component.ghostSelect.subscribe((s) => selected.push(s));
+
+      // Act
+      const ghost = fixture.nativeElement.querySelector('.ghost-block') as HTMLButtonElement;
+      ghost.click();
+
+      // Assert
+      expect(ghost.title).toBe('“ITCHY” (rule “Abendkasse”) – covered by “Pressekonferenz”');
+      expect(selected).toEqual([slot]);
+      expect(fixture.nativeElement.querySelector('.ghost-legend')).toBeTruthy();
     });
 
     it('shows no genre group on a block whose event matched none', async () => {

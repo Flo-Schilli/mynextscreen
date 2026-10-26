@@ -4,7 +4,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ScheduleListView } from './schedule-list-view';
 import { ListDay } from './schedule-calendar.service';
 import { ScheduleConflict, ScheduleOccurrence } from './schedule-conflicts';
-import { ScheduleEntry } from './schedule.model';
+import { DisplacedSlot, ScheduleEntry } from './schedule.model';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
@@ -52,6 +52,22 @@ describe('ScheduleListView', () => {
   const day: ListDay = {
     date: new Date('2026-06-10T00:00:00Z'),
     occurrences: [occurrence(show), occurrence(press)],
+    displaced: [],
+  };
+  const displaced: DisplacedSlot = {
+    ruleId: 'r2',
+    ruleName: 'Abendkasse',
+    sourceId: 'src1',
+    colour: '#6d6cf6',
+    eventTitle: 'LAFEE',
+    startTime: '2026-06-10T09:30:00Z',
+    endTime: '2026-06-10T10:30:00Z',
+    screenId: 's1',
+    groupId: null,
+    targetName: 'Lobby',
+    playlistName: 'Demnächst',
+    genres: ['Rock'],
+    blockingEntry: { id: 'press', name: 'Pressekonferenz', playlistName: 'Morning Loop' },
   };
 
   async function setUp(
@@ -125,6 +141,52 @@ describe('ScheduleListView', () => {
     // Assert
     expect(rows().map((row) => row.querySelector('.row-title')?.textContent?.trim())).toEqual([
       'Pressekonferenz',
+    ]);
+  });
+
+  it('shows a slot a rule left to another entry right after that entry', async () => {
+    // Arrange / Act
+    await setUp([{ ...day, displaced: [displaced] }]);
+
+    // Assert
+    const titles = rows().map((row) => row.querySelector('.row-title')?.textContent?.trim());
+    expect(titles).toEqual(['ITCHY', 'Pressekonferenz', 'LAFEE']);
+    const ghost = rows()[2];
+    expect(ghost.classList.contains('ghost-row')).toBe(true);
+    expect(ghost.querySelector('.row-displaced')?.textContent?.trim()).toBe(
+      'Scheduled by rule “Abendkasse” · covered by “Pressekonferenz”',
+    );
+    expect(fixture.nativeElement.querySelector('.displaced-count')?.textContent).toContain(
+      '1 displaced automatic entry',
+    );
+  });
+
+  it('emits a clicked displaced slot', async () => {
+    // Arrange
+    await setUp([{ ...day, displaced: [displaced] }]);
+    const selected: DisplacedSlot[] = [];
+    fixture.componentInstance.displacedSelect.subscribe((slot) => selected.push(slot));
+
+    // Act
+    (fixture.nativeElement.querySelector('.ghost-row') as HTMLButtonElement).click();
+
+    // Assert
+    expect(selected).toEqual([displaced]);
+  });
+
+  it('keeps displaced slots and what holds them when narrowed to overlaps', async () => {
+    // Arrange
+    await setUp([{ ...day, displaced: [displaced] }]);
+
+    // Act
+    fixture.componentInstance.onlyConflicts.set(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    // Assert
+    expect(rows().map((row) => row.querySelector('.row-title')?.textContent?.trim())).toEqual([
+      'Pressekonferenz',
+      'LAFEE',
     ]);
   });
 
