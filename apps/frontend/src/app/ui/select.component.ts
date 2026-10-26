@@ -22,6 +22,10 @@ import { IconComponent } from './icon.component';
 export interface SelectOption {
   value: string;
   label: string;
+  /** Shown but not selectable; say why in `hint`. */
+  disabled?: boolean;
+  /** Secondary text under the label, e.g. why an option is disabled. */
+  hint?: string;
 }
 
 /**
@@ -122,14 +126,21 @@ const MENU_POSITIONS: ConnectedPosition[] = [
             <button
               type="button"
               role="option"
-              class="flex items-center justify-between w-full px-3 py-2 text-sm text-left transition-colors duration-[120ms]"
+              class="flex items-center justify-between w-full px-3 py-2 text-sm text-left transition-colors duration-[120ms] disabled:cursor-not-allowed disabled:opacity-50"
               [class.bg-accent-soft]="opt.value === value()"
               [class.text-accent]="opt.value === value()"
-              [class.hover:bg-hover]="opt.value !== value()"
+              [class.hover:bg-hover]="opt.value !== value() && !opt.disabled"
               [attr.aria-selected]="opt.value === value()"
+              [attr.aria-disabled]="opt.disabled || null"
+              [disabled]="opt.disabled"
               (click)="select(opt.value)"
             >
-              <span>{{ opt.label }}</span>
+              <div class="flex flex-col">
+                <span>{{ opt.label }}</span>
+                @if (opt.hint) {
+                  <small class="text-[12px] text-muted">{{ opt.hint }}</small>
+                }
+              </div>
               @if (opt.value === value()) {
                 <mns-icon name="Check" [size]="14" class="text-accent" />
               }
@@ -255,7 +266,7 @@ export class SelectComponent {
   protected onSearchKeydown(e: KeyboardEvent): void {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    const first = this.filtered()[0];
+    const first = this.filtered().find((opt) => !opt.disabled);
     if (first) this.select(first.value);
   }
 
