@@ -15,4 +15,8 @@ export interface SiteAgentCommand {
   screenId?: string;
   /** Only for `check`: which onboarding step to run. */
   step?: number;
+  /** Only for `export_backup`: the dashboard tab's key to seal the password for. */
+  recipientPublicKey?: string;
+  /** Only for `import_backup`: the `begin_backup_import` it continues. */
+  sessionId?: string;
 }

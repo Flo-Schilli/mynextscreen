@@ -53,6 +53,8 @@ import {
   AUDIT_SITE_AGENT_UPDATE_REQUESTED,
   AUDIT_SITE_AGENT_ONLINE,
   AUDIT_SITE_AGENT_OFFLINE,
+  AUDIT_SITE_AGENT_BACKUP_EXPORTED,
+  AUDIT_SITE_AGENT_BACKUP_IMPORTED,
   AuditSiteAgentEvent,
   AUDIT_SCREEN_REMOTE_CONTROL_UPDATED,
   AUDIT_SCREEN_REMOTE_CONTROL_REMOVED,
@@ -826,6 +828,16 @@ export class AuditListener {
   @OnEvent(AUDIT_SITE_AGENT_OFFLINE, { async: true })
   handleSiteAgentOffline(event: AuditSiteAgentEvent): void {
     this.recordSiteAgent(AuditAction.SiteAgentOffline, event);
+  }
+
+  @OnEvent(AUDIT_SITE_AGENT_BACKUP_EXPORTED, { async: true })
+  handleSiteAgentBackupExported(event: AuditSiteAgentEvent): void {
+    this.recordSiteAgent(AuditAction.SiteAgentBackupExported, event);
+  }
+
+  @OnEvent(AUDIT_SITE_AGENT_BACKUP_IMPORTED, { async: true })
+  handleSiteAgentBackupImported(event: AuditSiteAgentEvent): void {
+    this.recordSiteAgent(AuditAction.SiteAgentBackupImported, event);
   }
 
   @OnEvent(AUDIT_SCREEN_REMOTE_CONTROL_UPDATED, { async: true })

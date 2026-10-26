@@ -13,6 +13,14 @@ import {
   ScreenReachabilityChangedEvent,
 } from '../site-agent/screen-onboarding.event';
 import {
+  SITE_AGENT_BACKUP_EXPORTED,
+  SITE_AGENT_BACKUP_IMPORTED,
+  SITE_AGENT_BACKUP_IMPORT_KEY,
+  SiteAgentBackupExportedEvent,
+  SiteAgentBackupImportKeyEvent,
+  SiteAgentBackupImportedEvent,
+} from '../site-agent/site-agent-backup.event';
+import {
   TRANSCODING_COMPLETED,
   TRANSCODING_FAILED,
   TRANSCODING_PROGRESS,
@@ -192,6 +200,40 @@ export class DashboardSseService implements OnModuleDestroy {
       step: event.step,
       ok: event.ok,
       detail: event.detail,
+    });
+  }
+
+  /**
+   * The three steps of a backup round trip. Each names its `commandId` or
+   * `sessionId` so the tab that started it can pick out its own; none carries
+   * any part of the file.
+   */
+  @OnEvent(SITE_AGENT_BACKUP_EXPORTED)
+  handleSiteAgentBackupExported(event: SiteAgentBackupExportedEvent): void {
+    this.emitToOrg(event.organisationId, 'site_agent.backup-export', {
+      agentId: event.agentId,
+      commandId: event.commandId,
+      error: event.error,
+    });
+  }
+
+  @OnEvent(SITE_AGENT_BACKUP_IMPORT_KEY)
+  handleSiteAgentBackupImportKey(event: SiteAgentBackupImportKeyEvent): void {
+    this.emitToOrg(event.organisationId, 'site_agent.backup-import-key', {
+      agentId: event.agentId,
+      sessionId: event.sessionId,
+      publicKey: event.publicKey,
+      error: event.error,
+    });
+  }
+
+  @OnEvent(SITE_AGENT_BACKUP_IMPORTED)
+  handleSiteAgentBackupImported(event: SiteAgentBackupImportedEvent): void {
+    this.emitToOrg(event.organisationId, 'site_agent.backup-import', {
+      agentId: event.agentId,
+      sessionId: event.sessionId,
+      summary: event.summary,
+      error: event.error,
     });
   }
 

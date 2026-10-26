@@ -44,6 +44,15 @@ export enum SiteAgentCommandType {
    * healthcheck-gated rollback.
    */
   UpdateAgent = 'update_agent',
+  /**
+   * Seal a backup of the agent's TV keys and settings and upload it. Carries the
+   * dashboard tab's public key, which the generated password is sealed for.
+   */
+  ExportBackup = 'export_backup',
+  /** Open an import session: the agent answers with a key for the password. */
+  BeginBackupImport = 'begin_backup_import',
+  /** Fetch the staged file for a session and restore it. */
+  ImportBackup = 'import_backup',
 }
 
 /**

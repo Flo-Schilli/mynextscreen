@@ -11,6 +11,11 @@ import {
   ScreenReachabilityChangedEvent,
 } from '../site-agent/screen-onboarding.event';
 import { ScheduleEntryChangedEvent } from '../schedule/schedule.event';
+import {
+  SiteAgentBackupExportedEvent,
+  SiteAgentBackupImportKeyEvent,
+  SiteAgentBackupImportedEvent,
+} from '../site-agent/site-agent-backup.event';
 import { LiveStreamHealthChangedEvent } from '../live-stream/stream-health.event';
 import { firstValueFrom, take } from 'rxjs';
 
@@ -278,6 +283,39 @@ describe('DashboardSseService', () => {
           ok: false,
           detail: 'ECONNREFUSED on 192.168.1.50:9991',
         },
+      );
+    });
+
+    it('should emit site_agent.backup-export without any part of the file', () => {
+      const event = new SiteAgentBackupExportedEvent('agent-1', orgId, 'cmd-1', null);
+      return expectOrgEvent(
+        () => service.handleSiteAgentBackupExported(event),
+        'site_agent.backup-export',
+        { agentId: 'agent-1', commandId: 'cmd-1', error: null },
+      );
+    });
+
+    it('should emit site_agent.backup-import-key', () => {
+      const event = new SiteAgentBackupImportKeyEvent('agent-1', orgId, 'sess-1', 'PUB', null);
+      return expectOrgEvent(
+        () => service.handleSiteAgentBackupImportKey(event),
+        'site_agent.backup-import-key',
+        { agentId: 'agent-1', sessionId: 'sess-1', publicKey: 'PUB', error: null },
+      );
+    });
+
+    it('should emit site_agent.backup-import', () => {
+      const event = new SiteAgentBackupImportedEvent(
+        'agent-1',
+        orgId,
+        'sess-1',
+        null,
+        'Wrong password',
+      );
+      return expectOrgEvent(
+        () => service.handleSiteAgentBackupImported(event),
+        'site_agent.backup-import',
+        { agentId: 'agent-1', sessionId: 'sess-1', summary: null, error: 'Wrong password' },
       );
     });
 

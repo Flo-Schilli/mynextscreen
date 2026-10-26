@@ -500,4 +500,140 @@ describe('ScreenRemoteControlService', () => {
       expect(mine[0].devmodePassphrase).toBe('AEBC72');
     });
   });
+  describe('restoreFromBackup', () => {
+    const settings = {
+      localIp: '192.168.1.40',
+      macAddress: 'AA:BB:CC:DD:EE:01',
+      devmodePassphrase: 'F00BA2',
+      ssapPort: 3000,
+    };
+
+    async function row(id = screenId) {
+      const [found] = await db
+        .select()
+        .from(screenRemoteControls)
+        .where(eq(screenRemoteControls.screenId, id));
+      return found;
+    }
+
+    it('recreates the settings of a screen that has none, for the importing agent', async () => {
+      const verdict = await service.restoreFromBackup(orgId, agentId, [{ screenId, ...settings }]);
+
+      expect(verdict).toEqual({
+        restored: [
+          { screenId, created: true, filled: ['localIp', 'macAddress', 'devmodePassphrase'] },
+        ],
+        skipped: [],
+      });
+      const saved = await row();
+      expect(saved).toMatchObject({
+        agentId,
+        organisationId: orgId,
+        localIp: '192.168.1.40',
+        macAddress: 'AA:BB:CC:DD:EE:01',
+        ssapPort: 3000,
+      });
+      // Stored the same way a dashboard edit stores it: encrypted.
+      expect(saved.devmodePassphrase).not.toBe('F00BA2');
+      expect((await service.getForScreen(orgId, screenId)).devmodePassphrase).toBe('F00BA2');
+      expect(emitter.emit).toHaveBeenCalledWith(
+        SCREEN_REMOTE_CONFIG_CHANGED,
+        expect.objectContaining({ agentIds: [agentId] }),
+      );
+    });
+
+    it("fills only the empty fields of the agent's own screen", async () => {
+      await service.upsert(orgId, screenId, { agentId, localIp: '10.0.0.9' }, userId);
+
+      const verdict = await service.restoreFromBackup(orgId, agentId, [{ screenId, ...settings }]);
+
+      expect(verdict.restored).toEqual([
+        { screenId, created: false, filled: ['macAddress', 'devmodePassphrase'] },
+      ]);
+      const saved = await row();
+      expect(saved.localIp).toBe('10.0.0.9');
+      expect(saved.macAddress).toBe('AA:BB:CC:DD:EE:01');
+      // The port is never empty on an existing row, so it is left alone.
+      expect(saved.ssapPort).toBe(3001);
+    });
+
+    it('takes over a screen whose settings belong to no agent', async () => {
+      await service.upsert(orgId, screenId, { localIp: '10.0.0.9' }, userId);
+
+      const verdict = await service.restoreFromBackup(orgId, agentId, [{ screenId }]);
+
+      expect(verdict.restored).toEqual([{ screenId, created: false, filled: [] }]);
+      expect((await row()).agentId).toBe(agentId);
+    });
+
+    it('leaves a screen of another agent alone', async () => {
+      const [other] = await db
+        .insert(siteAgents)
+        .values({ organisationId: orgId, name: 'Venue South' })
+        .returning();
+      await service.upsert(orgId, screenId, { agentId: other.id }, userId);
+      emitter.emit.mockClear();
+
+      const verdict = await service.restoreFromBackup(orgId, agentId, [{ screenId, ...settings }]);
+
+      expect(verdict).toEqual({
+        restored: [],
+        skipped: [{ screenId, reason: 'assigned_to_other_agent' }],
+      });
+      expect((await row()).agentId).toBe(other.id);
+      expect((await row()).localIp).toBeNull();
+      expect(emitter.emit).not.toHaveBeenCalledWith(
+        SCREEN_REMOTE_CONFIG_CHANGED,
+        expect.anything(),
+      );
+    });
+
+    it('skips a screen of another organisation and one that no longer exists', async () => {
+      const [foreign] = await db
+        .insert(screens)
+        .values({
+          organisationId: otherOrgId,
+          name: 'Elsewhere',
+          resolution: '1920x1080',
+          location: 'x',
+          apiKeyHash: 'hash-2',
+        })
+        .returning();
+      const gone = '00000000-0000-4000-8000-000000000000';
+
+      const verdict = await service.restoreFromBackup(orgId, agentId, [
+        { screenId: foreign.id, ...settings },
+        { screenId: gone },
+      ]);
+
+      expect(verdict.skipped).toEqual([
+        { screenId: foreign.id, reason: 'screen_not_found' },
+        { screenId: gone, reason: 'screen_not_found' },
+      ]);
+      expect(await row(foreign.id)).toBeUndefined();
+    });
+
+    it('takes the first entry when an id repeats, instead of failing the import', async () => {
+      const verdict = await service.restoreFromBackup(orgId, agentId, [
+        { screenId, localIp: '192.168.1.40' },
+        { screenId, localIp: '192.168.1.99' },
+      ]);
+
+      expect(verdict.restored).toHaveLength(1);
+      expect((await row()).localIp).toBe('192.168.1.40');
+    });
+
+    it('does nothing for an empty list', async () => {
+      await expect(service.restoreFromBackup(orgId, agentId, [])).resolves.toEqual({
+        restored: [],
+        skipped: [],
+      });
+    });
+
+    it('refuses an agent of another organisation', async () => {
+      await expect(
+        service.restoreFromBackup(otherOrgId, agentId, [{ screenId }]),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
 });

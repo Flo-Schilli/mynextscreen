@@ -7,11 +7,13 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import cookieParser = require('cookie-parser');
 import helmet from 'helmet';
+import { json, type NextFunction, type Request, type Response } from 'express';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
 import * as path from 'path';
 import { AppModule } from './app.module';
+import { BACKUP_BODY_LIMIT, BACKUP_UPLOAD_PATHS } from './site-agent/site-agent-backup.constants';
 
 /**
  * Run pending Drizzle migrations at boot, before the app serves traffic.
@@ -54,6 +56,12 @@ async function bootstrap() {
     }),
   );
   app.use(cookieParser());
+  // Registered before Nest's own parser, which then sees an already-parsed body
+  // and leaves it alone. Only these routes get the larger limit.
+  const backupParser = json({ limit: BACKUP_BODY_LIMIT });
+  app.use(BACKUP_UPLOAD_PATHS, (req: Request, res: Response, next: NextFunction) =>
+    req.method === 'POST' ? backupParser(req, res, next) : next(),
+  );
   // The admin SPA (PUBLIC_BASE_URL) sends credentialed cookies; the player app
   // (PLAYER_BASE_URL) is a separate origin that calls the public pairing routes
   // and the screen-auth routes with Bearer/X-Pairing-Secret headers. Allow both
