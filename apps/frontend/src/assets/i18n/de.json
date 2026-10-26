@@ -922,7 +922,8 @@
       "viewWeek": "Woche",
       "viewMonth": "Monat",
       "viewList": "Liste",
-      "allTargets": "Alle Bildschirme und Gruppen"
+      "allTargets": "Alle Bildschirme und Gruppen",
+      "fromDate": "Ab {date}"
     },
     "grid": {
       "groupBadge": "Gruppe",
@@ -936,12 +937,14 @@
       "managedBy": "Automatisch durch Regel „{rule}“"
     },
     "list": {
-      "empty": "Keine Einträge in diesem Zeitraum",
+      "empty": "Keine kommenden Einträge",
       "conflicts": "{count, plural, one {# Überschneidung} other {# Überschneidungen}}",
       "noConflicts": "Keine Überschneidungen",
       "onlyConflicts": "Nur Überschneidungen",
       "conflictWins": "Überschneidet sich mit „{other}“ auf {screens} – dieser Eintrag läuft.",
-      "conflictLoses": "Überschneidet sich mit „{other}“ auf {screens} – dort läuft „{other}“."
+      "conflictLoses": "Überschneidet sich mit „{other}“ auf {screens} – dort läuft „{other}“.",
+      "loadMore": "Weitere Tage laden",
+      "end": "Keine weiteren Einträge"
     },
     "sidePanel": {
       "today": "Heute",

@@ -18,8 +18,10 @@ import {
 
 export type ScheduleViewMode = 'day' | 'week' | 'month' | 'list';
 
-/** How many days the list view covers, starting at its current date. */
+/** How many days the list view shows at first, and adds each time it scrolls to its end. */
 export const LIST_VIEW_DAYS = 14;
+/** The furthest the list view scrolls ahead of its start. */
+export const LIST_MAX_DAYS = 366;
 
 /** One day of the list view with the occurrences that start on it. */
 export interface ListDay {
@@ -102,8 +104,7 @@ export class ScheduleCalendarService {
       return [startOfZonedDay(currentDate, timeZone)];
     }
     if (viewMode === 'list') {
-      const start = startOfZonedDay(currentDate, timeZone);
-      return Array.from({ length: LIST_VIEW_DAYS }, (_, i) => addZonedDays(start, i, timeZone));
+      return this.getListDays(currentDate, LIST_VIEW_DAYS, timeZone);
     }
     // week (month view does not use day columns)
     const start = this.getWeekStart(currentDate, timeZone);
@@ -124,7 +125,7 @@ export class ScheduleCalendarService {
     }
     if (viewMode === 'list') {
       const start = startOfZonedDay(currentDate, timeZone);
-      const end = addZonedDays(start, LIST_VIEW_DAYS, timeZone);
+      const end = addZonedDays(start, LIST_MAX_DAYS, timeZone);
       return { from: start.toISOString(), to: end.toISOString() };
     }
     // month: fetch wider range
@@ -282,6 +283,24 @@ export class ScheduleCalendarService {
     }
     items.sort((a, b) => a.startTime.localeCompare(b.startTime));
     return items;
+  }
+
+  /** `count` consecutive local midnights from the day of `start`, as the list view shows them. */
+  getListDays(start: Date, count: number, timeZone: string): Date[] {
+    const first = startOfZonedDay(start, timeZone);
+    return Array.from({ length: count }, (_, i) => addZonedDays(first, i, timeZone));
+  }
+
+  /**
+   * Whether scrolling the list past `days` can still turn up anything: a
+   * recurring entry repeats, or a one-off one ends after the last day. Never
+   * beyond {@link LIST_MAX_DAYS}.
+   */
+  listHasMore(entries: ScheduleEntry[], days: Date[], timeZone: string): boolean {
+    const last = days[days.length - 1];
+    if (!last || days.length >= LIST_MAX_DAYS) return false;
+    const end = addZonedDays(last, 1, timeZone);
+    return entries.some((entry) => !!entry.rrule || new Date(entry.endTime) > end);
   }
 
   /**

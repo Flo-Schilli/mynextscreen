@@ -1,7 +1,11 @@
 import { TestBed, getTestBed } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
-import { LIST_VIEW_DAYS, ScheduleCalendarService } from './schedule-calendar.service';
+import {
+  LIST_MAX_DAYS,
+  LIST_VIEW_DAYS,
+  ScheduleCalendarService,
+} from './schedule-calendar.service';
 import { ScheduleEntry } from './schedule.model';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
@@ -169,7 +173,25 @@ describe('ScheduleCalendarService', () => {
       expect(days[0]).toEqual(new Date(2026, 5, 10));
       expect(days[13]).toEqual(new Date(2026, 5, 23));
       const range = service.getQueryRange('list', new Date(2026, 5, 10, 15), LOCAL_TZ);
-      expect(new Date(range.to)).toEqual(new Date(2026, 5, 24));
+      expect(new Date(range.from)).toEqual(new Date(2026, 5, 10));
+    });
+
+    it('extends to any number of days', () => {
+      const days = service.getListDays(new Date(2026, 5, 10, 15), 28, LOCAL_TZ);
+      expect(days).toHaveLength(28);
+      expect(days[27]).toEqual(new Date(2026, 6, 7));
+    });
+
+    it('has more while something recurs or ends after the last day', () => {
+      const days = service.getListDays(new Date(2026, 5, 10), 14, LOCAL_TZ);
+      const inside = makeEntry();
+      const later = makeEntry({ startTime: '2026-07-01T09:00:00', endTime: '2026-07-01T10:00:00' });
+      const weekly = makeEntry({ rrule: 'FREQ=WEEKLY' });
+      expect(service.listHasMore([inside], days, LOCAL_TZ)).toBe(false);
+      expect(service.listHasMore([inside, later], days, LOCAL_TZ)).toBe(true);
+      expect(service.listHasMore([weekly], days, LOCAL_TZ)).toBe(true);
+      const year = service.getListDays(new Date(2026, 5, 10), LIST_MAX_DAYS, LOCAL_TZ);
+      expect(service.listHasMore([weekly], year, LOCAL_TZ)).toBe(false);
     });
 
     it('lists each occurrence once under the day it starts on, sorted by start', () => {

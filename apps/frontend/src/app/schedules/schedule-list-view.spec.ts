@@ -54,10 +54,15 @@ describe('ScheduleListView', () => {
     occurrences: [occurrence(show), occurrence(press)],
   };
 
-  async function setUp(days: ListDay[], conflicts = new Map<string, ScheduleConflict[]>()) {
+  async function setUp(
+    days: ListDay[],
+    conflicts = new Map<string, ScheduleConflict[]>(),
+    hasMore = false,
+  ) {
     fixture = TestBed.createComponent(ScheduleListView);
     fixture.componentRef.setInput('days', days);
     fixture.componentRef.setInput('conflicts', conflicts);
+    fixture.componentRef.setInput('hasMore', hasMore);
     fixture.componentRef.setInput('orgTimeZone', 'UTC');
     fixture.detectChanges();
     await fixture.whenStable();
@@ -142,7 +147,42 @@ describe('ScheduleListView', () => {
 
     // Assert
     expect(rows()).toHaveLength(0);
-    expect(fixture.nativeElement.textContent).toContain('No entries in this period');
+    expect(fixture.nativeElement.textContent).toContain('No upcoming entries');
     expect(fixture.nativeElement.querySelector('.no-conflicts')).toBeTruthy();
+  });
+
+  it('asks for more days from its end while there are any', async () => {
+    // Arrange
+    await setUp([day], new Map(), true);
+    let requested = 0;
+    fixture.componentInstance.loadMore.subscribe(() => requested++);
+
+    // Act
+    const more = fixture.nativeElement.querySelector('.list-more button') as HTMLButtonElement;
+    more.click();
+
+    // Assert
+    expect(requested).toBe(1);
+    expect(fixture.nativeElement.querySelector('.list-end')).toBeNull();
+  });
+
+  it('marks its end once nothing further can come', async () => {
+    // Arrange / Act
+    await setUp([day]);
+
+    // Assert
+    expect(fixture.nativeElement.querySelector('.list-more')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.list-end')?.textContent?.trim()).toBe(
+      'No further entries',
+    );
+  });
+
+  it('does not claim to be empty while more can still load', async () => {
+    // Arrange / Act
+    await setUp([], new Map(), true);
+
+    // Assert
+    expect(fixture.nativeElement.textContent).not.toContain('No upcoming entries');
+    expect(fixture.nativeElement.querySelector('.list-more')).toBeTruthy();
   });
 });

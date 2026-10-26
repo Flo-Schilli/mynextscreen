@@ -922,7 +922,8 @@
       "viewWeek": "Week",
       "viewMonth": "Month",
       "viewList": "List",
-      "allTargets": "All screens and groups"
+      "allTargets": "All screens and groups",
+      "fromDate": "From {date}"
     },
     "grid": {
       "groupBadge": "Group",
@@ -936,12 +937,14 @@
       "managedBy": "Scheduled by rule “{rule}”"
     },
     "list": {
-      "empty": "No entries in this period",
+      "empty": "No upcoming entries",
       "conflicts": "{count, plural, one {# overlap} other {# overlaps}}",
       "noConflicts": "No overlaps",
       "onlyConflicts": "Only overlaps",
       "conflictWins": "Overlaps “{other}” on {screens} – this entry plays.",
-      "conflictLoses": "Overlaps “{other}” on {screens} – “{other}” plays there."
+      "conflictLoses": "Overlaps “{other}” on {screens} – “{other}” plays there.",
+      "loadMore": "Load more days",
+      "end": "No further entries"
     },
     "sidePanel": {
       "today": "Today",

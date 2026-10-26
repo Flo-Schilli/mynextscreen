@@ -108,6 +108,18 @@ describe('ScheduleToolbar', () => {
       expect(first.label).toBe('All screens and groups');
     });
 
+    it('hides the previous/next arrows in the list view, which scrolls instead', async () => {
+      // Arrange / Act
+      await setUp({ viewMode: 'list' });
+
+      // Assert
+      const titles = Array.from(fixture.nativeElement.querySelectorAll('button[title]')).map(
+        (b) => (b as HTMLElement).title,
+      );
+      expect(titles).not.toContain('Previous');
+      expect(titles).not.toContain('Next');
+    });
+
     it('does not offer it in the calendar views', async () => {
       // Arrange / Act
       await setUp({ viewMode: 'week' });

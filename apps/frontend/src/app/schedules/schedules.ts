@@ -37,6 +37,7 @@ import {
   GapBlock,
   DayTimeline,
   ListDay,
+  LIST_MAX_DAYS,
   LIST_VIEW_DAYS,
   MonthDayCell,
 } from './schedule-calendar.service';
@@ -122,8 +123,10 @@ const HOUR_HEIGHT = 60;
               <app-schedule-list-view
                 [days]="listDays"
                 [conflicts]="listConflicts"
+                [hasMore]="listHasMore"
                 [orgTimeZone]="orgTimeZone"
                 (entrySelect)="openEditModal($event)"
+                (loadMore)="loadMoreList()"
               />
             } @else {
               <app-schedule-calendar-grid
@@ -336,6 +339,9 @@ export class Schedules implements OnInit, OnDestroy {
   dayTimeline: DayTimeline[] = [];
   listDays: ListDay[] = [];
   listConflicts = new Map<string, ScheduleConflict[]>();
+  /** How far the list has been scrolled out, in days from {@link currentDate}. */
+  listDayCount = LIST_VIEW_DAYS;
+  listHasMore = false;
 
   // Live slice progress overlay, shown after assigning content to a split group.
   // Fed by the slice.* SSE stream; null when no run is being surfaced.
@@ -417,7 +423,16 @@ export class Schedules implements OnInit, OnDestroy {
         year: 'numeric',
       });
     }
-    if (this.viewMode === 'week' || this.viewMode === 'list') {
+    if (this.viewMode === 'list') {
+      const date = this.currentDate.toLocaleDateString(locale, {
+        ...opts,
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      });
+      return this.transloco.translate('schedules.toolbar.fromDate', { date });
+    }
+    if (this.viewMode === 'week') {
       const days = this.visibleDays;
       const first = days[0];
       const last = days[days.length - 1];
@@ -713,11 +728,7 @@ export class Schedules implements OnInit, OnDestroy {
 
   private rebuildCalendar(): void {
     if (this.viewMode === 'list') {
-      this.listDays = this.calendar.buildListDays(this.entries, this.visibleDays, this.orgTimeZone);
-      this.listConflicts = findConflicts(
-        this.listDays.flatMap((day) => day.occurrences),
-        this.screens,
-      );
+      this.rebuildList();
     } else if (this.viewMode === 'month') {
       this.monthWeeks = this.calendar.buildMonthWeeks(
         this.entries,
@@ -741,9 +752,31 @@ export class Schedules implements OnInit, OnDestroy {
     );
   }
 
+  private rebuildList(): void {
+    const days = this.calendar.getListDays(this.currentDate, this.listDayCount, this.orgTimeZone);
+    this.listDays = this.calendar.buildListDays(this.entries, days, this.orgTimeZone);
+    this.listConflicts = findConflicts(
+      this.listDays.flatMap((day) => day.occurrences),
+      this.screens,
+    );
+    this.listHasMore = this.calendar.listHasMore(this.entries, days, this.orgTimeZone);
+  }
+
+  /**
+   * The list reached its end: show the next stretch of days. Everything is
+   * already loaded (the API returns the organisation's entries whole), so this
+   * only expands more occurrences.
+   */
+  loadMoreList(): void {
+    if (this.viewMode !== 'list' || !this.listHasMore) return;
+    this.listDayCount = Math.min(this.listDayCount + LIST_VIEW_DAYS, LIST_MAX_DAYS);
+    this.rebuildList();
+  }
+
   // --- Navigation ---
   setView(mode: ScheduleViewMode): void {
     this.viewMode = mode;
+    this.listDayCount = LIST_VIEW_DAYS;
     // "All screens" is a list-only target; the calendar shows one at a time.
     if (mode !== 'list' && this.selectedTargetId === ALL_TARGETS) {
       const first = this.targetOptions[0];
@@ -786,15 +819,13 @@ export class Schedules implements OnInit, OnDestroy {
     if (this.viewMode === 'week') {
       return addZonedDays(this.currentDate, 7 * direction, this.orgTimeZone);
     }
-    if (this.viewMode === 'list') {
-      return addZonedDays(this.currentDate, LIST_VIEW_DAYS * direction, this.orgTimeZone);
-    }
     return addZonedMonths(this.currentDate, direction, this.orgTimeZone);
   }
 
   navigateToday(): void {
     this.currentDate = new Date();
     this.selectedDate = new Date();
+    this.listDayCount = LIST_VIEW_DAYS;
     this.syncMobileDayIndex();
     this.loadEntries();
   }
@@ -830,6 +861,7 @@ export class Schedules implements OnInit, OnDestroy {
 
   onToolbarTargetChange(targetId: string): void {
     this.selectedTargetId = targetId;
+    this.listDayCount = LIST_VIEW_DAYS;
     this.loadEntries();
   }
 

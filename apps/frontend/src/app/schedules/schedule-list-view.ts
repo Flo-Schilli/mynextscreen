@@ -1,29 +1,44 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
+  ElementRef,
   computed,
+  effect,
   inject,
   input,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
-import { CardComponent, EmptyComponent, IconComponent, SwitchComponent } from '../ui';
+import { BtnComponent, CardComponent, EmptyComponent, IconComponent, SwitchComponent } from '../ui';
 import { LanguageService } from '../i18n/language.service';
 import { ListDay } from './schedule-calendar.service';
 import { ScheduleConflict, ScheduleOccurrence } from './schedule-conflicts';
 import { ScheduleEntry, entryGenres, entryPlaylistName, entryTitle } from './schedule.model';
 import { isSameZonedDay } from './org-time';
 
+/** How far before the list's end it asks for more, so scrolling rarely has to wait. */
+const LOAD_AHEAD_MARGIN = '600px';
+
 /**
- * Presentational list of upcoming occurrences, grouped by day. Shows where
+ * Presentational list of upcoming occurrences, grouped by day. It asks for
+ * more days whenever its end scrolls into reach, so the user never pages. Shows where
  * entries overlap on a screen and which of them plays; selecting a row hands
  * the entry back to the page, which opens it as the calendar would.
  */
 @Component({
   selector: 'app-schedule-list-view',
   standalone: true,
-  imports: [CardComponent, EmptyComponent, IconComponent, SwitchComponent, TranslocoDirective],
+  imports: [
+    BtnComponent,
+    CardComponent,
+    EmptyComponent,
+    IconComponent,
+    SwitchComponent,
+    TranslocoDirective,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <mns-card [pad]="false" *transloco="let t">
@@ -47,7 +62,7 @@ import { isSameZonedDay } from './org-time';
         }
       </div>
 
-      @if (shownDays().length === 0) {
+      @if (shownDays().length === 0 && !hasMore()) {
         <div class="py-10">
           <mns-empty icon="Calendar" [title]="t('schedules.list.empty')" />
         </div>
@@ -132,6 +147,17 @@ import { isSameZonedDay } from './org-time';
           }
         </section>
       }
+      @if (hasMore()) {
+        <div #sentinel class="list-more flex justify-center px-4 py-4">
+          <mns-btn variant="outline" size="sm" (mnsClick)="loadMore.emit()">{{
+            t('schedules.list.loadMore')
+          }}</mns-btn>
+        </div>
+      } @else if (shownDays().length > 0) {
+        <p class="list-end px-4 py-4 text-center text-[12px] text-faint">
+          {{ t('schedules.list.end') }}
+        </p>
+      }
     </mns-card>
   `,
   styles: `
@@ -144,13 +170,43 @@ export class ScheduleListView {
   readonly days = input.required<ListDay[]>();
   readonly conflicts = input.required<Map<string, ScheduleConflict[]>>();
   readonly orgTimeZone = input.required<string>();
+  /** Whether scrolling further can still show anything. */
+  readonly hasMore = input(false);
 
   readonly entrySelect = output<ScheduleEntry>();
+  readonly loadMore = output<void>();
 
   private readonly transloco = inject(TranslocoService);
   private readonly language = inject(LanguageService);
 
   readonly onlyConflicts = signal(false);
+
+  private readonly sentinel = viewChild<ElementRef<HTMLElement>>('sentinel');
+  private observer: IntersectionObserver | null = null;
+
+  /**
+   * Watches the end of the list. Re-created whenever the days change: an
+   * observer reports a sentinel that is still in reach right away, so short
+   * stretches keep loading until the list fills the screen.
+   */
+  private readonly watchEnd = effect(() => {
+    this.days();
+    const el = this.sentinel()?.nativeElement;
+    this.observer?.disconnect();
+    this.observer = null;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    this.observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) this.loadMore.emit();
+      },
+      { rootMargin: LOAD_AHEAD_MARGIN },
+    );
+    this.observer.observe(el);
+  });
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.observer?.disconnect());
+  }
 
   readonly conflictCount = computed(() => this.conflicts().size);
 
