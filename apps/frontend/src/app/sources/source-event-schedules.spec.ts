@@ -9,6 +9,7 @@ import { EventSchedulePreviewItem, EventScheduleRule } from './event-schedule.mo
 import { PlaylistService } from '../playlists/playlist.service';
 import { ScreenService } from '../screens/screen.service';
 import { ScreenGroupService } from '../screen-groups/screen-group.service';
+import { ContentSourceService } from './content-source.service';
 import { ToastService } from '../shared/toast/toast.service';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
@@ -23,6 +24,7 @@ function buildRule(overrides: Partial<EventScheduleRule> = {}): EventScheduleRul
     windowStart: '18:00',
     windowEnd: '01:00',
     excludeCancelled: true,
+    genreVariants: [],
     colour: '#6d6cf6',
     enabled: true,
     screenIds: ['sc1'],
@@ -81,12 +83,22 @@ describe('SourceEventSchedules', () => {
         { provide: EventScheduleService, useValue: service },
         {
           provide: PlaylistService,
-          useValue: { getAll: () => of([{ id: 'p1', name: 'Konzert' }]) },
+          useValue: {
+            getAll: () =>
+              of([
+                { id: 'p1', name: 'Konzert', kind: 'static' },
+                { id: 'p2', name: 'Demnächst', kind: 'dynamic' },
+              ]),
+          },
         },
         { provide: ScreenService, useValue: { getAll: () => of([{ id: 'sc1', name: 'Foyer' }]) } },
         {
           provide: ScreenGroupService,
           useValue: { getAll: () => of([{ id: 'g1', name: 'Wall' }]) },
+        },
+        {
+          provide: ContentSourceService,
+          useValue: { getFacets: () => of({ venues: [], genres: ['Rock', 'Jazz'] }) },
         },
       ],
     }).compileComponents();
@@ -152,6 +164,7 @@ describe('SourceEventSchedules', () => {
       windowEnd: '23:00',
       targets: ['group:g1'],
       excludeCancelled: true,
+      genreGroups: [],
       colour: '#6d6cf6',
       enabled: true,
     });
@@ -164,6 +177,64 @@ describe('SourceEventSchedules', () => {
     );
     expect(fixture.debugElement.query(By.directive(EventScheduleRuleModal))).toBeNull();
     expect(text()).toContain('New');
+  });
+
+  it('lists the genre groups of a rule in their order', async () => {
+    service.getAll.mockReturnValue(
+      of([
+        buildRule({
+          playlistId: 'p2',
+          genreVariants: [{ genres: ['Rock', 'Metal'] }, { genres: ['Jazz'] }],
+        }),
+      ]),
+    );
+    await setUp();
+
+    expect(fixture.nativeElement.querySelector('.genre-groups').textContent).toContain(
+      'Rock/Metal · Jazz',
+    );
+  });
+
+  it('edits genre groups only for a dynamic playlist', async () => {
+    service.getAll.mockReturnValue(of([buildRule({ playlistId: 'p2' })]));
+    await setUp();
+
+    click('.edit-rule');
+    expect(fixture.nativeElement.querySelector('.add-genre-group')).not.toBeNull();
+    click('.add-genre-group');
+    const modal = fixture.debugElement.query(By.directive(EventScheduleRuleModal))
+      .componentInstance as EventScheduleRuleModal;
+    (modal as unknown as { setGroup(i: number, g: string[]): void }).setGroup(0, ['Rock']);
+    modal.submit();
+    fixture.detectChanges();
+
+    expect(service.update).toHaveBeenCalledWith(
+      'org1',
+      's1',
+      'r1',
+      expect.objectContaining({ genreVariants: [{ genres: ['Rock'] }] }),
+    );
+  });
+
+  it('hides genre groups for a static playlist and saves none', async () => {
+    service.getAll.mockReturnValue(
+      of([buildRule({ playlistId: 'p1', genreVariants: [{ genres: ['Rock'] }] })]),
+    );
+    await setUp();
+
+    click('.edit-rule');
+    expect(fixture.nativeElement.querySelector('.add-genre-group')).toBeNull();
+    const modal = fixture.debugElement.query(By.directive(EventScheduleRuleModal))
+      .componentInstance as EventScheduleRuleModal;
+    modal.submit();
+    fixture.detectChanges();
+
+    expect(service.update).toHaveBeenCalledWith(
+      'org1',
+      's1',
+      'r1',
+      expect.objectContaining({ genreVariants: [] }),
+    );
   });
 
   it('keeps the modal open when saving fails', async () => {

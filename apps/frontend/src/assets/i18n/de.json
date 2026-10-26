@@ -1701,7 +1701,8 @@
       "wakeOnUnreachableEnabled": "Bei Nichterreichbarkeit wecken",
       "probeIntervalMinutes": "Prüfintervall (Min.)",
       "subnetSweepEnabled": "Subnetz-Suche",
-      "previousMode": "Vorheriger Modus"
+      "previousMode": "Vorheriger Modus",
+      "genreVariants": "Genre-Gruppen"
     },
     "resourceTypes": {
       "content": "Inhalt",
@@ -2496,12 +2497,20 @@
         "excludeCancelledDesc": "Ein abgesagtes Event bekommt keinen Eintrag.",
         "enabledLabel": "Aktiv",
         "enabledDesc": "Pausiert entfernt die kommenden Einträge, bis du die Regel wieder aktivierst.",
+        "genreGroupsLabel": "Inhalt je Genre",
+        "genreGroupsHint": "Passt zu einem Event eine Gruppe, zeigt die Playlist nur Events dieser Genres. Die erste passende Gruppe gewinnt, sonst läuft die Playlist unverändert.",
+        "genreGroupLabel": "Genre-Gruppe {{n}}",
+        "genreGroupPlaceholder": "Genres wählen…",
+        "addGenreGroup": "Genre-Gruppe hinzufügen",
+        "moveUp": "Nach oben",
+        "moveDown": "Nach unten",
         "errors": {
           "name": "Gib der Regel einen Namen.",
           "venues": "Wähle mindestens einen Spielort.",
           "playlist": "Wähle eine Playlist.",
           "window": "Gib Beginn und Ende als Uhrzeit an.",
-          "targets": "Wähle mindestens einen Bildschirm oder eine Gruppe."
+          "targets": "Wähle mindestens einen Bildschirm oder eine Gruppe.",
+          "genreGroups": "Jede Genre-Gruppe braucht mindestens ein Genre, und keine zwei Gruppen dürfen dieselben Genres haben."
         }
       },
       "toast": {
@@ -2510,7 +2519,8 @@
         "deleted": "Regel gelöscht",
         "deleteFailed": "Regel konnte nicht gelöscht werden",
         "loadFailed": "Regeln konnten nicht geladen werden"
-      }
+      },
+      "genreGroups": "Je Genre: {{groups}}"
     }
   }
 }

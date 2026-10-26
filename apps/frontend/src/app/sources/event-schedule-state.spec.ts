@@ -20,6 +20,7 @@ const RULE: EventScheduleRule = {
   windowStart: '18:00',
   windowEnd: '01:00',
   excludeCancelled: false,
+  genreVariants: [{ genres: ['Rock', 'Metal'] }, { genres: ['Klassik'] }],
   colour: '#f59e0b',
   enabled: true,
   screenIds: ['sc1'],
@@ -46,6 +47,7 @@ describe('event schedule state', () => {
       screenIds: ['sc1'],
       groupIds: ['g1'],
       excludeCancelled: false,
+      genreVariants: [{ genres: ['Rock', 'Metal'] }, { genres: ['Klassik'] }],
       colour: '#f59e0b',
       enabled: true,
     });
@@ -67,6 +69,23 @@ describe('event schedule state', () => {
       'window',
       'targets',
     ]);
+  });
+
+  it('flags an empty genre group and two groups with the same genres', () => {
+    const base = eventScheduleFormFrom(RULE);
+
+    expect(validateEventScheduleForm({ ...base, genreGroups: [['Rock'], []] })).toEqual([
+      'genreGroups',
+    ]);
+    expect(
+      validateEventScheduleForm({
+        ...base,
+        genreGroups: [
+          ['Rock', 'Pop'],
+          ['Pop', 'Rock'],
+        ],
+      }),
+    ).toEqual(['genreGroups']);
   });
 
   it('accepts a complete form', () => {

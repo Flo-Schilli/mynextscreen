@@ -59,7 +59,8 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
   ├── ContentSource   { adapterType, params, formats, style, syncInterval, lastSync* }
   │     └── SourceEvent { externalId, eventDate, venue, genres, status, goneAt } └── SourceEventSlide { format, contentId(managed), renderHash }
   ├── Schedule        { screen|group, playlist, start/end, RRULE(recurring), color, managedByRuleId? }
-  ├── EventScheduleRule { source, venues(canonical), playlist, windowStart/End(HH:MM lokal), excludeCancelled, enabled }
+  ├── EventScheduleRule { source, venues(canonical), playlist, windowStart/End(HH:MM lokal), excludeCancelled, enabled,
+  │     genreVariants[] (Genre-Gruppen → versteckte Varianten-Playlists, playlists.managedByRuleId) }
   │     ├── Target { screen|group } └── Exclusion { sourceEvent }
   ├── LiveStream      { sourceUrl, target screen(s)/group, ffmpeg lifecycle → HLS }
   ├── SiteAgent       { name, location, version, network(kind/ssid/ip), heartbeat; Enrolment + rotierende Sessions }

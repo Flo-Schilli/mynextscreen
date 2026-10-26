@@ -16,3 +16,11 @@ export interface EventScheduleReconcileSummary {
   removed: number;
   conflicts: EventScheduleConflict[];
 }
+
+/**
+ * A group of genres on a rule. An event with one of them plays the rule's
+ * playlist narrowed to these genres.
+ */
+export interface GenreVariant {
+  genres: string[];
+}

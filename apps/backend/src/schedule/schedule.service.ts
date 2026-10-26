@@ -44,6 +44,7 @@ import {
 import { SliceEnqueueService } from '../slice-content';
 import { SliceStatus } from '../slice-content/slice-status.enum';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
+import { isOwnPlaylist } from '../playlist/own-playlist';
 
 const OVERLAP_WINDOW_DAYS = 365;
 
@@ -646,7 +647,13 @@ export class ScheduleService {
     const [playlist] = await this.db
       .select()
       .from(playlists)
-      .where(and(eq(playlists.id, playlistId), eq(playlists.organisationId, organisationId)))
+      .where(
+        and(
+          eq(playlists.id, playlistId),
+          eq(playlists.organisationId, organisationId),
+          isOwnPlaylist(),
+        ),
+      )
       .limit(1);
     if (!playlist) {
       throw new NotFoundException(

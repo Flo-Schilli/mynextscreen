@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import {
@@ -22,6 +22,7 @@ import {
   AUDIT_ORGANISATION_UPDATED,
   AuditOrganisationEvent,
 } from '../audit-log/audit.events';
+import { isOwnPlaylist } from '../playlist/own-playlist';
 
 @Injectable()
 export class OrganisationService {
@@ -186,7 +187,7 @@ export class OrganisationService {
       const [playlist] = await this.db
         .select()
         .from(playlists)
-        .where(eq(playlists.id, playlistId))
+        .where(and(eq(playlists.id, playlistId), isOwnPlaylist()))
         .limit(1);
       if (!playlist) {
         throw new NotFoundException(`Playlist with id "${playlistId}" not found`);

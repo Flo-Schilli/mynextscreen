@@ -15,6 +15,10 @@ export interface EventScheduleReconcileSummary {
   conflicts: EventScheduleConflict[];
 }
 
+export interface GenreVariant {
+  genres: string[];
+}
+
 /** "Schedule the playlist from windowStart to windowEnd on every event day at these venues." */
 export interface EventScheduleRule {
   id: string;
@@ -28,6 +32,8 @@ export interface EventScheduleRule {
   /** Local `HH:MM`; at or before `windowStart` means the next day. */
   windowEnd: string;
   excludeCancelled: boolean;
+  /** Ordered genre groups; an event with a genre of a group plays the playlist narrowed to it. */
+  genreVariants: GenreVariant[];
   colour: string;
   enabled: boolean;
   screenIds: string[];
@@ -47,6 +53,7 @@ export interface EventScheduleRuleRequest {
   screenIds: string[];
   groupIds: string[];
   excludeCancelled: boolean;
+  genreVariants: GenreVariant[];
   colour: string;
   enabled: boolean;
 }

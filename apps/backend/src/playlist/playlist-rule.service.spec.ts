@@ -6,6 +6,7 @@ import { asc, eq } from 'drizzle-orm';
 import {
   contentSources,
   contents,
+  eventScheduleRules,
   organisations,
   playlistItems,
   playlists,
@@ -32,7 +33,11 @@ import { PlaylistService } from './playlist.service';
 import { PlaylistRuleService } from './playlist-rule.service';
 import { PlaylistRuleDto, toPlaylistRule } from './dto/playlist-rule.dto';
 import { PlaylistKind } from './playlist-kind.enum';
-import { PLAYLIST_UPDATED } from './playlist.event';
+import {
+  PLAYLIST_RULE_CHANGED,
+  PLAYLIST_UPDATED,
+  PlaylistResolveRequestedEvent,
+} from './playlist.event';
 import { TransitionType } from './transition-type.enum';
 
 describe('PlaylistRuleService', () => {
@@ -326,6 +331,29 @@ describe('PlaylistRuleService', () => {
       expect((await itemsOf(playlist.id)).map((item) => item.contentId)).toEqual([kept.contentId]);
     });
 
+    it('keeps the resolves of a genre variant out of the audit log', async () => {
+      await seedEventWithSlide();
+      const base = await seedDynamic();
+      const [rule] = await db
+        .insert(eventScheduleRules)
+        .values({
+          organisationId: orgId,
+          sourceId: source.id,
+          name: 'Abend',
+          venues: ['Löwensaal'],
+          playlistId: base.id,
+          windowStart: '18:00',
+          windowEnd: '23:00',
+        })
+        .returning();
+      const variant = await seedDynamic({ managedByRuleId: rule.id, variantKey: '["Metal"]' });
+
+      const outcome = await service.resolve(variant.id, noon);
+
+      expect(outcome).toMatchObject({ changed: true, itemCount: 1 });
+      expect(emit).not.toHaveBeenCalledWith(AUDIT_PLAYLIST_RESOLVED, expect.anything());
+    });
+
     it('drops an event once its day plus grace hours has passed', async () => {
       await seedEventWithSlide({ eventDate: '2026-11-10' });
       const playlist = await seedDynamic({}, { graceHours: 2 });
@@ -448,6 +476,10 @@ describe('PlaylistRuleService', () => {
       expect(emit).toHaveBeenCalledWith(
         AUDIT_PLAYLIST_RULE_UPDATED,
         expect.objectContaining({ playlistId: playlist.id, userId }),
+      );
+      expect(emit).toHaveBeenCalledWith(
+        PLAYLIST_RULE_CHANGED,
+        expect.objectContaining({ playlistId: playlist.id, organisationId: orgId }),
       );
     });
 
@@ -579,6 +611,20 @@ describe('PlaylistRuleService', () => {
 
       await expect(
         service.onSourceRemoved(new ContentSourceRemovedEvent(source.id, orgId)),
+      ).resolves.toBeUndefined();
+    });
+
+    it('enqueues a playlist on request and swallows a queue failure', async () => {
+      await service.onResolveRequested(new PlaylistResolveRequestedEvent('p1'));
+      expect(queue.add).toHaveBeenCalledWith(
+        expect.anything(),
+        { playlistId: 'p1' },
+        expect.objectContaining({ jobId: 'resolve-p1' }),
+      );
+
+      queue.add.mockRejectedValue(new Error('redis down'));
+      await expect(
+        service.onResolveRequested(new PlaylistResolveRequestedEvent('p1')),
       ).resolves.toBeUndefined();
     });
 

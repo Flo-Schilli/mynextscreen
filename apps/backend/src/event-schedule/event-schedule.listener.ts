@@ -21,6 +21,7 @@ import {
   ScheduleEntriesEditedEvent,
   ScheduleEntryChangedEvent,
 } from '../schedule/schedule.event';
+import { PLAYLIST_RULE_CHANGED, PlaylistRuleChangedEvent } from '../playlist/playlist.event';
 import { EventScheduleReconcileService } from './event-schedule-reconcile.service';
 
 /** Rolls every rule's horizon on and heals a reconcile that failed. */
@@ -32,7 +33,8 @@ function errorMessage(error: unknown): string {
 
 /**
  * Reconciles rules whenever their inputs change: a sync or new aliases of
- * their source, a manual entry on one of their targets, or the hourly tick.
+ * their source, a manual entry on one of their targets, a new rule on the
+ * playlist their genre variants copy, or the hourly tick.
  * Generated entries never raise `SCHEDULE_ENTRIES_EDITED`, so a reconcile
  * never triggers another one through this listener.
  */
@@ -54,6 +56,12 @@ export class EventScheduleListener {
   @OnEvent(CONTENT_SOURCE_VENUE_ALIASES_UPDATED, { async: true })
   async onVenueAliasesUpdated(event: ContentSourceVenueAliasesUpdatedEvent): Promise<void> {
     await this.reconcileAll(() => this.reconcileService.ruleIdsOfSource(event.sourceId));
+  }
+
+  /** Genre variants copy their playlist's rule, so they follow when it changes. */
+  @OnEvent(PLAYLIST_RULE_CHANGED, { async: true })
+  async onPlaylistRuleChanged(event: PlaylistRuleChangedEvent): Promise<void> {
+    await this.reconcileAll(() => this.reconcileService.ruleIdsWithVariantsOf(event.playlistId));
   }
 
   /** A manual entry may now hold a slot a rule filled, or free one: the rules adjust. */

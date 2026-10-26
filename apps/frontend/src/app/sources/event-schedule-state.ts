@@ -10,11 +10,14 @@ export interface EventScheduleFormValue {
   windowEnd: string;
   targets: string[];
   excludeCancelled: boolean;
+  /** Genres of each group, in order; only sent for a dynamic playlist. */
+  genreGroups: string[][];
   colour: string;
   enabled: boolean;
 }
 
-export type EventScheduleFormError = 'name' | 'venues' | 'playlist' | 'window' | 'targets';
+export type EventScheduleFormError =
+  'name' | 'venues' | 'playlist' | 'window' | 'targets' | 'genreGroups';
 
 const HH_MM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const SCREEN_PREFIX = 'screen:';
@@ -31,6 +34,7 @@ export function emptyEventScheduleForm(): EventScheduleFormValue {
     windowEnd: '23:30',
     targets: [],
     excludeCancelled: true,
+    genreGroups: [],
     colour: DEFAULT_RULE_COLOUR,
     enabled: true,
   };
@@ -48,6 +52,7 @@ export function eventScheduleFormFrom(rule: EventScheduleRule): EventScheduleFor
       ...rule.groupIds.map((id) => GROUP_PREFIX + id),
     ],
     excludeCancelled: rule.excludeCancelled,
+    genreGroups: (rule.genreVariants ?? []).map((variant) => [...variant.genres]),
     colour: rule.colour,
     enabled: rule.enabled,
   };
@@ -61,7 +66,16 @@ export function validateEventScheduleForm(value: EventScheduleFormValue): EventS
   if (value.playlistId === '') errors.push('playlist');
   if (!HH_MM.test(value.windowStart) || !HH_MM.test(value.windowEnd)) errors.push('window');
   if (value.targets.length === 0) errors.push('targets');
+  if (value.genreGroups.some((genres) => genres.length === 0) || hasDuplicateGroups(value)) {
+    errors.push('genreGroups');
+  }
   return errors;
+}
+
+/** Two groups with the same genres, in any order: the second could never match. */
+function hasDuplicateGroups(value: EventScheduleFormValue): boolean {
+  const keys = value.genreGroups.map((genres) => [...genres].sort().join('\u0000'));
+  return new Set(keys).size !== keys.length;
 }
 
 export function toEventScheduleRequest(value: EventScheduleFormValue): EventScheduleRuleRequest {
@@ -78,6 +92,7 @@ export function toEventScheduleRequest(value: EventScheduleFormValue): EventSche
       t.startsWith(GROUP_PREFIX) ? [t.slice(GROUP_PREFIX.length)] : [],
     ),
     excludeCancelled: value.excludeCancelled,
+    genreVariants: value.genreGroups.map((genres) => ({ genres: [...genres] })),
     colour: value.colour,
     enabled: value.enabled,
   };

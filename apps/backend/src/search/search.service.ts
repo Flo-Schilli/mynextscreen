@@ -4,6 +4,7 @@ import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { screens, contents, playlists, scheduleEntries, screenGroups } from '../db/schema';
 import { SearchResultsDto, SearchResultItemDto } from './dto/search-results.dto';
+import { isOwnPlaylist } from '../playlist/own-playlist';
 
 const MAX_RESULTS_PER_TYPE = 5;
 
@@ -98,7 +99,13 @@ export class SearchService {
     const results = await this.db
       .select()
       .from(playlists)
-      .where(and(eq(playlists.organisationId, organisationId), ilike(playlists.name, likePattern)))
+      .where(
+        and(
+          eq(playlists.organisationId, organisationId),
+          isOwnPlaylist(),
+          ilike(playlists.name, likePattern),
+        ),
+      )
       .limit(MAX_RESULTS_PER_TYPE);
 
     return results.map((p) => ({

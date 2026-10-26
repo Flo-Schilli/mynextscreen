@@ -31,6 +31,12 @@ import {
   AuditPlaylistEvent,
 } from '../audit-log/audit.events';
 import { PlaylistService } from './playlist.service';
+import {
+  PLAYLIST_RESOLVE_REQUESTED,
+  PLAYLIST_RULE_CHANGED,
+  PlaylistResolveRequestedEvent,
+  PlaylistRuleChangedEvent,
+} from './playlist.event';
 import { PlaylistKind } from './playlist-kind.enum';
 import type { PlaylistRule } from './playlist-rule.types';
 import { type CreatePlaylistDto } from './dto/create-playlist.dto';
@@ -151,6 +157,7 @@ export class PlaylistRuleService {
         limit: rule.limit,
       }),
     );
+    this.eventEmitter.emit(PLAYLIST_RULE_CHANGED, new PlaylistRuleChangedEvent(id, organisationId));
     await this.resolveOrDefer(id);
     return this.playlistService.findOne(id, organisationId);
   }
@@ -258,6 +265,16 @@ export class PlaylistRuleService {
         ),
       );
     return rows.map((row) => row.id);
+  }
+
+  @OnEvent(PLAYLIST_RESOLVE_REQUESTED, { async: true })
+  async onResolveRequested(event: PlaylistResolveRequestedEvent): Promise<void> {
+    try {
+      await this.enqueueResolve(event.playlistId);
+    } catch (error) {
+      // Never resolved, the playlist is due: the scheduler picks it up.
+      this.logger.warn(`Enqueueing playlist ${event.playlistId} failed: ${errorMessage(error)}`);
+    }
   }
 
   /** A sync may have added, changed or cancelled events: refresh every playlist fed by it. */
@@ -380,7 +397,8 @@ export class PlaylistRuleService {
     }
     const nextResolveAt = this.nextResolveAt(entries, rule, refreshAt, timeZone);
     await this.scheduleNext(playlist, nextResolveAt, now);
-    if (result.changed) {
+    // A rule's genre variants are not the organisation's playlists; their resolves stay out of the log.
+    if (result.changed && !playlist.managedByRuleId) {
       this.eventEmitter.emit(
         AUDIT_PLAYLIST_RESOLVED,
         new AuditPlaylistEvent(playlistId, organisationId, null, {

@@ -29,6 +29,9 @@ import {
 } from '../audit-log/audit.events';
 import { CreateEventScheduleRuleDto, UpdateEventScheduleRuleDto } from './dto';
 import { planEventSlots, slotKey } from './event-schedule-planner';
+import type { GenreVariant } from './event-schedule.types';
+import { variantKey } from './genre-variant-playlists';
+import { PlaylistKind } from '../playlist/playlist-kind.enum';
 import {
   EventScheduleReconcileService,
   lockOrganisationSchedules,
@@ -98,7 +101,8 @@ export class EventScheduleRuleService {
     userId: string | null,
   ): Promise<EventScheduleRuleView> {
     await this.assertSource(organisationId, sourceId);
-    await this.assertPlaylist(organisationId, dto.playlistId);
+    const genreVariants = dto.genreVariants ?? [];
+    await this.assertPlaylist(organisationId, dto.playlistId, genreVariants);
     await this.assertTargets(organisationId, dto.screenIds, dto.groupIds);
 
     const rule = await this.db.transaction(async (tx) => {
@@ -110,6 +114,7 @@ export class EventScheduleRuleService {
           name: dto.name.trim(),
           venues: dto.venues,
           playlistId: dto.playlistId,
+          genreVariants,
           windowStart: dto.windowStart,
           windowEnd: dto.windowEnd,
           ...(dto.excludeCancelled !== undefined ? { excludeCancelled: dto.excludeCancelled } : {}),
@@ -140,7 +145,13 @@ export class EventScheduleRuleService {
     userId: string | null,
   ): Promise<EventScheduleRuleView> {
     const [current] = await this.withTargets([await this.findRule(organisationId, sourceId, id)]);
-    if (dto.playlistId) await this.assertPlaylist(organisationId, dto.playlistId);
+    if (dto.playlistId !== undefined || dto.genreVariants !== undefined) {
+      await this.assertPlaylist(
+        organisationId,
+        dto.playlistId ?? current.playlistId,
+        dto.genreVariants ?? current.genreVariants,
+      );
+    }
     const screenIds = dto.screenIds ?? current.screenIds;
     const groupIds = dto.groupIds ?? current.groupIds;
     await this.assertTargets(organisationId, screenIds, groupIds);
@@ -152,6 +163,7 @@ export class EventScheduleRuleService {
           ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
           ...(dto.venues !== undefined ? { venues: dto.venues } : {}),
           ...(dto.playlistId !== undefined ? { playlistId: dto.playlistId } : {}),
+          ...(dto.genreVariants !== undefined ? { genreVariants: dto.genreVariants } : {}),
           ...(dto.windowStart !== undefined ? { windowStart: dto.windowStart } : {}),
           ...(dto.windowEnd !== undefined ? { windowEnd: dto.windowEnd } : {}),
           ...(dto.excludeCancelled !== undefined ? { excludeCancelled: dto.excludeCancelled } : {}),
@@ -180,6 +192,7 @@ export class EventScheduleRuleService {
             'name',
             'venues',
             'playlistId',
+            'genreVariants',
             'windowStart',
             'windowEnd',
             'excludeCancelled',
@@ -188,7 +201,7 @@ export class EventScheduleRuleService {
             'screenIds',
             'groupIds',
           ],
-          { map: { screenIds: sortedIds, groupIds: sortedIds } },
+          { map: { screenIds: sortedIds, groupIds: sortedIds, genreVariants: genreGroupLabels } },
         ),
       }),
     );
@@ -412,14 +425,35 @@ export class EventScheduleRuleService {
     }
   }
 
-  private async assertPlaylist(organisationId: string, playlistId: string): Promise<void> {
+  /**
+   * The playlist is one of the organisation's own, not another rule's genre
+   * variant; genre groups need it dynamic, since they narrow its genre filter.
+   */
+  private async assertPlaylist(
+    organisationId: string,
+    playlistId: string,
+    genreVariants: readonly GenreVariant[],
+  ): Promise<void> {
     const [playlist] = await this.db
-      .select({ id: playlists.id })
+      .select({ id: playlists.id, kind: playlists.kind })
       .from(playlists)
-      .where(and(eq(playlists.id, playlistId), eq(playlists.organisationId, organisationId)))
+      .where(
+        and(
+          eq(playlists.id, playlistId),
+          eq(playlists.organisationId, organisationId),
+          isNull(playlists.managedByRuleId),
+        ),
+      )
       .limit(1);
     if (!playlist) {
       throw new NotFoundException(`Playlist "${playlistId}" not found`);
+    }
+    if (genreVariants.length > 0 && playlist.kind !== PlaylistKind.Dynamic) {
+      throw new BadRequestException('Genre groups need a dynamic playlist');
+    }
+    const keys = genreVariants.map(variantKey);
+    if (new Set(keys).size !== keys.length) {
+      throw new BadRequestException('Two genre groups list the same genres');
     }
   }
 
@@ -457,4 +491,11 @@ export class EventScheduleRuleService {
       throw new NotFoundException('Some screens or screen groups were not found');
     }
   }
+}
+
+/** Genre groups as the audit log shows them: `["Rock/Metal", "Jazz"]`. */
+function genreGroupLabels(value: unknown): unknown {
+  return Array.isArray(value)
+    ? value.map((variant: GenreVariant) => variant.genres.join('/'))
+    : value;
 }

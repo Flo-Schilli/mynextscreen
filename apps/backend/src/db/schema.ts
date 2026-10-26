@@ -52,7 +52,10 @@ import type {
   SlideFormat,
   SlideStyle,
 } from '../content-source/content-source.types';
-import type { EventScheduleReconcileSummary } from '../event-schedule/event-schedule.types';
+import type {
+  EventScheduleReconcileSummary,
+  GenreVariant,
+} from '../event-schedule/event-schedule.types';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
 import { DevmodeKeyStatus } from '../site-agent/devmode-key-status.enum';
 import { ScreenReachability } from '../site-agent/screen-reachability.enum';
@@ -422,22 +425,40 @@ export const sourceEventSlides = pgTable(
 
 // ── playlists & items ──────────────────────────────────────────────────────────
 
-export const playlists = pgTable('playlists', {
-  id: uuid()
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  organisationId: uuid()
-    .notNull()
-    .references(() => organisations.id, { onDelete: 'cascade' }),
-  name: text().notNull(),
-  color: text().notNull().default('#6d6cf6'),
-  kind: text().$type<PlaylistKind>().notNull().default(PlaylistKind.Static),
-  /** Filter rule of a dynamic playlist; null for static ones. */
-  rule: jsonb().$type<PlaylistRuleData>(),
-  nextResolveAt: timestamp({ withTimezone: true }),
-  lastResolvedAt: timestamp({ withTimezone: true }),
-  ...timestamps,
-});
+export const playlists = pgTable(
+  'playlists',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    organisationId: uuid()
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    name: text().notNull(),
+    color: text().notNull().default('#6d6cf6'),
+    kind: text().$type<PlaylistKind>().notNull().default(PlaylistKind.Static),
+    /** Filter rule of a dynamic playlist; null for static ones. */
+    rule: jsonb().$type<PlaylistRuleData>(),
+    nextResolveAt: timestamp({ withTimezone: true }),
+    lastResolvedAt: timestamp({ withTimezone: true }),
+    /**
+     * Set on a genre variant an event schedule rule keeps of its playlist. Such
+     * a playlist is the rule's to manage: hidden from lists and pickers, and
+     * gone with the rule.
+     */
+    managedByRuleId: uuid().references((): AnyPgColumn => eventScheduleRules.id, {
+      onDelete: 'cascade',
+    }),
+    /** Identifies the variant within its rule: its genres, sorted, as JSON. */
+    variantKey: text(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('UQ_playlists_managed_variant')
+      .on(t.managedByRuleId, t.variantKey)
+      .where(sql`${t.managedByRuleId} IS NOT NULL`),
+  ],
+);
 
 export const playlistItems = pgTable('playlist_items', {
   id: uuid()
@@ -529,6 +550,12 @@ export const eventScheduleRules = pgTable(
     /** Local `HH:MM`; at or before `windowStart` means the next day. */
     windowEnd: text().notNull(),
     excludeCancelled: boolean().notNull().default(true),
+    /**
+     * Ordered genre groups: an event with a genre of a group plays the rule's
+     * (dynamic) playlist narrowed to that group. First match wins; none
+     * plays the playlist as it is.
+     */
+    genreVariants: jsonb().$type<GenreVariant[]>().notNull().default([]),
     colour: text().notNull().default('#6d6cf6'),
     enabled: boolean().notNull().default(true),
     lastReconciledAt: timestamp({ withTimezone: true }),

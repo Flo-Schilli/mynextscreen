@@ -1,5 +1,6 @@
 import { addDays, localDate, zonedTimeToUtc } from '../common/zoned-time.util';
 import { canonicalVenue, type VenueAliasMap } from '../content-source/venue-aliases';
+import type { GenreVariant } from './event-schedule.types';
 
 /** How far ahead a rule schedules; the hourly reconcile rolls the horizon on. */
 export const EVENT_SCHEDULE_HORIZON_DAYS = 90;
@@ -11,6 +12,7 @@ export interface PlannerRule {
   windowEnd: string;
   excludeCancelled: boolean;
   enabled: boolean;
+  genreVariants: readonly GenreVariant[];
 }
 
 /** The parts of a source event the planner reads. */
@@ -20,6 +22,7 @@ export interface PlannerEvent {
   venue: string;
   cancelled: boolean;
   goneAt: Date | null;
+  genres: readonly string[];
 }
 
 /** Key of one generated entry: the event it is for and the target it plays on. */
@@ -38,6 +41,22 @@ export interface TimeWindow {
 
 export interface PlannedSlot<E extends PlannerEvent> extends TimeWindow {
   event: E;
+  /** Index of the genre variant the event plays, null for the rule's playlist as it is. */
+  variant: number | null;
+}
+
+/**
+ * The first variant sharing a genre with the event, compared exactly as a
+ * playlist rule's genre filter compares them.
+ */
+export function variantFor(
+  eventGenres: readonly string[],
+  variants: readonly GenreVariant[],
+): number | null {
+  const index = variants.findIndex((variant) =>
+    variant.genres.some((genre) => eventGenres.includes(genre)),
+  );
+  return index === -1 ? null : index;
 }
 
 /**
@@ -86,6 +105,6 @@ export function planEventSlots<E extends PlannerEvent>(
     if (!venues.has(canonicalVenue(aliases, event.venue))) return [];
     const window = windowOf(event.eventDate, rule.windowStart, rule.windowEnd, timeZone);
     if (window.endTime.getTime() <= now.getTime()) return [];
-    return [{ event, ...window }];
+    return [{ event, ...window, variant: variantFor(event.genres, rule.genreVariants) }];
   });
 }

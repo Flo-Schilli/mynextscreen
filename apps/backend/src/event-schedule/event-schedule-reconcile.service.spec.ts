@@ -29,8 +29,15 @@ import {
   SCHEDULE_ENTRIES_EDITED,
   SCHEDULE_ENTRY_CHANGED,
 } from '../schedule/schedule.event';
-import { AUDIT_EVENT_SCHEDULE_RULE_RECONCILED } from '../audit-log/audit.events';
+import {
+  AUDIT_EVENT_SCHEDULE_RULE_RECONCILED,
+  AUDIT_EVENT_SCHEDULE_RULE_UPDATED,
+} from '../audit-log/audit.events';
 import { ScreenGroupMode } from '../screen-group/screen-group-mode.enum';
+import { PlaylistKind } from '../playlist/playlist-kind.enum';
+import { TransitionType } from '../playlist/transition-type.enum';
+import type { PlaylistRule } from '../playlist/playlist-rule.types';
+import { PLAYLIST_RESOLVE_REQUESTED } from '../playlist/playlist.event';
 import { EventScheduleReconcileService } from './event-schedule-reconcile.service';
 import { EventScheduleRuleService } from './event-schedule-rule.service';
 import type { CreateEventScheduleRuleDto } from './dto';
@@ -562,6 +569,189 @@ describe('Event schedule rules', () => {
         SCHEDULE_ENTRIES_EDITED,
         expect.objectContaining({ organisationId: org.id, screenId: screen.id, groupId: null }),
       );
+    });
+  });
+
+  describe('genre variants', () => {
+    const baseRule = (): PlaylistRule => ({
+      sourceIds: [source.id],
+      genres: { match: 'any', values: [] },
+      venues: [],
+      dateFrom: { mode: 'today' },
+      dateTo: { mode: 'none' },
+      excludeCancelled: true,
+      excludeSoldOut: false,
+      sort: 'date_asc',
+      limit: 10,
+      graceHours: 2,
+      refreshIntervalMinutes: 60,
+      format: '1920x1080',
+      itemDurationSeconds: 10,
+      transition: TransitionType.Fade,
+      transitionDurationMs: 500,
+    });
+
+    async function seedDynamic(): Promise<Playlist> {
+      const [row] = await db
+        .insert(playlists)
+        .values({
+          organisationId: org.id,
+          name: 'Demnächst',
+          kind: PlaylistKind.Dynamic,
+          rule: baseRule(),
+        })
+        .returning();
+      return row;
+    }
+
+    async function variantsOf(ruleId: string): Promise<Playlist[]> {
+      return db.select().from(playlists).where(eq(playlists.managedByRuleId, ruleId));
+    }
+
+    it('plays a narrowed copy of the playlist on events of a genre group', async () => {
+      const dynamic = await seedDynamic();
+      const rock = await seedEvent({ genres: ['Metal', 'Pop'] });
+      const jazz = await seedEvent({ eventDate: '2026-11-12', genres: ['Jazz'] });
+
+      const rule = await rules.create(
+        org.id,
+        source.id,
+        dto({ playlistId: dynamic.id, genreVariants: [{ genres: ['Rock', 'Metal'] }] }),
+        null,
+      );
+
+      const [variant] = await variantsOf(rule.id);
+      expect(variant).toMatchObject({
+        name: 'Demnächst · Rock, Metal',
+        kind: PlaylistKind.Dynamic,
+        rule: { ...baseRule(), genres: { match: 'any', values: ['Rock', 'Metal'] } },
+      });
+      const entries = await managedEntries();
+      const playlistOf = (eventId: string) =>
+        entries.find((e) => e.managedSourceEventId === eventId)?.playlistId;
+      expect(playlistOf(rock.id)).toBe(variant.id);
+      expect(playlistOf(jazz.id)).toBe(dynamic.id);
+      expect(emit).toHaveBeenCalledWith(
+        PLAYLIST_RESOLVE_REQUESTED,
+        expect.objectContaining({ playlistId: variant.id }),
+      );
+    });
+
+    it('follows an event that changes its genre', async () => {
+      const dynamic = await seedDynamic();
+      const event = await seedEvent({ genres: ['Jazz'] });
+      const rule = await rules.create(
+        org.id,
+        source.id,
+        dto({ playlistId: dynamic.id, genreVariants: [{ genres: ['Rock'] }] }),
+        null,
+      );
+      await db
+        .update(sourceEvents)
+        .set({ genres: ['Rock'] })
+        .where(eq(sourceEvents.id, event.id));
+
+      await reconcile.reconcile(rule.id);
+
+      const [variant] = await variantsOf(rule.id);
+      const [entry] = await managedEntries();
+      expect(entry.playlistId).toBe(variant.id);
+    });
+
+    it('keeps an unchanged variant without resolving it again', async () => {
+      const dynamic = await seedDynamic();
+      const rule = await rules.create(
+        org.id,
+        source.id,
+        dto({ playlistId: dynamic.id, genreVariants: [{ genres: ['Rock'] }] }),
+        null,
+      );
+      const [before] = await variantsOf(rule.id);
+      emit.mockClear();
+
+      await reconcile.reconcile(rule.id);
+
+      expect(await variantsOf(rule.id)).toEqual([before]);
+      expect(emit).not.toHaveBeenCalledWith(PLAYLIST_RESOLVE_REQUESTED, expect.anything());
+    });
+
+    it('copies a new rule of the playlist into its variants', async () => {
+      const dynamic = await seedDynamic();
+      const rule = await rules.create(
+        org.id,
+        source.id,
+        dto({ playlistId: dynamic.id, genreVariants: [{ genres: ['Rock'] }] }),
+        null,
+      );
+      await db
+        .update(playlists)
+        .set({ rule: { ...baseRule(), limit: 3 } })
+        .where(eq(playlists.id, dynamic.id));
+
+      expect(await reconcile.ruleIdsWithVariantsOf(dynamic.id)).toEqual([rule.id]);
+      await reconcile.reconcile(rule.id);
+
+      const [variant] = await variantsOf(rule.id);
+      expect(variant.rule).toMatchObject({ limit: 3, genres: { values: ['Rock'] } });
+    });
+
+    it('moves entries back and drops the variants when the groups go', async () => {
+      const dynamic = await seedDynamic();
+      await seedEvent({ genres: ['Rock'] });
+      const rule = await rules.create(
+        org.id,
+        source.id,
+        dto({ playlistId: dynamic.id, genreVariants: [{ genres: ['Rock'] }] }),
+        null,
+      );
+
+      await rules.update(org.id, source.id, rule.id, { genreVariants: [] }, null);
+
+      const [entry] = await managedEntries();
+      expect(entry.playlistId).toBe(dynamic.id);
+      expect(await variantsOf(rule.id)).toEqual([]);
+      expect(emit).toHaveBeenCalledWith(
+        AUDIT_EVENT_SCHEDULE_RULE_UPDATED,
+        expect.objectContaining({
+          details: expect.objectContaining({
+            changes: { genreVariants: { from: ['Rock'], to: [] } },
+          }),
+        }),
+      );
+    });
+
+    it('hides variants from the playlists a rule may use', async () => {
+      const dynamic = await seedDynamic();
+      const rule = await rules.create(
+        org.id,
+        source.id,
+        dto({ playlistId: dynamic.id, genreVariants: [{ genres: ['Rock'] }] }),
+        null,
+      );
+      const [variant] = await variantsOf(rule.id);
+
+      await expect(
+        rules.create(org.id, source.id, dto({ playlistId: variant.id }), null),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rejects genre groups on a static playlist and duplicate groups', async () => {
+      const dynamic = await seedDynamic();
+
+      await expect(
+        rules.create(org.id, source.id, dto({ genreVariants: [{ genres: ['Rock'] }] }), null),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        rules.create(
+          org.id,
+          source.id,
+          dto({
+            playlistId: dynamic.id,
+            genreVariants: [{ genres: ['Rock', 'Pop'] }, { genres: ['Pop', 'Rock'] }],
+          }),
+          null,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 

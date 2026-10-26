@@ -1701,7 +1701,8 @@
       "wakeOnUnreachableEnabled": "Wake when unreachable",
       "probeIntervalMinutes": "Probe interval (min)",
       "subnetSweepEnabled": "Subnet sweep",
-      "previousMode": "Previous mode"
+      "previousMode": "Previous mode",
+      "genreVariants": "Genre groups"
     },
     "resourceTypes": {
       "content": "Content",
@@ -2496,12 +2497,20 @@
         "excludeCancelledDesc": "A cancelled event gets no entry.",
         "enabledLabel": "Active",
         "enabledDesc": "Pausing removes the upcoming entries until you activate the rule again.",
+        "genreGroupsLabel": "Content per genre",
+        "genreGroupsHint": "When an event matches a group, the playlist shows only events of those genres. The first matching group wins; otherwise the playlist plays as it is.",
+        "genreGroupLabel": "Genre group {{n}}",
+        "genreGroupPlaceholder": "Choose genres…",
+        "addGenreGroup": "Add genre group",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
         "errors": {
           "name": "Give the rule a name.",
           "venues": "Pick at least one venue.",
           "playlist": "Pick a playlist.",
           "window": "Enter the start and end as times.",
-          "targets": "Pick at least one screen or group."
+          "targets": "Pick at least one screen or group.",
+          "genreGroups": "Every genre group needs at least one genre, and no two groups may list the same genres."
         }
       },
       "toast": {
@@ -2510,7 +2519,8 @@
         "deleted": "Rule deleted",
         "deleteFailed": "Could not delete the rule",
         "loadFailed": "Could not load the rules"
-      }
+      },
+      "genreGroups": "Per genre: {{groups}}"
     }
   }
 }

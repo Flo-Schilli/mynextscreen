@@ -1,6 +1,7 @@
 import {
   EVENT_SCHEDULE_HORIZON_DAYS,
   planEventSlots,
+  variantFor,
   windowOf,
   type PlannerEvent,
   type PlannerRule,
@@ -15,6 +16,7 @@ function rule(overrides: Partial<PlannerRule> = {}): PlannerRule {
     windowEnd: '23:30',
     excludeCancelled: true,
     enabled: true,
+    genreVariants: [],
     ...overrides,
   };
 }
@@ -26,6 +28,7 @@ function event(overrides: Partial<PlannerEvent> = {}): PlannerEvent {
     venue: 'Hirsch',
     cancelled: false,
     goneAt: null,
+    genres: [],
     ...overrides,
   };
 }
@@ -179,5 +182,40 @@ describe('planEventSlots', () => {
 
     expect(EVENT_SCHEDULE_HORIZON_DAYS).toBe(90);
     expect(slots.map((slot) => slot.event.id)).toEqual(['in']);
+  });
+});
+
+describe('variantFor', () => {
+  const variants = [{ genres: ['Rock', 'Metal'] }, { genres: ['Klassik'] }, { genres: ['Metal'] }];
+
+  it('picks the first variant sharing a genre with the event', () => {
+    expect(variantFor(['Pop', 'Metal'], variants)).toBe(0);
+    expect(variantFor(['Klassik'], variants)).toBe(1);
+  });
+
+  it('returns null when no variant matches or the event has no genres', () => {
+    expect(variantFor(['Jazz'], variants)).toBeNull();
+    expect(variantFor([], variants)).toBeNull();
+    expect(variantFor(['Rock'], [])).toBeNull();
+  });
+
+  it('compares genres exactly, as a playlist rule does', () => {
+    expect(variantFor(['rock'], variants)).toBeNull();
+  });
+
+  it('marks each planned slot with its variant', () => {
+    const slots = planEventSlots(
+      rule({ genreVariants: variants }),
+      [event({ id: 'rock', genres: ['Rock'] }), event({ id: 'jazz', genres: ['Jazz'] })],
+      NO_ALIASES,
+      new Set(),
+      NOW,
+      TZ,
+    );
+
+    expect(slots.map((slot) => [slot.event.id, slot.variant])).toEqual([
+      ['rock', 0],
+      ['jazz', null],
+    ]);
   });
 });

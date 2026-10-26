@@ -9,6 +9,7 @@ import {
   playlists,
   playlistItems,
   contents,
+  eventScheduleRules,
   type Organisation,
   type Playlist,
   type Content,
@@ -151,6 +152,33 @@ describe('PlaylistService', () => {
       expect(result).toHaveLength(2);
       expect(result.map((p) => p.name).sort()).toEqual(['A', 'B']);
       expect(result.every((p) => Array.isArray(p.items))).toBe(true);
+    });
+
+    it("leaves out a schedule rule's genre variants, which findOne does not serve either", async () => {
+      const org = await seedOrg();
+      const base = await seedPlaylist(org.id, 'Base');
+      const source = await seedContentSource(db, org.id);
+      const [rule] = await db
+        .insert(eventScheduleRules)
+        .values({
+          organisationId: org.id,
+          sourceId: source.id,
+          name: 'Abend',
+          venues: ['Hirsch'],
+          playlistId: base.id,
+          windowStart: '18:00',
+          windowEnd: '23:00',
+        })
+        .returning();
+      const [variant] = await db
+        .insert(playlists)
+        .values({ organisationId: org.id, name: 'Base · Rock', managedByRuleId: rule.id })
+        .returning();
+
+      const result = await service.findAll(org.id);
+
+      expect(result.map((p) => p.name)).toEqual(['Base']);
+      await expect(service.findOne(variant.id, org.id)).rejects.toThrow(NotFoundException);
     });
   });
 
