@@ -8,7 +8,7 @@ import { hashToken } from '../auth/token-hash.util';
 import { DRIZZLE } from '../db/database.constants';
 import { users, organisations, userOrganisationMemberships, type Organisation } from '../db/schema';
 import { OrganisationRole } from './organisation-role.enum';
-import { AUTH_USER_INVITED } from '../audit-log/audit.events';
+import { AUDIT_USER_ROLE_CHANGED, AUTH_USER_INVITED } from '../audit-log/audit.events';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
 
@@ -158,6 +158,14 @@ describe('MembershipService', () => {
           ),
         );
       expect(persisted.role).toBe(OrganisationRole.Editor);
+      expect(emit).toHaveBeenCalledWith(
+        AUDIT_USER_ROLE_CHANGED,
+        expect.objectContaining({
+          details: {
+            changes: { role: { from: OrganisationRole.Viewer, to: OrganisationRole.Editor } },
+          },
+        }),
+      );
     });
 
     it('should throw NotFoundException if membership does not exist', async () => {

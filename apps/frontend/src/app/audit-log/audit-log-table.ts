@@ -18,6 +18,7 @@ import {
   AuditDetailItem,
   AuditNames,
   RESOURCE_NAME_KEYS,
+  auditLabels,
   detailItems,
   detailLabel,
   goneId,
@@ -334,7 +335,7 @@ type TableRow =
                           </div>
                         </div>
                         @if (row.entry.details) {
-                          @for (kv of detailEntries(row.entry.details); track kv.key) {
+                          @for (kv of detailEntries(row.entry.details); track $index) {
                             <div class="min-w-0">
                               <div
                                 class="text-[10.5px] font-bold tracking-[.06em] uppercase text-faint mb-1"
@@ -601,7 +602,7 @@ export class AuditLogTable {
   protected formatDetails(details: Record<string, unknown>): string {
     return (
       this.detailEntries(details)
-        .filter((item) => !RESOURCE_NAME_KEYS.includes(item.rawKey))
+        .filter((item) => item.isChange || !RESOURCE_NAME_KEYS.includes(item.rawKey))
         .map((item) => `${item.key}: ${item.value}`)
         .join(' · ') || '—'
     );
@@ -615,16 +616,17 @@ export class AuditLogTable {
 
   protected detailEntries(
     details: Record<string, unknown>,
-  ): { key: string; rawKey: string; value: string }[] {
+  ): { key: string; rawKey: string; value: string; isChange?: true }[] {
     return this.items(details).map((item) => ({
       key: detailLabel((path) => this.transloco.translate(path), item.key),
       rawKey: item.key,
       value: item.value,
+      isChange: item.isChange,
     }));
   }
 
   private items(details: Record<string, unknown>): AuditDetailItem[] {
-    return detailItems(details, this.names(), this.goneLabel());
+    return detailItems(details, this.names(), auditLabels(this.transloco));
   }
 
   private goneLabel(): string {

@@ -27,7 +27,7 @@ import {
   IconComponent,
   PageHeaderComponent,
 } from '../ui';
-import { detailItems, detailLabel, goneId, resourceName } from './audit-log-details';
+import { auditLabels, detailItems, detailLabel, goneId, resourceName } from './audit-log-details';
 
 /**
  * One quoted CSV cell. Names are user input, and a spreadsheet runs a cell that
@@ -332,6 +332,7 @@ export class AuditLog implements OnInit {
     ];
     const names = this.names();
     const gone = this.transloco.translate('auditLog.table.deleted');
+    const labels = auditLabels(this.transloco);
     const translate = (path: string): string => this.transloco.translate(path);
     const rows = this.entries().map((e) => [
       e.id,
@@ -345,7 +346,7 @@ export class AuditLog implements OnInit {
       e.resourceType,
       resourceName(e, names, gone) ?? '',
       e.resourceId ?? '',
-      detailItems(e.details, names, gone)
+      detailItems(e.details, names, labels)
         .map((item) => `${detailLabel(translate, item.key)}: ${item.value}`)
         .join('; '),
       e.details ? JSON.stringify(e.details) : '',

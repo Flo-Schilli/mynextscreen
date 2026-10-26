@@ -20,6 +20,7 @@ import {
 import { addDays, localDate } from '../common/zoned-time.util';
 import { toVenueAliasMap } from '../content-source/venue-aliases';
 import { ScheduleService } from '../schedule/schedule.service';
+import { auditChanges, sortedIds } from '../audit-log/audit-changes';
 import {
   AUDIT_EVENT_SCHEDULE_RULE_CREATED,
   AUDIT_EVENT_SCHEDULE_RULE_DELETED,
@@ -166,9 +167,30 @@ export class EventScheduleRuleService {
       }
     });
 
+    const [saved] = await this.withTargets([await this.findRule(organisationId, sourceId, id)]);
     this.eventEmitter.emit(
       AUDIT_EVENT_SCHEDULE_RULE_UPDATED,
-      new AuditEventScheduleRuleEvent(id, organisationId, userId, { sourceId }),
+      new AuditEventScheduleRuleEvent(id, organisationId, userId, {
+        sourceId,
+        name: saved.name,
+        changes: auditChanges(
+          current,
+          saved,
+          [
+            'name',
+            'venues',
+            'playlistId',
+            'windowStart',
+            'windowEnd',
+            'excludeCancelled',
+            'colour',
+            'enabled',
+            'screenIds',
+            'groupIds',
+          ],
+          { map: { screenIds: sortedIds, groupIds: sortedIds } },
+        ),
+      }),
     );
     await this.reconcileService.reconcile(id, new Date(), userId);
     return this.findOne(organisationId, sourceId, id);

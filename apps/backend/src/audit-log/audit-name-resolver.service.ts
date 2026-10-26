@@ -18,6 +18,7 @@ import {
   users,
   type AuditEntry,
 } from '../db/schema';
+import type { AuditChange } from './audit-changes';
 
 /** Id → display name for every record an audit page mentions. */
 export type AuditNames = Record<string, string>;
@@ -137,6 +138,17 @@ function detailKind(key: string): Kind | undefined {
   return KIND_BY_DETAIL_KEY[base];
 }
 
+/** `details.changes` (field → `{ from, to }`) if it has that shape, else nothing. */
+function changeMap(value: unknown): Record<string, AuditChange> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, AuditChange] =>
+        entry[1] !== null && typeof entry[1] === 'object' && !Array.isArray(entry[1]),
+    ),
+  );
+}
+
 /**
  * Turns the ids an audit page stores (actor, resource, ids inside `details`) into
  * names at read time, so existing entries read as names too. Ids of records that
@@ -177,6 +189,12 @@ export class AuditNameResolver {
       add('user', entry.userId);
       add(KIND_BY_RESOURCE_TYPE[entry.resourceType], entry.resourceId);
       for (const [key, value] of Object.entries(entry.details ?? {})) {
+        if (key === 'changes') {
+          for (const [field, change] of Object.entries(changeMap(value))) {
+            for (const item of [change.from, change.to].flat()) add(detailKind(field), item);
+          }
+          continue;
+        }
         const kind = detailKind(key);
         for (const item of Array.isArray(value) ? value : [value]) add(kind, item);
       }

@@ -114,7 +114,7 @@ import { LocaleDatePipe } from '../i18n/locale-format.pipes';
                 {{ entry().timestamp | localeDate: 'medium' }}
               </div>
             </div>
-            @for (kv of detailEntries(); track kv.key) {
+            @for (kv of detailEntries(); track $index) {
               <div class="min-w-0">
                 <div class="text-[10.5px] font-bold tracking-[.06em] uppercase text-faint mb-1">
                   {{ kv.key }}

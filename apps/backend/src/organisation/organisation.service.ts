@@ -16,6 +16,7 @@ import { OrganisationRole } from '../user/organisation-role.enum';
 import { removeOrganisationMedia } from '../content/content-storage.util';
 import { CreateOrganisationDto, UpdateOrganisationDto } from './dto';
 import { AuthenticatedUser } from '../auth/jwt-auth.guard';
+import { auditChanges } from '../audit-log/audit-changes';
 import {
   AUDIT_ORGANISATION_CREATED,
   AUDIT_ORGANISATION_UPDATED,
@@ -152,7 +153,7 @@ export class OrganisationService {
     dto: UpdateOrganisationDto,
     actorUserId: string | null = null,
   ): Promise<Organisation> {
-    await this.findOne(id);
+    const before = await this.findOne(id);
     const [saved] = await this.db
       .update(organisations)
       .set(dto)
@@ -162,9 +163,13 @@ export class OrganisationService {
       AUDIT_ORGANISATION_UPDATED,
       new AuditOrganisationEvent(id, actorUserId, {
         name: saved.name,
-        fields: Object.keys(dto).filter(
-          (key) => dto[key as keyof UpdateOrganisationDto] !== undefined,
-        ),
+        changes: auditChanges(before, saved, [
+          'name',
+          'timeZone',
+          'storageOriginalLimitBytes',
+          'storageTranscodedLimitBytes',
+          'defaultPlaylistId',
+        ]),
       }),
     );
     return saved;
@@ -173,8 +178,9 @@ export class OrganisationService {
   async setDefaultPlaylist(
     organisationId: string,
     playlistId: string | null | undefined,
+    actorUserId: string | null = null,
   ): Promise<Organisation> {
-    await this.findOne(organisationId);
+    const before = await this.findOne(organisationId);
 
     if (playlistId) {
       const [playlist] = await this.db
@@ -195,6 +201,13 @@ export class OrganisationService {
       .set({ defaultPlaylistId: playlistId ?? null })
       .where(eq(organisations.id, organisationId))
       .returning();
+    const changes = auditChanges(before, saved, ['defaultPlaylistId']);
+    if (Object.keys(changes).length > 0) {
+      this.eventEmitter.emit(
+        AUDIT_ORGANISATION_UPDATED,
+        new AuditOrganisationEvent(organisationId, actorUserId, { name: saved.name, changes }),
+      );
+    }
     return saved;
   }
 }

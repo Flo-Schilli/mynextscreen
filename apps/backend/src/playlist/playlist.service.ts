@@ -33,6 +33,7 @@ import { assertStaticPlaylist } from './assert-static-playlist';
 import type { TransitionType } from './transition-type.enum';
 import { PLAYLIST_UPDATED, PlaylistUpdatedEvent } from './playlist.event';
 import { CONTENT_DURATION_RESOLVED, ContentDurationResolvedEvent } from '../content/content.event';
+import { auditChanges } from '../audit-log/audit-changes';
 import {
   AUDIT_PLAYLIST_CREATED,
   AUDIT_PLAYLIST_UPDATED,
@@ -187,7 +188,7 @@ export class PlaylistService {
     dto: UpdatePlaylistDto,
     actorUserId: string | null = null,
   ): Promise<Playlist> {
-    await this.findOne(id, organisationId);
+    const before = await this.findOne(id, organisationId);
     const [saved] = await this.db
       .update(playlists)
       .set({ name: dto.name, ...(dto.color !== undefined && { color: dto.color }) })
@@ -196,7 +197,10 @@ export class PlaylistService {
     this.emitPlaylistChanged(id, organisationId);
     this.eventEmitter.emit(
       AUDIT_PLAYLIST_UPDATED,
-      new AuditPlaylistEvent(id, organisationId, actorUserId, { name: dto.name }),
+      new AuditPlaylistEvent(id, organisationId, actorUserId, {
+        name: saved.name,
+        changes: auditChanges(before, saved, ['name', 'color']),
+      }),
     );
     return saved;
   }

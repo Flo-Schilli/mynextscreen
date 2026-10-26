@@ -20,6 +20,7 @@ import {
   SCREEN_REFRESH_REQUESTED,
   ScreenStateChangeEvent,
 } from './screen-state.event';
+import { auditChanges } from '../audit-log/audit-changes';
 import {
   AUDIT_SCREEN_REGISTERED,
   AUDIT_SCREEN_UPDATED,
@@ -141,12 +142,18 @@ export class ScreenService extends OrganisationScopedService<Screen> {
     dto: UpdateScreenDto,
     userId: string | null = null,
   ): Promise<Screen> {
-    const screen = await this.update(organisationId, id, dto);
+    const { before, after: screen } = await this.updateTracked(organisationId, id, dto);
     this.eventEmitter.emit(
       AUDIT_SCREEN_UPDATED,
       new AuditScreenEvent(id, organisationId, userId, {
         name: screen.name,
-        fields: Object.keys(dto).filter((key) => dto[key as keyof UpdateScreenDto] !== undefined),
+        changes: auditChanges(before, screen, [
+          'name',
+          'resolution',
+          'location',
+          'showUnmuteButton',
+          'showDisconnectButton',
+        ]),
       }),
     );
     this.eventEmitter.emit(SCREEN_SETTINGS_CHANGED, new ScreenStateChangeEvent(id, organisationId));

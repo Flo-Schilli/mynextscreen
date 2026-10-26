@@ -28,6 +28,7 @@ import { SliceStatus } from '../slice-content/slice-status.enum';
 import { CreateScreenGroupDto } from './dto/create-screen-group.dto';
 import { UpdateScreenGroupDto } from './dto/update-screen-group.dto';
 import { AssignScreenDto } from './dto/assign-screen.dto';
+import { auditChanges } from '../audit-log/audit-changes';
 import {
   AUDIT_GROUP_CREATED,
   AUDIT_GROUP_UPDATED,
@@ -176,9 +177,14 @@ export class ScreenGroupService extends OrganisationScopedService<ScreenGroup> {
       AUDIT_GROUP_UPDATED,
       new AuditGroupEvent(saved.id, organisationId, userId, {
         name: saved.name,
-        mode: saved.mode,
-        gridColumns: saved.gridColumns,
-        gridRows: saved.gridRows,
+        changes: auditChanges(group, saved, [
+          'name',
+          'mode',
+          'gridColumns',
+          'gridRows',
+          'color',
+          'icon',
+        ]),
       }),
     );
 

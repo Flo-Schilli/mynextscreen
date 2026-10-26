@@ -7,6 +7,7 @@ import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { screenRemoteControls, siteAgents, type SiteAgent } from '../db/schema';
 import { OrganisationScopedService } from '../organisation/organisation-scope.service';
+import { auditChanges } from '../audit-log/audit-changes';
 import {
   AUDIT_SITE_AGENT_CREATED,
   AUDIT_SITE_AGENT_DELETED,
@@ -84,10 +85,18 @@ export class SiteAgentService extends OrganisationScopedService<SiteAgent> {
     },
     userId: string | null,
   ): Promise<SiteAgent> {
-    const agent = await this.update(organisationId, id, data);
+    const { before, after: agent } = await this.updateTracked(organisationId, id, data);
     this.eventEmitter.emit(
       AUDIT_SITE_AGENT_UPDATED,
-      new AuditSiteAgentEvent(id, organisationId, userId, { ...data }),
+      new AuditSiteAgentEvent(id, organisationId, userId, {
+        name: agent.name,
+        changes: auditChanges(before, agent, [
+          'name',
+          'location',
+          'probeIntervalMinutes',
+          'subnetSweepEnabled',
+        ]),
+      }),
     );
     if (data.probeIntervalMinutes !== undefined || data.subnetSweepEnabled !== undefined) {
       // Both travel in the agent's config, so it has to re-pull.

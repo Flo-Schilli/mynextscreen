@@ -1,4 +1,5 @@
-import { Controller, Get, Patch, Param, Body, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Body, ParseUUIDPipe, Req } from '@nestjs/common';
+import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { OrgFromParam } from '../auth/org-from-param.decorator';
 import { OrganisationRole } from '../user/organisation-role.enum';
@@ -30,7 +31,8 @@ export class DefaultPlaylistController {
   setDefaultPlaylist(
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Body() dto: SetDefaultPlaylistDto,
+    @Req() req: AuthenticatedRequest,
   ): Promise<Organisation> {
-    return this.organisationService.setDefaultPlaylist(orgId, dto.playlistId);
+    return this.organisationService.setDefaultPlaylist(orgId, dto.playlistId, req.user.userId);
   }
 }

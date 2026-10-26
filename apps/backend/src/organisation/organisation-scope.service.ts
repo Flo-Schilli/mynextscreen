@@ -95,13 +95,22 @@ export class OrganisationScopedService<T extends OrganisationScoped> {
     id: string,
     data: Omit<Partial<T>, 'organisationId' | 'id'>,
   ): Promise<T> {
-    await this.findOne(organisationId, id);
+    return (await this.updateTracked(organisationId, id, data)).after;
+  }
+
+  /** Like `update`, but also returns the row as it was, for audit entries. */
+  async updateTracked(
+    organisationId: string,
+    id: string,
+    data: Omit<Partial<T>, 'organisationId' | 'id'>,
+  ): Promise<{ before: T; after: T }> {
+    const before = await this.findOne(organisationId, id);
     const [row] = await this.db
       .update(this.table)
       .set(data as Record<string, unknown>)
       .where(and(eq(this.table.id, id), eq(this.table.organisationId, organisationId)))
       .returning();
-    return row as unknown as T;
+    return { before, after: row as unknown as T };
   }
 
   /**
