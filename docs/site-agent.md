@@ -374,6 +374,55 @@ accordingly.
 
 ---
 
+## Replacing the box: backup and restore
+
+What is expensive to lose is what only the agent knows: the **SSAP pairing key**
+of each TV (without it someone has to stand in front of the set and confirm the
+pairing prompt again) and the cached **SSH key**. Deleting an agent in the
+dashboard also forgets each display's address, MAC and Developer Mode
+passphrase. A backup carries all of that for every display the agent looks
+after. It does not carry the agent's session: the new box is enrolled normally.
+
+**Export.** On the agent's page, *Backup → Export backup* (organisation admins,
+agent online). The agent seals the backup itself and generates its password;
+the browser downloads `<agent>-<date>.mnsbackup` and shows the password
+**once**. Keep the two apart — the file is useless without the password, and
+the password is stored nowhere.
+
+**Import.** Enrol the new box — as the same agent (issue a new setup code for
+it) or as a new one — then *Backup → Import backup* on its page, pick the file
+and type the password. The dashboard shows the file's origin before anything is
+sent. The import:
+
+- refuses a backup from another organisation;
+- recreates the settings of displays that have none (for example because the
+  old agent was deleted) and assigns them to this agent;
+- fills only **empty** fields of displays this agent already has — anything
+  entered since the backup was taken stays;
+- leaves displays that belong to **another** agent alone and lists them;
+- restores pairing and SSH keys only for displays that end up with this agent.
+
+Pairing keys from an older agent version are restored but reported: those TVs
+ask to pair once more.
+
+**How it is protected.**
+
+- The file is encrypted on the agent with a key derived from a random
+  120-bit password (argon2id, AES-256-GCM); the plaintext header — organisation,
+  source agent, date, display count — is authenticated with it.
+- The password never crosses the server in the clear. On export the agent seals
+  it for a key pair that exists only in the browser tab that asked; on import
+  the tab seals it for a key the agent made for that one import. The server
+  relays sealed data only and keeps it in Redis for at most ten minutes, for the
+  person who started the operation.
+- Both operations are recorded in the audit log, without any secret.
+
+A server that has been compromised could swap the keys during an export; the
+design protects the file at rest and the way through the server, not against
+the server itself — which holds the passphrases anyway.
+
+---
+
 ## Verifying against a real set
 
 Two things no test can prove, because they depend on the device:
