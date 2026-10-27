@@ -355,7 +355,15 @@ export class SourceEventSchedules {
 
   /** "Rock/Metal · Klassik": groups in the order they are tried. */
   protected genreGroupsOf(rule: EventScheduleRule): string {
-    return rule.genreVariants.map((variant) => variant.genres.join('/')).join(' · ');
+    const playlistName = new Map(this.playlistOptions().map((o) => [o.value, o.label]));
+    return rule.genreVariants
+      .map((variant) => {
+        const genres = variant.genres.join('/');
+        return variant.playlistId
+          ? `${genres} → ${playlistName.get(variant.playlistId) ?? '?'}`
+          : genres;
+      })
+      .join(' · ');
   }
 
   protected targetsOf(rule: EventScheduleRule): string[] {

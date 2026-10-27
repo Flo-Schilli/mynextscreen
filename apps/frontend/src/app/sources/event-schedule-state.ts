@@ -10,10 +10,16 @@ export interface EventScheduleFormValue {
   windowEnd: string;
   targets: string[];
   excludeCancelled: boolean;
-  /** Genres of each group, in order; only sent for a dynamic playlist. */
-  genreGroups: string[][];
+  /** The genre groups, in order. */
+  genreGroups: GenreGroupValue[];
   colour: string;
   enabled: boolean;
+}
+
+/** One genre group in the form; an empty `playlistId` plays the rule's playlist. */
+export interface GenreGroupValue {
+  genres: string[];
+  playlistId: string;
 }
 
 export type EventScheduleFormError =
@@ -52,21 +58,34 @@ export function eventScheduleFormFrom(rule: EventScheduleRule): EventScheduleFor
       ...rule.groupIds.map((id) => GROUP_PREFIX + id),
     ],
     excludeCancelled: rule.excludeCancelled,
-    genreGroups: (rule.genreVariants ?? []).map((variant) => [...variant.genres]),
+    genreGroups: (rule.genreVariants ?? []).map((variant) => ({
+      genres: [...variant.genres],
+      playlistId: variant.playlistId ?? '',
+    })),
     colour: rule.colour,
     enabled: rule.enabled,
   };
 }
 
-/** Problems that keep the form from being saved, in field order. */
-export function validateEventScheduleForm(value: EventScheduleFormValue): EventScheduleFormError[] {
+/**
+ * Problems that keep the form from being saved, in field order. A group without
+ * its own playlist narrows the rule's, which therefore has to be dynamic.
+ */
+export function validateEventScheduleForm(
+  value: EventScheduleFormValue,
+  rulePlaylistDynamic = true,
+): EventScheduleFormError[] {
   const errors: EventScheduleFormError[] = [];
   if (value.name.trim() === '') errors.push('name');
   if (value.venues.length === 0) errors.push('venues');
   if (value.playlistId === '') errors.push('playlist');
   if (!HH_MM.test(value.windowStart) || !HH_MM.test(value.windowEnd)) errors.push('window');
   if (value.targets.length === 0) errors.push('targets');
-  if (value.genreGroups.some((genres) => genres.length === 0) || hasDuplicateGroups(value)) {
+  if (
+    value.genreGroups.some((group) => group.genres.length === 0) ||
+    hasDuplicateGroups(value) ||
+    (!rulePlaylistDynamic && value.genreGroups.some((group) => group.playlistId === ''))
+  ) {
     errors.push('genreGroups');
   }
   return errors;
@@ -74,7 +93,7 @@ export function validateEventScheduleForm(value: EventScheduleFormValue): EventS
 
 /** Two groups with the same genres, in any order: the second could never match. */
 function hasDuplicateGroups(value: EventScheduleFormValue): boolean {
-  const keys = value.genreGroups.map((genres) => [...genres].sort().join('\u0000'));
+  const keys = value.genreGroups.map((group) => [...group.genres].sort().join('\u0000'));
   return new Set(keys).size !== keys.length;
 }
 
@@ -92,7 +111,10 @@ export function toEventScheduleRequest(value: EventScheduleFormValue): EventSche
       t.startsWith(GROUP_PREFIX) ? [t.slice(GROUP_PREFIX.length)] : [],
     ),
     excludeCancelled: value.excludeCancelled,
-    genreVariants: value.genreGroups.map((genres) => ({ genres: [...genres] })),
+    genreVariants: value.genreGroups.map((group) => ({
+      genres: [...group.genres],
+      playlistId: group.playlistId === '' ? null : group.playlistId,
+    })),
     colour: value.colour,
     enabled: value.enabled,
   };

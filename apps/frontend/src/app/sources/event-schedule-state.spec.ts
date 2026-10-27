@@ -47,7 +47,10 @@ describe('event schedule state', () => {
       screenIds: ['sc1'],
       groupIds: ['g1'],
       excludeCancelled: false,
-      genreVariants: [{ genres: ['Rock', 'Metal'] }, { genres: ['Klassik'] }],
+      genreVariants: [
+        { genres: ['Rock', 'Metal'], playlistId: null },
+        { genres: ['Klassik'], playlistId: null },
+      ],
       colour: '#f59e0b',
       enabled: true,
     });
@@ -74,18 +77,47 @@ describe('event schedule state', () => {
   it('flags an empty genre group and two groups with the same genres', () => {
     const base = eventScheduleFormFrom(RULE);
 
-    expect(validateEventScheduleForm({ ...base, genreGroups: [['Rock'], []] })).toEqual([
-      'genreGroups',
-    ]);
+    const group = (genres: string[], playlistId = '') => ({ genres, playlistId });
+
+    expect(
+      validateEventScheduleForm({ ...base, genreGroups: [group(['Rock']), group([])] }),
+    ).toEqual(['genreGroups']);
     expect(
       validateEventScheduleForm({
         ...base,
-        genreGroups: [
-          ['Rock', 'Pop'],
-          ['Pop', 'Rock'],
-        ],
+        genreGroups: [group(['Rock', 'Pop']), group(['Pop', 'Rock'])],
       }),
     ).toEqual(['genreGroups']);
+  });
+
+  it('needs an own playlist for every group when the rule playlist is static', () => {
+    const base = eventScheduleFormFrom(RULE);
+    const groups = [
+      { genres: ['Rock'], playlistId: 'p9' },
+      { genres: ['Jazz'], playlistId: '' },
+    ];
+
+    expect(validateEventScheduleForm({ ...base, genreGroups: groups }, false)).toEqual([
+      'genreGroups',
+    ]);
+    expect(validateEventScheduleForm({ ...base, genreGroups: groups }, true)).toEqual([]);
+    expect(validateEventScheduleForm({ ...base, genreGroups: [groups[0]] }, false)).toEqual([]);
+  });
+
+  it('keeps a group playlist through the form and back', () => {
+    const form = eventScheduleFormFrom({
+      ...RULE,
+      genreVariants: [{ genres: ['Rock'], playlistId: 'p9' }, { genres: ['Jazz'] }],
+    });
+
+    expect(form.genreGroups).toEqual([
+      { genres: ['Rock'], playlistId: 'p9' },
+      { genres: ['Jazz'], playlistId: '' },
+    ]);
+    expect(toEventScheduleRequest(form).genreVariants).toEqual([
+      { genres: ['Rock'], playlistId: 'p9' },
+      { genres: ['Jazz'], playlistId: null },
+    ]);
   });
 
   it('accepts a complete form', () => {

@@ -12,8 +12,11 @@ const MAX_VARIANT_NAME_LENGTH = 120;
 
 /** The variant playlists of a rule, after bringing them in line with it. */
 export interface VariantPlaylists {
-  /** Playlist id per variant index of the rule. */
-  playlistIds: string[];
+  /**
+   * Playlist id per variant index of the rule; undefined where the group has
+   * no playable source, so its events play the rule's playlist.
+   */
+  playlistIds: (string | undefined)[];
   /** Variants created or changed: they need resolving. */
   toResolve: string[];
   /** Variants the rule no longer has; deleted once no upcoming entry uses them. */
@@ -35,32 +38,52 @@ export function variantName(baseName: string, variant: GenreVariant): string {
 }
 
 /**
- * Creates and updates the hidden playlists that carry a rule's genre variants:
- * one per variant, a copy of the rule's dynamic playlist with its genre filter
- * replaced. A rule without variants, or whose playlist is not dynamic, has
- * none, and every variant it still holds is stale.
+ * Brings a rule's genre groups in line with their playlists.
+ *
+ * Each group plays its own playlist when it has one, otherwise the rule's:
+ * - a **static** source is played as it is, so the group points straight at it;
+ * - a **dynamic** source is narrowed to the group's genres through a hidden
+ *   copy — one per group, keyed by its genres, so a group that switches source
+ *   updates its copy instead of leaving a new one behind.
+ *
+ * A group whose source is missing (or dynamic without a rule) gets no playlist
+ * and its events play the rule's playlist. Hidden copies no group needs any
+ * more are stale.
  */
 export async function syncVariantPlaylists(
   tx: Tx,
   rule: EventScheduleRule,
 ): Promise<VariantPlaylists> {
   const existing = await tx.select().from(playlists).where(eq(playlists.managedByRuleId, rule.id));
-  const [base] =
-    rule.genreVariants.length === 0
+  const sourceIds = [
+    ...new Set(rule.genreVariants.map((variant) => variant.playlistId ?? rule.playlistId)),
+  ];
+  const sources =
+    sourceIds.length === 0
       ? []
-      : await tx.select().from(playlists).where(eq(playlists.id, rule.playlistId));
-  if (!base || base.kind !== PlaylistKind.Dynamic || !base.rule) {
-    return { playlistIds: [], toResolve: [], stale: existing.map((playlist) => playlist.id) };
-  }
+      : await tx.select().from(playlists).where(inArray(playlists.id, sourceIds));
+  const sourceById = new Map(sources.map((playlist) => [playlist.id, playlist]));
 
   const byKey = new Map(existing.map((playlist) => [playlist.variantKey, playlist]));
   const result: VariantPlaylists = { playlistIds: [], toResolve: [], stale: [] };
   for (const variant of rule.genreVariants) {
+    const source = sourceById.get(variant.playlistId ?? rule.playlistId);
+    if (source && source.kind !== PlaylistKind.Dynamic) {
+      // Played as it is: nothing to copy, and any old copy of this group is stale.
+      result.playlistIds.push(source.id);
+      continue;
+    }
+    if (!source?.rule) {
+      // Falls back to the rule's playlist in the reconcile.
+      result.playlistIds.push(undefined);
+      continue;
+    }
+
     const key = variantKey(variant);
     const wanted = {
-      name: variantName(base.name, variant),
-      color: base.color,
-      rule: variantRule(base.rule, variant),
+      name: variantName(source.name, variant),
+      color: source.color,
+      rule: variantRule(source.rule, variant),
     };
     const current = byKey.get(key);
     byKey.delete(key);

@@ -2614,7 +2614,7 @@
         "enabledLabel": "Active",
         "enabledDesc": "Pausing removes the upcoming entries until you activate the rule again.",
         "genreGroupsLabel": "Content per genre",
-        "genreGroupsHint": "When an event matches a group, the playlist shows only events of those genres. The first matching group wins; otherwise the playlist plays as it is.",
+        "genreGroupsHint": "When a group matches an event, that group's playlist plays. The first matching group wins; if none matches, the rule's playlist plays as it is.",
         "genreGroupLabel": "Genre group {{n}}",
         "genreGroupPlaceholder": "Choose genres…",
         "addGenreGroup": "Add genre group",
@@ -2627,7 +2627,14 @@
           "window": "Enter the start and end as times.",
           "targets": "Pick at least one screen or group.",
           "genreGroups": "Every genre group needs at least one genre, and no two groups may list the same genres."
-        }
+        },
+        "genreGroupsHintStatic": "The rule's playlist is static: every group needs its own playlist. If no group matches, the rule's playlist plays.",
+        "groupPlaylistLabel": "Playlist for group {n}",
+        "groupPlaylistPlaceholder": "Choose a playlist …",
+        "groupPlaylistRule": "The rule's playlist",
+        "groupPlaylistHintRule": "The rule's playlist, narrowed to this group's genres.",
+        "groupPlaylistHintDynamic": "Dynamic playlist: narrowed to this group's genres.",
+        "groupPlaylistHintStatic": "Static playlist: plays as it is."
       },
       "toast": {
         "saved": "Rule saved and scheduled",

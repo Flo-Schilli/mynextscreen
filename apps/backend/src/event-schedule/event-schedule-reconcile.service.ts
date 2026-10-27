@@ -194,9 +194,14 @@ export class EventScheduleReconcileService {
       .select({ id: eventScheduleRules.id })
       .from(eventScheduleRules)
       .where(
-        and(
-          eq(eventScheduleRules.playlistId, playlistId),
-          sql`jsonb_array_length(${eventScheduleRules.genreVariants}) > 0`,
+        or(
+          // Groups without their own playlist narrow the rule's.
+          and(
+            eq(eventScheduleRules.playlistId, playlistId),
+            sql`jsonb_array_length(${eventScheduleRules.genreVariants}) > 0`,
+          ),
+          // Groups that narrow their own.
+          sql`EXISTS (SELECT 1 FROM jsonb_array_elements(${eventScheduleRules.genreVariants}) AS v WHERE v->>'playlistId' = ${playlistId})`,
         ),
       );
     return rows.map((row) => row.id);

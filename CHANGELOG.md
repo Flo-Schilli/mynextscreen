@@ -4,6 +4,18 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## Unreleased
+
+### Added — a playlist of its own per genre group
+
+A genre group of an event schedule rule can now play its own playlist instead
+of the rule's. A dynamic one is narrowed to the group's genres, as the rule's
+playlist is; a static one plays as it is. Groups without their own playlist
+behave as before, and events no group matches still play the rule's playlist.
+With every group on a playlist of its own, the rule's playlist may now be
+static. A playlist a genre group plays cannot be deleted until the group stops
+using it; the error names the rule.
+
 ## 0.40.0
 
 ### Added — site agent backup and restore

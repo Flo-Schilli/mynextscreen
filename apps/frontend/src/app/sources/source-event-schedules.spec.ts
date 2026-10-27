@@ -66,6 +66,15 @@ const PREVIEW: EventSchedulePreviewItem[] = [
 ];
 
 describe('SourceEventSchedules', () => {
+  /** The modal's protected group setter, as the template calls it. */
+  function setGroup(
+    modal: EventScheduleRuleModal,
+    index: number,
+    change: { genres?: string[]; playlistId?: string },
+  ): void {
+    (modal as unknown as { setGroup(i: number, c: typeof change): void }).setGroup(index, change);
+  }
+
   let fixture: ComponentFixture<SourceEventSchedules>;
   let service: Record<
     'getAll' | 'create' | 'update' | 'delete' | 'preview' | 'setExcluded',
@@ -195,7 +204,23 @@ describe('SourceEventSchedules', () => {
     );
   });
 
-  it('edits genre groups only for a dynamic playlist', async () => {
+  it("names a group's own playlist in the list", async () => {
+    service.getAll.mockReturnValue(
+      of([
+        buildRule({
+          playlistId: 'p2',
+          genreVariants: [{ genres: ['Rock'], playlistId: 'p1' }, { genres: ['Jazz'] }],
+        }),
+      ]),
+    );
+    await setUp();
+
+    expect(fixture.nativeElement.querySelector('.genre-groups').textContent).toContain(
+      'Rock → Konzert · Jazz',
+    );
+  });
+
+  it('edits genre groups of a dynamic rule playlist, defaulting to that playlist', async () => {
     service.getAll.mockReturnValue(of([buildRule({ playlistId: 'p2' })]));
     await setUp();
 
@@ -204,7 +229,11 @@ describe('SourceEventSchedules', () => {
     click('.add-genre-group');
     const modal = fixture.debugElement.query(By.directive(EventScheduleRuleModal))
       .componentInstance as EventScheduleRuleModal;
-    (modal as unknown as { setGroup(i: number, g: string[]): void }).setGroup(0, ['Rock']);
+    setGroup(modal, 0, { genres: ['Rock'] });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.group-playlist-hint').textContent).toContain(
+      'narrowed',
+    );
     modal.submit();
     fixture.detectChanges();
 
@@ -212,20 +241,47 @@ describe('SourceEventSchedules', () => {
       'org1',
       's1',
       'r1',
-      expect.objectContaining({ genreVariants: [{ genres: ['Rock'] }] }),
+      expect.objectContaining({ genreVariants: [{ genres: ['Rock'], playlistId: null }] }),
     );
   });
 
-  it('hides genre groups for a static playlist and saves none', async () => {
+  it('saves a group with its own playlist', async () => {
+    service.getAll.mockReturnValue(of([buildRule({ playlistId: 'p2' })]));
+    await setUp();
+
+    click('.edit-rule');
+    click('.add-genre-group');
+    const modal = fixture.debugElement.query(By.directive(EventScheduleRuleModal))
+      .componentInstance as EventScheduleRuleModal;
+    setGroup(modal, 0, { genres: ['Rock'], playlistId: 'p1' });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.group-playlist-hint').textContent).toContain(
+      'plays as it is',
+    );
+    modal.submit();
+
+    expect(service.update).toHaveBeenCalledWith(
+      'org1',
+      's1',
+      'r1',
+      expect.objectContaining({ genreVariants: [{ genres: ['Rock'], playlistId: 'p1' }] }),
+    );
+  });
+
+  it('lets a static rule playlist have genre groups, each with its own playlist', async () => {
     service.getAll.mockReturnValue(
       of([buildRule({ playlistId: 'p1', genreVariants: [{ genres: ['Rock'] }] })]),
     );
     await setUp();
 
     click('.edit-rule');
-    expect(fixture.nativeElement.querySelector('.add-genre-group')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.add-genre-group')).not.toBeNull();
     const modal = fixture.debugElement.query(By.directive(EventScheduleRuleModal))
       .componentInstance as EventScheduleRuleModal;
+    modal.submit();
+    expect(service.update).not.toHaveBeenCalled();
+
+    setGroup(modal, 0, { playlistId: 'p2' });
     modal.submit();
     fixture.detectChanges();
 
@@ -233,7 +289,7 @@ describe('SourceEventSchedules', () => {
       'org1',
       's1',
       'r1',
-      expect.objectContaining({ genreVariants: [] }),
+      expect.objectContaining({ genreVariants: [{ genres: ['Rock'], playlistId: 'p2' }] }),
     );
   });
 
