@@ -48,7 +48,7 @@ export type RulePreviewState =
           @if (items().length === 0) {
             <p class="text-sm text-muted py-2">{{ t('playlists.rule.preview.empty') }}</p>
           } @else {
-            <ol class="flex flex-col gap-2 max-h-[520px] overflow-y-auto pr-1">
+            <ol class="flex flex-col gap-2">
               @for (item of items(); track item.sourceEventId; let i = $index) {
                 <li
                   class="preview-item flex items-center gap-3 px-3 py-2 rounded-[12px] bg-surface-2 border border-border"
