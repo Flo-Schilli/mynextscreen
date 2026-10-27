@@ -4,7 +4,7 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
-## Unreleased
+## 0.42.0
 
 ### Changed — grouped side navigation
 
@@ -15,6 +15,11 @@ settings — sit in a Setup group that is folded away by default; each browser
 remembers whether it is open, and it opens by itself while one of its pages is
 showing. The narrow icon-only rail still lists every entry, separated by
 dividers.
+
+### Fixed
+
+- The preview of a dynamic playlist no longer scrolls inside the scrolling
+  page; its event list grows with its content.
 
 ## 0.41.0
 
