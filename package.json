@@ -32,7 +32,7 @@
     "images:build": "APP_VERSION=$(node -p \"require('./package.json').version\") GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo unknown) BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) ./scripts/build-images.sh"
   },
   "dependencies": {
-    "@angular/cdk": "22.2.3",
+    "@angular/cdk": "22.2.4",
     "@angular/common": "22.2.3",
     "@angular/compiler": "22.2.3",
     "@angular/core": "22.2.3",
@@ -83,10 +83,10 @@
     "ws": "^8.22.0"
   },
   "devDependencies": {
-    "@analogjs/vite-plugin-angular": "2.8.1",
-    "@analogjs/vitest-angular": "2.8.1",
-    "@angular/build": "22.2.3",
-    "@angular/cli": "22.2.3",
+    "@analogjs/vite-plugin-angular": "2.9.2",
+    "@analogjs/vitest-angular": "2.9.2",
+    "@angular/build": "22.2.4",
+    "@angular/cli": "22.2.4",
     "@angular/compiler-cli": "22.2.3",
     "@eslint/js": "^10.0.1",
     "@jsverse/transloco-keys-manager": "^8.1.1",
