@@ -17,14 +17,27 @@ export interface NavItem {
   section?: string;
 }
 
+/**
+ * A run of nav entries under one heading. The first group goes without one;
+ * a collapsible group folds away pages that are set up once and rarely visited.
+ */
+export interface NavGroup {
+  id: string;
+  label?: string;
+  collapsible?: boolean;
+  items: NavItem[];
+}
+
 const ADMIN_SECTION = '/admin';
 
 /**
  * Presentational app sidebar — Phase 2 reskin.
  * 252 px expanded / 78 px collapsed, bg-rail, gradient logo tile, mns-icon nav.
  * Active state: bg-accent-soft + text-accent + 700 + 4×22 gradient pill on left.
- * Nav order per README: Dashboard, Screens, Screen Groups, Content Library,
- * Playlists, Schedules, Live Streams, Audit Log, Settings. Logout in footer.
+ * Nav entries come in groups: Dashboard, Content, Playout, then a collapsible
+ * Setup group for the rarely visited pages. Logout in footer.
+ * In the icon-only rail (collapsed, or tablet width) headings and folding make
+ * no sense, so every entry shows there and dividers separate the groups.
  */
 @Component({
   selector: 'app-sidebar',
@@ -81,21 +94,47 @@ const ADMIN_SECTION = '/admin';
 
       <!-- ── Nav ── -->
       <nav class="sidebar-nav">
-        @for (item of navItems(); track item.route) {
-          <a
-            class="nav-item"
-            [routerLink]="item.route"
-            [class.active]="isActive(item.section ?? item.route)"
-            (click)="closeMobile.emit()"
-            [attr.title]="collapsed() ? t(item.label) : null"
-          >
-            <!-- Active gradient pill -->
-            <span class="active-pill" aria-hidden="true"></span>
-            <mns-icon [name]="item.icon" [size]="20" class="nav-icon-el" />
-            @if (!collapsed()) {
-              <span class="nav-label">{{ t(item.label) }}</span>
+        @for (group of navGroups(); track group.id; let first = $first) {
+          <div class="nav-group" [class.closed]="!isGroupOpen(group)">
+            @if (!first) {
+              <div class="nav-divider group-divider"></div>
             }
-          </a>
+            @if (group.label) {
+              @if (group.collapsible) {
+                <button
+                  type="button"
+                  class="group-toggle"
+                  [attr.aria-expanded]="isGroupOpen(group)"
+                  [attr.aria-controls]="'nav-group-' + group.id"
+                  [attr.aria-label]="t('shell.sidebar.toggleGroup', { group: t(group.label) })"
+                  (click)="toggleGroup.emit(group.id)"
+                >
+                  <span class="group-label-text">{{ t(group.label) }}</span>
+                  <mns-icon [name]="isGroupOpen(group) ? 'ChevronDown' : 'Chevron'" [size]="15" />
+                </button>
+              } @else {
+                <div class="nav-group-label">{{ t(group.label) }}</div>
+              }
+            }
+            <div class="group-items" [id]="'nav-group-' + group.id">
+              @for (item of group.items; track item.route) {
+                <a
+                  class="nav-item"
+                  [routerLink]="item.route"
+                  [class.active]="isActive(item.section ?? item.route)"
+                  (click)="closeMobile.emit()"
+                  [attr.title]="collapsed() ? t(item.label) : null"
+                >
+                  <!-- Active gradient pill -->
+                  <span class="active-pill" aria-hidden="true"></span>
+                  <mns-icon [name]="item.icon" [size]="20" class="nav-icon-el" />
+                  @if (!collapsed()) {
+                    <span class="nav-label">{{ t(item.label) }}</span>
+                  }
+                </a>
+              }
+            </div>
+          </div>
         }
 
         <!-- Instance Admin link (super admins only) -->
@@ -298,6 +337,63 @@ const ADMIN_SECTION = '/admin';
       margin: 6px 2px;
     }
 
+    /* ── Groups ── */
+    .nav-group,
+    .group-items {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .nav-group + .nav-group {
+      margin-top: 10px;
+    }
+    .nav-group.closed .group-items {
+      display: none;
+    }
+    .nav-group-label,
+    .group-toggle {
+      padding: 6px 13px 2px;
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .group-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      cursor: pointer;
+      padding-bottom: 6px;
+    }
+    .group-toggle:hover {
+      background: var(--hover);
+      color: var(--text);
+    }
+    .group-divider {
+      display: none;
+    }
+
+    /* Icon-only rail: every entry visible, dividers instead of headings. */
+    .sidebar.collapsed .nav-group-label,
+    .sidebar.collapsed .group-toggle {
+      display: none;
+    }
+    .sidebar.collapsed .nav-group.closed .group-items {
+      display: flex;
+    }
+    .sidebar.collapsed .group-divider {
+      display: block;
+    }
+    .sidebar.collapsed .nav-group + .nav-group {
+      margin-top: 0;
+    }
+
     /* Instance Admin amber overrides */
     .admin-nav-item {
       color: var(--text-muted);
@@ -327,8 +423,19 @@ const ADMIN_SECTION = '/admin';
         width: 78px;
       }
       .sidebar .nav-label,
-      .sidebar .logo-text {
+      .sidebar .logo-text,
+      .sidebar .nav-group-label,
+      .sidebar .group-toggle {
         display: none;
+      }
+      .sidebar .nav-group.closed .group-items {
+        display: flex;
+      }
+      .sidebar .group-divider {
+        display: block;
+      }
+      .sidebar .nav-group + .nav-group {
+        margin-top: 0;
       }
       .sidebar .sidebar-header {
         justify-content: center;
@@ -348,6 +455,19 @@ const ADMIN_SECTION = '/admin';
       .sidebar .nav-label,
       .sidebar .logo-text {
         display: inline;
+      }
+      .sidebar .nav-group-label {
+        display: block;
+      }
+      .sidebar .group-toggle {
+        display: flex;
+      }
+      .sidebar .nav-group.closed .group-items,
+      .sidebar .group-divider {
+        display: none;
+      }
+      .sidebar .nav-group + .nav-group {
+        margin-top: 10px;
       }
       .sidebar.mobile-open {
         transform: translateX(0);
@@ -381,12 +501,24 @@ export class AppSidebar {
 
   readonly collapsed = input.required<boolean>();
   readonly mobileOpen = input.required<boolean>();
-  readonly navItems = input.required<NavItem[]>();
+  readonly navGroups = input.required<NavGroup[]>();
+  /** Ids of the collapsible groups the user has unfolded. */
+  readonly openGroups = input<readonly string[]>([]);
   readonly isSuperAdmin = input.required<boolean>();
 
   readonly toggleCollapse = output<void>();
+  readonly toggleGroup = output<string>();
   readonly closeMobile = output<void>();
   readonly logout = output<void>();
+
+  /** A folded group still opens while one of its pages is showing, or the active page would vanish. */
+  protected isGroupOpen(group: NavGroup): boolean {
+    return (
+      !group.collapsible ||
+      this.openGroups().includes(group.id) ||
+      group.items.some((item) => this.isActive(item.section ?? item.route))
+    );
+  }
 
   /** Matches on whole segments, so `/audit-log` never lights up on `/audit-log-x`. */
   protected isActive(section: string): boolean {

@@ -153,11 +153,17 @@
       "auditLog": "Audit Log",
       "settings": "Settings",
       "instanceAdmin": "Instance Admin",
-      "sources": "Sources"
+      "sources": "Sources",
+      "groups": {
+        "content": "Content",
+        "playout": "Playout",
+        "setup": "Setup"
+      }
     },
     "sidebar": {
       "collapse": "Collapse sidebar",
-      "expand": "Expand sidebar"
+      "expand": "Expand sidebar",
+      "toggleGroup": "Show or hide {{group}}"
     },
     "topbar": {
       "openNav": "Open navigation menu",

@@ -13,11 +13,22 @@ import { AuthService } from '../auth/auth.service';
 import { OrganisationStateService } from './organisation-state.service';
 import { ThemeService } from './theme.service';
 import { DashboardSseService } from '../dashboard/dashboard-sse.service';
-import { AppSidebar, NavItem } from './app-sidebar';
+import { AppSidebar, NavGroup } from './app-sidebar';
 import { AppTopbar } from './app-topbar';
 import { OrgSwitchModal } from './org-switch-modal';
 
 const SIDEBAR_KEY = 'mynextscreen_sidebar_collapsed';
+const OPEN_GROUPS_KEY = 'mynextscreen_sidebar_open_groups';
+
+/** Unfolded nav groups as stored; anything unreadable counts as none. */
+function readOpenGroups(): string[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(OPEN_GROUPS_KEY) ?? '[]');
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Smart container for the app shell — Phase 2 reskin.
@@ -44,9 +55,11 @@ const SIDEBAR_KEY = 'mynextscreen_sidebar_collapsed';
     <app-sidebar
       [collapsed]="collapsed()"
       [mobileOpen]="mobileOpen()"
-      [navItems]="visibleNavItems()"
+      [navGroups]="visibleNavGroups()"
+      [openGroups]="openGroups()"
       [isSuperAdmin]="orgState.isSuperAdmin()"
       (toggleCollapse)="toggleCollapse()"
+      (toggleGroup)="toggleGroup($event)"
       (closeMobile)="mobileOpen.set(false)"
       (logout)="logout()"
     />
@@ -173,6 +186,7 @@ export class Layout implements OnInit {
   readonly theme = inject(ThemeService);
 
   readonly collapsed = signal(localStorage.getItem(SIDEBAR_KEY) === 'true');
+  readonly openGroups = signal<readonly string[]>(readOpenGroups());
   readonly mobileOpen = signal(false);
   readonly showOrgSwitch = signal(false);
   readonly userEmail = computed(() => this.authService.user()?.email ?? null);
@@ -182,8 +196,8 @@ export class Layout implements OnInit {
    * organisation (e.g. a pure instance admin) sees none of them — only the
    * super-admin link the sidebar renders on its own remains.
    */
-  readonly visibleNavItems = computed(() =>
-    this.orgState.organisations().length > 0 ? this.navItems : [],
+  readonly visibleNavGroups = computed(() =>
+    this.orgState.organisations().length > 0 ? this.navGroups : [],
   );
 
   /** One-element list that changes identity with the organisation (see template). */
@@ -196,22 +210,45 @@ export class Layout implements OnInit {
     }
   });
 
-  readonly navItems: NavItem[] = [
-    { label: 'shell.nav.dashboard', route: '/dashboard', icon: 'Dashboard' },
-    { label: 'shell.nav.screens', route: '/screens', icon: 'Screens' },
-    { label: 'shell.nav.screenGroups', route: '/screen-groups', icon: 'Groups' },
-    { label: 'shell.nav.siteAgents', route: '/site-agents', icon: 'Cast' },
-    { label: 'shell.nav.content', route: '/content', icon: 'Content' },
-    { label: 'shell.nav.playlists', route: '/playlists', icon: 'Playlists' },
-    { label: 'shell.nav.sources', route: '/sources', icon: 'Globe' },
-    { label: 'shell.nav.schedules', route: '/schedules', icon: 'Schedules' },
-    { label: 'shell.nav.liveStreams', route: '/live-streams', icon: 'Stream' },
-    { label: 'shell.nav.auditLog', route: '/audit-log', icon: 'Audit' },
+  /** Daily work first; pages set up once and rarely visited fold away under Setup. */
+  readonly navGroups: NavGroup[] = [
     {
-      label: 'shell.nav.settings',
-      route: '/settings/users',
-      icon: 'Settings',
-      section: '/settings',
+      id: 'home',
+      items: [{ label: 'shell.nav.dashboard', route: '/dashboard', icon: 'Dashboard' }],
+    },
+    {
+      id: 'content',
+      label: 'shell.nav.groups.content',
+      items: [
+        { label: 'shell.nav.content', route: '/content', icon: 'Content' },
+        { label: 'shell.nav.playlists', route: '/playlists', icon: 'Playlists' },
+      ],
+    },
+    {
+      id: 'playout',
+      label: 'shell.nav.groups.playout',
+      items: [
+        { label: 'shell.nav.schedules', route: '/schedules', icon: 'Schedules' },
+        { label: 'shell.nav.liveStreams', route: '/live-streams', icon: 'Stream' },
+        { label: 'shell.nav.screens', route: '/screens', icon: 'Screens' },
+      ],
+    },
+    {
+      id: 'setup',
+      label: 'shell.nav.groups.setup',
+      collapsible: true,
+      items: [
+        { label: 'shell.nav.screenGroups', route: '/screen-groups', icon: 'Groups' },
+        { label: 'shell.nav.sources', route: '/sources', icon: 'Globe' },
+        { label: 'shell.nav.siteAgents', route: '/site-agents', icon: 'Cast' },
+        { label: 'shell.nav.auditLog', route: '/audit-log', icon: 'Audit' },
+        {
+          label: 'shell.nav.settings',
+          route: '/settings/users',
+          icon: 'Settings',
+          section: '/settings',
+        },
+      ],
     },
   ];
 
@@ -230,6 +267,17 @@ export class Layout implements OnInit {
     const next = !this.collapsed();
     this.collapsed.set(next);
     localStorage.setItem(SIDEBAR_KEY, String(next));
+  }
+
+  toggleGroup(id: string): void {
+    const open = this.openGroups();
+    const next = open.includes(id) ? open.filter((g) => g !== id) : [...open, id];
+    this.openGroups.set(next);
+    try {
+      localStorage.setItem(OPEN_GROUPS_KEY, JSON.stringify(next));
+    } catch {
+      // Storage unavailable (private mode): the choice lasts until reload.
+    }
   }
 
   goToProfile(): void {
@@ -258,7 +306,11 @@ export class Layout implements OnInit {
   /** The nav list route a detail URL such as `/screen-groups/:id` belongs to, else null. */
   private listRouteOf(url: string): string | null {
     const path = url.split(/[?#]/)[0];
-    return this.navItems.find((item) => path.startsWith(`${item.route}/`))?.route ?? null;
+    return (
+      this.navGroups
+        .flatMap((group) => group.items)
+        .find((item) => path.startsWith(`${item.route}/`))?.route ?? null
+    );
   }
 
   async logout(): Promise<void> {
