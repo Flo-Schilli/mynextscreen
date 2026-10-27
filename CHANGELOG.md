@@ -4,7 +4,7 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
-## Unreleased
+## 0.41.0
 
 ### Added — a playlist of its own per genre group
 
