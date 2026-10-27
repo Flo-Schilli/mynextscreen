@@ -6,7 +6,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router, provideRouter } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { vi } from 'vitest';
-import { AppSidebar, NavItem } from './app-sidebar';
+import { AppSidebar, NavGroup, NavItem } from './app-sidebar';
 import { getTranslocoTestingModule } from '../i18n/transloco-testing';
 
 try {
@@ -31,6 +31,8 @@ async function createFixture(
     collapsed?: boolean;
     mobileOpen?: boolean;
     navItems?: NavItem[];
+    navGroups?: NavGroup[];
+    openGroups?: string[];
     isSuperAdmin?: boolean;
     url?: string;
   } = {},
@@ -53,7 +55,11 @@ async function createFixture(
   const fixture = TestBed.createComponent(AppSidebar);
   fixture.componentRef.setInput('collapsed', overrides.collapsed ?? false);
   fixture.componentRef.setInput('mobileOpen', overrides.mobileOpen ?? false);
-  fixture.componentRef.setInput('navItems', overrides.navItems ?? NAV_ITEMS);
+  fixture.componentRef.setInput(
+    'navGroups',
+    overrides.navGroups ?? [{ id: 'main', items: overrides.navItems ?? NAV_ITEMS }],
+  );
+  fixture.componentRef.setInput('openGroups', overrides.openGroups ?? []);
   fixture.componentRef.setInput('isSuperAdmin', overrides.isSuperAdmin ?? false);
   fixture.detectChanges();
   createdFixtures.push(fixture);
@@ -128,6 +134,88 @@ describe('AppSidebar', () => {
 
       expect(activeLabels(fixture)).toEqual(['Dashboard']);
       expect(adminIsActive(fixture)).toBe(false);
+    });
+  });
+
+  describe('nav groups', () => {
+    const GROUPS: NavGroup[] = [
+      { id: 'home', items: [{ label: 'Dashboard', route: '/dashboard', icon: 'Dashboard' }] },
+      {
+        id: 'content',
+        label: 'Content',
+        items: [{ label: 'Playlists', route: '/playlists', icon: 'Playlists' }],
+      },
+      {
+        id: 'setup',
+        label: 'Setup',
+        collapsible: true,
+        items: [
+          { label: 'Audit Log', route: '/audit-log', icon: 'Audit' },
+          { label: 'Settings', route: '/settings/users', icon: 'Settings', section: '/settings' },
+        ],
+      },
+    ];
+
+    const setupGroup = (fixture: ComponentFixture<AppSidebar>): HTMLElement =>
+      fixture.debugElement.queryAll(By.css('.nav-group'))[2].nativeElement as HTMLElement;
+
+    const toggle = (fixture: ComponentFixture<AppSidebar>): HTMLButtonElement =>
+      fixture.debugElement.query(By.css('.group-toggle')).nativeElement as HTMLButtonElement;
+
+    it('renders a heading for each labelled group', async () => {
+      const fixture = await createFixture({ navGroups: GROUPS });
+
+      const headings = fixture.debugElement
+        .queryAll(By.css('.nav-group-label, .group-toggle'))
+        .map((el) => (el.nativeElement as HTMLElement).textContent!.trim());
+      expect(headings).toEqual(['Content', 'Setup']);
+    });
+
+    it('folds a collapsible group away by default', async () => {
+      const fixture = await createFixture({ navGroups: GROUPS, url: '/dashboard' });
+
+      expect(setupGroup(fixture).classList.contains('closed')).toBe(true);
+      expect(toggle(fixture).getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('unfolds a group the user opened', async () => {
+      const fixture = await createFixture({
+        navGroups: GROUPS,
+        openGroups: ['setup'],
+        url: '/dashboard',
+      });
+
+      expect(setupGroup(fixture).classList.contains('closed')).toBe(false);
+      expect(toggle(fixture).getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('keeps a folded group open while one of its pages is showing', async () => {
+      // Otherwise the active page would have no visible entry in the nav.
+      const fixture = await createFixture({ navGroups: GROUPS, url: '/settings/org/storage' });
+
+      expect(setupGroup(fixture).classList.contains('closed')).toBe(false);
+    });
+
+    it('emits toggleGroup with the group id when its heading is clicked', async () => {
+      const fixture = await createFixture({ navGroups: GROUPS });
+      const spy = vi.fn();
+      fixture.componentInstance.toggleGroup.subscribe(spy);
+
+      toggle(fixture).click();
+
+      expect(spy).toHaveBeenCalledWith('setup');
+    });
+
+    it('renders every entry of a folded group, for the icon-only rail to show', async () => {
+      // The rail cannot fold, so CSS reveals the group there; the links must exist.
+      const fixture = await createFixture({
+        navGroups: GROUPS,
+        collapsed: true,
+        url: '/dashboard',
+      });
+
+      const links = fixture.debugElement.queryAll(By.css('.sidebar-nav a.nav-item'));
+      expect(links.length).toBe(4);
     });
   });
 

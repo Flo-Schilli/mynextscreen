@@ -4,6 +4,18 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## Unreleased
+
+### Changed — grouped side navigation
+
+The side navigation now sorts its entries into groups: Content (media library,
+playlists) and Playout (schedules, live streams, screens). Pages that are set
+up once and rarely visited — screen groups, sources, site agents, audit log and
+settings — sit in a Setup group that is folded away by default; each browser
+remembers whether it is open, and it opens by itself while one of its pages is
+showing. The narrow icon-only rail still lists every entry, separated by
+dividers.
+
 ## 0.41.0
 
 ### Added — a playlist of its own per genre group

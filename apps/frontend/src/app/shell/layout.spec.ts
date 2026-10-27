@@ -20,15 +20,18 @@ try {
 }
 
 const SIDEBAR_KEY = 'mynextscreen_sidebar_collapsed';
+const OPEN_GROUPS_KEY = 'mynextscreen_sidebar_open_groups';
 
 // Stub children: keep the same selectors + the inputs/outputs the container binds.
 @Component({ selector: 'app-sidebar', template: '' })
 class StubSidebar {
   readonly collapsed = input.required<boolean>();
   readonly mobileOpen = input.required<boolean>();
-  readonly navItems = input.required<unknown[]>();
+  readonly navGroups = input.required<unknown[]>();
+  readonly openGroups = input<readonly string[]>([]);
   readonly isSuperAdmin = input.required<boolean>();
   readonly toggleCollapse = output<void>();
+  readonly toggleGroup = output<string>();
   readonly closeMobile = output<void>();
   readonly logout = output<void>();
 }
@@ -270,6 +273,45 @@ describe('Layout', () => {
     });
   });
 
+  describe('toggleGroup', () => {
+    it('opens a group and persists it', async () => {
+      const fixture = await createFixture(createStubs());
+
+      fixture.componentInstance.toggleGroup('setup');
+
+      expect(fixture.componentInstance.openGroups()).toEqual(['setup']);
+      expect(localStorage.getItem(OPEN_GROUPS_KEY)).toBe('["setup"]');
+    });
+
+    it('starts from the stored groups and closes one on a second toggle', async () => {
+      localStorage.setItem(OPEN_GROUPS_KEY, '["setup"]');
+      const fixture = await createFixture(createStubs());
+
+      fixture.componentInstance.toggleGroup('setup');
+
+      expect(fixture.componentInstance.openGroups()).toEqual([]);
+      expect(localStorage.getItem(OPEN_GROUPS_KEY)).toBe('[]');
+    });
+
+    it('treats an unreadable stored value as no open group', async () => {
+      localStorage.setItem(OPEN_GROUPS_KEY, 'not json');
+
+      const fixture = await createFixture(createStubs());
+
+      expect(fixture.componentInstance.openGroups()).toEqual([]);
+    });
+
+    it('forwards the sidebar toggleGroup to the container handler', async () => {
+      const fixture = await createFixture(createStubs());
+      const sidebar = fixture.debugElement.query(By.directive(StubSidebar))
+        .componentInstance as StubSidebar;
+
+      sidebar.toggleGroup.emit('setup');
+
+      expect(fixture.componentInstance.openGroups()).toEqual(['setup']);
+    });
+  });
+
   describe('logout', () => {
     it('disconnects SSE, logs out and navigates to /login', async () => {
       // Arrange
@@ -361,7 +403,7 @@ describe('Layout', () => {
 
       // Assert
       expect(sidebar.isSuperAdmin()).toBe(true);
-      expect(sidebar.navItems().length).toBeGreaterThan(0);
+      expect(sidebar.navGroups().length).toBeGreaterThan(0);
       expect(topbar.isDark()).toBe(true);
       expect(topbar.isSuperAdmin()).toBe(true);
     });
@@ -540,7 +582,7 @@ describe('Layout', () => {
         .componentInstance as StubSidebar;
 
       // Assert
-      expect(sidebar.navItems().length).toBe(0);
+      expect(sidebar.navGroups().length).toBe(0);
     });
 
     it('forwards topbar toggleTheme to the theme service', async () => {

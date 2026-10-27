@@ -153,11 +153,17 @@
       "auditLog": "Audit-Log",
       "settings": "Einstellungen",
       "instanceAdmin": "Instanz-Admin",
-      "sources": "Quellen"
+      "sources": "Quellen",
+      "groups": {
+        "content": "Inhalte",
+        "playout": "Ausspielung",
+        "setup": "Einrichtung"
+      }
     },
     "sidebar": {
       "collapse": "Seitenleiste einklappen",
-      "expand": "Seitenleiste ausklappen"
+      "expand": "Seitenleiste ausklappen",
+      "toggleGroup": "{{group}} ein-/ausklappen"
     },
     "topbar": {
       "openNav": "Navigationsmenü öffnen",
