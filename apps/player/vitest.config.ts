@@ -16,5 +16,8 @@ export default defineConfig({
     // leaks. The 'forks' pool gives each spec file a fresh, process-isolated
     // module registry, so the TestBed is clean per file.
     pool: 'forks',
+    // Vitest blanks CSS imports by default. The transition-keyframe spec reads
+    // the global stylesheet as text, so let that one file through.
+    css: { include: [/src\/styles\.css/] },
   },
 });

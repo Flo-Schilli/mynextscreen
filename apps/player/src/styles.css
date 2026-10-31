@@ -170,3 +170,124 @@ body {
     transform: rotate(360deg);
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Playback transition keyframes
+
+   These must stay global. PlaybackComponent applies them through an inline
+   `[style.animation]` binding (see playback-transitions.ts), and Angular's
+   emulated encapsulation renames every @keyframes declared in a component
+   stylesheet to `_ngcontent-<id>_<name>` — but only rewrites references inside
+   that same stylesheet. Declared in the component, an inline `fade-enter`
+   matched no keyframes at all, so every transition played as a hard cut.
+   --------------------------------------------------------------------------- */
+
+/* Fade — a cross-dissolve: only the incoming layer animates, the
+   outgoing one stays opaque underneath it. See playback-transitions.ts
+   for why ramping both at once dips through black. */
+@keyframes fade-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Slide Left — outgoing exits left, incoming enters from right */
+@keyframes slide-left-enter {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes slide-left-exit {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+/* Slide Right — outgoing exits right, incoming enters from left */
+@keyframes slide-right-enter {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes slide-right-exit {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Slide Up — outgoing exits upward, incoming enters from below */
+@keyframes slide-up-enter {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes slide-up-exit {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-100%);
+  }
+}
+
+/* Slide Down — outgoing exits downward, incoming enters from above */
+@keyframes slide-down-enter {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes slide-down-exit {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/* Zoom In — the incoming picture grows into place as it dissolves in.
+   The scale used to sit on the outgoing layer, which the incoming one
+   covers completely, so zoom-in was indistinguishable from a plain fade. */
+@keyframes zoom-in-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Zoom Out — the incoming picture shrinks into place as it dissolves in. */
+@keyframes zoom-out-enter {
+  from {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

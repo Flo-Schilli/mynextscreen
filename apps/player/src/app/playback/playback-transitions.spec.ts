@@ -6,6 +6,8 @@ import {
   crossDissolves,
   KNOWN_TRANSITIONS,
 } from './playback-transitions';
+import globalStyles from '../../styles.css?raw';
+import componentSource from './playback.component.ts?raw';
 
 function item(partial: Partial<PlaylistItem>): PlaylistItem {
   return { url: '/x', duration: 10, type: 'image', ...partial } as PlaylistItem;
@@ -84,5 +86,33 @@ describe('crossDissolves', () => {
 
   it('is false for cut', () => {
     expect(crossDissolves('cut')).toBe(false);
+  });
+});
+
+describe('transition keyframes', () => {
+  /** Keyframe names declared in a stylesheet. */
+  function keyframes(css: string): Set<string> {
+    return new Set([...css.matchAll(/@keyframes\s+([\w-]+)/g)].map((m) => m[1]));
+  }
+
+  /** The keyframe name an `animation` shorthand refers to. */
+  function animationName(shorthand: string): string {
+    return shorthand.split(' ')[0];
+  }
+
+  // The animation is applied through an inline style binding. Angular renames
+  // keyframes declared in a component stylesheet, so only global ones match it.
+  it.each([...KNOWN_TRANSITIONS].filter((type) => type !== 'cut'))(
+    'declares the keyframes for %s in the global stylesheet',
+    (type) => {
+      const declared = keyframes(globalStyles);
+      expect(declared).toContain(animationName(enterAnim(type, 500)));
+      const exit = exitAnim(type, 500);
+      if (exit) expect(declared).toContain(animationName(exit));
+    },
+  );
+
+  it('declares no keyframes in the playback component stylesheet', () => {
+    expect(keyframes(componentSource).size).toBe(0);
   });
 });

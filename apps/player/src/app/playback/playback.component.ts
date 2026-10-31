@@ -30,6 +30,12 @@ import { computePosition } from './playlist-clock';
 
 type LayerId = 0 | 1;
 
+/** The callback that ends the running animation, and the layer whose `animationend` triggers it. */
+interface AnimationFinish {
+  layer: LayerId;
+  finish: () => void;
+}
+
 /**
  * Smart container + dual-layer transition engine for screen playback. Owns the
  * playlist sequencing, the two crossfading content layers, transition timing and
@@ -64,13 +70,14 @@ type LayerId = 0 | 1;
           [class.layer-inactive]="activeLayer() !== 0 && !isTransitioning()"
           [style.animation]="layer0Anim()"
           [style.z-index]="layer0ZIndex()"
+          (animationend)="onLayerAnimationEnd(0, $event)"
         >
           @if (layer0Item()?.type === 'image') {
             <img
               [src]="layer0MediaUrl()"
               class="content-media"
               alt=""
-              (load)="onLayerImageLoaded(0)"
+              (load)="onLayerImageLoaded(0, $event)"
               (error)="onMediaError($event, 0)"
             />
           } @else if (layer0Item()?.type === 'video') {
@@ -94,13 +101,14 @@ type LayerId = 0 | 1;
           [class.layer-inactive]="activeLayer() !== 1 && !isTransitioning()"
           [style.animation]="layer1Anim()"
           [style.z-index]="layer1ZIndex()"
+          (animationend)="onLayerAnimationEnd(1, $event)"
         >
           @if (layer1Item()?.type === 'image') {
             <img
               [src]="layer1MediaUrl()"
               class="content-media"
               alt=""
-              (load)="onLayerImageLoaded(1)"
+              (load)="onLayerImageLoaded(1, $event)"
               (error)="onMediaError($event, 1)"
             />
           } @else if (layer1Item()?.type === 'video') {
@@ -165,6 +173,10 @@ type LayerId = 0 | 1;
         display: flex;
         align-items: center;
         justify-content: center;
+        /* Keep both layers on their own compositor layer for good. Promoting
+           one only when its animation starts costs the first frame of every
+           transition on TV-class GPUs. */
+        will-change: opacity, transform;
       }
 
       .layer-active {
@@ -217,118 +229,6 @@ type LayerId = 0 | 1;
         opacity: 0;
         pointer-events: none;
       }
-
-      /* ── Transition keyframes ── */
-
-      /* Fade — a cross-dissolve: only the incoming layer animates, the
-         outgoing one stays opaque underneath it. See playback-transitions.ts
-         for why ramping both at once dips through black. */
-      @keyframes fade-enter {
-        from {
-          opacity: 0;
-        }
-        to {
-          opacity: 1;
-        }
-      }
-
-      /* Slide Left — outgoing exits left, incoming enters from right */
-      @keyframes slide-left-enter {
-        from {
-          transform: translateX(100%);
-        }
-        to {
-          transform: translateX(0);
-        }
-      }
-      @keyframes slide-left-exit {
-        from {
-          transform: translateX(0);
-        }
-        to {
-          transform: translateX(-100%);
-        }
-      }
-
-      /* Slide Right — outgoing exits right, incoming enters from left */
-      @keyframes slide-right-enter {
-        from {
-          transform: translateX(-100%);
-        }
-        to {
-          transform: translateX(0);
-        }
-      }
-      @keyframes slide-right-exit {
-        from {
-          transform: translateX(0);
-        }
-        to {
-          transform: translateX(100%);
-        }
-      }
-
-      /* Slide Up — outgoing exits upward, incoming enters from below */
-      @keyframes slide-up-enter {
-        from {
-          transform: translateY(100%);
-        }
-        to {
-          transform: translateY(0);
-        }
-      }
-      @keyframes slide-up-exit {
-        from {
-          transform: translateY(0);
-        }
-        to {
-          transform: translateY(-100%);
-        }
-      }
-
-      /* Slide Down — outgoing exits downward, incoming enters from above */
-      @keyframes slide-down-enter {
-        from {
-          transform: translateY(-100%);
-        }
-        to {
-          transform: translateY(0);
-        }
-      }
-      @keyframes slide-down-exit {
-        from {
-          transform: translateY(0);
-        }
-        to {
-          transform: translateY(100%);
-        }
-      }
-
-      /* Zoom In — the incoming picture grows into place as it dissolves in.
-         The scale used to sit on the outgoing layer, which the incoming one
-         covers completely, so zoom-in was indistinguishable from a plain fade. */
-      @keyframes zoom-in-enter {
-        from {
-          opacity: 0;
-          transform: scale(0.85);
-        }
-        to {
-          opacity: 1;
-          transform: scale(1);
-        }
-      }
-
-      /* Zoom Out — the incoming picture shrinks into place as it dissolves in. */
-      @keyframes zoom-out-enter {
-        from {
-          opacity: 0;
-          transform: scale(1.15);
-        }
-        to {
-          opacity: 1;
-          transform: scale(1);
-        }
-      }
     `,
   ],
 })
@@ -355,6 +255,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
   private advanceTimer: ReturnType<typeof setTimeout> | null = null;
   private transitionTimer: ReturnType<typeof setTimeout> | null = null;
+  private animationFinish: AnimationFinish | null = null;
   private pendingLoadWatchdog: ReturnType<typeof setTimeout> | null = null;
   private destroyed = false;
   private _pendingTransition: TransitionSpec | null = null;
@@ -376,6 +277,12 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   private static readonly BOUNDARY_RETRY_MS = 250;
   /** Floor for how long to wait on an incoming image before giving up on its load. */
   private static readonly PENDING_LOAD_TIMEOUT_MS = 3000;
+  /**
+   * How long past its configured duration an animation may run before the
+   * fallback timer ends it. The animation normally ends itself via
+   * `animationend`; the timer only covers a browser that never fires it.
+   */
+  private static readonly ANIMATION_END_GRACE_MS = 250;
 
   readonly isMuted = this._isMuted.asReadonly();
   readonly isPending = this._isPending.asReadonly();
@@ -484,18 +391,34 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
   // ── Layer event handlers ──
 
-  onLayerImageLoaded(layer: LayerId): void {
+  onLayerImageLoaded(layer: LayerId, event?: Event): void {
     if (this._initialLoad() && layer === this._activeLayer()) {
-      this.playEnterAnimation();
+      this.whenDecoded(event, () => this.playEnterAnimation());
     } else if (
       this._pendingTransition &&
       this._isPendingImageLoad &&
       layer !== this._activeLayer()
     ) {
       const transition = this._pendingTransition;
-      this.clearPendingLoad();
-      this.executeTransition(transition);
+      this.whenDecoded(event, () => {
+        // The watchdog may have given up on this load while it was decoding.
+        if (!this._isPendingImageLoad || this._pendingTransition !== transition) return;
+        this.clearPendingLoad();
+        this.executeTransition(transition);
+      });
     }
+  }
+
+  /**
+   * End the running animation as soon as the layer reports it finished. A
+   * fixed timer alone started counting before the first frame was painted, so
+   * whenever that frame was late the timer cut the animation short and the
+   * picture jumped the rest of the way.
+   */
+  onLayerAnimationEnd(layer: LayerId, event: Event): void {
+    if (event.target !== event.currentTarget) return;
+    if (this.animationFinish?.layer !== layer) return;
+    this.animationFinish.finish();
   }
 
   onLayerVideoReady(layer: LayerId): void {
@@ -677,7 +600,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
 
     const layer = this._activeLayer();
     this.setLayerAnim(layer, enterAnim(type, duration));
-    this.armTransitionTimer(() => this.setLayerAnim(layer, ''), duration);
+    this.armAnimationFinish(layer, () => this.setLayerAnim(layer, ''), duration);
   }
 
   private advance(): void {
@@ -779,12 +702,16 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     this.setLayerAnim(activeLayer, exitAnim(transition.type, transition.duration));
     this.setLayerAnim(inactiveLayer, enterAnim(transition.type, transition.duration));
 
-    this.armTransitionTimer(() => {
-      this._isTransitioning.set(false);
-      this.setLayerAnim(0, '');
-      this.setLayerAnim(1, '');
-      this.commitLayerSwap(activeLayer, inactiveLayer);
-    }, transition.duration);
+    this.armAnimationFinish(
+      inactiveLayer,
+      () => {
+        this._isTransitioning.set(false);
+        this.setLayerAnim(0, '');
+        this.setLayerAnim(1, '');
+        this.commitLayerSwap(activeLayer, inactiveLayer);
+      },
+      transition.duration,
+    );
   }
 
   /** Make the incoming layer current and release the outgoing one. */
@@ -813,21 +740,25 @@ export class PlaybackComponent implements OnInit, OnDestroy {
     if (crossDissolves(transition.type)) {
       this.restartCurrentItem(item);
       this.setLayerAnim(layer, enterAnim(transition.type, transition.duration));
-      this.armTransitionTimer(() => this.finishWrap(layer), transition.duration);
+      this.armAnimationFinish(layer, () => this.finishWrap(layer), transition.duration);
       return;
     }
 
     // Exit animation on current layer
     this.setLayerAnim(layer, exitAnim(transition.type, transition.duration));
 
-    this.armTransitionTimer(() => {
-      this.restartCurrentItem(item);
+    this.armAnimationFinish(
+      layer,
+      () => {
+        this.restartCurrentItem(item);
 
-      // Enter animation on same layer
-      this.setLayerAnim(layer, enterAnim(transition.type, transition.duration));
+        // Enter animation on same layer
+        this.setLayerAnim(layer, enterAnim(transition.type, transition.duration));
 
-      this.armTransitionTimer(() => this.finishWrap(layer), transition.duration);
-    }, transition.duration);
+        this.armAnimationFinish(layer, () => this.finishWrap(layer), transition.duration);
+      },
+      transition.duration,
+    );
   }
 
   private finishWrap(layer: LayerId): void {
@@ -876,17 +807,49 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Arm the transition timer, replacing whatever was pending. The captured
-   * generation makes the callback a no-op once a re-anchor has happened, so a
-   * stale callback can no longer wipe the animation of the run that replaced it.
+   * Run `run` once the animation on `layer` ends, replacing whatever was
+   * pending. `animationend` normally triggers it; a fallback timer covers a
+   * browser that never fires the event. The captured generation makes the
+   * callback a no-op once a re-anchor has happened, so a stale callback can no
+   * longer wipe the animation of the run that replaced it.
    */
-  private armTransitionTimer(run: () => void, delayMs: number): void {
+  private armAnimationFinish(layer: LayerId, run: () => void, durationMs: number): void {
     this.clearTransitionTimer();
     const generation = this.anchorGeneration;
-    this.transitionTimer = setTimeout(() => {
+    const finish = (): void => {
+      if (this.animationFinish?.finish !== finish) return;
+      this.clearTransitionTimer();
       if (this.destroyed || generation !== this.anchorGeneration) return;
       this.zone.run(run);
-    }, delayMs);
+    };
+    this.animationFinish = { layer, finish };
+    this.transitionTimer = setTimeout(
+      finish,
+      durationMs + PlaybackComponent.ANIMATION_END_GRACE_MS,
+    );
+  }
+
+  /**
+   * Run `run` once the loaded image is decoded. `load` only means the bytes
+   * arrived; the decode of a full-screen picture otherwise lands on the first
+   * frame of the transition and stalls it there on TV hardware. Runs at once
+   * where `decode()` is unavailable.
+   */
+  private whenDecoded(event: Event | undefined, run: () => void): void {
+    const img = event?.target;
+    if (!(img instanceof HTMLImageElement) || typeof img.decode !== 'function') {
+      run();
+      return;
+    }
+    const generation = this.anchorGeneration;
+    img
+      .decode()
+      // A failed decode still leaves a loaded image; play it rather than stall.
+      .catch(() => undefined)
+      .then(() => {
+        if (this.destroyed || generation !== this.anchorGeneration) return;
+        this.zone.run(run);
+      });
   }
 
   /**
@@ -922,6 +885,7 @@ export class PlaybackComponent implements OnInit, OnDestroy {
   }
 
   private clearTransitionTimer(): void {
+    this.animationFinish = null;
     if (this.transitionTimer !== null) {
       clearTimeout(this.transitionTimer);
       this.transitionTimer = null;
