@@ -30,7 +30,10 @@ makes PostgreSQL itself reject anything that is not encrypted.
 **Upgrading from a release where the key was optional:** set the key and
 deploy. On its first start the backend encrypts every value an older release
 stored in plaintext, then validates the constraints, before it serves a single
-request. Nothing else to do; the step is safe to repeat.
+request. Nothing else to do; the step is safe to repeat. Stop the old backend
+before starting the new one — do not run both versions side by side across this
+upgrade. If the key does not match the one the stored secrets were encrypted
+with, the backend refuses to start and says so.
 
 **Back the key up separately from database dumps.** A dump only contains
 ciphertext; without the key those secrets are gone and have to be re-entered.

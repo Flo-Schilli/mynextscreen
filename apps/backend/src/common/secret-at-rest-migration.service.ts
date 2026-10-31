@@ -45,6 +45,7 @@ export const SECRET_COLUMNS: readonly SecretColumn[] = [
 ];
 
 interface PlaintextRow extends Record<string, unknown> {
+  /** uuid primary key, compared as uuid in the UPDATE (index-friendly). */
   id: string;
   value: string;
 }
@@ -55,7 +56,8 @@ interface PlaintextRow extends Record<string, unknown> {
  * constraints so Postgres rejects plaintext from then on.
  *
  * Runs once per boot from `main.ts`, after the SQL migrations and before the app
- * initialises (no cron, worker or HTTP request can touch these rows yet). It is
+ * initialises (no cron, worker or HTTP request can touch these rows yet). Old
+ * and new backend versions must not run side by side across this upgrade. It is
  * idempotent: an already-encrypted row is never selected, and validating an
  * already-valid constraint is a no-op. A SQL migration cannot do this, because
  * the key only exists in the backend's environment.
@@ -71,8 +73,15 @@ export class SecretAtRestMigrationService {
     private readonly cipher: SecretCipher,
   ) {}
 
-  /** Returns how many values were encrypted per `table.column`. */
+  /**
+   * Fails boot if the configured key cannot read what is stored, then encrypts
+   * legacy plaintext and validates the constraints. Returns how many values
+   * were encrypted per `table.column`.
+   */
   async run(): Promise<Record<string, number>> {
+    for (const target of SECRET_COLUMNS) {
+      await this.assertKeyMatches(target);
+    }
     const encrypted: Record<string, number> = {};
     for (const target of SECRET_COLUMNS) {
       const key = `${target.table}.${target.column}`;
@@ -95,18 +104,40 @@ export class SecretAtRestMigrationService {
     const column = sql.identifier(target.column);
     return this.db.transaction(async (tx) => {
       const result = await tx.execute<PlaintextRow>(sql`
-        SELECT ${id}::text AS id, ${column} AS value FROM ${table}
+        SELECT ${id} AS id, ${column} AS value FROM ${table}
         WHERE ${column} IS NOT NULL AND ${column} <> ''
           AND ${column} NOT LIKE ${`${ENCRYPTED_PREFIX}%`}
         FOR UPDATE`);
       for (const row of result.rows) {
         const envelope = this.cipher.encrypt(row.value);
-        await tx.execute(
-          sql`UPDATE ${table} SET ${column} = ${envelope} WHERE ${id}::text = ${row.id}`,
-        );
+        await tx.execute(sql`UPDATE ${table} SET ${column} = ${envelope} WHERE ${id} = ${row.id}`);
       }
       return result.rows.length;
     });
+  }
+
+  /**
+   * A wrong or rotated `SECRETS_ENCRYPTION_KEY` must not boot cleanly and fail
+   * later at the first SMTP send or pairing: decrypt one stored value per column
+   * and stop with a clear message (never the value) if the GCM tag does not match.
+   */
+  private async assertKeyMatches(target: SecretColumn): Promise<void> {
+    const column = sql.identifier(target.column);
+    const result = await this.db.execute<{ value: string }>(sql`
+      SELECT ${column} AS value FROM ${sql.identifier(target.table)}
+      WHERE ${column} LIKE ${`${ENCRYPTED_PREFIX}%`}
+      LIMIT 1`);
+    const sample = result.rows[0];
+    if (!sample) {
+      return;
+    }
+    try {
+      this.cipher.decrypt(sample.value);
+    } catch {
+      throw new Error(
+        `SECRETS_ENCRYPTION_KEY does not match the key the stored secrets were encrypted with (${target.table}.${target.column}). Restore the original key; replacing it makes every stored secret unreadable.`,
+      );
+    }
   }
 
   private async validateConstraint(target: SecretColumn): Promise<void> {

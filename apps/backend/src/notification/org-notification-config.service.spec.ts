@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { createTestSecretCipher } from '../test/secret-cipher.testing';
+import { createTestSecretCipher, expectCheckViolation } from '../test/secret-cipher.testing';
 import { eq } from 'drizzle-orm';
 import { OrgNotificationConfigService } from './org-notification-config.service';
 import { DRIZZLE } from '../db/database.constants';
@@ -122,17 +122,21 @@ describe('OrgNotificationConfigService', () => {
       expect((await service.getForOrg(org.id))?.smtpPassword).toBe('new-secret');
     });
 
-    it.each(['smtpPassword', 'ntfyToken'] as const)(
+    it.each([
+      ['smtpPassword', 'CHK_org_notification_config_smtp_password_encrypted'],
+      ['ntfyToken', 'CHK_org_notification_config_ntfy_token_encrypted'],
+    ] as const)(
       'lets the database reject a plaintext %s written past the cipher',
-      async (field) => {
+      async (field, constraint) => {
         await seedConfig();
 
-        await expect(
+        await expectCheckViolation(
           db
             .update(organisationNotificationConfigs)
             .set({ [field]: 'plaintext' })
             .where(eq(organisationNotificationConfigs.organisationId, org.id)),
-        ).rejects.toThrow();
+          constraint,
+        );
       },
     );
 

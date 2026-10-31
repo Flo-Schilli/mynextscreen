@@ -48,6 +48,7 @@ export class SecretCipher {
   }
 
   encrypt(plaintext: string): string;
+  encrypt(plaintext: string | null): string | null;
   encrypt(plaintext: string | null | undefined): string | null | undefined;
   encrypt(plaintext: string | null | undefined): string | null | undefined {
     if (plaintext === null || plaintext === undefined || plaintext === '') {
@@ -61,6 +62,7 @@ export class SecretCipher {
   }
 
   decrypt(stored: string): string;
+  decrypt(stored: string | null): string | null;
   decrypt(stored: string | null | undefined): string | null | undefined;
   decrypt(stored: string | null | undefined): string | null | undefined {
     if (stored === null || stored === undefined || stored === '') {
