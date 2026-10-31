@@ -14,6 +14,11 @@ export interface AccessTokenPayload {
   sub: string;
   email: string;
   isSuperAdmin: boolean;
+  /**
+   * The session was confirmed with a second factor. Tokens minted before MFA
+   * existed carry no claim; verification normalises that to `false`.
+   */
+  mfa: boolean;
   jti: string;
 }
 
@@ -45,6 +50,8 @@ export interface RotateSuccess {
   status: 'ok';
   userId: string;
   familyId: string;
+  /** Carried over from the rotated record; a record without the field is `false`. */
+  mfa: boolean;
   next: IssuedRefreshToken;
 }
 

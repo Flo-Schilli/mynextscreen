@@ -91,7 +91,7 @@ describe('OrganisationService', () => {
           storageOriginalLimitBytes: 0,
           storageTranscodedLimitBytes: 0,
         },
-        { userId: CREATOR_ID, email: 'admin@example.com', isSuperAdmin: false },
+        { userId: CREATOR_ID, email: 'admin@example.com', isSuperAdmin: false, mfa: false },
       );
 
       const [user] = await db.select().from(users).where(eq(users.id, CREATOR_ID));
@@ -114,7 +114,7 @@ describe('OrganisationService', () => {
           storageOriginalLimitBytes: 0,
           storageTranscodedLimitBytes: 0,
         },
-        { userId: CREATOR_ID, email: 'old@example.com', isSuperAdmin: false },
+        { userId: CREATOR_ID, email: 'old@example.com', isSuperAdmin: false, mfa: false },
       );
 
       const allUsers = await db.select().from(users);

@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import type { CookieOptions, Response } from 'express';
+import { MFA_CHALLENGE_COOKIE, MFA_CHALLENGE_TTL_SECONDS } from './mfa/mfa.constants';
 
 export const ACCESS_COOKIE = 'access_token';
 export const REFRESH_COOKIE = 'refresh_token';
@@ -57,4 +58,25 @@ export function setRefreshCookie(
 export function clearAuthCookies(res: Response, config: ConfigService): void {
   res.clearCookie(ACCESS_COOKIE, { ...baseOptions(config), path: '/' });
   res.clearCookie(REFRESH_COOKIE, { ...baseOptions(config), path: REFRESH_COOKIE_PATH });
+  clearMfaChallengeCookie(res, config);
+}
+
+/**
+ * Login step 1 → step 2 hand-over. httpOnly and scoped to the auth endpoints,
+ * like the refresh cookie, so script on the page never sees the challenge id.
+ */
+export function setMfaChallengeCookie(
+  res: Response,
+  config: ConfigService,
+  challengeId: string,
+): void {
+  res.cookie(MFA_CHALLENGE_COOKIE, challengeId, {
+    ...baseOptions(config),
+    path: REFRESH_COOKIE_PATH,
+    maxAge: MFA_CHALLENGE_TTL_SECONDS * 1000,
+  });
+}
+
+export function clearMfaChallengeCookie(res: Response, config: ConfigService): void {
+  res.clearCookie(MFA_CHALLENGE_COOKIE, { ...baseOptions(config), path: REFRESH_COOKIE_PATH });
 }

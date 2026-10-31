@@ -223,6 +223,34 @@ export class AuthPasswordChangedEvent {
   constructor(public readonly email: string) {}
 }
 
+/**
+ * MFA security notices for the account owner. Like every event in this file
+ * they carry the recipient and counts only — never a secret, code, recovery
+ * code or challenge id.
+ */
+export const AUTH_MFA_ENABLED = 'auth.mfa.enabled';
+export const AUTH_MFA_DISABLED = 'auth.mfa.disabled';
+export const AUTH_MFA_RECOVERY_CODE_USED = 'auth.mfa.recovery_code_used';
+
+export class AuthMfaEnabledEvent {
+  constructor(
+    public readonly email: string,
+    /** True when an existing factor was replaced (device change). */
+    public readonly replaced: boolean,
+  ) {}
+}
+
+export class AuthMfaDisabledEvent {
+  constructor(public readonly email: string) {}
+}
+
+export class AuthMfaRecoveryCodeUsedEvent {
+  constructor(
+    public readonly email: string,
+    public readonly remaining: number,
+  ) {}
+}
+
 // ── Auth / Account audit (instance-level) ─────────────────────────────────────
 // These are the *audit* counterparts of the auth flow (distinct from the mailer
 // events above): emitted by the auth controller and consumed by AuditListener so
@@ -235,6 +263,12 @@ export const AUDIT_AUTH_EMAIL_CHANGED = 'audit.auth.email_changed';
 export const AUDIT_AUTH_PASSWORD_RESET_REQUESTED = 'audit.auth.password_reset_requested';
 export const AUDIT_AUTH_PASSWORD_CHANGED = 'audit.auth.password_changed';
 export const AUDIT_SUPER_ADMIN_SETUP = 'audit.auth.super_admin_setup';
+export const AUDIT_AUTH_MFA_ENABLED = 'audit.auth.mfa_enabled';
+export const AUDIT_AUTH_MFA_DISABLED = 'audit.auth.mfa_disabled';
+export const AUDIT_AUTH_MFA_RECOVERY_CODE_USED = 'audit.auth.mfa_recovery_code_used';
+export const AUDIT_AUTH_MFA_RECOVERY_CODES_REGENERATED =
+  'audit.auth.mfa_recovery_codes_regenerated';
+export const AUDIT_AUTH_MFA_LOCKOUT = 'audit.auth.mfa_lockout';
 
 export class AuditAuthEvent {
   constructor(

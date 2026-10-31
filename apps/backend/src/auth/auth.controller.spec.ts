@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import type { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Response } from 'express';
@@ -18,6 +18,7 @@ import {
   AUDIT_AUTH_PASSWORD_CHANGED,
 } from '../audit-log/audit.events';
 import type { User } from '../db/schema';
+import { MFA_CHALLENGE_COOKIE } from './mfa/mfa.constants';
 
 const issuedAccess = { token: 'access', jti: 'jti', expiresAt: new Date(Date.now() + 1000) };
 const issuedRefresh = { token: 'refresh', familyId: 'fam', expiresAt: new Date(Date.now() + 1000) };
@@ -59,6 +60,8 @@ describe('AuthController', () => {
       createEmailVerificationToken: jest.fn(),
       createPasswordResetToken: jest.fn(),
       login: jest.fn(),
+      loginMfa: jest.fn(),
+      setupFirstSuperAdmin: jest.fn(),
       changePassword: jest.fn(),
       changeEmail: jest.fn(),
       confirmEmailChange: jest.fn(),
@@ -144,7 +147,9 @@ describe('AuthController', () => {
   describe('verifyEmail', () => {
     it('verifies, sets both cookies, and returns the user view', async () => {
       auth.verifyEmail.mockResolvedValue({
+        kind: 'session',
         user: makeUser({ id: 'u9', email: 'v@example.com' }),
+        mfa: false,
         accessToken: issuedAccess,
         refreshToken: issuedRefresh,
       });
@@ -153,7 +158,10 @@ describe('AuthController', () => {
 
       expect(auth.verifyEmail).toHaveBeenCalledWith('t');
       expect(res.cookie).toHaveBeenCalledTimes(2);
-      expect(result.user).toEqual({ userId: 'u9', email: 'v@example.com', isSuperAdmin: false });
+      expect(result).toEqual({
+        user: { userId: 'u9', email: 'v@example.com', isSuperAdmin: false },
+        mfaEnrolmentRequired: false,
+      });
       expect(events.emit).toHaveBeenCalledWith(
         AUDIT_EMAIL_VERIFIED,
         expect.objectContaining({ userId: 'u9', details: { email: 'v@example.com' } }),
@@ -232,9 +240,142 @@ describe('AuthController', () => {
     });
   });
 
+  describe('login', () => {
+    it('sets the session cookies for a user without TOTP', async () => {
+      auth.login.mockResolvedValue({
+        kind: 'session',
+        user: makeUser(),
+        mfa: false,
+        accessToken: issuedAccess,
+        refreshToken: issuedRefresh,
+      });
+
+      const result = await controller.login(
+        { email: 'user@example.com', password: 'pw' },
+        res as unknown as Response,
+      );
+
+      expect(result).toEqual({
+        user: { userId: 'user-1', email: 'user@example.com', isSuperAdmin: false },
+        mfaEnrolmentRequired: false,
+      });
+      expect(res.cookie).toHaveBeenCalledWith('access_token', 'access', expect.anything());
+      expect(res.cookie).toHaveBeenCalledWith('refresh_token', 'refresh', expect.anything());
+    });
+
+    it('flags mfaEnrolmentRequired for a super-admin without TOTP', async () => {
+      auth.login.mockResolvedValue({
+        kind: 'session',
+        user: makeUser({ isSuperAdmin: true }),
+        mfa: false,
+        accessToken: issuedAccess,
+        refreshToken: issuedRefresh,
+      });
+
+      const result = await controller.login(
+        { email: 'user@example.com', password: 'pw' },
+        res as unknown as Response,
+      );
+
+      expect(result).toMatchObject({ mfaEnrolmentRequired: true });
+    });
+
+    it('sets only the challenge cookie (no session) for a user with TOTP', async () => {
+      auth.login.mockResolvedValue({
+        kind: 'mfa-required',
+        user: makeUser(),
+        challengeId: 'raw-challenge',
+      });
+
+      const result = await controller.login(
+        { email: 'user@example.com', password: 'pw' },
+        res as unknown as Response,
+      );
+
+      expect(result).toEqual({ mfaRequired: true, methods: ['totp', 'recovery'] });
+      expect(res.cookie).toHaveBeenCalledTimes(1);
+      expect(res.cookie).toHaveBeenCalledWith(
+        MFA_CHALLENGE_COOKIE,
+        'raw-challenge',
+        expect.objectContaining({ httpOnly: true, path: '/api/auth', maxAge: 300_000 }),
+      );
+    });
+  });
+
+  describe('loginMfa', () => {
+    const req = (cookies: Record<string, string>) => ({ cookies }) as never;
+
+    it('verifies the challenge from the cookie and issues the session', async () => {
+      auth.loginMfa.mockResolvedValue({
+        user: makeUser({ isSuperAdmin: true }),
+        mfa: true,
+        accessToken: issuedAccess,
+        refreshToken: issuedRefresh,
+      });
+
+      const result = await controller.loginMfa(
+        { code: '123456' },
+        req({ [MFA_CHALLENGE_COOKIE]: 'raw-challenge' }),
+        res as unknown as Response,
+      );
+
+      expect(auth.loginMfa).toHaveBeenCalledWith('raw-challenge', { code: '123456' });
+      expect(result).toMatchObject({ mfaEnrolmentRequired: false });
+      expect(res.clearCookie).toHaveBeenCalledWith(MFA_CHALLENGE_COOKIE, expect.anything());
+      expect(res.cookie).toHaveBeenCalledTimes(2);
+    });
+
+    it('passes a recovery code on when no TOTP code is given', async () => {
+      auth.loginMfa.mockResolvedValue({
+        user: makeUser(),
+        mfa: true,
+        accessToken: issuedAccess,
+        refreshToken: issuedRefresh,
+      });
+
+      await controller.loginMfa(
+        { recoveryCode: 'abcde-fghij' },
+        req({ [MFA_CHALLENGE_COOKIE]: 'raw-challenge' }),
+        res as unknown as Response,
+      );
+
+      expect(auth.loginMfa).toHaveBeenCalledWith('raw-challenge', {
+        recoveryCode: 'abcde-fghij',
+      });
+    });
+
+    it('answers 401 without a challenge cookie', async () => {
+      await expect(
+        controller.loginMfa({ code: '123456' }, req({}), res as unknown as Response),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(auth.loginMfa).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('setup', () => {
+    it('logs the first super-admin in and sends them to MFA enrolment', async () => {
+      auth.setupFirstSuperAdmin.mockResolvedValue({
+        user: makeUser({ isSuperAdmin: true }),
+        mfa: false,
+        accessToken: issuedAccess,
+        refreshToken: issuedRefresh,
+      });
+
+      const result = await controller.setup(
+        { email: 'user@example.com', password: 'supersecret' },
+        res as unknown as Response,
+      );
+
+      expect(result).toMatchObject({ mfaEnrolmentRequired: true });
+      expect(res.cookie).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('changePassword', () => {
     it('changes the password then emits a password-changed notice', async () => {
-      const req = { user: { userId: 'u1', email: 'user@example.com', isSuperAdmin: false } };
+      const req = {
+        user: { userId: 'u1', email: 'user@example.com', isSuperAdmin: false, mfa: true },
+      };
       auth.changePassword.mockResolvedValue({
         accessToken: issuedAccess,
         refreshToken: issuedRefresh,
@@ -245,7 +386,7 @@ describe('AuthController', () => {
         newPassword: 'newsecret',
       });
 
-      expect(auth.changePassword).toHaveBeenCalledWith('u1', 'old', 'newsecret');
+      expect(auth.changePassword).toHaveBeenCalledWith('u1', 'old', 'newsecret', { mfa: true });
       expect(events.emit).toHaveBeenCalledWith(
         AUTH_PASSWORD_CHANGED,
         expect.objectContaining({ email: 'user@example.com' }),
@@ -257,7 +398,9 @@ describe('AuthController', () => {
     });
 
     it('re-issues the caller\u2019s cookies so only the other sessions are logged out', async () => {
-      const req = { user: { userId: 'u1', email: 'user@example.com', isSuperAdmin: false } };
+      const req = {
+        user: { userId: 'u1', email: 'user@example.com', isSuperAdmin: false, mfa: false },
+      };
       auth.changePassword.mockResolvedValue({
         accessToken: issuedAccess,
         refreshToken: issuedRefresh,

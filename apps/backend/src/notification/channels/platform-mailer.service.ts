@@ -9,6 +9,12 @@ import {
   AUTH_EMAIL_CHANGE_REQUESTED,
   AUTH_EMAIL_VERIFICATION_REQUESTED,
   AUTH_PASSWORD_CHANGED,
+  AUTH_MFA_DISABLED,
+  AUTH_MFA_ENABLED,
+  AUTH_MFA_RECOVERY_CODE_USED,
+  AuthMfaDisabledEvent,
+  AuthMfaEnabledEvent,
+  AuthMfaRecoveryCodeUsedEvent,
   AUTH_PASSWORD_RESET_REQUESTED,
   AUTH_USER_INVITED,
   AuthEmailChangeRequestedEvent,
@@ -66,6 +72,21 @@ export class PlatformMailerService {
   @OnEvent(AUTH_PASSWORD_CHANGED)
   async handlePasswordChanged(event: AuthPasswordChangedEvent): Promise<void> {
     await this.sendPasswordChangedNotice(event.email);
+  }
+
+  @OnEvent(AUTH_MFA_ENABLED)
+  async handleMfaEnabled(event: AuthMfaEnabledEvent): Promise<void> {
+    await this.sendMfaEnabledNotice(event.email, event.replaced);
+  }
+
+  @OnEvent(AUTH_MFA_DISABLED)
+  async handleMfaDisabled(event: AuthMfaDisabledEvent): Promise<void> {
+    await this.sendMfaDisabledNotice(event.email);
+  }
+
+  @OnEvent(AUTH_MFA_RECOVERY_CODE_USED)
+  async handleMfaRecoveryCodeUsed(event: AuthMfaRecoveryCodeUsedEvent): Promise<void> {
+    await this.sendRecoveryCodeUsedNotice(event.email, event.remaining);
   }
 
   // ── Message builders ──────────────────────────────────────────────────────────
@@ -127,6 +148,39 @@ export class PlatformMailerService {
       'Your myNextScreen password was changed',
       `This is a confirmation that the password for your myNextScreen account was just ` +
         `changed. If this wasn't you, reset your password immediately and contact your administrator.`,
+    );
+  }
+
+  async sendMfaEnabledNotice(to: string, replaced: boolean): Promise<void> {
+    const what = replaced
+      ? 'Two-factor authentication on your myNextScreen account was moved to a new authenticator app.'
+      : 'Two-factor authentication was just turned on for your myNextScreen account.';
+    await this.send(
+      to,
+      'Two-factor authentication enabled',
+      `${what} From now on you sign in with your password and a code from that app. ` +
+        `If this wasn't you, reset your password immediately and contact your administrator.`,
+    );
+  }
+
+  async sendMfaDisabledNotice(to: string): Promise<void> {
+    await this.send(
+      to,
+      'Two-factor authentication disabled',
+      `Two-factor authentication was just turned off for your myNextScreen account. Your ` +
+        `password alone now signs you in. If this wasn't you, reset your password immediately ` +
+        `and contact your administrator.`,
+    );
+  }
+
+  async sendRecoveryCodeUsedNotice(to: string, remaining: number): Promise<void> {
+    await this.send(
+      to,
+      'A recovery code was used to sign in',
+      `A recovery code was just used to sign in to your myNextScreen account. ${remaining} ` +
+        `unused recovery code(s) remain; generate a new set in your security settings if you ` +
+        `are running low. If this wasn't you, reset your password immediately and contact your ` +
+        `administrator.`,
     );
   }
 

@@ -56,6 +56,7 @@ describe('TokenService', () => {
       const issued = await service.issueAccessToken('user-1', {
         email: 'a@example.com',
         isSuperAdmin: true,
+        mfa: true,
       });
       expect(issued.token).toBeTruthy();
       expect(issued.jti).toBeTruthy();
@@ -64,7 +65,25 @@ describe('TokenService', () => {
       expect(payload.sub).toBe('user-1');
       expect(payload.email).toBe('a@example.com');
       expect(payload.isSuperAdmin).toBe(true);
+      expect(payload.mfa).toBe(true);
       expect(payload.jti).toBe(issued.jti);
+    });
+
+    it('treats a token without the mfa claim (pre-MFA release) as not confirmed', async () => {
+      const legacy = await jwt.signAsync(
+        { sub: 'user-1', email: 'a@example.com', isSuperAdmin: true, jti: 'j' },
+        { issuer: 'mynextscreen', audience: 'mynextscreen-api', algorithm: 'HS256' },
+      );
+      const payload = await service.verifyAccessToken(legacy);
+      expect(payload.mfa).toBe(false);
+    });
+
+    it('accepts only a literal true as the mfa claim', async () => {
+      const odd = await jwt.signAsync(
+        { sub: 'user-1', email: 'a@example.com', isSuperAdmin: true, mfa: 'true', jti: 'j' },
+        { issuer: 'mynextscreen', audience: 'mynextscreen-api', algorithm: 'HS256' },
+      );
+      expect((await service.verifyAccessToken(odd)).mfa).toBe(false);
     });
 
     it('rejects a token signed with a different secret', async () => {
@@ -76,23 +95,36 @@ describe('TokenService', () => {
 
   describe('refresh tokens', () => {
     it('persists a new refresh token in a family', async () => {
-      const issued = await service.issueInitialRefreshToken('user-1');
+      const issued = await service.issueInitialRefreshToken('user-1', { mfa: true });
       expect(issued.token).toBeTruthy();
       expect(issued.familyId).toBeTruthy();
-      expect(multiChain.set).toHaveBeenCalled();
+      const record = JSON.parse(multiChain.set.mock.calls[0][1] as string) as { mfa: boolean };
+      expect(record.mfa).toBe(true);
       expect(multiChain.sadd).toHaveBeenCalled();
       expect(multiChain.expire).toHaveBeenCalled();
     });
 
     it('rotates a valid refresh token', async () => {
-      redis.eval.mockResolvedValueOnce(['ok', 'family-1', 'user-1']);
+      redis.eval.mockResolvedValueOnce(['ok', 'family-1', 'user-1', '1']);
       const result = await service.rotateRefreshToken('raw-old');
       expect(result.status).toBe('ok');
       if (result.status === 'ok') {
         expect(result.userId).toBe('user-1');
         expect(result.familyId).toBe('family-1');
+        expect(result.mfa).toBe(true);
         expect(result.next.token).toBeTruthy();
       }
+    });
+
+    it('reports mfa=false for a rotated record without the field (pre-MFA)', async () => {
+      // The script answers '0' for a record that has no `mfa`; a reply from an
+      // older script (three elements) must not count as confirmed either.
+      redis.eval.mockResolvedValueOnce(['ok', 'family-1', 'user-1', '0']);
+      const zero = await service.rotateRefreshToken('raw-a');
+      redis.eval.mockResolvedValueOnce(['ok', 'family-1', 'user-1']);
+      const missing = await service.rotateRefreshToken('raw-b');
+      expect(zero.status === 'ok' && zero.mfa).toBe(false);
+      expect(missing.status === 'ok' && missing.mfa).toBe(false);
     });
 
     it('returns unknown for an unrecognised refresh token', async () => {
@@ -127,7 +159,7 @@ describe('TokenService', () => {
     });
 
     it('records the family in the per-user index on issue', async () => {
-      await service.issueInitialRefreshToken('user-7');
+      await service.issueInitialRefreshToken('user-7', { mfa: false });
       expect(multiChain.sadd).toHaveBeenCalledWith('auth:userfamilies:user-7', expect.any(String));
     });
   });

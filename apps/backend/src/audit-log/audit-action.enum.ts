@@ -79,6 +79,11 @@ export enum AuditAction {
   PasswordResetRequested = 'auth.password_reset_requested',
   PasswordChanged = 'auth.password_changed',
   SuperAdminSetup = 'auth.super_admin_setup',
+  MfaEnabled = 'auth.mfa_enabled',
+  MfaDisabled = 'auth.mfa_disabled',
+  MfaRecoveryCodeUsed = 'auth.mfa_recovery_code_used',
+  MfaRecoveryCodesRegenerated = 'auth.mfa_recovery_codes_regenerated',
+  MfaLockout = 'auth.mfa_lockout',
   // Platform email dispatch (account/system mails sent via PlatformMailerService)
   EmailSent = 'email.sent',
   EmailSendFailed = 'email.send_failed',

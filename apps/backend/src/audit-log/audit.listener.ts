@@ -89,6 +89,11 @@ import {
   AUDIT_AUTH_EMAIL_CHANGED,
   AUDIT_AUTH_PASSWORD_RESET_REQUESTED,
   AUDIT_AUTH_PASSWORD_CHANGED,
+  AUDIT_AUTH_MFA_ENABLED,
+  AUDIT_AUTH_MFA_DISABLED,
+  AUDIT_AUTH_MFA_RECOVERY_CODE_USED,
+  AUDIT_AUTH_MFA_RECOVERY_CODES_REGENERATED,
+  AUDIT_AUTH_MFA_LOCKOUT,
   AUDIT_SUPER_ADMIN_SETUP,
   AuditAuthEvent,
   AUDIT_EMAIL_SENT,
@@ -720,6 +725,31 @@ export class AuditListener {
     );
   }
 
+  @OnEvent(AUDIT_AUTH_MFA_ENABLED, { async: true })
+  handleMfaEnabled(event: AuditAuthEvent): void {
+    this.recordAccount(AuditAction.MfaEnabled, event);
+  }
+
+  @OnEvent(AUDIT_AUTH_MFA_DISABLED, { async: true })
+  handleMfaDisabled(event: AuditAuthEvent): void {
+    this.recordAccount(AuditAction.MfaDisabled, event);
+  }
+
+  @OnEvent(AUDIT_AUTH_MFA_RECOVERY_CODE_USED, { async: true })
+  handleMfaRecoveryCodeUsed(event: AuditAuthEvent): void {
+    this.recordAccount(AuditAction.MfaRecoveryCodeUsed, event);
+  }
+
+  @OnEvent(AUDIT_AUTH_MFA_RECOVERY_CODES_REGENERATED, { async: true })
+  handleMfaRecoveryCodesRegenerated(event: AuditAuthEvent): void {
+    this.recordAccount(AuditAction.MfaRecoveryCodesRegenerated, event);
+  }
+
+  @OnEvent(AUDIT_AUTH_MFA_LOCKOUT, { async: true })
+  handleMfaLockout(event: AuditAuthEvent): void {
+    this.recordAccount(AuditAction.MfaLockout, event);
+  }
+
   // ── Platform email dispatch ──────────────────────────────────────────────
 
   @OnEvent(AUDIT_EMAIL_SENT, { async: true })
@@ -863,6 +893,11 @@ export class AuditListener {
   @OnEvent(AUDIT_SCREEN_REMOTE_ADDRESS_CHANGED, { async: true })
   handleScreenRemoteAddressChanged(event: AuditScreenRemoteEvent): void {
     this.recordScreenRemote(AuditAction.ScreenRemoteAddressChanged, event);
+  }
+
+  /** Instance-level account event: the user is both actor and resource. */
+  private recordAccount(action: AuditAction, event: AuditAuthEvent): void {
+    this.record(action, 'account', event.userId, event.organisationId, event.userId, event.details);
   }
 
   private recordContentSource(action: AuditAction, event: AuditContentSourceEvent): void {
