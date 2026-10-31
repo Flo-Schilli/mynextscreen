@@ -1,0 +1,13 @@
+# Default gitleaks rules plus one value-scoped exception.
+#
+# Value-scoped rather than a .gitleaksignore fingerprint: fingerprints pin a
+# commit SHA, and a squash merge re-creates the commit, so the push to main
+# would flag the same line again.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Well-known DEV value of SECRETS_ENCRYPTION_KEY (.env.example, docker-compose.yml)"
+# base64 of "dev-insecure-key-change-me-32byt" — public on purpose, never a prod key
+regexes = ['''^ZGV2LWluc2VjdXJlLWtleS1jaGFuZ2UtbWUtMzJieXQ=$''']
