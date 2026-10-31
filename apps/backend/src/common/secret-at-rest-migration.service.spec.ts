@@ -138,6 +138,7 @@ describe('SecretAtRestMigrationService', () => {
       'organisation_notification_configs.ntfy_token': 0,
       'screen_pairings.api_key': 1,
       'screen_remote_controls.devmode_passphrase': 1,
+      'user_mfa.totp_secret_enc': 0,
     });
     const [config] = await db
       .select()

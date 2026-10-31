@@ -18,6 +18,8 @@ describe('OrganisationController', () => {
     storageTranscodedLimitBytes: 2147483648,
     storageOriginalUsedBytes: 0,
     storageTranscodedUsedBytes: 0,
+    requireMfa: false,
+    requireMfaSince: null,
     defaultPlaylistId: null,
     createdAt: new Date(),
     updatedAt: new Date(),

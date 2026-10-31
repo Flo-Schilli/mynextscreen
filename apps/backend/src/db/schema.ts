@@ -108,6 +108,10 @@ export const organisations = pgTable('organisations', {
   defaultPlaylistId: uuid().references((): AnyPgColumn => playlists.id, {
     onDelete: 'set null',
   }),
+  // MFA policy: when set, members need a TOTP-confirmed session for this org's
+  // routes. `requireMfaSince` records when it was switched on (display/audit).
+  requireMfa: boolean().notNull().default(false),
+  requireMfaSince: timestamp({ withTimezone: true }),
   ...timestamps,
 });
 
@@ -163,6 +167,48 @@ export const userOrganisationMemberships = pgTable(
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('UQ_user_organisation').on(t.userId, t.organisationId)],
+);
+
+// ── user MFA (TOTP) ──────────────────────────────────────────────────────────
+
+/**
+ * A user's confirmed TOTP factor (1:1 with users; its own table so passkeys can
+ * sit next to it later). The secret must be recoverable to verify codes, so it
+ * is stored as the SecretCipher envelope; the CHECK makes Postgres reject a
+ * plaintext secret even if a write path forgets the cipher. It is valid from the
+ * start — unlike the legacy columns of 0031 there is no plaintext backlog.
+ */
+export const userMfa = pgTable(
+  'user_mfa',
+  {
+    userId: uuid()
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    totpSecretEnc: text().notNull(),
+    totpEnabledAt: timestamp({ withTimezone: true }).notNull(),
+    // Last accepted TOTP time step: a code of that step (or an older one) is
+    // refused, which is the replay protection.
+    totpLastUsedStep: bigint({ mode: 'number' }),
+    ...timestamps,
+  },
+  (t) => [check('CHK_user_mfa_totp_secret_encrypted', sql`${t.totpSecretEnc} LIKE 'enc:v1:%'`)],
+);
+
+/** Single-use recovery codes, stored only as SHA-256 (shown once in plaintext). */
+export const userMfaRecoveryCodes = pgTable(
+  'user_mfa_recovery_codes',
+  {
+    id: uuid()
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    codeHash: text().notNull(),
+    usedAt: timestamp({ withTimezone: true }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('IDX_user_mfa_recovery_codes_user').on(t.userId)],
 );
 
 // ── screen groups ─────────────────────────────────────────────────────────────
@@ -1202,6 +1248,12 @@ export type NewOrganisationNotificationConfig = typeof organisationNotificationC
 
 export type UserNotificationPreference = typeof userNotificationPreferences.$inferSelect;
 export type NewUserNotificationPreference = typeof userNotificationPreferences.$inferInsert;
+
+export type UserMfa = typeof userMfa.$inferSelect;
+export type NewUserMfa = typeof userMfa.$inferInsert;
+
+export type UserMfaRecoveryCode = typeof userMfaRecoveryCodes.$inferSelect;
+export type NewUserMfaRecoveryCode = typeof userMfaRecoveryCodes.$inferInsert;
 
 export type AuditEntry = typeof auditEntries.$inferSelect;
 export type NewAuditEntry = typeof auditEntries.$inferInsert;
