@@ -49,7 +49,7 @@ You need PostgreSQL 16+, Redis 7+ and FFmpeg on `PATH`, plus Node.js 26.
 
 ```bash
 npm ci                                   # root only — one lockfile for the monorepo
-cp .env.example .env                     # then set JWT_ACCESS_SECRET
+cp .env.example .env                     # then set JWT_ACCESS_SECRET + SECRETS_ENCRYPTION_KEY
 npx nx run backend:db-migrate            # create the schema
 
 npx nx serve backend                     # :3000
@@ -93,6 +93,8 @@ Required before the first run:
 - `vault_mynextscreen_postgres_password` in your vault — the playbook refuses to
   run without it rather than falling back to a default
 - `JWT_ACCESS_SECRET` of at least 32 characters (`openssl rand -base64 48`)
+- `secrets_encryption_key` in your vault (`openssl rand -base64 32`) — the playbook
+  and the backend refuse to run without it. Back it up apart from database dumps.
 - `PUBLIC_BASE_URL`, and `PLAYER_BASE_URL` if the player has its own hostname
 
 Pin a version with `signage_image_tag=0.10.1`; the default is `latest`.

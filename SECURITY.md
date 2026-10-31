@@ -54,8 +54,9 @@ by the software:
 - `JWT_ACCESS_SECRET` must be a strong random value of at least 32 characters.
 - `vault_signage_postgres_password` has no default — the deployment fails
   without it, on purpose.
-- `SECRETS_ENCRYPTION_KEY` enables encryption of per-org SMTP passwords and
-  ntfy tokens at rest. Without it those are stored in plaintext.
+- `SECRETS_ENCRYPTION_KEY` is mandatory: every stored secret is encrypted with
+  it and the database rejects plaintext. Keep a backup of the key apart from
+  database dumps.
 - `SIGNUP_ENABLED=false` closes self-registration if the instance is not meant
   to be open.
 - Reaching the backend only through the reverse proxy is what applies TLS, the

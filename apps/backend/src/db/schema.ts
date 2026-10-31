@@ -64,6 +64,15 @@ import { SshStatus } from '../site-agent/ssh-status.enum';
 import { SliceStatus } from '../slice-content/slice-status.enum';
 import { OrganisationRole } from '../user/organisation-role.enum';
 
+/**
+ * CHECK that a secret column only ever holds the `SecretCipher` envelope, so
+ * Postgres itself rejects a plaintext secret even if a write path forgets the
+ * cipher. Empty string is allowed: it carries no secret.
+ */
+function encryptedOnly(name: string, column: AnyPgColumn) {
+  return check(name, sql`${column} IS NULL OR ${column} = '' OR ${column} LIKE 'enc:v1:%'`);
+}
+
 // ── Local literal-union types ────────────────────────────────────────────────
 
 /** Lifecycle of a 6-digit screen pairing. */
@@ -275,14 +284,18 @@ export const screenPairings = pgTable(
     organisationId: uuid().references(() => organisations.id, { onDelete: 'cascade' }),
     // Set on claim; FK to the created screen.
     screenId: uuid().references(() => screens.id, { onDelete: 'cascade' }),
-    // Plaintext API key — transient: delivered to the player once, then nulled.
+    // API key parked for the player — AES-256-GCM envelope (`SecretCipher`),
+    // transient: delivered to the player once, then nulled.
     apiKey: text(),
     // pending → claimed → consumed.
     status: text().$type<ScreenPairingStatus>().notNull().default('pending'),
     expiresAt: timestamp({ withTimezone: true }).notNull(),
     ...timestamps,
   },
-  (t) => [index('IDX_screen_pairings_code').on(t.code)],
+  (t) => [
+    index('IDX_screen_pairings_code').on(t.code),
+    encryptedOnly('CHK_screen_pairings_api_key_encrypted', t.apiKey),
+  ],
 );
 
 // ── content library ──────────────────────────────────────────────────────────
@@ -694,19 +707,24 @@ export const organisationNotificationConfigs = pgTable(
     smtpHost: text(),
     smtpPort: integer(),
     smtpUser: text(),
-    // TODO: Production deployments should use column-level encryption or a secrets manager.
+    /** AES-256-GCM envelope (`SecretCipher`), never plaintext. */
     smtpPassword: text(),
     smtpFrom: text(),
     smtpSecure: boolean().notNull().default(false),
     ntfyUrl: text(),
     ntfyTopic: text(),
+    /** AES-256-GCM envelope (`SecretCipher`), never plaintext. */
     ntfyToken: text(),
     // Per-org alert rules: which events trigger a notification across channels.
     // Stored as one jsonb object so the toggle set evolves without a migration
     // per flag. Dispatch logic reads these flags when emitting alerts.
     alertRules: jsonb().$type<AlertRules>().notNull().default(DEFAULT_ALERT_RULES),
   },
-  (t) => [uniqueIndex('UQ_org_notification_config_org').on(t.organisationId)],
+  (t) => [
+    uniqueIndex('UQ_org_notification_config_org').on(t.organisationId),
+    encryptedOnly('CHK_org_notification_config_smtp_password_encrypted', t.smtpPassword),
+    encryptedOnly('CHK_org_notification_config_ntfy_token_encrypted', t.ntfyToken),
+  ],
 );
 
 // User-global notification channel preferences: one row per user, applied
@@ -1017,6 +1035,7 @@ export const screenRemoteControls = pgTable(
   (t) => [
     index('IDX_screen_remote_controls_agent').on(t.agentId),
     index('IDX_screen_remote_controls_organisation').on(t.organisationId),
+    encryptedOnly('CHK_screen_remote_controls_devmode_passphrase_encrypted', t.devmodePassphrase),
   ],
 );
 

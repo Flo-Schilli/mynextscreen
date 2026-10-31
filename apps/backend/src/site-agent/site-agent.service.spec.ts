@@ -10,7 +10,7 @@ import { ScreenRemoteControlService } from './screen-remote-control.service';
 import { SiteAgentSseService } from './site-agent-sse.service';
 import { SiteAgentCommandType } from './site-agent-command.enum';
 import { SCREEN_REMOTE_CONFIG_CHANGED } from './screen-onboarding.event';
-import { SecretCipher } from '../common/secret-cipher.service';
+import { TEST_SECRET_CIPHER_PROVIDER } from '../test/secret-cipher.testing';
 import { SITE_AGENT_STATUS_CHANGED } from './site-agent-status.event';
 import {
   AUDIT_SITE_AGENT_CREATED,
@@ -73,7 +73,7 @@ describe('SiteAgentService', () => {
         SiteAgentEnrolmentService,
         SiteAgentSessionService,
         ScreenRemoteControlService,
-        SecretCipher,
+        TEST_SECRET_CIPHER_PROVIDER,
         { provide: DRIZZLE, useValue: db },
         { provide: TokenService, useValue: tokens },
         { provide: EventEmitter2, useValue: emitter },

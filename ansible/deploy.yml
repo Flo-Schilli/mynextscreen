@@ -9,6 +9,8 @@
 # Required variables (set in hosts.ini, group_vars, or -e):
 #   domain_name:        Base domain (e.g., mynextscreen.example.com)
 #   jwt_access_secret:  Strong random secret for signing access JWTs (vault it)
+#   secrets_encryption_key: 32-byte base64 key that encrypts every stored secret
+#                       (openssl rand -base64 32; vault it, back it up apart from DB dumps)
 #   service_user:       Linux user that runs Podman (default: mynextscreen)
 #   mynextscreen_image_tag:  GHCR tag to deploy (default: the version in package.json)
 #   ghcr_username:      GHCR user for `podman login` (default: image owner)
@@ -46,6 +48,22 @@
       - mynextscreen-backend
       - mynextscreen-frontend
       - mynextscreen-player
+
+  pre_tasks:
+    # Secrets are never stored in plaintext: the backend refuses to boot without
+    # this key, so fail here — before anything on the host changes.
+    - name: Require SECRETS_ENCRYPTION_KEY (32 bytes, base64)
+      ansible.builtin.assert:
+        that:
+          - secrets_encryption_key is defined
+          - secrets_encryption_key is match('^[A-Za-z0-9+/]{43}=$')
+        fail_msg: >-
+          secrets_encryption_key is missing or not 32 bytes base64.
+          Generate it with `openssl rand -base64 32`, store it in Ansible Vault
+          and back it up separately from database dumps. Existing plaintext
+          secrets are encrypted automatically on the next backend start.
+        quiet: true
+      no_log: true
 
   tasks:
     # ─── System packages ──────────────────────────────────────

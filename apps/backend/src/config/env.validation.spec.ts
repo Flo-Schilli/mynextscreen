@@ -2,10 +2,12 @@ import { validateEnv } from './env.validation';
 
 /** Any value that satisfies the 32-character minimum. */
 const LONG_SECRET = 'x'.repeat(48);
+/** A valid 32-byte base64 encryption key. */
+const ENC_KEY = Buffer.alloc(32, 7).toString('base64');
 
 describe('validateEnv', () => {
   it('applies defaults when nothing is set (dev-friendly)', () => {
-    const result = validateEnv({ JWT_ACCESS_SECRET: LONG_SECRET });
+    const result = validateEnv({ JWT_ACCESS_SECRET: LONG_SECRET, SECRETS_ENCRYPTION_KEY: ENC_KEY });
 
     expect(result.SMTP_HOST).toBe('localhost');
     expect(result.SMTP_PORT).toBe(1025);
@@ -16,46 +18,93 @@ describe('validateEnv', () => {
   });
 
   it('coerces SMTP_PORT from string to int', () => {
-    const result = validateEnv({ JWT_ACCESS_SECRET: LONG_SECRET, SMTP_PORT: '2525' });
+    const result = validateEnv({
+      JWT_ACCESS_SECRET: LONG_SECRET,
+      SECRETS_ENCRYPTION_KEY: ENC_KEY,
+      SMTP_PORT: '2525',
+    });
     expect(result.SMTP_PORT).toBe(2525);
   });
 
   it('parses only "true"/"1" as truthy for boolean flags', () => {
-    expect(validateEnv({ JWT_ACCESS_SECRET: LONG_SECRET, SMTP_SECURE: 'true' }).SMTP_SECURE).toBe(
-      true,
-    );
-    expect(validateEnv({ JWT_ACCESS_SECRET: LONG_SECRET, SMTP_SECURE: '1' }).SMTP_SECURE).toBe(
-      true,
-    );
-    expect(validateEnv({ JWT_ACCESS_SECRET: LONG_SECRET, SMTP_SECURE: 'false' }).SMTP_SECURE).toBe(
-      false,
-    );
     expect(
-      validateEnv({ JWT_ACCESS_SECRET: LONG_SECRET, SIGNUP_ENABLED: 'false' }).SIGNUP_ENABLED,
+      validateEnv({
+        JWT_ACCESS_SECRET: LONG_SECRET,
+        SECRETS_ENCRYPTION_KEY: ENC_KEY,
+        SMTP_SECURE: 'true',
+      }).SMTP_SECURE,
+    ).toBe(true);
+    expect(
+      validateEnv({
+        JWT_ACCESS_SECRET: LONG_SECRET,
+        SECRETS_ENCRYPTION_KEY: ENC_KEY,
+        SMTP_SECURE: '1',
+      }).SMTP_SECURE,
+    ).toBe(true);
+    expect(
+      validateEnv({
+        JWT_ACCESS_SECRET: LONG_SECRET,
+        SECRETS_ENCRYPTION_KEY: ENC_KEY,
+        SMTP_SECURE: 'false',
+      }).SMTP_SECURE,
+    ).toBe(false);
+    expect(
+      validateEnv({
+        JWT_ACCESS_SECRET: LONG_SECRET,
+        SECRETS_ENCRYPTION_KEY: ENC_KEY,
+        SIGNUP_ENABLED: 'false',
+      }).SIGNUP_ENABLED,
     ).toBe(false);
   });
 
   it('preserves unknown env vars untouched (subset validation)', () => {
-    const result = validateEnv({ DATABASE_URL: 'postgres://x', JWT_ACCESS_SECRET: LONG_SECRET });
+    const result = validateEnv({
+      DATABASE_URL: 'postgres://x',
+      JWT_ACCESS_SECRET: LONG_SECRET,
+      SECRETS_ENCRYPTION_KEY: ENC_KEY,
+    });
     expect(result.DATABASE_URL).toBe('postgres://x');
     expect(result.JWT_ACCESS_SECRET).toBe(LONG_SECRET);
   });
 
   it('rejects a JWT secret that is too short to key HS256 properly', () => {
-    expect(() => validateEnv({ JWT_ACCESS_SECRET: 'secret' })).toThrow(
-      /Invalid environment configuration/,
-    );
+    expect(() =>
+      validateEnv({ JWT_ACCESS_SECRET: 'secret', SECRETS_ENCRYPTION_KEY: ENC_KEY }),
+    ).toThrow(/Invalid environment configuration/);
   });
 
   it('throws fast on an out-of-range SMTP_PORT', () => {
-    expect(() => validateEnv({ JWT_ACCESS_SECRET: LONG_SECRET, SMTP_PORT: '70000' })).toThrow(
-      /Invalid environment configuration/,
-    );
+    expect(() =>
+      validateEnv({
+        JWT_ACCESS_SECRET: LONG_SECRET,
+        SECRETS_ENCRYPTION_KEY: ENC_KEY,
+        SMTP_PORT: '70000',
+      }),
+    ).toThrow(/Invalid environment configuration/);
   });
 
   it('throws fast on a negative storage limit', () => {
     expect(() =>
-      validateEnv({ JWT_ACCESS_SECRET: LONG_SECRET, SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES: '-1' }),
+      validateEnv({
+        JWT_ACCESS_SECRET: LONG_SECRET,
+        SECRETS_ENCRYPTION_KEY: ENC_KEY,
+        SIGNUP_DEFAULT_STORAGE_ORIGINAL_BYTES: '-1',
+      }),
     ).toThrow(/Invalid environment configuration/);
+  });
+
+  it('refuses to boot without SECRETS_ENCRYPTION_KEY', () => {
+    expect(() => validateEnv({ JWT_ACCESS_SECRET: LONG_SECRET })).toThrow(
+      /SECRETS_ENCRYPTION_KEY is required/,
+    );
+  });
+
+  it('rejects an encryption key that is not 32 bytes', () => {
+    expect(() =>
+      validateEnv({
+        JWT_ACCESS_SECRET: LONG_SECRET,
+        SECRETS_ENCRYPTION_KEY: Buffer.alloc(16, 1).toString('base64'),
+      }),
+    ).toThrow(/SECRETS_ENCRYPTION_KEY/);
   });
 });

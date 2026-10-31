@@ -13,6 +13,7 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
 import * as path from 'path';
 import { AppModule } from './app.module';
+import { SecretAtRestMigrationService } from './common/secret-at-rest-migration.service';
 import { BACKUP_BODY_LIMIT, BACKUP_UPLOAD_PATHS } from './site-agent/site-agent-backup.constants';
 
 /**
@@ -39,6 +40,9 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   await runMigrations(config.getOrThrow<string>('DATABASE_URL'));
+  // Encrypt any secret an older release stored in plaintext and validate the
+  // `enc:v1:` CHECK constraints — before init, so no cron/worker/request runs first.
+  await app.get(SecretAtRestMigrationService).run();
 
   // Security headers on every API response. This matters beyond the SPA: the
   // container publishes the backend port, so the API is reachable without the

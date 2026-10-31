@@ -1,6 +1,7 @@
 import { GoneException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { randomInt, timingSafeEqual } from 'crypto';
 import { and, eq, gt, inArray, lt, or } from 'drizzle-orm';
+import { SecretCipher } from '../common/secret-cipher.service';
 import { DRIZZLE } from '../db/database.constants';
 import type { DrizzleDB } from '../db/drizzle.types';
 import { screenPairings, type ScreenPairing } from '../db/schema';
@@ -31,7 +32,10 @@ export type PairingStatusResult =
 
 @Injectable()
 export class ScreenPairingService {
-  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
+  constructor(
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
+    private readonly cipher: SecretCipher,
+  ) {}
 
   /**
    * Create a new pending pairing: a 6-digit numeric code the admin types in,
@@ -112,12 +116,12 @@ export class ScreenPairingService {
 
     const result: PairingStatusResult = {
       status: 'claimed',
-      apiKey: claimed.apiKey,
+      apiKey: this.cipher.decrypt(claimed.apiKey),
       screenId: claimed.screenId,
       organisationId: claimed.organisationId,
     };
 
-    // Drop the plaintext key now that it has been delivered to the one caller.
+    // Drop the (encrypted) key now that it has been delivered to the one caller.
     await this.db.update(screenPairings).set({ apiKey: null }).where(eq(screenPairings.id, row.id));
 
     return result;
@@ -144,7 +148,7 @@ export class ScreenPairingService {
 
   /**
    * Mark a pairing as claimed, attaching the created screen, its org, and the
-   * plaintext apiKey (transient — nulled on first delivery to the player).
+   * apiKey — stored encrypted, transient (nulled on first delivery to the player).
    */
   async markClaimed(
     pairingId: string,
@@ -154,7 +158,7 @@ export class ScreenPairingService {
   ): Promise<void> {
     await this.db
       .update(screenPairings)
-      .set({ status: 'claimed', screenId, organisationId, apiKey })
+      .set({ status: 'claimed', screenId, organisationId, apiKey: this.cipher.encrypt(apiKey) })
       .where(eq(screenPairings.id, pairingId));
   }
 

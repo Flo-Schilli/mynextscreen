@@ -11,6 +11,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { NoStore } from '../common/no-store.decorator';
 import type { Response } from 'express';
 import type { Observable } from 'rxjs';
 import { PlayerAppsService } from '../player-apps/player-apps.service';
@@ -77,6 +78,7 @@ export class SiteAgentDeviceController {
    * Redeems the one-time enrolment token. Public because the agent has no
    * credential yet — the token in the body is the credential.
    */
+  @NoStore()
   @Post('enrol')
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -98,6 +100,7 @@ export class SiteAgentDeviceController {
    * Rotates the refresh token. Public because the access token it replaces has
    * expired by definition.
    */
+  @NoStore()
   @Post('session/refresh')
   @Public()
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
@@ -119,6 +122,7 @@ export class SiteAgentDeviceController {
    * The agent caches this to disk and keeps working from the cache when the
    * server is unreachable — a venue must not go dark because the uplink is.
    */
+  @NoStore()
   @Get('me/config')
   @AgentAuth()
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
