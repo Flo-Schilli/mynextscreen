@@ -45,26 +45,24 @@ describe('SecretCipher', () => {
     expect(cipher.decrypt(value)).toBe(value);
   });
 
-  describe('without a configured key', () => {
-    it('stores plaintext rather than failing the deployment', () => {
-      const cipher = makeCipher(undefined);
-
-      expect(cipher.encrypt('smtp-password')).toBe('smtp-password');
-      expect(cipher.decrypt('smtp-password')).toBe('smtp-password');
-    });
-
-    it('reports clearly that an encrypted value cannot be read', () => {
-      const stored = makeCipher(KEY).encrypt('smtp-password');
-
-      expect(() => makeCipher(undefined).decrypt(stored)).toThrow(/SECRETS_ENCRYPTION_KEY/);
-    });
+  it.each([undefined, ''])('refuses to start without a key (%p)', (key) => {
+    expect(() => makeCipher(key)).toThrow(/SECRETS_ENCRYPTION_KEY is required/);
   });
 
   it('rejects a key of the wrong length at construction', () => {
     expect(() => makeCipher(Buffer.alloc(16, 1).toString('base64'))).toThrow(/32 bytes/);
   });
 
-  it('reads a value written before the key existed', () => {
-    expect(makeCipher(KEY).decrypt('legacy-plaintext')).toBe('legacy-plaintext');
+  it('refuses to read a plaintext value', () => {
+    expect(() => makeCipher(KEY).decrypt('legacy-plaintext')).toThrow(/not encrypted/);
+  });
+
+  it('refuses a malformed envelope', () => {
+    expect(() => makeCipher(KEY).decrypt('enc:v1:onlyone')).toThrow(/malformed/);
+  });
+
+  it('marks only enveloped values as encrypted', () => {
+    expect(SecretCipher.isEncrypted(makeCipher(KEY).encrypt('x') as string)).toBe(true);
+    expect(SecretCipher.isEncrypted('x')).toBe(false);
   });
 });

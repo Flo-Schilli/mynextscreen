@@ -12,6 +12,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { NoStore } from '../common/no-store.decorator';
 import { SiteAgentService, type SiteAgentListItem } from './site-agent.service';
 import { CreateSiteAgentDto, UpdateSiteAgentDto } from './dto';
 import { Roles } from '../auth/roles.decorator';
@@ -35,6 +36,7 @@ interface CreatedSiteAgentResponse extends EnrolmentTokenResponse {
 export class SiteAgentController {
   constructor(private readonly siteAgentService: SiteAgentService) {}
 
+  @NoStore()
   @Post()
   @Roles(OrganisationRole.OrgAdmin)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
@@ -95,6 +97,7 @@ export class SiteAgentController {
    * revoking is a separate, explicit action, because an operator preparing a
    * replacement machine should not knock the live one offline by doing so.
    */
+  @NoStore()
   @Post(':id/enrolment-token')
   @Roles(OrganisationRole.OrgAdmin)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })

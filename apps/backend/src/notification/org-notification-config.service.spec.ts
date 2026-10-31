@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { createTestSecretCipher } from '../test/secret-cipher.testing';
 import { eq } from 'drizzle-orm';
 import { OrgNotificationConfigService } from './org-notification-config.service';
 import { DRIZZLE } from '../db/database.constants';
@@ -10,6 +11,8 @@ import { SecretCipher } from '../common/secret-cipher.service';
 
 /** 32 bytes, base64 — the shape SECRETS_ENCRYPTION_KEY must have. */
 const TEST_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64');
+/** Seeds rows the way the service writes them: encrypted (the DB rejects plaintext). */
+const seedCipher = createTestSecretCipher();
 
 describe('OrgNotificationConfigService', () => {
   let service: OrgNotificationConfigService;
@@ -47,12 +50,12 @@ describe('OrgNotificationConfigService', () => {
         smtpHost: 'smtp.example.com',
         smtpPort: 587,
         smtpUser: 'user@example.com',
-        smtpPassword: 'secret',
+        smtpPassword: seedCipher.encrypt('secret'),
         smtpFrom: 'noreply@example.com',
         smtpSecure: false,
         ntfyUrl: 'https://ntfy.sh',
         ntfyTopic: 'my-topic',
-        ntfyToken: 'token123',
+        ntfyToken: seedCipher.encrypt('token123'),
       })
       .returning();
     return config;
@@ -102,7 +105,7 @@ describe('OrgNotificationConfigService', () => {
       await service.upsert(org.id, { smtpUser: 'changed@example.com', smtpPassword: '' });
 
       const persisted = await readConfig();
-      expect(persisted.smtpPassword).toBe('secret');
+      expect(seedCipher.decrypt(persisted.smtpPassword)).toBe('secret');
       expect(persisted.smtpUser).toBe('changed@example.com');
     });
 
@@ -119,19 +122,19 @@ describe('OrgNotificationConfigService', () => {
       expect((await service.getForOrg(org.id))?.smtpPassword).toBe('new-secret');
     });
 
-    it('still reads a row written before the encryption key existed', async () => {
-      await seedConfig();
-      await db
-        .update(organisationNotificationConfigs)
-        .set({ smtpPassword: 'legacy-plaintext' })
-        .where(eq(organisationNotificationConfigs.organisationId, org.id));
+    it.each(['smtpPassword', 'ntfyToken'] as const)(
+      'lets the database reject a plaintext %s written past the cipher',
+      async (field) => {
+        await seedConfig();
 
-      expect((await service.getForOrg(org.id))?.smtpPassword).toBe('legacy-plaintext');
-
-      // …and it is encrypted the next time the row is written.
-      await service.upsert(org.id, { smtpPassword: 'rotated' });
-      expect((await readConfig()).smtpPassword?.startsWith('enc:v1:')).toBe(true);
-    });
+        await expect(
+          db
+            .update(organisationNotificationConfigs)
+            .set({ [field]: 'plaintext' })
+            .where(eq(organisationNotificationConfigs.organisationId, org.id)),
+        ).rejects.toThrow();
+      },
+    );
 
     it('should preserve existing ntfy token when blank token is provided', async () => {
       await seedConfig();
@@ -141,7 +144,7 @@ describe('OrgNotificationConfigService', () => {
       await service.upsert(org.id, { ntfyTopic: 'new-topic', ntfyToken: '' });
 
       const persisted = await readConfig();
-      expect(persisted.ntfyToken).toBe('token123');
+      expect(seedCipher.decrypt(persisted.ntfyToken)).toBe('token123');
       expect(persisted.ntfyTopic).toBe('new-topic');
     });
 
@@ -157,7 +160,7 @@ describe('OrgNotificationConfigService', () => {
       expect(result.smtpPassword).toBe('secret');
 
       const persisted = await readConfig();
-      expect(persisted.smtpPassword).toBe('secret');
+      expect(seedCipher.decrypt(persisted.smtpPassword)).toBe('secret');
       expect(persisted.smtpHost).toBe('smtp.example.com');
     });
 

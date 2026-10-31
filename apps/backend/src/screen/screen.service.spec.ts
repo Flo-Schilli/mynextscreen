@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { TEST_SECRET_CIPHER_PROVIDER, createTestSecretCipher } from '../test/secret-cipher.testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { eq } from 'drizzle-orm';
@@ -83,6 +84,7 @@ describe('ScreenService', () => {
           },
         },
         ScreenPairingService,
+        TEST_SECRET_CIPHER_PROVIDER,
         { provide: DRIZZLE, useValue: db },
         { provide: EventEmitter2, useValue: { emit } },
         { provide: ScheduleService, useValue: { getCurrentPlaylist } },
@@ -206,7 +208,8 @@ describe('ScreenService', () => {
       expect(pairing.status).toBe('claimed');
       expect(pairing.screenId).toBe(screen.id);
       expect(pairing.organisationId).toBe(org.id);
-      expect(pairing.apiKey).toBe('test-api-key-plaintext');
+      expect(pairing.apiKey).toMatch(/^enc:v1:/);
+      expect(createTestSecretCipher().decrypt(pairing.apiKey)).toBe('test-api-key-plaintext');
 
       expect(emit).toHaveBeenCalledWith(AUDIT_SCREEN_REGISTERED, expect.anything());
     });
@@ -551,7 +554,8 @@ describe('ScreenService', () => {
         .where(eq(screenPairings.code, '246810'));
       expect(pairing.status).toBe('claimed');
       expect(pairing.screenId).toBe(screen.id);
-      expect(pairing.apiKey).toBe('test-api-key-plaintext');
+      expect(pairing.apiKey).toMatch(/^enc:v1:/);
+      expect(createTestSecretCipher().decrypt(pairing.apiKey)).toBe('test-api-key-plaintext');
     });
 
     it('should throw NotFoundException when screen not found', async () => {

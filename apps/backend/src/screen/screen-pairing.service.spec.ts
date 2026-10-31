@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { TEST_SECRET_CIPHER_PROVIDER, createTestSecretCipher } from '../test/secret-cipher.testing';
 import { GoneException, NotFoundException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { eq } from 'drizzle-orm';
@@ -33,7 +34,11 @@ describe('ScreenPairingService', () => {
   beforeEach(async () => {
     await truncateAll();
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ScreenPairingService, { provide: DRIZZLE, useValue: db }],
+      providers: [
+        ScreenPairingService,
+        TEST_SECRET_CIPHER_PROVIDER,
+        { provide: DRIZZLE, useValue: db },
+      ],
     }).compile();
     service = module.get<ScreenPairingService>(ScreenPairingService);
   });
@@ -267,7 +272,8 @@ describe('ScreenPairingService', () => {
         .from(screenPairings)
         .where(eq(screenPairings.id, started.pairingId));
       expect(row.status).toBe('claimed');
-      expect(row.apiKey).toBe('fresh-key');
+      expect(row.apiKey).toMatch(/^enc:v1:/);
+      expect(createTestSecretCipher().decrypt(row.apiKey)).toBe('fresh-key');
     });
 
     it('returns null when no claimable pairing matches', async () => {

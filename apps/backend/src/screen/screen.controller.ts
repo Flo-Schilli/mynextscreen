@@ -14,6 +14,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { NoStore } from '../common/no-store.decorator';
 import { Observable } from 'rxjs';
 import { ScreenService, type ScreenWithPlaylist } from './screen.service';
 import { ScreenStateService } from './screen-state.service';
@@ -96,6 +97,7 @@ export class ScreenController {
    * Throttled harder than the rest: it is the only screen route that still runs
    * bcrypt, so it is also the only one worth flooding.
    */
+  @NoStore()
   @Post('session')
   @ScreenAuth()
   @EnrolmentAuth()
@@ -110,6 +112,7 @@ export class ScreenController {
    * Rotates the refresh token. Public because the access token it replaces has
    * expired by definition — the refresh token in the body is the credential.
    */
+  @NoStore()
   @Post('session/refresh')
   @Public()
   @Throttle({ default: { limit: 30, ttl: 60_000 } })

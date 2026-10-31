@@ -218,6 +218,13 @@
       "when": 1793017621193,
       "tag": "0030_event_schedule_genre_variants",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793477591744,
+      "tag": "0031_secrets_encrypted_only",
+      "breakpoints": true
     }
   ]
 }

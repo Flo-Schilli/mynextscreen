@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { TEST_SECRET_CIPHER_PROVIDER } from '../test/secret-cipher.testing';
 import { BadRequestException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { eq } from 'drizzle-orm';
@@ -52,6 +53,7 @@ describe('ScreenService — bulk operations', () => {
           },
         },
         ScreenPairingService,
+        TEST_SECRET_CIPHER_PROVIDER,
         { provide: DRIZZLE, useValue: db },
         { provide: EventEmitter2, useValue: { emit } },
         { provide: ScheduleService, useValue: { getCurrentPlaylist: jest.fn() } },

@@ -5,6 +5,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   Max,
   Min,
   MinLength,
@@ -35,6 +36,17 @@ export class EnvironmentVariables {
     message: 'JWT_ACCESS_SECRET must be at least 32 characters (openssl rand -base64 48)',
   })
   JWT_ACCESS_SECRET!: string;
+
+  /**
+   * AES-256-GCM key for every secret the backend has to store recoverably
+   * (per-org SMTP password, ntfy token, TV devmode passphrase, pairing API key).
+   * Mandatory: secrets are never stored in plaintext. Exactly 32 bytes, base64.
+   */
+  @Matches(/^[A-Za-z0-9+/]{43}=$/, {
+    message:
+      'SECRETS_ENCRYPTION_KEY is required and must be 32 bytes, base64-encoded (openssl rand -base64 32)',
+  })
+  SECRETS_ENCRYPTION_KEY!: string;
 
   // ── Platform mailer (account/system emails; per-org SMTP stays separate) ────
 

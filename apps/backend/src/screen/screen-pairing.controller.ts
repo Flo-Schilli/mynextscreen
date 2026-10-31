@@ -1,5 +1,6 @@
 import { Controller, Get, Headers, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { NoStore } from '../common/no-store.decorator';
 import { Public } from '../auth';
 import {
   ScreenPairingService,
@@ -15,6 +16,7 @@ import {
 export class ScreenPairingController {
   constructor(private readonly pairingService: ScreenPairingService) {}
 
+  @NoStore()
   @Post()
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -22,6 +24,7 @@ export class ScreenPairingController {
     return this.pairingService.startPairing();
   }
 
+  @NoStore()
   @Get(':pairingId/status')
   @Public()
   // NAT rationale: a venue runs several screens behind one public IP, each
