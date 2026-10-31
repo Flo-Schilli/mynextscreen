@@ -72,6 +72,23 @@ describe('PlaybackComponent timing', () => {
     return fixture.nativeElement.querySelector('img.content-media');
   }
 
+  function layer(index: 0 | 1): HTMLElement {
+    fixture.detectChanges();
+    return fixture.nativeElement.querySelectorAll('div.content-layer')[index];
+  }
+
+  /** Run the first boundary of a fade playlist and deliver the incoming image's `load`. */
+  function startFadeAndLoadIncoming(): void {
+    const fading = [item('/a', 5, 'fade', 500), item('/b', 10, 'fade', 500)];
+    start(fading);
+    // Settle the enter animation of the first item so it cannot interfere.
+    activeImage()?.dispatchEvent(new Event('load'));
+    layer(0).dispatchEvent(new Event('animationend'));
+
+    vi.advanceTimersByTime(5000);
+    layer(1).querySelector('img')?.dispatchEvent(new Event('load'));
+  }
+
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(EPOCH);
@@ -140,7 +157,7 @@ describe('PlaybackComponent timing', () => {
     start(fading);
     activeImage()?.dispatchEvent(new Event('load'));
     fixture.detectChanges();
-    vi.advanceTimersByTime(500);
+    layer(0).dispatchEvent(new Event('animationend'));
     expect(component.layer0Anim()).toBe('');
 
     setSynced(true);
@@ -199,5 +216,89 @@ describe('PlaybackComponent timing', () => {
 
     vi.advanceTimersByTime(1);
     expect(currentIndex()).toBe(1);
+  });
+
+  describe('crossfade', () => {
+    it('ends the fade on animationend instead of waiting for the timer', () => {
+      startFadeAndLoadIncoming();
+      expect(component.isTransitioning()).toBe(true);
+      expect(component.layer1Anim()).toContain('fade-enter');
+
+      layer(1).dispatchEvent(new Event('animationend'));
+
+      expect(component.isTransitioning()).toBe(false);
+      expect(component.activeLayer()).toBe(1);
+      expect(component.layer1Anim()).toBe('');
+    });
+
+    it('keeps the fade running at its nominal end while animationend is outstanding', () => {
+      startFadeAndLoadIncoming();
+
+      // A late first frame shifts the whole animation; cutting it off at the
+      // configured duration is what made the picture jump at the end.
+      vi.advanceTimersByTime(500);
+
+      expect(component.isTransitioning()).toBe(true);
+    });
+
+    it('still ends the fade when animationend never arrives', () => {
+      startFadeAndLoadIncoming();
+
+      vi.advanceTimersByTime(750);
+
+      expect(component.isTransitioning()).toBe(false);
+      expect(component.activeLayer()).toBe(1);
+    });
+
+    it('ignores an animationend bubbling up from inside the layer', () => {
+      startFadeAndLoadIncoming();
+
+      layer(1)
+        .querySelector('img')
+        ?.dispatchEvent(new Event('animationend', { bubbles: true }));
+
+      expect(component.isTransitioning()).toBe(true);
+    });
+
+    it('waits for the incoming image to decode before starting the fade', async () => {
+      let decoded: () => void = () => undefined;
+      const decode = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            decoded = resolve;
+          }),
+      );
+      Object.defineProperty(HTMLImageElement.prototype, 'decode', {
+        value: decode,
+        configurable: true,
+      });
+      try {
+        startFadeAndLoadIncoming();
+
+        expect(decode).toHaveBeenCalled();
+        expect(component.isTransitioning()).toBe(false);
+        expect(component.layer1Anim()).toBe('');
+
+        decoded();
+        await vi.waitFor(() => expect(component.isTransitioning()).toBe(true));
+        expect(component.layer1Anim()).toContain('fade-enter');
+      } finally {
+        delete (HTMLImageElement.prototype as { decode?: unknown }).decode;
+      }
+    });
+
+    it('starts the fade even when decoding fails', async () => {
+      Object.defineProperty(HTMLImageElement.prototype, 'decode', {
+        value: () => Promise.reject(new Error('EncodingError')),
+        configurable: true,
+      });
+      try {
+        startFadeAndLoadIncoming();
+
+        await vi.waitFor(() => expect(component.isTransitioning()).toBe(true));
+      } finally {
+        delete (HTMLImageElement.prototype as { decode?: unknown }).decode;
+      }
+    });
   });
 });
