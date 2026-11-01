@@ -11,7 +11,7 @@ import type { AccessTokenPayload } from './token.types';
 describe('JwtAuthGuard', () => {
   let guard: JwtAuthGuard;
   let reflector: Reflector;
-  let tokens: { verifyAccessToken: jest.Mock };
+  let tokens: { verifyAccessToken: jest.Mock; isAccessTokenRevoked: jest.Mock };
   let mfa: { requiredBy: jest.Mock };
 
   const VALID_PAYLOAD: AccessTokenPayload = {
@@ -20,11 +20,15 @@ describe('JwtAuthGuard', () => {
     isSuperAdmin: false,
     mfa: false,
     jti: 'jti-1',
+    iat: 1_700_000_000,
   };
 
   beforeEach(() => {
     reflector = new Reflector();
-    tokens = { verifyAccessToken: jest.fn() };
+    tokens = {
+      verifyAccessToken: jest.fn(),
+      isAccessTokenRevoked: jest.fn().mockResolvedValue(false),
+    };
     // Mirrors MfaService.requiredBy for a user without any requireMfa org.
     mfa = {
       requiredBy: jest.fn((user: { isSuperAdmin: boolean }) =>
@@ -192,6 +196,29 @@ describe('JwtAuthGuard', () => {
       tokens.verifyAccessToken.mockRejectedValue(new Error('jwt expired'));
       const { context } = createMockContext({ [ACCESS_COOKIE]: 'bad-token' });
       await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('revoked sessions', () => {
+    it("rejects a valid token issued before the user's sessions were revoked", async () => {
+      tokens.verifyAccessToken.mockResolvedValue(VALID_PAYLOAD);
+      tokens.isAccessTokenRevoked.mockResolvedValue(true);
+      const { context, request } = createMockContext({ [ACCESS_COOKIE]: 'old-token' });
+
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        new UnauthorizedException('Session revoked'),
+      );
+      expect(tokens.isAccessTokenRevoked).toHaveBeenCalledWith('user-123', 1_700_000_000);
+      expect(request.user).toBeUndefined();
+      expect(mfa.requiredBy).not.toHaveBeenCalled();
+    });
+
+    it('does not consult the revocation marker for an unverifiable token', async () => {
+      tokens.verifyAccessToken.mockRejectedValue(new Error('bad signature'));
+      const { context } = createMockContext({ [ACCESS_COOKIE]: 'bad-token' });
+
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+      expect(tokens.isAccessTokenRevoked).not.toHaveBeenCalled();
     });
   });
 });

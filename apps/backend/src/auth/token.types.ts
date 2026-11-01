@@ -20,6 +20,8 @@ export interface AccessTokenPayload {
    */
   mfa: boolean;
   jti: string;
+  /** Issued-at, epoch seconds; 0 when the claim is missing (= oldest possible). */
+  iat: number;
 }
 
 /**

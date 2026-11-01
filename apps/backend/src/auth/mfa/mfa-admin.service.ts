@@ -32,11 +32,16 @@ import {
   MFA_RESET_NEEDS_SUPER_ADMIN,
   MFA_RESET_SELF,
   MFA_RESET_TARGET_SUPER_ADMIN,
+  MFA_ORG_REQUIRED_MAIL_THROTTLE_SECONDS,
   MFA_SELF_REQUIRED,
   mfaRedisKeys,
 } from './mfa.constants';
 import { mfaForbidden, mfaNotEnabled, mfaResetNotMember } from './mfa.errors';
 import { RecoveryCodeService } from './recovery-code.service';
+
+type Transaction = Parameters<Parameters<DrizzleDB['transaction']>[0]>[0];
+/** Runs inside the reset transaction, before the factor is deleted; throws to refuse. */
+type ResetPrecondition = (tx: Transaction) => Promise<void>;
 
 /** `GET|PATCH /api/organisations/:orgId/mfa-requirement` (mirrored in shared-types). */
 export interface OrgMfaRequirementView {
@@ -107,7 +112,15 @@ export class MfaAdminService {
       }),
     );
     if (requireMfa) {
-      await this.notifyMembersWithoutMfa(saved);
+      // Best-effort: the switch is saved and audited; a mail hiccup must not
+      // turn that into a failed request the admin would retry.
+      try {
+        await this.notifyMembersWithoutMfa(saved);
+      } catch (error: unknown) {
+        this.logger.warn(
+          `Org MFA requirement notice failed organisationId=${organisationId}: ${errorMessage(error)}`,
+        );
+      }
     }
     return toRequirementView(saved);
   }
@@ -145,35 +158,40 @@ export class MfaAdminService {
       );
     }
     this.assertNotSelf(targetUserId, actor);
-    if (!(await this.users.getMembership(targetUserId, organisationId))) {
+    // An unknown id is "not a member" here — an org-admin learns nothing about
+    // accounts outside his organisations.
+    const target = await this.users.findById(targetUserId);
+    if (!target) {
       throw mfaResetNotMember();
     }
-    const target = await this.requireUser(targetUserId);
-    if (target.isSuperAdmin) {
-      throw mfaForbidden(
-        MFA_RESET_TARGET_SUPER_ADMIN,
-        'Only a platform administrator can reset a platform administrator',
-      );
-    }
-    if (!(await this.administersAllOrgsOf(actor.userId, targetUserId))) {
-      throw mfaForbidden(
-        MFA_RESET_NEEDS_SUPER_ADMIN,
-        'This user belongs to other organisations — ask a platform administrator',
-      );
-    }
-    await this.reset(target, actor, 'org_admin');
+    // Rules re-read inside the reset transaction with the memberships locked,
+    // so a membership/role change cannot slip in between check and delete.
+    const precondition: ResetPrecondition = (tx) =>
+      this.assertOrgAdminMayReset(tx, organisationId, targetUserId, actor.userId);
+    await this.reset(target, actor, 'org_admin', precondition);
   }
 
   // ── Internals ─────────────────────────────────────────────────────────────
 
   /**
-   * Drop factor + recovery codes (one transaction), the pending enrolment and
-   * the failure counter, revoke every session, then audit in every org of the
-   * target and mail them. A user whose MFA is mandatory lands in the wizard on
-   * the next sign-in.
+   * Drop factor + recovery codes (one transaction, after `precondition`), then
+   * audit in every org of the target and mail them — right after the commit, so
+   * nothing that can still fail stands between a deleted factor and its audit
+   * trail. Redis cleanup (pending enrolment, failure counter) and the session
+   * revocation follow best-effort: a Redis error is logged, never surfaced, as
+   * the reset itself cannot be retried once the factor is gone. A user whose
+   * MFA is mandatory lands in the wizard on the next sign-in.
    */
-  private async reset(target: User, actor: AuthenticatedUser, by: MfaResetBy): Promise<void> {
+  private async reset(
+    target: User,
+    actor: AuthenticatedUser,
+    by: MfaResetBy,
+    precondition?: ResetPrecondition,
+  ): Promise<void> {
     const removed = await this.db.transaction(async (tx) => {
+      if (precondition) {
+        await precondition(tx);
+      }
       const rows = await tx
         .delete(userMfa)
         .where(eq(userMfa.userId, target.id))
@@ -184,12 +202,6 @@ export class MfaAdminService {
     if (!removed) {
       throw mfaNotEnabled();
     }
-    await this.redis.del(mfaRedisKeys.enrolment(target.id));
-    await this.redis.del(mfaRedisKeys.failures(target.id));
-    const revoked = await this.tokens.revokeAllForUser(target.id);
-    this.logger.log(
-      `MFA reset userId=${target.id} by=${by} actorId=${actor.userId} revokedSessions=${revoked}`,
-    );
 
     const details = { by, actorId: actor.userId, email: target.email };
     const orgIds = await this.organisationIdsOf(target.id);
@@ -200,9 +212,101 @@ export class MfaAdminService {
       );
     }
     this.events.emit(AUTH_MFA_RESET, new AuthMfaResetEvent(target.email, by));
+
+    const revoked = await this.cleanupAfterReset(target.id);
+    this.logger.log(
+      `MFA reset userId=${target.id} by=${by} actorId=${actor.userId} revokedSessions=${revoked ?? 'failed'}`,
+    );
   }
 
+  /** Returns the number of revoked sessions, or null when revocation failed. */
+  private async cleanupAfterReset(userId: string): Promise<number | null> {
+    const [enrolment, failures, revoked] = await Promise.allSettled([
+      this.redis.del(mfaRedisKeys.enrolment(userId)),
+      this.redis.del(mfaRedisKeys.failures(userId)),
+      this.tokens.revokeAllForUser(userId),
+    ]);
+    for (const [step, result] of [
+      ['redis-cleanup', enrolment],
+      ['redis-cleanup', failures],
+      ['session-revocation', revoked],
+    ] as const) {
+      if (result.status === 'rejected') {
+        this.logger.error(`MFA reset ${step} failed userId=${userId}`);
+      }
+    }
+    return revoked.status === 'fulfilled' ? revoked.value : null;
+  }
+
+  /**
+   * Org-admin reset rules 2–4, evaluated on locked rows: the target's
+   * memberships and user row are `FOR SHARE`, the caller's admin memberships
+   * likewise, so none of them can change before the transaction commits.
+   */
+  private async assertOrgAdminMayReset(
+    tx: Transaction,
+    organisationId: string,
+    targetUserId: string,
+    callerId: string,
+  ): Promise<void> {
+    const targetOrgs = await tx
+      .select({ organisationId: userOrganisationMemberships.organisationId })
+      .from(userOrganisationMemberships)
+      .where(eq(userOrganisationMemberships.userId, targetUserId))
+      .for('share');
+    if (!targetOrgs.some((row) => row.organisationId === organisationId)) {
+      throw mfaResetNotMember();
+    }
+    const [targetRow] = await tx
+      .select({ isSuperAdmin: users.isSuperAdmin })
+      .from(users)
+      .where(eq(users.id, targetUserId))
+      .for('share');
+    if (!targetRow) {
+      throw mfaResetNotMember();
+    }
+    if (targetRow.isSuperAdmin) {
+      throw mfaForbidden(
+        MFA_RESET_TARGET_SUPER_ADMIN,
+        'Only a platform administrator can reset a platform administrator',
+      );
+    }
+    const callerAdminOrgs = await tx
+      .select({ organisationId: userOrganisationMemberships.organisationId })
+      .from(userOrganisationMemberships)
+      .where(
+        and(
+          eq(userOrganisationMemberships.userId, callerId),
+          eq(userOrganisationMemberships.role, OrganisationRole.OrgAdmin),
+        ),
+      )
+      .for('share');
+    const administered = new Set(callerAdminOrgs.map((row) => row.organisationId));
+    if (!targetOrgs.every((row) => administered.has(row.organisationId))) {
+      throw mfaForbidden(
+        MFA_RESET_NEEDS_SUPER_ADMIN,
+        'This user belongs to other organisations — ask a platform administrator',
+      );
+    }
+  }
+
+  /**
+   * Mails every member without TOTP — at most once per org per
+   * {@link MFA_ORG_REQUIRED_MAIL_THROTTLE_SECONDS}, so toggling the switch off
+   * and on cannot be used to flood members' inboxes.
+   */
   private async notifyMembersWithoutMfa(organisation: Organisation): Promise<void> {
+    const claimed = await this.redis.set(
+      mfaRedisKeys.orgRequiredMail(organisation.id),
+      '1',
+      'EX',
+      MFA_ORG_REQUIRED_MAIL_THROTTLE_SECONDS,
+      'NX',
+    );
+    if (claimed === null) {
+      this.logger.log(`Org MFA requirement notice throttled organisationId=${organisation.id}`);
+      return;
+    }
     // Invitees without a password have no account to protect yet — the
     // requirement greets them when they first sign in.
     const rows = await this.db
@@ -223,24 +327,6 @@ export class MfaAdminService {
         new AuthOrgMfaRequiredEvent(email, organisation.name),
       );
     }
-  }
-
-  /** True when the caller is OrgAdmin in every organisation the target belongs to. */
-  private async administersAllOrgsOf(callerId: string, targetUserId: string): Promise<boolean> {
-    const [targetOrgs, callerAdminOrgs] = await Promise.all([
-      this.organisationIdsOf(targetUserId),
-      this.db
-        .select({ organisationId: userOrganisationMemberships.organisationId })
-        .from(userOrganisationMemberships)
-        .where(
-          and(
-            eq(userOrganisationMemberships.userId, callerId),
-            eq(userOrganisationMemberships.role, OrganisationRole.OrgAdmin),
-          ),
-        ),
-    ]);
-    const administered = new Set(callerAdminOrgs.map((row) => row.organisationId));
-    return targetOrgs.every((id) => administered.has(id));
   }
 
   private async organisationIdsOf(userId: string): Promise<string[]> {
@@ -278,6 +364,10 @@ export class MfaAdminService {
     }
     return user;
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function toRequirementView(organisation: Organisation): OrgMfaRequirementView {

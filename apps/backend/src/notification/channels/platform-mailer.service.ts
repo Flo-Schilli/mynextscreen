@@ -217,7 +217,7 @@ export class PlatformMailerService {
     await this.send(
       to,
       'Two-factor authentication is now required',
-      `Your organisation "${organisationName}" on myNextScreen requires two-factor ` +
+      `Your organisation "${sanitizeMailText(organisationName)}" on myNextScreen requires two-factor ` +
         `authentication from now on. The next time you open myNextScreen you will be guided ` +
         `through setting it up with an authenticator app.`,
     );
@@ -283,4 +283,28 @@ export class PlatformMailerService {
       new AuditEmailEvent(details),
     );
   }
+}
+
+/** Longest org name echoed into an account mail; longer ones are cut with "…". */
+export const MAIL_TEXT_MAX_LENGTH = 100;
+
+/**
+ * Makes an admin-chosen string (org name) safe to quote in a plain-text
+ * account mail: no control characters or line breaks (no header/body
+ * injection, no forged paragraphs), whitespace collapsed, length capped, angle
+ * brackets dropped and nothing a mail client would auto-link — URL schemes
+ * are removed, `@` and a dot before a letter become look-alikes.
+ */
+export function sanitizeMailText(value: string, maxLength = MAIL_TEXT_MAX_LENGTH): string {
+  const cleaned = value
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, ' ')
+    .replace(/[<>]/g, '')
+    .replace(/[a-z][a-z0-9+.-]*:\/\//gi, '')
+    .replace(/@/g, '\uFF20')
+    .replace(/\.(?=\p{L})/gu, '\u2024')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const chars = Array.from(cleaned);
+  return chars.length > maxLength ? `${chars.slice(0, maxLength - 1).join('')}…` : cleaned;
 }

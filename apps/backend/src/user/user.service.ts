@@ -441,10 +441,6 @@ export class UserService {
     return rows.length;
   }
 
-  /**
-   * Super-admin overview: every user with their org memberships (org id + name)
-   * and per-org role. Returns a flat shape suitable for the admin UI.
-   */
   /** Which of these users have a TOTP factor set up. Reads ids only, never the secret. */
   async findMfaEnabledUserIds(userIds: string[]): Promise<Set<string>> {
     if (userIds.length === 0) {
@@ -457,6 +453,10 @@ export class UserService {
     return new Set(rows.map((row) => row.userId));
   }
 
+  /**
+   * Super-admin overview: every user with their org memberships (org id + name)
+   * and per-org role. Returns a flat shape suitable for the admin UI.
+   */
   async listAllWithMemberships(): Promise<UserWithMembershipsView[]> {
     const rows = await this.db.query.users.findMany({
       with: {

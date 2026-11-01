@@ -1,3 +1,9 @@
+import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { Reflector } from '@nestjs/core';
+import { OrganisationRole } from '../../user/organisation-role.enum';
+import { ORG_PARAM_KEY } from '../org-from-param.decorator';
+import { ROLES_KEY } from '../roles.decorator';
+import { SuperAdminGuard } from '../super-admin.guard';
 import { MfaSuperAdminController, OrgMfaController } from './mfa-admin.controller';
 import type { MfaAdminService } from './mfa-admin.service';
 import type { AuthenticatedRequest } from '../jwt-auth.guard';
@@ -38,5 +44,18 @@ describe('MFA admin controllers', () => {
     expect(service.getOrgRequirement).toHaveBeenCalledWith('org-1');
     expect(service.setOrgRequirement).toHaveBeenCalledWith('org-1', true, user);
     expect(service.resetByOrgAdmin).toHaveBeenCalledWith('org-1', 'target-1', user);
+  });
+
+  describe('access metadata', () => {
+    const reflector = new Reflector();
+
+    it('guards the super-admin reset controller with SuperAdminGuard', () => {
+      expect(reflector.get(GUARDS_METADATA, MfaSuperAdminController)).toEqual([SuperAdminGuard]);
+    });
+
+    it('scopes the org controller to OrgAdmin of the :orgId path param', () => {
+      expect(reflector.get(ROLES_KEY, OrgMfaController)).toEqual([OrganisationRole.OrgAdmin]);
+      expect(reflector.get(ORG_PARAM_KEY, OrgMfaController)).toBe('orgId');
+    });
   });
 });

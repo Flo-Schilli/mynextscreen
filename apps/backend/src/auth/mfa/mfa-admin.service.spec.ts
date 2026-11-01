@@ -29,6 +29,7 @@ import type { TokenService } from '../token.service';
 import { hashToken } from '../token-hash.util';
 import {
   MFA_NOT_ENABLED,
+  MFA_ORG_REQUIRED_MAIL_THROTTLE_SECONDS,
   MFA_RESET_NEEDS_SUPER_ADMIN,
   MFA_RESET_NOT_MEMBER,
   MFA_RESET_SELF,
@@ -187,6 +188,36 @@ describe('MfaAdminService', () => {
       expect(events.emit).not.toHaveBeenCalled();
     });
 
+    it('mails members at most once per org per day (toggle off/on cannot flood)', async () => {
+      const admin = await createUser();
+      const member = await createUser();
+      const orgId = await createOrg('Venue');
+      await join(member.id, orgId, OrganisationRole.Viewer);
+
+      await service.setOrgRequirement(orgId, true, actor(admin));
+      await service.setOrgRequirement(orgId, false, actor(admin));
+      await service.setOrgRequirement(orgId, true, actor(admin));
+
+      expect(emitted(AUTH_ORG_MFA_REQUIRED)).toHaveLength(1);
+      expect(emitted(AUDIT_ORGANISATION_MFA_REQUIREMENT_CHANGED)).toHaveLength(3);
+      expect(redis.ttls.get(mfaRedisKeys.orgRequiredMail(orgId))).toBe(
+        MFA_ORG_REQUIRED_MAIL_THROTTLE_SECONDS,
+      );
+    });
+
+    it('still succeeds (saved + audited) when the member notice fails', async () => {
+      const admin = await createUser();
+      const orgId = await createOrg();
+      jest.spyOn(redis, 'set').mockRejectedValueOnce(new Error('redis down'));
+
+      const view = await service.setOrgRequirement(orgId, true, actor(admin));
+
+      expect(view.requireMfa).toBe(true);
+      expect((await service.getOrgRequirement(orgId)).requireMfa).toBe(true);
+      expect(emitted(AUDIT_ORGANISATION_MFA_REQUIREMENT_CHANGED)).toHaveLength(1);
+      expect(emitted(AUTH_ORG_MFA_REQUIRED)).toHaveLength(0);
+    });
+
     it('answers 404 for an unknown organisation', async () => {
       await expect(
         service.getOrgRequirement('00000000-0000-4000-8000-000000000000'),
@@ -242,6 +273,38 @@ describe('MfaAdminService', () => {
       expect(emitted<AuditMfaResetEvent>(AUDIT_AUTH_MFA_RESET)).toEqual([
         expect.objectContaining({ organisationId: null }),
       ]);
+    });
+
+    it('still audits, mails and succeeds when Redis cleanup / revocation fail after commit', async () => {
+      const root = await createUser({ isSuperAdmin: true });
+      const target = await createUser();
+      const orgId = await createOrg();
+      await join(target.id, orgId, OrganisationRole.Editor);
+      await enrol(target.id);
+      jest.spyOn(redis, 'del').mockRejectedValue(new Error('redis down'));
+      tokens.revokeAllForUser.mockRejectedValueOnce(new Error('redis down'));
+
+      await expect(service.resetBySuperAdmin(target.id, actor(root))).resolves.toBeUndefined();
+
+      expect(await hasFactor(target.id)).toBe(false);
+      expect(emitted<AuditMfaResetEvent>(AUDIT_AUTH_MFA_RESET)).toEqual([
+        expect.objectContaining({ targetUserId: target.id, organisationId: orgId }),
+      ]);
+      expect(emitted(AUTH_MFA_RESET)).toHaveLength(1);
+      expect(tokens.revokeAllForUser).toHaveBeenCalledWith(target.id);
+    });
+
+    it('audits before the best-effort session revocation runs', async () => {
+      const root = await createUser({ isSuperAdmin: true });
+      const target = await createUser();
+      await enrol(target.id);
+
+      await service.resetBySuperAdmin(target.id, actor(root));
+
+      const auditCall = events.emit.mock.calls.findIndex(([name]) => name === AUDIT_AUTH_MFA_RESET);
+      expect(events.emit.mock.invocationCallOrder[auditCall]).toBeLessThan(
+        tokens.revokeAllForUser.mock.invocationCallOrder[0],
+      );
     });
 
     it('refuses to reset oneself', async () => {
@@ -341,6 +404,14 @@ describe('MfaAdminService', () => {
         MFA_RESET_NOT_MEMBER,
       );
       expect(await hasFactor(outsider.id)).toBe(true);
+    });
+
+    it('rule 2: an unknown user id is "not a member" (no account probing)', async () => {
+      await expectCode(
+        service.resetByOrgAdmin(orgId, '00000000-0000-4000-8000-000000000000', actor(admin)),
+        NotFoundException,
+        MFA_RESET_NOT_MEMBER,
+      );
     });
 
     it('rule 3: refuses to reset a super-admin', async () => {

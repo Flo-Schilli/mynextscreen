@@ -86,7 +86,7 @@ export class OrganisationController {
   @Patch(':id/members/:userId')
   async updateMemberRole(
     @Param('id', ParseUUIDPipe) id: string,
-    @Param('userId') userId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
     @Body() dto: UpdateMemberRoleDto,
   ): Promise<MemberResponse> {
     return this.membershipService.toMemberView(
@@ -98,7 +98,7 @@ export class OrganisationController {
   @HttpCode(HttpStatus.NO_CONTENT)
   removeMember(
     @Param('id', ParseUUIDPipe) id: string,
-    @Param('userId') userId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
   ): Promise<void> {
     return this.membershipService.removeMember(id, userId);
   }

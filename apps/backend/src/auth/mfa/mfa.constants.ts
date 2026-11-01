@@ -56,4 +56,9 @@ export const mfaRedisKeys = {
   enrolment: (userId: string): string => `mfa:enrol:${userId}`,
   challenge: (challengeHash: string): string => `mfa:challenge:${challengeHash}`,
   failures: (userId: string): string => `mfa:fail:${userId}`,
+  /** Throttle marker: the "org requires MFA" member mail went out recently. */
+  orgRequiredMail: (organisationId: string): string => `mfa:org-required-mail:${organisationId}`,
 };
+
+/** The "org requires MFA" member mail goes out at most once per org per day. */
+export const MFA_ORG_REQUIRED_MAIL_THROTTLE_SECONDS = 24 * 60 * 60;
