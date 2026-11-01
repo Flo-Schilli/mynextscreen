@@ -35,8 +35,16 @@ import { OrganisationRole } from '../../user/organisation-role.enum';
 import { UserService } from '../../user/user.service';
 import type { PasswordService } from '../password.service';
 import { hashToken } from '../token-hash.util';
-import { MFA_DISABLE_FORBIDDEN, MFA_ENROLMENT_TTL_SECONDS, mfaRedisKeys } from './mfa.constants';
-import { MFA_LOCKED_OUT, MfaService } from './mfa.service';
+import {
+  MFA_CHALLENGE_EXPIRED,
+  MFA_DISABLE_FORBIDDEN,
+  MFA_ENROLMENT_TTL_SECONDS,
+  MFA_INVALID_CODE,
+  MFA_INVALID_PASSWORD,
+  MFA_LOCKED_OUT,
+  mfaRedisKeys,
+} from './mfa.constants';
+import { MfaService } from './mfa.service';
 import { RecoveryCodeService } from './recovery-code.service';
 import { TotpService } from './totp.service';
 
@@ -113,6 +121,21 @@ describe('MfaService', () => {
     return org.id;
   }
 
+  /** The rejection is a 401 carrying the given MFA error code. */
+  async function expectMfa401(promise: Promise<unknown>, code: string): Promise<void> {
+    const error: unknown = await promise.then(
+      () => {
+        throw new Error('expected a rejection');
+      },
+      (rejected: unknown) => rejected,
+    );
+    expect(error).toBeInstanceOf(UnauthorizedException);
+    expect((error as UnauthorizedException).getResponse()).toMatchObject({
+      statusCode: 401,
+      code,
+    });
+  }
+
   /** Move the clock to the next TOTP step so a fresh (non-replayed) code exists. */
   function nextStep(): void {
     now += STEP_MS;
@@ -146,10 +169,25 @@ describe('MfaService', () => {
       // An org the user is not a member of does not count.
       await createOrg(true);
 
+      // User-bound: one strict org makes MFA mandatory for the whole account.
       expect(await service.isMfaRequired(user)).toBe(true);
-      expect(await service.isMfaRequired(user, strict)).toBe(true);
-      expect(await service.isMfaRequired(user, relaxed)).toBe(false);
       expect((await service.requiredBy(user)).organisationIds).toEqual([strict]);
+      expect((await service.requiredBy(user)).organisationIds).not.toContain(relaxed);
+    });
+
+    it('flags enrolment only for a mandatory user whose session lacks MFA', async () => {
+      const admin = await createUser({ isSuperAdmin: true });
+      const member = await createUser();
+      await createOrg(true, member.id);
+      const free = await createUser();
+
+      expect(await service.isEnrolmentRequired(admin, false)).toBe(true);
+      expect(await service.isEnrolmentRequired(member, false)).toBe(true);
+      expect(await service.isEnrolmentRequired(free, false)).toBe(false);
+
+      const lookup = jest.spyOn(service, 'requiredBy');
+      expect(await service.isEnrolmentRequired(member, true)).toBe(false);
+      expect(lookup).not.toHaveBeenCalled();
     });
   });
 
@@ -184,7 +222,7 @@ describe('MfaService', () => {
   describe('enrolment', () => {
     it('refuses to start with a wrong password', async () => {
       const user = await createUser();
-      await expect(service.startEnrolment(user.id, 'wrong')).rejects.toThrow(UnauthorizedException);
+      await expectMfa401(service.startEnrolment(user.id, 'wrong'), MFA_INVALID_PASSWORD);
       expect(redis.strings.size).toBe(0);
     });
 
@@ -215,9 +253,7 @@ describe('MfaService', () => {
       const user = await createUser();
       await service.startEnrolment(user.id, PASSWORD);
 
-      await expect(service.confirmEnrolment(user.id, '000000')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expectMfa401(service.confirmEnrolment(user.id, '000000'), MFA_INVALID_CODE);
       expect(redis.strings.has(mfaRedisKeys.enrolment(user.id))).toBe(true);
       expect(await service.isTotpEnabled(user.id)).toBe(false);
     });
@@ -276,12 +312,8 @@ describe('MfaService', () => {
       const { secret: oldSecret } = await enrol(user);
       nextStep();
 
-      await expect(service.startEnrolment(user.id, PASSWORD)).rejects.toThrow(
-        UnauthorizedException,
-      );
-      await expect(service.startEnrolment(user.id, PASSWORD, '000000')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expectMfa401(service.startEnrolment(user.id, PASSWORD), MFA_INVALID_CODE);
+      await expectMfa401(service.startEnrolment(user.id, PASSWORD, '000000'), MFA_INVALID_CODE);
 
       const { secret: newSecret } = await service.startEnrolment(
         user.id,
@@ -328,12 +360,11 @@ describe('MfaService', () => {
       const { secret } = await enrol(user);
       nextStep();
 
-      await expect(service.disable(user.id, 'wrong', totp.generate(secret))).rejects.toThrow(
-        UnauthorizedException,
+      await expectMfa401(
+        service.disable(user.id, 'wrong', totp.generate(secret)),
+        MFA_INVALID_PASSWORD,
       );
-      await expect(service.disable(user.id, PASSWORD, '000000')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expectMfa401(service.disable(user.id, PASSWORD, '000000'), MFA_INVALID_CODE);
       expect(await service.isTotpEnabled(user.id)).toBe(true);
     });
 
@@ -391,9 +422,7 @@ describe('MfaService', () => {
     it('refuses to regenerate with a wrong code', async () => {
       const user = await createUser();
       await enrol(user);
-      await expect(service.regenerateRecoveryCodes(user.id, '000000')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expectMfa401(service.regenerateRecoveryCodes(user.id, '000000'), MFA_INVALID_CODE);
     });
   });
 
@@ -481,11 +510,13 @@ describe('MfaService', () => {
       const challengeId = await service.createChallenge(user.id);
       redis.expireNow(mfaRedisKeys.challenge(hashToken(challengeId)));
 
-      await expect(
+      await expectMfa401(
         service.verifyChallenge(challengeId, { code: totp.generate(secret) }),
-      ).rejects.toThrow(UnauthorizedException);
-      await expect(service.verifyChallenge('made-up', { code: '123456' })).rejects.toThrow(
-        UnauthorizedException,
+        MFA_CHALLENGE_EXPIRED,
+      );
+      await expectMfa401(
+        service.verifyChallenge('made-up', { code: '123456' }),
+        MFA_CHALLENGE_EXPIRED,
       );
     });
 
@@ -495,8 +526,9 @@ describe('MfaService', () => {
       const challengeId = await service.createChallenge(user.id);
       await db.delete(userMfa).where(eq(userMfa.userId, user.id));
 
-      await expect(service.verifyChallenge(challengeId, { code: '123456' })).rejects.toThrow(
-        UnauthorizedException,
+      await expectMfa401(
+        service.verifyChallenge(challengeId, { code: '123456' }),
+        MFA_CHALLENGE_EXPIRED,
       );
       expect(redis.hashes.size).toBe(0);
     });
@@ -508,8 +540,9 @@ describe('MfaService', () => {
       const challengeId = await service.createChallenge(user.id);
 
       for (let i = 0; i < 5; i++) {
-        await expect(service.verifyChallenge(challengeId, { code: '000000' })).rejects.toThrow(
-          UnauthorizedException,
+        await expectMfa401(
+          service.verifyChallenge(challengeId, { code: '000000' }),
+          MFA_INVALID_CODE,
         );
       }
       // Even the right code no longer helps: the challenge is gone.
