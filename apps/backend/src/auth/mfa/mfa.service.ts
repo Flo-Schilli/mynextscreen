@@ -8,7 +8,6 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { and, eq, isNull, lt, or } from 'drizzle-orm';
@@ -46,21 +45,32 @@ import {
   MFA_CHALLENGE_TTL_SECONDS,
   MFA_DISABLE_FORBIDDEN,
   MFA_ENROLMENT_TTL_SECONDS,
+  MFA_LOCKED_OUT,
   MFA_LOCKOUT_THRESHOLD,
   MFA_LOCKOUT_WINDOW_SECONDS,
   type MfaMethod,
   mfaRedisKeys,
 } from './mfa.constants';
+import { mfaChallengeExpired, mfaInvalidCode, mfaInvalidPassword } from './mfa.errors';
 import { RecoveryCodeService } from './recovery-code.service';
 import { TotpService } from './totp.service';
 
 const CHALLENGE_BYTES = 32;
-/** Error code on the 429 a locked-out user gets. */
-export const MFA_LOCKED_OUT = 'MFA_LOCKED_OUT';
 
+/**
+ * Why MFA is mandatory for a user (mirrored in `libs/shared-types`). MFA is
+ * bound to the USER: mandatory as soon as they are a super-admin or a member
+ * of at least one org with `requireMfa` — and then for every org of theirs.
+ */
 export interface MfaRequiredBy {
   superAdmin: boolean;
+  /** Orgs of the user that have `requireMfa` switched on. */
   organisationIds: string[];
+}
+
+/** True when {@link MfaRequiredBy} makes MFA mandatory. */
+export function isMfaMandatory(requiredBy: MfaRequiredBy): boolean {
+  return requiredBy.superAdmin || requiredBy.organisationIds.length > 0;
 }
 
 export interface MfaStatus {
@@ -141,16 +151,26 @@ export class MfaService {
   }
 
   /**
-   * True when the user may not go without MFA: always for super-admins, and for
-   * members of an organisation that requires it — that one org when `orgId` is
-   * given, any of theirs otherwise.
+   * True when the user may not go without MFA: super-admins (no DB lookup) and
+   * members of at least one organisation that requires it. User-level — it
+   * then applies to every org of the user, there is no per-org exemption.
    */
-  async isMfaRequired(user: Pick<User, 'id' | 'isSuperAdmin'>, orgId?: string): Promise<boolean> {
+  async isMfaRequired(user: Pick<User, 'id' | 'isSuperAdmin'>): Promise<boolean> {
     if (user.isSuperAdmin) {
       return true;
     }
-    const { organisationIds } = await this.requiredBy(user);
-    return orgId === undefined ? organisationIds.length > 0 : organisationIds.includes(orgId);
+    return isMfaMandatory(await this.requiredBy(user));
+  }
+
+  /**
+   * `mfaEnrolmentRequired` of a session: not MFA-confirmed but MFA is
+   * mandatory. An MFA-confirmed session never touches the DB.
+   */
+  async isEnrolmentRequired(
+    user: Pick<User, 'id' | 'isSuperAdmin'>,
+    sessionMfa: boolean,
+  ): Promise<boolean> {
+    return !sessionMfa && (await this.isMfaRequired(user));
   }
 
   async getStatus(userId: string): Promise<MfaStatus> {
@@ -177,7 +197,7 @@ export class MfaService {
     const existing = await this.findFactor(userId);
     if (existing && (code === undefined || !(await this.acceptTotp(existing, code)))) {
       this.logger.warn(`MFA re-enrolment refused: no valid current code userId=${userId}`);
-      throw new UnauthorizedException('A valid code from your current authenticator is required');
+      throw mfaInvalidCode('A valid code from your current authenticator is required');
     }
 
     const secret = this.totp.generateSecret();
@@ -208,7 +228,7 @@ export class MfaService {
     const step = this.totp.validate(secret, code);
     if (step === null) {
       this.logger.warn(`MFA enrolment confirm failed: invalid code userId=${userId}`);
-      throw new UnauthorizedException('Invalid code');
+      throw mfaInvalidCode();
     }
 
     const recoveryCodes = this.recoveryCodes.generate();
@@ -258,7 +278,7 @@ export class MfaService {
     const factor = await this.requireFactor(userId);
     if (!(await this.acceptTotp(factor, code))) {
       this.logger.warn(`MFA disable failed: invalid code userId=${userId}`);
-      throw new UnauthorizedException('Invalid code');
+      throw mfaInvalidCode();
     }
 
     await this.db.transaction(async (tx) => {
@@ -280,7 +300,7 @@ export class MfaService {
     const factor = await this.requireFactor(userId);
     if (!(await this.acceptTotp(factor, code))) {
       this.logger.warn(`MFA recovery-code regeneration failed: invalid code userId=${userId}`);
-      throw new UnauthorizedException('Invalid code');
+      throw mfaInvalidCode();
     }
     const codes = this.recoveryCodes.generate();
     await this.recoveryCodes.replaceAll(userId, codes);
@@ -325,7 +345,7 @@ export class MfaService {
     const key = mfaRedisKeys.challenge(hashToken(challengeId));
     const userId = await this.redis.hget(key, 'userId');
     if (!userId) {
-      throw new UnauthorizedException('MFA challenge expired — sign in again');
+      throw mfaChallengeExpired();
     }
     await this.assertNotLockedOut(userId);
     const user = await this.users.findById(userId);
@@ -333,7 +353,7 @@ export class MfaService {
     if (!user || !factor) {
       // Deleted or reset between both steps: the challenge is worthless.
       await this.redis.del(key);
-      throw new UnauthorizedException('MFA challenge expired — sign in again');
+      throw mfaChallengeExpired();
     }
 
     const method: MfaMethod = input.code !== undefined ? 'totp' : 'recovery';
@@ -341,11 +361,11 @@ export class MfaService {
     if (!accepted) {
       await this.registerFailure(key, user);
       this.logger.warn(`MFA login failed userId=${userId} method=${method}`);
-      throw new UnauthorizedException('Invalid code');
+      throw mfaInvalidCode();
     }
     // Single use: only the request that actually deletes the challenge wins.
     if ((await this.redis.del(key)) === 0) {
-      throw new UnauthorizedException('MFA challenge expired — sign in again');
+      throw mfaChallengeExpired();
     }
     await this.redis.del(mfaRedisKeys.failures(userId));
 
@@ -465,7 +485,7 @@ export class MfaService {
   private async requirePassword(user: User, currentPassword: string): Promise<void> {
     if (!(await this.passwords.verify(user.passwordHash, currentPassword))) {
       this.logger.warn(`MFA action refused: bad password userId=${user.id}`);
-      throw new UnauthorizedException('Current password is incorrect');
+      throw mfaInvalidPassword();
     }
   }
 }

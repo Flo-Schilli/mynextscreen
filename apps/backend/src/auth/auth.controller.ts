@@ -45,6 +45,8 @@ import {
 } from './cookies';
 import { AllowWithoutMfa } from './mfa/allow-without-mfa.decorator';
 import { MFA_CHALLENGE_COOKIE, MFA_METHODS } from './mfa/mfa.constants';
+import { mfaChallengeExpired } from './mfa/mfa.errors';
+import { MfaService } from './mfa/mfa.service';
 import { LoginMfaDto } from './mfa/dto/login-mfa.dto';
 import { AuthenticatedRequest } from './jwt-auth.guard';
 import { Public } from './public.decorator';
@@ -61,6 +63,7 @@ import { SetPasswordDto } from './dto/set-password.dto';
 import { SetupDto } from './dto/setup.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import type {
+  AuthMeResponse,
   AuthSuccessResponse,
   AuthenticatedUserView,
   FirstFactorOutcome,
@@ -78,6 +81,7 @@ export class AuthController {
     private readonly config: ConfigService,
     private readonly users: UserService,
     private readonly events: EventEmitter2,
+    private readonly mfa: MfaService,
   ) {}
 
   @Public()
@@ -181,7 +185,7 @@ export class AuthController {
     );
     // Super-admin without MFA → mfaEnrolmentRequired: the SPA goes straight
     // into the enrolment wizard, which makes MFA part of the first-run setup.
-    return toAuthSuccess(result);
+    return this.toAuthSuccess(result);
   }
 
   @Public()
@@ -213,7 +217,7 @@ export class AuthController {
   ): Promise<AuthSuccessResponse> {
     const challengeId = this.readCookie(req, MFA_CHALLENGE_COOKIE);
     if (!challengeId) {
-      throw new UnauthorizedException('MFA challenge expired — sign in again');
+      throw mfaChallengeExpired();
     }
     const result = await this.auth.loginMfa(
       challengeId,
@@ -221,7 +225,7 @@ export class AuthController {
     );
     clearMfaChallengeCookie(res, this.config);
     this.writeSession(res, result);
-    return toAuthSuccess(result);
+    return this.toAuthSuccess(result);
   }
 
   @Public()
@@ -366,7 +370,7 @@ export class AuthController {
   @Get('me')
   @UserScoped()
   @AllowWithoutMfa()
-  async getMe(@Req() req: AuthenticatedRequest): Promise<AuthenticatedUserView> {
+  async getMe(@Req() req: AuthenticatedRequest): Promise<AuthMeResponse> {
     // Read from the DB rather than echoing the JWT payload: the access token is
     // long-lived and carries the email/role from issue time, so after an
     // email change it stays stale until the token rotates. Sourcing from the DB
@@ -377,9 +381,9 @@ export class AuthController {
       throw new NotFoundException('User not found');
     }
     return {
-      userId: user.id,
-      email: user.email,
-      isSuperAdmin: user.isSuperAdmin,
+      ...toUserView(user),
+      mfa: req.user.mfa,
+      mfaEnrolmentRequired: await this.mfa.isEnrolmentRequired(user, req.user.mfa),
     };
   }
 
@@ -405,13 +409,23 @@ export class AuthController {
   }
 
   /** Session → cookies + user view; TOTP user → challenge cookie, no session. */
-  private respondToFirstFactor(res: Response, outcome: FirstFactorOutcome): LoginResponse {
+  private async respondToFirstFactor(
+    res: Response,
+    outcome: FirstFactorOutcome,
+  ): Promise<LoginResponse> {
     if (outcome.kind === 'mfa-required') {
       setMfaChallengeCookie(res, this.config, outcome.challengeId);
       return { mfaRequired: true, methods: [...MFA_METHODS] };
     }
     this.writeSession(res, outcome);
-    return toAuthSuccess(outcome);
+    return this.toAuthSuccess(outcome);
+  }
+
+  /** MFA is mandatory for super-admins and members of a `requireMfa` org. */
+  private async toAuthSuccess(
+    result: Pick<LoginResult, 'user' | 'mfa'>,
+  ): Promise<AuthSuccessResponse> {
+    return toAuthSuccess(result, await this.mfa.isEnrolmentRequired(result.user, result.mfa));
   }
 }
 
@@ -419,10 +433,10 @@ export function toUserView(user: LoginResult['user']): AuthenticatedUserView {
   return { userId: user.id, email: user.email, isSuperAdmin: user.isSuperAdmin };
 }
 
-/** Super-admins must use MFA, so a session without it sends them to enrolment. */
-export function toAuthSuccess(result: Pick<LoginResult, 'user' | 'mfa'>): AuthSuccessResponse {
-  return {
-    user: toUserView(result.user),
-    mfaEnrolmentRequired: result.user.isSuperAdmin && !result.mfa,
-  };
+/** `mfaEnrolmentRequired` comes from `MfaService.isEnrolmentRequired` (`!mfa && mandatory`). */
+export function toAuthSuccess(
+  result: Pick<LoginResult, 'user'>,
+  mfaEnrolmentRequired: boolean,
+): AuthSuccessResponse {
+  return { user: toUserView(result.user), mfaEnrolmentRequired };
 }

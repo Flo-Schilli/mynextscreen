@@ -1,7 +1,18 @@
-/** Error code: a super-admin session without MFA hit a route that needs it. */
+// `code` values of the MFA error bodies — mirrored as `MfaErrorCode` in
+// `libs/shared-types/src/auth.ts`.
+
+/** 403: a session without MFA hit a route that needs it (MFA mandatory for the user). */
 export const MFA_ENROLMENT_REQUIRED = 'MFA_ENROLMENT_REQUIRED';
-/** Error code: MFA is mandatory for this user, so it cannot be switched off. */
+/** 409: MFA is mandatory for this user, so it cannot be switched off. */
 export const MFA_DISABLE_FORBIDDEN = 'MFA_DISABLE_FORBIDDEN';
+/** 429: too many failed second-factor attempts. */
+export const MFA_LOCKED_OUT = 'MFA_LOCKED_OUT';
+/** 401: login challenge cookie missing, expired or already used — restart at the password. */
+export const MFA_CHALLENGE_EXPIRED = 'MFA_CHALLENGE_EXPIRED';
+/** 401: wrong TOTP or recovery code. */
+export const MFA_INVALID_CODE = 'MFA_INVALID_CODE';
+/** 401: wrong `currentPassword` on an MFA management action. */
+export const MFA_INVALID_PASSWORD = 'MFA_INVALID_PASSWORD';
 
 /** Short-lived httpOnly cookie carrying the login challenge between both steps. */
 export const MFA_CHALLENGE_COOKIE = 'mfa_challenge';
