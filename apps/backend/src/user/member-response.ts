@@ -18,6 +18,8 @@ export interface MemberResponse {
   role: OrganisationRole;
   createdAt: Date;
   status: MemberStatus;
+  /** The member has a TOTP factor set up (badge only — no factor data). */
+  mfaEnabled: boolean;
   user: {
     id: string;
     email: string;
@@ -34,7 +36,10 @@ export interface MemberResponse {
  * null hash is the canonical "invite still pending" signal. Sensitive fields
  * (passwordHash, reset/verification tokens) are intentionally dropped here.
  */
-export function toMemberResponse(membership: MembershipWithUser): MemberResponse {
+export function toMemberResponse(
+  membership: MembershipWithUser,
+  mfaEnabled: boolean,
+): MemberResponse {
   const { user } = membership;
   return {
     id: membership.id,
@@ -43,6 +48,7 @@ export function toMemberResponse(membership: MembershipWithUser): MemberResponse
     role: membership.role as OrganisationRole,
     createdAt: membership.createdAt,
     status: user.passwordHash === null ? 'pending' : 'active',
+    mfaEnabled,
     user: {
       id: user.id,
       email: user.email,

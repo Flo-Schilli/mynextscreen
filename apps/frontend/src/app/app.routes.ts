@@ -91,6 +91,10 @@ export const routes: Routes = [
         loadComponent: () => import('./settings/org/org-storage').then((m) => m.OrgStorage),
       },
       {
+        path: 'settings/org/security',
+        loadComponent: () => import('./settings/org/org-security').then((m) => m.OrgSecurity),
+      },
+      {
         path: 'screens',
         loadComponent: () => import('./screens/screens').then((m) => m.Screens),
       },

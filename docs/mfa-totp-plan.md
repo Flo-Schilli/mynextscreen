@@ -266,6 +266,7 @@ Bedingungen gilt, und dann für **alle** Orgs des Users:
   nichts.
 - `login`, `login/mfa`, `verify-email`, `setup` und `GET /api/auth/me` liefern
   `mfaEnrolmentRequired = !mfa && Pflicht`; `/auth/me` zusätzlich `mfa`.
+- `POST /auth/mfa/totp/confirm` ohne Pending-Setup: `400 MFA_SETUP_EXPIRED` (PR 3).
 - Weitere Fehlercodes: `401 MFA_CHALLENGE_EXPIRED` (Challenge fehlt/abgelaufen),
   `401 MFA_INVALID_CODE` (falscher Code), `401 MFA_INVALID_PASSWORD` (falsches Passwort
   bei `/api/auth/mfa/*`).
@@ -287,14 +288,29 @@ Will ein Pflicht-User sein Gerät wechseln, richtet er TOTP neu ein: `setup` + `
 bei bereits aktivem TOTP. Dafür verlangt `setup` zusätzlich zum Passwort einen gültigen
 Code des alten Geräts.
 
+**Nachtrag (Fix in PR 3):** Das `code`-Feld von `totp/setup` (Gerätewechsel), `totp/disable`
+und `recovery-codes/regenerate` akzeptiert auch einen **Recovery-Code** (Format entscheidet:
+6 Ziffern = TOTP, sonst Recovery-Code). Der Code wird verbraucht, Mail + Audit
+`mfa_recovery_code_used` wie beim Login; ein falscher Code zählt gegen den Lockout. Sonst
+könnte ein User mit verlorenem Handy zwar per Recovery-Code einloggen, den Faktor aber nicht
+selbst umziehen — ein alleiniger Super-Admin bräuchte dann das Notfall-SQL.
+
 ### Org-Einstellung `requireMfa`
 
-- `PATCH /api/organisations/:id` (Org-Admin) bekommt `requireMfa`.
+- **Umgesetzt (PR 3) als eigener Endpoint** `GET|PATCH /api/organisations/:orgId/mfa-requirement`
+  (`@Roles(OrgAdmin)`, Super-Admin wie üblich) mit `{ requireMfa }` → `{ requireMfa, requireMfaSince }`.
+  Abweichung vom Plan: `PATCH /api/organisations/:id` ist als ganzer Controller
+  `SuperAdminGuard`-geschützt (Name, Storage-Limits); ein Org-Admin-Feld dort hätte den Guard
+  aufgeweicht. Der Controller liegt in `auth/mfa/mfa-admin.controller.ts`.
 - Das Einschalten verlangt, dass der Org-Admin **selbst eine `mfa`-Session hat**. Sonst
-  `403`, damit er sich nicht selbst aussperrt.
+  `403 { code: 'MFA_SELF_REQUIRED' }`, damit er sich nicht selbst aussperrt. Ausschalten geht
+  immer. Ein Wechsel setzt bzw. leert `requireMfaSince`; ein unveränderter Wert ist ein No-op
+  (kein Audit, keine Mail).
 - Beim Einschalten geht eine Platform-Mail an alle Mitglieder ohne TOTP: „Deine
   Organisation X verlangt ab sofort MFA. Beim nächsten Öffnen wirst du durch die
-  Einrichtung geführt." Dazu kommt ein Audit-Event `org.mfa_requirement_changed`.
+  Einrichtung geführt." Dazu kommt ein Audit-Event `org.mfa_requirement_changed`
+  (`{ name, requireMfa }`, an und aus). Die Mail geht nur an Mitglieder mit Passwort;
+  offene Einladungen treffen die Pflicht bei der ersten Anmeldung.
 
 ### Reset
 
@@ -319,6 +335,17 @@ diese Regeln, damit ein Org-Admin keine fremden Tenants schwächt:
 
 Die Wirkung ist dieselbe wie beim Super-Admin-Reset. Das Audit-Event landet in **jeder**
 Org des Ziels, damit die übrigen Org-Admins es auch sehen.
+
+**Umsetzung (PR 3), Fehlercodes je Ablehnungsgrund:** `403 MFA_SELF_REQUIRED` (Regel 1),
+`403 MFA_RESET_SELF` (Regel 2, auch beim Super-Admin-Reset), `404 MFA_RESET_NOT_MEMBER`
+(Regel 2), `403 MFA_RESET_TARGET_SUPER_ADMIN` (Regel 3), `403 MFA_RESET_NEEDS_SUPER_ADMIN`
+(Regel 4), `409 MFA_NOT_ENABLED` (Ziel hat kein TOTP). Ein Super-Admin auf der Org-Route
+bekommt die Super-Admin-Regeln (`by: 'super_admin'`). Der Reset löscht `user_mfa` + Codes in
+einer Transaktion, dazu `mfa:enrol` und `mfa:fail`, und revoked alle Refresh-Familien. Auch der
+Super-Admin-Reset wird in jeder Org des Ziels auditiert (`auth.mfa_reset`, Resource `user`,
+Actor = Admin, `{ by, actorId, email }`); ohne Org einmal instanzweit. Schon ausgestellte
+Access-Tokens bleiben bis zu ihrem Ablauf (`JWT_ACCESS_TTL`) gültig, wie beim Passwort-Reset.
+Mitgliederliste und Instance-Admin-Userliste liefern `mfaEnabled` für das Badge.
 
 Nach einem Reset muss ein Pflicht-User beim nächsten Login TOTP neu einrichten. Der
 Wizard wird erzwungen, ein Aussperren ist nicht möglich.
@@ -410,6 +437,8 @@ der Umsetzung gegen die Quadlets in `ansible/` geprüft.
    versehen, wenn MFA Pflicht ist. Warnung bei ≤ 3 verbleibenden Recovery-Codes.
 4. **Org-Settings**: Schalter „MFA für alle Mitglieder verlangen". Er ist deaktiviert
    mit Hinweis, solange der Admin selbst kein MFA hat, und hat einen Bestätigungsdialog.
+   Umgesetzt als neuer Tab „Sicherheit" (`settings/org/security`), da es keine allgemeine
+   Org-Settings-Seite für Org-Admins gibt.
 5. **Mitgliederliste (`settings/users/`)**: MFA-Badge je Mitglied und die Aktion
    „MFA zurücksetzen". Bei `MFA_RESET_NEEDS_SUPER_ADMIN` gibt es einen erklärenden Toast.
 6. **Instance-Admin → Users**: MFA-Badge + „MFA zurücksetzen".
@@ -468,5 +497,11 @@ wenn alle vier PRs auf `develop` sind. Jeder PR geht durch `typescript-reviewer`
   muss getrennt von DB-Dumps gesichert werden.
 - **Uhrzeitdrift auf dem Server:** NTP wird vorausgesetzt. `window: 1` deckt ±30 s ab.
 - **Lücken bei der Durchsetzung:** Routen, die nicht über den globalen `JwtAuthGuard`
-  laufen, würden die Pflicht umgehen. In PR 3 wird geprüft, dass alle User-Session-Routen
-  (auch SSE) ihn passieren; `@AllowWithoutMfa` bleibt auf Auth-/Wizard-Routen beschränkt.
+  laufen, würden die Pflicht umgehen. **Geprüft in PR 3:** `JwtAuthGuard` ist `APP_GUARD`;
+  übersprungen wird er nur für `@Public` (Health/Version/Time/Config, Metrics mit eigenem
+  Token, die Auth-Endpoints vor der Session), `@ScreenAuth` (Screens, Signed-Media) und
+  `@AgentAuth` (Site-Agent) — keine davon trägt eine User-Session. Alle User-Routen inkl.
+  Dashboard-SSE (`@Roles`) laufen hindurch; es gibt keinen WebSocket-Gateway und keine
+  Express-Handler außerhalb von Nest (nur Body-Parser/Cookie-Middleware).
+  `@AllowWithoutMfa` steht nur auf `POST /auth/logout`, `GET /auth/me`, `/auth/mfa/*`,
+  `GET /me/profile` und `GET /me/memberships`.

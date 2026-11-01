@@ -1,7 +1,11 @@
 import * as nodemailer from 'nodemailer';
 import type { ConfigService } from '@nestjs/config';
 import type { EventEmitter2 } from '@nestjs/event-emitter';
-import { PlatformMailerService } from './platform-mailer.service';
+import {
+  MAIL_TEXT_MAX_LENGTH,
+  PlatformMailerService,
+  sanitizeMailText,
+} from './platform-mailer.service';
 import {
   AUDIT_EMAIL_SENT,
   AUDIT_EMAIL_SEND_FAILED,
@@ -10,6 +14,8 @@ import {
   AuthMfaDisabledEvent,
   AuthMfaEnabledEvent,
   AuthMfaRecoveryCodeUsedEvent,
+  AuthMfaResetEvent,
+  AuthOrgMfaRequiredEvent,
   AuthPasswordChangedEvent,
   AuthPasswordResetRequestedEvent,
   AuthUserInvitedEvent,
@@ -142,6 +148,48 @@ describe('PlatformMailerService', () => {
     const sent = mockSendMail.mock.calls[0][0];
     expect(sent.subject).toMatch(/recovery code/i);
     expect(sent.text).toContain('3 unused recovery code(s) remain');
+  });
+
+  it('sends an MFA-reset notice naming who reset it', async () => {
+    const service = makeService();
+
+    await service.handleMfaReset(new AuthMfaResetEvent('user@example.com', 'super_admin'));
+    await service.handleMfaReset(new AuthMfaResetEvent('user@example.com', 'org_admin'));
+
+    const [bySuperAdmin, byOrgAdmin] = mockSendMail.mock.calls.map((call) => call[0]);
+    expect(bySuperAdmin.to).toBe('user@example.com');
+    expect(bySuperAdmin.subject).toMatch(/reset/i);
+    expect(bySuperAdmin.text).toContain('a platform administrator');
+    expect(byOrgAdmin.text).toContain('an administrator of your organisation');
+  });
+
+  it('sends an org-requires-MFA notice naming the organisation', async () => {
+    const service = makeService();
+
+    await service.handleOrgMfaRequired(new AuthOrgMfaRequiredEvent('user@example.com', 'Venue'));
+
+    const sent = mockSendMail.mock.calls[0][0];
+    expect(sent.subject).toMatch(/required/i);
+    expect(sent.text).toContain('"Venue"');
+  });
+
+  it('quotes a hostile org name as one inert line (no breaks, links or markup)', async () => {
+    const service = makeService();
+    const hostile = 'Venue\r\n\r\nClick https://evil.example/login <b>now</b>\t mail a@b.io';
+
+    await service.handleOrgMfaRequired(new AuthOrgMfaRequiredEvent('user@example.com', hostile));
+
+    const { text } = mockSendMail.mock.calls[0][0] as { text: string };
+    const quoted = /"([^"]*)"/.exec(text)?.[1] ?? '';
+    expect(quoted).not.toMatch(/[\r\n\t<>@]|https?:|:\/\/|\.[a-z]/i);
+    expect(quoted).toContain('Venue Click');
+  });
+
+  it('caps the quoted org name and keeps ordinary names unchanged', () => {
+    expect(sanitizeMailText('Club 2.0  Süd')).toBe('Club 2.0 Süd');
+    const long = sanitizeMailText('x'.repeat(500));
+    expect(Array.from(long)).toHaveLength(MAIL_TEXT_MAX_LENGTH);
+    expect(long.endsWith('…')).toBe(true);
   });
 
   it('omits SMTP auth when user and password are empty', async () => {

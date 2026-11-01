@@ -1,5 +1,5 @@
 import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
-import { TOTP_CODE_MESSAGE, TOTP_CODE_PATTERN } from './mfa-dto.patterns';
+import { MANAGEMENT_CODE_MESSAGE, MANAGEMENT_CODE_PATTERN } from './mfa-dto.patterns';
 
 export class TotpDisableDto {
   @IsString()
@@ -7,6 +7,6 @@ export class TotpDisableDto {
   @MaxLength(72)
   currentPassword!: string;
 
-  @Matches(TOTP_CODE_PATTERN, { message: TOTP_CODE_MESSAGE })
+  @Matches(MANAGEMENT_CODE_PATTERN, { message: MANAGEMENT_CODE_MESSAGE })
   code!: string;
 }

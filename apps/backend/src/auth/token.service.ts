@@ -127,7 +127,22 @@ export class TokenService {
       // have no claim and must be treated as unconfirmed (upgrade path).
       mfa: payload.mfa === true,
       jti: payload.jti,
+      iat: typeof payload.iat === 'number' ? payload.iat : 0,
     };
+  }
+
+  /**
+   * True when every access token of the user issued before a revocation
+   * ({@link revokeAllForUser}) is dead and `iat` predates it. Strictly less:
+   * the fresh session a caller issues right after revoking (same second) must
+   * survive. One Redis GET per authenticated request.
+   */
+  async isAccessTokenRevoked(userId: string, iat: number): Promise<boolean> {
+    const marker = await this.redis.get(revokedBeforeKey(userId));
+    if (marker === null) {
+      return false;
+    }
+    return iat < Number(marker);
   }
 
   /** Access token for a screen. Short-lived; the session is what persists. */
@@ -265,11 +280,20 @@ export class TokenService {
   }
 
   /**
-   * Revoke every refresh-token family ever issued to a user (used on account
-   * deletion). Reads the per-user family index, revokes each family, then drops
-   * the index. Returns the number of families revoked.
+   * Revoke every session of a user (account deletion, password reset/change,
+   * MFA enrol/reset). First marks every access token issued before this second
+   * as revoked — they would otherwise stay valid until they expire, so the
+   * marker lives exactly as long as the longest of them — then revokes each
+   * refresh-token family from the per-user index and drops the index. Returns
+   * the number of families revoked.
    */
   async revokeAllForUser(userId: string): Promise<number> {
+    await this.redis.set(
+      revokedBeforeKey(userId),
+      String(Math.floor(Date.now() / 1000)),
+      'EX',
+      this.accessTtlSeconds,
+    );
     const familyIds = await this.redis.smembers(`auth:userfamilies:${userId}`);
     for (const familyId of familyIds) {
       await this.revokeFamily(familyId);
@@ -312,6 +336,10 @@ export class TokenService {
       expiresAt: new Date(Date.now() + this.refreshTtlSeconds * 1000),
     };
   }
+}
+
+function revokedBeforeKey(userId: string): string {
+  return `auth:revoked-before:${userId}`;
 }
 
 function generateRefreshToken(): string {

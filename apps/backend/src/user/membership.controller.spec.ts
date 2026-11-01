@@ -3,6 +3,7 @@ import { MembershipController } from './membership.controller';
 import { MembershipService } from './membership.service';
 import { OrganisationRole } from './organisation-role.enum';
 import type { UserOrganisationMembership, User } from '../db/schema';
+import { toMemberResponse } from './member-response';
 
 type MembershipWithUser = UserOrganisationMembership & { user: User };
 
@@ -44,6 +45,13 @@ describe('MembershipController', () => {
   beforeEach(async () => {
     service = {
       listMembers: jest.fn(),
+      // The real service maps rows the same way (plus the MFA lookup).
+      listMemberResponses: jest.fn(async (id: string) =>
+        ((await service.listMembers(id)) as MembershipWithUser[]).map((m) =>
+          toMemberResponse(m, false),
+        ),
+      ),
+      toMemberView: jest.fn((m: MembershipWithUser) => Promise.resolve(toMemberResponse(m, false))),
       addMember: jest.fn(),
       updateRole: jest.fn(),
       removeMember: jest.fn(),
@@ -73,6 +81,7 @@ describe('MembershipController', () => {
           createdAt: mockMembership.createdAt,
           // mockUser has a null passwordHash → invite still pending.
           status: 'pending',
+          mfaEnabled: false,
           user: {
             id: 'u-1',
             email: 'test@example.com',

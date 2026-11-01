@@ -51,7 +51,13 @@ import {
   type MfaMethod,
   mfaRedisKeys,
 } from './mfa.constants';
-import { mfaChallengeExpired, mfaInvalidCode, mfaInvalidPassword } from './mfa.errors';
+import {
+  mfaChallengeExpired,
+  mfaInvalidCode,
+  mfaInvalidPassword,
+  mfaSetupExpired,
+} from './mfa.errors';
+import { TOTP_CODE_PATTERN } from './dto/mfa-dto.patterns';
 import { RecoveryCodeService } from './recovery-code.service';
 import { TotpService } from './totp.service';
 
@@ -228,7 +234,7 @@ export class MfaService {
     const user = await this.requireUser(userId);
     const pending = await this.redis.get(mfaRedisKeys.enrolment(userId));
     if (!pending) {
-      throw new BadRequestException('No pending MFA setup — start the setup again');
+      throw mfaSetupExpired();
     }
     const secret = this.cipher.decrypt(pending);
     const step = this.totp.validate(secret, code);
@@ -380,15 +386,7 @@ export class MfaService {
     await this.redis.del(mfaRedisKeys.failures(userId));
 
     if (method === 'recovery') {
-      const remaining = await this.recoveryCodes.countRemaining(userId);
-      this.events.emit(
-        AUTH_MFA_RECOVERY_CODE_USED,
-        new AuthMfaRecoveryCodeUsedEvent(user.email, remaining),
-      );
-      this.events.emit(
-        AUDIT_AUTH_MFA_RECOVERY_CODE_USED,
-        new AuditAuthEvent(userId, null, { email: user.email, remaining }),
-      );
+      await this.noticeRecoveryCodeUsed(user);
     }
     this.logger.log(`MFA login success userId=${userId} method=${method}`);
     return { user, method };
@@ -457,12 +455,40 @@ export class MfaService {
     logContext: string,
     message?: string,
   ): Promise<void> {
-    if (code !== undefined && (await this.acceptTotp(factor, code))) {
+    if (code !== undefined && (await this.acceptManagementCode(user, factor, code))) {
       return;
     }
     await this.countUserFailure(user);
     this.logger.warn(`${logContext}: invalid code userId=${user.id}`);
     throw mfaInvalidCode(message);
+  }
+
+  /**
+   * A management code is a TOTP code or — the authenticator being lost — a
+   * recovery code, told apart by format. A recovery code is spent and noticed
+   * (mail + audit) exactly as at login.
+   */
+  private async acceptManagementCode(user: User, factor: UserMfa, code: string): Promise<boolean> {
+    if (TOTP_CODE_PATTERN.test(code)) {
+      return this.acceptTotp(factor, code);
+    }
+    if (!(await this.recoveryCodes.consume(user.id, code))) {
+      return false;
+    }
+    await this.noticeRecoveryCodeUsed(user);
+    return true;
+  }
+
+  private async noticeRecoveryCodeUsed(user: User): Promise<void> {
+    const remaining = await this.recoveryCodes.countRemaining(user.id);
+    this.events.emit(
+      AUTH_MFA_RECOVERY_CODE_USED,
+      new AuthMfaRecoveryCodeUsedEvent(user.email, remaining),
+    );
+    this.events.emit(
+      AUDIT_AUTH_MFA_RECOVERY_CODE_USED,
+      new AuditAuthEvent(user.id, null, { email: user.email, remaining }),
+    );
   }
 
   /**

@@ -18,6 +18,7 @@ import {
   type User,
   type UserOrganisationMembership,
   type Organisation,
+  userMfa,
 } from '../db/schema';
 import { OrganisationRole } from './organisation-role.enum';
 import { hashToken } from '../auth/token-hash.util';
@@ -59,6 +60,8 @@ export interface UserWithMembershipsView {
   name: string | null;
   emailVerified: boolean;
   isSuperAdmin: boolean;
+  /** The user has a TOTP factor set up (badge only — no factor data). */
+  mfaEnabled: boolean;
   createdAt: Date;
   memberships: UserMembershipView[];
 }
@@ -438,6 +441,18 @@ export class UserService {
     return rows.length;
   }
 
+  /** Which of these users have a TOTP factor set up. Reads ids only, never the secret. */
+  async findMfaEnabledUserIds(userIds: string[]): Promise<Set<string>> {
+    if (userIds.length === 0) {
+      return new Set();
+    }
+    const rows = await this.db
+      .select({ userId: userMfa.userId })
+      .from(userMfa)
+      .where(inArray(userMfa.userId, userIds));
+    return new Set(rows.map((row) => row.userId));
+  }
+
   /**
    * Super-admin overview: every user with their org memberships (org id + name)
    * and per-org role. Returns a flat shape suitable for the admin UI.
@@ -451,12 +466,14 @@ export class UserService {
         },
       },
     });
+    const mfaEnabled = await this.findMfaEnabledUserIds(rows.map((user) => user.id));
     return rows.map((user) => ({
       id: user.id,
       email: user.email,
       name: user.name,
       emailVerified: user.emailVerified,
       isSuperAdmin: user.isSuperAdmin,
+      mfaEnabled: mfaEnabled.has(user.id),
       createdAt: user.createdAt,
       memberships: user.memberships.map((m) => ({
         organisationId: m.organisation.id,

@@ -244,6 +244,28 @@ export class AuthMfaDisabledEvent {
   constructor(public readonly email: string) {}
 }
 
+/** Who reset a user's factor — also the `by` of the audit entry. */
+export type MfaResetBy = 'super_admin' | 'org_admin';
+
+export const AUTH_MFA_RESET = 'auth.mfa.reset';
+
+export class AuthMfaResetEvent {
+  constructor(
+    public readonly email: string,
+    public readonly by: MfaResetBy,
+  ) {}
+}
+
+/** Sent to every member without TOTP when an org switches `requireMfa` on. */
+export const AUTH_ORG_MFA_REQUIRED = 'auth.mfa.org_required';
+
+export class AuthOrgMfaRequiredEvent {
+  constructor(
+    public readonly email: string,
+    public readonly organisationName: string,
+  ) {}
+}
+
 export class AuthMfaRecoveryCodeUsedEvent {
   constructor(
     public readonly email: string,
@@ -269,12 +291,28 @@ export const AUDIT_AUTH_MFA_RECOVERY_CODE_USED = 'audit.auth.mfa_recovery_code_u
 export const AUDIT_AUTH_MFA_RECOVERY_CODES_REGENERATED =
   'audit.auth.mfa_recovery_codes_regenerated';
 export const AUDIT_AUTH_MFA_LOCKOUT = 'audit.auth.mfa_lockout';
+export const AUDIT_AUTH_MFA_RESET = 'audit.auth.mfa_reset';
 
 export class AuditAuthEvent {
   constructor(
     public readonly userId: string | null,
     public readonly organisationId: string | null,
     public readonly details: Record<string, unknown> | null,
+  ) {}
+}
+
+/**
+ * An admin removed a user's second factor. Unlike {@link AuditAuthEvent} the
+ * acting user is not the account owner: `targetUserId` is the resource,
+ * `actorId` the one who did it. Emitted once per organisation of the target
+ * (null = the target has no org), so every org admin of theirs sees it.
+ */
+export class AuditMfaResetEvent {
+  constructor(
+    public readonly targetUserId: string,
+    public readonly organisationId: string | null,
+    public readonly actorId: string,
+    public readonly details: Record<string, unknown>,
   ) {}
 }
 
@@ -293,6 +331,8 @@ export class AuditEmailEvent {
 export const AUDIT_ORGANISATION_CREATED = 'audit.organisation.created';
 export const AUDIT_ORGANISATION_UPDATED = 'audit.organisation.updated';
 export const AUDIT_ORGANISATION_DELETED = 'audit.organisation.deleted';
+export const AUDIT_ORGANISATION_MFA_REQUIREMENT_CHANGED =
+  'audit.organisation.mfa_requirement_changed';
 
 export class AuditOrganisationEvent {
   constructor(

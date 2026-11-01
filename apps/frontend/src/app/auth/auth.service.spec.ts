@@ -68,6 +68,15 @@ describe('AuthService', () => {
     await promise;
     expect(service.user()).toEqual(USER);
     expect(service.mfaEnrolment()).toBeNull();
+    expect(service.sessionMfa()).toBe(false);
+  });
+
+  it('loadCurrent mirrors an MFA-confirmed session into sessionMfa', async () => {
+    const { service, httpMock } = setup();
+    const promise = service.loadCurrent();
+    httpMock.expectOne('/api/auth/me').flush({ ...ME, mfa: true });
+    await promise;
+    expect(service.sessionMfa()).toBe(true);
   });
 
   it('loadCurrent locks into the wizard when /api/auth/me says enrolment is required', async () => {
@@ -284,6 +293,7 @@ describe('AuthService', () => {
       expect(await promise).toBe('ok');
       expect(service.user()).toEqual(USER);
       expect(service.mfaChallengePending()).toBe(false);
+      expect(service.sessionMfa()).toBe(true);
     });
 
     it('verifyMfa sends a recovery code as such', async () => {

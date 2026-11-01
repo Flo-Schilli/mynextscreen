@@ -4,8 +4,8 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { IconComponent } from '../ui';
 
 /**
- * Shared underline tab bar for the three org-settings routes (User Management,
- * Notification Config, Storage). Active tab is driven by `routerLinkActive`, so
+ * Shared underline tab bar for the org-settings routes (User Management,
+ * Notification Config, Storage, Security). Active tab is driven by `routerLinkActive`, so
  * each consuming view just embeds `<app-settings-tabs />` — no per-view duplicate.
  *
  * On narrow screens the row scrolls horizontally; a right-edge fade hint signals
@@ -44,6 +44,14 @@ import { IconComponent } from '../ui';
         >
           <mns-icon name="Storage" [size]="16" />
           {{ t('settings.tabs.storage') }}
+        </a>
+        <a
+          routerLink="/settings/org/security"
+          routerLinkActive="!text-text !border-accent"
+          class="flex shrink-0 items-center gap-2 px-3.5 py-3 -mb-px text-sm font-semibold whitespace-nowrap border-b-2 border-transparent text-muted hover:text-text transition-colors"
+        >
+          <mns-icon name="Lock" [size]="16" />
+          {{ t('settings.tabs.security') }}
         </a>
       </nav>
     </div>

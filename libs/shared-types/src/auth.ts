@@ -91,7 +91,24 @@ export type MfaErrorCode =
   /** 401 — wrong TOTP or recovery code (login/mfa and all `/api/auth/mfa/*` actions). */
   | "MFA_INVALID_CODE"
   /** 401 — wrong `currentPassword` on an `/api/auth/mfa/*` action. */
-  | "MFA_INVALID_PASSWORD";
+  | "MFA_INVALID_PASSWORD"
+  /** 400 — `totp/confirm` without a pending setup (expired or never started). */
+  | "MFA_SETUP_EXPIRED"
+  /**
+   * 403 — the caller's own session must be MFA-confirmed: switching an org's
+   * `requireMfa` on, and the org-admin reset.
+   */
+  | "MFA_SELF_REQUIRED"
+  /** 403 — an admin tried to reset their own factor. */
+  | "MFA_RESET_SELF"
+  /** 404 — org-admin reset of a user who is not a member of that organisation. */
+  | "MFA_RESET_NOT_MEMBER"
+  /** 403 — org-admin reset of a super-admin. */
+  | "MFA_RESET_TARGET_SUPER_ADMIN"
+  /** 403 — org-admin reset of a user who also belongs to an org the caller does not administer. */
+  | "MFA_RESET_NEEDS_SUPER_ADMIN"
+  /** 409 — reset of a user without a second factor. */
+  | "MFA_NOT_ENABLED";
 
 /** Body of the 403 `MFA_ENROLMENT_REQUIRED` error (JwtAuthGuard, every route but `@AllowWithoutMfa`). */
 export interface MfaEnrolmentRequiredError {
@@ -99,4 +116,19 @@ export interface MfaEnrolmentRequiredError {
   code: "MFA_ENROLMENT_REQUIRED";
   message: string;
   requiredBy: MfaRequiredBy;
+}
+
+/**
+ * `GET|PATCH /api/organisations/:orgId/mfa-requirement` (OrgAdmin). Switching
+ * it on needs an MFA-confirmed session (`MFA_SELF_REQUIRED` otherwise).
+ */
+export interface OrgMfaRequirementView {
+  requireMfa: boolean;
+  /** ISO timestamp of when it was switched on, null while off. */
+  requireMfaSince: string | null;
+}
+
+/** Body of `PATCH /api/organisations/:orgId/mfa-requirement`. */
+export interface OrgMfaRequirementRequest {
+  requireMfa: boolean;
 }

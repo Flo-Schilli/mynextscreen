@@ -26,6 +26,7 @@ describe('TokenService', () => {
   let redis: {
     eval: jest.Mock;
     get: jest.Mock;
+    set: jest.Mock;
     smembers: jest.Mock;
     del: jest.Mock;
     multi: jest.Mock;
@@ -44,6 +45,7 @@ describe('TokenService', () => {
     redis = {
       eval: jest.fn(),
       get: jest.fn(),
+      set: jest.fn().mockResolvedValue('OK'),
       smembers: jest.fn(),
       del: jest.fn(),
       multi: jest.fn().mockReturnValue(multiChain),
@@ -67,6 +69,7 @@ describe('TokenService', () => {
       expect(payload.isSuperAdmin).toBe(true);
       expect(payload.mfa).toBe(true);
       expect(payload.jti).toBe(issued.jti);
+      expect(payload.iat).toBe(Math.floor(Date.now() / 1000));
     });
 
     it('treats a token without the mfa claim (pre-MFA release) as not confirmed', async () => {
@@ -183,6 +186,56 @@ describe('TokenService', () => {
       const count = await service.revokeAllForUser('user-1');
       expect(count).toBe(0);
       expect(redis.eval).not.toHaveBeenCalled();
+    });
+
+    it('first marks every access token issued before now as revoked, for one access TTL', async () => {
+      redis.smembers.mockResolvedValueOnce([]);
+      jest.spyOn(Date, 'now').mockReturnValue(1_700_000_000_500);
+
+      await service.revokeAllForUser('user-1');
+
+      expect(redis.set).toHaveBeenCalledWith(
+        'auth:revoked-before:user-1',
+        '1700000000',
+        'EX',
+        15 * 60,
+      );
+      expect(redis.set.mock.invocationCallOrder[0]).toBeLessThan(
+        redis.smembers.mock.invocationCallOrder[0],
+      );
+      jest.restoreAllMocks();
+    });
+  });
+
+  describe('isAccessTokenRevoked', () => {
+    it('is false without a revocation marker', async () => {
+      redis.get.mockResolvedValueOnce(null);
+      await expect(service.isAccessTokenRevoked('user-1', 100)).resolves.toBe(false);
+      expect(redis.get).toHaveBeenCalledWith('auth:revoked-before:user-1');
+    });
+
+    it('revokes tokens issued strictly before the marker only', async () => {
+      redis.get.mockResolvedValue('1000');
+      await expect(service.isAccessTokenRevoked('user-1', 999)).resolves.toBe(true);
+      // The fresh session issued in the revocation second (change-password) survives.
+      await expect(service.isAccessTokenRevoked('user-1', 1000)).resolves.toBe(false);
+      await expect(service.isAccessTokenRevoked('user-1', 1001)).resolves.toBe(false);
+    });
+
+    it('treats a token without iat (normalised to 0) as revoked once a marker exists', async () => {
+      const noIat = await jwt.signAsync(
+        { sub: 'user-1', email: 'a@example.com', jti: 'j' },
+        {
+          issuer: 'mynextscreen',
+          audience: 'mynextscreen-api',
+          algorithm: 'HS256',
+          noTimestamp: true,
+        },
+      );
+      const payload = await service.verifyAccessToken(noIat);
+      expect(payload.iat).toBe(0);
+      redis.get.mockResolvedValueOnce('1');
+      await expect(service.isAccessTokenRevoked('user-1', payload.iat)).resolves.toBe(true);
     });
   });
 });

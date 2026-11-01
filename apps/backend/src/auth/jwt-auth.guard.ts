@@ -12,6 +12,7 @@ import { IS_AGENT_AUTH_KEY } from './agent-auth.decorator';
 import { IS_SCREEN_AUTH_KEY } from './screen-auth.decorator';
 import { ACCESS_COOKIE } from './cookies';
 import { TokenService } from './token.service';
+import type { AccessTokenPayload } from './token.types';
 import { ALLOW_WITHOUT_MFA_KEY } from './mfa/allow-without-mfa.decorator';
 import { MFA_ENROLMENT_REQUIRED } from './mfa/mfa.constants';
 import { MfaService, isMfaMandatory } from './mfa/mfa.service';
@@ -73,18 +74,22 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Missing authentication token');
     }
 
-    let user: AuthenticatedUser;
+    let payload: AccessTokenPayload;
     try {
-      const payload = await this.tokens.verifyAccessToken(token);
-      user = {
-        userId: payload.sub,
-        email: payload.email,
-        isSuperAdmin: payload.isSuperAdmin,
-        mfa: payload.mfa,
-      };
+      payload = await this.tokens.verifyAccessToken(token);
     } catch {
       throw new UnauthorizedException('Invalid authentication token');
     }
+    // Outside the try: a Redis outage is a 5xx, not a "bad token".
+    if (await this.tokens.isAccessTokenRevoked(payload.sub, payload.iat)) {
+      throw new UnauthorizedException('Session revoked');
+    }
+    const user: AuthenticatedUser = {
+      userId: payload.sub,
+      email: payload.email,
+      isSuperAdmin: payload.isSuperAdmin,
+      mfa: payload.mfa,
+    };
     request.user = user;
 
     if (!user.mfa && !this.allowsWithoutMfa(context)) {

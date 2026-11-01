@@ -71,6 +71,7 @@ const ACTION_META: Record<string, ActionMeta> = {
   'user.removed': { tone: 'offline', icon: 'User' },
   'organisation.created': { tone: 'accent', icon: 'Building' },
   'organisation.updated': { tone: 'info', icon: 'Building' },
+  'org.mfa_requirement_changed': { tone: 'warning', icon: 'Lock' },
   'group.created': { tone: 'accent', icon: 'Groups' },
   'group.updated': { tone: 'info', icon: 'Groups' },
   'group.deleted': { tone: 'offline', icon: 'Groups' },
@@ -95,6 +96,7 @@ const ACTION_META: Record<string, ActionMeta> = {
   'auth.mfa_recovery_code_used': { tone: 'warning', icon: 'Lock' },
   'auth.mfa_recovery_codes_regenerated': { tone: 'info', icon: 'Refresh' },
   'auth.mfa_lockout': { tone: 'offline', icon: 'Alert' },
+  'auth.mfa_reset': { tone: 'warning', icon: 'Lock' },
   'email.sent': { tone: 'online', icon: 'Mail' },
   'email.send_failed': { tone: 'offline', icon: 'Mail' },
 };

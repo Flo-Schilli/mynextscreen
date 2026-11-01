@@ -42,6 +42,7 @@ import {
   MFA_INVALID_CODE,
   MFA_INVALID_PASSWORD,
   MFA_LOCKED_OUT,
+  MFA_SETUP_EXPIRED,
   mfaRedisKeys,
 } from './mfa.constants';
 import { MfaService } from './mfa.service';
@@ -244,9 +245,9 @@ describe('MfaService', () => {
       const { secret } = await service.startEnrolment(user.id, PASSWORD);
       redis.expireNow(mfaRedisKeys.enrolment(user.id));
 
-      await expect(service.confirmEnrolment(user.id, totp.generate(secret))).rejects.toThrow(
-        BadRequestException,
-      );
+      const attempt = service.confirmEnrolment(user.id, totp.generate(secret));
+      await expect(attempt).rejects.toThrow(BadRequestException);
+      await expect(attempt).rejects.toMatchObject({ response: { code: MFA_SETUP_EXPIRED } });
     });
 
     it('refuses to confirm with a wrong code and keeps the pending setup', async () => {
@@ -436,6 +437,81 @@ describe('MfaService', () => {
         service.regenerateRecoveryCodes(user.id, 'wrong', totp.generate(secret)),
         MFA_INVALID_PASSWORD,
       );
+    });
+  });
+
+  describe('management actions with a recovery code (lost device)', () => {
+    function expectRecoveryCodeUsedNotice(user: User, remaining: number): void {
+      expect(events.emit).toHaveBeenCalledWith(
+        AUTH_MFA_RECOVERY_CODE_USED,
+        expect.objectContaining({ email: user.email, remaining }),
+      );
+      expect(events.emit).toHaveBeenCalledWith(
+        AUDIT_AUTH_MFA_RECOVERY_CODE_USED,
+        expect.objectContaining({ userId: user.id, details: { email: user.email, remaining } }),
+      );
+    }
+
+    it('moves the factor to a new device with a recovery code instead of the old code', async () => {
+      const user = await createUser();
+      const { recoveryCodes } = await enrol(user);
+      nextStep();
+
+      const { secret: newSecret } = await service.startEnrolment(
+        user.id,
+        PASSWORD,
+        recoveryCodes[0].toUpperCase(),
+      );
+      expectRecoveryCodeUsedNotice(user, 9);
+      nextStep();
+      const result = await service.confirmEnrolment(user.id, totp.generate(newSecret));
+
+      expect(result.replaced).toBe(true);
+    });
+
+    it('accepts each recovery code only once for a management action', async () => {
+      const user = await createUser();
+      const { recoveryCodes } = await enrol(user);
+
+      await service.startEnrolment(user.id, PASSWORD, recoveryCodes[0]);
+      await expectMfa401(
+        service.startEnrolment(user.id, PASSWORD, recoveryCodes[0]),
+        MFA_INVALID_CODE,
+      );
+      expect(redis.strings.get(mfaRedisKeys.failures(user.id))).toBe('1');
+    });
+
+    it('disables optional MFA with a recovery code', async () => {
+      const user = await createUser();
+      const { recoveryCodes } = await enrol(user);
+
+      await service.disable(user.id, PASSWORD, recoveryCodes[1]);
+
+      expect(await db.select().from(userMfa).where(eq(userMfa.userId, user.id))).toHaveLength(0);
+      expectRecoveryCodeUsedNotice(user, 9);
+    });
+
+    it('regenerates recovery codes with a recovery code', async () => {
+      const user = await createUser();
+      const { recoveryCodes } = await enrol(user);
+
+      const fresh = await service.regenerateRecoveryCodes(user.id, PASSWORD, recoveryCodes[2]);
+
+      expect(fresh).toHaveLength(10);
+      expect(fresh).not.toContain(recoveryCodes[3]);
+    });
+
+    it('does not spend a recovery code when the password is wrong', async () => {
+      const user = await createUser();
+      const { recoveryCodes } = await enrol(user);
+
+      await expectMfa401(
+        service.startEnrolment(user.id, 'wrong', recoveryCodes[0]),
+        MFA_INVALID_PASSWORD,
+      );
+      await expect(
+        service.startEnrolment(user.id, PASSWORD, recoveryCodes[0]),
+      ).resolves.toBeDefined();
     });
   });
 

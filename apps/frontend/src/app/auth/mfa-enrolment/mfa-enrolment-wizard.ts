@@ -10,6 +10,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { MfaCodeInputComponent, TOTP_CODE_LENGTH } from '../mfa-code-input';
+import { isManagementCodeComplete, MfaManagementCodeComponent } from '../mfa-management-code';
 import { ToastService } from '../../shared/toast/toast.service';
 import { BtnComponent, CopyButtonComponent, SFieldComponent, SInputComponent } from '../../ui';
 import { ENROLMENT_STEPS, MfaEnrolmentStore } from './mfa-enrolment.store';
@@ -32,6 +33,7 @@ import { RecoveryCodesPanelComponent } from './recovery-codes-panel';
     CopyButtonComponent,
     FormsModule,
     MfaCodeInputComponent,
+    MfaManagementCodeComponent,
     RecoveryCodesPanelComponent,
     SFieldComponent,
     SInputComponent,
@@ -80,7 +82,7 @@ import { RecoveryCodesPanelComponent } from './recovery-codes-panel';
                 >
                   {{ t('auth.mfa.enrol.password.currentCodeLabel') }}
                 </label>
-                <app-mfa-code-input
+                <app-mfa-management-code
                   inputId="mfa-current-code"
                   [label]="t('auth.mfa.enrol.password.currentCodeLabel')"
                   [value]="currentCode()"
@@ -230,7 +232,7 @@ export class MfaEnrolmentWizardComponent {
   protected readonly canSubmitPassword = computed(
     () =>
       this.password().length > 0 &&
-      (!this.requireCurrentCode() || this.currentCode().length === TOTP_CODE_LENGTH),
+      (!this.requireCurrentCode() || isManagementCodeComplete(this.currentCode())),
   );
 
   /** False while the freshly issued recovery codes are not yet confirmed as saved. */

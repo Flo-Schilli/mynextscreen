@@ -21,6 +21,7 @@ function makeUser(overrides: Partial<AdminUser> = {}): AdminUser {
     name: 'Test User',
     emailVerified: true,
     isSuperAdmin: false,
+    mfaEnabled: false,
     createdAt: '2026-01-01T00:00:00.000Z',
     memberships: [{ organisationId: 'org-1', organisationName: 'Acme', role: 'org_admin' }],
     ...overrides,
@@ -109,6 +110,20 @@ describe('AdminUserService', () => {
       // Assert
       expect(req.request.headers.has('X-Organisation-Id')).toBe(false);
       req.flush(null);
+    });
+  });
+
+  describe('resetMfa', () => {
+    it('issues a DELETE to the user MFA URL without an org header', () => {
+      let completed = false;
+
+      service.resetMfa('user-1').subscribe({ complete: () => (completed = true) });
+      const req = httpMock.expectOne(`${BASE_URL}/user-1/mfa`);
+
+      expect(req.request.method).toBe('DELETE');
+      expect(req.request.headers.has('X-Organisation-Id')).toBe(false);
+      req.flush(null);
+      expect(completed).toBe(true);
     });
   });
 });
