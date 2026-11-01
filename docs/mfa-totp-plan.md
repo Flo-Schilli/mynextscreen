@@ -288,6 +288,13 @@ Will ein Pflicht-User sein Gerät wechseln, richtet er TOTP neu ein: `setup` + `
 bei bereits aktivem TOTP. Dafür verlangt `setup` zusätzlich zum Passwort einen gültigen
 Code des alten Geräts.
 
+**Nachtrag (Fix in PR 3):** Das `code`-Feld von `totp/setup` (Gerätewechsel), `totp/disable`
+und `recovery-codes/regenerate` akzeptiert auch einen **Recovery-Code** (Format entscheidet:
+6 Ziffern = TOTP, sonst Recovery-Code). Der Code wird verbraucht, Mail + Audit
+`mfa_recovery_code_used` wie beim Login; ein falscher Code zählt gegen den Lockout. Sonst
+könnte ein User mit verlorenem Handy zwar per Recovery-Code einloggen, den Faktor aber nicht
+selbst umziehen — ein alleiniger Super-Admin bräuchte dann das Notfall-SQL.
+
 ### Org-Einstellung `requireMfa`
 
 - **Umgesetzt (PR 3) als eigener Endpoint** `GET|PATCH /api/organisations/:orgId/mfa-requirement`

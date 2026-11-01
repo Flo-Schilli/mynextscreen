@@ -440,6 +440,81 @@ describe('MfaService', () => {
     });
   });
 
+  describe('management actions with a recovery code (lost device)', () => {
+    function expectRecoveryCodeUsedNotice(user: User, remaining: number): void {
+      expect(events.emit).toHaveBeenCalledWith(
+        AUTH_MFA_RECOVERY_CODE_USED,
+        expect.objectContaining({ email: user.email, remaining }),
+      );
+      expect(events.emit).toHaveBeenCalledWith(
+        AUDIT_AUTH_MFA_RECOVERY_CODE_USED,
+        expect.objectContaining({ userId: user.id, details: { email: user.email, remaining } }),
+      );
+    }
+
+    it('moves the factor to a new device with a recovery code instead of the old code', async () => {
+      const user = await createUser();
+      const { recoveryCodes } = await enrol(user);
+      nextStep();
+
+      const { secret: newSecret } = await service.startEnrolment(
+        user.id,
+        PASSWORD,
+        recoveryCodes[0].toUpperCase(),
+      );
+      expectRecoveryCodeUsedNotice(user, 9);
+      nextStep();
+      const result = await service.confirmEnrolment(user.id, totp.generate(newSecret));
+
+      expect(result.replaced).toBe(true);
+    });
+
+    it('accepts each recovery code only once for a management action', async () => {
+      const user = await createUser();
+      const { recoveryCodes } = await enrol(user);
+
+      await service.startEnrolment(user.id, PASSWORD, recoveryCodes[0]);
+      await expectMfa401(
+        service.startEnrolment(user.id, PASSWORD, recoveryCodes[0]),
+        MFA_INVALID_CODE,
+      );
+      expect(redis.strings.get(mfaRedisKeys.failures(user.id))).toBe('1');
+    });
+
+    it('disables optional MFA with a recovery code', async () => {
+      const user = await createUser();
+      const { recoveryCodes } = await enrol(user);
+
+      await service.disable(user.id, PASSWORD, recoveryCodes[1]);
+
+      expect(await db.select().from(userMfa).where(eq(userMfa.userId, user.id))).toHaveLength(0);
+      expectRecoveryCodeUsedNotice(user, 9);
+    });
+
+    it('regenerates recovery codes with a recovery code', async () => {
+      const user = await createUser();
+      const { recoveryCodes } = await enrol(user);
+
+      const fresh = await service.regenerateRecoveryCodes(user.id, PASSWORD, recoveryCodes[2]);
+
+      expect(fresh).toHaveLength(10);
+      expect(fresh).not.toContain(recoveryCodes[3]);
+    });
+
+    it('does not spend a recovery code when the password is wrong', async () => {
+      const user = await createUser();
+      const { recoveryCodes } = await enrol(user);
+
+      await expectMfa401(
+        service.startEnrolment(user.id, 'wrong', recoveryCodes[0]),
+        MFA_INVALID_PASSWORD,
+      );
+      await expect(
+        service.startEnrolment(user.id, PASSWORD, recoveryCodes[0]),
+      ).resolves.toBeDefined();
+    });
+  });
+
   describe('management actions and the lockout', () => {
     async function expectLockedOut(promise: Promise<unknown>): Promise<void> {
       const error: unknown = await promise.then(

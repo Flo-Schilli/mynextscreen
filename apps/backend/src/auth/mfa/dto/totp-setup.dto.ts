@@ -1,5 +1,5 @@
 import { IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
-import { TOTP_CODE_MESSAGE, TOTP_CODE_PATTERN } from './mfa-dto.patterns';
+import { MANAGEMENT_CODE_MESSAGE, MANAGEMENT_CODE_PATTERN } from './mfa-dto.patterns';
 
 export class TotpSetupDto {
   @IsString()
@@ -9,6 +9,6 @@ export class TotpSetupDto {
 
   /** Required by the service only when TOTP is already active (device change). */
   @IsOptional()
-  @Matches(TOTP_CODE_PATTERN, { message: TOTP_CODE_MESSAGE })
+  @Matches(MANAGEMENT_CODE_PATTERN, { message: MANAGEMENT_CODE_MESSAGE })
   code?: string;
 }

@@ -8,7 +8,10 @@ import {
   viewChild,
 } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
-import { MfaCodeInputComponent, TOTP_CODE_LENGTH } from '../../auth/mfa-code-input';
+import {
+  isManagementCodeComplete,
+  MfaManagementCodeComponent,
+} from '../../auth/mfa-management-code';
 import { MfaEnrolmentWizardComponent } from '../../auth/mfa-enrolment/mfa-enrolment-wizard';
 import { RecoveryCodesPanelComponent } from '../../auth/mfa-enrolment/recovery-codes-panel';
 import { LocaleDatePipe } from '../../i18n/locale-format.pipes';
@@ -40,7 +43,7 @@ import { SecuritySettingsStore } from './security-settings.store';
     CardComponent,
     CardHeadComponent,
     LocaleDatePipe,
-    MfaCodeInputComponent,
+    MfaManagementCodeComponent,
     MfaEnrolmentWizardComponent,
     ModalComponent,
     OverlayComponent,
@@ -206,7 +209,7 @@ import { SecuritySettingsStore } from './security-settings.store';
                       class="mb-2 block text-[12.5px] font-semibold text-muted"
                       >{{ t('settings.user.security.codeLabel') }}</label
                     >
-                    <app-mfa-code-input
+                    <app-mfa-management-code
                       inputId="mfa-regenerate-code"
                       [label]="t('settings.user.security.codeLabel')"
                       [value]="code()"
@@ -263,7 +266,7 @@ import { SecuritySettingsStore } from './security-settings.store';
                     class="mb-2 block text-[12.5px] font-semibold text-muted"
                     >{{ t('settings.user.security.codeLabel') }}</label
                   >
-                  <app-mfa-code-input
+                  <app-mfa-management-code
                     inputId="mfa-disable-code"
                     [label]="t('settings.user.security.codeLabel')"
                     [value]="code()"
@@ -302,13 +305,12 @@ export class SecuritySectionComponent implements OnInit {
   protected readonly store = inject(SecuritySettingsStore);
   private readonly wizard = viewChild(MfaEnrolmentWizardComponent);
 
-  protected readonly codeLength = TOTP_CODE_LENGTH;
   protected readonly password = signal('');
   protected readonly code = signal('');
 
   /** Disable and regeneration both need the current password and a full code. */
   protected readonly canSubmitWithPassword = computed(
-    () => this.password().length > 0 && this.code().length === TOTP_CODE_LENGTH,
+    () => this.password().length > 0 && isManagementCodeComplete(this.code()),
   );
 
   ngOnInit(): void {
