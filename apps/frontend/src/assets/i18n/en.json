@@ -1808,7 +1808,9 @@
       "site_agent.reset": "Site agent reset",
       "site_agent.revoked": "Site agent revoked",
       "site_agent.updated": "Site agent updated",
-      "site_agent.update_requested": "Site agent update requested"
+      "site_agent.update_requested": "Site agent update requested",
+      "auth.mfa_reset": "Two-factor authentication reset",
+      "org.mfa_requirement_changed": "Organisation MFA requirement changed"
     },
     "detailKeys": {
       "name": "Name",
@@ -1959,7 +1961,8 @@
     "tabs": {
       "users": "User Management",
       "notificationConfig": "Notification Config",
-      "storage": "Storage"
+      "storage": "Storage",
+      "security": "Security"
     },
     "user": {
       "page": {
@@ -2194,6 +2197,38 @@
           "noOrgSelected": "No organisation selected.",
           "accessDenied": "Access denied.",
           "loadStorage": "Failed to load storage usage."
+        }
+      },
+      "security": {
+        "page": {
+          "title": "Security",
+          "subtitle": "Sign-in security for every member of this organisation"
+        },
+        "loading": "Loading security settings…",
+        "mfa": {
+          "title": "Two-factor authentication (MFA)",
+          "subtitle": "Protects your members' accounts beyond the password",
+          "label": "Require MFA for all members",
+          "desc": "Members without MFA are guided through setting it up the next time they sign in. The requirement applies to their whole account, so also in other organisations.",
+          "since": "Required since",
+          "ownMfaRequired": "Set up MFA for your own account and sign in with it before requiring it for everyone.",
+          "ownMfaLink": "Go to security settings"
+        },
+        "confirm": {
+          "title": "Require MFA for all members?",
+          "body": "From now on every member of this organisation must use two-factor authentication. Members who have not set it up yet get an email and are guided through the setup the next time they open the app. Until then they have no other access.",
+          "submit": "Require MFA"
+        },
+        "toast": {
+          "enabled": "MFA is now required for all members.",
+          "disabled": "MFA is no longer required in this organisation."
+        },
+        "errors": {
+          "noOrgSelected": "No organisation selected.",
+          "noOrgAdmin": "You are not an Org Admin of this organisation.",
+          "load": "Could not load the security settings.",
+          "save": "Could not save the setting.",
+          "selfRequired": "Sign in with MFA yourself before requiring it for everyone."
         }
       }
     },
@@ -2785,6 +2820,31 @@
         "loadFailed": "Could not load the rules"
       },
       "genreGroups": "Per genre: {{groups}}"
+    }
+  },
+  "mfaAdmin": {
+    "badge": "MFA",
+    "reset": {
+      "action": "Reset MFA",
+      "confirm": {
+        "title": "Reset MFA?",
+        "prefix": "Two-factor authentication of",
+        "suffix": "will be removed, all recovery codes stop working and every session is signed out. If MFA is required for this user, they set it up again at their next sign-in.",
+        "submit": "Reset",
+        "submitting": "Resetting…"
+      },
+      "toast": {
+        "done": "MFA was reset and the user was notified by email."
+      },
+      "errors": {
+        "needsSuperAdmin": "This user belongs to other organisations as well, please contact the platform admin.",
+        "targetSuperAdmin": "Only another platform admin can reset the MFA of a platform admin.",
+        "self": "You manage your own MFA in your security settings.",
+        "notMember": "This user is not a member of this organisation.",
+        "selfRequired": "Sign in with MFA yourself to reset the MFA of others.",
+        "notEnabled": "This user has no MFA set up.",
+        "generic": "Could not reset MFA. Please try again."
+      }
     }
   }
 }

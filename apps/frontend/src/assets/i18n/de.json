@@ -1808,7 +1808,9 @@
       "site_agent.reset": "Site-Agent zurückgesetzt",
       "site_agent.revoked": "Site-Agent-Zugang entzogen",
       "site_agent.updated": "Site-Agent geändert",
-      "site_agent.update_requested": "Site-Agent-Update angefordert"
+      "site_agent.update_requested": "Site-Agent-Update angefordert",
+      "auth.mfa_reset": "Zwei-Faktor-Authentifizierung zurückgesetzt",
+      "org.mfa_requirement_changed": "MFA-Pflicht der Organisation geändert"
     },
     "detailKeys": {
       "name": "Name",
@@ -1959,7 +1961,8 @@
     "tabs": {
       "users": "Benutzerverwaltung",
       "notificationConfig": "Benachrichtigungen",
-      "storage": "Speicher"
+      "storage": "Speicher",
+      "security": "Sicherheit"
     },
     "user": {
       "page": {
@@ -2194,6 +2197,38 @@
           "noOrgSelected": "Keine Organisation ausgewählt.",
           "accessDenied": "Zugriff verweigert.",
           "loadStorage": "Speichernutzung konnte nicht geladen werden."
+        }
+      },
+      "security": {
+        "page": {
+          "title": "Sicherheit",
+          "subtitle": "Anmelde-Sicherheit für alle Mitglieder dieser Organisation"
+        },
+        "loading": "Sicherheitseinstellungen werden geladen…",
+        "mfa": {
+          "title": "Zwei-Faktor-Authentifizierung (MFA)",
+          "subtitle": "Schützt die Konten deiner Mitglieder zusätzlich zum Passwort",
+          "label": "MFA für alle Mitglieder verlangen",
+          "desc": "Mitglieder ohne MFA werden bei ihrer nächsten Anmeldung durch die Einrichtung geführt. Die Pflicht gilt für ihr gesamtes Konto, also auch in anderen Organisationen.",
+          "since": "Verlangt seit",
+          "ownMfaRequired": "Richte zuerst MFA für dein eigenes Konto ein und melde dich damit an, bevor du sie für alle verlangst.",
+          "ownMfaLink": "Zu den Sicherheitseinstellungen"
+        },
+        "confirm": {
+          "title": "MFA für alle Mitglieder verlangen?",
+          "body": "Ab sofort müssen alle Mitglieder dieser Organisation Zwei-Faktor-Authentifizierung nutzen. Wer sie noch nicht eingerichtet hat, bekommt eine E-Mail und wird beim nächsten Öffnen durch die Einrichtung geführt. Bis dahin ist kein anderer Zugriff möglich.",
+          "submit": "MFA verlangen"
+        },
+        "toast": {
+          "enabled": "MFA ist jetzt für alle Mitglieder Pflicht.",
+          "disabled": "MFA ist für diese Organisation nicht mehr Pflicht."
+        },
+        "errors": {
+          "noOrgSelected": "Keine Organisation ausgewählt.",
+          "noOrgAdmin": "Du bist kein Org-Admin dieser Organisation.",
+          "load": "Die Sicherheitseinstellungen konnten nicht geladen werden.",
+          "save": "Die Einstellung konnte nicht gespeichert werden.",
+          "selfRequired": "Melde dich zuerst selbst mit MFA an, bevor du sie für alle verlangst."
         }
       }
     },
@@ -2785,6 +2820,31 @@
         "loadFailed": "Regeln konnten nicht geladen werden"
       },
       "genreGroups": "Je Genre: {{groups}}"
+    }
+  },
+  "mfaAdmin": {
+    "badge": "MFA",
+    "reset": {
+      "action": "MFA zurücksetzen",
+      "confirm": {
+        "title": "MFA zurücksetzen?",
+        "prefix": "Die Zwei-Faktor-Authentifizierung von",
+        "suffix": "wird entfernt, alle Recovery-Codes werden ungültig und alle Sitzungen abgemeldet. Ist MFA für den User Pflicht, richtet er sie bei der nächsten Anmeldung neu ein.",
+        "submit": "Zurücksetzen",
+        "submitting": "Wird zurückgesetzt…"
+      },
+      "toast": {
+        "done": "MFA wurde zurückgesetzt, der User wurde per E-Mail informiert."
+      },
+      "errors": {
+        "needsSuperAdmin": "Dieser User gehört weiteren Organisationen an, bitte den Plattform-Admin kontaktieren.",
+        "targetSuperAdmin": "Die MFA eines Plattform-Admins kann nur ein anderer Plattform-Admin zurücksetzen.",
+        "self": "Deine eigene MFA verwaltest du in deinen Sicherheitseinstellungen.",
+        "notMember": "Dieser User ist kein Mitglied dieser Organisation.",
+        "selfRequired": "Melde dich zuerst selbst mit MFA an, um die MFA anderer zurückzusetzen.",
+        "notEnabled": "Dieser User hat keine MFA eingerichtet.",
+        "generic": "MFA konnte nicht zurückgesetzt werden. Bitte versuch es erneut."
+      }
     }
   }
 }

@@ -46,6 +46,8 @@ export const AUDIT_ACTIONS = [
   'user.removed',
   'organisation.created',
   'organisation.updated',
+  'org.mfa_requirement_changed',
+  'auth.mfa_reset',
   'group.created',
   'group.updated',
   'group.deleted',

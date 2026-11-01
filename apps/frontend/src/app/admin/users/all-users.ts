@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy, signal } from '@angular/core';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 
 import { AdminUserService } from './admin-user.service';
@@ -16,6 +16,9 @@ import {
 import type { IconName } from '../../ui';
 import { AdminTabsComponent } from '../admin-tabs.component';
 import { LocaleDatePipe } from '../../i18n/locale-format.pipes';
+import { AuthService } from '../../auth/auth.service';
+import { mfaResetErrorKey } from '../../auth/mfa-errors';
+import { MfaResetConfirmModal } from '../../shared/mfa-reset-confirm-modal';
 
 /**
  * Smart container for the (super-admin) user overview. Owns data loading and the
@@ -29,6 +32,7 @@ import { LocaleDatePipe } from '../../i18n/locale-format.pipes';
     AdminTabsComponent,
     LocaleDatePipe,
     UserDeleteModal,
+    MfaResetConfirmModal,
     CardComponent,
     BadgeComponent,
     BtnComponent,
@@ -96,7 +100,7 @@ import { LocaleDatePipe } from '../../i18n/locale-format.pipes';
               <!-- header row -->
               <div
                 class="grid gap-4 px-[22px] py-[13px] bg-surface-2 border-b border-border"
-                style="grid-template-columns:2.4fr 1.3fr 132px 138px 118px 92px"
+                style="grid-template-columns:2.4fr 1.3fr 132px 170px 118px 210px"
               >
                 @for (h of headers; track $index) {
                   <div
@@ -111,7 +115,7 @@ import { LocaleDatePipe } from '../../i18n/locale-format.pipes';
               @for (user of users; track user.id) {
                 <div
                   class="grid gap-4 items-center px-[22px] py-[14px] border-t border-border hover:bg-hover transition-colors"
-                  style="grid-template-columns:2.4fr 1.3fr 132px 138px 118px 92px"
+                  style="grid-template-columns:2.4fr 1.3fr 132px 170px 118px 210px"
                 >
                   <!-- user -->
                   <div class="flex items-center gap-3 min-w-0">
@@ -183,13 +187,29 @@ import { LocaleDatePipe } from '../../i18n/locale-format.pipes';
                         t('admin.users.pending')
                       }}</mns-badge>
                     }
+                    @if (user.mfaEnabled) {
+                      <mns-badge class="mfa-badge ml-1.5" tone="accent" icon="Lock">{{
+                        t('mfaAdmin.badge')
+                      }}</mns-badge>
+                    }
                   </div>
                   <!-- created -->
                   <div class="text-[13px] text-muted">
                     {{ user.createdAt | localeDate: 'mediumDate' }}
                   </div>
                   <!-- actions -->
-                  <div class="flex justify-end">
+                  <div class="flex justify-end gap-2">
+                    @if (canResetMfa(user)) {
+                      <mns-btn
+                        class="reset-mfa"
+                        variant="outline"
+                        size="sm"
+                        icon="Lock"
+                        [disabled]="resettingMfa()"
+                        (click)="confirmResetMfa(user)"
+                        >{{ t('mfaAdmin.reset.action') }}</mns-btn
+                      >
+                    }
                     <mns-btn
                       variant="danger"
                       size="sm"
@@ -279,6 +299,11 @@ import { LocaleDatePipe } from '../../i18n/locale-format.pipes';
                   } @else {
                     <mns-badge tone="warning" icon="Mail">{{ t('admin.users.pending') }}</mns-badge>
                   }
+                  @if (user.mfaEnabled) {
+                    <mns-badge class="mfa-badge" tone="accent" icon="Lock">{{
+                      t('mfaAdmin.badge')
+                    }}</mns-badge>
+                  }
                 </div>
                 <!-- created -->
                 <div class="flex items-center justify-between gap-3">
@@ -290,7 +315,18 @@ import { LocaleDatePipe } from '../../i18n/locale-format.pipes';
                   }}</span>
                 </div>
                 <!-- actions -->
-                <div class="flex justify-end">
+                <div class="flex justify-end gap-2">
+                  @if (canResetMfa(user)) {
+                    <mns-btn
+                      class="reset-mfa"
+                      variant="outline"
+                      size="sm"
+                      icon="Lock"
+                      [disabled]="resettingMfa()"
+                      (click)="confirmResetMfa(user)"
+                      >{{ t('mfaAdmin.reset.action') }}</mns-btn
+                    >
+                  }
                   <mns-btn
                     variant="danger"
                     size="sm"
@@ -314,6 +350,15 @@ import { LocaleDatePipe } from '../../i18n/locale-format.pipes';
         />
       }
 
+      @if (mfaResetUser(); as target) {
+        <app-mfa-reset-confirm-modal
+          [email]="target.email"
+          [busy]="resettingMfa()"
+          (confirm)="executeResetMfa()"
+          (dismiss)="cancelResetMfa()"
+        />
+      }
+
       @if (showDeleteModal && deletingUser) {
         <app-user-delete-modal
           [user]="deletingUser"
@@ -332,6 +377,7 @@ export class AllUsers implements OnInit {
   private userService = inject(AdminUserService);
   private toast = inject(ToastService);
   private transloco = inject(TranslocoService);
+  private auth = inject(AuthService);
 
   users: AdminUser[] = [];
   loading = true;
@@ -459,6 +505,44 @@ export class AllUsers implements OnInit {
         this.deleteError =
           err.error?.message || this.transloco.translate('admin.users.errors.delete');
         this.deletingUserId = null;
+      },
+    });
+  }
+
+  // Signals (not plain fields like the older state here): an HTTP callback that
+  // sets them schedules change detection, so the cleared badge renders.
+  readonly mfaResetUser = signal<AdminUser | null>(null);
+  readonly resettingMfa = signal(false);
+
+  /** Only users with a factor, never oneself (that goes through the security settings). */
+  canResetMfa(user: AdminUser): boolean {
+    return user.mfaEnabled && user.id !== this.auth.user()?.userId;
+  }
+
+  confirmResetMfa(user: AdminUser): void {
+    this.mfaResetUser.set(user);
+  }
+
+  cancelResetMfa(): void {
+    if (this.resettingMfa()) return;
+    this.mfaResetUser.set(null);
+  }
+
+  executeResetMfa(): void {
+    const target = this.mfaResetUser();
+    if (!target || this.resettingMfa()) return;
+    this.resettingMfa.set(true);
+    this.userService.resetMfa(target.id).subscribe({
+      next: () => {
+        this.users = this.users.map((u) => (u.id === target.id ? { ...u, mfaEnabled: false } : u));
+        this.resettingMfa.set(false);
+        this.mfaResetUser.set(null);
+        this.toast.success(this.transloco.translate('mfaAdmin.reset.toast.done'));
+      },
+      error: (err: unknown) => {
+        this.resettingMfa.set(false);
+        this.mfaResetUser.set(null);
+        this.toast.error(this.transloco.translate(mfaResetErrorKey(err)));
       },
     });
   }

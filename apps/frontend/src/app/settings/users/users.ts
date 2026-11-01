@@ -28,6 +28,9 @@ import {
   SInputComponent,
 } from '../../ui';
 import { LocaleDatePipe } from '../../i18n/locale-format.pipes';
+import { AuthService } from '../../auth/auth.service';
+import { mfaResetErrorKey } from '../../auth/mfa-errors';
+import { MfaResetConfirmModal } from '../../shared/mfa-reset-confirm-modal';
 
 /** Pragmatic email check for client-side gating; the server is the source of truth. */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -38,6 +41,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     LocaleDatePipe,
+    MfaResetConfirmModal,
     SettingsTabsComponent,
     AvatarComponent,
     BadgeComponent,
@@ -127,7 +131,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         <mns-card [pad]="false" [animate]="true" class="block overflow-hidden">
           <!-- header row -->
           <div
-            class="hidden min-[880px]:grid min-[880px]:[grid-template-columns:2fr_1.7fr_160px_140px_116px_96px] gap-3 px-[22px] py-[13px] bg-surface-2 border-b border-border"
+            class="hidden min-[880px]:grid min-[880px]:[grid-template-columns:2fr_1.7fr_160px_170px_116px_220px] gap-3 px-[22px] py-[13px] bg-surface-2 border-b border-border"
           >
             <div class="text-[10.5px] font-bold uppercase tracking-[.07em] text-faint">
               {{ t('settings.users.table.name') }}
@@ -151,7 +155,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
           @for (member of members(); track member.id; let i = $index) {
             <div
-              class="grid grid-cols-1 min-[880px]:grid min-[880px]:[grid-template-columns:2fr_1.7fr_160px_140px_116px_96px] gap-3 px-[22px] py-3.5 min-[880px]:items-center hover:bg-surface-2 transition-colors duration-[120ms]"
+              class="grid grid-cols-1 min-[880px]:grid min-[880px]:[grid-template-columns:2fr_1.7fr_160px_170px_116px_220px] gap-3 px-[22px] py-3.5 min-[880px]:items-center hover:bg-surface-2 transition-colors duration-[120ms]"
               [class.border-t]="i > 0"
               [class.border-border]="i > 0"
             >
@@ -192,6 +196,11 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                 } @else {
                   <mns-badge tone="online">{{ t('settings.users.table.statusActive') }}</mns-badge>
                 }
+                @if (member.mfaEnabled) {
+                  <mns-badge class="mfa-badge ml-1.5" tone="accent" icon="Lock">{{
+                    t('mfaAdmin.badge')
+                  }}</mns-badge>
+                }
               </div>
               <!-- joined -->
               <div class="font-mono text-[12.5px] text-muted min-[880px]:self-center">
@@ -201,7 +210,19 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                 {{ member.createdAt | localeDate: 'mediumDate' }}
               </div>
               <!-- actions -->
-              <div class="flex min-[880px]:justify-end min-[880px]:self-center">
+              <div class="flex gap-2 min-[880px]:justify-end min-[880px]:self-center">
+                @if (canResetMfa(member)) {
+                  <mns-btn
+                    class="reset-mfa"
+                    variant="outline"
+                    size="sm"
+                    icon="Lock"
+                    [disabled]="resettingMfa()"
+                    (mnsClick)="confirmResetMfa(member)"
+                  >
+                    {{ t('mfaAdmin.reset.action') }}
+                  </mns-btn>
+                }
                 <mns-btn
                   variant="danger"
                   size="sm"
@@ -294,6 +315,15 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         </mns-overlay>
       }
 
+      @if (mfaResetMember(); as target) {
+        <app-mfa-reset-confirm-modal
+          [email]="target.user.email"
+          [busy]="resettingMfa()"
+          (confirm)="executeResetMfa()"
+          (dismiss)="cancelResetMfa()"
+        />
+      }
+
       <!-- Remove confirm modal -->
       @if (showRemoveConfirm()) {
         <mns-overlay (closed)="cancelRemove()">
@@ -351,6 +381,7 @@ export class Users implements OnInit {
   private router = inject(Router);
   private toast = inject(ToastService);
   private transloco = inject(TranslocoService);
+  private auth = inject(AuthService);
 
   readonly roleOptions = computed<SelectOption[]>(() => [
     { value: 'org_admin', label: this.transloco.translate('settings.users.roles.orgAdmin') },
@@ -391,8 +422,51 @@ export class Users implements OnInit {
   readonly removingMember = signal<Membership | null>(null);
   readonly removingUserId = signal<string | null>(null);
 
+  // MFA reset confirmation state
+  readonly mfaResetMember = signal<Membership | null>(null);
+  readonly resettingMfa = signal(false);
+
   ngOnInit(): void {
     this.loadCurrentOrg();
+  }
+
+  /** Only members with a factor, never oneself (that goes through the security settings). */
+  canResetMfa(member: Membership): boolean {
+    return member.mfaEnabled && member.userId !== this.auth.user()?.userId;
+  }
+
+  confirmResetMfa(member: Membership): void {
+    this.mfaResetMember.set(member);
+  }
+
+  cancelResetMfa(): void {
+    if (this.resettingMfa()) return;
+    this.mfaResetMember.set(null);
+  }
+
+  /**
+   * The reset is global (MFA is bound to the user), so the backend refuses it
+   * for members of other orgs etc.; each refusal gets its own explanation.
+   */
+  executeResetMfa(): void {
+    const member = this.mfaResetMember();
+    if (!member || this.resettingMfa()) return;
+    this.resettingMfa.set(true);
+    this.memberService.resetMfa(this.orgId, member.userId).subscribe({
+      next: () => {
+        this.members.update((list) =>
+          list.map((m) => (m.userId === member.userId ? { ...m, mfaEnabled: false } : m)),
+        );
+        this.resettingMfa.set(false);
+        this.mfaResetMember.set(null);
+        this.toast.success(this.transloco.translate('mfaAdmin.reset.toast.done'));
+      },
+      error: (err: unknown) => {
+        this.resettingMfa.set(false);
+        this.mfaResetMember.set(null);
+        this.toast.error(this.transloco.translate(mfaResetErrorKey(err)));
+      },
+    });
   }
 
   /** The organisation selected in the shell; the shell re-creates this page on a switch. */

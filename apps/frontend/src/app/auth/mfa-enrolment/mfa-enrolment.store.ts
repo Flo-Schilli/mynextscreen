@@ -105,9 +105,10 @@ export class MfaEnrolmentStore {
       this.step.set('codes');
       return true;
     } catch (err: unknown) {
-      if (mfaErrorCode(err) === 'MFA_INVALID_CODE') {
+      const code = mfaErrorCode(err);
+      if (code === 'MFA_INVALID_CODE') {
         this.fieldError.set(this.translate('auth.mfa.enrol.errors.invalidCode'));
-      } else if (httpStatus(err) === 400) {
+      } else if (code === 'MFA_SETUP_EXPIRED') {
         // Pending secret expired (10 min) — start over from the password.
         this.toast.error(this.translate('auth.mfa.enrol.errors.setupExpired'));
         this.restart();

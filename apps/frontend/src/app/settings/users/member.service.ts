@@ -40,6 +40,13 @@ export class MemberService {
     });
   }
 
+  /** Org-admin reset of a member's second factor (global: MFA is bound to the user). */
+  resetMfa(orgId: string, userId: string): Observable<void> {
+    return this.http.delete<void>(`/api/organisations/${orgId}/members/${userId}/mfa`, {
+      headers: this.orgHeader(orgId),
+    });
+  }
+
   private orgHeader(orgId: string): HttpHeaders {
     return new HttpHeaders({ 'X-Organisation-Id': orgId });
   }

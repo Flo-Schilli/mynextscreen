@@ -215,11 +215,20 @@ describe('MfaEnrolmentWizardComponent', () => {
 
   it('restarts with a toast when the pending setup expired', async () => {
     const ctx = setup();
-    ctx.mfa.confirmSetup.mockRejectedValueOnce(new HttpErrorResponse({ status: 400 }));
+    ctx.mfa.confirmSetup.mockRejectedValueOnce(
+      new HttpErrorResponse({ status: 400, error: { code: 'MFA_SETUP_EXPIRED' } }),
+    );
     await toCodesStep(ctx);
     expect(ctx.store.step()).toBe('password');
     expect(ctx.store.setup()).toBeNull();
     expect(ctx.toast.toasts().at(-1)?.message).toContain('expired');
+  });
+
+  it('does not restart on a 400 without the MFA_SETUP_EXPIRED code', async () => {
+    const ctx = setup();
+    ctx.mfa.confirmSetup.mockRejectedValueOnce(new HttpErrorResponse({ status: 400 }));
+    await toCodesStep(ctx);
+    expect(ctx.store.step()).toBe('verify');
   });
 
   it('wipes every secret when the wizard is destroyed', async () => {

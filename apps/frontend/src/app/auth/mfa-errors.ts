@@ -12,6 +12,13 @@ const MFA_ERROR_CODE_SET: Readonly<Record<MfaErrorCode, true>> = {
   MFA_CHALLENGE_EXPIRED: true,
   MFA_INVALID_CODE: true,
   MFA_INVALID_PASSWORD: true,
+  MFA_SETUP_EXPIRED: true,
+  MFA_SELF_REQUIRED: true,
+  MFA_RESET_SELF: true,
+  MFA_RESET_NOT_MEMBER: true,
+  MFA_RESET_TARGET_SUPER_ADMIN: true,
+  MFA_RESET_NEEDS_SUPER_ADMIN: true,
+  MFA_NOT_ENABLED: true,
 };
 
 export const MFA_ERROR_CODES = Object.keys(MFA_ERROR_CODE_SET) as readonly MfaErrorCode[];
@@ -37,7 +44,7 @@ export function httpStatus(err: unknown): number | null {
   return null;
 }
 
-/** The `code` of an MFA error body (401/403/409/429), or null for anything else. */
+/** The `code` of an MFA error body (400/401/403/404/409/429), or null for anything else. */
 export function mfaErrorCode(err: unknown): MfaErrorCode | null {
   const code = body(err)?.code;
   return MFA_ERROR_CODES.find((known) => known === code) ?? null;
@@ -61,4 +68,27 @@ export function parseMfaRequiredBy(raw: unknown): MfaRequiredBy | null {
 /** `requiredBy` of a 403 `MFA_ENROLMENT_REQUIRED` body, or null when missing/malformed. */
 export function mfaErrorRequiredBy(err: unknown): MfaRequiredBy | null {
   return parseMfaRequiredBy(body(err)?.requiredBy);
+}
+
+/**
+ * i18n key for a failed MFA reset (org-admin or super-admin). Each refusal
+ * reason of the backend gets its own explanation; anything else is generic.
+ */
+export function mfaResetErrorKey(err: unknown): string {
+  switch (mfaErrorCode(err)) {
+    case 'MFA_RESET_NEEDS_SUPER_ADMIN':
+      return 'mfaAdmin.reset.errors.needsSuperAdmin';
+    case 'MFA_RESET_TARGET_SUPER_ADMIN':
+      return 'mfaAdmin.reset.errors.targetSuperAdmin';
+    case 'MFA_RESET_SELF':
+      return 'mfaAdmin.reset.errors.self';
+    case 'MFA_RESET_NOT_MEMBER':
+      return 'mfaAdmin.reset.errors.notMember';
+    case 'MFA_SELF_REQUIRED':
+      return 'mfaAdmin.reset.errors.selfRequired';
+    case 'MFA_NOT_ENABLED':
+      return 'mfaAdmin.reset.errors.notEnabled';
+    default:
+      return 'mfaAdmin.reset.errors.generic';
+  }
 }

@@ -14,6 +14,9 @@ import {
   orgWithRole,
 } from '../../shell/organisation-state.testing';
 import { getTranslocoTestingModule } from '../../i18n/transloco-testing';
+import { AuthService } from '../../auth/auth.service';
+import { ToastService } from '../../shared/toast/toast.service';
+import { signal } from '@angular/core';
 
 try {
   getTestBed().initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -22,6 +25,7 @@ try {
 }
 
 const ORG_ID = 'org-1';
+const SELF_ID = 'self-1';
 
 function membership(overrides: Partial<Membership> = {}): Membership {
   return {
@@ -31,6 +35,7 @@ function membership(overrides: Partial<Membership> = {}): Membership {
     role: 'viewer',
     createdAt: '2024-01-02T00:00:00.000Z',
     status: 'active',
+    mfaEnabled: false,
     user: {
       id: 'u-1',
       email: 'user@example.com',
@@ -47,6 +52,7 @@ interface MemberServiceStub {
   addMember: ReturnType<typeof vi.fn>;
   updateRole: ReturnType<typeof vi.fn>;
   removeMember: ReturnType<typeof vi.fn>;
+  resetMfa: ReturnType<typeof vi.fn>;
 }
 
 describe('Users', () => {
@@ -61,6 +67,7 @@ describe('Users', () => {
       addMember: vi.fn().mockReturnValue(of(membership())),
       updateRole: vi.fn().mockReturnValue(of(membership({ role: 'editor' }))),
       removeMember: vi.fn().mockReturnValue(of(undefined)),
+      resetMfa: vi.fn().mockReturnValue(of(undefined)),
     };
     orgState = organisationStateStub(orgWithRole(ORG_ID));
 
@@ -71,6 +78,7 @@ describe('Users', () => {
         provideRouter([]),
         { provide: MemberService, useValue: memberService },
         { provide: OrganisationStateService, useValue: orgState },
+        { provide: AuthService, useValue: { user: signal({ userId: SELF_ID }) } },
       ],
     });
 
@@ -469,6 +477,87 @@ describe('Users', () => {
       component.goBack();
 
       expect(navSpy).toHaveBeenCalledWith(['/']);
+    });
+  });
+
+  describe('MFA badge + reset', () => {
+    const withMfa = membership({ id: 'm-2', userId: 'u-2', mfaEnabled: true });
+
+    function render(members: Membership[]): void {
+      setup();
+      memberService.listMembers.mockReturnValue(of(members));
+      fixture.detectChanges();
+    }
+
+    it('shows the MFA badge and the reset action only for members with MFA', () => {
+      render([membership(), withMfa]);
+
+      expect(fixture.debugElement.queryAll(By.css('.mfa-badge'))).toHaveLength(1);
+      expect(fixture.debugElement.queryAll(By.css('.reset-mfa'))).toHaveLength(1);
+    });
+
+    it('never offers the reset for oneself', () => {
+      render([membership({ userId: SELF_ID, mfaEnabled: true })]);
+
+      expect(fixture.debugElement.queryAll(By.css('.mfa-badge'))).toHaveLength(1);
+      expect(fixture.debugElement.queryAll(By.css('.reset-mfa'))).toHaveLength(0);
+    });
+
+    it('resets after confirmation, clears the badge and toasts success', () => {
+      render([withMfa]);
+      const toast = TestBed.inject(ToastService);
+
+      component.confirmResetMfa(withMfa);
+      fixture.detectChanges();
+      expect(fixture.debugElement.query(By.css('app-mfa-reset-confirm-modal'))).toBeTruthy();
+      component.executeResetMfa();
+
+      expect(memberService.resetMfa).toHaveBeenCalledWith(ORG_ID, 'u-2');
+      expect(component.members()[0].mfaEnabled).toBe(false);
+      expect(component.mfaResetMember()).toBeNull();
+      expect(toast.toasts().at(-1)?.type).toBe('success');
+    });
+
+    it('explains MFA_RESET_NEEDS_SUPER_ADMIN with its own toast', () => {
+      render([withMfa]);
+      const toast = TestBed.inject(ToastService);
+      memberService.resetMfa.mockReturnValue(
+        throwError(() => ({ status: 403, error: { code: 'MFA_RESET_NEEDS_SUPER_ADMIN' } })),
+      );
+
+      component.confirmResetMfa(withMfa);
+      component.executeResetMfa();
+
+      expect(toast.toasts().at(-1)).toMatchObject({
+        type: 'error',
+        message:
+          'This user belongs to other organisations as well, please contact the platform admin.',
+      });
+      expect(component.members()[0].mfaEnabled).toBe(true);
+    });
+
+    it('maps MFA_SELF_REQUIRED to its own toast', () => {
+      render([withMfa]);
+      const toast = TestBed.inject(ToastService);
+      memberService.resetMfa.mockReturnValue(
+        throwError(() => ({ status: 403, error: { code: 'MFA_SELF_REQUIRED' } })),
+      );
+
+      component.confirmResetMfa(withMfa);
+      component.executeResetMfa();
+
+      expect(toast.toasts().at(-1)?.message).toBe(
+        'Sign in with MFA yourself to reset the MFA of others.',
+      );
+    });
+
+    it('cancelling the confirmation does not call the backend', () => {
+      render([withMfa]);
+      component.confirmResetMfa(withMfa);
+      component.cancelResetMfa();
+
+      expect(component.mfaResetMember()).toBeNull();
+      expect(memberService.resetMfa).not.toHaveBeenCalled();
     });
   });
 });

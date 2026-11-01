@@ -20,6 +20,8 @@ export interface Membership {
   role: OrganisationRole;
   createdAt: string;
   status: MemberStatus;
+  /** The member has a TOTP factor set up. */
+  mfaEnabled: boolean;
   user: MemberUser;
 }
 

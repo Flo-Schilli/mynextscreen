@@ -71,6 +71,12 @@ export class AuthService {
    * step. The challenge itself lives in an httpOnly cookie, never here.
    */
   readonly mfaChallengePending = signal(false);
+  /**
+   * The current session is MFA-confirmed (`mfa` of `/api/auth/me`, true after
+   * `login/mfa`). Admin actions that need it — switching an org's MFA
+   * requirement on, the org-admin reset — are disabled while false.
+   */
+  readonly sessionMfa = signal(false);
 
   /**
    * Bumped whenever an enrolment completes. The interceptor captures it when a
@@ -110,6 +116,7 @@ export class AuthService {
         }),
       );
       this.mfaChallengePending.set(false);
+      this.sessionMfa.set(true);
       return this.applySession(res);
     } finally {
       this.loading.set(false);
@@ -140,6 +147,7 @@ export class AuthService {
   async completeEnrolment(): Promise<void> {
     this.enrolmentGenerationValue++;
     this.mfaEnrolment.set(null);
+    this.sessionMfa.set(true);
     await this.loadCurrent({ keepOnError: true });
   }
 
@@ -155,6 +163,7 @@ export class AuthService {
       await firstValueFrom(this.http.post<void>('/api/auth/logout', {}, { withCredentials: true }));
     } finally {
       this.user.set(null);
+      this.sessionMfa.set(false);
       this.mfaEnrolment.set(null);
       this.mfaChallengePending.set(false);
     }
@@ -178,6 +187,7 @@ export class AuthService {
         this.http.get<AuthMeResponse>('/api/auth/me', { withCredentials: true }),
       );
       this.user.set({ userId: me.userId, email: me.email, isSuperAdmin: me.isSuperAdmin });
+      this.sessionMfa.set(me.mfa);
       this.applyEnrolmentFlag(me.mfaEnrolmentRequired);
     } catch (err: unknown) {
       const unauthenticated = err instanceof HttpErrorResponse && err.status === 401;
@@ -287,6 +297,8 @@ export class AuthService {
       return 'mfa-required';
     }
     this.mfaChallengePending.set(false);
+    // A first factor alone never yields an MFA-confirmed session.
+    this.sessionMfa.set(false);
     return this.applySession(res);
   }
 }

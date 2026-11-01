@@ -3,6 +3,7 @@ import {
   MFA_ERROR_CODES,
   httpStatus,
   mfaErrorCode,
+  mfaResetErrorKey,
   mfaErrorRequiredBy,
   parseMfaRequiredBy,
 } from './mfa-errors';
@@ -36,7 +37,29 @@ describe('mfa-errors', () => {
       'MFA_INVALID_CODE',
       'MFA_INVALID_PASSWORD',
       'MFA_LOCKED_OUT',
+      'MFA_NOT_ENABLED',
+      'MFA_RESET_NEEDS_SUPER_ADMIN',
+      'MFA_RESET_NOT_MEMBER',
+      'MFA_RESET_SELF',
+      'MFA_RESET_TARGET_SUPER_ADMIN',
+      'MFA_SELF_REQUIRED',
+      'MFA_SETUP_EXPIRED',
     ]);
+  });
+
+  it.each([
+    ['MFA_RESET_NEEDS_SUPER_ADMIN', 403, 'mfaAdmin.reset.errors.needsSuperAdmin'],
+    ['MFA_RESET_TARGET_SUPER_ADMIN', 403, 'mfaAdmin.reset.errors.targetSuperAdmin'],
+    ['MFA_RESET_SELF', 403, 'mfaAdmin.reset.errors.self'],
+    ['MFA_RESET_NOT_MEMBER', 404, 'mfaAdmin.reset.errors.notMember'],
+    ['MFA_SELF_REQUIRED', 403, 'mfaAdmin.reset.errors.selfRequired'],
+    ['MFA_NOT_ENABLED', 409, 'mfaAdmin.reset.errors.notEnabled'],
+  ])('maps the reset refusal %s to its own message', (code, status, key) => {
+    expect(mfaResetErrorKey(err(status, { code }))).toBe(key);
+  });
+
+  it('maps any other reset failure to the generic message', () => {
+    expect(mfaResetErrorKey(err(500, null))).toBe('mfaAdmin.reset.errors.generic');
   });
 
   it('reads requiredBy of MFA_ENROLMENT_REQUIRED', () => {
