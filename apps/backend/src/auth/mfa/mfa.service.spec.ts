@@ -42,6 +42,7 @@ import {
   MFA_INVALID_CODE,
   MFA_INVALID_PASSWORD,
   MFA_LOCKED_OUT,
+  MFA_SETUP_EXPIRED,
   mfaRedisKeys,
 } from './mfa.constants';
 import { MfaService } from './mfa.service';
@@ -244,9 +245,9 @@ describe('MfaService', () => {
       const { secret } = await service.startEnrolment(user.id, PASSWORD);
       redis.expireNow(mfaRedisKeys.enrolment(user.id));
 
-      await expect(service.confirmEnrolment(user.id, totp.generate(secret))).rejects.toThrow(
-        BadRequestException,
-      );
+      const attempt = service.confirmEnrolment(user.id, totp.generate(secret));
+      await expect(attempt).rejects.toThrow(BadRequestException);
+      await expect(attempt).rejects.toMatchObject({ response: { code: MFA_SETUP_EXPIRED } });
     });
 
     it('refuses to confirm with a wrong code and keeps the pending setup', async () => {

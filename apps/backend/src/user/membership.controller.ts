@@ -17,7 +17,7 @@ import { AuthenticatedRequest } from '../auth';
 import { OrganisationRole } from './organisation-role.enum';
 import { MembershipService } from './membership.service';
 import { AddMemberDto, UpdateMemberRoleDto } from './dto';
-import { toMemberResponse, type MemberResponse } from './member-response';
+import type { MemberResponse } from './member-response';
 
 @Controller('organisations/:orgId/members')
 @OrgFromParam('orgId')
@@ -27,8 +27,7 @@ export class MembershipController {
 
   @Get()
   async listMembers(@Param('orgId', ParseUUIDPipe) orgId: string): Promise<MemberResponse[]> {
-    const members = await this.membershipService.listMembers(orgId);
-    return members.map(toMemberResponse);
+    return this.membershipService.listMemberResponses(orgId);
   }
 
   @Post()
@@ -37,7 +36,7 @@ export class MembershipController {
     @Body() dto: AddMemberDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<MemberResponse> {
-    return toMemberResponse(
+    return this.membershipService.toMemberView(
       await this.membershipService.addMember(orgId, dto.email, dto.role, req.user.userId),
     );
   }
@@ -49,7 +48,7 @@ export class MembershipController {
     @Body() dto: UpdateMemberRoleDto,
     @Req() req: AuthenticatedRequest,
   ): Promise<MemberResponse> {
-    return toMemberResponse(
+    return this.membershipService.toMemberView(
       await this.membershipService.updateRole(orgId, userId, dto.role, req.user.userId),
     );
   }

@@ -13,6 +13,26 @@ export const MFA_CHALLENGE_EXPIRED = 'MFA_CHALLENGE_EXPIRED';
 export const MFA_INVALID_CODE = 'MFA_INVALID_CODE';
 /** 401: wrong `currentPassword` on an MFA management action. */
 export const MFA_INVALID_PASSWORD = 'MFA_INVALID_PASSWORD';
+/** 400: `totp/confirm` without a pending setup (expired after 10 min or never started). */
+export const MFA_SETUP_EXPIRED = 'MFA_SETUP_EXPIRED';
+/**
+ * 403: the action needs the caller's own session to be MFA-confirmed —
+ * switching an org's `requireMfa` on (no self-lockout) and the org-admin reset.
+ */
+export const MFA_SELF_REQUIRED = 'MFA_SELF_REQUIRED';
+/** 403: an admin tried to reset their own factor (use the security settings instead). */
+export const MFA_RESET_SELF = 'MFA_RESET_SELF';
+/** 404: org-admin reset of a user who is not a member of that organisation. */
+export const MFA_RESET_NOT_MEMBER = 'MFA_RESET_NOT_MEMBER';
+/** 403: org-admin reset of a super-admin — only another super-admin may do that. */
+export const MFA_RESET_TARGET_SUPER_ADMIN = 'MFA_RESET_TARGET_SUPER_ADMIN';
+/**
+ * 403: org-admin reset of a user who also belongs to an org where the caller
+ * is not OrgAdmin. The reset is global, so a platform admin has to do it.
+ */
+export const MFA_RESET_NEEDS_SUPER_ADMIN = 'MFA_RESET_NEEDS_SUPER_ADMIN';
+/** 409: reset of a user who has no second factor set up. */
+export const MFA_NOT_ENABLED = 'MFA_NOT_ENABLED';
 
 /** Short-lived httpOnly cookie carrying the login challenge between both steps. */
 export const MFA_CHALLENGE_COOKIE = 'mfa_challenge';

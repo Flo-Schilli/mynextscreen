@@ -68,6 +68,7 @@ import {
   AuditUserEvent,
   AUDIT_ORGANISATION_CREATED,
   AUDIT_ORGANISATION_UPDATED,
+  AUDIT_ORGANISATION_MFA_REQUIREMENT_CHANGED,
   AuditOrganisationEvent,
   AUDIT_GROUP_CREATED,
   AUDIT_GROUP_UPDATED,
@@ -94,6 +95,8 @@ import {
   AUDIT_AUTH_MFA_RECOVERY_CODE_USED,
   AUDIT_AUTH_MFA_RECOVERY_CODES_REGENERATED,
   AUDIT_AUTH_MFA_LOCKOUT,
+  AUDIT_AUTH_MFA_RESET,
+  AuditMfaResetEvent,
   AUDIT_SUPER_ADMIN_SETUP,
   AuditAuthEvent,
   AUDIT_EMAIL_SENT,
@@ -491,6 +494,18 @@ export class AuditListener {
     );
   }
 
+  @OnEvent(AUDIT_ORGANISATION_MFA_REQUIREMENT_CHANGED, { async: true })
+  handleOrganisationMfaRequirementChanged(event: AuditOrganisationEvent): void {
+    this.record(
+      AuditAction.OrganisationMfaRequirementChanged,
+      'organisation',
+      event.organisationId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
   // ── Screen Group ─────────────────────────────────────────────────────────
 
   @OnEvent(AUDIT_GROUP_CREATED, { async: true })
@@ -748,6 +763,18 @@ export class AuditListener {
   @OnEvent(AUDIT_AUTH_MFA_LOCKOUT, { async: true })
   handleMfaLockout(event: AuditAuthEvent): void {
     this.recordAccount(AuditAction.MfaLockout, event);
+  }
+
+  @OnEvent(AUDIT_AUTH_MFA_RESET, { async: true })
+  handleMfaReset(event: AuditMfaResetEvent): void {
+    this.record(
+      AuditAction.MfaReset,
+      'user',
+      event.targetUserId,
+      event.organisationId,
+      event.actorId,
+      event.details,
+    );
   }
 
   // ── Platform email dispatch ──────────────────────────────────────────────

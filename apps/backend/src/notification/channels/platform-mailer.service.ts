@@ -12,6 +12,11 @@ import {
   AUTH_MFA_DISABLED,
   AUTH_MFA_ENABLED,
   AUTH_MFA_RECOVERY_CODE_USED,
+  AUTH_MFA_RESET,
+  AUTH_ORG_MFA_REQUIRED,
+  AuthMfaResetEvent,
+  AuthOrgMfaRequiredEvent,
+  type MfaResetBy,
   AuthMfaDisabledEvent,
   AuthMfaEnabledEvent,
   AuthMfaRecoveryCodeUsedEvent,
@@ -87,6 +92,16 @@ export class PlatformMailerService {
   @OnEvent(AUTH_MFA_RECOVERY_CODE_USED)
   async handleMfaRecoveryCodeUsed(event: AuthMfaRecoveryCodeUsedEvent): Promise<void> {
     await this.sendRecoveryCodeUsedNotice(event.email, event.remaining);
+  }
+
+  @OnEvent(AUTH_MFA_RESET)
+  async handleMfaReset(event: AuthMfaResetEvent): Promise<void> {
+    await this.sendMfaResetNotice(event.email, event.by);
+  }
+
+  @OnEvent(AUTH_ORG_MFA_REQUIRED)
+  async handleOrgMfaRequired(event: AuthOrgMfaRequiredEvent): Promise<void> {
+    await this.sendOrgMfaRequiredNotice(event.email, event.organisationName);
   }
 
   // ── Message builders ──────────────────────────────────────────────────────────
@@ -181,6 +196,30 @@ export class PlatformMailerService {
         `unused recovery code(s) remain; generate a new set in your security settings if you ` +
         `are running low. If this wasn't you, reset your password immediately and contact your ` +
         `administrator.`,
+    );
+  }
+
+  async sendMfaResetNotice(to: string, by: MfaResetBy): Promise<void> {
+    const who =
+      by === 'super_admin' ? 'a platform administrator' : 'an administrator of your organisation';
+    await this.send(
+      to,
+      'Two-factor authentication reset',
+      `Two-factor authentication on your myNextScreen account was reset by ${who}, and every ` +
+        `session was signed out. Your authenticator app and recovery codes no longer work. If ` +
+        `two-factor authentication is required for you, you will be guided through setting it ` +
+        `up again the next time you sign in. If you did not ask for this, contact your ` +
+        `administrator.`,
+    );
+  }
+
+  async sendOrgMfaRequiredNotice(to: string, organisationName: string): Promise<void> {
+    await this.send(
+      to,
+      'Two-factor authentication is now required',
+      `Your organisation "${organisationName}" on myNextScreen requires two-factor ` +
+        `authentication from now on. The next time you open myNextScreen you will be guided ` +
+        `through setting it up with an authenticator app.`,
     );
   }
 

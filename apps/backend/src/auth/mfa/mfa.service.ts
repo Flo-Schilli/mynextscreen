@@ -51,7 +51,12 @@ import {
   type MfaMethod,
   mfaRedisKeys,
 } from './mfa.constants';
-import { mfaChallengeExpired, mfaInvalidCode, mfaInvalidPassword } from './mfa.errors';
+import {
+  mfaChallengeExpired,
+  mfaInvalidCode,
+  mfaInvalidPassword,
+  mfaSetupExpired,
+} from './mfa.errors';
 import { RecoveryCodeService } from './recovery-code.service';
 import { TotpService } from './totp.service';
 
@@ -228,7 +233,7 @@ export class MfaService {
     const user = await this.requireUser(userId);
     const pending = await this.redis.get(mfaRedisKeys.enrolment(userId));
     if (!pending) {
-      throw new BadRequestException('No pending MFA setup — start the setup again');
+      throw mfaSetupExpired();
     }
     const secret = this.cipher.decrypt(pending);
     const step = this.totp.validate(secret, code);

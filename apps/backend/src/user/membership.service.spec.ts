@@ -6,7 +6,13 @@ import { MembershipService } from './membership.service';
 import { UserService } from './user.service';
 import { hashToken } from '../auth/token-hash.util';
 import { DRIZZLE } from '../db/database.constants';
-import { users, organisations, userOrganisationMemberships, type Organisation } from '../db/schema';
+import {
+  users,
+  organisations,
+  userMfa,
+  userOrganisationMemberships,
+  type Organisation,
+} from '../db/schema';
 import { OrganisationRole } from './organisation-role.enum';
 import { AUDIT_USER_ROLE_CHANGED, AUTH_USER_INVITED } from '../audit-log/audit.events';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
@@ -72,6 +78,26 @@ describe('MembershipService', () => {
       expect(result).toHaveLength(2);
       const emails = result.map((m) => m.user.email).sort();
       expect(emails).toEqual(['admin@example.com', 'editor@example.com']);
+    });
+  });
+
+  describe('member responses', () => {
+    it('adds the mfaEnabled badge per member and never the factor itself', async () => {
+      const org = await seedOrg();
+      const withMfa = await seedMember(org.id, 'mfa@example.com', OrganisationRole.OrgAdmin);
+      await seedMember(org.id, 'plain@example.com', OrganisationRole.Editor);
+      await db
+        .insert(userMfa)
+        .values({ userId: withMfa, totpSecretEnc: 'enc:v1:secret', totpEnabledAt: new Date() });
+
+      const views = await service.listMemberResponses(org.id);
+
+      const byEmail = new Map(views.map((v) => [v.user.email, v]));
+      expect(byEmail.get('mfa@example.com')?.mfaEnabled).toBe(true);
+      expect(byEmail.get('plain@example.com')?.mfaEnabled).toBe(false);
+      expect(JSON.stringify(views)).not.toContain('enc:v1:secret');
+      const [single] = await service.listMembers(org.id);
+      expect((await service.toMemberView(single)).userId).toBe(single.userId);
     });
   });
 

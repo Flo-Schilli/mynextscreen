@@ -19,6 +19,7 @@ export enum AuditAction {
   UserRemoved = 'user.removed',
   OrganisationCreated = 'organisation.created',
   OrganisationUpdated = 'organisation.updated',
+  OrganisationMfaRequirementChanged = 'org.mfa_requirement_changed',
   GroupCreated = 'group.created',
   GroupUpdated = 'group.updated',
   GroupDeleted = 'group.deleted',
@@ -84,6 +85,7 @@ export enum AuditAction {
   MfaRecoveryCodeUsed = 'auth.mfa_recovery_code_used',
   MfaRecoveryCodesRegenerated = 'auth.mfa_recovery_codes_regenerated',
   MfaLockout = 'auth.mfa_lockout',
+  MfaReset = 'auth.mfa_reset',
   // Platform email dispatch (account/system mails sent via PlatformMailerService)
   EmailSent = 'email.sent',
   EmailSendFailed = 'email.send_failed',

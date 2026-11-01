@@ -3,7 +3,13 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { and, eq } from 'drizzle-orm';
 import { UserService } from './user.service';
 import { DRIZZLE } from '../db/database.constants';
-import { users, organisations, userOrganisationMemberships, type Organisation } from '../db/schema';
+import {
+  users,
+  organisations,
+  userMfa,
+  userOrganisationMemberships,
+  type Organisation,
+} from '../db/schema';
 import { OrganisationRole } from './organisation-role.enum';
 import { initTestDb, truncateAll, closeTestDb } from '../test/db-harness';
 import type { DrizzleDB } from '../db/drizzle.types';
@@ -692,6 +698,20 @@ describe('UserService', () => {
       expect(memberView?.memberships).toEqual([
         { organisationId: org.id, organisationName: 'Org X', role: OrganisationRole.Editor },
       ]);
+    });
+
+    it('flags users with a TOTP factor as mfaEnabled', async () => {
+      const [withMfa] = await db.insert(users).values({ email: 'mfa@example.com' }).returning();
+      const [without] = await db.insert(users).values({ email: 'nomfa@example.com' }).returning();
+      await db
+        .insert(userMfa)
+        .values({ userId: withMfa.id, totpSecretEnc: 'enc:v1:x', totpEnabledAt: new Date() });
+
+      const result = await service.listAllWithMemberships();
+
+      expect(result.find((u) => u.id === withMfa.id)?.mfaEnabled).toBe(true);
+      expect(result.find((u) => u.id === without.id)?.mfaEnabled).toBe(false);
+      expect(await service.findMfaEnabledUserIds([])).toEqual(new Set());
     });
   });
 

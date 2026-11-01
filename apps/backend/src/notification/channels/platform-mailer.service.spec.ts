@@ -10,6 +10,8 @@ import {
   AuthMfaDisabledEvent,
   AuthMfaEnabledEvent,
   AuthMfaRecoveryCodeUsedEvent,
+  AuthMfaResetEvent,
+  AuthOrgMfaRequiredEvent,
   AuthPasswordChangedEvent,
   AuthPasswordResetRequestedEvent,
   AuthUserInvitedEvent,
@@ -142,6 +144,29 @@ describe('PlatformMailerService', () => {
     const sent = mockSendMail.mock.calls[0][0];
     expect(sent.subject).toMatch(/recovery code/i);
     expect(sent.text).toContain('3 unused recovery code(s) remain');
+  });
+
+  it('sends an MFA-reset notice naming who reset it', async () => {
+    const service = makeService();
+
+    await service.handleMfaReset(new AuthMfaResetEvent('user@example.com', 'super_admin'));
+    await service.handleMfaReset(new AuthMfaResetEvent('user@example.com', 'org_admin'));
+
+    const [bySuperAdmin, byOrgAdmin] = mockSendMail.mock.calls.map((call) => call[0]);
+    expect(bySuperAdmin.to).toBe('user@example.com');
+    expect(bySuperAdmin.subject).toMatch(/reset/i);
+    expect(bySuperAdmin.text).toContain('a platform administrator');
+    expect(byOrgAdmin.text).toContain('an administrator of your organisation');
+  });
+
+  it('sends an org-requires-MFA notice naming the organisation', async () => {
+    const service = makeService();
+
+    await service.handleOrgMfaRequired(new AuthOrgMfaRequiredEvent('user@example.com', 'Venue'));
+
+    const sent = mockSendMail.mock.calls[0][0];
+    expect(sent.subject).toMatch(/required/i);
+    expect(sent.text).toContain('"Venue"');
   });
 
   it('omits SMTP auth when user and password are empty', async () => {
