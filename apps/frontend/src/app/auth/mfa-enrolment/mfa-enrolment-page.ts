@@ -1,11 +1,22 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  viewChild,
+} from '@angular/core';
 import { Router } from '@angular/router';
-import { TranslocoDirective } from '@jsverse/transloco';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { AuthService } from '../auth.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
 import { BtnComponent, IconComponent } from '../../ui';
 import { describeMfaRequirement } from '../mfa-requirement';
 import { MfaEnrolmentWizardComponent } from './mfa-enrolment-wizard';
+import {
+  confirmDiscardRecoveryCodes,
+  type HoldsRecoveryCodes,
+} from './unsaved-recovery-codes.guard';
 
 /**
  * Mandatory MFA enrolment, full-screen and outside the shell. Reached when the
@@ -76,10 +87,14 @@ import { MfaEnrolmentWizardComponent } from './mfa-enrolment-wizard';
     </div>
   `,
 })
-export class MfaEnrolmentPage implements OnInit {
+export class MfaEnrolmentPage implements OnInit, HoldsRecoveryCodes {
   private readonly auth = inject(AuthService);
   private readonly orgState = inject(OrganisationStateService);
   private readonly router = inject(Router);
+  private readonly transloco = inject(TranslocoService);
+  private readonly wizard = viewChild(MfaEnrolmentWizardComponent);
+  /** Set once the user confirmed to sign out despite unsaved codes (no second prompt). */
+  private leaveConfirmed = false;
 
   /** Why MFA is mandatory, or null while the reason is not known (generic text). */
   protected readonly reason = computed(() =>
@@ -98,7 +113,19 @@ export class MfaEnrolmentPage implements OnInit {
     await this.router.navigateByUrl('/');
   }
 
+  /** Leaving with recovery codes on screen that are not yet saved needs a confirmation. */
+  canDeactivate(): boolean {
+    if (this.leaveConfirmed || (this.wizard()?.canLeave() ?? true)) {
+      return true;
+    }
+    return confirmDiscardRecoveryCodes(this.transloco.translate('auth.mfa.codes.leaveWarning'));
+  }
+
   protected async logout(): Promise<void> {
+    if (!this.canDeactivate()) {
+      return;
+    }
+    this.leaveConfirmed = true;
     await this.auth.logout();
     await this.router.navigateByUrl('/login');
   }

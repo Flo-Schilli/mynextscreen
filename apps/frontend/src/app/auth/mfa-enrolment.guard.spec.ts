@@ -27,12 +27,19 @@ function configure(opts: {
   authenticated?: boolean;
   enrolment?: MfaEnrolmentLock | null;
   status?: MfaStatusResponse | Error;
+  /** `/api/auth/me` says the session is MFA-confirmed: `loadCurrent` lifts the lock. */
+  meLiftsLock?: boolean;
 }) {
   const authed = opts.authenticated ?? true;
   const enrolment = signal<MfaEnrolmentLock | null>(opts.enrolment ?? null);
   const auth = {
     isAuthenticated: () => authed,
-    loadCurrent: vi.fn(() => Promise.resolve()),
+    loadCurrent: vi.fn(() => {
+      if (opts.meLiftsLock) {
+        enrolment.set(null);
+      }
+      return Promise.resolve();
+    }),
     mfaEnrolment: enrolment,
     requireEnrolment: vi.fn((requiredBy: MfaRequiredBy | null) => enrolment.set({ requiredBy })),
   };
@@ -59,9 +66,28 @@ function run(): Promise<boolean | UrlTree> {
 
 describe('mfaEnrolmentGuard', () => {
   it('allows the wizard without a status call while the lock knows its reason', async () => {
-    const { loadStatus } = configure({ enrolment: { requiredBy: ORGS } });
+    const { loadStatus, auth } = configure({ enrolment: { requiredBy: ORGS } });
     expect(await run()).toBe(true);
     expect(loadStatus).not.toHaveBeenCalled();
+    expect(auth.loadCurrent).toHaveBeenCalledWith({ keepOnError: true });
+  });
+
+  it('drops a stale lock that /api/auth/me contradicts and sends the user home', async () => {
+    const { auth, createUrlTree } = configure({
+      enrolment: { requiredBy: ORGS },
+      meLiftsLock: true,
+      status: status(ORGS, true),
+    });
+    expect(await run()).toBe(URL_TREE);
+    expect(createUrlTree).toHaveBeenCalledWith(['/']);
+    expect(auth.mfaEnrolment()).toBeNull();
+    expect(auth.requireEnrolment).not.toHaveBeenCalled();
+  });
+
+  it('does not re-check /api/auth/me when nothing is locked', async () => {
+    const { auth } = configure({ status: status(NONE) });
+    await run();
+    expect(auth.loadCurrent).not.toHaveBeenCalled();
   });
 
   it('sends unauthenticated visitors to the login', async () => {

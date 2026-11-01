@@ -37,6 +37,10 @@ export class SecuritySettingsStore {
   readonly fieldError = signal<string | null>(null);
   readonly regeneratedCodes = signal<readonly string[]>([]);
   readonly codesAcknowledged = signal(false);
+  /** Freshly regenerated codes are shown but not yet confirmed as saved. */
+  readonly regeneratedCodesPending = computed(
+    () => this.regeneratedCodes().length > 0 && !this.codesAcknowledged(),
+  );
 
   /** Why the "Disable" action is missing, or null while MFA is optional. */
   readonly requiredReason = computed((): RequiredReason | null => {
@@ -73,8 +77,7 @@ export class SecuritySettingsStore {
    * — the regenerated ones held here, or the wizard's (`canLeave` false).
    */
   close(canLeave = true): boolean {
-    const codesPending = this.regeneratedCodes().length > 0 && !this.codesAcknowledged();
-    if (!canLeave || codesPending) {
+    if (!canLeave || this.regeneratedCodesPending()) {
       this.toast.info(this.translate('settings.user.security.toast.saveCodesFirst'));
       return false;
     }
@@ -97,14 +100,14 @@ export class SecuritySettingsStore {
     await this.load();
   }
 
-  async regenerate(code: string): Promise<void> {
+  async regenerate(currentPassword: string, code: string): Promise<void> {
     if (this.busy()) {
       return;
     }
     this.busy.set(true);
     this.fieldError.set(null);
     try {
-      this.regeneratedCodes.set(await this.mfa.regenerateRecoveryCodes(code));
+      this.regeneratedCodes.set(await this.mfa.regenerateRecoveryCodes(currentPassword, code));
       this.codesAcknowledged.set(false);
       await this.load();
     } catch (err: unknown) {

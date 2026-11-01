@@ -14,7 +14,9 @@ import { OrganisationStateService } from '../shell/organisation-state.service';
  * - on a 401 (expired access token) it refreshes once and retries the request,
  *   de-duplicating concurrent refreshes via a single shared promise.
  * - on a 403 `MFA_ENROLMENT_REQUIRED` it locks the session into the
- *   enrolment wizard (with the body's `requiredBy`) and navigates there.
+ *   enrolment wizard (with the body's `requiredBy`) and navigates there —
+ *   unless the request was sent before the last completed enrolment (a stale
+ *   answer for the old session, see `AuthService.enrolmentGeneration`).
  * Auth endpoints (`/api/auth/*`) are exempt from both: a failing refresh would
  * otherwise loop, and the wizard's own `/api/auth/mfa/*` calls must never send
  * it back to itself.
@@ -71,7 +73,11 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   }
 
   /** Sends the session to the wizard once; later 403s of the same burst only rethrow. */
-  const lockIntoEnrolment = (demand: EnrolmentDemand): void => {
+  const lockIntoEnrolment = (demand: EnrolmentDemand, sentInGeneration: number): void => {
+    if (sentInGeneration !== auth.enrolmentGeneration) {
+      // Sent on the session that existed before the enrolment completed.
+      return;
+    }
     const alreadyLocked = auth.mfaEnrolment() !== null;
     auth.requireEnrolment(demand.requiredBy);
     if (!alreadyLocked && !router.url.startsWith(MFA_ENROLMENT_ROUTE)) {
@@ -79,11 +85,12 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     }
   };
 
+  const generation = auth.enrolmentGeneration;
   return next(authedReq).pipe(
     catchError((err: unknown) => {
       const demand = enrolmentDemandFor(err);
       if (demand) {
-        lockIntoEnrolment(demand);
+        lockIntoEnrolment(demand, generation);
         return throwError(() => err);
       }
       if (!(err instanceof HttpErrorResponse) || err.status !== 401) {
@@ -93,13 +100,17 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       refreshInFlight ??= auth.refreshSession().finally(() => {
         refreshInFlight = null;
       });
+      let retryGeneration = generation;
       return from(refreshInFlight).pipe(
-        switchMap(() => next(authedReq)),
+        switchMap(() => {
+          retryGeneration = auth.enrolmentGeneration;
+          return next(authedReq);
+        }),
         catchError((retryErr: unknown) => {
           // The refreshed session is valid but not MFA-confirmed: wizard, not logout.
           const retryDemand = enrolmentDemandFor(retryErr);
           if (retryDemand) {
-            lockIntoEnrolment(retryDemand);
+            lockIntoEnrolment(retryDemand, retryGeneration);
             return throwError(() => retryErr);
           }
           void auth.logout().finally(() => router.navigateByUrl('/login'));

@@ -225,10 +225,10 @@ describe('SecuritySectionComponent', () => {
     store.open('regenerate');
     fixture.detectChanges();
 
-    const promise = store.regenerate('123456');
-    httpMock
-      .expectOne('/api/auth/mfa/recovery-codes/regenerate')
-      .flush({ recoveryCodes: ['aaaaa-bbbbb'] });
+    const promise = store.regenerate('pw', '123456');
+    const req = httpMock.expectOne('/api/auth/mfa/recovery-codes/regenerate');
+    expect(req.request.body).toEqual({ currentPassword: 'pw', code: '123456' });
+    req.flush({ recoveryCodes: ['aaaaa-bbbbb'] });
     (await nextRequest(httpMock, '/api/auth/mfa/status')).flush(status());
     await promise;
     await settle(fixture);
@@ -241,6 +241,46 @@ describe('SecuritySectionComponent', () => {
     store.setCodesAcknowledged(true);
     expect(store.close()).toBe(true);
     expect(store.dialog()).toBeNull();
+    expect(store.regeneratedCodes()).toEqual([]);
+  });
+
+  it('regenerates recovery codes with the current password and a code', async () => {
+    const { fixture, httpMock, store } = await setup(status());
+    (el(fixture).querySelector('.regenerate button') as HTMLButtonElement).click();
+    await settle(fixture);
+    const confirm = document.querySelector('.confirm-regenerate button') as HTMLButtonElement;
+
+    typeInto(fixture, '#mfa-regenerate-code', '123456');
+    expect(confirm.disabled).toBe(true);
+    typeInto(fixture, 'input[type="password"]', 'pw');
+    expect(confirm.disabled).toBe(false);
+    confirm.click();
+
+    const req = await nextRequest(httpMock, '/api/auth/mfa/recovery-codes/regenerate');
+    expect(req.request.body).toEqual({ currentPassword: 'pw', code: '123456' });
+    req.flush({ recoveryCodes: ['aaaaa-bbbbb'] });
+    (await nextRequest(httpMock, '/api/auth/mfa/status')).flush(status());
+    await settle(fixture);
+
+    expect(store.regeneratedCodes()).toEqual(['aaaaa-bbbbb']);
+    expect(fixture.componentInstance.hasUnsavedCodes()).toBe(true);
+    const unload = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+
+    store.setCodesAcknowledged(true);
+    expect(fixture.componentInstance.hasUnsavedCodes()).toBe(false);
+  });
+
+  it('shows an inline error for a wrong password on regeneration', async () => {
+    const { httpMock, store } = await setup(status());
+    store.open('regenerate');
+    const promise = store.regenerate('nope', '123456');
+    httpMock
+      .expectOne('/api/auth/mfa/recovery-codes/regenerate')
+      .flush({ code: 'MFA_INVALID_PASSWORD' }, { status: 401, statusText: 'Unauthorized' });
+    await promise;
+    expect(store.fieldError()).not.toBeNull();
     expect(store.regeneratedCodes()).toEqual([]);
   });
 

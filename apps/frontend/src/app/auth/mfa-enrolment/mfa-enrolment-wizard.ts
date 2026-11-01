@@ -37,6 +37,7 @@ import { RecoveryCodesPanelComponent } from './recovery-codes-panel';
     SInputComponent,
     TranslocoDirective,
   ],
+  host: { '(window:beforeunload)': 'onBeforeUnload($event)' },
   template: `
     <ng-container *transloco="let t">
       <!-- progress -->
@@ -195,7 +196,7 @@ import { RecoveryCodesPanelComponent } from './recovery-codes-panel';
               variant="primary"
               class="finish"
               [full]="true"
-              [disabled]="!store.canFinish()"
+              [disabled]="!store.canFinish() || store.busy()"
               (mnsClick)="finish()"
             >
               {{ t('auth.mfa.enrol.codes.finish') }}
@@ -264,12 +265,17 @@ export class MfaEnrolmentWizardComponent {
     this.code.set('');
   }
 
-  protected finish(): void {
-    if (!this.store.canFinish()) {
-      return;
+  protected async finish(): Promise<void> {
+    if (await this.store.finish()) {
+      this.finished.emit();
     }
-    this.store.reset();
-    this.finished.emit();
+  }
+
+  /** Reload / tab close while the recovery codes are not yet confirmed as saved: ask first. */
+  protected onBeforeUnload(event: BeforeUnloadEvent): void {
+    if (!this.canLeave()) {
+      event.preventDefault();
+    }
   }
 
   protected cancel(): void {

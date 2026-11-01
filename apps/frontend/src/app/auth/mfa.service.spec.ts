@@ -100,9 +100,9 @@ describe('MfaService', () => {
 
   it('regenerates recovery codes', async () => {
     const { service, httpMock } = setup();
-    const promise = service.regenerateRecoveryCodes('222222');
+    const promise = service.regenerateRecoveryCodes('pw', '222222');
     const req = httpMock.expectOne('/api/auth/mfa/recovery-codes/regenerate');
-    expect(req.request.body).toEqual({ code: '222222' });
+    expect(req.request.body).toEqual({ currentPassword: 'pw', code: '222222' });
     req.flush({ recoveryCodes: ['ccccc-ddddd'] });
     expect(await promise).toEqual(['ccccc-ddddd']);
   });

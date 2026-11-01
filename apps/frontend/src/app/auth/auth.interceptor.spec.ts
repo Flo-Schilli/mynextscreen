@@ -133,6 +133,7 @@ describe('authInterceptor — MFA enforcement', () => {
       logout: vi.fn(() => Promise.resolve()),
       mfaEnrolment: enrolment,
       requireEnrolment: vi.fn((requiredBy: MfaRequiredBy | null) => enrolment.set({ requiredBy })),
+      enrolmentGeneration: 0,
     };
     const router = { url, navigateByUrl: vi.fn(() => Promise.resolve(true)) };
     TestBed.configureTestingModule({
@@ -205,6 +206,33 @@ describe('authInterceptor — MFA enforcement', () => {
 
     expect(auth.requireEnrolment).not.toHaveBeenCalled();
     expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
+  it('ignores a late 403 of a request sent before the enrolment completed', () => {
+    const { auth, router, http, httpMock } = configureMfa();
+    const error = vi.fn();
+    http.get('/api/screens').subscribe({ error });
+    const pending = httpMock.expectOne('/api/screens');
+
+    // The enrolment completes while the request is still in flight.
+    auth.enrolmentGeneration = 1;
+    pending.flush({ code: 'MFA_ENROLMENT_REQUIRED' }, { status: 403, statusText: 'Forbidden' });
+
+    expect(auth.requireEnrolment).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalled();
+  });
+
+  it('still locks on a 403 of a request sent after the enrolment', () => {
+    const { auth, router, http, httpMock } = configureMfa();
+    auth.enrolmentGeneration = 1;
+    http.get('/api/screens').subscribe({ error: () => undefined });
+    httpMock
+      .expectOne('/api/screens')
+      .flush({ code: 'MFA_ENROLMENT_REQUIRED' }, { status: 403, statusText: 'Forbidden' });
+
+    expect(auth.requireEnrolment).toHaveBeenCalled();
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/mfa-enrolment');
   });
 
   it('navigates only once for a burst of 403s', () => {

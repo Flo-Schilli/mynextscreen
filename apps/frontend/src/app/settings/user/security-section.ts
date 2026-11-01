@@ -164,11 +164,11 @@ import { SecuritySettingsStore } from './security-settings.store';
           </mns-overlay>
         }
         @case ('regenerate') {
-          <mns-overlay (closed)="store.close()">
+          <mns-overlay (closed)="closeRegenerate()">
             <mns-modal
               [title]="t('settings.user.security.regenerateTitle')"
               icon="Refresh"
-              (closed)="store.close()"
+              (closed)="closeRegenerate()"
             >
               @if (store.regeneratedCodes().length > 0) {
                 <app-recovery-codes-panel
@@ -182,7 +182,7 @@ import { SecuritySettingsStore } from './security-settings.store';
                     class="done"
                     [full]="true"
                     [disabled]="!store.codesAcknowledged()"
-                    (mnsClick)="store.close()"
+                    (mnsClick)="closeRegenerate()"
                   >
                     {{ t('settings.user.security.done') }}
                   </mns-btn>
@@ -191,26 +191,44 @@ import { SecuritySettingsStore } from './security-settings.store';
                 <p class="mb-4 text-[13px] text-muted">
                   {{ t('settings.user.security.regenerateDesc') }}
                 </p>
-                <app-mfa-code-input
-                  inputId="mfa-regenerate-code"
-                  [label]="t('settings.user.security.codeLabel')"
-                  [value]="code()"
-                  [disabled]="store.busy()"
-                  [invalid]="store.fieldError() !== null"
-                  (valueChange)="onCodeChange($event)"
-                  (completed)="regenerate()"
-                />
-                @if (store.fieldError()) {
-                  <p class="mt-2 text-sm text-offline" role="alert">{{ store.fieldError() }}</p>
-                }
+                <div class="flex flex-col gap-4">
+                  <mns-sfield [label]="t('settings.user.security.passwordLabel')">
+                    <mns-sinput
+                      type="password"
+                      icon="Lock"
+                      [value]="password()"
+                      (valueChange)="password.set($event)"
+                    />
+                  </mns-sfield>
+                  <div>
+                    <label
+                      for="mfa-regenerate-code"
+                      class="mb-2 block text-[12.5px] font-semibold text-muted"
+                      >{{ t('settings.user.security.codeLabel') }}</label
+                    >
+                    <app-mfa-code-input
+                      inputId="mfa-regenerate-code"
+                      [label]="t('settings.user.security.codeLabel')"
+                      [value]="code()"
+                      [disabled]="store.busy()"
+                      [invalid]="store.fieldError() !== null"
+                      (valueChange)="onCodeChange($event)"
+                      (completed)="regenerate()"
+                    />
+                  </div>
+                  @if (store.fieldError()) {
+                    <p class="text-sm text-offline" role="alert">{{ store.fieldError() }}</p>
+                  }
+                </div>
                 <div class="mt-5 flex gap-2.5">
-                  <mns-btn variant="outline" [full]="true" (mnsClick)="store.close()">
+                  <mns-btn variant="outline" [full]="true" (mnsClick)="closeRegenerate()">
                     {{ t('common.actions.cancel') }}
                   </mns-btn>
                   <mns-btn
                     variant="primary"
+                    class="confirm-regenerate"
                     [full]="true"
-                    [disabled]="store.busy() || code().length !== codeLength"
+                    [disabled]="store.busy() || !canSubmitWithPassword()"
                     (mnsClick)="regenerate()"
                   >
                     {{ t('settings.user.security.regenerateConfirm') }}
@@ -266,7 +284,7 @@ import { SecuritySettingsStore } from './security-settings.store';
                   variant="danger"
                   class="confirm-disable"
                   [full]="true"
-                  [disabled]="store.busy() || !canDisable()"
+                  [disabled]="store.busy() || !canSubmitWithPassword()"
                   (mnsClick)="disable()"
                 >
                   {{ t('settings.user.security.disableConfirm') }}
@@ -278,7 +296,7 @@ import { SecuritySettingsStore } from './security-settings.store';
       }
     </ng-container>
   `,
-  host: { style: 'display:block' },
+  host: { style: 'display:block', '(window:beforeunload)': 'onBeforeUnload($event)' },
 })
 export class SecuritySectionComponent implements OnInit {
   protected readonly store = inject(SecuritySettingsStore);
@@ -288,7 +306,8 @@ export class SecuritySectionComponent implements OnInit {
   protected readonly password = signal('');
   protected readonly code = signal('');
 
-  protected readonly canDisable = computed(
+  /** Disable and regeneration both need the current password and a full code. */
+  protected readonly canSubmitWithPassword = computed(
     () => this.password().length > 0 && this.code().length === TOTP_CODE_LENGTH,
   );
 
@@ -302,15 +321,25 @@ export class SecuritySectionComponent implements OnInit {
   }
 
   protected async regenerate(): Promise<void> {
-    if (this.code().length !== TOTP_CODE_LENGTH) {
+    if (!this.canSubmitWithPassword()) {
       return;
     }
-    await this.store.regenerate(this.code());
+    await this.store.regenerate(this.password(), this.code());
     this.code.set('');
+    if (this.store.regeneratedCodes().length > 0) {
+      this.password.set('');
+    }
+  }
+
+  protected closeRegenerate(): void {
+    if (this.store.close()) {
+      this.password.set('');
+      this.code.set('');
+    }
   }
 
   protected async disable(): Promise<void> {
-    if (!this.canDisable()) {
+    if (!this.canSubmitWithPassword()) {
       return;
     }
     await this.store.disable(this.password(), this.code());
@@ -324,6 +353,18 @@ export class SecuritySectionComponent implements OnInit {
     this.password.set('');
     this.code.set('');
     this.store.close();
+  }
+
+  /** Recovery codes (wizard or regenerated) are on screen but not yet confirmed as saved. */
+  hasUnsavedCodes(): boolean {
+    return this.store.regeneratedCodesPending() || !(this.wizard()?.canLeave() ?? true);
+  }
+
+  /** Reload / tab close while regenerated codes are not yet saved: ask first. */
+  protected onBeforeUnload(event: BeforeUnloadEvent): void {
+    if (this.store.regeneratedCodesPending()) {
+      event.preventDefault();
+    }
   }
 
   /** The wizard's recovery codes must be confirmed as saved before the dialog may close. */

@@ -64,9 +64,13 @@ export class MfaService {
     await firstValueFrom(this.http.post<void>(`${BASE}/totp/disable`, { currentPassword, code }));
   }
 
-  async regenerateRecoveryCodes(code: string): Promise<string[]> {
+  /** Needs the current password and a valid TOTP code, like every other factor change. */
+  async regenerateRecoveryCodes(currentPassword: string, code: string): Promise<string[]> {
     const res = await firstValueFrom(
-      this.http.post<RecoveryCodesResponse>(`${BASE}/recovery-codes/regenerate`, { code }),
+      this.http.post<RecoveryCodesResponse>(`${BASE}/recovery-codes/regenerate`, {
+        currentPassword,
+        code,
+      }),
     );
     return res.recoveryCodes;
   }

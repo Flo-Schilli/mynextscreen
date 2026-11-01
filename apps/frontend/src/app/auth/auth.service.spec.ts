@@ -106,6 +106,15 @@ describe('AuthService', () => {
     expect(service.user()).toBeNull();
   });
 
+  it('loadCurrent clears the user on any failure without keepOnError', async () => {
+    const { service, httpMock } = setup();
+    service.user.set(USER);
+    const promise = service.loadCurrent();
+    httpMock.expectOne('/api/auth/me').flush(null, { status: 500, statusText: 'Error' });
+    await promise;
+    expect(service.user()).toBeNull();
+  });
+
   it('refreshSession calls the refresh endpoint with credentials', async () => {
     const { service, httpMock } = setup();
     const promise = service.refreshSession();
@@ -320,6 +329,35 @@ describe('AuthService', () => {
       httpMock.expectOne('/api/auth/me').flush({ ...ME, mfa: true });
       await promise;
       expect(service.user()).toEqual(USER);
+    });
+
+    it('completeEnrolment keeps the user when /api/auth/me fails transiently', async () => {
+      const { service, httpMock } = setup();
+      service.user.set(USER);
+      service.requireEnrolment(REQUIRED_BY);
+      const promise = service.completeEnrolment();
+      httpMock.expectOne('/api/auth/me').flush(null, { status: 503, statusText: 'Unavailable' });
+      await promise;
+      expect(service.user()).toEqual(USER);
+      expect(service.mfaEnrolment()).toBeNull();
+    });
+
+    it('completeEnrolment still clears the user on a 401', async () => {
+      const { service, httpMock } = setup();
+      service.user.set(USER);
+      const promise = service.completeEnrolment();
+      httpMock.expectOne('/api/auth/me').flush(null, { status: 401, statusText: 'Unauthorized' });
+      await promise;
+      expect(service.user()).toBeNull();
+    });
+
+    it('completeEnrolment bumps the enrolment generation', async () => {
+      const { service, httpMock } = setup();
+      const before = service.enrolmentGeneration;
+      const promise = service.completeEnrolment();
+      httpMock.expectOne('/api/auth/me').flush(ME);
+      await promise;
+      expect(service.enrolmentGeneration).toBe(before + 1);
     });
 
     it('logout drops the enrolment lock and a pending challenge', async () => {

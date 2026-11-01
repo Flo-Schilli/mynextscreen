@@ -4,6 +4,9 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideHttpClient } from '@angular/common/http';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
+import { By } from '@angular/platform-browser';
+import { vi } from 'vitest';
+import { SecuritySectionComponent } from './security-section';
 import { UserSettings } from './user-settings';
 import { NotificationPreferences } from './notification-preferences.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
@@ -334,5 +337,20 @@ describe('UserSettings', () => {
     expect(orgState.avatarUrl()).toBeNull();
     expect(lastToast()?.message).toBe('Profile saved.');
     expect(lastToast()?.type).toBe('success');
+  });
+
+  it('asks before leaving while recovery codes are not confirmed as saved', () => {
+    flushInit();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const section = fixture.debugElement.query(By.directive(SecuritySectionComponent))
+      .componentInstance as SecuritySectionComponent;
+
+    expect(component.canDeactivate()).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+
+    vi.spyOn(section, 'hasUnsavedCodes').mockReturnValue(true);
+    expect(component.canDeactivate()).toBe(false);
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('recovery codes'));
+    confirm.mockRestore();
   });
 });

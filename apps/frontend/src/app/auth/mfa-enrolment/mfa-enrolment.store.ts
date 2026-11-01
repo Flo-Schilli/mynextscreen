@@ -87,7 +87,8 @@ export class MfaEnrolmentStore {
   /**
    * Step 3: the first code. On success the backend persists the factor, hands
    * out the recovery codes once and replaces the session with an
-   * MFA-confirmed one — so the wizard lock is lifted right away.
+   * MFA-confirmed one. The wizard lock stays until {@link finish}: the user
+   * must not be able to leave before the codes are confirmed as saved.
    */
   async confirm(code: string): Promise<boolean> {
     if (this.busy()) {
@@ -102,7 +103,6 @@ export class MfaEnrolmentStore {
       this.recoveryCodes.set(codes);
       this.acknowledged.set(false);
       this.step.set('codes');
-      await this.auth.completeEnrolment();
       return true;
     } catch (err: unknown) {
       if (mfaErrorCode(err) === 'MFA_INVALID_CODE') {
@@ -115,6 +115,24 @@ export class MfaEnrolmentStore {
         this.toastFailure(err);
       }
       return false;
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  /**
+   * Step 4, after the mandatory "saved" checkbox: lift the wizard lock (and
+   * refresh the user from the MFA-confirmed session), then wipe the codes.
+   */
+  async finish(): Promise<boolean> {
+    if (!this.canFinish() || this.busy()) {
+      return false;
+    }
+    this.busy.set(true);
+    try {
+      await this.auth.completeEnrolment();
+      this.reset();
+      return true;
     } finally {
       this.busy.set(false);
     }

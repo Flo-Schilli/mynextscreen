@@ -147,7 +147,8 @@ describe('MfaEnrolmentWizardComponent', () => {
     await toCodesStep(ctx);
 
     expect(ctx.mfa.confirmSetup).toHaveBeenCalledWith('123456');
-    expect(ctx.auth.completeEnrolment).toHaveBeenCalled();
+    // The lock stays until the codes are confirmed as saved.
+    expect(ctx.auth.completeEnrolment).not.toHaveBeenCalled();
     expect(ctx.store.step()).toBe('codes');
     // The secret is dropped as soon as the factor is persisted.
     expect(ctx.store.setup()).toBeNull();
@@ -167,7 +168,9 @@ describe('MfaEnrolmentWizardComponent', () => {
     expect(finish.disabled).toBe(true);
     expect(ctx.fixture.componentInstance.canLeave()).toBe(false);
     finish.click();
+    await settle(ctx.fixture);
     expect(finished).not.toHaveBeenCalled();
+    expect(ctx.auth.completeEnrolment).not.toHaveBeenCalled();
 
     const checkbox = ctx.fixture.nativeElement.querySelector('.saved-checkbox') as HTMLInputElement;
     checkbox.checked = true;
@@ -177,8 +180,27 @@ describe('MfaEnrolmentWizardComponent', () => {
     expect(finish.disabled).toBe(false);
     expect(ctx.fixture.componentInstance.canLeave()).toBe(true);
     finish.click();
+    await settle(ctx.fixture);
+    expect(ctx.auth.completeEnrolment).toHaveBeenCalledTimes(1);
     expect(finished).toHaveBeenCalledTimes(1);
     expect(ctx.store.recoveryCodes()).toEqual([]);
+  });
+
+  it('asks before a reload while the recovery codes are not confirmed as saved', async () => {
+    const ctx = setup();
+    const idle = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(idle);
+    expect(idle.defaultPrevented).toBe(false);
+
+    await toCodesStep(ctx);
+    const pending = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(pending);
+    expect(pending.defaultPrevented).toBe(true);
+
+    ctx.store.setAcknowledged(true);
+    const saved = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(saved);
+    expect(saved.defaultPrevented).toBe(false);
   });
 
   it('shows an inline error for a wrong first code', async () => {

@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import type {
   AuthMeResponse,
@@ -33,6 +33,14 @@ export interface MfaEnrolmentLock {
 /** Route of the mandatory enrolment wizard (outside the shell). */
 export const MFA_ENROLMENT_ROUTE = '/mfa-enrolment';
 
+export interface LoadCurrentOptions {
+  /**
+   * Keep the known user when `/api/auth/me` fails for any reason but a 401
+   * (network blip, 5xx). Used where the session is known to be valid.
+   */
+  keepOnError?: boolean;
+}
+
 function isMfaRequired(res: LoginResponse): res is MfaRequiredResponse {
   return 'mfaRequired' in res && res.mfaRequired;
 }
@@ -63,6 +71,17 @@ export class AuthService {
    * step. The challenge itself lives in an httpOnly cookie, never here.
    */
   readonly mfaChallengePending = signal(false);
+
+  /**
+   * Bumped whenever an enrolment completes. The interceptor captures it when a
+   * request starts, so a late 403 `MFA_ENROLMENT_REQUIRED` from a request sent
+   * on the old (not MFA-confirmed) session cannot lock the new one again.
+   */
+  private enrolmentGenerationValue = 0;
+
+  get enrolmentGeneration(): number {
+    return this.enrolmentGenerationValue;
+  }
 
   /** Password step. A TOTP user gets no session yet, only a challenge cookie. */
   async login(email: string, password: string): Promise<LoginOutcome> {
@@ -113,12 +132,15 @@ export class AuthService {
   }
 
   /**
-   * TOTP confirmed: the backend replaced the session with an MFA-confirmed one
-   * (new cookies). Lift the wizard lock and reload the user from it.
+   * TOTP confirmed and the recovery codes acknowledged: the backend already
+   * replaced the session with an MFA-confirmed one (new cookies). Lift the
+   * wizard lock and refresh the user best-effort — a failing `/api/auth/me`
+   * right now must not sign out a session that was just confirmed.
    */
   async completeEnrolment(): Promise<void> {
+    this.enrolmentGenerationValue++;
     this.mfaEnrolment.set(null);
-    await this.loadCurrent();
+    await this.loadCurrent({ keepOnError: true });
   }
 
   /** Applies a session-issuing response (setup, login without TOTP, login/mfa). */
@@ -148,17 +170,20 @@ export class AuthService {
    * Loads the current user from the access cookie. `/api/auth/me` evaluates
    * the MFA requirement live, so a page load locks a not-yet-enrolled session
    * into the wizard right away (and lifts a stale lock). Clears the user on
-   * failure.
+   * failure, unless `keepOnError` is set and the failure is not a 401.
    */
-  async loadCurrent(): Promise<void> {
+  async loadCurrent(options: LoadCurrentOptions = {}): Promise<void> {
     try {
       const me = await firstValueFrom(
         this.http.get<AuthMeResponse>('/api/auth/me', { withCredentials: true }),
       );
       this.user.set({ userId: me.userId, email: me.email, isSuperAdmin: me.isSuperAdmin });
       this.applyEnrolmentFlag(me.mfaEnrolmentRequired);
-    } catch {
-      this.user.set(null);
+    } catch (err: unknown) {
+      const unauthenticated = err instanceof HttpErrorResponse && err.status === 401;
+      if (unauthenticated || !options.keepOnError) {
+        this.user.set(null);
+      }
     }
   }
 

@@ -10,6 +10,9 @@ import { isMfaMandatory } from './mfa-requirement';
  * (via `loadCurrent`) already sets the lock. The reason (`requiredBy`) is
  * filled in from `GET /api/auth/mfa/status` when the lock does not carry it
  * yet; the same call also catches a session that was never locked in memory.
+ * A lock that is already in memory is re-checked against `/api/auth/me`
+ * first: a stale lock (e.g. set by a late 403 of the old session after the
+ * enrolment completed) is dropped there and the user goes back to the app.
  */
 export const mfaEnrolmentGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
@@ -18,9 +21,11 @@ export const mfaEnrolmentGuard: CanActivateFn = async () => {
 
   if (!auth.isAuthenticated()) {
     await auth.loadCurrent();
-    if (!auth.isAuthenticated()) {
-      return router.createUrlTree(['/login']);
-    }
+  } else if (auth.mfaEnrolment()) {
+    await auth.loadCurrent({ keepOnError: true });
+  }
+  if (!auth.isAuthenticated()) {
+    return router.createUrlTree(['/login']);
   }
   const lock = auth.mfaEnrolment();
   if (lock?.requiredBy) {
