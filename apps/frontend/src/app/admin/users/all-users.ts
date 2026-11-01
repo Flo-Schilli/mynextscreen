@@ -73,7 +73,7 @@ import { MfaResetConfirmModal } from '../../shared/mfa-reset-confirm-modal';
         <p class="text-muted text-sm">{{ t('admin.users.loading') }}</p>
       }
 
-      @if (!loading && users.length > 0) {
+      @if (!loading && users().length > 0) {
         <!-- summary strip -->
         <div class="flex items-center gap-[26px] flex-wrap mb-[var(--gap)]">
           @for (stat of summaryStats(); track stat.label) {
@@ -112,7 +112,7 @@ import { MfaResetConfirmModal } from '../../shared/mfa-reset-confirm-modal';
                 }
               </div>
               <!-- rows -->
-              @for (user of users; track user.id) {
+              @for (user of users(); track user.id) {
                 <div
                   class="grid gap-4 items-center px-[22px] py-[14px] border-t border-border hover:bg-hover transition-colors"
                   style="grid-template-columns:2.4fr 1.3fr 132px 170px 118px 210px"
@@ -226,7 +226,7 @@ import { MfaResetConfirmModal } from '../../shared/mfa-reset-confirm-modal';
 
           <!-- ── stacked-card view (mobile) ── -->
           <div class="md:hidden flex flex-col">
-            @for (user of users; track user.id) {
+            @for (user of users(); track user.id) {
               <div
                 class="flex flex-col gap-3 p-[var(--card-pad)] border-t border-border first:border-t-0"
               >
@@ -342,7 +342,7 @@ import { MfaResetConfirmModal } from '../../shared/mfa-reset-confirm-modal';
         </mns-card>
       }
 
-      @if (!loading && users.length === 0 && !loadError) {
+      @if (!loading && users().length === 0 && !loadError) {
         <mns-empty
           icon="User"
           [title]="t('admin.users.emptyTitle')"
@@ -379,7 +379,7 @@ export class AllUsers implements OnInit {
   private transloco = inject(TranslocoService);
   private auth = inject(AuthService);
 
-  users: AdminUser[] = [];
+  readonly users = signal<AdminUser[]>([]);
   loading = true;
   loadError = '';
 
@@ -399,13 +399,13 @@ export class AllUsers implements OnInit {
     color: string;
     dimColor: string;
   }[] {
-    const verified = this.users.filter((u) => u.emailVerified).length;
-    const pending = this.users.filter((u) => !u.emailVerified).length;
-    const admins = this.users.filter((u) => u.isSuperAdmin).length;
+    const verified = this.users().filter((u) => u.emailVerified).length;
+    const pending = this.users().filter((u) => !u.emailVerified).length;
+    const admins = this.users().filter((u) => u.isSuperAdmin).length;
     return [
       {
         label: this.transloco.translate('admin.users.stats.total'),
-        value: this.users.length,
+        value: this.users().length,
         icon: 'User',
         color: 'var(--accent)',
         dimColor: 'var(--accent-soft)',
@@ -462,7 +462,7 @@ export class AllUsers implements OnInit {
     this.loadError = '';
     this.userService.getAll().subscribe({
       next: (users) => {
-        this.users = users;
+        this.users.set(users);
         this.loading = false;
       },
       error: (err) => {
@@ -534,7 +534,9 @@ export class AllUsers implements OnInit {
     this.resettingMfa.set(true);
     this.userService.resetMfa(target.id).subscribe({
       next: () => {
-        this.users = this.users.map((u) => (u.id === target.id ? { ...u, mfaEnabled: false } : u));
+        this.users.update((list) =>
+          list.map((u) => (u.id === target.id ? { ...u, mfaEnabled: false } : u)),
+        );
         this.resettingMfa.set(false);
         this.mfaResetUser.set(null);
         this.toast.success(this.transloco.translate('mfaAdmin.reset.toast.done'));

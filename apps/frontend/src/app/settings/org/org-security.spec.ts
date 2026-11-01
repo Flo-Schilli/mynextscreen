@@ -33,6 +33,7 @@ describe('OrgSecurity', () => {
     sessionMfa: boolean;
     current?: OrgMfaRequirementView;
     role?: 'org_admin' | 'editor';
+    isSuperAdmin?: boolean;
   }): void {
     api = {
       getRequirement: vi.fn().mockReturnValue(of(opts.current ?? OFF)),
@@ -44,7 +45,13 @@ describe('OrgSecurity', () => {
         provideZonelessChangeDetection(),
         provideRouter([]),
         { provide: OrgMfaService, useValue: api },
-        { provide: AuthService, useValue: { sessionMfa: signal(opts.sessionMfa) } },
+        {
+          provide: AuthService,
+          useValue: {
+            sessionMfa: signal(opts.sessionMfa),
+            user: signal({ userId: 'me', isSuperAdmin: opts.isSuperAdmin ?? false }),
+          },
+        },
         {
           provide: OrganisationStateService,
           useValue: organisationStateStub(orgWithRole(ORG_ID, opts.role ?? 'org_admin')),
@@ -128,5 +135,31 @@ describe('OrgSecurity', () => {
 
     expect(api.getRequirement).not.toHaveBeenCalled();
     expect(store.loadError()).toBe('You are not an Org Admin of this organisation.');
+  });
+
+  it('lets a super-admin manage an org he is not Org Admin of', () => {
+    setup({ sessionMfa: true, role: 'editor', isSuperAdmin: true });
+
+    expect(api.getRequirement).toHaveBeenCalledWith(ORG_ID);
+    expect(store.loadError()).toBe('');
+    expect(store.requirement()).toEqual(OFF);
+  });
+
+  it('offers a retry after a failed load and recovers on success', () => {
+    setup({ sessionMfa: true });
+    api.getRequirement.mockReturnValue(throwError(() => ({ status: 500 })));
+    store.load();
+    fixture.detectChanges();
+    expect(store.loadError()).toBe('Could not load the security settings.');
+    const retry = fixture.debugElement.query(By.css('.retry button'));
+    expect(retry).toBeTruthy();
+
+    api.getRequirement.mockReturnValue(of(ON));
+    retry.nativeElement.click();
+    fixture.detectChanges();
+
+    expect(store.loadError()).toBe('');
+    expect(store.requirement()).toEqual(ON);
+    expect(fixture.debugElement.query(By.css('.retry'))).toBeNull();
   });
 });

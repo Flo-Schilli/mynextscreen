@@ -82,7 +82,7 @@ describe('AllUsers — MFA', () => {
     component.executeResetMfa();
 
     expect(service.resetMfa).toHaveBeenCalledWith('u-2');
-    expect(component.users[0].mfaEnabled).toBe(false);
+    expect(component.users()[0].mfaEnabled).toBe(false);
     expect(component.mfaResetUser()).toBeNull();
     expect(toast.toasts().at(-1)?.type).toBe('success');
   });

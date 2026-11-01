@@ -61,7 +61,7 @@ describe('Users', () => {
   let memberService: MemberServiceStub;
   let orgState: OrganisationStateStub;
 
-  function setup(): void {
+  function setup(session: { mfa?: boolean; isSuperAdmin?: boolean } = {}): void {
     memberService = {
       listMembers: vi.fn().mockReturnValue(of([membership()])),
       addMember: vi.fn().mockReturnValue(of(membership())),
@@ -78,7 +78,13 @@ describe('Users', () => {
         provideRouter([]),
         { provide: MemberService, useValue: memberService },
         { provide: OrganisationStateService, useValue: orgState },
-        { provide: AuthService, useValue: { user: signal({ userId: SELF_ID }) } },
+        {
+          provide: AuthService,
+          useValue: {
+            user: signal({ userId: SELF_ID, isSuperAdmin: session.isSuperAdmin ?? false }),
+            sessionMfa: signal(session.mfa ?? true),
+          },
+        },
       ],
     });
 
@@ -483,8 +489,11 @@ describe('Users', () => {
   describe('MFA badge + reset', () => {
     const withMfa = membership({ id: 'm-2', userId: 'u-2', mfaEnabled: true });
 
-    function render(members: Membership[]): void {
-      setup();
+    function render(
+      members: Membership[],
+      session: { mfa?: boolean; isSuperAdmin?: boolean } = {},
+    ): void {
+      setup(session);
       memberService.listMembers.mockReturnValue(of(members));
       fixture.detectChanges();
     }
@@ -558,6 +567,31 @@ describe('Users', () => {
 
       expect(component.mfaResetMember()).toBeNull();
       expect(memberService.resetMfa).not.toHaveBeenCalled();
+    });
+
+    it('disables the reset with a hint while the org-admin has no MFA session', () => {
+      render([withMfa], { mfa: false });
+
+      const wrap = fixture.debugElement.query(By.css('.reset-mfa-wrap'));
+      expect(wrap.nativeElement.getAttribute('title')).toBe(
+        'Sign in with MFA yourself to reset the MFA of members.',
+      );
+      expect(fixture.debugElement.query(By.css('.reset-mfa button')).nativeElement.disabled).toBe(
+        true,
+      );
+      component.confirmResetMfa(withMfa);
+      expect(component.mfaResetMember()).toBeNull();
+    });
+
+    it('lets a super-admin reset without an MFA session of his own', () => {
+      render([withMfa], { mfa: false, isSuperAdmin: true });
+
+      expect(component.canResetMfa()).toBe(true);
+      expect(
+        fixture.debugElement.query(By.css('.reset-mfa-wrap')).nativeElement.getAttribute('title'),
+      ).toBeNull();
+      component.confirmResetMfa(withMfa);
+      expect(component.mfaResetMember()).toEqual(withMfa);
     });
   });
 });

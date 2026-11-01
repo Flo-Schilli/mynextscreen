@@ -49,7 +49,12 @@ import { OrgSecurityStore } from './org-security.store';
         <p class="text-sm text-muted mt-6">{{ t('settings.org.security.loading') }}</p>
       }
       @if (store.loadError()) {
-        <p class="error text-sm text-offline mt-3">{{ store.loadError() }}</p>
+        <div class="flex flex-wrap items-center gap-3 mt-3">
+          <p class="error text-sm text-offline">{{ store.loadError() }}</p>
+          <mns-btn class="retry" variant="outline" size="sm" (mnsClick)="store.retry()">
+            {{ t('settings.org.security.retry') }}
+          </mns-btn>
+        </div>
       }
 
       @if (store.requirement(); as r) {

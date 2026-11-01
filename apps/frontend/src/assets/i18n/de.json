@@ -2229,7 +2229,8 @@
           "load": "Die Sicherheitseinstellungen konnten nicht geladen werden.",
           "save": "Die Einstellung konnte nicht gespeichert werden.",
           "selfRequired": "Melde dich zuerst selbst mit MFA an, bevor du sie für alle verlangst."
-        }
+        },
+        "retry": "Erneut versuchen"
       }
     },
     "users": {
@@ -2844,7 +2845,8 @@
         "selfRequired": "Melde dich zuerst selbst mit MFA an, um die MFA anderer zurückzusetzen.",
         "notEnabled": "Dieser User hat keine MFA eingerichtet.",
         "generic": "MFA konnte nicht zurückgesetzt werden. Bitte versuch es erneut."
-      }
+      },
+      "needsOwnMfa": "Melde dich zuerst selbst mit MFA an, um die MFA von Mitgliedern zurückzusetzen."
     }
   }
 }

@@ -211,17 +211,22 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
               </div>
               <!-- actions -->
               <div class="flex gap-2 min-[880px]:justify-end min-[880px]:self-center">
-                @if (canResetMfa(member)) {
-                  <mns-btn
-                    class="reset-mfa"
-                    variant="outline"
-                    size="sm"
-                    icon="Lock"
-                    [disabled]="resettingMfa()"
-                    (mnsClick)="confirmResetMfa(member)"
+                @if (showResetMfa(member)) {
+                  <span
+                    class="reset-mfa-wrap inline-flex"
+                    [attr.title]="canResetMfa() ? null : t('mfaAdmin.reset.needsOwnMfa')"
                   >
-                    {{ t('mfaAdmin.reset.action') }}
-                  </mns-btn>
+                    <mns-btn
+                      class="reset-mfa"
+                      variant="outline"
+                      size="sm"
+                      icon="Lock"
+                      [disabled]="resettingMfa() || !canResetMfa()"
+                      (mnsClick)="confirmResetMfa(member)"
+                    >
+                      {{ t('mfaAdmin.reset.action') }}
+                    </mns-btn>
+                  </span>
                 }
                 <mns-btn
                   variant="danger"
@@ -431,11 +436,21 @@ export class Users implements OnInit {
   }
 
   /** Only members with a factor, never oneself (that goes through the security settings). */
-  canResetMfa(member: Membership): boolean {
+  showResetMfa(member: Membership): boolean {
     return member.mfaEnabled && member.userId !== this.auth.user()?.userId;
   }
 
+  /**
+   * An org-admin may only reset with an MFA-confirmed session of his own (the
+   * backend answers `MFA_SELF_REQUIRED` otherwise); a super-admin always may.
+   * The button stays visible but disabled, with a hint why.
+   */
+  readonly canResetMfa = computed(
+    () => (this.auth.user()?.isSuperAdmin ?? false) || this.auth.sessionMfa(),
+  );
+
   confirmResetMfa(member: Membership): void {
+    if (!this.canResetMfa()) return;
     this.mfaResetMember.set(member);
   }
 

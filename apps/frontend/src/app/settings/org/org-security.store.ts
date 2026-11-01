@@ -38,12 +38,15 @@ export class OrgSecurityStore {
   private orgId = '';
 
   load(): void {
+    this.loadError.set('');
+    this.loading.set(true);
     const org = this.orgState.selectedOrg();
     if (!org) {
       this.fail('settings.org.security.errors.noOrgSelected');
       return;
     }
-    if (org.role !== 'org_admin') {
+    // A super-admin passes the backend's role check for every org, member or not.
+    if (org.role !== 'org_admin' && !this.auth.user()?.isSuperAdmin) {
       this.fail('settings.org.security.errors.noOrgAdmin');
       return;
     }
@@ -55,6 +58,11 @@ export class OrgSecurityStore {
       },
       error: () => this.fail('settings.org.security.errors.load'),
     });
+  }
+
+  /** Load again after a failed load (the "retry" action next to the error). */
+  retry(): void {
+    this.load();
   }
 
   /** The switch was flipped: switching on needs a confirmation first. */

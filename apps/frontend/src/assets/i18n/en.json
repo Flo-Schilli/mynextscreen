@@ -2229,7 +2229,8 @@
           "load": "Could not load the security settings.",
           "save": "Could not save the setting.",
           "selfRequired": "Sign in with MFA yourself before requiring it for everyone."
-        }
+        },
+        "retry": "Try again"
       }
     },
     "users": {
@@ -2844,7 +2845,8 @@
         "selfRequired": "Sign in with MFA yourself to reset the MFA of others.",
         "notEnabled": "This user has no MFA set up.",
         "generic": "Could not reset MFA. Please try again."
-      }
+      },
+      "needsOwnMfa": "Sign in with MFA yourself to reset the MFA of members."
     }
   }
 }
