@@ -11,8 +11,9 @@ Versions follow the root `package.json`; a release is cut with
 Users can now protect their account with an authenticator app under
 _User settings → Security_: scan a QR code, confirm a code, and keep ten
 single-use recovery codes that are shown once. Signing in then asks for a code
-after the password. A recovery code works in its place, and the user is
-emailed whenever one is used. Ten wrong codes within 15 minutes pause further
+after the password. A recovery code works in its place — also for moving the
+factor to a new phone when the old one is lost — and the user is emailed
+whenever one is used. Ten wrong codes within 15 minutes pause further
 attempts for that user.
 
 MFA belongs to the user. It is **mandatory for every super-admin**, and for

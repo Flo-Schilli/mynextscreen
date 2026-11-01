@@ -64,10 +64,12 @@ next request. Switching it off is always possible.
 
 **New or lost device.** Moving the factor to a new phone under
 _User settings → Security_ needs the password and a code from the current
-authenticator. A recovery code only signs a user in (each one once, and the
-user is emailed when one is used); it does not move the factor. A user whose
-authenticator is gone therefore needs an admin to reset the second factor,
-which also ends all of that user's sessions and emails them:
+authenticator — or, if that is gone, one of the recovery codes (_Use a
+recovery code_). The same goes for switching optional MFA off and for issuing
+new recovery codes. Each recovery code works once, and the user is emailed
+whenever one is used. A user who has neither the authenticator nor a recovery
+code left needs an admin to reset the second factor, which also ends all of
+that user's sessions and emails them:
 
 - an organisation admin, from the member list, for members of their
   organisation — not for super-admins, not for themselves, and not for users
