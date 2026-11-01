@@ -25,7 +25,9 @@ Migrations run at boot, so the schema is there by the time the API answers.
 
 The dashboard has no seeded account. On a fresh database it shows a one-time
 setup screen that creates the initial super-admin; that route stops working the
-moment a user exists.
+moment a user exists. Super-admins always use a second factor, so the setup
+continues straight into pairing an authenticator app — have one at hand, and
+keep the recovery codes it shows you somewhere safe.
 
 After that:
 

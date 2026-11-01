@@ -344,7 +344,9 @@ bekommt die Super-Admin-Regeln (`by: 'super_admin'`). Der Reset löscht `user_mf
 einer Transaktion, dazu `mfa:enrol` und `mfa:fail`, und revoked alle Refresh-Familien. Auch der
 Super-Admin-Reset wird in jeder Org des Ziels auditiert (`auth.mfa_reset`, Resource `user`,
 Actor = Admin, `{ by, actorId, email }`); ohne Org einmal instanzweit. Schon ausgestellte
-Access-Tokens bleiben bis zu ihrem Ablauf (`JWT_ACCESS_TTL`) gültig, wie beim Passwort-Reset.
+Access-Tokens werden sofort ungültig: `revokeAllForUser` setzt den Marker
+`auth:revoked-before:{userId}` (TTL = `JWT_ACCESS_TTL`), den `JwtAuthGuard` gegen `iat` prüft
+(gilt ebenso für Passwort-Reset/-Änderung, MFA-Einrichtung und Account-Löschung).
 Mitgliederliste und Instance-Admin-Userliste liefern `mfaEnabled` für das Badge.
 
 Nach einem Reset muss ein Pflicht-User beim nächsten Login TOTP neu einrichten. Der

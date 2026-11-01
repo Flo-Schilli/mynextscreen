@@ -52,11 +52,20 @@ Several defaults matter for the security of a deployment and are not enforced
 by the software:
 
 - `JWT_ACCESS_SECRET` must be a strong random value of at least 32 characters.
-- `vault_signage_postgres_password` has no default — the deployment fails
+- `vault_mynextscreen_postgres_password` has no default — the deployment fails
   without it, on purpose.
-- `SECRETS_ENCRYPTION_KEY` is mandatory: every stored secret is encrypted with
-  it and the database rejects plaintext. Keep a backup of the key apart from
-  database dumps.
+- `SECRETS_ENCRYPTION_KEY` is mandatory: every stored secret — including the
+  users' TOTP secrets — is encrypted with it and the database rejects
+  plaintext. Keep a backup of the key apart from database dumps; losing it
+  means every user with MFA has to be reset.
+- Super-admins always use a second factor (TOTP). Consider requiring it for
+  organisations as well (organisation settings); it then applies to every
+  member in all of their organisations.
+- A super-admin who has lost both the authenticator and the recovery codes, with
+  no second super-admin to reset them, can only be recovered from the database —
+  see _Emergency: the only super-admin is locked out_ in
+  [docs/configuration.md](docs/configuration.md#emergency-the-only-super-admin-is-locked-out).
+  That path writes no audit entry; keeping two super-admins avoids it.
 - `SIGNUP_ENABLED=false` closes self-registration if the instance is not meant
   to be open.
 - Reaching the backend only through the reverse proxy is what applies TLS, the
