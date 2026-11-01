@@ -1,10 +1,12 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import type {
+  AuthMeResponse,
   AuthSuccessResponse,
   AuthUserView,
   LoginMfaRequest,
   LoginResponse,
+  MfaRequiredBy,
   MfaRequiredResponse,
 } from '@mynextscreen/shared-types';
 import { firstValueFrom } from 'rxjs';
@@ -18,9 +20,15 @@ export type AuthenticatedUser = AuthUserView;
  */
 export type LoginOutcome = 'ok' | 'mfa-required' | 'enrolment-required';
 
-/** Why the mandatory enrolment wizard is shown. */
-export type MfaEnrolmentReason =
-  { kind: 'super-admin' } | { kind: 'organisation'; organisationId: string | null };
+/**
+ * The session is locked into the mandatory enrolment wizard. `requiredBy` is
+ * known from a 403 `MFA_ENROLMENT_REQUIRED` body or `/api/auth/mfa/status`;
+ * session responses and `/api/auth/me` only say *that* MFA is mandatory, so
+ * it is null until the wizard's guard has loaded the status.
+ */
+export interface MfaEnrolmentLock {
+  requiredBy: MfaRequiredBy | null;
+}
 
 /** Route of the mandatory enrolment wizard (outside the shell). */
 export const MFA_ENROLMENT_ROUTE = '/mfa-enrolment';
@@ -44,10 +52,12 @@ export class AuthService {
   readonly loading = signal(false);
 
   /**
-   * Set while the session may only reach the MFA enrolment wizard (backend
-   * answered `MFA_ENROLMENT_REQUIRED` / `MFA_REQUIRED`, or a login said so).
+   * Set while the session may only reach the MFA enrolment wizard (a session
+   * response or `/api/auth/me` said `mfaEnrolmentRequired`, or the backend
+   * answered 403 `MFA_ENROLMENT_REQUIRED`). MFA is bound to the user, so the
+   * lock covers every organisation.
    */
-  readonly mfaEnrolment = signal<MfaEnrolmentReason | null>(null);
+  readonly mfaEnrolment = signal<MfaEnrolmentLock | null>(null);
   /**
    * True between a password step that answered `mfaRequired` and the second
    * step. The challenge itself lives in an httpOnly cookie, never here.
@@ -92,13 +102,14 @@ export class AuthService {
     this.mfaChallengePending.set(false);
   }
 
-  /** Sessions without MFA may only reach the wizard from now on. */
-  requireEnrolment(reason: MfaEnrolmentReason): void {
-    this.mfaEnrolment.set(reason);
-  }
-
-  clearEnrolment(): void {
-    this.mfaEnrolment.set(null);
+  /**
+   * Sessions without MFA may only reach the wizard from now on. An unknown
+   * reason (null) never overwrites one that is already known.
+   */
+  requireEnrolment(requiredBy: MfaRequiredBy | null = null): void {
+    this.mfaEnrolment.update((lock) => ({
+      requiredBy: requiredBy ?? lock?.requiredBy ?? null,
+    }));
   }
 
   /**
@@ -113,12 +124,8 @@ export class AuthService {
   /** Applies a session-issuing response (setup, login without TOTP, login/mfa). */
   applySession(res: AuthSuccessResponse): Exclude<LoginOutcome, 'mfa-required'> {
     this.user.set(res.user);
-    if (res.mfaEnrolmentRequired) {
-      this.mfaEnrolment.set({ kind: 'super-admin' });
-      return 'enrolment-required';
-    }
-    this.mfaEnrolment.set(null);
-    return 'ok';
+    this.applyEnrolmentFlag(res.mfaEnrolmentRequired);
+    return res.mfaEnrolmentRequired ? 'enrolment-required' : 'ok';
   }
 
   async logout(): Promise<void> {
@@ -137,13 +144,19 @@ export class AuthService {
     );
   }
 
-  /** Loads the current user from the access cookie. Clears state on failure. */
+  /**
+   * Loads the current user from the access cookie. `/api/auth/me` evaluates
+   * the MFA requirement live, so a page load locks a not-yet-enrolled session
+   * into the wizard right away (and lifts a stale lock). Clears the user on
+   * failure.
+   */
   async loadCurrent(): Promise<void> {
     try {
       const me = await firstValueFrom(
-        this.http.get<AuthenticatedUser>('/api/auth/me', { withCredentials: true }),
+        this.http.get<AuthMeResponse>('/api/auth/me', { withCredentials: true }),
       );
-      this.user.set(me);
+      this.user.set({ userId: me.userId, email: me.email, isSuperAdmin: me.isSuperAdmin });
+      this.applyEnrolmentFlag(me.mfaEnrolmentRequired);
     } catch {
       this.user.set(null);
     }
@@ -232,6 +245,14 @@ export class AuthService {
       ),
     );
     this.user.set(null);
+  }
+
+  private applyEnrolmentFlag(mfaEnrolmentRequired: boolean): void {
+    if (mfaEnrolmentRequired) {
+      this.requireEnrolment();
+    } else {
+      this.mfaEnrolment.set(null);
+    }
   }
 
   private applyFirstFactor(res: LoginResponse): LoginOutcome {

@@ -4,14 +4,15 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { AuthService } from '../auth.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
 import { BtnComponent, IconComponent } from '../../ui';
+import { describeMfaRequirement } from '../mfa-requirement';
 import { MfaEnrolmentWizardComponent } from './mfa-enrolment-wizard';
 
 /**
  * Mandatory MFA enrolment, full-screen and outside the shell. Reached when the
- * backend refuses a session without MFA (super-admin, or an organisation that
- * requires it) and right after the first-run setup. It cannot be skipped: the
- * only ways out are finishing, signing out, or — in the organisation case —
- * switching to another organisation that does not require MFA.
+ * session is not MFA-confirmed although MFA is mandatory for the user
+ * (super-admin, or a member of any organisation that requires it) and right
+ * after the first-run setup. MFA is bound to the user, so the requirement
+ * applies account-wide: the only ways out are finishing or signing out.
  */
 @Component({
   selector: 'app-mfa-enrolment-page',
@@ -51,40 +52,19 @@ import { MfaEnrolmentWizardComponent } from './mfa-enrolment-wizard';
                 {{ t('auth.mfa.page.title') }}
               </h1>
               <p class="reason mt-1 text-[13.5px] text-muted">
-                @if (isOrganisationCase()) {
-                  @if (requiringOrgName(); as orgName) {
-                    {{ t('auth.mfa.page.reasonOrganisation', { name: orgName }) }}
-                  } @else {
-                    {{ t('auth.mfa.page.reasonOrganisationUnnamed') }}
-                  }
+                @if (reason(); as r) {
+                  {{ t('auth.mfa.page.reason' + r.variant, r.params) }}
                 } @else {
-                  {{ t('auth.mfa.page.reasonSuperAdmin') }}
+                  {{ t('auth.mfa.page.reasonUnknown') }}
                 }
+              </p>
+              <p class="account-wide mt-1.5 text-[13.5px] text-muted">
+                {{ t('auth.mfa.page.accountWide') }}
               </p>
             </div>
           </div>
 
           <app-mfa-enrolment-wizard (finished)="onFinished()" />
-
-          @if (otherOrganisations().length > 0) {
-            <div class="other-orgs mt-6 border-t border-border pt-4">
-              <p class="mb-2 text-[12.5px] font-semibold text-muted">
-                {{ t('auth.mfa.page.otherOrganisations') }}
-              </p>
-              <div class="flex flex-col gap-1.5">
-                @for (org of otherOrganisations(); track org.id) {
-                  <button
-                    type="button"
-                    class="flex items-center gap-2 rounded-[9px] px-2.5 py-2 text-left text-[13.5px] hover:bg-hover"
-                    (click)="switchOrganisation(org.id)"
-                  >
-                    <mns-icon name="Building" [size]="15" class="text-muted" />
-                    {{ org.name }}
-                  </button>
-                }
-              </div>
-            </div>
-          }
         </div>
 
         <div class="mt-5 flex justify-center">
@@ -101,43 +81,20 @@ export class MfaEnrolmentPage implements OnInit {
   private readonly orgState = inject(OrganisationStateService);
   private readonly router = inject(Router);
 
-  protected readonly isOrganisationCase = computed(
-    () => this.auth.mfaEnrolment()?.kind === 'organisation',
+  /** Why MFA is mandatory, or null while the reason is not known (generic text). */
+  protected readonly reason = computed(() =>
+    describeMfaRequirement(this.auth.mfaEnrolment()?.requiredBy, this.orgState.organisations()),
   );
-
-  private readonly requiringOrgId = computed(() => {
-    const reason = this.auth.mfaEnrolment();
-    return reason?.kind === 'organisation' ? reason.organisationId : null;
-  });
-
-  protected readonly requiringOrgName = computed(() => {
-    const id = this.requiringOrgId() ?? this.orgState.selectedOrgId();
-    return this.orgState.organisations().find((org) => org.id === id)?.name ?? null;
-  });
-
-  /** Only offered in the organisation case: MFA there is per organisation. */
-  protected readonly otherOrganisations = computed(() => {
-    if (!this.isOrganisationCase()) {
-      return [];
-    }
-    const blocked = this.requiringOrgId() ?? this.orgState.selectedOrgId();
-    return this.orgState.organisations().filter((org) => org.id !== blocked);
-  });
 
   ngOnInit(): void {
     // The shell normally loads the memberships; this page runs without it.
-    if (this.isOrganisationCase() && this.orgState.organisations().length === 0) {
+    const orgIds = this.auth.mfaEnrolment()?.requiredBy?.organisationIds ?? [];
+    if (orgIds.length > 0 && this.orgState.organisations().length === 0) {
       this.orgState.loadOrganisations();
     }
   }
 
   protected async onFinished(): Promise<void> {
-    await this.router.navigateByUrl('/');
-  }
-
-  protected async switchOrganisation(orgId: string): Promise<void> {
-    this.orgState.select(orgId);
-    this.auth.clearEnrolment();
     await this.router.navigateByUrl('/');
   }
 

@@ -101,8 +101,11 @@ import { SecuritySettingsStore } from './security-settings.store';
           }
 
           @if (store.requiredReason(); as reason) {
-            <p class="required-note mb-4 text-[12.5px] text-muted">
+            <p class="required-note mb-1 text-[12.5px] text-muted">
               {{ t(reason.key, reason.params) }}
+            </p>
+            <p class="account-wide-note mb-4 text-[12.5px] text-muted">
+              {{ t('settings.user.security.requiredAccountWide') }}
             </p>
           }
 

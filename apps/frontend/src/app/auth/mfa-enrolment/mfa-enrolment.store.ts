@@ -2,7 +2,7 @@ import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core'
 import { TranslocoService } from '@jsverse/transloco';
 import type { TotpSetupResponse } from '@mynextscreen/shared-types';
 import { AuthService } from '../auth.service';
-import { httpStatus } from '../mfa-errors';
+import { httpStatus, mfaErrorCode } from '../mfa-errors';
 import { MfaService } from '../mfa.service';
 import { ToastService } from '../../shared/toast/toast.service';
 
@@ -57,14 +57,12 @@ export class MfaEnrolmentStore {
       this.step.set('scan');
       return true;
     } catch (err: unknown) {
-      if (httpStatus(err) === 401) {
-        this.fieldError.set(
-          this.translate(
-            currentCode === undefined
-              ? 'auth.mfa.enrol.errors.invalidPassword'
-              : 'auth.mfa.enrol.errors.invalidPasswordOrCode',
-          ),
-        );
+      const code = mfaErrorCode(err);
+      if (code === 'MFA_INVALID_PASSWORD') {
+        this.fieldError.set(this.translate('auth.mfa.enrol.errors.invalidPassword'));
+      } else if (code === 'MFA_INVALID_CODE') {
+        // Device change: the code of the current authenticator was wrong.
+        this.fieldError.set(this.translate('auth.mfa.enrol.errors.invalidCurrentCode'));
       } else {
         this.toastFailure(err);
       }
@@ -107,10 +105,9 @@ export class MfaEnrolmentStore {
       await this.auth.completeEnrolment();
       return true;
     } catch (err: unknown) {
-      const status = httpStatus(err);
-      if (status === 401) {
+      if (mfaErrorCode(err) === 'MFA_INVALID_CODE') {
         this.fieldError.set(this.translate('auth.mfa.enrol.errors.invalidCode'));
-      } else if (status === 400) {
+      } else if (httpStatus(err) === 400) {
         // Pending secret expired (10 min) — start over from the password.
         this.toast.error(this.translate('auth.mfa.enrol.errors.setupExpired'));
         this.restart();

@@ -2,8 +2,9 @@ import { HttpErrorResponse, HttpEvent, HttpInterceptorFn, HttpRequest } from '@a
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { Observable, catchError, from, switchMap, throwError } from 'rxjs';
-import { AuthService, MFA_ENROLMENT_ROUTE, type MfaEnrolmentReason } from './auth.service';
-import { mfaErrorCode, mfaErrorOrganisationId } from './mfa-errors';
+import type { MfaRequiredBy } from '@mynextscreen/shared-types';
+import { AuthService, MFA_ENROLMENT_ROUTE } from './auth.service';
+import { mfaErrorCode, mfaErrorRequiredBy } from './mfa-errors';
 import { OrganisationStateService } from '../shell/organisation-state.service';
 
 /**
@@ -12,8 +13,8 @@ import { OrganisationStateService } from '../shell/organisation-state.service';
  * - attaches the active `X-Organisation-Id` header
  * - on a 401 (expired access token) it refreshes once and retries the request,
  *   de-duplicating concurrent refreshes via a single shared promise.
- * - on a 403 `MFA_ENROLMENT_REQUIRED` / `MFA_REQUIRED` it locks the session
- *   into the enrolment wizard and navigates there.
+ * - on a 403 `MFA_ENROLMENT_REQUIRED` it locks the session into the
+ *   enrolment wizard (with the body's `requiredBy`) and navigates there.
  * Auth endpoints (`/api/auth/*`) are exempt from both: a failing refresh would
  * otherwise loop, and the wizard's own `/api/auth/mfa/*` calls must never send
  * it back to itself.
@@ -29,19 +30,20 @@ export function __resetRefreshInFlight(): void {
   refreshInFlight = null;
 }
 
-/** The enrolment reason a 403 MFA error asks for, or null for any other error. */
-function enrolmentReasonFor(err: unknown): MfaEnrolmentReason | null {
-  if (!(err instanceof HttpErrorResponse) || err.status !== 403) {
+/** An enrolment lock a 403 asks for, or null for any other error. */
+interface EnrolmentDemand {
+  requiredBy: MfaRequiredBy | null;
+}
+
+function enrolmentDemandFor(err: unknown): EnrolmentDemand | null {
+  if (
+    !(err instanceof HttpErrorResponse) ||
+    err.status !== 403 ||
+    mfaErrorCode(err) !== 'MFA_ENROLMENT_REQUIRED'
+  ) {
     return null;
   }
-  switch (mfaErrorCode(err)) {
-    case 'MFA_ENROLMENT_REQUIRED':
-      return { kind: 'super-admin' };
-    case 'MFA_REQUIRED':
-      return { kind: 'organisation', organisationId: mfaErrorOrganisationId(err) };
-    default:
-      return null;
-  }
+  return { requiredBy: mfaErrorRequiredBy(err) };
 }
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
@@ -69,9 +71,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   }
 
   /** Sends the session to the wizard once; later 403s of the same burst only rethrow. */
-  const lockIntoEnrolment = (reason: MfaEnrolmentReason): void => {
+  const lockIntoEnrolment = (demand: EnrolmentDemand): void => {
     const alreadyLocked = auth.mfaEnrolment() !== null;
-    auth.requireEnrolment(reason);
+    auth.requireEnrolment(demand.requiredBy);
     if (!alreadyLocked && !router.url.startsWith(MFA_ENROLMENT_ROUTE)) {
       void router.navigateByUrl(MFA_ENROLMENT_ROUTE);
     }
@@ -79,9 +81,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(authedReq).pipe(
     catchError((err: unknown) => {
-      const reason = enrolmentReasonFor(err);
-      if (reason) {
-        lockIntoEnrolment(reason);
+      const demand = enrolmentDemandFor(err);
+      if (demand) {
+        lockIntoEnrolment(demand);
         return throwError(() => err);
       }
       if (!(err instanceof HttpErrorResponse) || err.status !== 401) {
@@ -95,9 +97,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         switchMap(() => next(authedReq)),
         catchError((retryErr: unknown) => {
           // The refreshed session is valid but not MFA-confirmed: wizard, not logout.
-          const retryReason = enrolmentReasonFor(retryErr);
-          if (retryReason) {
-            lockIntoEnrolment(retryReason);
+          const retryDemand = enrolmentDemandFor(retryErr);
+          if (retryDemand) {
+            lockIntoEnrolment(retryDemand);
             return throwError(() => retryErr);
           }
           void auth.logout().finally(() => router.navigateByUrl('/login'));

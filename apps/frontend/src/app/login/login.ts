@@ -5,7 +5,7 @@ import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import type { LoginMfaRequest } from '@mynextscreen/shared-types';
 import { AuthService, MFA_ENROLMENT_ROUTE, type LoginOutcome } from '../auth/auth.service';
 import { MfaCodeInputComponent, TOTP_CODE_LENGTH } from '../auth/mfa-code-input';
-import { httpStatus, isMfaChallengeExpired, mfaErrorCode } from '../auth/mfa-errors';
+import { httpStatus, mfaErrorCode } from '../auth/mfa-errors';
 import { SetupService } from '../setup/setup.service';
 import { ToastService } from '../shared/toast/toast.service';
 import { VersionBadge } from '../shared/version-badge';
@@ -198,12 +198,13 @@ export class Login {
       await this.navigateAfterSignIn(outcome);
     } catch (err: unknown) {
       this.code.set('');
-      if (isMfaChallengeExpired(err)) {
+      const code = mfaErrorCode(err);
+      if (code === 'MFA_CHALLENGE_EXPIRED') {
         this.toast.error(this.transloco.translate('auth.mfa.login.challengeExpired'));
         this.backToPassword();
       } else if (httpStatus(err) === 429) {
         this.toastTooManyAttempts(err);
-      } else if (httpStatus(err) === 401) {
+      } else if (code === 'MFA_INVALID_CODE') {
         this.codeError.set(
           this.transloco.translate(
             this.mfaMethod() === 'recovery'

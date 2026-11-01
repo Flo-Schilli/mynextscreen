@@ -1,6 +1,7 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { TranslocoService } from '@jsverse/transloco';
 import { httpStatus, mfaErrorCode } from '../../auth/mfa-errors';
+import { describeMfaRequirement } from '../../auth/mfa-requirement';
 import { MfaService } from '../../auth/mfa.service';
 import { ToastService } from '../../shared/toast/toast.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
@@ -37,36 +38,12 @@ export class SecuritySettingsStore {
   readonly regeneratedCodes = signal<readonly string[]>([]);
   readonly codesAcknowledged = signal(false);
 
-  /** Names of the organisations that require MFA (ids the user cannot resolve are skipped). */
-  readonly requiringOrgNames = computed(() => {
-    const ids = this.status()?.requiredBy.organisationIds ?? [];
-    const orgs = this.orgState.organisations();
-    return ids
-      .map((id) => orgs.find((org) => org.id === id)?.name)
-      .filter((name): name is string => name !== undefined);
-  });
-
   /** Why the "Disable" action is missing, or null while MFA is optional. */
   readonly requiredReason = computed((): RequiredReason | null => {
-    const status = this.status();
-    if (!status) {
-      return null;
-    }
-    if (status.requiredBy.superAdmin) {
-      return { key: 'settings.user.security.requiredSuperAdmin', params: {} };
-    }
-    const count = status.requiredBy.organisationIds.length;
-    if (count === 0) {
-      return null;
-    }
-    const names = this.requiringOrgNames();
-    if (names.length > 0) {
-      return {
-        key: 'settings.user.security.requiredOrganisations',
-        params: { names: names.join(', ') },
-      };
-    }
-    return { key: 'settings.user.security.requiredOrganisationsUnnamed', params: { count } };
+    const text = describeMfaRequirement(this.status()?.requiredBy, this.orgState.organisations());
+    return text
+      ? { key: `settings.user.security.required${text.variant}`, params: text.params }
+      : null;
   });
 
   constructor() {
@@ -166,10 +143,12 @@ export class SecuritySettingsStore {
   }
 
   private handleError(err: unknown): void {
-    const status = httpStatus(err);
-    if (status === 401) {
-      this.fieldError.set(this.translate('settings.user.security.errors.invalidCredentials'));
-    } else if (status === 429) {
+    const code = mfaErrorCode(err);
+    if (code === 'MFA_INVALID_PASSWORD') {
+      this.fieldError.set(this.translate('settings.user.security.errors.invalidPassword'));
+    } else if (code === 'MFA_INVALID_CODE') {
+      this.fieldError.set(this.translate('settings.user.security.errors.invalidCode'));
+    } else if (httpStatus(err) === 429) {
       this.toast.error(this.translate('settings.user.security.errors.tooManyAttempts'));
     } else {
       this.toast.error(this.translate('settings.user.security.errors.generic'));

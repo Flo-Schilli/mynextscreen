@@ -1,16 +1,17 @@
-import type { MfaErrorCode } from '@mynextscreen/shared-types';
+import type { MfaErrorCode, MfaRequiredBy } from '@mynextscreen/shared-types';
 
 const MFA_ERROR_CODES: readonly MfaErrorCode[] = [
   'MFA_ENROLMENT_REQUIRED',
-  'MFA_REQUIRED',
   'MFA_DISABLE_FORBIDDEN',
   'MFA_LOCKED_OUT',
+  'MFA_CHALLENGE_EXPIRED',
+  'MFA_INVALID_CODE',
+  'MFA_INVALID_PASSWORD',
 ];
 
 interface ErrorBody {
   code?: unknown;
-  message?: unknown;
-  organisationId?: unknown;
+  requiredBy?: unknown;
 }
 
 /** Works on `HttpErrorResponse` and on plain `{ status, error }` shapes alike. */
@@ -29,28 +30,28 @@ export function httpStatus(err: unknown): number | null {
   return null;
 }
 
-/** The `code` of an MFA error body (403/409/429), or null for anything else. */
+/** The `code` of an MFA error body (401/403/409/429), or null for anything else. */
 export function mfaErrorCode(err: unknown): MfaErrorCode | null {
   const code = body(err)?.code;
   return MFA_ERROR_CODES.find((known) => known === code) ?? null;
 }
 
-/** `organisationId` of a 403 `MFA_REQUIRED` body, when the backend sends one. */
-export function mfaErrorOrganisationId(err: unknown): string | null {
-  const id = body(err)?.organisationId;
-  return typeof id === 'string' && id.length > 0 ? id : null;
+/** Narrows an untrusted value to `MfaRequiredBy`, or null when it does not fit. */
+export function parseMfaRequiredBy(raw: unknown): MfaRequiredBy | null {
+  if (typeof raw !== 'object' || raw === null) {
+    return null;
+  }
+  const { superAdmin, organisationIds } = raw as Record<string, unknown>;
+  if (typeof superAdmin !== 'boolean' || !Array.isArray(organisationIds)) {
+    return null;
+  }
+  return {
+    superAdmin,
+    organisationIds: organisationIds.filter((id): id is string => typeof id === 'string'),
+  };
 }
 
-/**
- * 401 from `POST /api/auth/login/mfa` because the challenge is gone (expired,
- * consumed, or dropped after too many wrong codes) rather than a wrong code.
- * The backend sends no `code` field for this case, only the message — keep this
- * in sync with `MfaService.verifyChallenge`.
- */
-export function isMfaChallengeExpired(err: unknown): boolean {
-  if (httpStatus(err) !== 401) {
-    return false;
-  }
-  const message = body(err)?.message;
-  return typeof message === 'string' && /challenge expired/i.test(message);
+/** `requiredBy` of a 403 `MFA_ENROLMENT_REQUIRED` body, or null when missing/malformed. */
+export function mfaErrorRequiredBy(err: unknown): MfaRequiredBy | null {
+  return parseMfaRequiredBy(body(err)?.requiredBy);
 }

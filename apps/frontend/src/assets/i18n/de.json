@@ -162,10 +162,13 @@
       },
       "page": {
         "title": "Zwei-Faktor-Authentifizierung einrichten",
-        "reasonSuperAdmin": "Als Plattform-Admin hast du Zugriff auf alle Organisationen. Dein Konto muss deshalb mit einem zweiten Faktor geschützt sein. Richte ihn jetzt ein, um weiterzumachen.",
-        "reasonOrganisation": "Die Organisation „{name}“ verlangt Zwei-Faktor-Authentifizierung für alle Mitglieder. Richte sie jetzt ein, um weiterzumachen.",
-        "reasonOrganisationUnnamed": "Deine Organisation verlangt Zwei-Faktor-Authentifizierung für alle Mitglieder. Richte sie jetzt ein, um weiterzumachen.",
-        "otherOrganisations": "Oder stattdessen eine andere Organisation öffnen:",
+        "reasonSuperAdmin": "Als Plattform-Admin hast du Zugriff auf alle Organisationen. Dein Konto muss deshalb mit einem zweiten Faktor geschützt sein.",
+        "reasonOrganisations": "Zwei-Faktor-Authentifizierung wird verlangt von: {names}.",
+        "reasonOrganisationsUnnamed": "{count, plural, one {Eine deiner Organisationen verlangt} other {# deiner Organisationen verlangen}} Zwei-Faktor-Authentifizierung.",
+        "reasonSuperAdminAndOrganisations": "Als Plattform-Admin brauchst du einen zweiten Faktor. Zusätzlich verlangen ihn: {names}.",
+        "reasonSuperAdminAndOrganisationsUnnamed": "Als Plattform-Admin brauchst du einen zweiten Faktor. Zusätzlich {count, plural, one {verlangt ihn eine deiner Organisationen} other {verlangen ihn # deiner Organisationen}}.",
+        "reasonUnknown": "Für dein Konto ist die Zwei-Faktor-Authentifizierung Pflicht.",
+        "accountWide": "Die Pflicht gilt für dein ganzes Konto, also in allen deinen Organisationen. Richte den zweiten Faktor jetzt ein, um weiterzumachen.",
         "logout": "Abmelden"
       },
       "enrol": {
@@ -200,7 +203,7 @@
         },
         "errors": {
           "invalidPassword": "Das Passwort ist nicht korrekt.",
-          "invalidPasswordOrCode": "Das Passwort oder der Code ist nicht korrekt.",
+          "invalidCurrentCode": "Der Code deiner bisherigen Authenticator-App ist nicht korrekt.",
           "invalidCode": "Dieser Code ist ungültig. Prüfe die Uhrzeit deiner App und nimm den aktuellen Code.",
           "setupExpired": "Die Einrichtung hat zu lange gedauert und ist abgelaufen. Bitte starte neu.",
           "tooManyAttempts": "Zu viele Versuche. Bitte warte eine Minute und versuch es dann erneut.",
@@ -2069,6 +2072,9 @@
         "requiredSuperAdmin": "Für Plattform-Admins ist die Zwei-Faktor-Authentifizierung Pflicht und lässt sich nicht abschalten. Für ein neues Handy nutze „Gerät wechseln“.",
         "requiredOrganisations": "Verlangt von: {names}. Solange du diesen Organisationen angehörst, lässt sie sich nicht abschalten. Für ein neues Handy nutze „Gerät wechseln“.",
         "requiredOrganisationsUnnamed": "{count, plural, one {Eine deiner Organisationen verlangt} other {# deiner Organisationen verlangen}} Zwei-Faktor-Authentifizierung, deshalb lässt sie sich nicht abschalten. Für ein neues Handy nutze „Gerät wechseln“.",
+        "requiredSuperAdminAndOrganisations": "Als Plattform-Admin und für {names} ist die Zwei-Faktor-Authentifizierung Pflicht und lässt sich nicht abschalten. Für ein neues Handy nutze „Gerät wechseln“.",
+        "requiredSuperAdminAndOrganisationsUnnamed": "Als Plattform-Admin und für {count, plural, one {eine deiner Organisationen} other {# deiner Organisationen}} ist die Zwei-Faktor-Authentifizierung Pflicht und lässt sich nicht abschalten. Für ein neues Handy nutze „Gerät wechseln“.",
+        "requiredAccountWide": "Die Pflicht gilt für dein ganzes Konto, in allen deinen Organisationen.",
         "enable": "Zwei-Faktor-Authentifizierung einrichten",
         "changeDevice": "Gerät wechseln",
         "regenerate": "Neue Recovery-Codes",
@@ -2092,7 +2098,8 @@
           "saveCodesFirst": "Bestätige zuerst, dass du deine Recovery-Codes gesichert hast."
         },
         "errors": {
-          "invalidCredentials": "Das Passwort oder der Code ist nicht korrekt.",
+          "invalidPassword": "Das Passwort ist nicht korrekt.",
+          "invalidCode": "Dieser Code ist ungültig. Nimm den aktuellen Code aus deiner App.",
           "tooManyAttempts": "Zu viele Versuche. Bitte warte eine Minute und versuch es dann erneut.",
           "generic": "Etwas ist schiefgelaufen. Bitte versuch es erneut."
         }

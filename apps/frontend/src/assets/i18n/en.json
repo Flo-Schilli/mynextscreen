@@ -162,10 +162,13 @@
       },
       "page": {
         "title": "Set up two-factor authentication",
-        "reasonSuperAdmin": "As a platform administrator you can access every organisation, so your account must be protected with a second factor. Set it up now to continue.",
-        "reasonOrganisation": "The organisation “{name}” requires two-factor authentication for all members. Set it up now to continue.",
-        "reasonOrganisationUnnamed": "Your organisation requires two-factor authentication for all members. Set it up now to continue.",
-        "otherOrganisations": "Or open another organisation instead:",
+        "reasonSuperAdmin": "As a platform administrator you can access every organisation, so your account must be protected with a second factor.",
+        "reasonOrganisations": "Two-factor authentication is required by: {names}.",
+        "reasonOrganisationsUnnamed": "{count, plural, one {One of your organisations requires} other {# of your organisations require}} two-factor authentication.",
+        "reasonSuperAdminAndOrganisations": "As a platform administrator you need a second factor. It is also required by: {names}.",
+        "reasonSuperAdminAndOrganisationsUnnamed": "As a platform administrator you need a second factor. {count, plural, one {One of your organisations also requires it} other {# of your organisations also require it}}.",
+        "reasonUnknown": "Two-factor authentication is mandatory for your account.",
+        "accountWide": "The requirement applies to your whole account, in all of your organisations. Set up the second factor now to continue.",
         "logout": "Sign out"
       },
       "enrol": {
@@ -200,7 +203,7 @@
         },
         "errors": {
           "invalidPassword": "The password is not correct.",
-          "invalidPasswordOrCode": "The password or the code is not correct.",
+          "invalidCurrentCode": "The code from your current authenticator app is not correct.",
           "invalidCode": "That code is not valid. Check your app's time and try the current code.",
           "setupExpired": "The set-up took too long and expired. Please start again.",
           "tooManyAttempts": "Too many attempts. Please wait a minute and try again.",
@@ -2069,6 +2072,9 @@
         "requiredSuperAdmin": "Two-factor authentication is mandatory for platform administrators, so it cannot be turned off. To use a new phone, change the device.",
         "requiredOrganisations": "Required by: {names}. It cannot be turned off while you belong to these organisations. To use a new phone, change the device.",
         "requiredOrganisationsUnnamed": "{count, plural, one {One of your organisations requires} other {# of your organisations require}} two-factor authentication, so it cannot be turned off. To use a new phone, change the device.",
+        "requiredSuperAdminAndOrganisations": "Two-factor authentication is mandatory for platform administrators and required by {names}, so it cannot be turned off. To use a new phone, change the device.",
+        "requiredSuperAdminAndOrganisationsUnnamed": "Two-factor authentication is mandatory for platform administrators and required by {count, plural, one {one of your organisations} other {# of your organisations}}, so it cannot be turned off. To use a new phone, change the device.",
+        "requiredAccountWide": "The requirement applies to your whole account, in all of your organisations.",
         "enable": "Set up two-factor authentication",
         "changeDevice": "Change device",
         "regenerate": "New recovery codes",
@@ -2092,7 +2098,8 @@
           "saveCodesFirst": "Confirm first that you have saved your recovery codes."
         },
         "errors": {
-          "invalidCredentials": "The password or the code is not correct.",
+          "invalidPassword": "The password is not correct.",
+          "invalidCode": "That code is not valid. Use the current code from your app.",
           "tooManyAttempts": "Too many attempts. Please wait a minute and try again.",
           "generic": "Something went wrong. Please try again."
         }

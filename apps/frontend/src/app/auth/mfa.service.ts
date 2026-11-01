@@ -6,6 +6,7 @@ import type {
   TotpSetupResponse,
 } from '@mynextscreen/shared-types';
 import { firstValueFrom } from 'rxjs';
+import { isMfaMandatory } from './mfa-requirement';
 
 /** At or below this many unused recovery codes the UI warns the user. */
 export const LOW_RECOVERY_CODES_THRESHOLD = 3;
@@ -24,13 +25,7 @@ export class MfaService {
   readonly status = signal<MfaStatusResponse | null>(null);
 
   /** MFA is mandatory for this user (super-admin or an org requiring it). */
-  readonly isRequired = computed(() => {
-    const status = this.status();
-    return (
-      status !== null &&
-      (status.requiredBy.superAdmin || status.requiredBy.organisationIds.length > 0)
-    );
-  });
+  readonly isRequired = computed(() => isMfaMandatory(this.status()?.requiredBy));
 
   readonly lowRecoveryCodes = computed(() => {
     const status = this.status();

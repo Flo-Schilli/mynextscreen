@@ -2,18 +2,18 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from './auth.service';
 import { MfaService } from './mfa.service';
-import { OrganisationStateService } from '../shell/organisation-state.service';
+import { isMfaMandatory } from './mfa-requirement';
 
 /**
  * Lets a signed-in user into the mandatory enrolment wizard only while
- * enrolment is actually required. After a page reload the in-memory lock is
- * gone, so it is rebuilt from `GET /api/auth/mfa/status`: no TOTP yet but
- * required by the super-admin role or an organisation.
+ * enrolment is actually required. On a fresh page load `GET /api/auth/me`
+ * (via `loadCurrent`) already sets the lock. The reason (`requiredBy`) is
+ * filled in from `GET /api/auth/mfa/status` when the lock does not carry it
+ * yet; the same call also catches a session that was never locked in memory.
  */
 export const mfaEnrolmentGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const mfa = inject(MfaService);
-  const orgState = inject(OrganisationStateService);
   const router = inject(Router);
 
   if (!auth.isAuthenticated()) {
@@ -22,27 +22,23 @@ export const mfaEnrolmentGuard: CanActivateFn = async () => {
       return router.createUrlTree(['/login']);
     }
   }
-  if (auth.mfaEnrolment()) {
+  const lock = auth.mfaEnrolment();
+  if (lock?.requiredBy) {
     return true;
   }
 
   try {
     const status = await mfa.loadStatus();
-    if (!status.totpEnabled) {
-      if (status.requiredBy.superAdmin) {
-        auth.requireEnrolment({ kind: 'super-admin' });
-        return true;
-      }
-      const orgIds = status.requiredBy.organisationIds;
-      if (orgIds.length > 0) {
-        const selected = orgState.selectedOrgId();
-        const organisationId = selected && orgIds.includes(selected) ? selected : orgIds[0];
-        auth.requireEnrolment({ kind: 'organisation', organisationId });
-        return true;
-      }
+    if (lock || (!status.totpEnabled && isMfaMandatory(status.requiredBy))) {
+      auth.requireEnrolment(status.requiredBy);
+      return true;
     }
   } catch {
-    // Status unavailable: fall through to the app, which re-triggers the lock on its next 403.
+    // Status unavailable: a known lock still holds (the page falls back to a
+    // generic reason); otherwise let the app re-trigger the lock on its next 403.
+    if (lock) {
+      return true;
+    }
   }
   return router.createUrlTree(['/']);
 };
