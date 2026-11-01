@@ -11,6 +11,23 @@ import { ToastService } from '../shared/toast/toast.service';
 import { VersionBadge } from '../shared/version-badge';
 import { BtnComponent, IconComponent } from '../ui';
 
+/** Message of the backend's 403 for an unverified account (`EMAIL_NOT_VERIFIED_MESSAGE`). */
+const EMAIL_NOT_VERIFIED_MESSAGE = 'Email not verified';
+
+/** True only for the "email not verified" 403 — not for any other 403. */
+function isEmailNotVerified(err: unknown): boolean {
+  if (httpStatus(err) !== 403 || typeof err !== 'object' || err === null || !('error' in err)) {
+    return false;
+  }
+  const body: unknown = err.error;
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    'message' in body &&
+    body.message === EMAIL_NOT_VERIFIED_MESSAGE
+  );
+}
+
 @Component({
   selector: 'app-login',
   imports: [
@@ -100,9 +117,12 @@ export class Login {
     } catch (err: unknown) {
       if (httpStatus(err) === 429) {
         this.toastTooManyAttempts(err);
-      } else if (httpStatus(err) === 403) {
+      } else if (isEmailNotVerified(err)) {
         this.needsVerification.set(true);
         this.error.set(this.transloco.translate('auth.errors.notVerified'));
+      } else if (httpStatus(err) === 403) {
+        // Any other refusal (e.g. a proxy or a future policy) is not a verification problem.
+        this.toast.error(this.transloco.translate('auth.errors.generic'));
       } else {
         this.error.set(this.transloco.translate('auth.errors.invalidCredentials'));
       }

@@ -86,7 +86,11 @@ export class RecoveryCodesPanelComponent {
     this.toast.error(this.transloco.translate('auth.mfa.codes.copyFailed'));
   }
 
-  /** Hands the codes to the browser as a file; the object URL is revoked right after. */
+  /**
+   * Hands the codes to the browser as a file. The object URL is revoked on the
+   * next task: revoking it synchronously after `click()` can abort the
+   * download in some browsers.
+   */
   protected download(): void {
     const blob = new Blob([this.plainText()], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -94,6 +98,6 @@ export class RecoveryCodesPanelComponent {
     anchor.href = url;
     anchor.download = RECOVERY_CODES_FILENAME;
     anchor.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 }

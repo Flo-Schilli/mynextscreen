@@ -102,7 +102,8 @@
     },
     "errors": {
       "notVerified": "Bitte bestätige deine E-Mail, bevor du dich anmeldest.",
-      "invalidCredentials": "Ungültige E-Mail oder ungültiges Passwort."
+      "invalidCredentials": "Ungültige E-Mail oder ungültiges Passwort.",
+      "generic": "Anmeldung fehlgeschlagen. Bitte versuche es erneut."
     },
     "setPassword": {
       "title": "Passwort festlegen",
@@ -218,7 +219,8 @@
         "download": "Als .txt herunterladen",
         "fileHeading": "myNextScreen Recovery-Codes – jeder Code funktioniert einmal",
         "warning": "Bewahre sie sicher auf, z. B. in deinem Passwort-Manager. Wer diese Codes hat, kann sich als du anmelden.",
-        "saved": "Ich habe meine Recovery-Codes sicher gespeichert."
+        "saved": "Ich habe meine Recovery-Codes sicher gespeichert.",
+        "leaveWarning": "Du hast noch nicht bestätigt, dass du deine Recovery-Codes gespeichert hast. Sie werden nicht noch einmal angezeigt. Trotzdem verlassen?"
       }
     }
   },
@@ -2082,7 +2084,7 @@
         "enrolTitle": "Zwei-Faktor-Authentifizierung einrichten",
         "changeDeviceTitle": "Auf neues Gerät umziehen",
         "regenerateTitle": "Neue Recovery-Codes erzeugen",
-        "regenerateDesc": "Deine alten Recovery-Codes werden sofort ungültig. Gib einen Code aus deiner Authenticator-App ein, um fortzufahren.",
+        "regenerateDesc": "Deine alten Recovery-Codes werden sofort ungültig. Gib dein aktuelles Passwort und einen Code aus deiner Authenticator-App ein, um fortzufahren.",
         "regenerateConfirm": "Erzeugen",
         "done": "Fertig",
         "disableTitle": "Zwei-Faktor-Authentifizierung abschalten",

@@ -102,7 +102,8 @@
     },
     "errors": {
       "notVerified": "Please verify your email before signing in.",
-      "invalidCredentials": "Invalid email or password."
+      "invalidCredentials": "Invalid email or password.",
+      "generic": "Sign-in failed. Please try again."
     },
     "setPassword": {
       "title": "Set your password",
@@ -218,7 +219,8 @@
         "download": "Download as .txt",
         "fileHeading": "myNextScreen recovery codes — each code works once",
         "warning": "Store them somewhere safe, e.g. in your password manager. Anyone with these codes can sign in as you.",
-        "saved": "I have saved my recovery codes in a safe place."
+        "saved": "I have saved my recovery codes in a safe place.",
+        "leaveWarning": "Your recovery codes are not confirmed as saved yet and will not be shown again. Leave anyway?"
       }
     }
   },
@@ -2082,7 +2084,7 @@
         "enrolTitle": "Set up two-factor authentication",
         "changeDeviceTitle": "Move to a new device",
         "regenerateTitle": "Generate new recovery codes",
-        "regenerateDesc": "Your old recovery codes stop working immediately. Enter a code from your authenticator app to continue.",
+        "regenerateDesc": "Your old recovery codes stop working immediately. Enter your current password and a code from your authenticator app to continue.",
         "regenerateConfirm": "Generate",
         "done": "Done",
         "disableTitle": "Turn off two-factor authentication",

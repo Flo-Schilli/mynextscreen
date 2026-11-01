@@ -172,8 +172,27 @@ describe('Login', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
+  it('shows a generic toast for a 403 that is not about verification', async () => {
+    const { fixture } = setup(() =>
+      Promise.reject({ status: 403, error: { statusCode: 403, message: 'Forbidden' } }),
+    );
+    fixture.detectChanges();
+    fixture.componentInstance.form.setValue({ email: 'user@example.com', password: 'pw' });
+
+    await fixture.componentInstance.submit();
+
+    expect(fixture.componentInstance.needsVerification()).toBe(false);
+    expect(fixture.componentInstance.error()).toBeNull();
+    expect(TestBed.inject(ToastService).toasts().at(-1)?.message).toContain('Sign-in failed');
+  });
+
   it('flags needsVerification on a 403 and offers a resend', async () => {
-    const { fixture } = setup(() => Promise.reject({ status: 403 }));
+    const { fixture } = setup(() =>
+      Promise.reject({
+        status: 403,
+        error: { statusCode: 403, message: 'Email not verified', error: 'Forbidden' },
+      }),
+    );
     fixture.detectChanges();
     fixture.componentInstance.form.setValue({ email: 'user@example.com', password: 'pw' });
 

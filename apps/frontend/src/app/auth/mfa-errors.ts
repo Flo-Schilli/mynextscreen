@@ -1,13 +1,20 @@
 import type { MfaErrorCode, MfaRequiredBy } from '@mynextscreen/shared-types';
 
-const MFA_ERROR_CODES: readonly MfaErrorCode[] = [
-  'MFA_ENROLMENT_REQUIRED',
-  'MFA_DISABLE_FORBIDDEN',
-  'MFA_LOCKED_OUT',
-  'MFA_CHALLENGE_EXPIRED',
-  'MFA_INVALID_CODE',
-  'MFA_INVALID_PASSWORD',
-];
+/**
+ * Every `MfaErrorCode`, as a record so the compiler insists on an entry for
+ * each member: a code added to `@mynextscreen/shared-types` without one here
+ * fails the build instead of being silently ignored by {@link mfaErrorCode}.
+ */
+const MFA_ERROR_CODE_SET: Readonly<Record<MfaErrorCode, true>> = {
+  MFA_ENROLMENT_REQUIRED: true,
+  MFA_DISABLE_FORBIDDEN: true,
+  MFA_LOCKED_OUT: true,
+  MFA_CHALLENGE_EXPIRED: true,
+  MFA_INVALID_CODE: true,
+  MFA_INVALID_PASSWORD: true,
+};
+
+export const MFA_ERROR_CODES = Object.keys(MFA_ERROR_CODE_SET) as readonly MfaErrorCode[];
 
 interface ErrorBody {
   code?: unknown;

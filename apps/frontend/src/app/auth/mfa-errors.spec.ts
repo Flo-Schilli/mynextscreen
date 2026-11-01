@@ -1,5 +1,11 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { httpStatus, mfaErrorCode, mfaErrorRequiredBy, parseMfaRequiredBy } from './mfa-errors';
+import {
+  MFA_ERROR_CODES,
+  httpStatus,
+  mfaErrorCode,
+  mfaErrorRequiredBy,
+  parseMfaRequiredBy,
+} from './mfa-errors';
 
 const err = (status: number, error: unknown): HttpErrorResponse =>
   new HttpErrorResponse({ status, error });
@@ -20,6 +26,17 @@ describe('mfa-errors', () => {
     expect(mfaErrorCode(err(403, { code: 'SOMETHING_ELSE' }))).toBeNull();
     expect(mfaErrorCode(err(403, 'plain text'))).toBeNull();
     expect(mfaErrorCode(new Error('x'))).toBeNull();
+  });
+
+  it('derives the known codes from an exhaustive record over MfaErrorCode', () => {
+    expect([...MFA_ERROR_CODES].sort()).toEqual([
+      'MFA_CHALLENGE_EXPIRED',
+      'MFA_DISABLE_FORBIDDEN',
+      'MFA_ENROLMENT_REQUIRED',
+      'MFA_INVALID_CODE',
+      'MFA_INVALID_PASSWORD',
+      'MFA_LOCKED_OUT',
+    ]);
   });
 
   it('reads requiredBy of MFA_ENROLMENT_REQUIRED', () => {
