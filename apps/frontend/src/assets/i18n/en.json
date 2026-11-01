@@ -102,7 +102,8 @@
     },
     "errors": {
       "notVerified": "Please verify your email before signing in.",
-      "invalidCredentials": "Invalid email or password."
+      "invalidCredentials": "Invalid email or password.",
+      "generic": "Sign-in failed. Please try again."
     },
     "setPassword": {
       "title": "Set your password",
@@ -138,6 +139,89 @@
       "doneBody": "Your email address has been updated. Use it the next time you sign in.",
       "goToDashboard": "Go to dashboard",
       "invalidLink": "This confirmation link is invalid or has expired."
+    },
+    "mfa": {
+      "login": {
+        "title": "Two-factor authentication",
+        "subtitle": "Enter the 6-digit code from your authenticator app.",
+        "recoverySubtitle": "Enter one of your recovery codes. Each code works only once.",
+        "codeLabel": "Authentication code",
+        "recoveryLabel": "Recovery code",
+        "verify": "Verify",
+        "verifying": "Verifying…",
+        "useRecoveryCode": "Use a recovery code",
+        "useAuthenticator": "Use the authenticator app",
+        "back": "Back to sign-in",
+        "codeIncomplete": "Enter all 6 digits.",
+        "recoveryRequired": "Enter a recovery code.",
+        "invalidCode": "That code is not valid. Try the current code.",
+        "invalidRecoveryCode": "That recovery code is not valid or was already used.",
+        "challengeExpired": "Your sign-in timed out. Please enter your password again.",
+        "lockedOut": "Too many failed attempts. Sign-in is blocked for a while — try again later.",
+        "tooManyAttempts": "Too many attempts. Please wait a minute and try again.",
+        "genericError": "Verification failed. Please try again."
+      },
+      "page": {
+        "title": "Set up two-factor authentication",
+        "reasonSuperAdmin": "As a platform administrator you can access every organisation, so your account must be protected with a second factor.",
+        "reasonOrganisations": "Two-factor authentication is required by: {names}.",
+        "reasonOrganisationsUnnamed": "{count, plural, one {One of your organisations requires} other {# of your organisations require}} two-factor authentication.",
+        "reasonSuperAdminAndOrganisations": "As a platform administrator you need a second factor. It is also required by: {names}.",
+        "reasonSuperAdminAndOrganisationsUnnamed": "As a platform administrator you need a second factor. {count, plural, one {One of your organisations also requires it} other {# of your organisations also require it}}.",
+        "reasonUnknown": "Two-factor authentication is mandatory for your account.",
+        "accountWide": "The requirement applies to your whole account, in all of your organisations. Set up the second factor now to continue.",
+        "logout": "Sign out"
+      },
+      "enrol": {
+        "progress": "Set-up progress",
+        "continue": "Continue",
+        "back": "Back",
+        "password": {
+          "title": "Confirm it's you",
+          "desc": "Enter your current password to start the set-up.",
+          "descDeviceChange": "Enter your current password and a code from your current authenticator to move MFA to a new device.",
+          "label": "Current password",
+          "currentCodeLabel": "Code from your current authenticator"
+        },
+        "scan": {
+          "title": "Scan the QR code",
+          "desc": "Scan this code with an authenticator app (e.g. Aegis, 2FAS, Google Authenticator, 1Password).",
+          "qrAlt": "QR code for your authenticator app",
+          "manual": "Can't scan? Enter this key manually:",
+          "copySecret": "Copy key",
+          "secretCopied": "Key copied."
+        },
+        "verify": {
+          "title": "Enter the code",
+          "desc": "Enter the 6-digit code your app now shows to finish linking it.",
+          "label": "Authentication code",
+          "submit": "Activate",
+          "verifying": "Activating…"
+        },
+        "codes": {
+          "title": "Save your recovery codes",
+          "finish": "Finish"
+        },
+        "errors": {
+          "invalidPassword": "The password is not correct.",
+          "invalidCurrentCode": "The code from your current authenticator app is not correct.",
+          "invalidCode": "That code is not valid. Check your app's time and try the current code.",
+          "setupExpired": "The set-up took too long and expired. Please start again.",
+          "tooManyAttempts": "Too many attempts. Please wait a minute and try again.",
+          "generic": "Something went wrong. Please try again."
+        }
+      },
+      "codes": {
+        "intro": "Two-factor authentication is active. If you lose your device, these one-time codes are the only way into your account. They are shown only now.",
+        "copy": "Copy codes",
+        "copied": "Recovery codes copied.",
+        "copyFailed": "Copying failed — please download the codes or write them down.",
+        "download": "Download as .txt",
+        "fileHeading": "myNextScreen recovery codes — each code works once",
+        "warning": "Store them somewhere safe, e.g. in your password manager. Anyone with these codes can sign in as you.",
+        "saved": "I have saved my recovery codes in a safe place.",
+        "leaveWarning": "Your recovery codes are not confirmed as saved yet and will not be shown again. Leave anyway?"
+      }
     }
   },
   "shell": {
@@ -1689,6 +1773,11 @@
       "auth.password_reset_requested": "Password reset requested",
       "auth.password_changed": "Password changed",
       "auth.super_admin_setup": "Instance setup (super-admin)",
+      "auth.mfa_enabled": "Two-factor authentication enabled",
+      "auth.mfa_disabled": "Two-factor authentication disabled",
+      "auth.mfa_recovery_code_used": "Recovery code used",
+      "auth.mfa_recovery_codes_regenerated": "Recovery codes regenerated",
+      "auth.mfa_lockout": "Two-factor sign-in locked",
       "email.sent": "Email sent",
       "email.send_failed": "Email send failed",
       "playlist.rule_updated": "Playlist rule changed",
@@ -1970,6 +2059,52 @@
       "errors": {
         "loadPreferences": "Failed to load notification preferences.",
         "deleteAccount": "Could not delete account. Check your current password."
+      },
+      "security": {
+        "title": "Security",
+        "subtitle": "Two-factor authentication (TOTP) for your account",
+        "loading": "Loading…",
+        "loadError": "The security settings could not be loaded.",
+        "statusEnabled": "Two-factor authentication on",
+        "statusDisabled": "Two-factor authentication off",
+        "enabledSince": "Active since {date}",
+        "intro": "Protect your account with a second factor: after your password you also enter a code from an authenticator app.",
+        "recoveryRemaining": "{count, plural, =0 {No recovery codes left} one {1 recovery code left} other {# recovery codes left}}",
+        "lowRecoveryCodes": "You are running out of recovery codes. Generate new ones so you don't get locked out if you lose your device.",
+        "requiredSuperAdmin": "Two-factor authentication is mandatory for platform administrators, so it cannot be turned off. To use a new phone, change the device.",
+        "requiredOrganisations": "Required by: {names}. It cannot be turned off while you belong to these organisations. To use a new phone, change the device.",
+        "requiredOrganisationsUnnamed": "{count, plural, one {One of your organisations requires} other {# of your organisations require}} two-factor authentication, so it cannot be turned off. To use a new phone, change the device.",
+        "requiredSuperAdminAndOrganisations": "Two-factor authentication is mandatory for platform administrators and required by {names}, so it cannot be turned off. To use a new phone, change the device.",
+        "requiredSuperAdminAndOrganisationsUnnamed": "Two-factor authentication is mandatory for platform administrators and required by {count, plural, one {one of your organisations} other {# of your organisations}}, so it cannot be turned off. To use a new phone, change the device.",
+        "requiredAccountWide": "The requirement applies to your whole account, in all of your organisations.",
+        "enable": "Set up two-factor authentication",
+        "changeDevice": "Change device",
+        "regenerate": "New recovery codes",
+        "disable": "Turn off",
+        "enrolTitle": "Set up two-factor authentication",
+        "changeDeviceTitle": "Move to a new device",
+        "regenerateTitle": "Generate new recovery codes",
+        "regenerateDesc": "Your old recovery codes stop working immediately. Enter your current password and a code from your authenticator app to continue.",
+        "regenerateConfirm": "Generate",
+        "done": "Done",
+        "disableTitle": "Turn off two-factor authentication",
+        "disableDesc": "Your account will then be protected by your password only. All other sessions are signed out.",
+        "disableConfirm": "Turn off",
+        "passwordLabel": "Current password",
+        "codeLabel": "Code from your authenticator app",
+        "toast": {
+          "enabled": "Two-factor authentication is now active.",
+          "deviceChanged": "Your new device is set up. The old one no longer works.",
+          "disabled": "Two-factor authentication turned off.",
+          "disableForbidden": "Two-factor authentication is mandatory for your account and cannot be turned off.",
+          "saveCodesFirst": "Confirm first that you have saved your recovery codes."
+        },
+        "errors": {
+          "invalidPassword": "The password is not correct.",
+          "invalidCode": "That code is not valid. Use the current code from your app.",
+          "tooManyAttempts": "Too many attempts. Please wait a minute and try again.",
+          "generic": "Something went wrong. Please try again."
+        }
       }
     },
     "org": {

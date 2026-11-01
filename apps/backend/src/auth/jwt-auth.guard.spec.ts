@@ -4,6 +4,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { ACCESS_COOKIE } from './cookies';
 import { IS_PUBLIC_KEY } from './public.decorator';
 import { ALLOW_WITHOUT_MFA_KEY } from './mfa/allow-without-mfa.decorator';
+import type { MfaService } from './mfa/mfa.service';
 import type { TokenService } from './token.service';
 import type { AccessTokenPayload } from './token.types';
 
@@ -11,6 +12,7 @@ describe('JwtAuthGuard', () => {
   let guard: JwtAuthGuard;
   let reflector: Reflector;
   let tokens: { verifyAccessToken: jest.Mock };
+  let mfa: { requiredBy: jest.Mock };
 
   const VALID_PAYLOAD: AccessTokenPayload = {
     sub: 'user-123',
@@ -23,7 +25,17 @@ describe('JwtAuthGuard', () => {
   beforeEach(() => {
     reflector = new Reflector();
     tokens = { verifyAccessToken: jest.fn() };
-    guard = new JwtAuthGuard(reflector, tokens as unknown as TokenService);
+    // Mirrors MfaService.requiredBy for a user without any requireMfa org.
+    mfa = {
+      requiredBy: jest.fn((user: { isSuperAdmin: boolean }) =>
+        Promise.resolve({ superAdmin: user.isSuperAdmin, organisationIds: [] }),
+      ),
+    };
+    guard = new JwtAuthGuard(
+      reflector,
+      tokens as unknown as TokenService,
+      mfa as unknown as MfaService,
+    );
   });
 
   function createMockContext(
@@ -87,10 +99,12 @@ describe('JwtAuthGuard', () => {
 
       await expect(guard.canActivate(context)).resolves.toBe(true);
       expect((request.user as { isSuperAdmin: boolean }).isSuperAdmin).toBe(true);
+      // MFA-confirmed sessions never pay for the policy lookup.
+      expect(mfa.requiredBy).not.toHaveBeenCalled();
     });
   });
 
-  describe('super-admin MFA enforcement', () => {
+  describe('user-bound MFA enforcement', () => {
     async function rejection(context: ExecutionContext): Promise<ForbiddenException> {
       try {
         await guard.canActivate(context);
@@ -110,9 +124,36 @@ describe('JwtAuthGuard', () => {
       const { context, request } = createMockContext({ [ACCESS_COOKIE]: 'admin-token' });
 
       const error = await rejection(context);
-      expect(error.getResponse()).toMatchObject({ code: 'MFA_ENROLMENT_REQUIRED' });
+      expect(error.getResponse()).toEqual({
+        statusCode: 403,
+        code: 'MFA_ENROLMENT_REQUIRED',
+        message: expect.any(String),
+        requiredBy: { superAdmin: true, organisationIds: [] },
+      });
+      expect(mfa.requiredBy).toHaveBeenCalledWith({ id: 'user-123', isSuperAdmin: true });
       // The user is still attached: the session itself is valid.
       expect(request.user).toMatchObject({ userId: 'user-123', mfa: false });
+    });
+
+    it('answers 403 on any route for a member of a requireMfa org without mfa', async () => {
+      tokens.verifyAccessToken.mockResolvedValue(VALID_PAYLOAD);
+      mfa.requiredBy.mockResolvedValue({ superAdmin: false, organisationIds: ['org-strict'] });
+      const { context } = createMockContext({ [ACCESS_COOKIE]: 'user-token' });
+
+      const error = await rejection(context);
+      expect(error.getStatus()).toBe(403);
+      expect(error.getResponse()).toMatchObject({
+        code: 'MFA_ENROLMENT_REQUIRED',
+        requiredBy: { superAdmin: false, organisationIds: ['org-strict'] },
+      });
+    });
+
+    it('lets an MFA-confirmed member of a requireMfa org through without a lookup', async () => {
+      tokens.verifyAccessToken.mockResolvedValue({ ...VALID_PAYLOAD, mfa: true });
+      const { context } = createMockContext({ [ACCESS_COOKIE]: 'user-token' });
+
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(mfa.requiredBy).not.toHaveBeenCalled();
     });
 
     it('allows @AllowWithoutMfa routes for a super-admin without mfa', async () => {
@@ -123,13 +164,26 @@ describe('JwtAuthGuard', () => {
       );
 
       await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(mfa.requiredBy).not.toHaveBeenCalled();
     });
 
-    it('does not require mfa from regular users (org policy is enforced elsewhere)', async () => {
+    it('allows @AllowWithoutMfa routes for a requireMfa-org member without mfa', async () => {
+      tokens.verifyAccessToken.mockResolvedValue(VALID_PAYLOAD);
+      mfa.requiredBy.mockResolvedValue({ superAdmin: false, organisationIds: ['org-strict'] });
+      const { context } = createMockContext(
+        { [ACCESS_COOKIE]: 'user-token' },
+        { [ALLOW_WITHOUT_MFA_KEY]: true },
+      );
+
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+    });
+
+    it('lets a user without any requireMfa org through without mfa (MFA optional)', async () => {
       tokens.verifyAccessToken.mockResolvedValue(VALID_PAYLOAD);
       const { context } = createMockContext({ [ACCESS_COOKIE]: 'user-token' });
 
       await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(mfa.requiredBy).toHaveBeenCalledWith({ id: 'user-123', isSuperAdmin: false });
     });
   });
 

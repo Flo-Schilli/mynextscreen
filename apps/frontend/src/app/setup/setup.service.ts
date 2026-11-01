@@ -1,22 +1,20 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { AuthService, type AuthenticatedUser } from '../auth/auth.service';
+import type { AuthSuccessResponse } from '@mynextscreen/shared-types';
+import { AuthService, type LoginOutcome } from '../auth/auth.service';
 
 interface SetupStatusResponse {
   setupNeeded: boolean;
   signupEnabled: boolean;
 }
 
-interface AuthSuccessResponse {
-  user: AuthenticatedUser;
-}
-
 /**
  * First-run setup: on a fresh deployment (no user yet) the first visitor creates
  * the initial super-admin via the UI, replacing env-based seeding. The create
  * call logs them in (cookies set by the backend), so we seed the auth user
- * signal directly — same effect as AuthService.login().
+ * signal directly — same effect as AuthService.login(). The new super-admin
+ * has no MFA yet, so the outcome is normally `'enrolment-required'`.
  */
 @Injectable({ providedIn: 'root' })
 export class SetupService {
@@ -37,7 +35,11 @@ export class SetupService {
     return res.setupNeeded;
   }
 
-  async createFirstAdmin(email: string, password: string, name?: string): Promise<void> {
+  async createFirstAdmin(
+    email: string,
+    password: string,
+    name?: string,
+  ): Promise<Exclude<LoginOutcome, 'mfa-required'>> {
     const res = await firstValueFrom(
       this.http.post<AuthSuccessResponse>(
         '/api/auth/setup',
@@ -45,7 +47,7 @@ export class SetupService {
         { withCredentials: true },
       ),
     );
-    this.auth.user.set(res.user);
     this.setupNeeded.set(false);
+    return this.auth.applySession(res);
   }
 }

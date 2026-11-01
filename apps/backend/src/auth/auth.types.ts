@@ -17,8 +17,17 @@ export interface AuthSuccessResponse {
   user: AuthenticatedUserView;
   /**
    * The session is not MFA-confirmed but MFA is mandatory for the user
-   * (super-admin): the SPA must open the enrolment wizard.
+   * (super-admin or any org with `requireMfa`): the SPA must open the
+   * enrolment wizard.
    */
+  mfaEnrolmentRequired: boolean;
+}
+
+/** `GET /auth/me` — evaluated live on every call. */
+export interface AuthMeResponse extends AuthenticatedUserView {
+  /** The current session is MFA-confirmed (access-token claim). */
+  mfa: boolean;
+  /** Same meaning as in {@link AuthSuccessResponse}: `!mfa && MFA mandatory`. */
   mfaEnrolmentRequired: boolean;
 }
 

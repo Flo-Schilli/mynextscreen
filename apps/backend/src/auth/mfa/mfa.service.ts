@@ -8,7 +8,6 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { and, eq, isNull, lt, or } from 'drizzle-orm';
@@ -46,21 +45,32 @@ import {
   MFA_CHALLENGE_TTL_SECONDS,
   MFA_DISABLE_FORBIDDEN,
   MFA_ENROLMENT_TTL_SECONDS,
+  MFA_LOCKED_OUT,
   MFA_LOCKOUT_THRESHOLD,
   MFA_LOCKOUT_WINDOW_SECONDS,
   type MfaMethod,
   mfaRedisKeys,
 } from './mfa.constants';
+import { mfaChallengeExpired, mfaInvalidCode, mfaInvalidPassword } from './mfa.errors';
 import { RecoveryCodeService } from './recovery-code.service';
 import { TotpService } from './totp.service';
 
 const CHALLENGE_BYTES = 32;
-/** Error code on the 429 a locked-out user gets. */
-export const MFA_LOCKED_OUT = 'MFA_LOCKED_OUT';
 
+/**
+ * Why MFA is mandatory for a user (mirrored in `libs/shared-types`). MFA is
+ * bound to the USER: mandatory as soon as they are a super-admin or a member
+ * of at least one org with `requireMfa` — and then for every org of theirs.
+ */
 export interface MfaRequiredBy {
   superAdmin: boolean;
+  /** Orgs of the user that have `requireMfa` switched on. */
   organisationIds: string[];
+}
+
+/** True when {@link MfaRequiredBy} makes MFA mandatory. */
+export function isMfaMandatory(requiredBy: MfaRequiredBy): boolean {
+  return requiredBy.superAdmin || requiredBy.organisationIds.length > 0;
 }
 
 export interface MfaStatus {
@@ -141,16 +151,26 @@ export class MfaService {
   }
 
   /**
-   * True when the user may not go without MFA: always for super-admins, and for
-   * members of an organisation that requires it — that one org when `orgId` is
-   * given, any of theirs otherwise.
+   * True when the user may not go without MFA: super-admins (no DB lookup) and
+   * members of at least one organisation that requires it. User-level — it
+   * then applies to every org of the user, there is no per-org exemption.
    */
-  async isMfaRequired(user: Pick<User, 'id' | 'isSuperAdmin'>, orgId?: string): Promise<boolean> {
+  async isMfaRequired(user: Pick<User, 'id' | 'isSuperAdmin'>): Promise<boolean> {
     if (user.isSuperAdmin) {
       return true;
     }
-    const { organisationIds } = await this.requiredBy(user);
-    return orgId === undefined ? organisationIds.length > 0 : organisationIds.includes(orgId);
+    return isMfaMandatory(await this.requiredBy(user));
+  }
+
+  /**
+   * `mfaEnrolmentRequired` of a session: not MFA-confirmed but MFA is
+   * mandatory. An MFA-confirmed session never touches the DB.
+   */
+  async isEnrolmentRequired(
+    user: Pick<User, 'id' | 'isSuperAdmin'>,
+    sessionMfa: boolean,
+  ): Promise<boolean> {
+    return !sessionMfa && (await this.isMfaRequired(user));
   }
 
   async getStatus(userId: string): Promise<MfaStatus> {
@@ -173,11 +193,17 @@ export class MfaService {
    */
   async startEnrolment(userId: string, currentPassword: string, code?: string): Promise<TotpSetup> {
     const user = await this.requireUser(userId);
+    await this.assertNotLockedOut(userId);
     await this.requirePassword(user, currentPassword);
     const existing = await this.findFactor(userId);
-    if (existing && (code === undefined || !(await this.acceptTotp(existing, code)))) {
-      this.logger.warn(`MFA re-enrolment refused: no valid current code userId=${userId}`);
-      throw new UnauthorizedException('A valid code from your current authenticator is required');
+    if (existing) {
+      await this.requireManagementCode(
+        user,
+        existing,
+        code,
+        'MFA re-enrolment refused',
+        'A valid code from your current authenticator is required',
+      );
     }
 
     const secret = this.totp.generateSecret();
@@ -208,7 +234,7 @@ export class MfaService {
     const step = this.totp.validate(secret, code);
     if (step === null) {
       this.logger.warn(`MFA enrolment confirm failed: invalid code userId=${userId}`);
-      throw new UnauthorizedException('Invalid code');
+      throw mfaInvalidCode();
     }
 
     const recoveryCodes = this.recoveryCodes.generate();
@@ -247,6 +273,7 @@ export class MfaService {
    */
   async disable(userId: string, currentPassword: string, code: string): Promise<User> {
     const user = await this.requireUser(userId);
+    await this.assertNotLockedOut(userId);
     if (await this.isMfaRequired(user)) {
       throw new ConflictException({
         statusCode: HttpStatus.CONFLICT,
@@ -256,10 +283,7 @@ export class MfaService {
     }
     await this.requirePassword(user, currentPassword);
     const factor = await this.requireFactor(userId);
-    if (!(await this.acceptTotp(factor, code))) {
-      this.logger.warn(`MFA disable failed: invalid code userId=${userId}`);
-      throw new UnauthorizedException('Invalid code');
-    }
+    await this.requireManagementCode(user, factor, code, 'MFA disable failed');
 
     await this.db.transaction(async (tx) => {
       await tx.delete(userMfa).where(eq(userMfa.userId, userId));
@@ -274,14 +298,20 @@ export class MfaService {
     return user;
   }
 
-  /** Invalidate every recovery code and return 10 new ones (shown once). */
-  async regenerateRecoveryCodes(userId: string, code: string): Promise<string[]> {
+  /**
+   * Invalidate every recovery code and return 10 new ones (shown once). Needs
+   * the current password and a valid code, like every other factor change.
+   */
+  async regenerateRecoveryCodes(
+    userId: string,
+    currentPassword: string,
+    code: string,
+  ): Promise<string[]> {
     const user = await this.requireUser(userId);
+    await this.assertNotLockedOut(userId);
+    await this.requirePassword(user, currentPassword);
     const factor = await this.requireFactor(userId);
-    if (!(await this.acceptTotp(factor, code))) {
-      this.logger.warn(`MFA recovery-code regeneration failed: invalid code userId=${userId}`);
-      throw new UnauthorizedException('Invalid code');
-    }
+    await this.requireManagementCode(user, factor, code, 'MFA recovery-code regeneration failed');
     const codes = this.recoveryCodes.generate();
     await this.recoveryCodes.replaceAll(userId, codes);
     this.logger.log(`MFA recovery codes regenerated userId=${userId}`);
@@ -325,7 +355,7 @@ export class MfaService {
     const key = mfaRedisKeys.challenge(hashToken(challengeId));
     const userId = await this.redis.hget(key, 'userId');
     if (!userId) {
-      throw new UnauthorizedException('MFA challenge expired — sign in again');
+      throw mfaChallengeExpired();
     }
     await this.assertNotLockedOut(userId);
     const user = await this.users.findById(userId);
@@ -333,7 +363,7 @@ export class MfaService {
     if (!user || !factor) {
       // Deleted or reset between both steps: the challenge is worthless.
       await this.redis.del(key);
-      throw new UnauthorizedException('MFA challenge expired — sign in again');
+      throw mfaChallengeExpired();
     }
 
     const method: MfaMethod = input.code !== undefined ? 'totp' : 'recovery';
@@ -341,11 +371,11 @@ export class MfaService {
     if (!accepted) {
       await this.registerFailure(key, user);
       this.logger.warn(`MFA login failed userId=${userId} method=${method}`);
-      throw new UnauthorizedException('Invalid code');
+      throw mfaInvalidCode();
     }
     // Single use: only the request that actually deletes the challenge wins.
     if ((await this.redis.del(key)) === 0) {
-      throw new UnauthorizedException('MFA challenge expired — sign in again');
+      throw mfaChallengeExpired();
     }
     await this.redis.del(mfaRedisKeys.failures(userId));
 
@@ -412,12 +442,43 @@ export class MfaService {
     if (attempts >= MFA_CHALLENGE_MAX_ATTEMPTS || ttl < 0) {
       await this.redis.del(challengeKey);
     }
+    await this.countUserFailure(user);
+  }
 
-    const failuresKey = mfaRedisKeys.failures(user.id);
-    const failures = await this.redis.incr(failuresKey);
-    if (failures === 1) {
-      await this.redis.expire(failuresKey, MFA_LOCKOUT_WINDOW_SECONDS);
+  /**
+   * A management action (device change, disable, regeneration) with a code
+   * that is missing or wrong counts against the same per-user lockout as a
+   * failed login — otherwise a hijacked session could brute-force the code.
+   */
+  private async requireManagementCode(
+    user: User,
+    factor: UserMfa,
+    code: string | undefined,
+    logContext: string,
+    message?: string,
+  ): Promise<void> {
+    if (code !== undefined && (await this.acceptTotp(factor, code))) {
+      return;
     }
+    await this.countUserFailure(user);
+    this.logger.warn(`${logContext}: invalid code userId=${user.id}`);
+    throw mfaInvalidCode(message);
+  }
+
+  /**
+   * Counts a failed second-factor attempt for the user; the 10th within the
+   * window locks them out (audited once). The window is set together with the
+   * first increment in one MULTI (`SET NX EX` + `INCR`), so the counter can
+   * never be left without a TTL — that would be a permanent lockout.
+   */
+  private async countUserFailure(user: User): Promise<void> {
+    const failuresKey = mfaRedisKeys.failures(user.id);
+    const results = await this.redis
+      .multi()
+      .set(failuresKey, '0', 'EX', MFA_LOCKOUT_WINDOW_SECONDS, 'NX')
+      .incr(failuresKey)
+      .exec();
+    const failures = Number(results?.[1]?.[1] ?? 0);
     if (failures === MFA_LOCKOUT_THRESHOLD) {
       this.logger.warn(`MFA lockout userId=${user.id}`);
       this.events.emit(
@@ -465,7 +526,7 @@ export class MfaService {
   private async requirePassword(user: User, currentPassword: string): Promise<void> {
     if (!(await this.passwords.verify(user.passwordHash, currentPassword))) {
       this.logger.warn(`MFA action refused: bad password userId=${user.id}`);
-      throw new UnauthorizedException('Current password is incorrect');
+      throw mfaInvalidPassword();
     }
   }
 }

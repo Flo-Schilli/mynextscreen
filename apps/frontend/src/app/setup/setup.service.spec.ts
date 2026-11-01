@@ -83,4 +83,13 @@ describe('SetupService', () => {
     expect(auth.isAuthenticated()).toBe(true);
     expect(service.setupNeeded()).toBe(false);
   });
+
+  it('reports that the new super-admin must enrol in MFA', async () => {
+    const { service, auth, httpMock } = setup();
+    const promise = service.createFirstAdmin('admin@example.com', 'supersecret');
+    httpMock.expectOne('/api/auth/setup').flush({ user: ADMIN, mfaEnrolmentRequired: true });
+
+    expect(await promise).toBe('enrolment-required');
+    expect(auth.mfaEnrolment()).toEqual({ requiredBy: null });
+  });
 });

@@ -47,7 +47,10 @@ export class UserController {
     return this.toProfileView(user);
   }
 
+  // The MFA enrolment wizard names the orgs that require MFA, so the user's own
+  // memberships must stay readable while the session is not MFA-confirmed.
   @Get('memberships')
+  @AllowWithoutMfa()
   getMemberships(@Req() req: AuthenticatedRequest): Promise<UserOrganisationMembership[]> {
     return this.userService.getMemberships(req.user.userId);
   }

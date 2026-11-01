@@ -14,6 +14,7 @@ import { ACCESS_COOKIE } from './cookies';
 import { TokenService } from './token.service';
 import { ALLOW_WITHOUT_MFA_KEY } from './mfa/allow-without-mfa.decorator';
 import { MFA_ENROLMENT_REQUIRED } from './mfa/mfa.constants';
+import { MfaService, isMfaMandatory } from './mfa/mfa.service';
 
 export interface AuthenticatedUser {
   userId: string;
@@ -38,6 +39,7 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly tokens: TokenService,
+    private readonly mfa: MfaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -85,18 +87,33 @@ export class JwtAuthGuard implements CanActivate {
     }
     request.user = user;
 
-    // Super-admins see every organisation, so their sessions must always be
-    // MFA-confirmed. A session without it (password-only login, or a token
-    // minted before this release) stays valid but only reaches the routes
-    // marked @AllowWithoutMfa — i.e. the enrolment wizard.
-    if (user.isSuperAdmin && !user.mfa && !this.allowsWithoutMfa(context)) {
+    if (!user.mfa && !this.allowsWithoutMfa(context)) {
+      await this.assertMfaOptional(user);
+    }
+    return true;
+  }
+
+  /**
+   * MFA is bound to the user: mandatory for super-admins and for members of
+   * any org with `requireMfa` — then for every route, in every org. A session
+   * without it (password-only login, or a token minted before the policy
+   * applied) stays valid but only reaches the routes marked @AllowWithoutMfa,
+   * i.e. the enrolment wizard. Evaluated live, so switching `requireMfa` on
+   * takes effect on the next request; MFA-confirmed sessions never get here.
+   */
+  private async assertMfaOptional(user: AuthenticatedUser): Promise<void> {
+    const requiredBy = await this.mfa.requiredBy({
+      id: user.userId,
+      isSuperAdmin: user.isSuperAdmin,
+    });
+    if (isMfaMandatory(requiredBy)) {
       throw new ForbiddenException({
         statusCode: 403,
         code: MFA_ENROLMENT_REQUIRED,
         message: 'Multi-factor authentication must be set up before continuing',
+        requiredBy,
       });
     }
-    return true;
   }
 
   private allowsWithoutMfa(context: ExecutionContext): boolean {

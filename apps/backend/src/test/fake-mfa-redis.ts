@@ -14,7 +14,11 @@ export class FakeMfaRedis {
     return Promise.resolve(this.strings.get(key) ?? null);
   }
 
-  set(key: string, value: string, _ex?: 'EX', seconds?: number): Promise<'OK'> {
+  /** `SET key value [EX seconds] [NX]` — with NX an existing key is left alone (null). */
+  set(key: string, value: string, _ex?: 'EX', seconds?: number, nx?: 'NX'): Promise<'OK' | null> {
+    if (nx === 'NX' && (this.strings.has(key) || this.hashes.has(key))) {
+      return Promise.resolve(null);
+    }
     this.strings.set(key, value);
     if (seconds !== undefined) {
       this.ttls.set(key, seconds);
@@ -86,6 +90,16 @@ class FakeMulti {
   private readonly queued: (() => Promise<unknown>)[] = [];
 
   constructor(private readonly redis: FakeMfaRedis) {}
+
+  set(key: string, value: string, ex?: 'EX', seconds?: number, nx?: 'NX'): this {
+    this.queued.push(() => this.redis.set(key, value, ex, seconds, nx));
+    return this;
+  }
+
+  incr(key: string): this {
+    this.queued.push(() => this.redis.incr(key));
+    return this;
+  }
 
   hset(key: string, ...pairs: string[]): this {
     this.queued.push(() => this.redis.hset(key, ...pairs));

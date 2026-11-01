@@ -1,6 +1,7 @@
 import { TestBed, getTestBed } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
-import { provideZonelessChangeDetection } from '@angular/core';
+import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import {
   HttpClient,
   provideHttpClient,
@@ -13,7 +14,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { of } from 'rxjs';
 import { vi } from 'vitest';
 import { authInterceptor, __resetRefreshInFlight } from './auth.interceptor';
-import { AuthService } from './auth.service';
+import type { MfaRequiredBy } from '@mynextscreen/shared-types';
+import { AuthService, type MfaEnrolmentLock } from './auth.service';
 import { OrganisationStateService } from '../shell/organisation-state.service';
 
 try {
@@ -120,5 +122,178 @@ describe('authInterceptor', () => {
       return of(new HttpResponse({ status: 200 }));
     };
     TestBed.runInInjectionContext(() => authInterceptor(req, next).subscribe());
+  });
+});
+
+describe('authInterceptor — MFA enforcement', () => {
+  function configureMfa(url = '/screens') {
+    const enrolment = signal<MfaEnrolmentLock | null>(null);
+    const auth = {
+      refreshSession: vi.fn(() => Promise.resolve()),
+      logout: vi.fn(() => Promise.resolve()),
+      mfaEnrolment: enrolment,
+      requireEnrolment: vi.fn((requiredBy: MfaRequiredBy | null) => enrolment.set({ requiredBy })),
+      enrolmentGeneration: 0,
+    };
+    const router = { url, navigateByUrl: vi.fn(() => Promise.resolve(true)) };
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        provideHttpClient(withInterceptors([authInterceptor])),
+        provideHttpClientTesting(),
+        { provide: AuthService, useValue: auth },
+        { provide: Router, useValue: router },
+        { provide: OrganisationStateService, useValue: { selectedOrgId: () => 'org-1' } },
+      ],
+    });
+    return {
+      auth,
+      router,
+      http: TestBed.inject(HttpClient),
+      httpMock: TestBed.inject(HttpTestingController),
+    };
+  }
+
+  afterEach(() => {
+    __resetRefreshInFlight();
+    TestBed.inject(HttpTestingController, null, { optional: true })?.verify();
+  });
+
+  it('maps 403 MFA_ENROLMENT_REQUIRED to the wizard with the requiredBy of the body', () => {
+    const { auth, router, http, httpMock } = configureMfa();
+    const error = vi.fn();
+    http.get('/api/screens').subscribe({ error });
+
+    const requiredBy: MfaRequiredBy = { superAdmin: true, organisationIds: ['org-9'] };
+    httpMock
+      .expectOne('/api/screens')
+      .flush(
+        { code: 'MFA_ENROLMENT_REQUIRED', requiredBy },
+        { status: 403, statusText: 'Forbidden' },
+      );
+
+    expect(auth.requireEnrolment).toHaveBeenCalledWith(requiredBy);
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/mfa-enrolment');
+    expect(error).toHaveBeenCalled();
+    expect(auth.logout).not.toHaveBeenCalled();
+  });
+
+  it('locks with an unknown reason when the body carries no valid requiredBy', () => {
+    const { auth, router, http, httpMock } = configureMfa();
+    http.get('/api/playlists').subscribe({ error: () => undefined });
+
+    httpMock
+      .expectOne('/api/playlists')
+      .flush(
+        { code: 'MFA_ENROLMENT_REQUIRED', requiredBy: 'nope' },
+        { status: 403, statusText: 'Forbidden' },
+      );
+
+    expect(auth.requireEnrolment).toHaveBeenCalledWith(null);
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/mfa-enrolment');
+  });
+
+  it('ignores the removed org-scoped MFA_REQUIRED code', () => {
+    const { auth, router, http, httpMock } = configureMfa();
+    http.get('/api/playlists').subscribe({ error: () => undefined });
+
+    httpMock
+      .expectOne('/api/playlists')
+      .flush(
+        { code: 'MFA_REQUIRED', organisationId: 'org-9' },
+        { status: 403, statusText: 'Forbidden' },
+      );
+
+    expect(auth.requireEnrolment).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
+  it('ignores a late 403 of a request sent before the enrolment completed', () => {
+    const { auth, router, http, httpMock } = configureMfa();
+    const error = vi.fn();
+    http.get('/api/screens').subscribe({ error });
+    const pending = httpMock.expectOne('/api/screens');
+
+    // The enrolment completes while the request is still in flight.
+    auth.enrolmentGeneration = 1;
+    pending.flush({ code: 'MFA_ENROLMENT_REQUIRED' }, { status: 403, statusText: 'Forbidden' });
+
+    expect(auth.requireEnrolment).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalled();
+  });
+
+  it('still locks on a 403 of a request sent after the enrolment', () => {
+    const { auth, router, http, httpMock } = configureMfa();
+    auth.enrolmentGeneration = 1;
+    http.get('/api/screens').subscribe({ error: () => undefined });
+    httpMock
+      .expectOne('/api/screens')
+      .flush({ code: 'MFA_ENROLMENT_REQUIRED' }, { status: 403, statusText: 'Forbidden' });
+
+    expect(auth.requireEnrolment).toHaveBeenCalled();
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/mfa-enrolment');
+  });
+
+  it('navigates only once for a burst of 403s', () => {
+    const { router, http, httpMock } = configureMfa();
+    http.get('/api/screens').subscribe({ error: () => undefined });
+    http.get('/api/playlists').subscribe({ error: () => undefined });
+
+    const body = { code: 'MFA_ENROLMENT_REQUIRED' };
+    httpMock.expectOne('/api/screens').flush(body, { status: 403, statusText: 'Forbidden' });
+    httpMock.expectOne('/api/playlists').flush(body, { status: 403, statusText: 'Forbidden' });
+
+    expect(router.navigateByUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not navigate again while the wizard is already shown', () => {
+    const { auth, router, http, httpMock } = configureMfa('/mfa-enrolment');
+    http.get('/api/me/memberships').subscribe({ error: () => undefined });
+
+    httpMock
+      .expectOne('/api/me/memberships')
+      .flush({ code: 'MFA_ENROLMENT_REQUIRED' }, { status: 403, statusText: 'Forbidden' });
+
+    expect(auth.requireEnrolment).toHaveBeenCalled();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
+  it("never maps the wizard's own /api/auth/mfa/* calls (no loop)", () => {
+    const { auth, router, http, httpMock } = configureMfa('/mfa-enrolment');
+    http.post('/api/auth/mfa/totp/setup', {}).subscribe({ error: () => undefined });
+
+    httpMock
+      .expectOne('/api/auth/mfa/totp/setup')
+      .flush({ code: 'MFA_ENROLMENT_REQUIRED' }, { status: 403, statusText: 'Forbidden' });
+
+    expect(auth.requireEnrolment).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
+  it('leaves other 403s alone', () => {
+    const { auth, router, http, httpMock } = configureMfa();
+    http.get('/api/screens').subscribe({ error: () => undefined });
+
+    httpMock
+      .expectOne('/api/screens')
+      .flush({ message: 'Forbidden resource' }, { status: 403, statusText: 'Forbidden' });
+
+    expect(auth.requireEnrolment).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
+
+  it('sends a refreshed-but-unconfirmed session to the wizard instead of logging out', async () => {
+    const { auth, router, http, httpMock } = configureMfa();
+    http.get('/api/screens').subscribe({ error: () => undefined });
+
+    httpMock.expectOne('/api/screens').flush(null, { status: 401, statusText: 'Unauthorized' });
+    await new Promise((r) => setTimeout(r, 0));
+    httpMock
+      .expectOne('/api/screens')
+      .flush({ code: 'MFA_ENROLMENT_REQUIRED' }, { status: 403, statusText: 'Forbidden' });
+
+    expect(auth.logout).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/mfa-enrolment');
   });
 });

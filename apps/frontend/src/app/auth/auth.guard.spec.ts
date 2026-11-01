@@ -4,7 +4,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ActivatedRouteSnapshot, RouterStateSnapshot, Router, UrlTree } from '@angular/router';
 import { vi } from 'vitest';
 import { authGuard } from './auth.guard';
-import { AuthService } from './auth.service';
+import { AuthService, type MfaEnrolmentLock } from './auth.service';
 import { SetupService } from '../setup/setup.service';
 
 try {
@@ -16,6 +16,7 @@ try {
 interface AuthStub {
   isAuthenticated: () => boolean;
   loadCurrent: ReturnType<typeof vi.fn>;
+  mfaEnrolment: () => MfaEnrolmentLock | null;
 }
 
 const REDIRECT_URL_TREE = {} as UrlTree;
@@ -24,6 +25,7 @@ function configure(opts: {
   authenticatedBefore: boolean;
   authenticatedAfterLoad?: boolean;
   setupNeeded?: boolean;
+  enrolment?: MfaEnrolmentLock | null;
 }): {
   createUrlTree: ReturnType<typeof vi.fn>;
   loadCurrent: ReturnType<typeof vi.fn>;
@@ -34,7 +36,11 @@ function configure(opts: {
     authed = opts.authenticatedAfterLoad ?? authed;
     return Promise.resolve();
   });
-  const authStub: AuthStub = { isAuthenticated: () => authed, loadCurrent };
+  const authStub: AuthStub = {
+    isAuthenticated: () => authed,
+    loadCurrent,
+    mfaEnrolment: () => opts.enrolment ?? null,
+  };
   const checkStatus = vi.fn(() => Promise.resolve(opts.setupNeeded ?? false));
   const setupStub = { checkStatus } as unknown as SetupService;
   const createUrlTree = vi.fn(() => REDIRECT_URL_TREE);
@@ -99,5 +105,28 @@ describe('authGuard', () => {
     expect(checkStatus).toHaveBeenCalled();
     expect(createUrlTree).toHaveBeenCalledWith(['/setup']);
     expect(result).toBe(REDIRECT_URL_TREE);
+  });
+
+  it('sends a session that must enrol in MFA to the wizard instead of the shell', async () => {
+    const { createUrlTree } = configure({
+      authenticatedBefore: true,
+      enrolment: { requiredBy: { superAdmin: true, organisationIds: [] } },
+    });
+    const result = await runGuard();
+    expect(result).toBe(REDIRECT_URL_TREE);
+    expect(createUrlTree).toHaveBeenCalledWith(['/mfa-enrolment']);
+  });
+
+  it('locks a fresh page load into the wizard when /api/auth/me requires enrolment', async () => {
+    // loadCurrent applies `mfaEnrolmentRequired` of /api/auth/me — no 403 needed first.
+    const { createUrlTree, loadCurrent } = configure({
+      authenticatedBefore: false,
+      authenticatedAfterLoad: true,
+      enrolment: { requiredBy: null },
+    });
+    const result = await runGuard();
+    expect(loadCurrent).toHaveBeenCalled();
+    expect(result).toBe(REDIRECT_URL_TREE);
+    expect(createUrlTree).toHaveBeenCalledWith(['/mfa-enrolment']);
   });
 });

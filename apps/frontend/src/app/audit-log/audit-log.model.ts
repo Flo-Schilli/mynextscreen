@@ -106,6 +106,11 @@ export const INSTANCE_AUDIT_ACTIONS = [
   'auth.password_reset_requested',
   'auth.password_changed',
   'auth.super_admin_setup',
+  'auth.mfa_enabled',
+  'auth.mfa_disabled',
+  'auth.mfa_recovery_code_used',
+  'auth.mfa_recovery_codes_regenerated',
+  'auth.mfa_lockout',
   'email.sent',
   'email.send_failed',
 ];
