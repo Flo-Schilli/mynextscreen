@@ -68,6 +68,7 @@ import {
   AuditUserEvent,
   AUDIT_ORGANISATION_CREATED,
   AUDIT_ORGANISATION_UPDATED,
+  AUDIT_ORGANISATION_MFA_REQUIREMENT_CHANGED,
   AuditOrganisationEvent,
   AUDIT_GROUP_CREATED,
   AUDIT_GROUP_UPDATED,
@@ -89,6 +90,13 @@ import {
   AUDIT_AUTH_EMAIL_CHANGED,
   AUDIT_AUTH_PASSWORD_RESET_REQUESTED,
   AUDIT_AUTH_PASSWORD_CHANGED,
+  AUDIT_AUTH_MFA_ENABLED,
+  AUDIT_AUTH_MFA_DISABLED,
+  AUDIT_AUTH_MFA_RECOVERY_CODE_USED,
+  AUDIT_AUTH_MFA_RECOVERY_CODES_REGENERATED,
+  AUDIT_AUTH_MFA_LOCKOUT,
+  AUDIT_AUTH_MFA_RESET,
+  AuditMfaResetEvent,
   AUDIT_SUPER_ADMIN_SETUP,
   AuditAuthEvent,
   AUDIT_EMAIL_SENT,
@@ -486,6 +494,18 @@ export class AuditListener {
     );
   }
 
+  @OnEvent(AUDIT_ORGANISATION_MFA_REQUIREMENT_CHANGED, { async: true })
+  handleOrganisationMfaRequirementChanged(event: AuditOrganisationEvent): void {
+    this.record(
+      AuditAction.OrganisationMfaRequirementChanged,
+      'organisation',
+      event.organisationId,
+      event.organisationId,
+      event.userId,
+      event.details,
+    );
+  }
+
   // ── Screen Group ─────────────────────────────────────────────────────────
 
   @OnEvent(AUDIT_GROUP_CREATED, { async: true })
@@ -720,6 +740,43 @@ export class AuditListener {
     );
   }
 
+  @OnEvent(AUDIT_AUTH_MFA_ENABLED, { async: true })
+  handleMfaEnabled(event: AuditAuthEvent): void {
+    this.recordAccount(AuditAction.MfaEnabled, event);
+  }
+
+  @OnEvent(AUDIT_AUTH_MFA_DISABLED, { async: true })
+  handleMfaDisabled(event: AuditAuthEvent): void {
+    this.recordAccount(AuditAction.MfaDisabled, event);
+  }
+
+  @OnEvent(AUDIT_AUTH_MFA_RECOVERY_CODE_USED, { async: true })
+  handleMfaRecoveryCodeUsed(event: AuditAuthEvent): void {
+    this.recordAccount(AuditAction.MfaRecoveryCodeUsed, event);
+  }
+
+  @OnEvent(AUDIT_AUTH_MFA_RECOVERY_CODES_REGENERATED, { async: true })
+  handleMfaRecoveryCodesRegenerated(event: AuditAuthEvent): void {
+    this.recordAccount(AuditAction.MfaRecoveryCodesRegenerated, event);
+  }
+
+  @OnEvent(AUDIT_AUTH_MFA_LOCKOUT, { async: true })
+  handleMfaLockout(event: AuditAuthEvent): void {
+    this.recordAccount(AuditAction.MfaLockout, event);
+  }
+
+  @OnEvent(AUDIT_AUTH_MFA_RESET, { async: true })
+  handleMfaReset(event: AuditMfaResetEvent): void {
+    this.record(
+      AuditAction.MfaReset,
+      'user',
+      event.targetUserId,
+      event.organisationId,
+      event.actorId,
+      event.details,
+    );
+  }
+
   // ── Platform email dispatch ──────────────────────────────────────────────
 
   @OnEvent(AUDIT_EMAIL_SENT, { async: true })
@@ -863,6 +920,11 @@ export class AuditListener {
   @OnEvent(AUDIT_SCREEN_REMOTE_ADDRESS_CHANGED, { async: true })
   handleScreenRemoteAddressChanged(event: AuditScreenRemoteEvent): void {
     this.recordScreenRemote(AuditAction.ScreenRemoteAddressChanged, event);
+  }
+
+  /** Instance-level account event: the user is both actor and resource. */
+  private recordAccount(action: AuditAction, event: AuditAuthEvent): void {
+    this.record(action, 'account', event.userId, event.organisationId, event.userId, event.details);
   }
 
   private recordContentSource(action: AuditAction, event: AuditContentSourceEvent): void {

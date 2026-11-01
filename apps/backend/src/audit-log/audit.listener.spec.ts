@@ -11,6 +11,7 @@ import {
   AuditOrganisationEvent,
   AuditLiveStreamEvent,
   AuditAuthEvent,
+  AuditMfaResetEvent,
   AuditEmailEvent,
   AuditContentSourceEvent,
   AuditEventScheduleRuleEvent,
@@ -801,6 +802,57 @@ describe('AuditListener', () => {
       organisationId: null,
       userId,
       details: { email: 'a@b.com' },
+    });
+  });
+
+  it.each([
+    ['handleMfaEnabled', AuditAction.MfaEnabled],
+    ['handleMfaDisabled', AuditAction.MfaDisabled],
+    ['handleMfaRecoveryCodeUsed', AuditAction.MfaRecoveryCodeUsed],
+    ['handleMfaRecoveryCodesRegenerated', AuditAction.MfaRecoveryCodesRegenerated],
+    ['handleMfaLockout', AuditAction.MfaLockout],
+  ] as const)('%s records %s as an account entry', (handler, action) => {
+    const event = new AuditAuthEvent(userId, null, { email: 'a@b.com' });
+
+    listener[handler](event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action,
+      resourceType: 'account',
+      resourceId: userId,
+      organisationId: null,
+      userId,
+      details: { email: 'a@b.com' },
+    });
+  });
+
+  it('records an MFA reset against the target user, with the admin as actor', () => {
+    const details = { by: 'org_admin', actorId: 'admin-1', email: 'a@b.com' };
+
+    listener.handleMfaReset(new AuditMfaResetEvent(userId, 'org-1', 'admin-1', details));
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.MfaReset,
+      resourceType: 'user',
+      resourceId: userId,
+      organisationId: 'org-1',
+      userId: 'admin-1',
+      details,
+    });
+  });
+
+  it('records an org MFA requirement change as an organisation entry', () => {
+    listener.handleOrganisationMfaRequirementChanged(
+      new AuditOrganisationEvent('org-1', 'admin-1', { name: 'Venue', requireMfa: true }),
+    );
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action: AuditAction.OrganisationMfaRequirementChanged,
+      resourceType: 'organisation',
+      resourceId: 'org-1',
+      organisationId: 'org-1',
+      userId: 'admin-1',
+      details: { name: 'Venue', requireMfa: true },
     });
   });
 

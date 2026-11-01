@@ -21,4 +21,9 @@ export class AdminUserService {
   delete(id: string): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }
+
+  /** Super-admin reset of a user's second factor (not allowed for oneself). */
+  resetMfa(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}/mfa`);
+  }
 }

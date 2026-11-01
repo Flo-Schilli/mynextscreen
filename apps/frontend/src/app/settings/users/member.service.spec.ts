@@ -28,6 +28,7 @@ function makeMembership(overrides: Partial<Membership> = {}): Membership {
     role: 'editor',
     createdAt: '2026-01-01T00:00:00.000Z',
     status: 'active',
+    mfaEnabled: false,
     user: {
       id: 'user-1',
       email: 'user@example.com',
@@ -165,6 +166,20 @@ describe('MemberService', () => {
       expect(req.request.headers.get(ORG_HEADER)).toBe(ORG_ID);
       req.flush(updated);
       expect(received).toEqual(updated);
+    });
+  });
+
+  describe('resetMfa', () => {
+    it('issues a DELETE to the member MFA URL with the org header', () => {
+      let completed = false;
+
+      service.resetMfa(ORG_ID, 'user-1').subscribe({ complete: () => (completed = true) });
+      const req = httpMock.expectOne(`/api/organisations/${ORG_ID}/members/user-1/mfa`);
+
+      expect(req.request.method).toBe('DELETE');
+      expect(req.request.headers.get(ORG_HEADER)).toBe(ORG_ID);
+      req.flush(null);
+      expect(completed).toBe(true);
     });
   });
 

@@ -37,6 +37,7 @@ describe('AdminUserController', () => {
           name: 'A',
           emailVerified: false,
           isSuperAdmin: false,
+          mfaEnabled: false,
           createdAt: new Date(),
           memberships: [
             { organisationId: 'org-1', organisationName: 'Org One', role: OrganisationRole.Viewer },

@@ -35,7 +35,19 @@ import {
   AuditAuthEvent,
 } from '../audit-log/audit.events';
 import { AuthService } from './auth.service';
-import { REFRESH_COOKIE, clearAuthCookies, setAccessCookie, setRefreshCookie } from './cookies';
+import {
+  REFRESH_COOKIE,
+  clearAuthCookies,
+  clearMfaChallengeCookie,
+  setAccessCookie,
+  setMfaChallengeCookie,
+  setRefreshCookie,
+} from './cookies';
+import { AllowWithoutMfa } from './mfa/allow-without-mfa.decorator';
+import { MFA_CHALLENGE_COOKIE, MFA_METHODS } from './mfa/mfa.constants';
+import { mfaChallengeExpired } from './mfa/mfa.errors';
+import { MfaService } from './mfa/mfa.service';
+import { LoginMfaDto } from './mfa/dto/login-mfa.dto';
 import { AuthenticatedRequest } from './jwt-auth.guard';
 import { Public } from './public.decorator';
 import { UserScoped } from './user-scoped.decorator';
@@ -50,13 +62,17 @@ import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
 import { SetupDto } from './dto/setup.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
-import type { AuthenticatedUserView } from './auth.types';
+import type {
+  AuthMeResponse,
+  AuthSuccessResponse,
+  AuthenticatedUserView,
+  FirstFactorOutcome,
+  LoginResponse,
+  LoginResult,
+  SessionTokens,
+} from './auth.types';
 
 const DEFAULT_SIGNUP_STORAGE_BYTES = 5 * 1024 * 1024 * 1024;
-
-interface AuthSuccessResponse {
-  user: AuthenticatedUserView;
-}
 
 @Controller('auth')
 export class AuthController {
@@ -65,6 +81,7 @@ export class AuthController {
     private readonly config: ConfigService,
     private readonly users: UserService,
     private readonly events: EventEmitter2,
+    private readonly mfa: MfaService,
   ) {}
 
   @Public()
@@ -126,17 +143,13 @@ export class AuthController {
   async verifyEmail(
     @Body() dto: VerifyEmailDto,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<AuthSuccessResponse> {
-    const { user, accessToken, refreshToken } = await this.auth.verifyEmail(dto.token);
-    setAccessCookie(res, this.config, accessToken.token, accessToken.expiresAt);
-    setRefreshCookie(res, this.config, refreshToken.token, refreshToken.expiresAt);
+  ): Promise<LoginResponse> {
+    const outcome = await this.auth.verifyEmail(dto.token);
     this.events.emit(
       AUDIT_EMAIL_VERIFIED,
-      new AuditAuthEvent(user.id, null, { email: user.email }),
+      new AuditAuthEvent(outcome.user.id, null, { email: outcome.user.email }),
     );
-    return {
-      user: { userId: user.id, email: user.email, isSuperAdmin: user.isSuperAdmin },
-    };
+    return this.respondToFirstFactor(res, outcome);
   }
 
   @Public()
@@ -164,20 +177,15 @@ export class AuthController {
     @Body() dto: SetupDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthSuccessResponse> {
-    const { user, accessToken, refreshToken } = await this.auth.setupFirstSuperAdmin(
-      dto.email,
-      dto.password,
-      dto.name,
-    );
-    setAccessCookie(res, this.config, accessToken.token, accessToken.expiresAt);
-    setRefreshCookie(res, this.config, refreshToken.token, refreshToken.expiresAt);
+    const result = await this.auth.setupFirstSuperAdmin(dto.email, dto.password, dto.name);
+    this.writeSession(res, result);
     this.events.emit(
       AUDIT_SUPER_ADMIN_SETUP,
-      new AuditAuthEvent(user.id, null, { email: user.email }),
+      new AuditAuthEvent(result.user.id, null, { email: result.user.email }),
     );
-    return {
-      user: { userId: user.id, email: user.email, isSuperAdmin: user.isSuperAdmin },
-    };
+    // Super-admin without MFA → mfaEnrolmentRequired: the SPA goes straight
+    // into the enrolment wizard, which makes MFA part of the first-run setup.
+    return this.toAuthSuccess(result);
   }
 
   @Public()
@@ -187,13 +195,37 @@ export class AuthController {
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
+  ): Promise<LoginResponse> {
+    const outcome = await this.auth.login(dto.email, dto.password);
+    return this.respondToFirstFactor(res, outcome);
+  }
+
+  /**
+   * Second login step. The challenge comes from the httpOnly cookie set by
+   * step one; a missing or expired one is 401 (the SPA restarts at the
+   * password). Tight rate limit on top of the per-challenge and per-user
+   * attempt counters in MfaService.
+   */
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('login/mfa')
+  @HttpCode(HttpStatus.OK)
+  async loginMfa(
+    @Body() dto: LoginMfaDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ): Promise<AuthSuccessResponse> {
-    const { user, accessToken, refreshToken } = await this.auth.login(dto.email, dto.password);
-    setAccessCookie(res, this.config, accessToken.token, accessToken.expiresAt);
-    setRefreshCookie(res, this.config, refreshToken.token, refreshToken.expiresAt);
-    return {
-      user: { userId: user.id, email: user.email, isSuperAdmin: user.isSuperAdmin },
-    };
+    const challengeId = this.readCookie(req, MFA_CHALLENGE_COOKIE);
+    if (!challengeId) {
+      throw mfaChallengeExpired();
+    }
+    const result = await this.auth.loginMfa(
+      challengeId,
+      dto.code !== undefined ? { code: dto.code } : { recoveryCode: dto.recoveryCode },
+    );
+    clearMfaChallengeCookie(res, this.config);
+    this.writeSession(res, result);
+    return this.toAuthSuccess(result);
   }
 
   @Public()
@@ -210,8 +242,7 @@ export class AuthController {
     }
     try {
       const result = await this.auth.refresh(raw);
-      setAccessCookie(res, this.config, result.accessToken.token, result.accessToken.expiresAt);
-      setRefreshCookie(res, this.config, result.refreshToken.token, result.refreshToken.expiresAt);
+      this.writeSession(res, result);
       return { refreshed: true };
     } catch (error) {
       // On any refresh failure (unknown/reuse) clear cookies so the client logs out.
@@ -221,6 +252,7 @@ export class AuthController {
   }
 
   @Public()
+  @AllowWithoutMfa()
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
@@ -280,9 +312,9 @@ export class AuthController {
       req.user.userId,
       dto.currentPassword,
       dto.newPassword,
+      { mfa: req.user.mfa },
     );
-    setAccessCookie(res, this.config, session.accessToken.token, session.accessToken.expiresAt);
-    setRefreshCookie(res, this.config, session.refreshToken.token, session.refreshToken.expiresAt);
+    this.writeSession(res, session);
     this.events.emit(AUTH_PASSWORD_CHANGED, new AuthPasswordChangedEvent(req.user.email));
     this.events.emit(
       AUDIT_AUTH_PASSWORD_CHANGED,
@@ -337,7 +369,8 @@ export class AuthController {
 
   @Get('me')
   @UserScoped()
-  async getMe(@Req() req: AuthenticatedRequest): Promise<AuthenticatedUserView> {
+  @AllowWithoutMfa()
+  async getMe(@Req() req: AuthenticatedRequest): Promise<AuthMeResponse> {
     // Read from the DB rather than echoing the JWT payload: the access token is
     // long-lived and carries the email/role from issue time, so after an
     // email change it stays stale until the token rotates. Sourcing from the DB
@@ -348,9 +381,9 @@ export class AuthController {
       throw new NotFoundException('User not found');
     }
     return {
-      userId: user.id,
-      email: user.email,
-      isSuperAdmin: user.isSuperAdmin,
+      ...toUserView(user),
+      mfa: req.user.mfa,
+      mfaEnrolmentRequired: await this.mfa.isEnrolmentRequired(user, req.user.mfa),
     };
   }
 
@@ -361,8 +394,49 @@ export class AuthController {
   }
 
   private readRefreshCookie(req: Request): string | null {
+    return this.readCookie(req, REFRESH_COOKIE);
+  }
+
+  private readCookie(req: Request, name: string): string | null {
     const cookies = req.cookies as Record<string, string> | undefined;
-    const raw = cookies?.[REFRESH_COOKIE];
+    const raw = cookies?.[name];
     return typeof raw === 'string' && raw.length > 0 ? raw : null;
   }
+
+  private writeSession(res: Response, session: SessionTokens): void {
+    setAccessCookie(res, this.config, session.accessToken.token, session.accessToken.expiresAt);
+    setRefreshCookie(res, this.config, session.refreshToken.token, session.refreshToken.expiresAt);
+  }
+
+  /** Session → cookies + user view; TOTP user → challenge cookie, no session. */
+  private async respondToFirstFactor(
+    res: Response,
+    outcome: FirstFactorOutcome,
+  ): Promise<LoginResponse> {
+    if (outcome.kind === 'mfa-required') {
+      setMfaChallengeCookie(res, this.config, outcome.challengeId);
+      return { mfaRequired: true, methods: [...MFA_METHODS] };
+    }
+    this.writeSession(res, outcome);
+    return this.toAuthSuccess(outcome);
+  }
+
+  /** MFA is mandatory for super-admins and members of a `requireMfa` org. */
+  private async toAuthSuccess(
+    result: Pick<LoginResult, 'user' | 'mfa'>,
+  ): Promise<AuthSuccessResponse> {
+    return toAuthSuccess(result, await this.mfa.isEnrolmentRequired(result.user, result.mfa));
+  }
+}
+
+export function toUserView(user: LoginResult['user']): AuthenticatedUserView {
+  return { userId: user.id, email: user.email, isSuperAdmin: user.isSuperAdmin };
+}
+
+/** `mfaEnrolmentRequired` comes from `MfaService.isEnrolmentRequired` (`!mfa && mandatory`). */
+export function toAuthSuccess(
+  result: Pick<LoginResult, 'user'>,
+  mfaEnrolmentRequired: boolean,
+): AuthSuccessResponse {
+  return { user: toUserView(result.user), mfaEnrolmentRequired };
 }

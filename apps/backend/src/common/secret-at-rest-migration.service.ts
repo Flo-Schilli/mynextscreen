@@ -14,8 +14,10 @@ export interface SecretColumn {
 
 /**
  * Every column that stores a recoverable secret. Physical (snake_case) names,
- * matching the CHECK constraints added in migration 0031. A new secret column
- * belongs here AND gets an `encryptedOnly(...)` check in `db/schema.ts`.
+ * matching the CHECK constraints added in migrations 0031 and 0032. A new
+ * secret column belongs here AND gets an `…_encrypted` check in `db/schema.ts`.
+ * `user_mfa` never held plaintext (its check is valid from the start); it is
+ * listed so a wrong key is caught at boot for TOTP secrets as well.
  */
 export const SECRET_COLUMNS: readonly SecretColumn[] = [
   {
@@ -41,6 +43,12 @@ export const SECRET_COLUMNS: readonly SecretColumn[] = [
     idColumn: 'screen_id',
     column: 'devmode_passphrase',
     constraint: 'CHK_screen_remote_controls_devmode_passphrase_encrypted',
+  },
+  {
+    table: 'user_mfa',
+    idColumn: 'user_id',
+    column: 'totp_secret_enc',
+    constraint: 'CHK_user_mfa_totp_secret_encrypted',
   },
 ];
 

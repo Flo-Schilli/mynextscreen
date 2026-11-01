@@ -3,7 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { OrganisationController } from './organisation.controller';
 import { OrganisationService } from './organisation.service';
 import { MembershipService } from '../user/membership.service';
-import type { Organisation } from '../db/schema';
+import type { Organisation, User, UserOrganisationMembership } from '../db/schema';
+import { toMemberResponse } from '../user/member-response';
+import { OrganisationRole } from '../user/organisation-role.enum';
+
+type MembershipWithUser = UserOrganisationMembership & { user: User };
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 
 describe('OrganisationController', () => {
@@ -18,13 +22,21 @@ describe('OrganisationController', () => {
     storageTranscodedLimitBytes: 2147483648,
     storageOriginalUsedBytes: 0,
     storageTranscodedUsedBytes: 0,
+    requireMfa: false,
+    requireMfaSince: null,
     defaultPlaylistId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
 
+  const listMembers = jest.fn<Promise<MembershipWithUser[]>, [string]>();
   const mockMembershipService = {
-    listMembers: jest.fn(),
+    listMembers,
+    // The real service maps rows the same way (plus the MFA lookup).
+    listMemberResponses: jest.fn(async (id: string) =>
+      (await listMembers(id)).map((m) => toMemberResponse(m, false)),
+    ),
+    toMemberView: jest.fn((m: MembershipWithUser) => Promise.resolve(toMemberResponse(m, false))),
     addMember: jest.fn(),
     updateRole: jest.fn(),
     removeMember: jest.fn(),
@@ -126,11 +138,11 @@ describe('OrganisationController', () => {
      * key absence rather than on a shape keeps a future schema addition from
      * silently re-exposing a secret.
      */
-    const membershipRow = {
+    const membershipRow: MembershipWithUser = {
       id: 'm1',
       userId: 'u1',
       organisationId: 'org-1',
-      role: 'org_admin',
+      role: OrganisationRole.OrgAdmin,
       createdAt: new Date(),
       user: {
         id: 'u1',

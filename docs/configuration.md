@@ -40,6 +40,80 @@ ciphertext; without the key those secrets are gone and have to be re-entered.
 Do not rotate the key by simply replacing it — the backend would no longer be
 able to read the stored values.
 
+## Two-factor authentication (MFA)
+
+Users can protect their account with a TOTP authenticator app (SHA-1, six
+digits, 30-second steps — what every common app supports). There is nothing to
+configure in the environment; the TOTP secret is one more value encrypted with
+`SECRETS_ENCRYPTION_KEY`, and the ten single-use recovery codes are stored as
+hashes only.
+
+**Who has to use it.** MFA belongs to the user, not to an organisation. It is
+mandatory for a user who is a super-admin, or who belongs to at least one
+organisation that requires it — and then it applies to every organisation that
+user belongs to. Everybody else may set it up voluntarily under
+_Settings → Security_. A user for whom MFA is mandatory and who has not set it
+up yet can still sign in with the password, but only reaches the set-up wizard
+until it is done; nobody is locked out by switching the requirement on.
+
+**Requiring it for an organisation.** An organisation admin switches it on in
+the organisation settings. Only an admin whose own session is MFA-confirmed can
+switch it on, so nobody locks themselves out. Members without MFA get an email
+(at most once a day per organisation) and are taken through the set-up on their
+next request. Switching it off is always possible.
+
+**New or lost device.** Moving the factor to a new phone under
+_User settings → Security_ needs the password and a code from the current
+authenticator — or, if that is gone, one of the recovery codes (_Use a
+recovery code_). The same goes for switching optional MFA off and for issuing
+new recovery codes. Each recovery code works once, and the user is emailed
+whenever one is used. A user who has neither the authenticator nor a recovery
+code left needs an admin to reset the second factor, which also ends all of
+that user's sessions and emails them:
+
+- an organisation admin, from the member list, for members of their
+  organisation — not for super-admins, not for themselves, and not for users
+  who also belong to an organisation the admin does not administer (the reset
+  applies everywhere, so a super-admin has to do it then);
+- a super-admin, from the user list, for anyone but themselves.
+
+After a reset a user for whom MFA is mandatory sets it up again at the next
+sign-in. Every reset is written to the audit log of each of the user's
+organisations.
+
+**Upgrading to the first release with MFA:** nothing to configure beyond the
+mandatory `SECRETS_ENCRYPTION_KEY` (see above). Super-admins are taken into the
+set-up wizard on their next request — including sessions that were open during
+the upgrade — and cannot use the dashboard until they have finished it. Have
+an authenticator app ready before deploying.
+
+Ten wrong codes for one user within 15 minutes block further attempts for the
+rest of that window (`429`).
+
+### Emergency: the only super-admin is locked out
+
+If a super-admin has lost both the authenticator and the recovery codes and
+there is no second super-admin who could reset them, remove the second factor
+directly in the database. With the Ansible deployment (rootless Podman), as the
+deploy user on the server — replace the email address:
+
+```bash
+podman exec -i mynextscreen-postgres psql -U mynextscreen -d mynextscreen <<'SQL'
+BEGIN;
+DELETE FROM user_mfa_recovery_codes
+  WHERE user_id = (SELECT id FROM users WHERE email = lower('admin@example.org'));
+DELETE FROM user_mfa
+  WHERE user_id = (SELECT id FROM users WHERE email = lower('admin@example.org'));
+COMMIT;
+SQL
+```
+
+The super-admin then signs in with the password and is taken straight into the
+set-up wizard; MFA stays mandatory. Be aware of what this path does not do:
+it writes **no audit entry**, and it does not end sessions that are already
+open. Anyone with shell access to the database host can do this, which is one
+more reason to keep that access as narrow as the dashboard's.
+
 ## Storage and media
 
 | Variable                            | Default                 | What it is                                                                                                         |

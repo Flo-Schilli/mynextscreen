@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import type { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Response } from 'express';
@@ -18,6 +18,8 @@ import {
   AUDIT_AUTH_PASSWORD_CHANGED,
 } from '../audit-log/audit.events';
 import type { User } from '../db/schema';
+import { MFA_CHALLENGE_COOKIE, MFA_CHALLENGE_EXPIRED } from './mfa/mfa.constants';
+import type { MfaService } from './mfa/mfa.service';
 
 const issuedAccess = { token: 'access', jti: 'jti', expiresAt: new Date(Date.now() + 1000) };
 const issuedRefresh = { token: 'refresh', familyId: 'fam', expiresAt: new Date(Date.now() + 1000) };
@@ -51,6 +53,7 @@ describe('AuthController', () => {
   let events: { emit: jest.Mock };
   let configValues: Record<string, unknown>;
   let res: { cookie: jest.Mock; clearCookie: jest.Mock };
+  let mfa: { isEnrolmentRequired: jest.Mock };
 
   beforeEach(() => {
     auth = {
@@ -59,6 +62,8 @@ describe('AuthController', () => {
       createEmailVerificationToken: jest.fn(),
       createPasswordResetToken: jest.fn(),
       login: jest.fn(),
+      loginMfa: jest.fn(),
+      setupFirstSuperAdmin: jest.fn(),
       changePassword: jest.fn(),
       changeEmail: jest.fn(),
       confirmEmailChange: jest.fn(),
@@ -76,12 +81,19 @@ describe('AuthController', () => {
       get: jest.fn((key: string, fallback?: unknown) => configValues[key] ?? fallback),
     } as unknown as ConfigService;
     res = { cookie: jest.fn(), clearCookie: jest.fn() };
+    // Default policy stand-in: super-admins only; specs override per case.
+    mfa = {
+      isEnrolmentRequired: jest.fn((user: User, sessionMfa: boolean) =>
+        Promise.resolve(!sessionMfa && user.isSuperAdmin),
+      ),
+    };
 
     controller = new AuthController(
       auth as unknown as AuthService,
       config,
       users as unknown as UserService,
       events as unknown as EventEmitter2,
+      mfa as unknown as MfaService,
     );
   });
 
@@ -144,7 +156,9 @@ describe('AuthController', () => {
   describe('verifyEmail', () => {
     it('verifies, sets both cookies, and returns the user view', async () => {
       auth.verifyEmail.mockResolvedValue({
+        kind: 'session',
         user: makeUser({ id: 'u9', email: 'v@example.com' }),
+        mfa: false,
         accessToken: issuedAccess,
         refreshToken: issuedRefresh,
       });
@@ -153,7 +167,10 @@ describe('AuthController', () => {
 
       expect(auth.verifyEmail).toHaveBeenCalledWith('t');
       expect(res.cookie).toHaveBeenCalledTimes(2);
-      expect(result.user).toEqual({ userId: 'u9', email: 'v@example.com', isSuperAdmin: false });
+      expect(result).toEqual({
+        user: { userId: 'u9', email: 'v@example.com', isSuperAdmin: false },
+        mfaEnrolmentRequired: false,
+      });
       expect(events.emit).toHaveBeenCalledWith(
         AUDIT_EMAIL_VERIFIED,
         expect.objectContaining({ userId: 'u9', details: { email: 'v@example.com' } }),
@@ -232,9 +249,164 @@ describe('AuthController', () => {
     });
   });
 
+  describe('login', () => {
+    it('sets the session cookies for a user without TOTP', async () => {
+      auth.login.mockResolvedValue({
+        kind: 'session',
+        user: makeUser(),
+        mfa: false,
+        accessToken: issuedAccess,
+        refreshToken: issuedRefresh,
+      });
+
+      const result = await controller.login(
+        { email: 'user@example.com', password: 'pw' },
+        res as unknown as Response,
+      );
+
+      expect(result).toEqual({
+        user: { userId: 'user-1', email: 'user@example.com', isSuperAdmin: false },
+        mfaEnrolmentRequired: false,
+      });
+      expect(res.cookie).toHaveBeenCalledWith('access_token', 'access', expect.anything());
+      expect(res.cookie).toHaveBeenCalledWith('refresh_token', 'refresh', expect.anything());
+    });
+
+    it('flags mfaEnrolmentRequired for a super-admin without TOTP', async () => {
+      auth.login.mockResolvedValue({
+        kind: 'session',
+        user: makeUser({ isSuperAdmin: true }),
+        mfa: false,
+        accessToken: issuedAccess,
+        refreshToken: issuedRefresh,
+      });
+
+      const result = await controller.login(
+        { email: 'user@example.com', password: 'pw' },
+        res as unknown as Response,
+      );
+
+      expect(result).toMatchObject({ mfaEnrolmentRequired: true });
+    });
+
+    it('flags mfaEnrolmentRequired for a member of a requireMfa org (user-bound policy)', async () => {
+      const member = makeUser();
+      auth.login.mockResolvedValue({
+        kind: 'session',
+        user: member,
+        mfa: false,
+        accessToken: issuedAccess,
+        refreshToken: issuedRefresh,
+      });
+      mfa.isEnrolmentRequired.mockResolvedValue(true);
+
+      const result = await controller.login(
+        { email: 'user@example.com', password: 'pw' },
+        res as unknown as Response,
+      );
+
+      expect(mfa.isEnrolmentRequired).toHaveBeenCalledWith(member, false);
+      expect(result).toMatchObject({ mfaEnrolmentRequired: true });
+    });
+
+    it('sets only the challenge cookie (no session) for a user with TOTP', async () => {
+      auth.login.mockResolvedValue({
+        kind: 'mfa-required',
+        user: makeUser(),
+        challengeId: 'raw-challenge',
+      });
+
+      const result = await controller.login(
+        { email: 'user@example.com', password: 'pw' },
+        res as unknown as Response,
+      );
+
+      expect(result).toEqual({ mfaRequired: true, methods: ['totp', 'recovery'] });
+      expect(res.cookie).toHaveBeenCalledTimes(1);
+      expect(res.cookie).toHaveBeenCalledWith(
+        MFA_CHALLENGE_COOKIE,
+        'raw-challenge',
+        expect.objectContaining({ httpOnly: true, path: '/api/auth', maxAge: 300_000 }),
+      );
+    });
+  });
+
+  describe('loginMfa', () => {
+    const req = (cookies: Record<string, string>) => ({ cookies }) as never;
+
+    it('verifies the challenge from the cookie and issues the session', async () => {
+      auth.loginMfa.mockResolvedValue({
+        user: makeUser({ isSuperAdmin: true }),
+        mfa: true,
+        accessToken: issuedAccess,
+        refreshToken: issuedRefresh,
+      });
+
+      const result = await controller.loginMfa(
+        { code: '123456' },
+        req({ [MFA_CHALLENGE_COOKIE]: 'raw-challenge' }),
+        res as unknown as Response,
+      );
+
+      expect(auth.loginMfa).toHaveBeenCalledWith('raw-challenge', { code: '123456' });
+      expect(result).toMatchObject({ mfaEnrolmentRequired: false });
+      expect(res.clearCookie).toHaveBeenCalledWith(MFA_CHALLENGE_COOKIE, expect.anything());
+      expect(res.cookie).toHaveBeenCalledTimes(2);
+    });
+
+    it('passes a recovery code on when no TOTP code is given', async () => {
+      auth.loginMfa.mockResolvedValue({
+        user: makeUser(),
+        mfa: true,
+        accessToken: issuedAccess,
+        refreshToken: issuedRefresh,
+      });
+
+      await controller.loginMfa(
+        { recoveryCode: 'abcde-fghij' },
+        req({ [MFA_CHALLENGE_COOKIE]: 'raw-challenge' }),
+        res as unknown as Response,
+      );
+
+      expect(auth.loginMfa).toHaveBeenCalledWith('raw-challenge', {
+        recoveryCode: 'abcde-fghij',
+      });
+    });
+
+    it('answers 401 MFA_CHALLENGE_EXPIRED without a challenge cookie', async () => {
+      const attempt = controller.loginMfa({ code: '123456' }, req({}), res as unknown as Response);
+      await expect(attempt).rejects.toThrow(UnauthorizedException);
+      await attempt.catch((error: UnauthorizedException) => {
+        expect(error.getResponse()).toMatchObject({ statusCode: 401, code: MFA_CHALLENGE_EXPIRED });
+      });
+      expect(auth.loginMfa).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('setup', () => {
+    it('logs the first super-admin in and sends them to MFA enrolment', async () => {
+      auth.setupFirstSuperAdmin.mockResolvedValue({
+        user: makeUser({ isSuperAdmin: true }),
+        mfa: false,
+        accessToken: issuedAccess,
+        refreshToken: issuedRefresh,
+      });
+
+      const result = await controller.setup(
+        { email: 'user@example.com', password: 'supersecret' },
+        res as unknown as Response,
+      );
+
+      expect(result).toMatchObject({ mfaEnrolmentRequired: true });
+      expect(res.cookie).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('changePassword', () => {
     it('changes the password then emits a password-changed notice', async () => {
-      const req = { user: { userId: 'u1', email: 'user@example.com', isSuperAdmin: false } };
+      const req = {
+        user: { userId: 'u1', email: 'user@example.com', isSuperAdmin: false, mfa: true },
+      };
       auth.changePassword.mockResolvedValue({
         accessToken: issuedAccess,
         refreshToken: issuedRefresh,
@@ -245,7 +417,7 @@ describe('AuthController', () => {
         newPassword: 'newsecret',
       });
 
-      expect(auth.changePassword).toHaveBeenCalledWith('u1', 'old', 'newsecret');
+      expect(auth.changePassword).toHaveBeenCalledWith('u1', 'old', 'newsecret', { mfa: true });
       expect(events.emit).toHaveBeenCalledWith(
         AUTH_PASSWORD_CHANGED,
         expect.objectContaining({ email: 'user@example.com' }),
@@ -257,7 +429,9 @@ describe('AuthController', () => {
     });
 
     it('re-issues the caller\u2019s cookies so only the other sessions are logged out', async () => {
-      const req = { user: { userId: 'u1', email: 'user@example.com', isSuperAdmin: false } };
+      const req = {
+        user: { userId: 'u1', email: 'user@example.com', isSuperAdmin: false, mfa: false },
+      };
       auth.changePassword.mockResolvedValue({
         accessToken: issuedAccess,
         refreshToken: issuedRefresh,
@@ -330,13 +504,35 @@ describe('AuthController', () => {
   describe('getMe', () => {
     it('returns the current user sourced from the DB, not the stale JWT payload', async () => {
       // JWT carries the pre-change email; the DB has the confirmed new address.
-      const req = { user: { userId: 'u1', email: 'old@example.com', isSuperAdmin: false } };
+      const req = {
+        user: { userId: 'u1', email: 'old@example.com', isSuperAdmin: false, mfa: true },
+      };
       users.findById.mockResolvedValue({ id: 'u1', email: 'new@example.com', isSuperAdmin: true });
 
       const result = await controller.getMe(req as never);
 
       expect(users.findById).toHaveBeenCalledWith('u1');
-      expect(result).toEqual({ userId: 'u1', email: 'new@example.com', isSuperAdmin: true });
+      expect(result).toEqual({
+        userId: 'u1',
+        email: 'new@example.com',
+        isSuperAdmin: true,
+        mfa: true,
+        mfaEnrolmentRequired: false,
+      });
+    });
+
+    it('reports mfa=false and mfaEnrolmentRequired for a mandatory user without MFA', async () => {
+      const req = {
+        user: { userId: 'u1', email: 'user@example.com', isSuperAdmin: false, mfa: false },
+      };
+      const dbUser = { id: 'u1', email: 'user@example.com', isSuperAdmin: false };
+      users.findById.mockResolvedValue(dbUser);
+      mfa.isEnrolmentRequired.mockResolvedValue(true);
+
+      const result = await controller.getMe(req as never);
+
+      expect(mfa.isEnrolmentRequired).toHaveBeenCalledWith(dbUser, false);
+      expect(result).toMatchObject({ mfa: false, mfaEnrolmentRequired: true });
     });
 
     it('throws when the user no longer exists', async () => {

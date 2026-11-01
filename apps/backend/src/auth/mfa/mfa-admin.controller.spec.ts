@@ -1,0 +1,61 @@
+import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { Reflector } from '@nestjs/core';
+import { OrganisationRole } from '../../user/organisation-role.enum';
+import { ORG_PARAM_KEY } from '../org-from-param.decorator';
+import { ROLES_KEY } from '../roles.decorator';
+import { SuperAdminGuard } from '../super-admin.guard';
+import { MfaSuperAdminController, OrgMfaController } from './mfa-admin.controller';
+import type { MfaAdminService } from './mfa-admin.service';
+import type { AuthenticatedRequest } from '../jwt-auth.guard';
+
+describe('MFA admin controllers', () => {
+  const user = { userId: 'actor-1', email: 'a@example.com', isSuperAdmin: false, mfa: true };
+  const req = { user } as AuthenticatedRequest;
+  let service: Record<
+    'resetBySuperAdmin' | 'resetByOrgAdmin' | 'getOrgRequirement' | 'setOrgRequirement',
+    jest.Mock
+  >;
+
+  beforeEach(() => {
+    service = {
+      resetBySuperAdmin: jest.fn().mockResolvedValue(undefined),
+      resetByOrgAdmin: jest.fn().mockResolvedValue(undefined),
+      getOrgRequirement: jest.fn().mockResolvedValue({ requireMfa: false, requireMfaSince: null }),
+      setOrgRequirement: jest.fn().mockResolvedValue({ requireMfa: true, requireMfaSince: 'x' }),
+    };
+  });
+
+  it('super-admin reset passes the target and the acting session', async () => {
+    const controller = new MfaSuperAdminController(service as unknown as MfaAdminService);
+    await controller.reset('target-1', req);
+    expect(service.resetBySuperAdmin).toHaveBeenCalledWith('target-1', user);
+  });
+
+  it('org routes pass the org from the path and the acting session', async () => {
+    const controller = new OrgMfaController(service as unknown as MfaAdminService);
+
+    await expect(controller.getRequirement('org-1')).resolves.toEqual({
+      requireMfa: false,
+      requireMfaSince: null,
+    });
+    await controller.setRequirement('org-1', { requireMfa: true }, req);
+    await controller.resetMember('org-1', 'target-1', req);
+
+    expect(service.getOrgRequirement).toHaveBeenCalledWith('org-1');
+    expect(service.setOrgRequirement).toHaveBeenCalledWith('org-1', true, user);
+    expect(service.resetByOrgAdmin).toHaveBeenCalledWith('org-1', 'target-1', user);
+  });
+
+  describe('access metadata', () => {
+    const reflector = new Reflector();
+
+    it('guards the super-admin reset controller with SuperAdminGuard', () => {
+      expect(reflector.get(GUARDS_METADATA, MfaSuperAdminController)).toEqual([SuperAdminGuard]);
+    });
+
+    it('scopes the org controller to OrgAdmin of the :orgId path param', () => {
+      expect(reflector.get(ROLES_KEY, OrgMfaController)).toEqual([OrganisationRole.OrgAdmin]);
+      expect(reflector.get(ORG_PARAM_KEY, OrgMfaController)).toBe('orgId');
+    });
+  });
+});

@@ -1,6 +1,7 @@
 import {
   ConflictException,
   ForbiddenException,
+  HttpException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -10,6 +11,7 @@ import type { UserService } from '../user/user.service';
 import { removeOrganisationMedia } from '../content/content-storage.util';
 import type { PasswordService } from './password.service';
 import type { TokenService } from './token.service';
+import type { MfaService } from './mfa/mfa.service';
 import { AuthService } from './auth.service';
 
 jest.mock('../content/content-storage.util', () => ({
@@ -74,6 +76,7 @@ describe('AuthService', () => {
       | 'revokeAllForUser'
     >
   >;
+  let mfa: jest.Mocked<Pick<MfaService, 'isTotpEnabled' | 'createChallenge' | 'verifyChallenge'>>;
   let service: AuthService;
 
   const issuedAccess = { token: 'access', jti: 'jti', expiresAt: new Date(Date.now() + 1000) };
@@ -109,12 +112,18 @@ describe('AuthService', () => {
       revokeToken: jest.fn(),
       revokeAllForUser: jest.fn().mockResolvedValue(0),
     } as never;
+    mfa = {
+      isTotpEnabled: jest.fn().mockResolvedValue(false),
+      createChallenge: jest.fn().mockResolvedValue('challenge-id'),
+      verifyChallenge: jest.fn(),
+    } as never;
     const config = { get: jest.fn(() => '/tmp/media') } as unknown as ConfigService;
     service = new AuthService(
       users as unknown as UserService,
       passwords as unknown as PasswordService,
       tokens as unknown as TokenService,
       config,
+      mfa as unknown as MfaService,
     );
     removeOrganisationMediaMock.mockClear();
     removeOrganisationMediaMock.mockResolvedValue(undefined);
@@ -126,12 +135,71 @@ describe('AuthService', () => {
       passwords.verify.mockResolvedValue(true);
 
       const result = await service.login('user@example.com', 'pw');
-      expect(result.accessToken).toBe(issuedAccess);
-      expect(result.refreshToken).toBe(issuedRefresh);
+      expect(result).toMatchObject({
+        kind: 'session',
+        mfa: false,
+        accessToken: issuedAccess,
+        refreshToken: issuedRefresh,
+      });
       expect(tokens.issueAccessToken).toHaveBeenCalledWith('user-1', {
         email: 'user@example.com',
         isSuperAdmin: false,
+        mfa: false,
       });
+      expect(tokens.issueInitialRefreshToken).toHaveBeenCalledWith('user-1', { mfa: false });
+      expect(mfa.createChallenge).not.toHaveBeenCalled();
+    });
+
+    it('issues no session but a challenge when the user has TOTP', async () => {
+      users.findByEmail.mockResolvedValue(makeUser());
+      passwords.verify.mockResolvedValue(true);
+      mfa.isTotpEnabled.mockResolvedValue(true);
+
+      const result = await service.login('user@example.com', 'pw');
+
+      expect(result).toEqual({
+        kind: 'mfa-required',
+        user: expect.objectContaining({ id: 'user-1' }),
+        challengeId: 'challenge-id',
+      });
+      expect(mfa.createChallenge).toHaveBeenCalledWith('user-1');
+      expect(tokens.issueAccessToken).not.toHaveBeenCalled();
+      expect(tokens.issueInitialRefreshToken).not.toHaveBeenCalled();
+    });
+
+    it('propagates the lockout (429) from the challenge creation', async () => {
+      users.findByEmail.mockResolvedValue(makeUser());
+      passwords.verify.mockResolvedValue(true);
+      mfa.isTotpEnabled.mockResolvedValue(true);
+      mfa.createChallenge.mockRejectedValue(new HttpException('locked', 429));
+
+      await expect(service.login('user@example.com', 'pw')).rejects.toThrow(HttpException);
+      expect(tokens.issueAccessToken).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('loginMfa', () => {
+    it('issues an MFA-confirmed session once the challenge is verified', async () => {
+      mfa.verifyChallenge.mockResolvedValue({ user: makeUser(), method: 'totp' });
+
+      const result = await service.loginMfa('challenge-id', { code: '123456' });
+
+      expect(mfa.verifyChallenge).toHaveBeenCalledWith('challenge-id', { code: '123456' });
+      expect(result).toMatchObject({ mfa: true, accessToken: issuedAccess });
+      expect(tokens.issueAccessToken).toHaveBeenCalledWith('user-1', {
+        email: 'user@example.com',
+        isSuperAdmin: false,
+        mfa: true,
+      });
+      expect(tokens.issueInitialRefreshToken).toHaveBeenCalledWith('user-1', { mfa: true });
+    });
+
+    it('issues nothing when verification fails', async () => {
+      mfa.verifyChallenge.mockRejectedValue(new UnauthorizedException('Invalid code'));
+      await expect(service.loginMfa('challenge-id', { code: '000000' })).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(tokens.issueAccessToken).not.toHaveBeenCalled();
     });
 
     it('rejects unknown accounts', async () => {
@@ -227,8 +295,30 @@ describe('AuthService', () => {
 
       expect(users.markEmailVerified).toHaveBeenCalledWith('owner-1');
       expect(result.user.emailVerified).toBe(true);
-      expect(result.accessToken).toBe(issuedAccess);
-      expect(result.refreshToken).toBe(issuedRefresh);
+      expect(result).toMatchObject({
+        kind: 'session',
+        accessToken: issuedAccess,
+        refreshToken: issuedRefresh,
+      });
+    });
+
+    it('verifies but issues no session to a user with TOTP (challenge instead)', async () => {
+      users.findByEmailVerificationToken.mockResolvedValue(
+        makeUser({
+          id: 'owner-1',
+          emailVerified: false,
+          emailVerificationTokenExpiresAt: new Date(Date.now() + 60_000),
+        }),
+      );
+      mfa.isTotpEnabled.mockResolvedValue(true);
+
+      const result = await service.verifyEmail('tok');
+
+      expect(users.markEmailVerified).toHaveBeenCalledWith('owner-1');
+      expect(result).toMatchObject({ kind: 'mfa-required', challengeId: 'challenge-id' });
+      expect(result.user.emailVerified).toBe(true);
+      expect(tokens.issueAccessToken).not.toHaveBeenCalled();
+      expect(tokens.issueInitialRefreshToken).not.toHaveBeenCalled();
     });
 
     it('throws NotFound for an unknown token', async () => {
@@ -335,9 +425,12 @@ describe('AuthService', () => {
       );
       expect(result.accessToken).toBe(issuedAccess);
       expect(result.refreshToken).toBe(issuedRefresh);
+      // A new account has no TOTP: password-only session, enrolment follows.
+      expect(result.mfa).toBe(false);
       expect(tokens.issueAccessToken).toHaveBeenCalledWith('admin-1', {
         email: 'admin@example.com',
         isSuperAdmin: true,
+        mfa: false,
       });
     });
 
@@ -372,6 +465,7 @@ describe('AuthService', () => {
         status: 'ok',
         userId: 'user-1',
         familyId: 'fam',
+        mfa: false,
         next: issuedRefresh,
       });
       users.findById.mockResolvedValue(makeUser());
@@ -379,6 +473,25 @@ describe('AuthService', () => {
       const result = await service.refresh('raw');
       expect(result.accessToken).toBe(issuedAccess);
       expect(result.refreshToken).toBe(issuedRefresh);
+    });
+
+    it('keeps the mfa state of the refresh family in the new access token', async () => {
+      tokens.rotateRefreshToken.mockResolvedValue({
+        status: 'ok',
+        userId: 'user-1',
+        familyId: 'fam',
+        mfa: true,
+        next: issuedRefresh,
+      });
+      users.findById.mockResolvedValue(makeUser({ isSuperAdmin: true }));
+
+      await service.refresh('raw');
+
+      expect(tokens.issueAccessToken).toHaveBeenCalledWith('user-1', {
+        email: 'user@example.com',
+        isSuperAdmin: true,
+        mfa: true,
+      });
     });
 
     it('throws on an unknown refresh token', async () => {
@@ -396,6 +509,7 @@ describe('AuthService', () => {
         status: 'ok',
         userId: 'user-1',
         familyId: 'fam',
+        mfa: false,
         next: issuedRefresh,
       });
       users.findById.mockResolvedValue(null);
@@ -417,7 +531,7 @@ describe('AuthService', () => {
       passwords.verify.mockResolvedValue(true);
       passwords.hash.mockResolvedValue('new-hash');
 
-      await service.changePassword('user-1', 'old', 'newpassword');
+      await service.changePassword('user-1', 'old', 'newpassword', { mfa: false });
       expect(users.setPassword).toHaveBeenCalledWith('user-1', 'new-hash');
     });
 
@@ -426,7 +540,7 @@ describe('AuthService', () => {
       passwords.verify.mockResolvedValue(true);
       passwords.hash.mockResolvedValue('new-hash');
 
-      const result = await service.changePassword('user-1', 'old', 'newpassword');
+      const result = await service.changePassword('user-1', 'old', 'newpassword', { mfa: false });
 
       expect(tokens.revokeAllForUser).toHaveBeenCalledWith('user-1');
       // The new pair must be minted AFTER the revocation, otherwise it is killed too.
@@ -437,11 +551,25 @@ describe('AuthService', () => {
       expect(result.refreshToken).toBe(issuedRefresh);
     });
 
+    it('carries the mfa state of the acting session into the new one', async () => {
+      users.findById.mockResolvedValue(makeUser());
+      passwords.verify.mockResolvedValue(true);
+      passwords.hash.mockResolvedValue('new-hash');
+
+      await service.changePassword('user-1', 'old', 'newpassword', { mfa: true });
+
+      expect(tokens.issueAccessToken).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({ mfa: true }),
+      );
+      expect(tokens.issueInitialRefreshToken).toHaveBeenCalledWith('user-1', { mfa: true });
+    });
+
     it('keeps sessions alive when the current password is wrong', async () => {
       users.findById.mockResolvedValue(makeUser());
       passwords.verify.mockResolvedValue(false);
 
-      await expect(service.changePassword('user-1', 'bad', 'new')).rejects.toThrow(
+      await expect(service.changePassword('user-1', 'bad', 'new', { mfa: false })).rejects.toThrow(
         UnauthorizedException,
       );
       expect(tokens.revokeAllForUser).not.toHaveBeenCalled();
@@ -449,7 +577,7 @@ describe('AuthService', () => {
 
     it('throws when the user is missing', async () => {
       users.findById.mockResolvedValue(null);
-      await expect(service.changePassword('user-1', 'old', 'new')).rejects.toThrow(
+      await expect(service.changePassword('user-1', 'old', 'new', { mfa: false })).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -457,7 +585,7 @@ describe('AuthService', () => {
     it('throws when the current password is wrong', async () => {
       users.findById.mockResolvedValue(makeUser());
       passwords.verify.mockResolvedValue(false);
-      await expect(service.changePassword('user-1', 'bad', 'new')).rejects.toThrow(
+      await expect(service.changePassword('user-1', 'bad', 'new', { mfa: false })).rejects.toThrow(
         UnauthorizedException,
       );
     });

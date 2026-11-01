@@ -8,7 +8,12 @@
  * KEYS[3] = auth:refresh:<newHash>   (new active token record)
  * ARGV    = oldHash, newHash, issuedAt(ms), ttl(seconds)
  *
- * Returns {'ok', familyId, userId} | {'reuse', familyId} | {'unknown'}.
+ * Returns {'ok', familyId, userId, mfa('1'|'0')} | {'reuse', familyId} | {'unknown'}.
+ *
+ * `mfa` is carried into the successor record so a rotation never upgrades or
+ * drops the session's second-factor state. It is returned as a string because
+ * a Lua `false` inside a reply table truncates the array. A record written
+ * before MFA existed has no field and yields '0'.
  */
 export const ROTATE_REFRESH_SCRIPT = `
 local activeKey = KEYS[1]
@@ -31,6 +36,7 @@ end
 local parsed = cjson.decode(data)
 local familyId = parsed.familyId
 local userId = parsed.userId
+local mfa = parsed.mfa == true
 local familySetKey = 'auth:family:' .. familyId
 
 redis.call('DEL', activeKey)
@@ -41,13 +47,19 @@ local newPayload = cjson.encode({
   userId = userId,
   familyId = familyId,
   issuedAt = issuedAt,
-  parentHash = oldHash
+  parentHash = oldHash,
+  mfa = mfa
 })
 redis.call('SET', newKey, newPayload, 'EX', ttl)
 redis.call('SADD', familySetKey, newHash)
 redis.call('EXPIRE', familySetKey, ttl)
 
-return {'ok', familyId, userId}
+local mfaFlag = '0'
+if mfa then
+  mfaFlag = '1'
+end
+
+return {'ok', familyId, userId, mfaFlag}
 `;
 
 /**

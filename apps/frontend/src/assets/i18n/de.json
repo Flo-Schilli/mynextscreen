@@ -102,7 +102,8 @@
     },
     "errors": {
       "notVerified": "Bitte bestätige deine E-Mail, bevor du dich anmeldest.",
-      "invalidCredentials": "Ungültige E-Mail oder ungültiges Passwort."
+      "invalidCredentials": "Ungültige E-Mail oder ungültiges Passwort.",
+      "generic": "Anmeldung fehlgeschlagen. Bitte versuche es erneut."
     },
     "setPassword": {
       "title": "Passwort festlegen",
@@ -138,6 +139,89 @@
       "doneBody": "Deine E-Mail-Adresse wurde aktualisiert. Verwende sie bei der nächsten Anmeldung.",
       "goToDashboard": "Zum Dashboard",
       "invalidLink": "Dieser Bestätigungslink ist ungültig oder abgelaufen."
+    },
+    "mfa": {
+      "login": {
+        "title": "Zwei-Faktor-Authentifizierung",
+        "subtitle": "Gib den 6-stelligen Code aus deiner Authenticator-App ein.",
+        "recoverySubtitle": "Gib einen deiner Recovery-Codes ein. Jeder Code funktioniert nur einmal.",
+        "codeLabel": "Bestätigungscode",
+        "recoveryLabel": "Recovery-Code",
+        "verify": "Bestätigen",
+        "verifying": "Wird geprüft…",
+        "useRecoveryCode": "Recovery-Code verwenden",
+        "useAuthenticator": "Authenticator-App verwenden",
+        "back": "Zurück zur Anmeldung",
+        "codeIncomplete": "Gib alle 6 Ziffern ein.",
+        "recoveryRequired": "Gib einen Recovery-Code ein.",
+        "invalidCode": "Dieser Code ist ungültig. Versuch es mit dem aktuellen Code.",
+        "invalidRecoveryCode": "Dieser Recovery-Code ist ungültig oder wurde schon verwendet.",
+        "challengeExpired": "Deine Anmeldung ist abgelaufen. Bitte gib dein Passwort erneut ein.",
+        "lockedOut": "Zu viele Fehlversuche. Die Anmeldung ist vorübergehend gesperrt – versuch es später erneut.",
+        "tooManyAttempts": "Zu viele Versuche. Bitte warte eine Minute und versuch es dann erneut.",
+        "genericError": "Die Prüfung ist fehlgeschlagen. Bitte versuch es erneut."
+      },
+      "page": {
+        "title": "Zwei-Faktor-Authentifizierung einrichten",
+        "reasonSuperAdmin": "Als Plattform-Admin hast du Zugriff auf alle Organisationen. Dein Konto muss deshalb mit einem zweiten Faktor geschützt sein.",
+        "reasonOrganisations": "Zwei-Faktor-Authentifizierung wird verlangt von: {names}.",
+        "reasonOrganisationsUnnamed": "{count, plural, one {Eine deiner Organisationen verlangt} other {# deiner Organisationen verlangen}} Zwei-Faktor-Authentifizierung.",
+        "reasonSuperAdminAndOrganisations": "Als Plattform-Admin brauchst du einen zweiten Faktor. Zusätzlich verlangen ihn: {names}.",
+        "reasonSuperAdminAndOrganisationsUnnamed": "Als Plattform-Admin brauchst du einen zweiten Faktor. Zusätzlich {count, plural, one {verlangt ihn eine deiner Organisationen} other {verlangen ihn # deiner Organisationen}}.",
+        "reasonUnknown": "Für dein Konto ist die Zwei-Faktor-Authentifizierung Pflicht.",
+        "accountWide": "Die Pflicht gilt für dein ganzes Konto, also in allen deinen Organisationen. Richte den zweiten Faktor jetzt ein, um weiterzumachen.",
+        "logout": "Abmelden"
+      },
+      "enrol": {
+        "progress": "Fortschritt der Einrichtung",
+        "continue": "Weiter",
+        "back": "Zurück",
+        "password": {
+          "title": "Bestätige, dass du es bist",
+          "desc": "Gib dein aktuelles Passwort ein, um die Einrichtung zu starten.",
+          "descDeviceChange": "Gib dein aktuelles Passwort und einen Code deines bisherigen Authenticators ein, um MFA auf ein neues Gerät umzuziehen.",
+          "label": "Aktuelles Passwort",
+          "currentCodeLabel": "Code deines bisherigen Authenticators"
+        },
+        "scan": {
+          "title": "QR-Code scannen",
+          "desc": "Scanne diesen Code mit einer Authenticator-App (z. B. Aegis, 2FAS, Google Authenticator, 1Password).",
+          "qrAlt": "QR-Code für deine Authenticator-App",
+          "manual": "Scannen klappt nicht? Gib diesen Schlüssel manuell ein:",
+          "copySecret": "Schlüssel kopieren",
+          "secretCopied": "Schlüssel kopiert."
+        },
+        "verify": {
+          "title": "Code eingeben",
+          "desc": "Gib den 6-stelligen Code ein, den deine App jetzt anzeigt, um sie zu verknüpfen.",
+          "label": "Bestätigungscode",
+          "submit": "Aktivieren",
+          "verifying": "Wird aktiviert…"
+        },
+        "codes": {
+          "title": "Recovery-Codes sichern",
+          "finish": "Fertig"
+        },
+        "errors": {
+          "invalidPassword": "Das Passwort ist nicht korrekt.",
+          "invalidCurrentCode": "Der Code deiner bisherigen Authenticator-App ist nicht korrekt.",
+          "invalidCode": "Dieser Code ist ungültig. Prüfe die Uhrzeit deiner App und nimm den aktuellen Code.",
+          "setupExpired": "Die Einrichtung hat zu lange gedauert und ist abgelaufen. Bitte starte neu.",
+          "tooManyAttempts": "Zu viele Versuche. Bitte warte eine Minute und versuch es dann erneut.",
+          "generic": "Etwas ist schiefgelaufen. Bitte versuch es erneut."
+        }
+      },
+      "codes": {
+        "intro": "Die Zwei-Faktor-Authentifizierung ist aktiv. Wenn du dein Gerät verlierst, kommst du nur mit diesen Einmal-Codes in dein Konto. Sie werden nur jetzt angezeigt.",
+        "copy": "Codes kopieren",
+        "copied": "Recovery-Codes kopiert.",
+        "copyFailed": "Kopieren fehlgeschlagen – bitte lade die Codes herunter oder schreib sie ab.",
+        "download": "Als .txt herunterladen",
+        "fileHeading": "myNextScreen Recovery-Codes – jeder Code funktioniert einmal",
+        "warning": "Bewahre sie sicher auf, z. B. in deinem Passwort-Manager. Wer diese Codes hat, kann sich als du anmelden.",
+        "saved": "Ich habe meine Recovery-Codes sicher gespeichert.",
+        "leaveWarning": "Du hast noch nicht bestätigt, dass du deine Recovery-Codes gespeichert hast. Sie werden nicht noch einmal angezeigt. Trotzdem verlassen?"
+      }
     }
   },
   "shell": {
@@ -1689,6 +1773,11 @@
       "auth.password_reset_requested": "Passwort-Zurücksetzung angefordert",
       "auth.password_changed": "Passwort geändert",
       "auth.super_admin_setup": "Instanz-Einrichtung (Super-Admin)",
+      "auth.mfa_enabled": "Zwei-Faktor-Authentifizierung aktiviert",
+      "auth.mfa_disabled": "Zwei-Faktor-Authentifizierung deaktiviert",
+      "auth.mfa_recovery_code_used": "Recovery-Code verwendet",
+      "auth.mfa_recovery_codes_regenerated": "Recovery-Codes neu erzeugt",
+      "auth.mfa_lockout": "Zwei-Faktor-Anmeldung gesperrt",
       "email.sent": "E-Mail gesendet",
       "email.send_failed": "E-Mail-Versand fehlgeschlagen",
       "playlist.rule_updated": "Playlist-Regel geändert",
@@ -1719,7 +1808,9 @@
       "site_agent.reset": "Site-Agent zurückgesetzt",
       "site_agent.revoked": "Site-Agent-Zugang entzogen",
       "site_agent.updated": "Site-Agent geändert",
-      "site_agent.update_requested": "Site-Agent-Update angefordert"
+      "site_agent.update_requested": "Site-Agent-Update angefordert",
+      "auth.mfa_reset": "Zwei-Faktor-Authentifizierung zurückgesetzt",
+      "org.mfa_requirement_changed": "MFA-Pflicht der Organisation geändert"
     },
     "detailKeys": {
       "name": "Name",
@@ -1870,7 +1961,8 @@
     "tabs": {
       "users": "Benutzerverwaltung",
       "notificationConfig": "Benachrichtigungen",
-      "storage": "Speicher"
+      "storage": "Speicher",
+      "security": "Sicherheit"
     },
     "user": {
       "page": {
@@ -1970,6 +2062,52 @@
       "errors": {
         "loadPreferences": "Benachrichtigungseinstellungen konnten nicht geladen werden.",
         "deleteAccount": "Konto konnte nicht gelöscht werden. Prüfe dein aktuelles Passwort."
+      },
+      "security": {
+        "title": "Sicherheit",
+        "subtitle": "Zwei-Faktor-Authentifizierung (TOTP) für dein Konto",
+        "loading": "Wird geladen…",
+        "loadError": "Die Sicherheitseinstellungen konnten nicht geladen werden.",
+        "statusEnabled": "Zwei-Faktor-Authentifizierung an",
+        "statusDisabled": "Zwei-Faktor-Authentifizierung aus",
+        "enabledSince": "Aktiv seit {date}",
+        "intro": "Schütze dein Konto mit einem zweiten Faktor: Nach dem Passwort gibst du zusätzlich einen Code aus einer Authenticator-App ein.",
+        "recoveryRemaining": "{count, plural, =0 {Keine Recovery-Codes mehr übrig} one {Noch 1 Recovery-Code übrig} other {Noch # Recovery-Codes übrig}}",
+        "lowRecoveryCodes": "Dir gehen die Recovery-Codes aus. Erzeuge neue, damit du dich bei Verlust deines Geräts nicht aussperrst.",
+        "requiredSuperAdmin": "Für Plattform-Admins ist die Zwei-Faktor-Authentifizierung Pflicht und lässt sich nicht abschalten. Für ein neues Handy nutze „Gerät wechseln“.",
+        "requiredOrganisations": "Verlangt von: {names}. Solange du diesen Organisationen angehörst, lässt sie sich nicht abschalten. Für ein neues Handy nutze „Gerät wechseln“.",
+        "requiredOrganisationsUnnamed": "{count, plural, one {Eine deiner Organisationen verlangt} other {# deiner Organisationen verlangen}} Zwei-Faktor-Authentifizierung, deshalb lässt sie sich nicht abschalten. Für ein neues Handy nutze „Gerät wechseln“.",
+        "requiredSuperAdminAndOrganisations": "Als Plattform-Admin und für {names} ist die Zwei-Faktor-Authentifizierung Pflicht und lässt sich nicht abschalten. Für ein neues Handy nutze „Gerät wechseln“.",
+        "requiredSuperAdminAndOrganisationsUnnamed": "Als Plattform-Admin und für {count, plural, one {eine deiner Organisationen} other {# deiner Organisationen}} ist die Zwei-Faktor-Authentifizierung Pflicht und lässt sich nicht abschalten. Für ein neues Handy nutze „Gerät wechseln“.",
+        "requiredAccountWide": "Die Pflicht gilt für dein ganzes Konto, in allen deinen Organisationen.",
+        "enable": "Zwei-Faktor-Authentifizierung einrichten",
+        "changeDevice": "Gerät wechseln",
+        "regenerate": "Neue Recovery-Codes",
+        "disable": "Abschalten",
+        "enrolTitle": "Zwei-Faktor-Authentifizierung einrichten",
+        "changeDeviceTitle": "Auf neues Gerät umziehen",
+        "regenerateTitle": "Neue Recovery-Codes erzeugen",
+        "regenerateDesc": "Deine alten Recovery-Codes werden sofort ungültig. Gib dein aktuelles Passwort und einen Code aus deiner Authenticator-App ein, um fortzufahren.",
+        "regenerateConfirm": "Erzeugen",
+        "done": "Fertig",
+        "disableTitle": "Zwei-Faktor-Authentifizierung abschalten",
+        "disableDesc": "Dein Konto ist dann nur noch durch dein Passwort geschützt. Alle anderen Sitzungen werden abgemeldet.",
+        "disableConfirm": "Abschalten",
+        "passwordLabel": "Aktuelles Passwort",
+        "codeLabel": "Code aus deiner Authenticator-App",
+        "toast": {
+          "enabled": "Die Zwei-Faktor-Authentifizierung ist jetzt aktiv.",
+          "deviceChanged": "Dein neues Gerät ist eingerichtet. Das alte funktioniert nicht mehr.",
+          "disabled": "Zwei-Faktor-Authentifizierung abgeschaltet.",
+          "disableForbidden": "Für dein Konto ist die Zwei-Faktor-Authentifizierung Pflicht und lässt sich nicht abschalten.",
+          "saveCodesFirst": "Bestätige zuerst, dass du deine Recovery-Codes gesichert hast."
+        },
+        "errors": {
+          "invalidPassword": "Das Passwort ist nicht korrekt.",
+          "invalidCode": "Dieser Code ist ungültig. Nimm den aktuellen Code aus deiner App.",
+          "tooManyAttempts": "Zu viele Versuche. Bitte warte eine Minute und versuch es dann erneut.",
+          "generic": "Etwas ist schiefgelaufen. Bitte versuch es erneut."
+        }
       }
     },
     "org": {
@@ -2060,6 +2198,39 @@
           "accessDenied": "Zugriff verweigert.",
           "loadStorage": "Speichernutzung konnte nicht geladen werden."
         }
+      },
+      "security": {
+        "page": {
+          "title": "Sicherheit",
+          "subtitle": "Anmelde-Sicherheit für alle Mitglieder dieser Organisation"
+        },
+        "loading": "Sicherheitseinstellungen werden geladen…",
+        "mfa": {
+          "title": "Zwei-Faktor-Authentifizierung (MFA)",
+          "subtitle": "Schützt die Konten deiner Mitglieder zusätzlich zum Passwort",
+          "label": "MFA für alle Mitglieder verlangen",
+          "desc": "Mitglieder ohne MFA werden bei ihrer nächsten Anmeldung durch die Einrichtung geführt. Die Pflicht gilt für ihr gesamtes Konto, also auch in anderen Organisationen.",
+          "since": "Verlangt seit",
+          "ownMfaRequired": "Richte zuerst MFA für dein eigenes Konto ein und melde dich damit an, bevor du sie für alle verlangst.",
+          "ownMfaLink": "Zu den Sicherheitseinstellungen"
+        },
+        "confirm": {
+          "title": "MFA für alle Mitglieder verlangen?",
+          "body": "Ab sofort müssen alle Mitglieder dieser Organisation Zwei-Faktor-Authentifizierung nutzen. Wer sie noch nicht eingerichtet hat, bekommt eine E-Mail und wird beim nächsten Öffnen durch die Einrichtung geführt. Bis dahin ist kein anderer Zugriff möglich.",
+          "submit": "MFA verlangen"
+        },
+        "toast": {
+          "enabled": "MFA ist jetzt für alle Mitglieder Pflicht.",
+          "disabled": "MFA ist für diese Organisation nicht mehr Pflicht."
+        },
+        "errors": {
+          "noOrgSelected": "Keine Organisation ausgewählt.",
+          "noOrgAdmin": "Du bist kein Org-Admin dieser Organisation.",
+          "load": "Die Sicherheitseinstellungen konnten nicht geladen werden.",
+          "save": "Die Einstellung konnte nicht gespeichert werden.",
+          "selfRequired": "Melde dich zuerst selbst mit MFA an, bevor du sie für alle verlangst."
+        },
+        "retry": "Erneut versuchen"
       }
     },
     "users": {
@@ -2650,6 +2821,32 @@
         "loadFailed": "Regeln konnten nicht geladen werden"
       },
       "genreGroups": "Je Genre: {{groups}}"
+    }
+  },
+  "mfaAdmin": {
+    "badge": "MFA",
+    "reset": {
+      "action": "MFA zurücksetzen",
+      "confirm": {
+        "title": "MFA zurücksetzen?",
+        "prefix": "Die Zwei-Faktor-Authentifizierung von",
+        "suffix": "wird entfernt, alle Recovery-Codes werden ungültig und alle Sitzungen abgemeldet. Ist MFA für den User Pflicht, richtet er sie bei der nächsten Anmeldung neu ein.",
+        "submit": "Zurücksetzen",
+        "submitting": "Wird zurückgesetzt…"
+      },
+      "toast": {
+        "done": "MFA wurde zurückgesetzt, der User wurde per E-Mail informiert."
+      },
+      "errors": {
+        "needsSuperAdmin": "Dieser User gehört weiteren Organisationen an, bitte den Plattform-Admin kontaktieren.",
+        "targetSuperAdmin": "Die MFA eines Plattform-Admins kann nur ein anderer Plattform-Admin zurücksetzen.",
+        "self": "Deine eigene MFA verwaltest du in deinen Sicherheitseinstellungen.",
+        "notMember": "Dieser User ist kein Mitglied dieser Organisation.",
+        "selfRequired": "Melde dich zuerst selbst mit MFA an, um die MFA anderer zurückzusetzen.",
+        "notEnabled": "Dieser User hat keine MFA eingerichtet.",
+        "generic": "MFA konnte nicht zurückgesetzt werden. Bitte versuch es erneut."
+      },
+      "needsOwnMfa": "Melde dich zuerst selbst mit MFA an, um die MFA von Mitgliedern zurückzusetzen."
     }
   }
 }

@@ -18,6 +18,7 @@ import {
 } from '../db/schema';
 import { OrganisationRole } from './organisation-role.enum';
 import { UserService } from './user.service';
+import { toMemberResponse, type MemberResponse } from './member-response';
 import { auditChanges } from '../audit-log/audit-changes';
 import {
   AUDIT_USER_INVITED,
@@ -45,6 +46,21 @@ export class MembershipService {
       where: eq(userOrganisationMemberships.organisationId, organisationId),
       with: { user: true },
     });
+  }
+
+  /** API views of memberships, with each member's `mfaEnabled` badge (one query). */
+  async toMemberResponses(memberships: MembershipWithUser[]): Promise<MemberResponse[]> {
+    const mfaEnabled = await this.users.findMfaEnabledUserIds(memberships.map((m) => m.userId));
+    return memberships.map((m) => toMemberResponse(m, mfaEnabled.has(m.userId)));
+  }
+
+  async toMemberView(membership: MembershipWithUser): Promise<MemberResponse> {
+    const [view] = await this.toMemberResponses([membership]);
+    return view;
+  }
+
+  async listMemberResponses(organisationId: string): Promise<MemberResponse[]> {
+    return this.toMemberResponses(await this.listMembers(organisationId));
   }
 
   async addMember(

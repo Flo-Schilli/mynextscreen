@@ -49,6 +49,9 @@ services:
       - "4200:4200"
     volumes:
       - ./apps/frontend/src:/app/apps/frontend/src:z
+      # Shared wire types (@mynextscreen/shared-types): without this mount the dev
+      # server keeps the copy baked into the image and fails on new types.
+      - ./libs/shared-types/src:/app/libs/shared-types/src:z
       - ./apps/frontend/proxy.conf.docker.json:/app/apps/frontend/proxy.conf.docker.json:z
 
   player:

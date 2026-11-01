@@ -120,7 +120,7 @@ Organisation         (Tenant; storage-limits, default/fallback playlist, time zo
 
 > **Nx integrated monorepo.** EIN Root-`package.json` + EIN `package-lock.json`
 > (Single Source of Truth, Version + alle Deps), `nx.json` (Targets/Caching),
-> `tsconfig.base.json` (Path-Mappings, u. a. `@signage/shared-types`). Apps haben
+> `tsconfig.base.json` (Path-Mappings, u. a. `@mynextscreen/shared-types`). Apps haben
 > **kein** eigenes `package.json` — nur ein `project.json` mit Nx-Targets
 > (`nx:run-commands`). Gemischte Test-Runner: **Jest** (backend, Coverage-Gate),
 > **Vitest** (frontend via `ng test`, player via `vitest run`).
@@ -166,7 +166,7 @@ apps/
 libs/
   shared-types/           # geteilte TS-Typen (Lib; nur lint/typecheck-Targets)
 nx.json                   # Nx-Targets, namedInputs (production), Caching
-tsconfig.base.json        # Path-Mappings (@signage/shared-types) für alle Projekte
+tsconfig.base.json        # Path-Mappings (@mynextscreen/shared-types) für alle Projekte
 package.json              # Single Source: Version + alle Deps (Root)
 package-lock.json         # einziges Lockfile
 player-applications/      # Native/Plattform-Player

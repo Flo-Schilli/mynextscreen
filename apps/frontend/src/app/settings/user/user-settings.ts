@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  OnInit,
+  OnDestroy,
+  viewChild,
+} from '@angular/core';
 import {
   AbstractControl,
   FormBuilder,
@@ -15,6 +22,11 @@ import {
 } from './notification-preferences.service';
 import { AuthService } from '../../auth/auth.service';
 import { ProfileService } from './profile.service';
+import { SecuritySectionComponent } from './security-section';
+import {
+  confirmDiscardRecoveryCodes,
+  type HoldsRecoveryCodes,
+} from '../../auth/mfa-enrolment/unsaved-recovery-codes.guard';
 import { ToastService } from '../../shared/toast/toast.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
 import { ThemeService, Accent, Density } from '../../shell/theme.service';
@@ -72,6 +84,7 @@ const DENSITY_OPTIONS: { value: Density; labelKey: string; descKey: string }[] =
     BtnComponent,
     OverlayComponent,
     PageHeaderComponent,
+    SecuritySectionComponent,
     SFieldComponent,
     SInputComponent,
     SwitchComponent,
@@ -278,6 +291,9 @@ const DENSITY_OPTIONS: { value: Density; labelKey: string; descKey: string }[] =
         </div>
       </mns-card>
 
+      <!-- Security: MFA -->
+      <app-security-section />
+
       <!-- Change password -->
       <mns-card [animate]="true" [delay]="0.1" class="block mb-5 max-w-[760px]">
         <mns-card-head
@@ -466,7 +482,7 @@ const DENSITY_OPTIONS: { value: Density; labelKey: string; descKey: string }[] =
     }
   `,
 })
-export class UserSettings implements OnInit, OnDestroy {
+export class UserSettings implements OnInit, OnDestroy, HoldsRecoveryCodes {
   private prefsService = inject(NotificationPreferencesService);
   private router = inject(Router);
   private fb = inject(FormBuilder);
@@ -476,6 +492,15 @@ export class UserSettings implements OnInit, OnDestroy {
   private orgState = inject(OrganisationStateService);
   private themeService = inject(ThemeService);
   private transloco = inject(TranslocoService);
+  private readonly security = viewChild(SecuritySectionComponent);
+
+  /** Leaving with recovery codes on screen that are not yet saved needs a confirmation. */
+  canDeactivate(): boolean {
+    if (!this.security()?.hasUnsavedCodes()) {
+      return true;
+    }
+    return confirmDiscardRecoveryCodes(this.transloco.translate('auth.mfa.codes.leaveWarning'));
+  }
 
   readonly accentOptions = ACCENT_OPTIONS;
   readonly densityOptions = DENSITY_OPTIONS;

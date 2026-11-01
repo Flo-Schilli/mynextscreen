@@ -9,6 +9,17 @@ import {
   AUTH_EMAIL_CHANGE_REQUESTED,
   AUTH_EMAIL_VERIFICATION_REQUESTED,
   AUTH_PASSWORD_CHANGED,
+  AUTH_MFA_DISABLED,
+  AUTH_MFA_ENABLED,
+  AUTH_MFA_RECOVERY_CODE_USED,
+  AUTH_MFA_RESET,
+  AUTH_ORG_MFA_REQUIRED,
+  AuthMfaResetEvent,
+  AuthOrgMfaRequiredEvent,
+  type MfaResetBy,
+  AuthMfaDisabledEvent,
+  AuthMfaEnabledEvent,
+  AuthMfaRecoveryCodeUsedEvent,
   AUTH_PASSWORD_RESET_REQUESTED,
   AUTH_USER_INVITED,
   AuthEmailChangeRequestedEvent,
@@ -66,6 +77,31 @@ export class PlatformMailerService {
   @OnEvent(AUTH_PASSWORD_CHANGED)
   async handlePasswordChanged(event: AuthPasswordChangedEvent): Promise<void> {
     await this.sendPasswordChangedNotice(event.email);
+  }
+
+  @OnEvent(AUTH_MFA_ENABLED)
+  async handleMfaEnabled(event: AuthMfaEnabledEvent): Promise<void> {
+    await this.sendMfaEnabledNotice(event.email, event.replaced);
+  }
+
+  @OnEvent(AUTH_MFA_DISABLED)
+  async handleMfaDisabled(event: AuthMfaDisabledEvent): Promise<void> {
+    await this.sendMfaDisabledNotice(event.email);
+  }
+
+  @OnEvent(AUTH_MFA_RECOVERY_CODE_USED)
+  async handleMfaRecoveryCodeUsed(event: AuthMfaRecoveryCodeUsedEvent): Promise<void> {
+    await this.sendRecoveryCodeUsedNotice(event.email, event.remaining);
+  }
+
+  @OnEvent(AUTH_MFA_RESET)
+  async handleMfaReset(event: AuthMfaResetEvent): Promise<void> {
+    await this.sendMfaResetNotice(event.email, event.by);
+  }
+
+  @OnEvent(AUTH_ORG_MFA_REQUIRED)
+  async handleOrgMfaRequired(event: AuthOrgMfaRequiredEvent): Promise<void> {
+    await this.sendOrgMfaRequiredNotice(event.email, event.organisationName);
   }
 
   // ── Message builders ──────────────────────────────────────────────────────────
@@ -130,6 +166,63 @@ export class PlatformMailerService {
     );
   }
 
+  async sendMfaEnabledNotice(to: string, replaced: boolean): Promise<void> {
+    const what = replaced
+      ? 'Two-factor authentication on your myNextScreen account was moved to a new authenticator app.'
+      : 'Two-factor authentication was just turned on for your myNextScreen account.';
+    await this.send(
+      to,
+      'Two-factor authentication enabled',
+      `${what} From now on you sign in with your password and a code from that app. ` +
+        `If this wasn't you, reset your password immediately and contact your administrator.`,
+    );
+  }
+
+  async sendMfaDisabledNotice(to: string): Promise<void> {
+    await this.send(
+      to,
+      'Two-factor authentication disabled',
+      `Two-factor authentication was just turned off for your myNextScreen account. Your ` +
+        `password alone now signs you in. If this wasn't you, reset your password immediately ` +
+        `and contact your administrator.`,
+    );
+  }
+
+  async sendRecoveryCodeUsedNotice(to: string, remaining: number): Promise<void> {
+    await this.send(
+      to,
+      'A recovery code was used to sign in',
+      `A recovery code was just used to sign in to your myNextScreen account. ${remaining} ` +
+        `unused recovery code(s) remain; generate a new set in your security settings if you ` +
+        `are running low. If this wasn't you, reset your password immediately and contact your ` +
+        `administrator.`,
+    );
+  }
+
+  async sendMfaResetNotice(to: string, by: MfaResetBy): Promise<void> {
+    const who =
+      by === 'super_admin' ? 'a platform administrator' : 'an administrator of your organisation';
+    await this.send(
+      to,
+      'Two-factor authentication reset',
+      `Two-factor authentication on your myNextScreen account was reset by ${who}, and every ` +
+        `session was signed out. Your authenticator app and recovery codes no longer work. If ` +
+        `two-factor authentication is required for you, you will be guided through setting it ` +
+        `up again the next time you sign in. If you did not ask for this, contact your ` +
+        `administrator.`,
+    );
+  }
+
+  async sendOrgMfaRequiredNotice(to: string, organisationName: string): Promise<void> {
+    await this.send(
+      to,
+      'Two-factor authentication is now required',
+      `Your organisation "${sanitizeMailText(organisationName)}" on myNextScreen requires two-factor ` +
+        `authentication from now on. The next time you open myNextScreen you will be guided ` +
+        `through setting it up with an authenticator app.`,
+    );
+  }
+
   // ── Internals ───────────────────────────────────────────────────────────────
 
   /** Builds an absolute SPA link `${PUBLIC_BASE_URL}${path}?t=${token}`. */
@@ -190,4 +283,28 @@ export class PlatformMailerService {
       new AuditEmailEvent(details),
     );
   }
+}
+
+/** Longest org name echoed into an account mail; longer ones are cut with "…". */
+export const MAIL_TEXT_MAX_LENGTH = 100;
+
+/**
+ * Makes an admin-chosen string (org name) safe to quote in a plain-text
+ * account mail: no control characters or line breaks (no header/body
+ * injection, no forged paragraphs), whitespace collapsed, length capped, angle
+ * brackets dropped and nothing a mail client would auto-link — URL schemes
+ * are removed, `@` and a dot before a letter become look-alikes.
+ */
+export function sanitizeMailText(value: string, maxLength = MAIL_TEXT_MAX_LENGTH): string {
+  const cleaned = value
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, ' ')
+    .replace(/[<>]/g, '')
+    .replace(/[a-z][a-z0-9+.-]*:\/\//gi, '')
+    .replace(/@/g, '\uFF20')
+    .replace(/\.(?=\p{L})/gu, '\u2024')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const chars = Array.from(cleaned);
+  return chars.length > maxLength ? `${chars.slice(0, maxLength - 1).join('')}…` : cleaned;
 }

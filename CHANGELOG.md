@@ -4,6 +4,64 @@ Notable changes per release, with the operator actions each one requires.
 Versions follow the root `package.json`; a release is cut with
 `npm run version:patch && git push --follow-tags`.
 
+## Unreleased
+
+### Added — two-factor authentication (TOTP)
+
+Users can now protect their account with an authenticator app under
+_User settings → Security_: scan a QR code, confirm a code, and keep ten
+single-use recovery codes that are shown once. Signing in then asks for a code
+after the password. A recovery code works in its place — also for moving the
+factor to a new phone when the old one is lost — and the user is emailed
+whenever one is used. Ten wrong codes within 15 minutes pause further
+attempts for that user.
+
+MFA belongs to the user. It is **mandatory for every super-admin**, and for
+every member of an organisation that requires it, in all of their
+organisations. Organisation admins switch the requirement on in the
+organisation settings (only from an MFA-confirmed session), and members
+without MFA are emailed. A user for whom it is mandatory but who has not set
+it up can still sign in with the password, but reaches nothing except the
+set-up wizard until it is done. The first-run setup continues straight into
+that wizard.
+
+An organisation admin can reset a member's second factor from the member list,
+unless the member is a super-admin or also belongs to an organisation the admin
+does not administer. A super-admin can reset anyone's from the user list.
+A reset ends all of the user's sessions at once, emails them and is written to
+the audit log of each of their organisations. Member and user lists show who
+has MFA.
+
+Setting up, disabling or resetting MFA, changing or resetting a password and
+deleting an account now also invalidate access tokens that were already
+issued. Before, those tokens stayed valid until they expired.
+
+See _Two-factor authentication (MFA)_ in `docs/configuration.md`, including
+the database-only recovery for a sole super-admin who lost both the
+authenticator and the recovery codes.
+
+### Changed — no secret is stored in plaintext any more
+
+Per-organisation SMTP passwords, ntfy tokens, TV Developer Mode passphrases and
+the API key held for a pairing screen are now always encrypted with
+`SECRETS_ENCRYPTION_KEY`, and PostgreSQL rejects plaintext in those columns.
+On its first start the backend encrypts what older releases stored in
+plaintext, before it serves a request. See _Secrets at rest_ in
+`docs/configuration.md`.
+
+**Operator action (breaking):**
+
+1. Set `SECRETS_ENCRYPTION_KEY` (`openssl rand -base64 32`; with Ansible the
+   vault variable `secrets_encryption_key`) **before** deploying. The backend
+   and the playbook refuse to start without it. Back the key up apart from
+   database dumps — the TOTP secrets of every user depend on it as well.
+2. Stop the old backend before starting the new one; do not run both versions
+   side by side across this upgrade. Migrations `0031_secrets_encrypted_only`
+   and `0032_mfa_totp` run at boot.
+3. Have an authenticator app ready: every super-admin is taken into the MFA
+   set-up on their next request after the update, including sessions that
+   were already open, and cannot use the dashboard until it is done.
+
 ## 0.42.0
 
 ### Changed — grouped side navigation
@@ -50,7 +108,7 @@ knows can be mapped onto an existing display — whose settings and keys are the
 replaced, with a warning — or skipped. Restored displays resume onboarding at the
 final check. A running backup is shown on the agent page to every organisation
 admin, and the agent's backup buttons stay disabled until it ends. See
-*Replacing the box* in `docs/site-agent.md`.
+_Replacing the box_ in `docs/site-agent.md`.
 
 **Operator action:** deploy the server before updating the agents; an agent
 older than the server ignores the new commands and the dialog times out.
@@ -302,8 +360,8 @@ adds a website once (the first adapter covers concertbuero-franken.de), picks
 the slide formats (1920×1080, 1080×1920, 3840×2160), the background (black
 bars or blurred image) and an accent colour. The server scrapes the site on
 the source's interval (default six hours) and renders a slide per event and
-format: image, artist, weekday and date, venue, a badge for *sold out*,
-*moved*, *new date* or *cancelled*, and a QR code to the ticket shop. A changed
+format: image, artist, weekday and date, venue, a badge for _sold out_,
+_moved_, _new date_ or _cancelled_, and a QR code to the ticket shop. A changed
 event is re-rendered under the same content item. Slides count against the
 storage limit but stay out of the media library, search and bulk actions.
 
@@ -401,8 +459,8 @@ group.
   transition or the transition duration on every item at once, each with its
   own **Apply** button. The duration only reaches images; videos keep playing
   their own length.
-- **Adding several items in order.** The *Add content* dialog lists titles in
-  natural order (*Bild 2* before *Bild 10*). Clicking items numbers them in the
+- **Adding several items in order.** The _Add content_ dialog lists titles in
+  natural order (_Bild 2_ before _Bild 10_). Clicking items numbers them in the
   order they were clicked, and **Add N items** appends them to the end of the
   playlist in exactly that order. The selection survives search and filter
   changes.
@@ -420,8 +478,8 @@ change. Both are now saved together.
 
 Screens, screen groups and site agents came back in the order they were
 created, so the screen page and every picker for them looked shuffled. All
-three are now sorted by name, with numbers in numeric order: *Löwensaal 2*
-comes before *Löwensaal 10*. The screens inside a group follow the same order.
+three are now sorted by name, with numbers in numeric order: _Löwensaal 2_
+comes before _Löwensaal 10_. The screens inside a group follow the same order.
 
 **Operator action:** none beyond updating the server.
 
@@ -446,8 +504,8 @@ A TV that was just switched on answers on the network before it has fetched the
 time over NTP. Until then every certificate looks invalid to it, and an app the
 agent started straight away failed with SSL errors. The agent now leaves a set
 alone for three minutes after it starts answering again before it launches the
-app or extends Developer Mode. The agent page shows the set as *TV detected ·
-app starts around HH:MM* in the meantime. The same wait applies after the agent
+app or extends Developer Mode. The agent page shows the set as _TV detected ·
+app starts around HH:MM_ in the meantime. The same wait applies after the agent
 itself restarts, since it cannot tell how long a set has been on; the onboarding
 wizard and the manual buttons do not wait.
 

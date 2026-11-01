@@ -223,6 +223,56 @@ export class AuthPasswordChangedEvent {
   constructor(public readonly email: string) {}
 }
 
+/**
+ * MFA security notices for the account owner. Like every event in this file
+ * they carry the recipient and counts only — never a secret, code, recovery
+ * code or challenge id.
+ */
+export const AUTH_MFA_ENABLED = 'auth.mfa.enabled';
+export const AUTH_MFA_DISABLED = 'auth.mfa.disabled';
+export const AUTH_MFA_RECOVERY_CODE_USED = 'auth.mfa.recovery_code_used';
+
+export class AuthMfaEnabledEvent {
+  constructor(
+    public readonly email: string,
+    /** True when an existing factor was replaced (device change). */
+    public readonly replaced: boolean,
+  ) {}
+}
+
+export class AuthMfaDisabledEvent {
+  constructor(public readonly email: string) {}
+}
+
+/** Who reset a user's factor — also the `by` of the audit entry. */
+export type MfaResetBy = 'super_admin' | 'org_admin';
+
+export const AUTH_MFA_RESET = 'auth.mfa.reset';
+
+export class AuthMfaResetEvent {
+  constructor(
+    public readonly email: string,
+    public readonly by: MfaResetBy,
+  ) {}
+}
+
+/** Sent to every member without TOTP when an org switches `requireMfa` on. */
+export const AUTH_ORG_MFA_REQUIRED = 'auth.mfa.org_required';
+
+export class AuthOrgMfaRequiredEvent {
+  constructor(
+    public readonly email: string,
+    public readonly organisationName: string,
+  ) {}
+}
+
+export class AuthMfaRecoveryCodeUsedEvent {
+  constructor(
+    public readonly email: string,
+    public readonly remaining: number,
+  ) {}
+}
+
 // ── Auth / Account audit (instance-level) ─────────────────────────────────────
 // These are the *audit* counterparts of the auth flow (distinct from the mailer
 // events above): emitted by the auth controller and consumed by AuditListener so
@@ -235,12 +285,34 @@ export const AUDIT_AUTH_EMAIL_CHANGED = 'audit.auth.email_changed';
 export const AUDIT_AUTH_PASSWORD_RESET_REQUESTED = 'audit.auth.password_reset_requested';
 export const AUDIT_AUTH_PASSWORD_CHANGED = 'audit.auth.password_changed';
 export const AUDIT_SUPER_ADMIN_SETUP = 'audit.auth.super_admin_setup';
+export const AUDIT_AUTH_MFA_ENABLED = 'audit.auth.mfa_enabled';
+export const AUDIT_AUTH_MFA_DISABLED = 'audit.auth.mfa_disabled';
+export const AUDIT_AUTH_MFA_RECOVERY_CODE_USED = 'audit.auth.mfa_recovery_code_used';
+export const AUDIT_AUTH_MFA_RECOVERY_CODES_REGENERATED =
+  'audit.auth.mfa_recovery_codes_regenerated';
+export const AUDIT_AUTH_MFA_LOCKOUT = 'audit.auth.mfa_lockout';
+export const AUDIT_AUTH_MFA_RESET = 'audit.auth.mfa_reset';
 
 export class AuditAuthEvent {
   constructor(
     public readonly userId: string | null,
     public readonly organisationId: string | null,
     public readonly details: Record<string, unknown> | null,
+  ) {}
+}
+
+/**
+ * An admin removed a user's second factor. Unlike {@link AuditAuthEvent} the
+ * acting user is not the account owner: `targetUserId` is the resource,
+ * `actorId` the one who did it. Emitted once per organisation of the target
+ * (null = the target has no org), so every org admin of theirs sees it.
+ */
+export class AuditMfaResetEvent {
+  constructor(
+    public readonly targetUserId: string,
+    public readonly organisationId: string | null,
+    public readonly actorId: string,
+    public readonly details: Record<string, unknown>,
   ) {}
 }
 
@@ -259,6 +331,8 @@ export class AuditEmailEvent {
 export const AUDIT_ORGANISATION_CREATED = 'audit.organisation.created';
 export const AUDIT_ORGANISATION_UPDATED = 'audit.organisation.updated';
 export const AUDIT_ORGANISATION_DELETED = 'audit.organisation.deleted';
+export const AUDIT_ORGANISATION_MFA_REQUIREMENT_CHANGED =
+  'audit.organisation.mfa_requirement_changed';
 
 export class AuditOrganisationEvent {
   constructor(

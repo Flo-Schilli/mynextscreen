@@ -17,6 +17,12 @@ import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import { UnverifiedSignupCleanupService } from './unverified-signup-cleanup.service';
 import { UserModule } from '../user/user.module';
+import { MfaController } from './mfa/mfa.controller';
+import { MfaSuperAdminController, OrgMfaController } from './mfa/mfa-admin.controller';
+import { MfaAdminService } from './mfa/mfa-admin.service';
+import { MfaService } from './mfa/mfa.service';
+import { RecoveryCodeService } from './mfa/recovery-code.service';
+import { TotpService } from './mfa/totp.service';
 
 @Module({
   imports: [
@@ -43,9 +49,13 @@ import { UserModule } from '../user/user.module';
       }),
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, MfaController, MfaSuperAdminController, OrgMfaController],
   providers: [
     AuthService,
+    MfaService,
+    MfaAdminService,
+    TotpService,
+    RecoveryCodeService,
     PasswordService,
     TokenService,
     UnverifiedSignupCleanupService,

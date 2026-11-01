@@ -316,6 +316,7 @@ describe('ApiKeyAuthGuard', () => {
         {
           email: 'user@example.com',
           isSuperAdmin: true,
+          mfa: true,
         },
       );
       const context = createMockContext({ authorization: `Bearer ${token}` });

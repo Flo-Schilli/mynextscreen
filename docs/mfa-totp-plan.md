@@ -23,16 +23,16 @@ Ziel:
 
 Was schon da ist und wiederverwendet wird:
 
-| Baustein                                        | Nutzung für MFA                                             |
-| ----------------------------------------------- | ----------------------------------------------------------- |
-| `common/secret-cipher.service.ts` (AES-256-GCM) | TOTP-Secret verschlüsselt speichern (muss rückholbar sein)  |
-| `auth/token-hash.util.ts`                       | Recovery-Codes nur gehasht speichern                        |
-| `qrcode` (bereits Dependency)                   | QR-Code serverseitig als Data-URL rendern, kein Drittdienst |
-| Redis (Refresh-Tokens, Throttler)               | Pending-Enrolment, Login-Challenge, Fehlversuchszähler      |
-| `PlatformMailerService` + Auth-Events           | Sicherheitsmails (MFA aktiviert/deaktiviert/zurückgesetzt)  |
-| `audit-log/audit.events.ts` (`AUDIT_AUTH_*`)    | neue Audit-Events                                           |
-| `@Throttle` + `ProxyAwareThrottlerGuard`        | Rate-Limit auf den Code-Endpoint                            |
-| `RolesGuard` (lädt die Membership je Org)       | Durchsetzung von `requireMfa` pro Org                       |
+| Baustein                                        | Nutzung für MFA                                                         |
+| ----------------------------------------------- | ----------------------------------------------------------------------- |
+| `common/secret-cipher.service.ts` (AES-256-GCM) | TOTP-Secret verschlüsselt speichern (muss rückholbar sein)              |
+| `auth/token-hash.util.ts`                       | Recovery-Codes nur gehasht speichern                                    |
+| `qrcode` (bereits Dependency)                   | QR-Code serverseitig als Data-URL rendern, kein Drittdienst             |
+| Redis (Refresh-Tokens, Throttler)               | Pending-Enrolment, Login-Challenge, Fehlversuchszähler                  |
+| `PlatformMailerService` + Auth-Events           | Sicherheitsmails (MFA aktiviert/deaktiviert/zurückgesetzt)              |
+| `audit-log/audit.events.ts` (`AUDIT_AUTH_*`)    | neue Audit-Events                                                       |
+| `@Throttle` + `ProxyAwareThrottlerGuard`        | Rate-Limit auf den Code-Endpoint                                        |
+| `JwtAuthGuard` + `MfaService.requiredBy`        | benutzerweite Durchsetzung (Super-Admin oder eine Org mit `requireMfa`) |
 
 ## Getroffene Entscheidungen
 
@@ -243,21 +243,33 @@ POST /api/auth/login/mfa {code} | {recoveryCode}      @Public, @Throttle 5/min
 - Der Refresh-Record trägt `mfa`. `rotateRefreshToken` reicht ihn an die Folge-Tokens
   und `AuthService.refresh` an den neuen Access-Token weiter.
 
-### Durchsetzung (zwei Stellen, ein Fehlerformat)
+### Durchsetzung (benutzergebunden, eine Stelle, ein Fehlerformat)
 
-| Regel                                    | Wo                                                                                                 | Antwort                                        |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| Super-Admin ohne `mfa`                   | `JwtAuthGuard`, nach der Token-Prüfung, für **alle** Routen außer `@AllowWithoutMfa`               | `403 { code: 'MFA_ENROLMENT_REQUIRED' }`       |
-| Org mit `requireMfa`, Session ohne `mfa` | `RolesGuard` (lädt die Membership bereits, die Abfrage holt zusätzlich `organisations.requireMfa`) | `403 { code: 'MFA_REQUIRED', organisationId }` |
+MFA hängt am **User**, nicht an der Org. Pflicht ist sie, sobald **eine** dieser
+Bedingungen gilt, und dann für **alle** Orgs des Users:
 
-- Die Org-Regel gilt **pro Org-Scope**. Ein User mit mehreren Orgs kann die Orgs ohne
-  Pflicht weiter nutzen. Das passt zur Tenant-Isolation.
+| Super-Admin | Org 1 `requireMfa` | Org 2 `requireMfa` | Ergebnis                   |
+| ----------- | ------------------ | ------------------ | -------------------------- |
+| ja          | egal               | egal               | Pflicht                    |
+| nein        | ja                 | nein               | Pflicht (auch in Org 2)    |
+| nein        | ja                 | ja                 | Pflicht                    |
+| nein        | nein               | nein               | optional, aber einrichtbar |
+
+- Durchgesetzt wird in `JwtAuthGuard` nach der Token-Prüfung, für **alle** Routen außer
+  `@AllowWithoutMfa`: Session ohne `mfa` + `MfaService.requiredBy(user)` ergibt Pflicht →
+  `403 { code: 'MFA_ENROLMENT_REQUIRED', requiredBy: { superAdmin, organisationIds } }`.
+  Sessions mit `mfa: true` kosten keine DB-Abfrage.
 - Die Regel wird live aus der DB ausgewertet und nicht im Token gecacht. Schaltet ein
-  Org-Admin die Pflicht ein, greift sie beim nächsten Request und nicht erst nach
-  Ablauf des Access-Tokens.
-- **Prüfen:** Alle org-gescopten Wege müssen über `RolesGuard` laufen, auch die
-  Dashboard-SSE-Endpoints, die Suche und die Content-Upload-Routen. Signed-Media- und
-  Screen/Agent-API-Key-Routen sind keine User-Sessions und bleiben unberührt.
+  Org-Admin die Pflicht ein, greift sie beim nächsten Request für alle Mitglieder.
+- Es gibt **keinen** org-gescopten Code `MFA_REQUIRED` mehr und keine Ausnahme „andere
+  Org ohne Pflicht weiter nutzen“ (Entscheidung 2026-11-01). `RolesGuard` braucht dafür
+  nichts.
+- `login`, `login/mfa`, `verify-email`, `setup` und `GET /api/auth/me` liefern
+  `mfaEnrolmentRequired = !mfa && Pflicht`; `/auth/me` zusätzlich `mfa`.
+- `POST /auth/mfa/totp/confirm` ohne Pending-Setup: `400 MFA_SETUP_EXPIRED` (PR 3).
+- Weitere Fehlercodes: `401 MFA_CHALLENGE_EXPIRED` (Challenge fehlt/abgelaufen),
+  `401 MFA_INVALID_CODE` (falscher Code), `401 MFA_INVALID_PASSWORD` (falsches Passwort
+  bei `/api/auth/mfa/*`).
 - `mfa` bedeutet: Die Session wurde per TOTP bestätigt. Ein User, der TOTP eingerichtet
   hat, bekommt ohnehin nur noch solche Sessions. Die Durchsetzung trifft also nur User
   ohne Einrichtung, und die landen im Wizard.
@@ -270,20 +282,35 @@ POST /api/auth/login/mfa {code} | {recoveryCode}      @Public, @Throttle 5/min
 | `POST /totp/setup`                | `{ currentPassword }`       | Pending-Secret in Redis → `{ otpauthUri, qrDataUrl, secret }`                                                                                       |
 | `POST /totp/confirm`              | `{ code }`                  | persistiert, erzeugt 10 Recovery-Codes (einmalige Antwort), revoked alle Sessions und stellt eine neue mit `mfa: true` aus                          |
 | `POST /totp/disable`              | `{ currentPassword, code }` | **abgelehnt (409), wenn MFA für den User Pflicht ist** (Super-Admin oder eine Org mit `requireMfa`); sonst `user_mfa` + Codes löschen, Sessions neu |
-| `POST /recovery-codes/regenerate` | `{ code }`                  | alte Codes löschen, 10 neue zurückgeben                                                                                                             |
+| `POST /recovery-codes/regenerate` | `{ currentPassword, code }` | alte Codes löschen, 10 neue zurückgeben                                                                                                             |
 
 Will ein Pflicht-User sein Gerät wechseln, richtet er TOTP neu ein: `setup` + `confirm`
 bei bereits aktivem TOTP. Dafür verlangt `setup` zusätzlich zum Passwort einen gültigen
 Code des alten Geräts.
 
+**Nachtrag (Fix in PR 3):** Das `code`-Feld von `totp/setup` (Gerätewechsel), `totp/disable`
+und `recovery-codes/regenerate` akzeptiert auch einen **Recovery-Code** (Format entscheidet:
+6 Ziffern = TOTP, sonst Recovery-Code). Der Code wird verbraucht, Mail + Audit
+`mfa_recovery_code_used` wie beim Login; ein falscher Code zählt gegen den Lockout. Sonst
+könnte ein User mit verlorenem Handy zwar per Recovery-Code einloggen, den Faktor aber nicht
+selbst umziehen — ein alleiniger Super-Admin bräuchte dann das Notfall-SQL.
+
 ### Org-Einstellung `requireMfa`
 
-- `PATCH /api/organisations/:id` (Org-Admin) bekommt `requireMfa`.
+- **Umgesetzt (PR 3) als eigener Endpoint** `GET|PATCH /api/organisations/:orgId/mfa-requirement`
+  (`@Roles(OrgAdmin)`, Super-Admin wie üblich) mit `{ requireMfa }` → `{ requireMfa, requireMfaSince }`.
+  Abweichung vom Plan: `PATCH /api/organisations/:id` ist als ganzer Controller
+  `SuperAdminGuard`-geschützt (Name, Storage-Limits); ein Org-Admin-Feld dort hätte den Guard
+  aufgeweicht. Der Controller liegt in `auth/mfa/mfa-admin.controller.ts`.
 - Das Einschalten verlangt, dass der Org-Admin **selbst eine `mfa`-Session hat**. Sonst
-  `403`, damit er sich nicht selbst aussperrt.
+  `403 { code: 'MFA_SELF_REQUIRED' }`, damit er sich nicht selbst aussperrt. Ausschalten geht
+  immer. Ein Wechsel setzt bzw. leert `requireMfaSince`; ein unveränderter Wert ist ein No-op
+  (kein Audit, keine Mail).
 - Beim Einschalten geht eine Platform-Mail an alle Mitglieder ohne TOTP: „Deine
   Organisation X verlangt ab sofort MFA. Beim nächsten Öffnen wirst du durch die
-  Einrichtung geführt." Dazu kommt ein Audit-Event `org.mfa_requirement_changed`.
+  Einrichtung geführt." Dazu kommt ein Audit-Event `org.mfa_requirement_changed`
+  (`{ name, requireMfa }`, an und aus). Die Mail geht nur an Mitglieder mit Passwort;
+  offene Einladungen treffen die Pflicht bei der ersten Anmeldung.
 
 ### Reset
 
@@ -308,6 +335,19 @@ diese Regeln, damit ein Org-Admin keine fremden Tenants schwächt:
 
 Die Wirkung ist dieselbe wie beim Super-Admin-Reset. Das Audit-Event landet in **jeder**
 Org des Ziels, damit die übrigen Org-Admins es auch sehen.
+
+**Umsetzung (PR 3), Fehlercodes je Ablehnungsgrund:** `403 MFA_SELF_REQUIRED` (Regel 1),
+`403 MFA_RESET_SELF` (Regel 2, auch beim Super-Admin-Reset), `404 MFA_RESET_NOT_MEMBER`
+(Regel 2), `403 MFA_RESET_TARGET_SUPER_ADMIN` (Regel 3), `403 MFA_RESET_NEEDS_SUPER_ADMIN`
+(Regel 4), `409 MFA_NOT_ENABLED` (Ziel hat kein TOTP). Ein Super-Admin auf der Org-Route
+bekommt die Super-Admin-Regeln (`by: 'super_admin'`). Der Reset löscht `user_mfa` + Codes in
+einer Transaktion, dazu `mfa:enrol` und `mfa:fail`, und revoked alle Refresh-Familien. Auch der
+Super-Admin-Reset wird in jeder Org des Ziels auditiert (`auth.mfa_reset`, Resource `user`,
+Actor = Admin, `{ by, actorId, email }`); ohne Org einmal instanzweit. Schon ausgestellte
+Access-Tokens werden sofort ungültig: `revokeAllForUser` setzt den Marker
+`auth:revoked-before:{userId}` (TTL = `JWT_ACCESS_TTL`), den `JwtAuthGuard` gegen `iat` prüft
+(gilt ebenso für Passwort-Reset/-Änderung, MFA-Einrichtung und Account-Löschung).
+Mitgliederliste und Instance-Admin-Userliste liefern `mfaEnabled` für das Badge.
 
 Nach einem Reset muss ein Pflicht-User beim nächsten Login TOTP neu einrichten. Der
 Wizard wird erzwungen, ein Aussperren ist nicht möglich.
@@ -349,7 +389,8 @@ noch die Einrichtung erreicht.
    Das Frontend leitet danach sofort in den Wizard weiter. Damit gehört die MFA zum
    Setup.
 6. **Normale User und Org-Admins** merken nichts, bis ihre Org `requireMfa` einschaltet.
-   Dann gilt derselbe Mechanismus über `403 MFA_REQUIRED`.
+   Dann gilt derselbe Mechanismus über `403 MFA_ENROLMENT_REQUIRED`, und zwar für alle
+   ihre Orgs.
 7. **Release-Notes / CHANGELOG** (Breaking für Betreiber): Der Key ist Pflicht, und
    Super-Admins richten beim ersten Öffnen nach dem Update MFA ein.
 
@@ -385,13 +426,12 @@ der Umsetzung gegen die Quadlets in `ansible/` geprüft.
    - Logik in `auth/auth.service.ts` (`login()` → `'ok' | 'mfa-required' | 'enrolment-required'`,
      neu `verifyMfa()`).
 2. **Pflicht-Wizard (`auth/mfa-enrolment/`)**, neue Route ohne Shell, aufgerufen bei
-   `MFA_ENROLMENT_REQUIRED` (Super-Admin), `MFA_REQUIRED` (Org) und nach dem First-Run-Setup.
+   `MFA_ENROLMENT_REQUIRED` (Super-Admin oder Org-Pflicht) und nach dem First-Run-Setup.
    - Schritte: Passwort → QR + manuelles Secret → Code → Recovery-Codes
      (Kopieren / `.txt` herunterladen) mit Pflicht-Checkbox „gesichert".
-   - Erklärt, _warum_ MFA verlangt wird (Super-Admin bzw. Name der Org).
-   - Beim Org-Fall mit weiteren Orgs gibt es zusätzlich die Option „Andere Organisation
-     öffnen" (Org-Switcher).
-   - Der `auth.interceptor` mappt beide 403-Codes auf diese Route. Der `auth.guard`
+   - Erklärt, _warum_ MFA verlangt wird (Super-Admin bzw. Namen der Orgs mit Pflicht).
+     Kein Org-Switcher: die Pflicht gilt benutzerweit.
+   - Der `auth.interceptor` mappt `403 MFA_ENROLMENT_REQUIRED` auf diese Route. Der `auth.guard`
      lässt nur diese Route zu, solange `mfaEnrolmentRequired` gilt.
 3. **User-Settings → Abschnitt „Sicherheit"** (`settings/user/`, neuer `mfa.service.ts`):
    Status, derselbe Wizard als Dialog (freiwillig), Gerät wechseln, Recovery-Codes neu
@@ -399,6 +439,8 @@ der Umsetzung gegen die Quadlets in `ansible/` geprüft.
    versehen, wenn MFA Pflicht ist. Warnung bei ≤ 3 verbleibenden Recovery-Codes.
 4. **Org-Settings**: Schalter „MFA für alle Mitglieder verlangen". Er ist deaktiviert
    mit Hinweis, solange der Admin selbst kein MFA hat, und hat einen Bestätigungsdialog.
+   Umgesetzt als neuer Tab „Sicherheit" (`settings/org/security`), da es keine allgemeine
+   Org-Settings-Seite für Org-Admins gibt.
 5. **Mitgliederliste (`settings/users/`)**: MFA-Badge je Mitglied und die Aktion
    „MFA zurücksetzen". Bei `MFA_RESET_NEEDS_SUPER_ADMIN` gibt es einen erklärenden Toast.
 6. **Instance-Admin → Users**: MFA-Badge + „MFA zurücksetzen".
@@ -417,9 +459,9 @@ der Umsetzung gegen die Quadlets in `ansible/` geprüft.
   `verifyEmail`/`setup` stellen bei aktivem TOTP keine Session aus, Super-Admin ohne
   TOTP erhält `mfaEnrolmentRequired`.
 - `jwt-auth.guard.spec`: Super-Admin ohne `mfa` → 403 außer `@AllowWithoutMfa`.
-  **Alter Token ohne Claim → wie `false`** (Upgrade-Fall).
-- `roles.guard.spec`: `requireMfa` + `mfa: false` → 403 `MFA_REQUIRED`, andere Org
-  erlaubt, Pflicht ausgeschaltet → erlaubt.
+  **Alter Token ohne Claim → wie `false`** (Upgrade-Fall). User mit einer Org mit
+  `requireMfa` → 403 `MFA_ENROLMENT_REQUIRED` auf jeder Route (auch Routen anderer Orgs),
+  keine Org mit Pflicht → erlaubt, `mfa: true` → keine DB-Abfrage.
 - `token.service.spec`: Refresh-Record ohne `mfa`-Feld → `false`.
 - Config-Test: Boot ohne bzw. mit falsch langem `SECRETS_ENCRYPTION_KEY` schlägt fehl.
 - `secret-cipher.spec`: kein Klartext-Pfad mehr, `decrypt` lehnt Werte ohne Präfix ab.
@@ -439,7 +481,7 @@ der Umsetzung gegen die Quadlets in `ansible/` geprüft.
 | 0   | **Secrets at rest:** Key-Pflicht überall (Boot-Check, compose/.env.example, Ansible-`assert`), `SecretCipher` ohne Klartext-Pfad, `SecretAtRestMigrationService`, Check-Constraints, `screen_pairings.apiKey` verschlüsselt, `no-store`-Header. Unabhängig von MFA, kann zuerst gemergt werden |
 | 1   | **Backend-Kern:** Schema + Migration, `TotpService`, `RecoveryCodeService`, `MfaService`, Management-Endpoints, zweistufiger Login, `mfa`-Claim + Refresh-Weitergabe, `@AllowWithoutMfa` + Super-Admin-Durchsetzung, Audit + Mails, Tests                                                      |
 | 2   | **Frontend-Kern:** Login-Schritt 2, Pflicht-Wizard + Interceptor/Guard, Sicherheits-Abschnitt, Setup → Wizard, i18n, Tests                                                                                                                                                                     |
-| 3   | **Org-Pflicht + Resets:** `requireMfa` (Backend + Org-Settings-UI + Mitglieder-Mail), `RolesGuard`-Durchsetzung, Org-Admin- und Super-Admin-Reset inkl. UI                                                                                                                                     |
+| 3   | **Org-Pflicht + Resets:** `requireMfa` (Backend + Org-Settings-UI + Mitglieder-Mail), Durchsetzung ist schon in PR 2 (benutzerweit im `JwtAuthGuard`), Org-Admin- und Super-Admin-Reset inkl. UI                                                                                               |
 | 4   | **Betrieb + Doku:** `docs/configuration.md` (Key-Pflicht, Key-Backup getrennt von Dumps, Notfall-SQL), `SECURITY.md`, CHANGELOG/Release-Notes                                                                                                                                                  |
 | 5   | **Site-Agent-Secrets verschlüsseln** (Podman-Secret/`systemd-creds`-Key, Migration der Klartext-Dateien beim Start), eigener Release des Agents                                                                                                                                                |
 
@@ -456,6 +498,12 @@ wenn alle vier PRs auf `develop` sind. Jeder PR geht durch `typescript-reviewer`
   unbrauchbar, und jeder bräuchte einen Reset. Das gehört in die Backup-Doku: der Key
   muss getrennt von DB-Dumps gesichert werden.
 - **Uhrzeitdrift auf dem Server:** NTP wird vorausgesetzt. `window: 1` deckt ±30 s ab.
-- **Lücken bei der Durchsetzung:** Org-Routen, die nicht über `RolesGuard` laufen,
-  würden `requireMfa` umgehen. In PR 3 werden alle org-gescopten Controller und
-  SSE-Endpoints gezielt auditiert.
+- **Lücken bei der Durchsetzung:** Routen, die nicht über den globalen `JwtAuthGuard`
+  laufen, würden die Pflicht umgehen. **Geprüft in PR 3:** `JwtAuthGuard` ist `APP_GUARD`;
+  übersprungen wird er nur für `@Public` (Health/Version/Time/Config, Metrics mit eigenem
+  Token, die Auth-Endpoints vor der Session), `@ScreenAuth` (Screens, Signed-Media) und
+  `@AgentAuth` (Site-Agent) — keine davon trägt eine User-Session. Alle User-Routen inkl.
+  Dashboard-SSE (`@Roles`) laufen hindurch; es gibt keinen WebSocket-Gateway und keine
+  Express-Handler außerhalb von Nest (nur Body-Parser/Cookie-Middleware).
+  `@AllowWithoutMfa` steht nur auf `POST /auth/logout`, `GET /auth/me`, `/auth/mfa/*`,
+  `GET /me/profile` und `GET /me/memberships`.

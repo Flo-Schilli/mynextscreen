@@ -1,6 +1,7 @@
 import { Body, Controller, Get, NotFoundException, Patch, Req } from '@nestjs/common';
 import { AuthenticatedRequest } from '../auth/jwt-auth.guard';
 import { UserScoped } from '../auth/user-scoped.decorator';
+import { AllowWithoutMfa } from '../auth/mfa/allow-without-mfa.decorator';
 import { UserService } from './user.service';
 import { UpdateProfileDto } from './dto';
 import { buildGravatarUrl } from './gravatar.util';
@@ -22,7 +23,10 @@ interface ProfileView {
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  // The shell loads this before anything else; it must work while a
+  // super-admin is still being sent through MFA enrolment.
   @Get('profile')
+  @AllowWithoutMfa()
   async getProfile(@Req() req: AuthenticatedRequest): Promise<ProfileView> {
     const user = await this.userService.findById(req.user.userId);
     if (!user) {
@@ -43,7 +47,10 @@ export class UserController {
     return this.toProfileView(user);
   }
 
+  // The MFA enrolment wizard names the orgs that require MFA, so the user's own
+  // memberships must stay readable while the session is not MFA-confirmed.
   @Get('memberships')
+  @AllowWithoutMfa()
   getMemberships(@Req() req: AuthenticatedRequest): Promise<UserOrganisationMembership[]> {
     return this.userService.getMemberships(req.user.userId);
   }

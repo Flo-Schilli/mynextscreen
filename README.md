@@ -115,7 +115,7 @@ Full walkthrough, production deployment and configuration: **[docs/](docs/)**.
 | Backend    | NestJS 12, Drizzle ORM                                                     |
 | Database   | PostgreSQL 16                                                              |
 | Jobs       | BullMQ + Redis                                                             |
-| Users      | Email + password, JWT access cookie, refresh tokens in Redis               |
+| Users      | Email + password + TOTP, JWT access cookie, refresh tokens in Redis        |
 | Screens    | Pairing code, short-lived access token, rotating refresh token in Postgres |
 | Real-time  | Server-Sent Events                                                         |
 | Media      | FFmpeg (transcoding and HLS)                                               |

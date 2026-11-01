@@ -1,4 +1,4 @@
-# Default gitleaks rules plus one value-scoped exception.
+# Default gitleaks rules plus value-scoped exceptions.
 #
 # Value-scoped rather than a .gitleaksignore fingerprint: fingerprints pin a
 # commit SHA, and a squash merge re-creates the commit, so the push to main
@@ -8,6 +8,12 @@
 useDefault = true
 
 [allowlist]
-description = "Well-known DEV value of SECRETS_ENCRYPTION_KEY (.env.example, docker-compose.yml)"
-# base64 of "dev-insecure-key-change-me-32byt" — public on purpose, never a prod key
-regexes = ['''^ZGV2LWluc2VjdXJlLWtleS1jaGFuZ2UtbWUtMzJieXQ=$''']
+description = "Public, well-known non-secrets"
+regexes = [
+  # base64 of "dev-insecure-key-change-me-32byt": DEV SECRETS_ENCRYPTION_KEY
+  # (.env.example, docker-compose.yml) — public on purpose, never a prod key
+  '''^ZGV2LWluc2VjdXJlLWtleS1jaGFuZ2UtbWUtMzJieXQ=$''',
+  # RFC 6238 Appendix B TOTP test seed (base32 of ASCII "12345678901234567890"),
+  # used as a test vector in totp.service.spec.ts
+  '''^GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ$''',
+]

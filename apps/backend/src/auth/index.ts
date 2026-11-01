@@ -15,3 +15,4 @@ export { AgentAuthGuard, AgentAuthenticatedRequest } from './agent-auth.guard';
 export { AuthService } from './auth.service';
 export { TokenService } from './token.service';
 export { PasswordService } from './password.service';
+export { AllowWithoutMfa, ALLOW_WITHOUT_MFA_KEY } from './mfa/allow-without-mfa.decorator';
