@@ -193,11 +193,17 @@ export class MfaService {
    */
   async startEnrolment(userId: string, currentPassword: string, code?: string): Promise<TotpSetup> {
     const user = await this.requireUser(userId);
+    await this.assertNotLockedOut(userId);
     await this.requirePassword(user, currentPassword);
     const existing = await this.findFactor(userId);
-    if (existing && (code === undefined || !(await this.acceptTotp(existing, code)))) {
-      this.logger.warn(`MFA re-enrolment refused: no valid current code userId=${userId}`);
-      throw mfaInvalidCode('A valid code from your current authenticator is required');
+    if (existing) {
+      await this.requireManagementCode(
+        user,
+        existing,
+        code,
+        'MFA re-enrolment refused',
+        'A valid code from your current authenticator is required',
+      );
     }
 
     const secret = this.totp.generateSecret();
@@ -267,6 +273,7 @@ export class MfaService {
    */
   async disable(userId: string, currentPassword: string, code: string): Promise<User> {
     const user = await this.requireUser(userId);
+    await this.assertNotLockedOut(userId);
     if (await this.isMfaRequired(user)) {
       throw new ConflictException({
         statusCode: HttpStatus.CONFLICT,
@@ -276,10 +283,7 @@ export class MfaService {
     }
     await this.requirePassword(user, currentPassword);
     const factor = await this.requireFactor(userId);
-    if (!(await this.acceptTotp(factor, code))) {
-      this.logger.warn(`MFA disable failed: invalid code userId=${userId}`);
-      throw mfaInvalidCode();
-    }
+    await this.requireManagementCode(user, factor, code, 'MFA disable failed');
 
     await this.db.transaction(async (tx) => {
       await tx.delete(userMfa).where(eq(userMfa.userId, userId));
@@ -294,14 +298,20 @@ export class MfaService {
     return user;
   }
 
-  /** Invalidate every recovery code and return 10 new ones (shown once). */
-  async regenerateRecoveryCodes(userId: string, code: string): Promise<string[]> {
+  /**
+   * Invalidate every recovery code and return 10 new ones (shown once). Needs
+   * the current password and a valid code, like every other factor change.
+   */
+  async regenerateRecoveryCodes(
+    userId: string,
+    currentPassword: string,
+    code: string,
+  ): Promise<string[]> {
     const user = await this.requireUser(userId);
+    await this.assertNotLockedOut(userId);
+    await this.requirePassword(user, currentPassword);
     const factor = await this.requireFactor(userId);
-    if (!(await this.acceptTotp(factor, code))) {
-      this.logger.warn(`MFA recovery-code regeneration failed: invalid code userId=${userId}`);
-      throw mfaInvalidCode();
-    }
+    await this.requireManagementCode(user, factor, code, 'MFA recovery-code regeneration failed');
     const codes = this.recoveryCodes.generate();
     await this.recoveryCodes.replaceAll(userId, codes);
     this.logger.log(`MFA recovery codes regenerated userId=${userId}`);
@@ -432,12 +442,43 @@ export class MfaService {
     if (attempts >= MFA_CHALLENGE_MAX_ATTEMPTS || ttl < 0) {
       await this.redis.del(challengeKey);
     }
+    await this.countUserFailure(user);
+  }
 
-    const failuresKey = mfaRedisKeys.failures(user.id);
-    const failures = await this.redis.incr(failuresKey);
-    if (failures === 1) {
-      await this.redis.expire(failuresKey, MFA_LOCKOUT_WINDOW_SECONDS);
+  /**
+   * A management action (device change, disable, regeneration) with a code
+   * that is missing or wrong counts against the same per-user lockout as a
+   * failed login — otherwise a hijacked session could brute-force the code.
+   */
+  private async requireManagementCode(
+    user: User,
+    factor: UserMfa,
+    code: string | undefined,
+    logContext: string,
+    message?: string,
+  ): Promise<void> {
+    if (code !== undefined && (await this.acceptTotp(factor, code))) {
+      return;
     }
+    await this.countUserFailure(user);
+    this.logger.warn(`${logContext}: invalid code userId=${user.id}`);
+    throw mfaInvalidCode(message);
+  }
+
+  /**
+   * Counts a failed second-factor attempt for the user; the 10th within the
+   * window locks them out (audited once). The window is set together with the
+   * first increment in one MULTI (`SET NX EX` + `INCR`), so the counter can
+   * never be left without a TTL — that would be a permanent lockout.
+   */
+  private async countUserFailure(user: User): Promise<void> {
+    const failuresKey = mfaRedisKeys.failures(user.id);
+    const results = await this.redis
+      .multi()
+      .set(failuresKey, '0', 'EX', MFA_LOCKOUT_WINDOW_SECONDS, 'NX')
+      .incr(failuresKey)
+      .exec();
+    const failures = Number(results?.[1]?.[1] ?? 0);
     if (failures === MFA_LOCKOUT_THRESHOLD) {
       this.logger.warn(`MFA lockout userId=${user.id}`);
       this.events.emit(

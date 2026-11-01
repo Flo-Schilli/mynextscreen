@@ -281,7 +281,7 @@ Bedingungen gilt, und dann für **alle** Orgs des Users:
 | `POST /totp/setup`                | `{ currentPassword }`       | Pending-Secret in Redis → `{ otpauthUri, qrDataUrl, secret }`                                                                                       |
 | `POST /totp/confirm`              | `{ code }`                  | persistiert, erzeugt 10 Recovery-Codes (einmalige Antwort), revoked alle Sessions und stellt eine neue mit `mfa: true` aus                          |
 | `POST /totp/disable`              | `{ currentPassword, code }` | **abgelehnt (409), wenn MFA für den User Pflicht ist** (Super-Admin oder eine Org mit `requireMfa`); sonst `user_mfa` + Codes löschen, Sessions neu |
-| `POST /recovery-codes/regenerate` | `{ code }`                  | alte Codes löschen, 10 neue zurückgeben                                                                                                             |
+| `POST /recovery-codes/regenerate` | `{ currentPassword, code }` | alte Codes löschen, 10 neue zurückgeben                                                                                                             |
 
 Will ein Pflicht-User sein Gerät wechseln, richtet er TOTP neu ein: `setup` + `confirm`
 bei bereits aktivem TOTP. Dafür verlangt `setup` zusätzlich zum Passwort einen gültigen

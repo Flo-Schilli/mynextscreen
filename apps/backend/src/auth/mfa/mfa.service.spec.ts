@@ -405,7 +405,7 @@ describe('MfaService', () => {
       const { secret, recoveryCodes: oldCodes } = await enrol(user);
       nextStep();
 
-      const fresh = await service.regenerateRecoveryCodes(user.id, totp.generate(secret));
+      const fresh = await service.regenerateRecoveryCodes(user.id, PASSWORD, totp.generate(secret));
 
       expect(fresh).toHaveLength(10);
       expect(fresh).not.toContain(oldCodes[0]);
@@ -422,7 +422,104 @@ describe('MfaService', () => {
     it('refuses to regenerate with a wrong code', async () => {
       const user = await createUser();
       await enrol(user);
-      await expectMfa401(service.regenerateRecoveryCodes(user.id, '000000'), MFA_INVALID_CODE);
+      await expectMfa401(
+        service.regenerateRecoveryCodes(user.id, PASSWORD, '000000'),
+        MFA_INVALID_CODE,
+      );
+    });
+
+    it('refuses to regenerate with a wrong password', async () => {
+      const user = await createUser();
+      const { secret } = await enrol(user);
+      nextStep();
+      await expectMfa401(
+        service.regenerateRecoveryCodes(user.id, 'wrong', totp.generate(secret)),
+        MFA_INVALID_PASSWORD,
+      );
+    });
+  });
+
+  describe('management actions and the lockout', () => {
+    async function expectLockedOut(promise: Promise<unknown>): Promise<void> {
+      const error: unknown = await promise.then(
+        () => {
+          throw new Error('expected a rejection');
+        },
+        (rejected: unknown) => rejected,
+      );
+      expect(error).toBeInstanceOf(HttpException);
+      expect((error as HttpException).getStatus()).toBe(429);
+      expect((error as HttpException).getResponse()).toMatchObject({ code: MFA_LOCKED_OUT });
+    }
+
+    it('counts wrong codes of device change, disable and regeneration against the user', async () => {
+      const user = await createUser();
+      await enrol(user);
+
+      await expectMfa401(service.startEnrolment(user.id, PASSWORD), MFA_INVALID_CODE);
+      await expectMfa401(service.startEnrolment(user.id, PASSWORD, '000000'), MFA_INVALID_CODE);
+      await expectMfa401(service.disable(user.id, PASSWORD, '000000'), MFA_INVALID_CODE);
+      await expectMfa401(
+        service.regenerateRecoveryCodes(user.id, PASSWORD, '000000'),
+        MFA_INVALID_CODE,
+      );
+
+      expect(redis.strings.get(mfaRedisKeys.failures(user.id))).toBe('4');
+      expect(redis.ttls.get(mfaRedisKeys.failures(user.id))).toBe(900);
+    });
+
+    it('locks out after 10 wrong management codes, audited once, and blocks the login too', async () => {
+      const user = await createUser();
+      await enrol(user);
+
+      for (let i = 0; i < 10; i++) {
+        await expectMfa401(
+          service.regenerateRecoveryCodes(user.id, PASSWORD, '000000'),
+          MFA_INVALID_CODE,
+        );
+      }
+
+      await expectLockedOut(service.regenerateRecoveryCodes(user.id, PASSWORD, '000000'));
+      await expectLockedOut(service.createChallenge(user.id));
+      const lockoutAudits = events.emit.mock.calls.filter(
+        ([name]) => name === AUDIT_AUTH_MFA_LOCKOUT,
+      );
+      expect(lockoutAudits).toHaveLength(1);
+    });
+
+    it('refuses every management action while locked out, even with valid proof', async () => {
+      const user = await createUser();
+      const { secret } = await enrol(user);
+      nextStep();
+      await redis.set(mfaRedisKeys.failures(user.id), '10');
+      const code = totp.generate(secret);
+
+      await expectLockedOut(service.startEnrolment(user.id, PASSWORD, code));
+      await expectLockedOut(service.disable(user.id, PASSWORD, code));
+      await expectLockedOut(service.regenerateRecoveryCodes(user.id, PASSWORD, code));
+      expect(await service.isTotpEnabled(user.id)).toBe(true);
+    });
+
+    it('does not count a wrong password as a code failure', async () => {
+      const user = await createUser();
+      await enrol(user);
+      await expectMfa401(
+        service.regenerateRecoveryCodes(user.id, 'wrong', '000000'),
+        MFA_INVALID_PASSWORD,
+      );
+      expect(redis.strings.has(mfaRedisKeys.failures(user.id))).toBe(false);
+    });
+
+    it('keeps the window of an existing failure counter instead of extending it', async () => {
+      const user = await createUser();
+      await enrol(user);
+      const key = mfaRedisKeys.failures(user.id);
+      await redis.set(key, '3', 'EX', 120);
+
+      await expectMfa401(service.disable(user.id, PASSWORD, '000000'), MFA_INVALID_CODE);
+
+      expect(redis.strings.get(key)).toBe('4');
+      expect(redis.ttls.get(key)).toBe(120);
     });
   });
 
@@ -653,7 +750,7 @@ describe('MfaService', () => {
 
       nextStep();
       const regenCode = totp.generate(secret);
-      const fresh = await service.regenerateRecoveryCodes(user.id, regenCode);
+      const fresh = await service.regenerateRecoveryCodes(user.id, PASSWORD, regenCode);
       nextStep();
       const disableCode = totp.generate(secret);
       await service.disable(user.id, PASSWORD, disableCode);

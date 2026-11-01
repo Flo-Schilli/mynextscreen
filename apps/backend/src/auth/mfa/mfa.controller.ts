@@ -9,7 +9,7 @@ import { setAccessCookie, setRefreshCookie } from '../cookies';
 import type { AuthenticatedRequest } from '../jwt-auth.guard';
 import { UserScoped } from '../user-scoped.decorator';
 import { AllowWithoutMfa } from './allow-without-mfa.decorator';
-import { TotpCodeDto, TotpDisableDto, TotpSetupDto } from './dto';
+import { RecoveryCodesRegenerateDto, TotpCodeDto, TotpDisableDto, TotpSetupDto } from './dto';
 import { MfaService, type MfaStatus, type TotpSetup } from './mfa.service';
 
 export interface RecoveryCodesResponse {
@@ -76,15 +76,22 @@ export class MfaController {
     this.writeSession(res, await this.auth.replaceAllSessions(user, { mfa: false }));
   }
 
+  /** Needs the current password and a valid code, like every other factor change. */
   @Post('recovery-codes/regenerate')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @NoStore()
   async regenerate(
     @Req() req: AuthenticatedRequest,
-    @Body() dto: TotpCodeDto,
+    @Body() dto: RecoveryCodesRegenerateDto,
   ): Promise<RecoveryCodesResponse> {
-    return { recoveryCodes: await this.mfa.regenerateRecoveryCodes(req.user.userId, dto.code) };
+    return {
+      recoveryCodes: await this.mfa.regenerateRecoveryCodes(
+        req.user.userId,
+        dto.currentPassword,
+        dto.code,
+      ),
+    };
   }
 
   private writeSession(res: Response, session: SessionTokens): void {

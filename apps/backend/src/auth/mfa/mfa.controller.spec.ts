@@ -77,8 +77,11 @@ describe('MfaController', () => {
 
   it('regenerates recovery codes', async () => {
     mfa.regenerateRecoveryCodes.mockResolvedValue(['x', 'y']);
-    await expect(controller.regenerate(req, { code: '123456' })).resolves.toEqual({
+    await expect(
+      controller.regenerate(req, { currentPassword: 'pw', code: '123456' }),
+    ).resolves.toEqual({
       recoveryCodes: ['x', 'y'],
     });
+    expect(mfa.regenerateRecoveryCodes).toHaveBeenCalledWith(req.user.userId, 'pw', '123456');
   });
 });
