@@ -183,4 +183,109 @@ describe('AuthService', () => {
     await promise;
     expect(service.user()).toBeNull();
   });
+
+  describe('MFA', () => {
+    it("login resolves 'mfa-required' without a user when the backend wants a second factor", async () => {
+      const { service, httpMock } = setup();
+      const promise = service.login('user@example.com', 'pw');
+      httpMock
+        .expectOne('/api/auth/login')
+        .flush({ mfaRequired: true, methods: ['totp', 'recovery'] });
+
+      expect(await promise).toBe('mfa-required');
+      expect(service.user()).toBeNull();
+      expect(service.mfaChallengePending()).toBe(true);
+    });
+
+    it("login resolves 'ok' and clears any enrolment lock for a regular session", async () => {
+      const { service, httpMock } = setup();
+      service.requireEnrolment({ kind: 'super-admin' });
+      const promise = service.login('user@example.com', 'pw');
+      httpMock.expectOne('/api/auth/login').flush({ user: USER, mfaEnrolmentRequired: false });
+
+      expect(await promise).toBe('ok');
+      expect(service.mfaEnrolment()).toBeNull();
+    });
+
+    it("login resolves 'enrolment-required' and locks into the wizard for a super-admin", async () => {
+      const { service, httpMock } = setup();
+      const promise = service.login('admin@example.com', 'pw');
+      httpMock
+        .expectOne('/api/auth/login')
+        .flush({ user: { ...USER, isSuperAdmin: true }, mfaEnrolmentRequired: true });
+
+      expect(await promise).toBe('enrolment-required');
+      expect(service.isAuthenticated()).toBe(true);
+      expect(service.mfaEnrolment()).toEqual({ kind: 'super-admin' });
+    });
+
+    it('verifyMfa posts the code to login/mfa and stores the user', async () => {
+      const { service, httpMock } = setup();
+      service.mfaChallengePending.set(true);
+      const promise = service.verifyMfa({ code: '123456' });
+
+      const req = httpMock.expectOne('/api/auth/login/mfa');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.withCredentials).toBe(true);
+      expect(req.request.body).toEqual({ code: '123456' });
+      req.flush({ user: USER, mfaEnrolmentRequired: false });
+
+      expect(await promise).toBe('ok');
+      expect(service.user()).toEqual(USER);
+      expect(service.mfaChallengePending()).toBe(false);
+    });
+
+    it('verifyMfa sends a recovery code as such', async () => {
+      const { service, httpMock } = setup();
+      const promise = service.verifyMfa({ recoveryCode: 'abcde-fgh23' });
+      const req = httpMock.expectOne('/api/auth/login/mfa');
+      expect(req.request.body).toEqual({ recoveryCode: 'abcde-fgh23' });
+      req.flush({ user: USER, mfaEnrolmentRequired: false });
+      await promise;
+    });
+
+    it('verifyMfa rejects on a wrong code and keeps the challenge pending', async () => {
+      const { service, httpMock } = setup();
+      service.mfaChallengePending.set(true);
+      const promise = service.verifyMfa({ code: '000000' });
+      httpMock
+        .expectOne('/api/auth/login/mfa')
+        .flush({ message: 'Invalid code' }, { status: 401, statusText: 'Unauthorized' });
+
+      await expect(promise).rejects.toMatchObject({ status: 401 });
+      expect(service.user()).toBeNull();
+      expect(service.mfaChallengePending()).toBe(true);
+    });
+
+    it("verifyEmail resolves 'mfa-required' for a TOTP user (no session)", async () => {
+      const { service, httpMock } = setup();
+      const promise = service.verifyEmail('tok');
+      httpMock
+        .expectOne('/api/auth/verify-email')
+        .flush({ mfaRequired: true, methods: ['totp', 'recovery'] });
+      expect(await promise).toBe('mfa-required');
+      expect(service.user()).toBeNull();
+    });
+
+    it('completeEnrolment lifts the lock and reloads the user', async () => {
+      const { service, httpMock } = setup();
+      service.requireEnrolment({ kind: 'organisation', organisationId: 'org-1' });
+      const promise = service.completeEnrolment();
+      expect(service.mfaEnrolment()).toBeNull();
+      httpMock.expectOne('/api/auth/me').flush(USER);
+      await promise;
+      expect(service.user()).toEqual(USER);
+    });
+
+    it('logout drops the enrolment lock and a pending challenge', async () => {
+      const { service, httpMock } = setup();
+      service.requireEnrolment({ kind: 'super-admin' });
+      service.mfaChallengePending.set(true);
+      const promise = service.logout();
+      httpMock.expectOne('/api/auth/logout').flush(null);
+      await promise;
+      expect(service.mfaEnrolment()).toBeNull();
+      expect(service.mfaChallengePending()).toBe(false);
+    });
+  });
 });

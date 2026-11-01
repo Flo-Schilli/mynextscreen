@@ -9,6 +9,7 @@ import {
 import { Router } from '@angular/router';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { SetupService } from './setup.service';
+import { MFA_ENROLMENT_ROUTE } from '../auth/auth.service';
 import { BtnComponent, IconComponent } from '../ui';
 
 function passwordsMatch(control: AbstractControl): ValidationErrors | null {
@@ -20,7 +21,8 @@ function passwordsMatch(control: AbstractControl): ValidationErrors | null {
 /**
  * First-run setup screen: create the initial super-admin account. Reachable only
  * while no user exists (guarded by setupGuard); on success the backend logs the
- * user in and we navigate to the dashboard.
+ * user in and we continue into the mandatory MFA enrolment (super-admins must
+ * use MFA), or to the dashboard should the backend not ask for it.
  */
 @Component({
   selector: 'app-setup',
@@ -56,8 +58,8 @@ export class Setup {
     this.error.set(null);
     const { name, email, password } = this.form.getRawValue();
     try {
-      await this.setup.createFirstAdmin(email, password, name || undefined);
-      await this.router.navigateByUrl('/');
+      const outcome = await this.setup.createFirstAdmin(email, password, name || undefined);
+      await this.router.navigateByUrl(outcome === 'enrolment-required' ? MFA_ENROLMENT_ROUTE : '/');
     } catch {
       this.error.set(this.transloco.translate('setup.errors.generic'));
     } finally {

@@ -90,6 +90,11 @@ const ACTION_META: Record<string, ActionMeta> = {
   'auth.password_reset_requested': { tone: 'warning', icon: 'Lock' },
   'auth.password_changed': { tone: 'warning', icon: 'Lock' },
   'auth.super_admin_setup': { tone: 'accent', icon: 'Settings' },
+  'auth.mfa_enabled': { tone: 'online', icon: 'Lock' },
+  'auth.mfa_disabled': { tone: 'warning', icon: 'Lock' },
+  'auth.mfa_recovery_code_used': { tone: 'warning', icon: 'Lock' },
+  'auth.mfa_recovery_codes_regenerated': { tone: 'info', icon: 'Refresh' },
+  'auth.mfa_lockout': { tone: 'offline', icon: 'Alert' },
   'email.sent': { tone: 'online', icon: 'Mail' },
   'email.send_failed': { tone: 'offline', icon: 'Mail' },
 };

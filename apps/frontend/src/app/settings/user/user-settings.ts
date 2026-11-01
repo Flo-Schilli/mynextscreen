@@ -15,6 +15,7 @@ import {
 } from './notification-preferences.service';
 import { AuthService } from '../../auth/auth.service';
 import { ProfileService } from './profile.service';
+import { SecuritySectionComponent } from './security-section';
 import { ToastService } from '../../shared/toast/toast.service';
 import { OrganisationStateService } from '../../shell/organisation-state.service';
 import { ThemeService, Accent, Density } from '../../shell/theme.service';
@@ -72,6 +73,7 @@ const DENSITY_OPTIONS: { value: Density; labelKey: string; descKey: string }[] =
     BtnComponent,
     OverlayComponent,
     PageHeaderComponent,
+    SecuritySectionComponent,
     SFieldComponent,
     SInputComponent,
     SwitchComponent,
@@ -277,6 +279,9 @@ const DENSITY_OPTIONS: { value: Density; labelKey: string; descKey: string }[] =
           </div>
         </div>
       </mns-card>
+
+      <!-- Security: MFA -->
+      <app-security-section />
 
       <!-- Change password -->
       <mns-card [animate]="true" [delay]="0.1" class="block mb-5 max-w-[760px]">

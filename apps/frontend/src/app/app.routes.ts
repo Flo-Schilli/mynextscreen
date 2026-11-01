@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { Login } from './login/login';
 import { authGuard } from './auth/auth.guard';
+import { mfaEnrolmentGuard } from './auth/mfa-enrolment.guard';
 import { superAdminGuard } from './auth/super-admin.guard';
 import { loginGuard } from './login/login.guard';
 import { setupGuard } from './setup/setup.guard';
@@ -24,6 +25,13 @@ export const routes: Routes = [
   {
     path: 'verify-email',
     loadComponent: () => import('./auth/verify-email').then((m) => m.VerifyEmail),
+  },
+  {
+    // Mandatory MFA enrolment — full-screen, outside the shell (MFA_ENROLMENT_ROUTE).
+    path: 'mfa-enrolment',
+    canActivate: [mfaEnrolmentGuard],
+    loadComponent: () =>
+      import('./auth/mfa-enrolment/mfa-enrolment-page').then((m) => m.MfaEnrolmentPage),
   },
   {
     path: 'confirm-email-change',

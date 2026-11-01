@@ -1,15 +1,32 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
+import type {
+  AuthSuccessResponse,
+  AuthUserView,
+  LoginMfaRequest,
+  LoginResponse,
+  MfaRequiredResponse,
+} from '@mynextscreen/shared-types';
 import { firstValueFrom } from 'rxjs';
 
-export interface AuthenticatedUser {
-  userId: string;
-  email: string;
-  isSuperAdmin: boolean;
-}
+export type AuthenticatedUser = AuthUserView;
 
-interface AuthSuccessResponse {
-  user: AuthenticatedUser;
+/**
+ * Where a first-factor step (login, verify-email auto-login, first-run setup)
+ * leaves the user: signed in, asked for the second factor, or signed in but
+ * required to enrol before using the app.
+ */
+export type LoginOutcome = 'ok' | 'mfa-required' | 'enrolment-required';
+
+/** Why the mandatory enrolment wizard is shown. */
+export type MfaEnrolmentReason =
+  { kind: 'super-admin' } | { kind: 'organisation'; organisationId: string | null };
+
+/** Route of the mandatory enrolment wizard (outside the shell). */
+export const MFA_ENROLMENT_ROUTE = '/mfa-enrolment';
+
+function isMfaRequired(res: LoginResponse): res is MfaRequiredResponse {
+  return 'mfaRequired' in res && res.mfaRequired;
 }
 
 /**
@@ -26,20 +43,82 @@ export class AuthService {
   readonly isAuthenticated = computed(() => this.user() !== null);
   readonly loading = signal(false);
 
-  async login(email: string, password: string): Promise<void> {
+  /**
+   * Set while the session may only reach the MFA enrolment wizard (backend
+   * answered `MFA_ENROLMENT_REQUIRED` / `MFA_REQUIRED`, or a login said so).
+   */
+  readonly mfaEnrolment = signal<MfaEnrolmentReason | null>(null);
+  /**
+   * True between a password step that answered `mfaRequired` and the second
+   * step. The challenge itself lives in an httpOnly cookie, never here.
+   */
+  readonly mfaChallengePending = signal(false);
+
+  /** Password step. A TOTP user gets no session yet, only a challenge cookie. */
+  async login(email: string, password: string): Promise<LoginOutcome> {
     this.loading.set(true);
     try {
       const res = await firstValueFrom(
-        this.http.post<AuthSuccessResponse>(
+        this.http.post<LoginResponse>(
           '/api/auth/login',
           { email, password },
           { withCredentials: true },
         ),
       );
-      this.user.set(res.user);
+      return this.applyFirstFactor(res);
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Second login step: a TOTP code or a recovery code against the pending challenge. */
+  async verifyMfa(input: LoginMfaRequest): Promise<Exclude<LoginOutcome, 'mfa-required'>> {
+    this.loading.set(true);
+    try {
+      const res = await firstValueFrom(
+        this.http.post<AuthSuccessResponse>('/api/auth/login/mfa', input, {
+          withCredentials: true,
+        }),
+      );
+      this.mfaChallengePending.set(false);
+      return this.applySession(res);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  /** The challenge expired or was dropped: the password step has to run again. */
+  abandonMfaChallenge(): void {
+    this.mfaChallengePending.set(false);
+  }
+
+  /** Sessions without MFA may only reach the wizard from now on. */
+  requireEnrolment(reason: MfaEnrolmentReason): void {
+    this.mfaEnrolment.set(reason);
+  }
+
+  clearEnrolment(): void {
+    this.mfaEnrolment.set(null);
+  }
+
+  /**
+   * TOTP confirmed: the backend replaced the session with an MFA-confirmed one
+   * (new cookies). Lift the wizard lock and reload the user from it.
+   */
+  async completeEnrolment(): Promise<void> {
+    this.mfaEnrolment.set(null);
+    await this.loadCurrent();
+  }
+
+  /** Applies a session-issuing response (setup, login without TOTP, login/mfa). */
+  applySession(res: AuthSuccessResponse): Exclude<LoginOutcome, 'mfa-required'> {
+    this.user.set(res.user);
+    if (res.mfaEnrolmentRequired) {
+      this.mfaEnrolment.set({ kind: 'super-admin' });
+      return 'enrolment-required';
+    }
+    this.mfaEnrolment.set(null);
+    return 'ok';
   }
 
   async logout(): Promise<void> {
@@ -47,6 +126,8 @@ export class AuthService {
       await firstValueFrom(this.http.post<void>('/api/auth/logout', {}, { withCredentials: true }));
     } finally {
       this.user.set(null);
+      this.mfaEnrolment.set(null);
+      this.mfaChallengePending.set(false);
     }
   }
 
@@ -108,16 +189,15 @@ export class AuthService {
     );
   }
 
-  /** Confirm the verification token; the backend auto-logs-in (sets cookies). */
-  async verifyEmail(token: string): Promise<void> {
+  /**
+   * Confirm the verification token. The backend auto-logs-in (sets cookies) —
+   * unless the user has TOTP, then it starts a login challenge instead.
+   */
+  async verifyEmail(token: string): Promise<LoginOutcome> {
     const res = await firstValueFrom(
-      this.http.post<AuthSuccessResponse>(
-        '/api/auth/verify-email',
-        { token },
-        { withCredentials: true },
-      ),
+      this.http.post<LoginResponse>('/api/auth/verify-email', { token }, { withCredentials: true }),
     );
-    this.user.set(res.user);
+    return this.applyFirstFactor(res);
   }
 
   async resendVerification(email: string): Promise<void> {
@@ -152,5 +232,15 @@ export class AuthService {
       ),
     );
     this.user.set(null);
+  }
+
+  private applyFirstFactor(res: LoginResponse): LoginOutcome {
+    if (isMfaRequired(res)) {
+      this.user.set(null);
+      this.mfaChallengePending.set(true);
+      return 'mfa-required';
+    }
+    this.mfaChallengePending.set(false);
+    return this.applySession(res);
   }
 }

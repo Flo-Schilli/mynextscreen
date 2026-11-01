@@ -13,7 +13,7 @@ try {
   // already initialized
 }
 
-function configure(createFirstAdmin = vi.fn(() => Promise.resolve())): {
+function configure(createFirstAdmin = vi.fn((): Promise<unknown> => Promise.resolve())): {
   fixture: ComponentFixture<Setup>;
   component: Setup;
   createFirstAdmin: ReturnType<typeof vi.fn>;
@@ -75,6 +75,22 @@ describe('Setup', () => {
     expect(createFirstAdmin).toHaveBeenCalledWith('admin@example.com', 'supersecret', 'Boss');
     expect(navigateByUrl).toHaveBeenCalledWith('/');
     expect(component.error()).toBeNull();
+  });
+
+  it('continues into the mandatory MFA enrolment for the new super-admin', async () => {
+    const { component, navigateByUrl } = configure(
+      vi.fn(() => Promise.resolve('enrolment-required')),
+    );
+    component.form.setValue({
+      name: '',
+      email: 'admin@example.com',
+      password: 'supersecret',
+      confirmPassword: 'supersecret',
+    });
+
+    await component.submit();
+
+    expect(navigateByUrl).toHaveBeenCalledWith('/mfa-enrolment');
   });
 
   it('omits the name when left blank', async () => {
