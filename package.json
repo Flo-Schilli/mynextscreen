@@ -69,6 +69,7 @@
     "ioredis": "^6.0.0",
     "marked": "^18.1.2",
     "nodemailer": "^10.2.1",
+    "otpauth": "^9.5.2",
     "pg": "^8.23.1",
     "postcss": "^8.5.32",
     "prom-client": "^15.1.3",

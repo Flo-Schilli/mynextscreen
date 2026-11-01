@@ -804,6 +804,27 @@ describe('AuditListener', () => {
     });
   });
 
+  it.each([
+    ['handleMfaEnabled', AuditAction.MfaEnabled],
+    ['handleMfaDisabled', AuditAction.MfaDisabled],
+    ['handleMfaRecoveryCodeUsed', AuditAction.MfaRecoveryCodeUsed],
+    ['handleMfaRecoveryCodesRegenerated', AuditAction.MfaRecoveryCodesRegenerated],
+    ['handleMfaLockout', AuditAction.MfaLockout],
+  ] as const)('%s records %s as an account entry', (handler, action) => {
+    const event = new AuditAuthEvent(userId, null, { email: 'a@b.com' });
+
+    listener[handler](event);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      action,
+      resourceType: 'account',
+      resourceId: userId,
+      organisationId: null,
+      userId,
+      details: { email: 'a@b.com' },
+    });
+  });
+
   it('should map super_admin_setup to SuperAdminSetup audit entry', () => {
     const event = new AuditAuthEvent(userId, null, { email: 'admin@b.com' });
 

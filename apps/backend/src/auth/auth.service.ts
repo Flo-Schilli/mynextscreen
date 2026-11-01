@@ -11,8 +11,9 @@ import type { User } from '../db/schema';
 import { UserService } from '../user/user.service';
 import { removeOrganisationMedia } from '../content/content-storage.util';
 import { PasswordService } from './password.service';
-import { TokenService } from './token.service';
-import type { LoginResult, RefreshResult, SessionTokens } from './auth.types';
+import { TokenService, type SessionOptions } from './token.service';
+import { MfaService, type SecondFactorInput } from './mfa/mfa.service';
+import type { FirstFactorOutcome, LoginResult, RefreshResult, SessionTokens } from './auth.types';
 
 const PASSWORD_RESET_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const EMAIL_VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
@@ -57,11 +58,49 @@ export class AuthService {
     private readonly passwords: PasswordService,
     private readonly tokens: TokenService,
     private readonly config: ConfigService,
+    private readonly mfa: MfaService,
   ) {
     this.mediaBasePath = this.config.get<string>('MEDIA_BASE_PATH', './media');
   }
 
-  async login(email: string, password: string): Promise<LoginResult> {
+  /**
+   * The one place a user session is minted. `mfa` becomes both the access
+   * claim and a property of the refresh family, so rotations keep it.
+   */
+  async issueSession(
+    user: Pick<User, 'id' | 'email' | 'isSuperAdmin'>,
+    options: SessionOptions,
+  ): Promise<SessionTokens> {
+    const accessToken = await this.tokens.issueAccessToken(user.id, {
+      email: user.email,
+      isSuperAdmin: user.isSuperAdmin,
+      mfa: options.mfa,
+    });
+    const refreshToken = await this.tokens.issueInitialRefreshToken(user.id, options);
+    return { accessToken, refreshToken };
+  }
+
+  /**
+   * Revoke every session of the user, then issue a fresh one for the acting
+   * device (revoke first, or the new pair dies with the old ones).
+   */
+  async replaceAllSessions(
+    user: Pick<User, 'id' | 'email' | 'isSuperAdmin'>,
+    options: SessionOptions,
+  ): Promise<SessionTokens> {
+    const revoked = await this.tokens.revokeAllForUser(user.id);
+    const session = await this.issueSession(user, options);
+    this.logger.log(
+      `Sessions replaced userId=${user.id} mfa=${options.mfa} revokedSessions=${revoked}`,
+    );
+    return session;
+  }
+
+  /**
+   * First login step. A user with TOTP gets no session here — only a challenge
+   * for {@link loginMfa}; everybody else gets a session without `mfa`.
+   */
+  async login(email: string, password: string): Promise<FirstFactorOutcome> {
     const user = await this.users.findByEmail(email);
     // Reject unknown accounts AND invitees that have no password yet (null hash).
     const valid = await this.passwords.verify(user?.passwordHash, password);
@@ -75,13 +114,24 @@ export class AuthService {
       this.logger.warn(`Login blocked, email not verified userId=${user.id}`);
       throw new ForbiddenException(EMAIL_NOT_VERIFIED_MESSAGE);
     }
-    const accessToken = await this.tokens.issueAccessToken(user.id, {
-      email: user.email,
-      isSuperAdmin: user.isSuperAdmin,
-    });
-    const refreshToken = await this.tokens.issueInitialRefreshToken(user.id);
-    this.logger.log(`Login success userId=${user.id} family=${refreshToken.familyId}`);
-    return { user, accessToken, refreshToken };
+    if (await this.mfa.isTotpEnabled(user.id)) {
+      const challengeId = await this.mfa.createChallenge(user.id);
+      this.logger.log(`Login password ok, MFA required userId=${user.id}`);
+      return { kind: 'mfa-required', user, challengeId };
+    }
+    const session = await this.issueSession(user, { mfa: false });
+    this.logger.log(`Login success userId=${user.id} family=${session.refreshToken.familyId}`);
+    return { kind: 'session', user, mfa: false, ...session };
+  }
+
+  /** Second login step: the only path that issues a session to a TOTP user. */
+  async loginMfa(challengeId: string, input: SecondFactorInput): Promise<LoginResult> {
+    const { user, method } = await this.mfa.verifyChallenge(challengeId, input);
+    const session = await this.issueSession(user, { mfa: true });
+    this.logger.log(
+      `Login success (mfa=${method}) userId=${user.id} family=${session.refreshToken.familyId}`,
+    );
+    return { user, mfa: true, ...session };
   }
 
   /**
@@ -92,13 +142,13 @@ export class AuthService {
   async setupFirstSuperAdmin(email: string, password: string, name?: string): Promise<LoginResult> {
     const passwordHash = await this.passwords.hash(password);
     const user = await this.users.createFirstSuperAdmin(email, passwordHash, name ?? null);
-    const accessToken = await this.tokens.issueAccessToken(user.id, {
-      email: user.email,
-      isSuperAdmin: user.isSuperAdmin,
-    });
-    const refreshToken = await this.tokens.issueInitialRefreshToken(user.id);
-    this.logger.log(`First super-admin created userId=${user.id} family=${refreshToken.familyId}`);
-    return { user, accessToken, refreshToken };
+    // A brand-new account has no TOTP yet: the session is password-only and,
+    // the user being a super-admin, reaches nothing but the MFA enrolment.
+    const session = await this.issueSession(user, { mfa: false });
+    this.logger.log(
+      `First super-admin created userId=${user.id} family=${session.refreshToken.familyId}`,
+    );
+    return { user, mfa: false, ...session };
   }
 
   /**
@@ -127,9 +177,11 @@ export class AuthService {
 
   /**
    * Confirm an email-verification token and auto-login: on success mark verified,
-   * clear the token, and issue access + refresh tokens (same as login()).
+   * clear the token, and issue access + refresh tokens (same as login()). A
+   * user with TOTP gets a login challenge instead of a session, exactly like
+   * login(): no path but loginMfa() hands such a user a session.
    */
-  async verifyEmail(token: string): Promise<LoginResult> {
+  async verifyEmail(token: string): Promise<FirstFactorOutcome> {
     const user = await this.users.findByEmailVerificationToken(token);
     if (
       !user ||
@@ -139,13 +191,15 @@ export class AuthService {
       throw new NotFoundException('Invalid or expired token');
     }
     await this.users.markEmailVerified(user.id);
-    const accessToken = await this.tokens.issueAccessToken(user.id, {
-      email: user.email,
-      isSuperAdmin: user.isSuperAdmin,
-    });
-    const refreshToken = await this.tokens.issueInitialRefreshToken(user.id);
+    const verified: User = { ...user, emailVerified: true };
+    if (await this.mfa.isTotpEnabled(user.id)) {
+      const challengeId = await this.mfa.createChallenge(user.id);
+      this.logger.log(`Email verified, MFA required userId=${user.id}`);
+      return { kind: 'mfa-required', user: verified, challengeId };
+    }
+    const session = await this.issueSession(user, { mfa: false });
     this.logger.log(`Email verified + auto-login userId=${user.id}`);
-    return { user: { ...user, emailVerified: true }, accessToken, refreshToken };
+    return { kind: 'session', user: verified, mfa: false, ...session };
   }
 
   /**
@@ -229,6 +283,7 @@ export class AuthService {
     const accessToken = await this.tokens.issueAccessToken(user.id, {
       email: user.email,
       isSuperAdmin: user.isSuperAdmin,
+      mfa: result.mfa,
     });
     this.logger.log(`Refresh rotated userId=${result.userId} family=${result.familyId}`);
     return { userId: result.userId, accessToken, refreshToken: result.next };
@@ -246,12 +301,13 @@ export class AuthService {
    * a password change must end any session an attacker still holds. The caller's
    * own device is kept usable by issuing a fresh pair afterwards (revoke first,
    * then issue, or the new pair dies with the old ones); the controller writes it
-   * back as cookies.
+   * back as cookies. The new session keeps the `mfa` state of the acting one.
    */
   async changePassword(
     userId: string,
     currentPassword: string,
     newPassword: string,
+    options: SessionOptions,
   ): Promise<SessionTokens> {
     const user = await this.users.findById(userId);
     if (!user) {
@@ -264,14 +320,9 @@ export class AuthService {
     }
     const hash = await this.passwords.hash(newPassword);
     await this.users.setPassword(userId, hash);
-    const revoked = await this.tokens.revokeAllForUser(userId);
-    const accessToken = await this.tokens.issueAccessToken(userId, {
-      email: user.email,
-      isSuperAdmin: user.isSuperAdmin,
-    });
-    const refreshToken = await this.tokens.issueInitialRefreshToken(userId);
-    this.logger.log(`Password changed userId=${userId} revokedSessions=${revoked}`);
-    return { accessToken, refreshToken };
+    const session = await this.replaceAllSessions(user, options);
+    this.logger.log(`Password changed userId=${userId}`);
+    return session;
   }
 
   /**

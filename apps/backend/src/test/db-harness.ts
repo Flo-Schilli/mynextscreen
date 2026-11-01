@@ -30,6 +30,8 @@ const TABLE_NAMES = [
   'organisations',
   'users',
   'user_organisation_memberships',
+  'user_mfa',
+  'user_mfa_recovery_codes',
   'screen_groups',
   'screens',
   'screen_pairings',

@@ -22,11 +22,20 @@ interface RefreshRecord {
   familyId: string;
   issuedAt: number;
   parentHash?: string;
+  /** Session confirmed by a second factor; absent on pre-MFA records (= false). */
+  mfa?: boolean;
 }
 
 export interface AccessClaims {
   email: string;
   isSuperAdmin: boolean;
+  /** The session was confirmed with a second factor (TOTP or recovery code). */
+  mfa: boolean;
+}
+
+/** Properties of a whole session (refresh family), handed on at every rotation. */
+export interface SessionOptions {
+  mfa: boolean;
 }
 
 /**
@@ -78,7 +87,13 @@ export class TokenService {
   async issueAccessToken(userId: string, claims: AccessClaims): Promise<IssuedAccessToken> {
     const jti = randomUUID();
     const token = await this.jwt.signAsync(
-      { sub: userId, email: claims.email, isSuperAdmin: claims.isSuperAdmin, jti },
+      {
+        sub: userId,
+        email: claims.email,
+        isSuperAdmin: claims.isSuperAdmin,
+        mfa: claims.mfa,
+        jti,
+      },
       {
         secret: this.accessSecret,
         expiresIn: this.accessTtlSeconds,
@@ -108,6 +123,9 @@ export class TokenService {
       sub: payload.sub,
       email: payload.email,
       isSuperAdmin: payload.isSuperAdmin === true,
+      // Strict: only a literal `true` counts. Tokens issued before MFA existed
+      // have no claim and must be treated as unconfirmed (upgrade path).
+      mfa: payload.mfa === true,
       jti: payload.jti,
     };
   }
@@ -188,9 +206,12 @@ export class TokenService {
     return this.accessTtlSeconds;
   }
 
-  async issueInitialRefreshToken(userId: string): Promise<IssuedRefreshToken> {
+  async issueInitialRefreshToken(
+    userId: string,
+    options: SessionOptions,
+  ): Promise<IssuedRefreshToken> {
     const familyId = randomUUID();
-    return this.persistNewRefresh(userId, familyId);
+    return this.persistNewRefresh(userId, familyId, options);
   }
 
   async rotateRefreshToken(rawToken: string): Promise<RotateResult> {
@@ -224,10 +245,13 @@ export class TokenService {
 
     const familyId = result[1] as string;
     const userId = result[2] as string;
+    // The script answers '1' only for a record whose `mfa` is literally true.
+    const mfa = result[3] === '1';
     return {
       status: 'ok',
       userId,
       familyId,
+      mfa,
       next: {
         token: newToken,
         familyId,
@@ -263,10 +287,14 @@ export class TokenService {
     return parsed.familyId;
   }
 
-  private async persistNewRefresh(userId: string, familyId: string): Promise<IssuedRefreshToken> {
+  private async persistNewRefresh(
+    userId: string,
+    familyId: string,
+    options: SessionOptions,
+  ): Promise<IssuedRefreshToken> {
     const token = generateRefreshToken();
     const hash = hashToken(token);
-    const record: RefreshRecord = { userId, familyId, issuedAt: Date.now() };
+    const record: RefreshRecord = { userId, familyId, issuedAt: Date.now(), mfa: options.mfa };
 
     const multi = this.redis.multi();
     multi.set(`auth:refresh:${hash}`, JSON.stringify(record), 'EX', this.refreshTtlSeconds);

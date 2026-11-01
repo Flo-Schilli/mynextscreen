@@ -7,6 +7,9 @@ import {
   AUDIT_EMAIL_SEND_FAILED,
   AuthEmailChangeRequestedEvent,
   AuthEmailVerificationRequestedEvent,
+  AuthMfaDisabledEvent,
+  AuthMfaEnabledEvent,
+  AuthMfaRecoveryCodeUsedEvent,
   AuthPasswordChangedEvent,
   AuthPasswordResetRequestedEvent,
   AuthUserInvitedEvent,
@@ -105,6 +108,40 @@ describe('PlatformMailerService', () => {
     const sent = mockSendMail.mock.calls[0][0];
     expect(sent.to).toBe('user@example.com');
     expect(sent.subject).toMatch(/password/i);
+  });
+
+  it('sends an MFA-enabled notice, worded for a device change when replaced', async () => {
+    const service = makeService();
+
+    await service.handleMfaEnabled(new AuthMfaEnabledEvent('user@example.com', false));
+    await service.handleMfaEnabled(new AuthMfaEnabledEvent('user@example.com', true));
+
+    const [first, second] = mockSendMail.mock.calls.map((call) => call[0]);
+    expect(first.to).toBe('user@example.com');
+    expect(first.subject).toMatch(/two-factor authentication enabled/i);
+    expect(first.text).toMatch(/turned on/);
+    expect(second.text).toMatch(/new authenticator app/);
+  });
+
+  it('sends an MFA-disabled notice', async () => {
+    const service = makeService();
+
+    await service.handleMfaDisabled(new AuthMfaDisabledEvent('user@example.com'));
+
+    const sent = mockSendMail.mock.calls[0][0];
+    expect(sent.subject).toMatch(/disabled/i);
+  });
+
+  it('sends a recovery-code-used notice with the remaining count', async () => {
+    const service = makeService();
+
+    await service.handleMfaRecoveryCodeUsed(
+      new AuthMfaRecoveryCodeUsedEvent('user@example.com', 3),
+    );
+
+    const sent = mockSendMail.mock.calls[0][0];
+    expect(sent.subject).toMatch(/recovery code/i);
+    expect(sent.text).toContain('3 unused recovery code(s) remain');
   });
 
   it('omits SMTP auth when user and password are empty', async () => {
