@@ -90,6 +90,6 @@ describe('SetupService', () => {
     httpMock.expectOne('/api/auth/setup').flush({ user: ADMIN, mfaEnrolmentRequired: true });
 
     expect(await promise).toBe('enrolment-required');
-    expect(auth.mfaEnrolment()).toEqual({ kind: 'super-admin' });
+    expect(auth.mfaEnrolment()).toEqual({ requiredBy: null });
   });
 });

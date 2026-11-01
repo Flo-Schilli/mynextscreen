@@ -3,6 +3,7 @@ import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-
 import { provideZonelessChangeDetection } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import type { AuthMeResponse, MfaRequiredBy } from '@mynextscreen/shared-types';
 import { AuthService, type AuthenticatedUser } from './auth.service';
 
 try {
@@ -16,6 +17,9 @@ const USER: AuthenticatedUser = {
   email: 'user@example.com',
   isSuperAdmin: false,
 };
+
+const ME: AuthMeResponse = { ...USER, mfa: false, mfaEnrolmentRequired: false };
+const REQUIRED_BY: MfaRequiredBy = { superAdmin: false, organisationIds: ['o1'] };
 
 function setup(): { service: AuthService; httpMock: HttpTestingController } {
   TestBed.configureTestingModule({
@@ -60,9 +64,37 @@ describe('AuthService', () => {
   it('loadCurrent populates the user from /api/auth/me', async () => {
     const { service, httpMock } = setup();
     const promise = service.loadCurrent();
-    httpMock.expectOne('/api/auth/me').flush(USER);
+    httpMock.expectOne('/api/auth/me').flush(ME);
     await promise;
     expect(service.user()).toEqual(USER);
+    expect(service.mfaEnrolment()).toBeNull();
+  });
+
+  it('loadCurrent locks into the wizard when /api/auth/me says enrolment is required', async () => {
+    const { service, httpMock } = setup();
+    const promise = service.loadCurrent();
+    httpMock.expectOne('/api/auth/me').flush({ ...ME, mfaEnrolmentRequired: true });
+    await promise;
+    expect(service.isAuthenticated()).toBe(true);
+    expect(service.mfaEnrolment()).toEqual({ requiredBy: null });
+  });
+
+  it('loadCurrent keeps a known reason while the lock still holds', async () => {
+    const { service, httpMock } = setup();
+    service.requireEnrolment(REQUIRED_BY);
+    const promise = service.loadCurrent();
+    httpMock.expectOne('/api/auth/me').flush({ ...ME, mfaEnrolmentRequired: true });
+    await promise;
+    expect(service.mfaEnrolment()).toEqual({ requiredBy: REQUIRED_BY });
+  });
+
+  it('loadCurrent lifts a stale lock when MFA is no longer mandatory', async () => {
+    const { service, httpMock } = setup();
+    service.requireEnrolment(REQUIRED_BY);
+    const promise = service.loadCurrent();
+    httpMock.expectOne('/api/auth/me').flush(ME);
+    await promise;
+    expect(service.mfaEnrolment()).toBeNull();
   });
 
   it('loadCurrent clears the user when the request fails', async () => {
@@ -199,7 +231,7 @@ describe('AuthService', () => {
 
     it("login resolves 'ok' and clears any enrolment lock for a regular session", async () => {
       const { service, httpMock } = setup();
-      service.requireEnrolment({ kind: 'super-admin' });
+      service.requireEnrolment(REQUIRED_BY);
       const promise = service.login('user@example.com', 'pw');
       httpMock.expectOne('/api/auth/login').flush({ user: USER, mfaEnrolmentRequired: false });
 
@@ -207,7 +239,7 @@ describe('AuthService', () => {
       expect(service.mfaEnrolment()).toBeNull();
     });
 
-    it("login resolves 'enrolment-required' and locks into the wizard for a super-admin", async () => {
+    it("login resolves 'enrolment-required' and locks into the wizard (reason unknown yet)", async () => {
       const { service, httpMock } = setup();
       const promise = service.login('admin@example.com', 'pw');
       httpMock
@@ -216,7 +248,17 @@ describe('AuthService', () => {
 
       expect(await promise).toBe('enrolment-required');
       expect(service.isAuthenticated()).toBe(true);
-      expect(service.mfaEnrolment()).toEqual({ kind: 'super-admin' });
+      expect(service.mfaEnrolment()).toEqual({ requiredBy: null });
+    });
+
+    it('requireEnrolment never replaces a known reason with an unknown one', () => {
+      const { service } = setup();
+      service.requireEnrolment(REQUIRED_BY);
+      service.requireEnrolment(null);
+      expect(service.mfaEnrolment()).toEqual({ requiredBy: REQUIRED_BY });
+      const other: MfaRequiredBy = { superAdmin: true, organisationIds: [] };
+      service.requireEnrolment(other);
+      expect(service.mfaEnrolment()).toEqual({ requiredBy: other });
     });
 
     it('verifyMfa posts the code to login/mfa and stores the user', async () => {
@@ -250,7 +292,10 @@ describe('AuthService', () => {
       const promise = service.verifyMfa({ code: '000000' });
       httpMock
         .expectOne('/api/auth/login/mfa')
-        .flush({ message: 'Invalid code' }, { status: 401, statusText: 'Unauthorized' });
+        .flush(
+          { code: 'MFA_INVALID_CODE', message: 'Invalid code' },
+          { status: 401, statusText: 'Unauthorized' },
+        );
 
       await expect(promise).rejects.toMatchObject({ status: 401 });
       expect(service.user()).toBeNull();
@@ -269,17 +314,17 @@ describe('AuthService', () => {
 
     it('completeEnrolment lifts the lock and reloads the user', async () => {
       const { service, httpMock } = setup();
-      service.requireEnrolment({ kind: 'organisation', organisationId: 'org-1' });
+      service.requireEnrolment(REQUIRED_BY);
       const promise = service.completeEnrolment();
       expect(service.mfaEnrolment()).toBeNull();
-      httpMock.expectOne('/api/auth/me').flush(USER);
+      httpMock.expectOne('/api/auth/me').flush({ ...ME, mfa: true });
       await promise;
       expect(service.user()).toEqual(USER);
     });
 
     it('logout drops the enrolment lock and a pending challenge', async () => {
       const { service, httpMock } = setup();
-      service.requireEnrolment({ kind: 'super-admin' });
+      service.requireEnrolment(REQUIRED_BY);
       service.mfaChallengePending.set(true);
       const promise = service.logout();
       httpMock.expectOne('/api/auth/logout').flush(null);

@@ -14,7 +14,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { of } from 'rxjs';
 import { vi } from 'vitest';
 import { authInterceptor, __resetRefreshInFlight } from './auth.interceptor';
-import { AuthService, type MfaEnrolmentReason } from './auth.service';
+import type { MfaRequiredBy } from '@mynextscreen/shared-types';
+import { AuthService, type MfaEnrolmentLock } from './auth.service';
 import { OrganisationStateService } from '../shell/organisation-state.service';
 
 try {
@@ -126,12 +127,12 @@ describe('authInterceptor', () => {
 
 describe('authInterceptor — MFA enforcement', () => {
   function configureMfa(url = '/screens') {
-    const enrolment = signal<MfaEnrolmentReason | null>(null);
+    const enrolment = signal<MfaEnrolmentLock | null>(null);
     const auth = {
       refreshSession: vi.fn(() => Promise.resolve()),
       logout: vi.fn(() => Promise.resolve()),
       mfaEnrolment: enrolment,
-      requireEnrolment: vi.fn((reason: MfaEnrolmentReason) => enrolment.set(reason)),
+      requireEnrolment: vi.fn((requiredBy: MfaRequiredBy | null) => enrolment.set({ requiredBy })),
     };
     const router = { url, navigateByUrl: vi.fn(() => Promise.resolve(true)) };
     TestBed.configureTestingModule({
@@ -157,22 +158,41 @@ describe('authInterceptor — MFA enforcement', () => {
     TestBed.inject(HttpTestingController, null, { optional: true })?.verify();
   });
 
-  it('maps 403 MFA_ENROLMENT_REQUIRED to the wizard (super-admin)', () => {
+  it('maps 403 MFA_ENROLMENT_REQUIRED to the wizard with the requiredBy of the body', () => {
     const { auth, router, http, httpMock } = configureMfa();
     const error = vi.fn();
     http.get('/api/screens').subscribe({ error });
 
+    const requiredBy: MfaRequiredBy = { superAdmin: true, organisationIds: ['org-9'] };
     httpMock
       .expectOne('/api/screens')
-      .flush({ code: 'MFA_ENROLMENT_REQUIRED' }, { status: 403, statusText: 'Forbidden' });
+      .flush(
+        { code: 'MFA_ENROLMENT_REQUIRED', requiredBy },
+        { status: 403, statusText: 'Forbidden' },
+      );
 
-    expect(auth.requireEnrolment).toHaveBeenCalledWith({ kind: 'super-admin' });
+    expect(auth.requireEnrolment).toHaveBeenCalledWith(requiredBy);
     expect(router.navigateByUrl).toHaveBeenCalledWith('/mfa-enrolment');
     expect(error).toHaveBeenCalled();
     expect(auth.logout).not.toHaveBeenCalled();
   });
 
-  it('maps 403 MFA_REQUIRED to the wizard with the organisation', () => {
+  it('locks with an unknown reason when the body carries no valid requiredBy', () => {
+    const { auth, router, http, httpMock } = configureMfa();
+    http.get('/api/playlists').subscribe({ error: () => undefined });
+
+    httpMock
+      .expectOne('/api/playlists')
+      .flush(
+        { code: 'MFA_ENROLMENT_REQUIRED', requiredBy: 'nope' },
+        { status: 403, statusText: 'Forbidden' },
+      );
+
+    expect(auth.requireEnrolment).toHaveBeenCalledWith(null);
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/mfa-enrolment');
+  });
+
+  it('ignores the removed org-scoped MFA_REQUIRED code', () => {
     const { auth, router, http, httpMock } = configureMfa();
     http.get('/api/playlists').subscribe({ error: () => undefined });
 
@@ -183,11 +203,8 @@ describe('authInterceptor — MFA enforcement', () => {
         { status: 403, statusText: 'Forbidden' },
       );
 
-    expect(auth.requireEnrolment).toHaveBeenCalledWith({
-      kind: 'organisation',
-      organisationId: 'org-9',
-    });
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/mfa-enrolment');
+    expect(auth.requireEnrolment).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
   });
 
   it('navigates only once for a burst of 403s', () => {

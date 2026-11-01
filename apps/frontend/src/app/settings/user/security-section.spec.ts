@@ -112,6 +112,55 @@ describe('SecuritySectionComponent', () => {
     );
     expect(el(fixture).querySelector('.disable')).toBeNull();
     expect(el(fixture).querySelector('.required-note')?.textContent).toContain('Club One');
+    expect(el(fixture).querySelector('.account-wide-note')?.textContent).toContain('whole account');
+  });
+
+  it('names the super-admin role and the organisations together', async () => {
+    const { fixture } = await setup(
+      status({ requiredBy: { superAdmin: true, organisationIds: ['o1'] } }),
+    );
+    const note = el(fixture).querySelector('.required-note')?.textContent ?? '';
+    expect(note).toContain('platform administrators');
+    expect(note).toContain('Club One');
+  });
+
+  it('falls back to a count for organisations it cannot resolve', async () => {
+    const { fixture } = await setup(
+      status({ requiredBy: { superAdmin: false, organisationIds: ['o1', 'unknown'] } }),
+    );
+    expect(el(fixture).querySelector('.required-note')?.textContent).toContain(
+      '2 of your organisations require',
+    );
+  });
+
+  it('offers set-up without a required note while MFA is optional', async () => {
+    const { fixture } = await setup(
+      status({ totpEnabled: false, enabledAt: null, recoveryCodesRemaining: 0 }),
+    );
+    expect(el(fixture).querySelector('.enable')).not.toBeNull();
+    expect(el(fixture).querySelector('.required-note')).toBeNull();
+    expect(el(fixture).querySelector('.account-wide-note')).toBeNull();
+  });
+
+  it('shows separate inline errors for a wrong password and a wrong code', async () => {
+    const { fixture, httpMock, store } = await setup(status());
+    store.open('disable');
+    fixture.detectChanges();
+
+    let promise = store.disable('nope', '123456');
+    httpMock
+      .expectOne('/api/auth/mfa/totp/disable')
+      .flush({ code: 'MFA_INVALID_PASSWORD' }, { status: 401, statusText: 'Unauthorized' });
+    await promise;
+    expect(store.fieldError()).toContain('password is not correct');
+
+    promise = store.disable('pw', '000000');
+    httpMock
+      .expectOne('/api/auth/mfa/totp/disable')
+      .flush({ code: 'MFA_INVALID_CODE' }, { status: 401, statusText: 'Unauthorized' });
+    await promise;
+    expect(store.fieldError()).toContain('code is not valid');
+    expect(store.dialog()).toBe('disable');
   });
 
   it('warns when three or fewer recovery codes remain', async () => {

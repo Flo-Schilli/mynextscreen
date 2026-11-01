@@ -91,13 +91,41 @@ describe('MfaEnrolmentWizardComponent', () => {
 
   it('shows an inline error for a wrong password', async () => {
     const ctx = setup();
-    ctx.mfa.startSetup.mockRejectedValueOnce(new HttpErrorResponse({ status: 401 }));
+    ctx.mfa.startSetup.mockRejectedValueOnce(
+      new HttpErrorResponse({ status: 401, error: { code: 'MFA_INVALID_PASSWORD' } }),
+    );
     typeInto(ctx.fixture, 'input[type="password"]', 'nope');
     click(ctx.fixture, '.continue');
     await settle(ctx.fixture);
 
     expect(ctx.store.step()).toBe('password');
     expect(ctx.fixture.nativeElement.textContent).toContain('The password is not correct');
+  });
+
+  it('tells a wrong current-device code apart from a wrong password', async () => {
+    const ctx = setup({ requireCurrentCode: true });
+    ctx.mfa.startSetup.mockRejectedValueOnce(
+      new HttpErrorResponse({ status: 401, error: { code: 'MFA_INVALID_CODE' } }),
+    );
+    typeInto(ctx.fixture, 'input[type="password"]', 'pw');
+    typeInto(ctx.fixture, '#mfa-current-code', '000000');
+    click(ctx.fixture, '.continue');
+    await settle(ctx.fixture);
+
+    expect(ctx.store.step()).toBe('password');
+    expect(ctx.store.fieldError()).toContain('current authenticator app');
+    expect(ctx.fixture.nativeElement.textContent).not.toContain('password is not correct');
+  });
+
+  it('toasts a 401 without an MFA code instead of blaming the password', async () => {
+    const ctx = setup();
+    ctx.mfa.startSetup.mockRejectedValueOnce(new HttpErrorResponse({ status: 401 }));
+    typeInto(ctx.fixture, 'input[type="password"]', 'pw');
+    click(ctx.fixture, '.continue');
+    await settle(ctx.fixture);
+
+    expect(ctx.store.fieldError()).toBeNull();
+    expect(ctx.toast.toasts().at(-1)).toMatchObject({ type: 'error' });
   });
 
   it('asks for the current code on a device change', async () => {
@@ -155,7 +183,9 @@ describe('MfaEnrolmentWizardComponent', () => {
 
   it('shows an inline error for a wrong first code', async () => {
     const ctx = setup();
-    ctx.mfa.confirmSetup.mockRejectedValueOnce(new HttpErrorResponse({ status: 401 }));
+    ctx.mfa.confirmSetup.mockRejectedValueOnce(
+      new HttpErrorResponse({ status: 401, error: { code: 'MFA_INVALID_CODE' } }),
+    );
     await toCodesStep(ctx);
     expect(ctx.store.step()).toBe('verify');
     expect(ctx.store.fieldError()).toContain('not valid');

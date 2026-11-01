@@ -241,7 +241,7 @@ describe('Login', () => {
 
     it('shows an inline error and stays on the code step for a wrong code', async () => {
       const ctx = await signInToMfaStep();
-      ctx.auth.verifyMfa.mockRejectedValueOnce(httpError(401, { message: 'Invalid code' }));
+      ctx.auth.verifyMfa.mockRejectedValueOnce(httpError(401, { code: 'MFA_INVALID_CODE' }));
       ctx.fixture.componentInstance.onCodeChange('000000');
 
       await ctx.fixture.componentInstance.submitCode();
@@ -251,11 +251,23 @@ describe('Login', () => {
       expect(ctx.navigate).not.toHaveBeenCalled();
     });
 
-    it('returns to the password step with a toast when the challenge expired', async () => {
+    it('does not read the message text: a 401 without a code is a generic failure', async () => {
       const ctx = await signInToMfaStep();
       ctx.auth.verifyMfa.mockRejectedValueOnce(
         httpError(401, { message: 'MFA challenge expired — sign in again' }),
       );
+      ctx.fixture.componentInstance.onCodeChange('123456');
+
+      await ctx.fixture.componentInstance.submitCode();
+
+      expect(ctx.fixture.componentInstance.step()).toBe('mfa');
+      expect(ctx.fixture.componentInstance.codeError()).toBeNull();
+      expect(ctx.toast.toasts().at(-1)?.message).toContain('Verification failed');
+    });
+
+    it('returns to the password step with a toast when the challenge expired', async () => {
+      const ctx = await signInToMfaStep();
+      ctx.auth.verifyMfa.mockRejectedValueOnce(httpError(401, { code: 'MFA_CHALLENGE_EXPIRED' }));
       ctx.fixture.componentInstance.onCodeChange('123456');
 
       await ctx.fixture.componentInstance.submitCode();
